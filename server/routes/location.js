@@ -392,10 +392,39 @@ router.post('/snapshot', async (req, res) => {
     console.log('[snapshot] processing snapshot...');
     const snapshotV1 = req.body;
 
-    // Validate SnapshotV1 structure
-    if (!snapshotV1.snapshot_id || !snapshotV1.device_id || !snapshotV1.session_id || !snapshotV1.coord) {
-      console.log('[snapshot] Invalid format - missing required fields');
-      return res.status(400).json({ error: 'Invalid SnapshotV1 format' });
+    // Validate SnapshotV1 structure - comprehensive check
+    const missingFields = [];
+    
+    if (!snapshotV1.snapshot_id) missingFields.push('snapshot_id');
+    if (!snapshotV1.device_id) missingFields.push('device_id');
+    if (!snapshotV1.session_id) missingFields.push('session_id');
+    if (!snapshotV1.coord) {
+      missingFields.push('coord');
+    } else {
+      if (typeof snapshotV1.coord.lat !== 'number') missingFields.push('coord.lat');
+      if (typeof snapshotV1.coord.lng !== 'number') missingFields.push('coord.lng');
+    }
+    
+    // Critical context validation - these should always be present for real users
+    if (!snapshotV1.resolved || (!snapshotV1.resolved.city && !snapshotV1.resolved.formattedAddress)) {
+      missingFields.push('resolved.city or resolved.formattedAddress');
+    }
+    if (!snapshotV1.resolved?.timezone) missingFields.push('resolved.timezone');
+    if (!snapshotV1.time_context) missingFields.push('time_context');
+    
+    if (missingFields.length > 0) {
+      console.warn('[snapshot] INCOMPLETE_SNAPSHOT_V1 - possible web crawler or incomplete client', { 
+        missingFields,
+        hasUserAgent: !!req.get("user-agent"),
+        userAgent: req.get("user-agent"),
+        snapshot_id: snapshotV1.snapshot_id
+      });
+      return res.status(400).json({ 
+        error: 'incomplete_snapshot_data',
+        message: 'Please enable location services and refresh to capture complete context data',
+        missing_fields: missingFields,
+        action_required: 'manual_refresh'
+      });
     }
 
     console.log('[snapshot] Calculating H3 geohash...');

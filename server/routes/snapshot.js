@@ -18,6 +18,25 @@ function requireStr(v, name) {
   return v.trim();
 }
 
+function validateSnapshotData(data) {
+  const { lat, lng, context } = data;
+  const missingFields = [];
+  
+  // Validate coordinates
+  if (typeof lat !== "number" || !isFinite(lat)) missingFields.push("lat");
+  if (typeof lng !== "number" || !isFinite(lng)) missingFields.push("lng");
+  
+  // Validate critical context fields (these should come from GPS/location services)
+  if (!context) {
+    missingFields.push("context");
+  } else {
+    if (!context.city && !context.formattedAddress) missingFields.push("context.city or context.formattedAddress");
+    if (!context.timezone) missingFields.push("context.timezone");
+  }
+  
+  return missingFields;
+}
+
 router.post("/", async (req, res) => {
   console.log("[snapshot] handler ENTER", { url: req.originalUrl });
 
@@ -25,16 +44,38 @@ router.post("/", async (req, res) => {
   const reqId = req.get("x-request-id") || uuid();
 
   try {
-    // Get userId from header or body
-    const userId = req.headers["x-user-id"] || req.body?.user_id || null;
-    const deviceId = req.body?.device_id || uuid();
-    const sessionId = req.body?.session_id || uuid();
-    
     const { lat, lng, context, meta } = req.body || {};
     
-    if (typeof lat !== "number" || typeof lng !== "number") {
-      throw new Error("invalid:latlng");
+    // Validate snapshot data completeness
+    const missingFields = validateSnapshotData(req.body);
+    
+    if (missingFields.length > 0) {
+      console.warn("[snapshot] INCOMPLETE_DATA - possible web crawler or incomplete client", { 
+        missingFields, 
+        hasUserAgent: !!req.get("user-agent"),
+        userAgent: req.get("user-agent")
+      });
+      return res.status(400).json({ 
+        ok: false, 
+        error: "incomplete_snapshot_data",
+        message: "Please enable location services and refresh to capture complete context data",
+        missing_fields: missingFields,
+        action_required: "manual_refresh"
+      });
     }
+    
+    // Get userId from header or body - must be valid UUID or null
+    let userId = req.headers["x-user-id"] || req.body?.user_id || null;
+    
+    // Validate user_id is a valid UUID format, otherwise set to null
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (userId && !uuidRegex.test(userId)) {
+      console.warn("[snapshot] Invalid user_id format (not UUID), setting to null", { userId });
+      userId = null;
+    }
+    
+    const deviceId = req.body?.device_id || uuid();
+    const sessionId = req.body?.session_id || uuid();
 
     const snapshot_id = uuid();
 
