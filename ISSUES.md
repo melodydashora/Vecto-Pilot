@@ -1,8 +1,74 @@
 # Vecto Pilot - Issues Tracking & Remediation
 
-**Last Updated:** 2025-10-06  
-**Status:** Active - 7 issues FIXED & VERIFIED, 8 remaining  
-**Agent:** Fix verification completed
+**Last Updated:** 2025-10-06 22:50 CST  
+**Status:** Active - 8 issues FIXED & VERIFIED ✅  
+**Recent:** Gateway proxy token injection resolved
+
+---
+
+## 🎯 NEW FIX #8: Gateway Proxy Token Injection (2025-10-06 22:50 CST)
+
+### ✅ ISSUE #8: Gateway Proxy Not Injecting AGENT_TOKEN Header
+**Severity:** CRITICAL  
+**Status:** ✅ FIXED & VERIFIED ✅  
+**Impact:** Agent server endpoints inaccessible through gateway - all protected routes returning 401 unauthorized
+
+**Problem:**
+- Gateway proxy forwarding `/agent/*` requests but NOT injecting `x-agent-token` header
+- Agent server correctly rejecting requests without auth token
+- Issue: http-proxy-middleware v3.x uses different event handler syntax than v2.x
+- Used `onProxyReq` (v2 syntax) instead of `on: { proxyReq }` (v3 syntax)
+
+**Evidence:**
+```bash
+# Before fix - auth token not injected
+$ curl -H "x-gw-key: ${GW_KEY}" "http://127.0.0.1:5000/agent/config/list"
+{"error": "unauthorized"}
+
+# After fix - token properly injected
+$ curl -H "x-gw-key: ${GW_KEY}" "http://127.0.0.1:5000/agent/config/list"
+{"ok": true, "files": [...31 configuration files...]}
+```
+
+**Root Cause:**
+http-proxy-middleware v3.0.5 requires event handlers in an `on: { }` object:
+```javascript
+// ❌ WRONG (v2.x syntax - handlers never called)
+createProxyMiddleware({
+  onProxyReq: (proxyReq, req, res) => { /* ... */ }
+})
+
+// ✅ CORRECT (v3.x syntax - handlers work)
+createProxyMiddleware({
+  on: {
+    proxyReq: (proxyReq, req, res) => { /* ... */ }
+  }
+})
+```
+
+**Fix Applied:**
+1. Updated gateway-server.js agent proxy configuration to use v3.x syntax
+2. Moved `onProxyReq`, `onProxyRes`, `onError` handlers into `on: { }` object
+3. Added comprehensive logging for request flow debugging
+
+**Verification:**
+- [x] `/agent/health` - Returns 200 with status JSON ✅
+- [x] `/agent/config/list` - Returns 31 configuration files ✅
+- [x] `/agent/config/read/package.json` - Successfully reads and returns file ✅
+- [x] Token injection logs confirm header added: `Token injected: aeb4ddc2...` ✅
+- [x] Agent server logs show successful authentication ✅
+
+**Logs:**
+```
+[gateway→agent-auth] GET /config/list
+[gateway→agent-auth] PASSED - proceeding to proxy
+[gateway→agent-rewrite] /config/list -> /agent/config/list
+[gateway→agent-proxyReq-v3] CALLED! GET /agent/config/list -> /agent/config/list
+[gateway→agent-proxyReq-v3] Token injected: aeb4ddc2...
+[gateway→agent-proxyRes-v3] GET /agent/config/list -> 200
+```
+
+**Status:** ✅ COMPLETELY RESOLVED - All agent endpoints now accessible with proper authentication
 
 ---
 

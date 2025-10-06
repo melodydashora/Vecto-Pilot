@@ -193,46 +193,61 @@ const guard = (_req, res, next) => (IS_PRODUCTION || sdkReady ? next() : res.sta
 
 // Only proxy to SDK/Agent in development mode
 if (!IS_PRODUCTION) {
-  // Agent proxy - auth + proxy in one middleware using filter
-  app.use(
-    createProxyMiddleware({
-      target: `http://127.0.0.1:${AGENT_PORT}`,
-      changeOrigin: true,
-      ws: false,
-      logLevel: "silent",
-      filter: (pathname, req) => {
-        if (!pathname.startsWith("/agent")) return false;
-        // Check gateway auth
-        const key = process.env.GW_KEY;
-        if (key && req.get("x-gw-key") !== key) {
-          req.__auth_failed = true;
-          return false; // Don't proxy if auth fails
-        }
-        return true;
-      },
-      onProxyReq: (proxyReq, req) => {
-        // Inject agent token so IDE only needs x-gw-key
-        const token = process.env.AGENT_TOKEN;
-        if (token) {
-          proxyReq.setHeader("x-agent-token", token);
-          console.log(`[agent→proxy] ${req.method} ${req.url} (token injected: ${token.substring(0,8)}...)`);
-        } else {
-          console.log(`[agent→proxy] ${req.method} ${req.url} (NO TOKEN AVAILABLE!)`);
-        }
-      },
-      onError: (err, req, res) => {
-        console.error(`[gateway] Agent proxy error for ${req.method} ${req.url}:`, err.message);
-        res.status(502).json({ ok: false, error: "Agent server unavailable" });
-      },
-      onProxyRes: (proxyRes, req) => console.log(`[agent] ${proxyRes.statusCode} ${req.method} ${req.url}`)
-    })
-  );
-
-  // Handle auth failures
+  // Gateway GW_KEY guard for all /agent/* calls
   app.use("/agent", (req, res, next) => {
-    if (req.__auth_failed) return res.sendStatus(401);
+    console.log(`[gateway→agent-auth] ${req.method} ${req.url}`);
+    const want = process.env.GW_KEY;
+    if (want && req.get("x-gw-key") !== want) {
+      console.log(`[gateway→agent-auth] REJECTED - invalid GW_KEY`);
+      return res.status(401).json({ ok: false, error: "unauthorized_gw" });
+    }
+    console.log(`[gateway→agent-auth] PASSED - proceeding to proxy`);
     next();
   });
+
+  // Agent proxy: preserve full "/agent/..." upstream, inject agent token, force JSON
+  const agentProxy = createProxyMiddleware({
+    target: `http://127.0.0.1:${AGENT_PORT}`,
+    changeOrigin: true,
+    logLevel: "silent",
+
+    // Express strips "/agent" before this middleware; put it back
+    pathRewrite: (path /* e.g. "/health" */) => {
+      const rewritten = `/agent${path}`;
+      console.log(`[gateway→agent-rewrite] ${path} -> ${rewritten}`);
+      return rewritten;
+    },
+
+    on: {
+      proxyReq: (proxyReq, req, res) => {
+        const t = process.env.AGENT_TOKEN;
+        console.log(`[gateway→agent-proxyReq-v3] CALLED! ${req.method} ${req.url} -> ${proxyReq.path}`);
+        if (t) {
+          proxyReq.setHeader("x-agent-token", t);
+          proxyReq.setHeader("authorization", `Bearer ${t}`);
+          console.log(`[gateway→agent-proxyReq-v3] Token injected: ${t.substring(0,8)}...`);
+        } else {
+          console.log(`[gateway→agent-proxyReq-v3] NO TOKEN AVAILABLE!`);
+        }
+        proxyReq.setHeader("accept", "application/json");
+      },
+
+      proxyRes: (proxyRes, req, res) => {
+        console.log(`[gateway→agent-proxyRes-v3] ${req.method} ${req.url} -> ${proxyRes.statusCode}`);
+        const ct = proxyRes.headers["content-type"];
+        if (!ct || !/json/i.test(String(ct))) {
+          res.setHeader("content-type", "application/json; charset=utf-8");
+        }
+      },
+
+      error: (err, req, res) => {
+        console.error("[gateway→agent-error-v3] proxy error:", err.message);
+        res.status(502).json({ ok: false, error: "agent_proxy_error", detail: err.message });
+      },
+    },
+  });
+
+  app.use("/agent", agentProxy);
 
   app.use(
     "/assistant",
@@ -404,6 +419,9 @@ if (process.env.NODE_ENV !== "production") {
     res.sendFile(indexHtml);
   });
 }
+
+// last resort 404 as JSON so jq never chokes on HTML
+app.use((req, res) => res.status(404).json({ ok: false, error: "route_not_found", path: req.path }));
 
 // ---------- server + startup ----------
 // Clean up any existing processes on our ports
