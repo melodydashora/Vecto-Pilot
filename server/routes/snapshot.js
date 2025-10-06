@@ -1,5 +1,5 @@
 // server/routes/snapshot.js
-import { Router } from 'express';
+import express, { Router } from 'express';
 import crypto from "node:crypto";
 import { db } from "../db/drizzle.js";
 import { snapshots, strategies } from "../../shared/schema.js";
