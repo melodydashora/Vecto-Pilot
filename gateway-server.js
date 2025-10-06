@@ -20,14 +20,6 @@ const AGENT_PORT = Number(process.env.AGENT_PORT) || 43717;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 // ---------- CRITICAL: health check first (must respond instantly) ----------
-app.get("/", (req, res) => {
-  // Ultra-fast response for Google Cloud health checks
-  if (req.headers['user-agent']?.includes('GoogleHC') || req.headers['user-agent']?.includes('Cloud')) {
-    return res.status(200).send("OK");
-  }
-  res.status(200).send("OK");
-});
-
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, gateway: true, timestamp: new Date().toISOString() });
 });
