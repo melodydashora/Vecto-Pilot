@@ -1,12 +1,17 @@
 // server/routes/snapshot.js
-import express from "express";
+import { Router } from 'express';
 import crypto from "node:crypto";
 import { db } from "../db/drizzle.js";
 import { snapshots, strategies } from "../../shared/schema.js";
 import { generateStrategyForSnapshot } from "../lib/strategy-generator.js";
 import { validateIncomingSnapshot } from "../util/validate-snapshot.js";
 
-const router = express.Router();
+const router = Router();
+
+// Helper for consistent error responses with correlation ID
+function httpError(res, status, code, message, reqId, extra = {}) {
+  return res.status(status).json({ ok: false, error: code, message, req_id: reqId, ...extra });
+}
 
 router.use(express.json({ limit: "1mb", strict: true }));
 
@@ -20,10 +25,12 @@ function requireStr(v, name) {
 }
 
 router.post("/", async (req, res) => {
-  console.log("[snapshot] handler ENTER", { url: req.originalUrl });
+  const reqId = crypto.randomUUID();
+  res.setHeader('x-req-id', reqId);
+  
+  console.log("[snapshot] handler ENTER", { url: req.originalUrl, req_id: reqId });
 
   const started = Date.now();
-  const reqId = req.get("x-request-id") || uuid();
 
   try {
     const { lat, lng, context, meta } = req.body || {};
@@ -36,13 +43,11 @@ router.post("/", async (req, res) => {
         fields_missing: errors,
         warnings,
         hasUserAgent: !!req.get("user-agent"),
-        userAgent: req.get("user-agent")
+        userAgent: req.get("user-agent"),
+        req_id: reqId
       });
-      return res.status(400).json({ 
-        ok: false, 
-        error: "refresh_required",
-        fields_missing: errors,
-        tip: "Please refresh location permission and retry."
+      return httpError(res, 400, 'refresh_required', 'Please refresh location permission and retry.', reqId, {
+        fields_missing: errors
       });
     }
     

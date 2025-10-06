@@ -1,12 +1,23 @@
 // server/routes/location.js
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { latLngToCell } from 'h3-js';
 import { db } from '../db/drizzle.js';
-import { snapshots } from '../../shared/schema.js';
+import { snapshots, strategies } from '../../shared/schema.js';
+import { sql, eq } from 'drizzle-orm';
 import { generateStrategyForSnapshot } from '../lib/strategy-generator.js';
 import { validateSnapshotV1 } from '../util/validate-snapshot.js';
 
 const router = Router();
+
+// Helper for consistent error responses with correlation ID
+function httpError(res, status, code, message, reqId, extra = {}) {
+  return res.status(status).json({ ok: false, error: code, message, req_id: reqId, ...extra });
+}
+
+// UUID validation helper
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuidOrNull = (v) => (typeof v === 'string' && uuidRegex.test(v) ? v : null);
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
@@ -388,7 +399,10 @@ router.get('/airquality', async (req, res) => {
 // POST /api/location/snapshot
 // Save a context snapshot for ML/analytics (SnapshotV1 format)
 router.post('/snapshot', async (req, res) => {
-  console.log('[snapshot] handler ENTER', { url: req.originalUrl, method: req.method, hasBody: !!req.body });
+  const reqId = crypto.randomUUID();
+  res.setHeader('x-req-id', reqId);
+  
+  console.log('[snapshot] handler ENTER', { url: req.originalUrl, method: req.method, hasBody: !!req.body, req_id: reqId });
   try {
     console.log('[snapshot] processing snapshot...');
     const snapshotV1 = req.body;
@@ -401,13 +415,11 @@ router.post('/snapshot', async (req, res) => {
         fields_missing: v.errors,
         hasUserAgent: !!req.get("user-agent"),
         userAgent: req.get("user-agent"),
-        snapshot_id: snapshotV1?.snapshot_id
+        snapshot_id: snapshotV1?.snapshot_id,
+        req_id: reqId
       });
-      return res.status(400).json({ 
-        ok: false,
-        error: 'refresh_required',
-        fields_missing: v.errors,
-        tip: 'Please refresh location permission and retry.'
+      return httpError(res, 400, 'refresh_required', 'Please refresh location permission and retry.', reqId, { 
+        fields_missing: v.errors
       });
     }
 
@@ -529,21 +541,58 @@ router.post('/snapshot', async (req, res) => {
       filename
     });
 
-    // Trigger background strategy generation if we have location data
+    // Create or claim strategy row without a race; only the winner proceeds
+    const now = new Date();
+    await db.insert(strategies).values({
+      snapshot_id: snapshotV1.snapshot_id,
+      status: 'pending',
+      attempt: 1,
+      created_at: now,
+      updated_at: now
+    }).onConflictDoUpdate({
+      target: strategies.snapshot_id,
+      set: { updated_at: now, attempt: sql`${strategies.attempt} + 1` }
+    });
+
+    // Claim the pending job using SKIP LOCKED; only one request will own it
+    let iOwnTheJob = false;
     if (snapshotV1.resolved?.formattedAddress || snapshotV1.resolved?.city) {
-      generateStrategyForSnapshot(snapshotV1.snapshot_id).catch(err => {
-        console.error('[location] Background strategy generation failed:', err.message);
-      });
+      const rows = await db.execute(sql`
+        with c as (
+          select snapshot_id
+          from ${strategies}
+          where ${strategies.snapshot_id} = ${snapshotV1.snapshot_id}
+            and ${strategies.status} in ('pending', 'queued')
+          for update skip locked
+        )
+        select snapshot_id from c
+      `);
+      iOwnTheJob = rows?.rows?.length === 1;
+
+      if (iOwnTheJob) {
+        queueMicrotask(async () => {
+          try {
+            await generateStrategyForSnapshot(snapshotV1.snapshot_id);
+          } catch (e) {
+            // Ensure a durable status for observability
+            await db.update(strategies)
+              .set({ status: 'failed', updated_at: new Date(), error: String(e).slice(0, 2000) })
+              .where(eq(strategies.snapshot_id, snapshotV1.snapshot_id));
+          }
+        });
+      }
     }
 
     res.json({ 
       success: true, 
       snapshot_id: snapshotV1.snapshot_id,
-      h3_r8 
+      h3_r8,
+      status: iOwnTheJob ? 'enqueued' : 'already_enqueued',
+      req_id: reqId
     });
   } catch (err) {
     console.error('[location] snapshot error', err);
-    res.status(500).json({ error: 'snapshot-failed', message: err.message });
+    return httpError(res, 500, 'snapshot_failed', String(err?.message || err), reqId);
   }
 });
 
