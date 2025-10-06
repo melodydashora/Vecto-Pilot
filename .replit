@@ -54,6 +54,11 @@ externalPort = 3000
 localPort = 41845
 externalPort = 3002
 
+[[ports]]
+localPort = 43717
+externalPort = 4200
+exposeLocalhost = true
+
 [deployment]
 deploymentTarget = "vm"
 run = ["sh", "-c", "NODE_ENV=production PORT=5000 node gateway-server.js"]
