@@ -1,0 +1,45 @@
+{
+  "triad": {
+    "enabled": true,
+    "invariants": {
+      "no_venue_invention": true,
+      "schema_strict": true,
+      "word_caps": true,
+      "require_json_output": true,
+      "require_exact_model_ids": true,
+      "gpt5_reasoning_effort": "medium"
+    },
+    "budgets": {
+      "timeouts": {
+        "claude_ms": 15000,
+        "gpt5_ms": 120000,
+        "gemini_ms": 60000
+      },
+      "tokens": {
+        "claude_max": 64000,
+        "gpt5_max_completion": 32000,
+        "gemini_max_output": 8192
+      }
+    }
+  },
+  "flags": {
+    "no_fallbacks": true
+  },
+  "startup": {
+    "require_env": [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GEMINI_API_KEY"
+    ]
+  },
+  "memory": {
+    "override_assistant": {
+      "table": "assistant_memory"
+    },
+    "eidolon": {
+      "tables": {
+        "memory": "eidolon_memory"
+      }
+    }
+  }
+}

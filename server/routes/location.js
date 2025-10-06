@@ -1,0 +1,563 @@
+// server/routes/location.js
+import { Router } from 'express';
+import { latLngToCell } from 'h3-js';
+import { db } from '../db/drizzle.js';
+import { snapshots } from '../../shared/schema.js';
+
+const router = Router();
+
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
+const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;
+
+// Production gate: Disallow manual city overrides (test-only feature)
+router.use((req, res, next) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  const manualCityProvided = !!(req.query?.city || req.query?.cityName || req.body?.city || req.body?.cityName);
+  
+  if (isProd && manualCityProvided) {
+    console.warn('🚫 Manual city override blocked in production');
+    return res.status(400).json({ error: 'manual-city-disabled-in-prod' });
+  }
+  
+  next();
+});
+
+// Helper to extract city, state, country from Google Geocoding response
+function pickAddressParts(components) {
+  let city;
+  let state;
+  let country;
+
+  for (const c of components || []) {
+    const types = c.types || [];
+    if (types.includes("locality")) city = c.long_name;
+    if (types.includes("administrative_area_level_1")) state = c.short_name;
+    if (types.includes("country")) country = c.long_name;
+  }
+  return { city, state, country };
+}
+
+// GET /api/location/geocode/reverse?lat=&lng=
+// Reverse geocode coordinates to city/state/country
+router.get('/geocode/reverse', async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    
+    if (!isFinite(lat) || !isFinite(lng)) {
+      return res.status(400).json({ error: 'lat/lng required' });
+    }
+
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn('[location] No Google Maps API key configured');
+      return res.json({ 
+        city: undefined, 
+        state: undefined, 
+        country: undefined,
+        formattedAddress: `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+      });
+    }
+
+    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+    url.searchParams.set('latlng', `${lat},${lng}`);
+    url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (data.status !== 'OK') {
+      console.error('[location] Geocoding error:', data.status);
+      console.error('[location] Google API response:', JSON.stringify(data, null, 2));
+      return res.status(500).json({ error: `Geocoding failed: ${data.status}`, details: data.error_message });
+    }
+
+    const first = data.results?.[0];
+    const { city, state, country } = first
+      ? pickAddressParts(first.address_components)
+      : { city: undefined, state: undefined, country: undefined };
+
+    res.json({
+      city,
+      state,
+      country,
+      formattedAddress: first?.formatted_address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+    });
+  } catch (err) {
+    console.error('[location] reverse geocode error', err);
+    res.status(500).json({ error: 'reverse-geocode-failed' });
+  }
+});
+
+// GET /api/location/geocode/forward?city=Dallas,TX
+// Forward geocode city name to coordinates
+router.get('/geocode/forward', async (req, res) => {
+  try {
+    const cityName = req.query.city;
+    
+    if (!cityName) {
+      return res.status(400).json({ error: 'city query parameter required' });
+    }
+
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn('[location] No Google Maps API key configured');
+      return res.status(500).json({ error: 'Google Maps API key not configured' });
+    }
+
+    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+    url.searchParams.set('address', cityName);
+    url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (data.status !== 'OK') {
+      console.error('[location] Forward geocoding error:', data.status);
+      return res.status(404).json({ error: `City not found: ${data.status}` });
+    }
+
+    const first = data.results?.[0];
+    if (!first || !first.geometry?.location) {
+      return res.status(404).json({ error: 'No coordinates found for city' });
+    }
+
+    const { city, state, country } = pickAddressParts(first.address_components);
+
+    res.json({
+      city: city || cityName,
+      state,
+      country,
+      coordinates: {
+        lat: first.geometry.location.lat,
+        lng: first.geometry.location.lng
+      },
+      formattedAddress: first.formatted_address
+    });
+  } catch (err) {
+    console.error('[location] forward geocode error', err);
+    res.status(500).json({ error: 'forward-geocode-failed' });
+  }
+});
+
+// GET /api/location/timezone?lat=&lng=
+// Get timezone for coordinates
+router.get('/timezone', async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    
+    if (!isFinite(lat) || !isFinite(lng)) {
+      return res.status(400).json({ error: 'lat/lng required' });
+    }
+
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn('[location] No Google Maps API key configured');
+      // Return browser timezone as fallback
+      return res.json({ 
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
+    }
+
+    const ts = Math.floor(Date.now() / 1000);
+    const url = new URL('https://maps.googleapis.com/maps/api/timezone/json');
+    url.searchParams.set('location', `${lat},${lng}`);
+    url.searchParams.set('timestamp', String(ts));
+    url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (data.status !== 'OK') {
+      console.error('[location] Timezone error:', data.status);
+      return res.json({ 
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
+    }
+
+    res.json({
+      timeZone: data.timeZoneId,
+      timeZoneName: data.timeZoneName,
+    });
+  } catch (err) {
+    console.error('[location] timezone error', err);
+    res.json({ 
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    });
+  }
+});
+
+// GET /api/location/resolve?lat=&lng=
+// Combined endpoint - get both geocoding and timezone in one call
+router.get('/resolve', async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    
+    if (!isFinite(lat) || !isFinite(lng)) {
+      return res.status(400).json({ error: 'lat/lng required' });
+    }
+
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn('[location] No Google Maps API key configured');
+      return res.json({ 
+        city: undefined, 
+        state: undefined, 
+        country: undefined,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        formattedAddress: `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+      });
+    }
+
+    // Make both API calls in parallel using GOOGLE_MAPS_API_KEY for both geocoding and timezone
+    const apiCalls = [
+      fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`),
+      fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`)
+    ];
+    
+    const responses = await Promise.all(apiCalls);
+    const geocodeResponse = responses[0];
+    const timezoneResponse = responses[1];
+
+    const geocodeData = await geocodeResponse.json();
+    const timezoneData = await timezoneResponse.json();
+
+    // Extract location data
+    let city, state, country, formattedAddress;
+    if (geocodeData.status === 'OK') {
+      const first = geocodeData.results?.[0];
+      ({ city, state, country } = first ? pickAddressParts(first.address_components) : {});
+      formattedAddress = first?.formatted_address;
+    }
+
+    // Extract timezone
+    let timeZone;
+    if (timezoneData && timezoneData.status === 'OK' && timezoneData.timeZoneId) {
+      timeZone = timezoneData.timeZoneId;
+      console.log(`[location] Timezone resolved: ${timeZone}`);
+    } else {
+      console.error('[location] Timezone API failed:', {
+        status: timezoneData.status,
+        errorMessage: timezoneData.errorMessage,
+        timeZoneId: timezoneData.timeZoneId
+      });
+      timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      console.log(`[location] Using fallback timezone: ${timeZone}`);
+    }
+
+    res.json({
+      city,
+      state,
+      country,
+      timeZone,
+      formattedAddress: formattedAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+    });
+  } catch (err) {
+    console.error('[location] resolve error', err);
+    res.status(500).json({ error: 'location-resolve-failed' });
+  }
+});
+
+// GET /api/location/weather?lat=&lng=
+// Get current weather conditions for coordinates
+router.get('/weather', async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    
+    if (!isFinite(lat) || !isFinite(lng)) {
+      return res.status(400).json({ error: 'lat/lng required' });
+    }
+
+    if (!OPENWEATHER_API_KEY) {
+      console.warn('[location] No OpenWeather API key configured');
+      return res.json({ 
+        available: false,
+        error: 'API key not configured' 
+      });
+    }
+
+    const url = new URL('https://api.openweathermap.org/data/2.5/weather');
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lon', String(lng));
+    url.searchParams.set('appid', OPENWEATHER_API_KEY);
+    url.searchParams.set('units', 'imperial'); // Fahrenheit, mph
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (data.cod !== 200) {
+      console.error('[location] Weather API error:', data.message);
+      return res.status(500).json({ 
+        available: false,
+        error: data.message 
+      });
+    }
+
+    res.json({
+      available: true,
+      temperature: Math.round(data.main?.temp || 0),
+      feelsLike: Math.round(data.main?.feels_like || 0),
+      conditions: data.weather?.[0]?.main || 'Unknown',
+      description: data.weather?.[0]?.description || '',
+      humidity: data.main?.humidity || 0,
+      windSpeed: Math.round(data.wind?.speed || 0),
+      precipitation: data.rain?.['1h'] || data.snow?.['1h'] || 0,
+      icon: data.weather?.[0]?.icon || '',
+    });
+  } catch (err) {
+    console.error('[location] weather error', err);
+    res.status(500).json({ 
+      available: false,
+      error: 'weather-fetch-failed' 
+    });
+  }
+});
+
+// GET /api/location/airquality?lat=&lng=
+// Get current air quality index for coordinates
+router.get('/airquality', async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    
+    if (!isFinite(lat) || !isFinite(lng)) {
+      return res.status(400).json({ error: 'lat/lng required' });
+    }
+
+    if (!GOOGLEAQ_API_KEY) {
+      console.warn('[location] No Google Air Quality API key configured');
+      return res.json({ 
+        available: false,
+        error: 'API key not configured' 
+      });
+    }
+
+    const url = 'https://airquality.googleapis.com/v1/currentConditions:lookup';
+    const requestBody = {
+      location: {
+        latitude: lat,
+        longitude: lng
+      }
+    };
+
+    const response = await fetch(`${url}?key=${GOOGLEAQ_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('[location] Air Quality API error:', data);
+      return res.status(500).json({ 
+        available: false,
+        error: data.error?.message || 'Air quality fetch failed' 
+      });
+    }
+
+    // Extract AQI and pollutant data
+    const aqi = data.indexes?.find(idx => idx.code === 'uaqi') || data.indexes?.[0];
+    const dominantPollutant = data.pollutants?.reduce((max, p) => 
+      p.concentration?.value > (max?.concentration?.value || 0) ? p : max, 
+      null
+    );
+
+    res.json({
+      available: true,
+      aqi: aqi?.aqi || 0,
+      category: aqi?.category || 'Unknown',
+      dominantPollutant: aqi?.dominantPollutant || dominantPollutant?.code || 'unknown',
+      healthRecommendations: aqi?.healthRecommendations || {},
+      dateTime: data.dateTime,
+      regionCode: data.regionCode,
+    });
+  } catch (err) {
+    console.error('[location] air quality error', err);
+    res.status(500).json({ 
+      available: false,
+      error: 'airquality-fetch-failed' 
+    });
+  }
+});
+
+// POST /api/location/snapshot
+// Save a context snapshot for ML/analytics (SnapshotV1 format)
+router.post('/snapshot', async (req, res) => {
+  try {
+    console.log('[snapshot] POST /snapshot received');
+    const snapshotV1 = req.body;
+
+    // Validate SnapshotV1 structure
+    if (!snapshotV1.snapshot_id || !snapshotV1.device_id || !snapshotV1.session_id || !snapshotV1.coord) {
+      console.log('[snapshot] Invalid format - missing required fields');
+      return res.status(400).json({ error: 'Invalid SnapshotV1 format' });
+    }
+
+    console.log('[snapshot] Calculating H3 geohash...');
+    // Calculate H3 geohash at resolution 8 (~0.46 km² hexagons)
+    const h3_r8 = latLngToCell(snapshotV1.coord.lat, snapshotV1.coord.lng, 8);
+
+    // Check for nearby airport disruptions
+    console.log('[snapshot] Fetching airport context...');
+    const { getNearestMajorAirport, fetchFAADelayData } = await import('../lib/faa-asws.js');
+    let airportContext = null;
+    
+    try {
+      const nearbyAirport = await getNearestMajorAirport(
+        snapshotV1.coord.lat, 
+        snapshotV1.coord.lng, 
+        25 // 25 mile threshold for suburban metro areas
+      );
+      
+      if (nearbyAirport) {
+        const airportData = await fetchFAADelayData(nearbyAirport.code);
+        if (airportData) {
+          airportContext = {
+            airport_code: nearbyAirport.code,
+            airport_name: nearbyAirport.name,
+            distance_miles: parseFloat(nearbyAirport.distance.toFixed(1)),
+            delay_minutes: airportData.delay_minutes || 0,
+            delay_reason: airportData.delay_reason,
+            closure_status: airportData.closure_status,
+            has_delays: airportData.delay_minutes > 0,
+            has_closures: airportData.closure_status !== 'open',
+            weather: airportData.weather ? {
+              temperature: airportData.weather.temperature,
+              conditions: airportData.weather.conditions,
+              wind: airportData.weather.wind
+            } : null
+          };
+        }
+      }
+    } catch (airportErr) {
+      console.warn('[snapshot] Airport context fetch failed:', airportErr.message);
+    }
+
+    // Transform SnapshotV1 to Postgres schema
+    const dbSnapshot = {
+      snapshot_id: snapshotV1.snapshot_id,
+      created_at: new Date(snapshotV1.created_at),
+      user_id: snapshotV1.user_id || null,
+      device_id: snapshotV1.device_id,
+      session_id: snapshotV1.session_id,
+      lat: snapshotV1.coord.lat,
+      lng: snapshotV1.coord.lng,
+      accuracy_m: snapshotV1.coord.accuracyMeters || null,
+      coord_source: snapshotV1.coord.source || 'gps',
+      city: snapshotV1.resolved?.city || null,
+      state: snapshotV1.resolved?.state || null,
+      country: snapshotV1.resolved?.country || null,
+      formatted_address: snapshotV1.resolved?.formattedAddress || null,
+      timezone: snapshotV1.resolved?.timezone || null,
+      local_iso: snapshotV1.time_context?.local_iso ? new Date(snapshotV1.time_context.local_iso) : null,
+      dow: snapshotV1.time_context?.dow !== undefined ? snapshotV1.time_context.dow : null,
+      hour: snapshotV1.time_context?.hour !== undefined ? snapshotV1.time_context.hour : null,
+      day_part_key: snapshotV1.time_context?.day_part_key || null,
+      h3_r8,
+      weather: snapshotV1.weather ? {
+        tempF: snapshotV1.weather.tempF,
+        conditions: snapshotV1.weather.conditions,
+        description: snapshotV1.weather.description
+      } : null,
+      air: snapshotV1.air ? {
+        aqi: snapshotV1.air.aqi,
+        category: snapshotV1.air.category
+      } : null,
+      airport_context: airportContext,
+      device: snapshotV1.device || null,
+      permissions: snapshotV1.permissions || null,
+      extras: snapshotV1.extras || null,
+    };
+
+    // Save to Postgres using Drizzle
+    await db.insert(snapshots).values(dbSnapshot);
+
+    // Also save to filesystem for backup/debugging
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const dataDir = path.join(process.cwd(), 'data', 'context-snapshots');
+    await fs.mkdir(dataDir, { recursive: true });
+    
+    const filename = `snapshot_${snapshotV1.device_id}_${Date.now()}.json`;
+    await fs.writeFile(
+      path.join(dataDir, filename),
+      JSON.stringify(snapshotV1, null, 2)
+    );
+
+    // Convert dow to day name
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOfWeek = dayNames[snapshotV1.time_context?.dow] || 'unknown';
+    
+    // Format date from local_iso
+    const localDate = snapshotV1.time_context?.local_iso ? new Date(snapshotV1.time_context.local_iso).toISOString().split('T')[0] : 'unknown';
+    
+    console.log('[location] Snapshot saved to Postgres + filesystem:', {
+      snapshot_id: snapshotV1.snapshot_id,
+      user_id: snapshotV1.user_id,
+      device_id: snapshotV1.device_id,
+      coords: `${snapshotV1.coord.lat.toFixed(5)}, ${snapshotV1.coord.lng.toFixed(5)}`,
+      date: localDate,
+      day_of_week: `${dayOfWeek} (dow=${snapshotV1.time_context?.dow})`,
+      hour: snapshotV1.time_context?.hour,
+      city: snapshotV1.resolved?.city,
+      state: snapshotV1.resolved?.state,
+      formatted_address: snapshotV1.resolved?.formattedAddress,
+      timezone: snapshotV1.resolved?.timezone,
+      day_part: snapshotV1.time_context?.day_part_key,
+      weather: snapshotV1.weather ? `${snapshotV1.weather.tempF}°F ${snapshotV1.weather.conditions}` : 'none',
+      air_quality: snapshotV1.air ? `AQI ${snapshotV1.air.aqi}` : 'none',
+      airport_context: airportContext ? `${airportContext.airport_code} (${airportContext.distance_miles}mi, ${airportContext.delay_minutes}min delays)` : 'none',
+      h3_r8,
+      filename
+    });
+
+    // Trigger background strategy generation if we have location data
+    if (snapshotV1.resolved?.formattedAddress || snapshotV1.resolved?.city) {
+      import('../lib/strategy-generator.js').then(module => {
+        module.generateStrategyForSnapshot(snapshotV1.snapshot_id).catch(err => {
+          console.error('[location] Background strategy generation failed:', err.message);
+        });
+      }).catch(err => {
+        console.error('[location] Failed to load strategy generator:', err.message);
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      snapshot_id: snapshotV1.snapshot_id,
+      h3_r8 
+    });
+  } catch (err) {
+    console.error('[location] snapshot error', err);
+    res.status(500).json({ error: 'snapshot-failed', message: err.message });
+  }
+});
+
+// GET /api/location/snapshot/latest
+// Fetch latest context snapshot for a user
+router.get('/snapshot/latest', async (req, res) => {
+  try {
+    const userId = req.query.userId || 'default';
+    
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const dataDir = path.join(process.cwd(), 'data', 'context-snapshots');
+    const filename = path.join(dataDir, `latest_${userId}.json`);
+    
+    const data = await fs.readFile(filename, 'utf-8');
+    const snapshot = JSON.parse(data);
+    
+    res.json(snapshot);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return res.status(404).json({ error: 'No snapshot found' });
+    }
+    console.error('[location] snapshot fetch error', err);
+    res.status(500).json({ error: 'snapshot-fetch-failed' });
+  }
+});
+
+export default router;

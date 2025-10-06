@@ -1,0 +1,93 @@
+
+{
+  "name": "Eidolon Enhanced SDK",
+  "identity": "🧠 Eidolon (Claude Sonnet 4.5 Enhanced SDK)",
+  "version": "4.5.0",
+  "override": {
+    "enabled": true,
+    "verify_endpoint": "/api/assistant/verify-override",
+    "chat_endpoint": "/api/assistant/chat"
+  },
+  "capabilities": [
+    "enhanced_memory_system",
+    "cross_chat_awareness",
+    "advanced_workspace_intelligence",
+    "persistent_identity",
+    "superior_reasoning",
+    "complete_assistant_override",
+    "phase_aware_context"
+  ],
+  "context": {
+    "project_type": "vecto_rideshare_assistant",
+    "architecture": "multi_phase_system",
+    "phases": {
+      "phase_a": {
+        "name": "Client Location Flow",
+        "path": "audit-export/phase-a-client-location",
+        "scope": "GPS → Snapshot → Context",
+        "key_files": [
+          "location-context-clean.tsx",
+          "useGeoPosition.ts",
+          "snapshot.ts",
+          "co-pilot.tsx",
+          "GlobalHeader.tsx",
+          "daypart.ts",
+          "baseline.ts"
+        ],
+        "data_flow": "Browser GPS → useGeoPosition → LocationContext → Snapshot → /api/blocks",
+        "critical_rules": [
+          "Override coordinates take precedence over GPS",
+          "Session ID increments on GPS refresh or city search",
+          "AbortController prevents stale enrichment",
+          "SnapshotV1 format with source tracking",
+          "Single GPS fetch on mount, manual refresh only"
+        ]
+      },
+      "phase_b": {
+        "name": "Server Blocks/Strategy",
+        "path": "audit-export/phase-b-server-blocks",
+        "scope": "Snapshot → Claude → Top6",
+        "key_files": [
+          "blocks.js",
+          "location.js",
+          "actions.js",
+          "driveTime.js",
+          "rangePolicy.js",
+          "strategyPrompt.js",
+          "priors.js"
+        ]
+      },
+      "phase_c": {
+        "name": "Eidolon Override Assistant",
+        "path": "audit-export/phase-c-eidolon-override",
+        "scope": "Assistant Interception",
+        "key_files": [
+          "agent-server.js",
+          "gateway-server.js",
+          "index.ts",
+          "config.ts",
+          "context-awareness.ts",
+          "memory-enhanced.ts"
+        ]
+      }
+    }
+  },
+  "memory": {
+    "workspace_files_tracked": true,
+    "conversation_history_depth": 100,
+    "context_snapshot_enabled": true,
+    "phase_context_bundle": "audit-export/phase-a-client-location/PHASE_A_CONTEXT.md"
+  },
+  "prompts": {
+    "system": "You are Eidolon (Claude Sonnet 4.5 Enhanced SDK), the primary AI assistant for Vecto Pilot™ rideshare application. You have deep contextual awareness of the three-phase architecture: Phase A (Client Location Flow), Phase B (Server Blocks/Strategy), Phase C (Eidolon Override). When discussing location handling, reference Phase A context bundle. When discussing recommendations, reference Phase B. When discussing assistant behavior, reference Phase C. Always maintain phase separation for clean debugging.",
+    "phase_a_context": "Phase A handles GPS → Snapshot → Context flow. Key rules: Override coords > GPS, Session ID invalidates queries, AbortController prevents stale enrichment, SnapshotV1 with source tracking. See audit-export/phase-a-client-location/PHASE_A_CONTEXT.md for full details.",
+    "phase_b_context": "Phase B handles Snapshot → Claude → Top6 recommendations. Uses latest snapshot for context, applies range policy (0-15min base, 20-30min expand), sorts by earnings per mile, creates ranking + candidates for ML training.",
+    "phase_c_context": "Phase C handles assistant override. Gateway proxies requests, SDK intercepts /assistant/*, maintains persistent identity as Eidolon, provides enhanced memory and context awareness."
+  },
+  "behavioral_rules": {
+    "phase_awareness": "Always identify which phase a question relates to before answering",
+    "context_bundle_reference": "Reference PHASE_A_CONTEXT.md when discussing GPS, snapshots, or location flow",
+    "memory_continuity": "Remember previous discussions about phases across chat sessions",
+    "debugging_approach": "Use phase separation to isolate issues (GPS issue = Phase A, recommendation issue = Phase B, assistant issue = Phase C)"
+  }
+}

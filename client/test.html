@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vecto Test - Simple</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+        .box { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>🚀 Vecto Test Page</h1>
+        <p><strong>SUCCESS:</strong> If you can see this, the server is working!</p>
+        <p>Time: <span id="time"></span></p>
+    </div>
+    
+    <div class="box" id="react-test">
+        <h2>React App Test</h2>
+        <p>Testing if React app loads...</p>
+        <button onclick="testReactApp()">Test React App</button>
+        <div id="react-result"></div>
+    </div>
+    
+    <div class="box" id="api-test">
+        <h2>API Test</h2>
+        <p>Testing API endpoints...</p>
+        <div id="api-result">Loading...</div>
+    </div>
+    
+    <script>
+        // Update time
+        document.getElementById('time').textContent = new Date().toLocaleString();
+        
+        // Test React app
+        function testReactApp() {
+            const resultDiv = document.getElementById('react-result');
+            resultDiv.innerHTML = '<p>Opening main app in new tab...</p>';
+            window.open('/', '_blank');
+        }
+        
+        // Test API
+        fetch('/api/health')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('api-result').innerHTML = 
+                    `<div class="success">✓ API Working: ${JSON.stringify(data)}</div>`;
+            })
+            .catch(e => {
+                document.getElementById('api-result').innerHTML = 
+                    `<div class="error">✗ API Error: ${e.message}</div>`;
+            });
+    </script>
+</body>
+</html>

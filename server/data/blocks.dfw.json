@@ -1,0 +1,29 @@
+[
+  {
+    "region": "global",
+    "slug": "example-hotspot-1",
+    "name": "Example Business District",
+    "address": "User will add their own hotspots",
+    "lat": 0.0,
+    "lng": 0.0,
+    "meta": {"tags": ["corporate"], "note": "Users can create their own hotspots"}
+  },
+  {
+    "region": "global",
+    "slug": "example-hotspot-2",
+    "name": "Example Shopping Center",
+    "address": "User will add their own hotspots",
+    "lat": 0.0,
+    "lng": 0.0,
+    "meta": {"tags": ["mall","evening"], "note": "Users can create their own hotspots"}
+  },
+  {
+    "region": "global",
+    "slug": "example-hotspot-3",
+    "name": "Example Airport Return Zone",
+    "address": "User will add their own hotspots",
+    "lat": 0.0,
+    "lng": 0.0,
+    "meta": {"tags": ["airport_return","night"], "note": "Users can create their own hotspots"}
+  }
+]

@@ -1,0 +1,452 @@
+// gateway-server.js (ESM, single SDK watchdog, sane build guard)
+
+import express from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
+import http from "node:http";
+import path from "node:path";
+import fs from "node:fs";
+import { spawn, execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { loadAssistantPolicy } from "./server/eidolon/policy-loader.js";
+import { startMemoryCompactor } from "./server/eidolon/memory/compactor.js";
+
+// ---------- config ----------
+const app = express();
+// Trust exactly 1 proxy (Replit platform) - prevents IP spoofing in rate limiting
+app.set('trust proxy', 1);
+const PORT = Number(process.env.PORT) || 5000;
+const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3101;
+const AGENT_PORT = Number(process.env.AGENT_PORT) || 43717;
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+// ---------- CRITICAL: health check must be simple and always work ----------
+// This MUST be registered first and handle ALL requests to "/" deterministically
+let spaReady = false;
+
+app.get("/", (req, res, next) => {
+  // 1. Health checkers get instant OK
+  const ua = req.headers['user-agent'] || '';
+  if (ua.includes('GoogleHC') || ua.includes('Cloud') || ua.includes('HealthCheck')) {
+    return res.status(200).send("OK");
+  }
+  
+  // 2. If SPA is ready, continue to SPA middleware
+  if (spaReady) {
+    return next();
+  }
+  
+  // 3. While warming up, show a loading message
+  return res.status(200).send("Loading...");
+});
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true, gateway: true, timestamp: new Date().toISOString() });
+});
+
+// Load assistant policy and start memory compactor (deferred to avoid blocking startup)
+setImmediate(() => {
+  try {
+    const policy = loadAssistantPolicy(process.env.ASSISTANT_POLICY_PATH || "config/assistant-policy.json");
+    app.set("assistantPolicy", policy);
+    startMemoryCompactor(policy);
+  } catch (err) {
+    console.warn("[gateway] Policy loading deferred:", err.message);
+  }
+});
+
+// Define log function first
+const log = (...a) => console.log(IS_PRODUCTION ? "[vecto]" : "[eidolon-sdk]", ...a);
+
+// SDK watchdog
+const SDK_CMD  = process.env.EIDOLON_CMD  || "node";
+const SDK_ARGS = (process.env.EIDOLON_ARGS || "index.js").split(" ");
+const defaultSdkDir = path.resolve(process.cwd(), "eidolon-sdk");
+const SDK_CWD =
+  process.env.EIDOLON_CWD
+  || (fs.existsSync(path.join(defaultSdkDir, "index.js")) ? defaultSdkDir : process.cwd());
+log("SDK cwd:", SDK_CWD);
+const HEALTH_PATH = process.env.EIDOLON_HEALTH || "/health";
+
+const HEALTH_INTERVAL_MS = 5_000;
+const HEALTH_TIMEOUT_MS  = 2_500;
+const MAX_MISSES         = 3;
+const RESTART_BASE_MS    = 1_000;
+const RESTART_CAP_MS     = 30_000;
+
+// paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+const clientDir  = path.resolve(process.cwd(), "client");
+// Vite builds to root dist/ directory (configured in vite.config.js)
+const distDir    = path.resolve(process.cwd(), "dist");
+const indexHtml  = path.join(distDir, "index.html");
+
+// ---------- sdk watchdog ----------
+let sdkProc = null;
+let healthTimer = null;
+let misses = 0;
+let restartAttempts = 0;
+let stopping = false;
+let sdkReady = false;
+
+function startSDK() {
+  if (stopping || sdkProc) return;
+
+  // Sanity check: ensure the target file exists before spawning
+  if (!fs.existsSync(path.join(SDK_CWD, SDK_ARGS[0]))) {
+    log(`fatal: cannot find ${SDK_ARGS[0]} in ${SDK_CWD}`);
+    process.exit(1);
+  }
+
+  log("starting:", { cmd: SDK_CMD, args: SDK_ARGS.join(" "), cwd: SDK_CWD, port: SDK_PORT });
+  const childEnv = {
+    ...process.env,
+    PORT: String(SDK_PORT),
+    HOST: "127.0.0.1",
+    ASSISTANT_OVERRIDE_MODE: "true",
+    EIDOLON_ASSISTANT_OVERRIDE: "true",
+    EIDOLON_DISABLE_STATIC: "1", // gateway serves UI
+    EIDOLON_APP_DIST: ""         // no SDK static path
+  };
+
+  sdkProc = spawn(SDK_CMD, SDK_ARGS, { cwd: SDK_CWD, stdio: "inherit", env: childEnv });
+
+  sdkProc.on("exit", (code, signal) => {
+    log(`exited code=${code} signal=${signal}`);
+    clearHealth();
+    sdkProc = null;
+    sdkReady = false;
+    if (!stopping) scheduleRestart();
+  });
+
+  sdkProc.on("error", (err) => {
+    log("spawn error:", err.message);
+    clearHealth();
+    sdkProc = null;
+    sdkReady = false;
+    if (!stopping) scheduleRestart();
+  });
+
+  // give it a moment, then begin health checks
+  setTimeout(startHealth, 500);
+}
+
+function stopSDK(signal = "SIGTERM") {
+  stopping = true;
+  clearHealth();
+  if (sdkProc && !sdkProc.killed) {
+    log("stopping…", signal);
+    try { sdkProc.kill(signal); } catch {}
+  }
+  sdkProc = null;
+}
+
+function scheduleRestart() {
+  restartAttempts += 1;
+  const delay = Math.min(RESTART_BASE_MS * 2 ** (restartAttempts - 1), RESTART_CAP_MS);
+  log(`restarting in ${Math.round(delay / 1000)}s (attempt ${restartAttempts})`);
+  setTimeout(() => { if (!stopping) startSDK(); }, delay);
+}
+
+function clearHealth() {
+  if (healthTimer) clearInterval(healthTimer);
+  healthTimer = null;
+  misses = 0;
+}
+
+function startHealth() {
+  clearHealth();
+  restartAttempts = 0; // healthy start resets backoff
+  healthTimer = setInterval(async () => {
+    const ok = await probeHealth();
+    if (ok) { 
+      if (!sdkReady) console.log("[gateway] SDK is healthy and ready");
+      sdkReady = true; 
+      misses = 0; 
+      return; 
+    }
+    misses += 1;
+    log(`health miss ${misses}/${MAX_MISSES}`);
+    if (misses >= MAX_MISSES) {
+      log("unhealthy: restarting child");
+      try { sdkProc?.kill("SIGTERM"); } catch {}
+    }
+  }, HEALTH_INTERVAL_MS);
+}
+
+function probeHealth() {
+  return new Promise((resolve) => {
+    const req = http.get(
+      { host: "127.0.0.1", port: SDK_PORT, path: HEALTH_PATH, timeout: HEALTH_TIMEOUT_MS },
+      (res) => { res.resume(); resolve(Boolean(res.statusCode && res.statusCode < 500)); }
+    );
+    req.on("timeout", () => { req.destroy(new Error("timeout")); });
+    req.on("error", () => resolve(false));
+  });
+}
+
+// ---------- metrics & tracing ----------
+const counts = { assistant: 0, eidolon: 0, ide_assistant: 0 };
+const count  = (key) => (req, _res, next) => { if (req.method !== "OPTIONS") counts[key]++; next(); };
+const proxyLog = (label) => ({
+  onProxyReq: (_proxyReq, req) => console.log(`[proxy→${label}] ${req.method} ${req.originalUrl}`),
+  onProxyRes: (proxyRes, req) => console.log(`[${label}→proxy] ${req.method} ${req.originalUrl} -> ${proxyRes.statusCode} ${proxyRes.headers["content-type"]||""}`)
+});
+
+app.use((req, res, next) => {
+  console.log("[trace]", req.method, req.originalUrl);
+  if (process.env.NODE_ENV !== "production") {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  }
+  next();
+});
+
+// ---------- metrics endpoint ----------
+
+app.get("/metrics", (_req, res) => { res.set("Cache-Control", "no-store"); res.json({ counts, time: Date.now() }); });
+
+app.use("/agent", (req, res, next) => {
+  const key = process.env.GW_KEY;
+  if (key && req.get("x-gw-key") !== key) return res.sendStatus(401);
+  next();
+});
+
+// ---------- proxies (before any static) ----------
+// In production, no SDK = always ready. In dev, wait for SDK.
+const guard = (_req, res, next) => (IS_PRODUCTION || sdkReady ? next() : res.status(503).json({ ok: false, reason: "sdk_warming" }));
+
+// Only proxy to SDK/Agent in development mode
+if (!IS_PRODUCTION) {
+  app.use(
+    "/assistant",
+  (req, res, next) => {
+    if (req.get("referer")?.includes("replit.com") || req.get("user-agent")?.includes("replit")) counts.ide_assistant++;
+    return count("assistant")(req, res, next);
+  },
+  guard,
+  createProxyMiddleware({
+    target: `http://127.0.0.1:${SDK_PORT}`,
+    changeOrigin: true,
+    ws: true,
+    pathRewrite: (p) => {
+      const rw = p.replace(/^\/assistant/, "/api/assistant");
+      console.log(`[assistant] pathRewrite: ${p} -> ${rw}`);
+      return rw;
+    },
+    onProxyReqWs() { counts.assistant++; },
+    logLevel: "warn",
+    onError: (err, req, res) => {
+      console.error(`[gateway] Assistant proxy error for ${req.method} ${req.url}:`, err.message);
+      res.status(502).json({ ok: false, error: "Assistant SDK unavailable", where: "assistant-proxy" });
+    },
+    onProxyRes: (proxyRes, req) => console.log(`[assistant] ${proxyRes.statusCode} ${req.method} ${req.url}`)
+  })
+);
+
+app.use(
+  "/eidolon",
+  count("eidolon"),
+  guard,
+  createProxyMiddleware({
+    target: `http://127.0.0.1:${SDK_PORT}`,
+    changeOrigin: true,
+    ws: true,
+    pathRewrite: { "^/eidolon": "" },
+    onProxyReqWs() { counts.eidolon++; },
+    logLevel: "warn",
+    onError: (err, req, res) => {
+      console.error(`[gateway] Eidolon proxy error for ${req.url}:`, err.message);
+      res.status(502).json({ ok: false, error: "Eidolon SDK unavailable" });
+    },
+    ...proxyLog("sdk")
+  })
+);
+
+  app.all(/^\/api(\/.*)?$/i, guard, createProxyMiddleware({
+    target: `http://127.0.0.1:${SDK_PORT}`,
+    changeOrigin: true,
+    ws: true,
+    logLevel: "warn",
+    onError: (err, req, res) => {
+      console.error(`[gateway] API proxy error for ${req.url}:`, err.message);
+      res.status(502).json({ ok: false, error: "API unavailable" });
+    }
+  }));
+}
+// End of development-only proxies
+
+// ---------- build / serve app ----------
+function ensureClientBuild() {
+  if (fs.existsSync(indexHtml)) {
+    console.log("[gateway] client build already exists");
+    return;
+  }
+  console.log("[gateway] client build missing — building...");
+  try {
+    execSync("npm run build", { stdio: "inherit", env: { ...process.env, NODE_ENV: "production" } });
+    console.log("[gateway] client build completed successfully");
+  } catch (e) {
+    console.error("[gateway] build failed:", e.message);
+    console.error("[gateway] This is a real build error that needs to be fixed");
+    process.exit(1);
+  }
+}
+
+// ---------- production: setup middleware only (routes loaded after server starts) ----------
+if (IS_PRODUCTION) {
+  console.log(`✅ [vecto] Production mode - middleware ready`);
+  app.use(express.json({ limit: "10mb" }));
+}
+
+if (process.env.NODE_ENV !== "production") {
+  console.log("[gateway] Setting up Vite dev middleware...");
+  try {
+    const { createServer } = await import("vite");
+    const vite = await createServer({ 
+      root: clientDir, 
+      server: { 
+        middlewareMode: true,
+        host: "0.0.0.0",
+        hmr: false // Disable HMR WebSocket server - not needed in middleware mode behind proxy
+      }, 
+      appType: "spa",
+      configFile: path.resolve(process.cwd(), "vite.config.js")
+    });
+    
+    // Register Vite middleware ONLY for root and static assets (exclude all /api, /eidolon, /assistant, etc.)
+    app.use((req, res, next) => {
+      // Explicitly skip Vite for all API/service routes
+      if (
+        req.path.startsWith("/eidolon") ||
+        req.path.startsWith("/assistant") ||
+        req.path.startsWith("/agent") ||
+        req.path.startsWith("/api") ||
+        req.path.startsWith("/health") ||
+        req.path.startsWith("/metrics")
+      ) {
+        console.log(`[gateway] Skipping Vite for: ${req.method} ${req.path}`);
+        return next();
+      }
+      // Let Vite handle everything else (/, /assets/*, etc.)
+      return vite.middlewares(req, res, next);
+    });
+    console.log("[gateway] Vite dev middleware active - React app served from memory");
+    spaReady = true; // Enable SPA routing now that Vite is ready
+  } catch (err) {
+    console.error("[gateway] Failed to setup Vite middleware:", err.message);
+    // Fallback to serving static files
+    app.use(express.static(clientDir));
+    app.get("*", (req, res, next) => {
+      if (
+        req.path === "/" ||
+        req.path.startsWith("/eidolon") ||
+        req.path.startsWith("/assistant") ||
+        req.path.startsWith("/agent") ||
+        req.path.startsWith("/api") ||
+        req.path.startsWith("/health") ||
+        req.path.startsWith("/metrics")
+      ) return next();
+      res.sendFile(path.join(clientDir, "index.html"));
+    });
+  }
+} else {
+  console.log("[gateway] Production mode - will serve built SPA after server starts");
+  // Static serving and build check moved to AFTER server.listen()
+}
+
+// ---------- server + startup ----------
+// Clean up any existing processes on our ports
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
+const server = app.listen(PORT, "0.0.0.0", async () => {
+  console.log(`🌐 [${IS_PRODUCTION ? 'vecto' : 'gateway'}] Server listening on 0.0.0.0:${PORT}`);
+  
+  if (IS_PRODUCTION) {
+    console.log(`✅ [vecto] Server listening on port ${PORT}`);
+    
+    // Load everything asynchronously AFTER server is listening
+    setImmediate(async () => {
+      try {
+        // Check/build frontend
+        if (fs.existsSync(indexHtml)) {
+          console.log("[vecto] Frontend build found");
+        } else {
+          console.log("[vecto] WARNING: Frontend build missing at", indexHtml);
+        }
+        
+        // Setup static serving
+        app.use(express.static(distDir, { index: false }));
+        app.get("*", (req, res, next) => {
+          // Skip for API/proxy routes
+          if (
+            req.path.startsWith("/eidolon") ||
+            req.path.startsWith("/assistant") ||
+            req.path.startsWith("/agent") ||
+            req.path.startsWith("/api") ||
+            req.path.startsWith("/health") ||
+            req.path.startsWith("/metrics")
+          ) return next();
+          // Serve SPA for all other routes (including "/")
+          res.sendFile(indexHtml);
+        });
+        
+        spaReady = true;
+        
+        // Load API routes
+        console.log(`[vecto] Loading API routes...`);
+        const { default: healthRoutes } = await import('./server/routes/health.js');
+        const { default: blocksRoutes } = await import('./server/routes/blocks.js');
+        const { default: blocksTriadStrictRoutes } = await import('./server/routes/blocks-triad-strict.js');
+        const { default: locationRoutes } = await import('./server/routes/location.js');
+        const { default: actionsRoutes } = await import('./server/routes/actions.js');
+        const { default: feedbackRoutes } = await import('./server/routes/feedback.js');
+        
+        app.use("/api/health", healthRoutes);
+        app.use("/api/blocks", blocksRoutes);
+        app.use(blocksTriadStrictRoutes);
+        app.use("/api/location", locationRoutes);
+        app.use("/api/actions", actionsRoutes);
+        app.use("/api/feedback", feedbackRoutes);
+        
+        sdkReady = true;
+        console.log(`✅ [vecto] Production app fully initialized`);
+        if (process.env.REPL_ID) {
+          console.log(`✅ [vecto] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
+        }
+      } catch (err) {
+        console.error(`❌ [vecto] Initialization error:`, err.message);
+      }
+    });
+  } else {
+    // Development: Full Eidolon experience
+    console.log(`🌐 [gateway] Proxying /assistant/* -> 127.0.0.1:${SDK_PORT}/api/assistant/*`);
+    console.log(`🌐 [gateway] Proxying /eidolon/* -> 127.0.0.1:${SDK_PORT}/*`);
+    console.log(`🌐 [gateway] Proxying /agent/* -> 127.0.0.1:${AGENT_PORT}/agent/*`);
+    console.log(`🌐 [gateway] Proxying /api/* -> 127.0.0.1:${SDK_PORT}/api/*`);
+    if (process.env.REPL_ID) {
+      console.log(`🌐 [gateway] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
+    }
+    console.log("🐕 Starting Eidolon SDK watchdog…");
+    startSDK();
+    
+    // Warm up SDK in background
+    (async () => {
+      console.log(`[gateway] Waiting for SDK to become healthy on port ${SDK_PORT}…`);
+      const ok = await probeHealth();
+      if (ok) { sdkReady = true; console.log("[gateway] SDK is healthy and ready"); }
+    })();
+  }
+});
+
+// ---------- shutdown ----------
+function shutdown() {
+  console.log("[gateway] shutdown…");
+  stopSDK();
+  server.close(() => process.exit(0));
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+export default app;

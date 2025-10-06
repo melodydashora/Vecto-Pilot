@@ -1,0 +1,33 @@
+{
+  "boundaries": {
+    "south_of_lat_exclude": 32.915,
+    "polygons_exclude": [
+      { 
+        "name": "Dallas Core", 
+        "points": [
+          { "lat": 32.82, "lng": -96.75 },
+          { "lat": 32.82, "lng": -96.82 },
+          { "lat": 32.75, "lng": -96.82 },
+          { "lat": 32.75, "lng": -96.75 }
+        ]
+      }
+    ]
+  },
+  "scoring": {
+    "distance": { "meters_per_point": 200, "max_bonus": 100 },
+    "time_windows": [
+      { "when": "night", "tags": ["airport_return","corporate"], "bonus": 12 }
+    ],
+    "suppressions": [
+      { "tags": ["risky_profile"], "after_hour": 17, "penalty": 14 }
+    ],
+    "custom": [
+      { "slug_matches": ["mckinney"], "penalty": 4, "note": "Prefer if return likely" }
+    ]
+  },
+  "acceptance": { 
+    "max_pickup_eta_min": 12, 
+    "min_fare_per_mile": 1.5, 
+    "min_fare_per_hour": 28 
+  }
+}

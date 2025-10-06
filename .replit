@@ -1,0 +1,61 @@
+entrypoint = "gateway-server.js"
+modules = ["nodejs-22", "nodejs-20", "nodejs-18", "postgresql-16"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Eidolon Main"
+mode = "parallel"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "NODE_ENV=development VITE_PORT=3003 PLANNER_DEADLINE_MS=120000 VALIDATOR_DEADLINE_MS=60000 node gateway-server.js"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Eidolon Main"
+
+[nix]
+packages = ["nodejs-22", "nodejs-20", "nodejs-18", "lsof", "openssl", "jql", "jq-lsp", "jq", "python312Packages.jq", "python313Packages.jq", "jiq", "python312Packages.xstatic-jquery-ui", "python313Packages.xstatic-jquery", "python313Packages.django-jquery-js", "tree"]
+channel = "stable-25_05"
+
+[agent]
+expertMode = true
+
+[[ports]]
+localPort = 80
+externalPort = 3001
+
+[[ports]]
+localPort = 3101
+externalPort = 3003
+exposeLocalhost = true
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 24678
+externalPort = 3000
+
+[[ports]]
+localPort = 43717
+externalPort = 3002
+exposeLocalhost = true
+
+[deployment]
+deploymentTarget = "vm"
+run = ["sh", "-c", "NODE_ENV=production PORT=5000 node gateway-server.js"]
+build = ["npm", "run", "build"]
