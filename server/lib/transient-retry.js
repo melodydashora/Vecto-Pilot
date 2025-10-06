@@ -10,10 +10,10 @@ function isTransient(code) {
 }
 
 export async function callClaudeWithBudget(payload, opts = {}) {
-  const { timeoutMs = 30000, maxRetries = 3 } = opts;
+  const { timeoutMs = 45000, maxRetries = 6 } = opts;
   const started = Date.now();
   let attempt = 0;
-  let delay = 300; // ms
+  let delay = 500; // ms - start with longer initial delay
 
   while (true) {
     attempt++;
@@ -60,10 +60,10 @@ export async function callClaudeWithBudget(payload, opts = {}) {
       
       // Retry transient errors if we have budget and attempts left
       if (isTransient(code) && attempt <= maxRetries && Date.now() - started + delay < timeoutMs) {
-        const jitter = Math.floor(Math.random() * 150);
+        const jitter = Math.floor(Math.random() * 300);
         console.log(`[retry] retrying after ${delay + jitter}ms backoff (transient ${code})`);
         await sleep(delay + jitter);
-        delay = Math.min(delay * 2, 2000);
+        delay = Math.min(delay * 2, 4000); // Allow longer delays up to 4s
         continue;
       }
       
@@ -77,10 +77,10 @@ export async function callClaudeWithBudget(payload, opts = {}) {
       
       // Retry network errors if we have budget
       if (attempt <= maxRetries && Date.now() - started + delay < timeoutMs) {
-        const jitter = Math.floor(Math.random() * 150);
+        const jitter = Math.floor(Math.random() * 300);
         console.log(`[retry] retrying after ${delay + jitter}ms backoff (network error)`);
         await sleep(delay + jitter);
-        delay = Math.min(delay * 2, 2000);
+        delay = Math.min(delay * 2, 4000);
         continue;
       }
       

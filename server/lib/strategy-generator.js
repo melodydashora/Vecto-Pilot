@@ -135,10 +135,10 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
 
     const claudeStart = Date.now();
     
-    // Call Claude with transient retry and hard budget (30s)
+    // Call Claude with transient retry and hard budget (45s with 6 retries)
     const result = await callClaudeWithBudget(payload, { 
-      timeoutMs: 30000, 
-      maxRetries: 3 
+      timeoutMs: 45000, 
+      maxRetries: 6 
     });
     
     const totalDuration = Date.now() - startTime;
