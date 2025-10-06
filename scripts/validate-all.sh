@@ -23,13 +23,32 @@ find . -name "*.json" -not -path "*/node_modules/*" -not -path "*/dist/*" -exec 
 # Config files
 echo ""
 echo "⚙️  Config File Check:"
-files=("tsconfig.json" "package.json" "vite.config.js" "tailwind.config.js")
+json_files=("tsconfig.json" "package.json")
+js_files=("vite.config.js" "tailwind.config.js")
 errors=0
-for file in "${files[@]}"; do
+
+for file in "${json_files[@]}"; do
   if [ -f "$file" ]; then
-    node --check "$file" 2>&1 && echo "   ✓ $file" || { echo "   ✗ $file"; ((errors++)); }
+    if jq empty "$file" 2>/dev/null; then
+      echo "   ✓ $file"
+    else
+      echo "   ✗ $file (invalid JSON)"
+      ((errors++))
+    fi
   fi
 done
+
+for file in "${js_files[@]}"; do
+  if [ -f "$file" ]; then
+    if node --check "$file" 2>/dev/null; then
+      echo "   ✓ $file"
+    else
+      echo "   ✗ $file (syntax error)"
+      ((errors++))
+    fi
+  fi
+done
+
 echo "   $errors config errors found"
 
 echo ""
