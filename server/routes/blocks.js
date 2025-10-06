@@ -19,6 +19,13 @@ router.get('/strategy/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
     
+    // Cheap crawler screen: missing UA or classic bot strings → no content
+    const ua = String(req.get("user-agent") || "").toLowerCase();
+    if (!ua || /bot|crawler|spider|scrape|fetch|httpclient|monitor|headless/i.test(ua)) {
+      console.log('[blocks] Crawler detected, returning 204', { ua });
+      return res.status(204).end();
+    }
+    
     if (!snapshotId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
       return res.status(400).json({ error: 'Invalid snapshot ID' });
     }
@@ -32,15 +39,33 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       .limit(1);
     
     if (!strategyRow) {
-      // No strategy row yet - check if snapshot exists to distinguish "pending" from "not_found"
+      // No strategy row yet - check if snapshot exists and validate completeness
       const [snap] = await db
-        .select({ snapshot_id: snapshots.snapshot_id })
+        .select()
         .from(snapshots)
         .where(eq(snapshots.snapshot_id, snapshotId))
         .limit(1);
       
       if (snap) {
-        // Snapshot exists but strategy not written yet → report pending
+        // Check if snapshot has all required fields
+        const missing = [];
+        if (snap.lat == null || !Number.isFinite(snap.lat)) missing.push("lat");
+        if (snap.lng == null || !Number.isFinite(snap.lng)) missing.push("lng");
+        if (!snap.city && !snap.formatted_address) missing.push("city_or_formattedAddress");
+        if (!snap.timezone) missing.push("timezone");
+        
+        if (missing.length > 0) {
+          // Snapshot exists but has missing critical fields - likely crawler or denied permissions
+          console.warn('[blocks] Incomplete snapshot detected', { snapshotId, missing });
+          return res.json({
+            status: 'refresh_required',
+            hasStrategy: false,
+            fields_missing: missing,
+            tip: 'Please refresh the page and enable location to continue.'
+          });
+        }
+        
+        // Snapshot is complete but strategy not written yet → report pending
         return res.json({
           status: 'pending',
           hasStrategy: false,

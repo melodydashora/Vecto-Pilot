@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { db } from "../db/drizzle.js";
 import { snapshots, strategies } from "../../shared/schema.js";
 import { generateStrategyForSnapshot } from "../lib/strategy-generator.js";
+import { validateIncomingSnapshot } from "../util/validate-snapshot.js";
 
 const router = express.Router();
 
@@ -18,25 +19,6 @@ function requireStr(v, name) {
   return v.trim();
 }
 
-function validateSnapshotData(data) {
-  const { lat, lng, context } = data;
-  const missingFields = [];
-  
-  // Validate coordinates
-  if (typeof lat !== "number" || !isFinite(lat)) missingFields.push("lat");
-  if (typeof lng !== "number" || !isFinite(lng)) missingFields.push("lng");
-  
-  // Validate critical context fields (these should come from GPS/location services)
-  if (!context) {
-    missingFields.push("context");
-  } else {
-    if (!context.city && !context.formattedAddress) missingFields.push("context.city or context.formattedAddress");
-    if (!context.timezone) missingFields.push("context.timezone");
-  }
-  
-  return missingFields;
-}
-
 router.post("/", async (req, res) => {
   console.log("[snapshot] handler ENTER", { url: req.originalUrl });
 
@@ -46,22 +28,27 @@ router.post("/", async (req, res) => {
   try {
     const { lat, lng, context, meta } = req.body || {};
     
-    // Validate snapshot data completeness
-    const missingFields = validateSnapshotData(req.body);
+    // Validate snapshot data completeness using dedicated validator
+    const { ok, errors, warnings } = validateIncomingSnapshot(req.body ?? {});
     
-    if (missingFields.length > 0) {
+    if (!ok) {
       console.warn("[snapshot] INCOMPLETE_DATA - possible web crawler or incomplete client", { 
-        missingFields, 
+        fields_missing: errors,
+        warnings,
         hasUserAgent: !!req.get("user-agent"),
         userAgent: req.get("user-agent")
       });
       return res.status(400).json({ 
         ok: false, 
-        error: "incomplete_snapshot_data",
-        message: "Please enable location services and refresh to capture complete context data",
-        missing_fields: missingFields,
-        action_required: "manual_refresh"
+        error: "refresh_required",
+        fields_missing: errors,
+        tip: "Please refresh location permission and retry."
       });
+    }
+    
+    // Log warnings for optional fields
+    if (warnings.length > 0) {
+      console.info("[snapshot] Missing optional fields", { warnings });
     }
     
     // Get userId from header or body - must be valid UUID or null
