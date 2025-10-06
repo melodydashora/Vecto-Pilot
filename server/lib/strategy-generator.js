@@ -6,18 +6,19 @@ import { eq } from 'drizzle-orm';
 import { callClaude } from './adapters/anthropic-claude.js';
 
 export async function generateStrategyForSnapshot(snapshot_id) {
+  const startTime = Date.now();
   try {
-    console.log(`[Strategy Generator] Starting strategy generation for snapshot ${snapshot_id}`);
+    console.log(`[triad] strategist.start id=${snapshot_id}`);
     
     const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshot_id));
     
     if (!snap) {
-      console.warn(`[Strategy Generator] Snapshot ${snapshot_id} not found`);
+      console.warn(`[triad] strategist.err id=${snapshot_id} reason=snapshot_not_found ms=${Date.now() - startTime}`);
       return null;
     }
     
     if (!snap.city && !snap.formatted_address) {
-      console.log(`[Strategy Generator] Skipping - no location data for snapshot ${snapshot_id}`);
+      console.log(`[triad] strategist.skip id=${snapshot_id} reason=no_location_data ms=${Date.now() - startTime}`);
       return null;
     }
     
@@ -105,8 +106,7 @@ START YOUR RESPONSE WITH: "Today is ${dayOfWeek}, ${formattedDate} at ${exactTim
 
 Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. Think about what's happening at this exact location, at this specific time, on this particular day of the week.`;
 
-    console.log(`[Strategy Generator] Calling Claude Opus 4.1 with HEAVY THINKING for snapshot ${snapshot_id}...`);
-    const startTime = Date.now();
+    const claudeStart = Date.now();
     
     const strategyText = await callClaude({
       system: systemPrompt,
@@ -116,11 +116,10 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
       // Note: temperature will be forced to 1.0 by adapter when thinking is enabled
     });
     
-    const duration = Date.now() - startTime;
-    console.log(`✅ [Strategy Generator] Strategy generated in ${duration}ms with extended thinking`);
+    const claudeDuration = Date.now() - claudeStart;
     
     if (!strategyText || strategyText.trim().length === 0) {
-      console.warn(`[Strategy Generator] Claude returned empty strategy for snapshot ${snapshot_id}`);
+      console.warn(`[triad] strategist.err id=${snapshot_id} reason=empty_response ms=${claudeDuration}`);
       return null;
     }
     
@@ -129,11 +128,13 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
       strategy: strategyText.trim()
     });
     
-    console.log(`✅ [Strategy Generator] Claude strategy saved to strategies table for ${snapshot_id}: ${strategyText.slice(0, 60)}...`);
+    const totalDuration = Date.now() - startTime;
+    console.log(`[triad] strategist.ok id=${snapshot_id} ms=${totalDuration} claude_ms=${claudeDuration}`);
     
     return strategyText;
   } catch (err) {
-    console.error(`[Strategy Generator] Error generating strategy for snapshot ${snapshot_id}:`, err.message);
+    const duration = Date.now() - startTime;
+    console.error(`[triad] strategist.err id=${snapshot_id} reason=${err.message} ms=${duration}`);
     return null;
   }
 }

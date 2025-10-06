@@ -72,18 +72,18 @@ router.post("/", async (req, res) => {
     // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
     queueMicrotask(() => {
       try {
+        console.log(`[triad] start id=${snapshot_id}`);
+        
         // Trigger background strategy generation
         import('../lib/strategy-generator.js').then(module => {
           module.generateStrategyForSnapshot(snapshot_id).catch(err => {
-            console.warn("[snapshot] strategy generation failed", err.message);
+            console.warn(`[triad] strategist.err id=${snapshot_id} reason=${err.message}`);
           });
         }).catch(err => {
-          console.warn("[snapshot] failed to load strategy generator", err.message);
+          console.warn(`[triad] import.err id=${snapshot_id} reason=${err.message}`);
         });
-        
-        console.log("[snapshot] triad enqueued", { snapshot_id, userId });
       } catch (e) {
-        console.warn("[snapshot] triad enqueue failed", String(e));
+        console.warn(`[triad] enqueue.err id=${snapshot_id} reason=${String(e)}`);
       }
     });
 
