@@ -17,6 +17,7 @@ import actionsRoutes from "./server/routes/actions.js";
 import researchRoutes from "./server/routes/research.js";
 import feedbackRoutes from "./server/routes/feedback.js";
 import venueEventsRoutes from "./server/routes/venue-events.js";
+import snapshotRoutes from "./server/routes/snapshot.js";
 
 // Middleware
 import { loggingMiddleware } from "./server/middleware/logging.js";
@@ -74,6 +75,7 @@ app.use("/api/actions", apiLimiter, actionsRoutes);
 app.use("/api/research", apiLimiter, researchRoutes); // Internet research via Perplexity
 app.use("/api/feedback", apiLimiter, feedbackRoutes); // Venue feedback and reliability scoring
 app.use("/api/venue", apiLimiter, venueEventsRoutes); // Event checking via Perplexity
+app.use("/api/snapshot", apiLimiter, snapshotRoutes); // Context snapshot storage
 
 // Quick status endpoint
 app.get("/api/copilot", (_req, res) => {
