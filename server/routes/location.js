@@ -386,8 +386,9 @@ router.get('/airquality', async (req, res) => {
 // POST /api/location/snapshot
 // Save a context snapshot for ML/analytics (SnapshotV1 format)
 router.post('/snapshot', async (req, res) => {
+  console.log('[snapshot] handler ENTER', { url: req.originalUrl, method: req.method, hasBody: !!req.body });
   try {
-    console.log('[snapshot] POST /snapshot received');
+    console.log('[snapshot] processing snapshot...');
     const snapshotV1 = req.body;
 
     // Validate SnapshotV1 structure

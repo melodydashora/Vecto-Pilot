@@ -268,6 +268,12 @@ app.use(
     changeOrigin: true,
     ws: true,
     logLevel: "warn",
+    onProxyReq: (proxyReq, req) => {
+      console.log('[GW→SDK]', req.method, req.originalUrl);
+    },
+    onProxyRes: (proxyRes, req) => {
+      console.log('[SDK→GW]', req.method, req.originalUrl, proxyRes.statusCode);
+    },
     onError: (err, req, res) => {
       console.error(`[gateway] API proxy error for ${req.url}:`, err.message);
       res.status(502).json({ ok: false, error: "API unavailable" });
