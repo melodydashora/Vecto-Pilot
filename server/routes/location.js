@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { latLngToCell } from 'h3-js';
 import { db } from '../db/drizzle.js';
 import { snapshots } from '../../shared/schema.js';
+import { generateStrategyForSnapshot } from '../lib/strategy-generator.js';
 
 const router = Router();
 
@@ -517,12 +518,8 @@ router.post('/snapshot', async (req, res) => {
 
     // Trigger background strategy generation if we have location data
     if (snapshotV1.resolved?.formattedAddress || snapshotV1.resolved?.city) {
-      import('../lib/strategy-generator.js').then(module => {
-        module.generateStrategyForSnapshot(snapshotV1.snapshot_id).catch(err => {
-          console.error('[location] Background strategy generation failed:', err.message);
-        });
-      }).catch(err => {
-        console.error('[location] Failed to load strategy generator:', err.message);
+      generateStrategyForSnapshot(snapshotV1.snapshot_id).catch(err => {
+        console.error('[location] Background strategy generation failed:', err.message);
       });
     }
 

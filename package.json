@@ -22,6 +22,8 @@
     "test:protocol": "node tests/eidolon/test-exact-protocol.js",
     "test:app": "open tests/app/test-smart-blocks-visual.html",
     "test:override": "node tests/eidolon/test-override-confirmation.js",
+    "test:phases": "node ./tests/run-all-phases.js",
+    "debug:emergency": "node ./tools/debug/emergency-eidolon.js",
     "guard": "npm-run-all -s guard:json guard:deps guard:js guard:py",
     "guard:json": "jsonlint -q \"**/*.json\"",
     "guard:deps": "npm ls --all --omit=dev > /dev/null",
