@@ -19,24 +19,13 @@ const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3101;
 const AGENT_PORT = Number(process.env.AGENT_PORT) || 43717;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
-// ---------- CRITICAL: health check must be simple and always work ----------
-// This MUST be registered first and handle ALL requests to "/" deterministically
-let spaReady = false;
-
-app.get("/", (req, res, next) => {
-  // 1. Health checkers get instant OK
-  const ua = req.headers['user-agent'] || '';
-  if (ua.includes('GoogleHC') || ua.includes('Cloud') || ua.includes('HealthCheck')) {
+// ---------- CRITICAL: health check first (must respond instantly) ----------
+app.get("/", (req, res) => {
+  // Ultra-fast response for Google Cloud health checks
+  if (req.headers['user-agent']?.includes('GoogleHC') || req.headers['user-agent']?.includes('Cloud')) {
     return res.status(200).send("OK");
   }
-  
-  // 2. If SPA is ready, continue to SPA middleware
-  if (spaReady) {
-    return next();
-  }
-  
-  // 3. While warming up, show a loading message
-  return res.status(200).send("Loading...");
+  res.status(200).send("OK");
 });
 
 app.get("/health", (_req, res) => {
@@ -268,12 +257,6 @@ app.use(
     changeOrigin: true,
     ws: true,
     logLevel: "warn",
-    onProxyReq: (proxyReq, req) => {
-      console.log('[GW→SDK]', req.method, req.originalUrl);
-    },
-    onProxyRes: (proxyRes, req) => {
-      console.log('[SDK→GW]', req.method, req.originalUrl, proxyRes.statusCode);
-    },
     onError: (err, req, res) => {
       console.error(`[gateway] API proxy error for ${req.url}:`, err.message);
       res.status(502).json({ ok: false, error: "API unavailable" });
@@ -299,10 +282,29 @@ function ensureClientBuild() {
   }
 }
 
-// ---------- production: setup middleware only (routes loaded after server starts) ----------
+// ---------- production: setup middleware and routes BEFORE server starts ----------
 if (IS_PRODUCTION) {
-  console.log(`✅ [vecto] Production mode - middleware ready`);
+  console.log(`✅ [vecto] Production mode - loading API routes synchronously`);
   app.use(express.json({ limit: "10mb" }));
+  
+  // Load routes synchronously BEFORE server.listen()
+  const { default: healthRoutes } = await import('./server/routes/health.js');
+  const { default: blocksRoutes } = await import('./server/routes/blocks.js');
+  const { default: blocksTriadStrictRoutes } = await import('./server/routes/blocks-triad-strict.js');
+  const { default: locationRoutes } = await import('./server/routes/location.js');
+  const { default: actionsRoutes } = await import('./server/routes/actions.js');
+  const { default: feedbackRoutes } = await import('./server/routes/feedback.js');
+  
+  app.use("/api/health", healthRoutes);
+  app.use("/api/blocks", blocksRoutes);
+  app.use(blocksTriadStrictRoutes);
+  app.use(locationRoutes); // Mount without prefix since route defines /api/location internally
+  app.use("/api/actions", actionsRoutes);
+  app.use("/api/feedback", feedbackRoutes);
+  
+  sdkReady = true;
+  console.log(`✅ [vecto] API routes loaded and mounted synchronously`);
+  console.log(`✅ [vecto] Routes available: /api/health, /api/blocks, /api/location, /api/actions, /api/feedback`);
 }
 
 if (process.env.NODE_ENV !== "production") {
@@ -338,7 +340,6 @@ if (process.env.NODE_ENV !== "production") {
       return vite.middlewares(req, res, next);
     });
     console.log("[gateway] Vite dev middleware active - React app served from memory");
-    spaReady = true; // Enable SPA routing now that Vite is ready
   } catch (err) {
     console.error("[gateway] Failed to setup Vite middleware:", err.message);
     // Fallback to serving static files
@@ -357,8 +358,24 @@ if (process.env.NODE_ENV !== "production") {
     });
   }
 } else {
-  console.log("[gateway] Production mode - will serve built SPA after server starts");
-  // Static serving and build check moved to AFTER server.listen()
+  console.log("[gateway] Production mode - serving built SPA");
+  ensureClientBuild();
+  // Disable index.html serving for "/" - health endpoint handles that
+  app.use(express.static(distDir, { index: false }));
+  app.get("*", (req, res, next) => {
+    // Don't serve SPA for API/proxy routes or root health check
+    if (
+      req.path === "/" ||
+      req.path.startsWith("/eidolon") ||
+      req.path.startsWith("/assistant") ||
+      req.path.startsWith("/agent") ||
+      req.path.startsWith("/api") ||
+      req.path.startsWith("/health") ||
+      req.path.startsWith("/metrics")
+    ) return next();
+    // Serve SPA for all other routes
+    res.sendFile(indexHtml);
+  });
 }
 
 // ---------- server + startup ----------
@@ -370,61 +387,10 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
   console.log(`🌐 [${IS_PRODUCTION ? 'vecto' : 'gateway'}] Server listening on 0.0.0.0:${PORT}`);
   
   if (IS_PRODUCTION) {
-    console.log(`✅ [vecto] Server listening on port ${PORT}`);
-    
-    // Load everything asynchronously AFTER server is listening
-    setImmediate(async () => {
-      try {
-        // Check/build frontend
-        if (fs.existsSync(indexHtml)) {
-          console.log("[vecto] Frontend build found");
-        } else {
-          console.log("[vecto] WARNING: Frontend build missing at", indexHtml);
-        }
-        
-        // Setup static serving
-        app.use(express.static(distDir, { index: false }));
-        app.get("*", (req, res, next) => {
-          // Skip for API/proxy routes
-          if (
-            req.path.startsWith("/eidolon") ||
-            req.path.startsWith("/assistant") ||
-            req.path.startsWith("/agent") ||
-            req.path.startsWith("/api") ||
-            req.path.startsWith("/health") ||
-            req.path.startsWith("/metrics")
-          ) return next();
-          // Serve SPA for all other routes (including "/")
-          res.sendFile(indexHtml);
-        });
-        
-        spaReady = true;
-        
-        // Load API routes
-        console.log(`[vecto] Loading API routes...`);
-        const { default: healthRoutes } = await import('./server/routes/health.js');
-        const { default: blocksRoutes } = await import('./server/routes/blocks.js');
-        const { default: blocksTriadStrictRoutes } = await import('./server/routes/blocks-triad-strict.js');
-        const { default: locationRoutes } = await import('./server/routes/location.js');
-        const { default: actionsRoutes } = await import('./server/routes/actions.js');
-        const { default: feedbackRoutes } = await import('./server/routes/feedback.js');
-        
-        app.use("/api/health", healthRoutes);
-        app.use("/api/blocks", blocksRoutes);
-        app.use(blocksTriadStrictRoutes);
-        app.use("/api/location", locationRoutes);
-        app.use("/api/actions", actionsRoutes);
-        app.use("/api/feedback", feedbackRoutes);
-        
-        sdkReady = true;
-        console.log(`✅ [vecto] Production app fully initialized`);
-        if (process.env.REPL_ID) {
-          console.log(`✅ [vecto] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
-        }
-      } catch (err) {
-        console.error(`❌ [vecto] Initialization error:`, err.message);
-      }
-    });
+    console.log(`✅ [vecto] Production server ready with all API routes mounted`);
+    if (process.env.REPL_ID) {
+      console.log(`✅ [vecto] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
+    }
   } else {
     // Development: Full Eidolon experience
     console.log(`🌐 [gateway] Proxying /assistant/* -> 127.0.0.1:${SDK_PORT}/api/assistant/*`);
