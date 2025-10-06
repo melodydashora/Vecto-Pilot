@@ -2,7 +2,7 @@
 import express from "express";
 import crypto from "node:crypto";
 import { db } from "../db/drizzle.js";
-import { snapshots } from "../../shared/schema.js";
+import { snapshots, strategies } from "../../shared/schema.js";
 
 const router = express.Router();
 
@@ -68,6 +68,15 @@ router.post("/", async (req, res) => {
 
     // Persist to DB
     await db.insert(snapshots).values(dbSnapshot);
+
+    // Immediately create placeholder strategy row so GET endpoint can return "pending" instead of "not_found"
+    await db.insert(strategies).values({
+      snapshot_id,
+      status: 'pending',
+      attempt: 1,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }).onConflictDoNothing();
 
     // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
     queueMicrotask(() => {

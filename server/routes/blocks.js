@@ -32,8 +32,24 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       .limit(1);
     
     if (!strategyRow) {
-      // No strategy record yet
-      return res.json({
+      // No strategy row yet - check if snapshot exists to distinguish "pending" from "not_found"
+      const [snap] = await db
+        .select({ snapshot_id: snapshots.snapshot_id })
+        .from(snapshots)
+        .where(eq(snapshots.snapshot_id, snapshotId))
+        .limit(1);
+      
+      if (snap) {
+        // Snapshot exists but strategy not written yet → report pending
+        return res.json({
+          status: 'pending',
+          hasStrategy: false,
+          strategy: null
+        });
+      }
+      
+      // Truly unknown snapshot ID
+      return res.status(404).json({
         status: 'not_found',
         hasStrategy: false,
         strategy: null
