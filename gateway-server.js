@@ -195,59 +195,48 @@ const guard = (_req, res, next) => (IS_PRODUCTION || sdkReady ? next() : res.sta
 if (!IS_PRODUCTION) {
   // Gateway GW_KEY guard for all /agent/* calls
   app.use("/agent", (req, res, next) => {
-    console.log(`[gateway→agent-auth] ${req.method} ${req.url}`);
     const want = process.env.GW_KEY;
     if (want && req.get("x-gw-key") !== want) {
-      console.log(`[gateway→agent-auth] REJECTED - invalid GW_KEY`);
       return res.status(401).json({ ok: false, error: "unauthorized_gw" });
     }
-    console.log(`[gateway→agent-auth] PASSED - proceeding to proxy`);
     next();
   });
 
   // Agent proxy: preserve full "/agent/..." upstream, inject agent token, force JSON
-  const agentProxy = createProxyMiddleware({
-    target: `http://127.0.0.1:${AGENT_PORT}`,
-    changeOrigin: true,
-    logLevel: "silent",
+  app.use(
+    "/agent",
+    createProxyMiddleware({
+      target: `http://127.0.0.1:${AGENT_PORT}`,
+      changeOrigin: true,
+      logLevel: "warn",
 
-    // Express strips "/agent" before this middleware; put it back
-    pathRewrite: (path /* e.g. "/health" */) => {
-      const rewritten = `/agent${path}`;
-      console.log(`[gateway→agent-rewrite] ${path} -> ${rewritten}`);
-      return rewritten;
-    },
+      // Express strips "/agent" before this middleware; put it back
+      pathRewrite: (path) => `/agent${path}`,
 
-    on: {
-      proxyReq: (proxyReq, req, res) => {
-        const t = process.env.AGENT_TOKEN;
-        console.log(`[gateway→agent-proxyReq-v3] CALLED! ${req.method} ${req.url} -> ${proxyReq.path}`);
-        if (t) {
-          proxyReq.setHeader("x-agent-token", t);
-          proxyReq.setHeader("authorization", `Bearer ${t}`);
-          console.log(`[gateway→agent-proxyReq-v3] Token injected: ${t.substring(0,8)}...`);
-        } else {
-          console.log(`[gateway→agent-proxyReq-v3] NO TOKEN AVAILABLE!`);
-        }
-        proxyReq.setHeader("accept", "application/json");
+      on: {
+        proxyReq: (proxyReq, req, res) => {
+          const t = process.env.AGENT_TOKEN;
+          if (t) {
+            proxyReq.setHeader("x-agent-token", t);
+            proxyReq.setHeader("authorization", `Bearer ${t}`); // covers either check
+          }
+          proxyReq.setHeader("accept", "application/json");
+        },
+
+        proxyRes: (proxyRes, req, res) => {
+          const ct = proxyRes.headers["content-type"];
+          if (!ct || !/json/i.test(String(ct))) {
+            res.setHeader("content-type", "application/json; charset=utf-8");
+          }
+        },
+
+        error: (err, req, res) => {
+          console.error("[gateway→agent] proxy error:", err.message);
+          res.status(502).json({ ok: false, error: "agent_proxy_error", detail: err.message });
+        },
       },
-
-      proxyRes: (proxyRes, req, res) => {
-        console.log(`[gateway→agent-proxyRes-v3] ${req.method} ${req.url} -> ${proxyRes.statusCode}`);
-        const ct = proxyRes.headers["content-type"];
-        if (!ct || !/json/i.test(String(ct))) {
-          res.setHeader("content-type", "application/json; charset=utf-8");
-        }
-      },
-
-      error: (err, req, res) => {
-        console.error("[gateway→agent-error-v3] proxy error:", err.message);
-        res.status(502).json({ ok: false, error: "agent_proxy_error", detail: err.message });
-      },
-    },
-  });
-
-  app.use("/agent", agentProxy);
+    })
+  );
 
   app.use(
     "/assistant",
