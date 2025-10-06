@@ -187,18 +187,53 @@ app.use((req, res, next) => {
 
 app.get("/metrics", (_req, res) => { res.set("Cache-Control", "no-store"); res.json({ counts, time: Date.now() }); });
 
-app.use("/agent", (req, res, next) => {
-  const key = process.env.GW_KEY;
-  if (key && req.get("x-gw-key") !== key) return res.sendStatus(401);
-  next();
-});
-
 // ---------- proxies (before any static) ----------
 // In production, no SDK = always ready. In dev, wait for SDK.
 const guard = (_req, res, next) => (IS_PRODUCTION || sdkReady ? next() : res.status(503).json({ ok: false, reason: "sdk_warming" }));
 
 // Only proxy to SDK/Agent in development mode
 if (!IS_PRODUCTION) {
+  // Agent proxy - auth + proxy in one middleware using filter
+  app.use(
+    createProxyMiddleware({
+      target: `http://127.0.0.1:${AGENT_PORT}`,
+      changeOrigin: true,
+      ws: false,
+      logLevel: "silent",
+      filter: (pathname, req) => {
+        if (!pathname.startsWith("/agent")) return false;
+        // Check gateway auth
+        const key = process.env.GW_KEY;
+        if (key && req.get("x-gw-key") !== key) {
+          req.__auth_failed = true;
+          return false; // Don't proxy if auth fails
+        }
+        return true;
+      },
+      onProxyReq: (proxyReq, req) => {
+        // Inject agent token so IDE only needs x-gw-key
+        const token = process.env.AGENT_TOKEN;
+        if (token) {
+          proxyReq.setHeader("x-agent-token", token);
+          console.log(`[agent→proxy] ${req.method} ${req.url} (token injected: ${token.substring(0,8)}...)`);
+        } else {
+          console.log(`[agent→proxy] ${req.method} ${req.url} (NO TOKEN AVAILABLE!)`);
+        }
+      },
+      onError: (err, req, res) => {
+        console.error(`[gateway] Agent proxy error for ${req.method} ${req.url}:`, err.message);
+        res.status(502).json({ ok: false, error: "Agent server unavailable" });
+      },
+      onProxyRes: (proxyRes, req) => console.log(`[agent] ${proxyRes.statusCode} ${req.method} ${req.url}`)
+    })
+  );
+
+  // Handle auth failures
+  app.use("/agent", (req, res, next) => {
+    if (req.__auth_failed) return res.sendStatus(401);
+    next();
+  });
+
   app.use(
     "/assistant",
   (req, res, next) => {
