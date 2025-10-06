@@ -27,7 +27,7 @@ task = "workflow.run"
 args = "Eidolon Main"
 
 [nix]
-packages = ["nodejs-22", "nodejs-20", "nodejs-18", "lsof", "openssl", "jql", "jq-lsp", "jq", "python312Packages.jq", "python313Packages.jq", "jiq", "python312Packages.xstatic-jquery-ui", "python313Packages.xstatic-jquery", "python313Packages.django-jquery-js", "tree"]
+packages = ["nodejs-22", "nodejs-20", "nodejs-18", "lsof", "openssl", "jql", "jq-lsp", "jq", "python312Packages.jq", "python313Packages.jq", "jiq", "python312Packages.xstatic-jquery-ui", "python313Packages.xstatic-jquery", "python313Packages.django-jquery-js", "tree", "undollar"]
 channel = "stable-25_05"
 
 [agent]
