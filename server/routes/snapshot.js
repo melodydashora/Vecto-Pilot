@@ -3,6 +3,7 @@ import express from "express";
 import crypto from "node:crypto";
 import { db } from "../db/drizzle.js";
 import { snapshots, strategies } from "../../shared/schema.js";
+import { generateStrategyForSnapshot } from "../lib/strategy-generator.js";
 
 const router = express.Router();
 
@@ -81,18 +82,12 @@ router.post("/", async (req, res) => {
     // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
     queueMicrotask(() => {
       try {
-        console.log(`[triad] start id=${snapshot_id}`);
-        
-        // Trigger background strategy generation
-        import('../lib/strategy-generator.js').then(module => {
-          module.generateStrategyForSnapshot(snapshot_id).catch(err => {
-            console.warn(`[triad] strategist.err id=${snapshot_id} reason=${err.message}`);
-          });
-        }).catch(err => {
-          console.warn(`[triad] import.err id=${snapshot_id} reason=${err.message}`);
+        console.log(`[triad] enqueue`, { snapshot_id });
+        generateStrategyForSnapshot(snapshot_id).catch(err => {
+          console.warn(`[triad] enqueue.failed`, { snapshot_id, err: String(err) });
         });
       } catch (e) {
-        console.warn(`[triad] enqueue.err id=${snapshot_id} reason=${String(e)}`);
+        console.warn(`[triad] enqueue.err`, { snapshot_id, err: String(e) });
       }
     });
 
