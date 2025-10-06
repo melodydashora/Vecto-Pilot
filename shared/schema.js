@@ -33,9 +33,17 @@ export const snapshots = pgTable("snapshots", {
 
 export const strategies = pgTable("strategies", {
   id: uuid("id").primaryKey().defaultRandom(),
-  snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id),
-  strategy: text("strategy").notNull(),
+  snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id),
+  strategy: text("strategy"),
+  status: text("status").notNull().default("pending"), // pending|ok|failed
+  error_code: integer("error_code"),
+  error_message: text("error_message"),
+  attempt: integer("attempt").notNull().default(1),
+  latency_ms: integer("latency_ms"),
+  tokens: integer("tokens"),
+  next_retry_at: timestamp("next_retry_at", { withTimezone: true }),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const rankings = pgTable("rankings", {

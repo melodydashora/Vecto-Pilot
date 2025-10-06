@@ -1,12 +1,13 @@
 // server/lib/strategy-generator.js
-// Auto-generates strategic overview using Claude when snapshot is saved
+// Auto-generates strategic overview using Claude with transient retry
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { callClaude } from './adapters/anthropic-claude.js';
+import { callClaudeWithBudget } from './transient-retry.js';
 
 export async function generateStrategyForSnapshot(snapshot_id) {
   const startTime = Date.now();
+  
   try {
     console.log(`[triad] strategist.start id=${snapshot_id}`);
     
@@ -21,6 +22,21 @@ export async function generateStrategyForSnapshot(snapshot_id) {
       console.log(`[triad] strategist.skip id=${snapshot_id} reason=no_location_data ms=${Date.now() - startTime}`);
       return null;
     }
+    
+    // Create or update strategy record with pending status
+    await db.insert(strategies).values({
+      snapshot_id,
+      status: 'pending',
+      attempt: 1,
+    }).onConflictDoUpdate({
+      target: strategies.snapshot_id,
+      set: {
+        status: 'pending',
+        error_code: null,
+        error_message: null,
+        updated_at: new Date(),
+      }
+    });
     
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = snap.dow !== null && snap.dow !== undefined ? dayNames[snap.dow] : 'unknown day';
@@ -106,34 +122,75 @@ START YOUR RESPONSE WITH: "Today is ${dayOfWeek}, ${formattedDate} at ${exactTim
 
 Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. Think about what's happening at this exact location, at this specific time, on this particular day of the week.`;
 
+    // Build Anthropic Messages API payload
+    const payload = {
+      model: process.env.CLAUDE_MODEL || "claude-opus-4-20250514",
+      max_tokens: 8000,
+      temperature: 1.0,
+      system: systemPrompt,
+      messages: [
+        { role: "user", content: userPrompt }
+      ]
+    };
+
     const claudeStart = Date.now();
     
-    const strategyText = await callClaude({
-      system: systemPrompt,
-      user: userPrompt,
-      max_tokens: 12000,  // Must be > thinking budget (10K)
-      thinking: "high",  // Enable heavy extended thinking (10K token budget)
-      // Note: temperature will be forced to 1.0 by adapter when thinking is enabled
-    });
-    
-    const claudeDuration = Date.now() - claudeStart;
-    
-    if (!strategyText || strategyText.trim().length === 0) {
-      console.warn(`[triad] strategist.err id=${snapshot_id} reason=empty_response ms=${claudeDuration}`);
-      return null;
-    }
-    
-    await db.insert(strategies).values({
-      snapshot_id,
-      strategy: strategyText.trim()
+    // Call Claude with transient retry and hard budget (30s)
+    const result = await callClaudeWithBudget(payload, { 
+      timeoutMs: 30000, 
+      maxRetries: 3 
     });
     
     const totalDuration = Date.now() - startTime;
-    console.log(`[triad] strategist.ok id=${snapshot_id} ms=${totalDuration} claude_ms=${claudeDuration}`);
     
-    return strategyText;
+    if (result.ok) {
+      await db.update(strategies)
+        .set({
+          status: 'ok',
+          strategy: result.text.trim(),
+          latency_ms: result.ms,
+          tokens: result.tokens,
+          attempt: result.attempt,
+          updated_at: new Date()
+        })
+        .where(eq(strategies.snapshot_id, snapshot_id));
+      
+      console.log(`[triad] strategist.ok id=${snapshot_id} ms=${totalDuration} claude_ms=${result.ms} tokens=${result.tokens} attempts=${result.attempt}`);
+      return result.text;
+    }
+    
+    // Handle failure - check if transient for retry scheduling
+    const isTransient = result.code === 529 || result.code === 429 || result.code === 502 || result.code === 503 || result.code === 504;
+    const nextRetryAt = isTransient ? new Date(Date.now() + 5000) : null;
+    
+    await db.update(strategies)
+      .set({
+        status: 'failed',
+        error_code: result.code,
+        error_message: result.reason,
+        latency_ms: result.ms,
+        attempt: result.attempt,
+        next_retry_at: nextRetryAt,
+        updated_at: new Date()
+      })
+      .where(eq(strategies.snapshot_id, snapshot_id));
+    
+    console.error(`[triad] strategist.err id=${snapshot_id} reason=${result.reason} code=${result.code} ms=${totalDuration} attempts=${result.attempt}`);
+    return null;
   } catch (err) {
     const duration = Date.now() - startTime;
+    
+    // Update DB with error
+    await db.update(strategies)
+      .set({
+        status: 'failed',
+        error_code: 500,
+        error_message: err.message,
+        latency_ms: duration,
+        updated_at: new Date()
+      })
+      .where(eq(strategies.snapshot_id, snapshot_id));
+    
     console.error(`[triad] strategist.err id=${snapshot_id} reason=${err.message} ms=${duration}`);
     return null;
   }

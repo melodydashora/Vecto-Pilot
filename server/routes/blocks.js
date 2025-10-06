@@ -31,18 +31,44 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       .orderBy(desc(strategies.created_at))
       .limit(1);
     
-    if (strategyRow && strategyRow.strategy) {
+    if (!strategyRow) {
+      // No strategy record yet
       return res.json({
+        status: 'not_found',
+        hasStrategy: false,
+        strategy: null
+      });
+    }
+    
+    // Return current status from DB
+    if (strategyRow.status === 'ok') {
+      return res.json({
+        status: 'ok',
         hasStrategy: true,
         strategy: strategyRow.strategy,
+        latency_ms: strategyRow.latency_ms,
+        tokens: strategyRow.tokens,
         createdAt: strategyRow.created_at
       });
     }
     
-    // No strategy found yet - Claude may still be generating it
+    if (strategyRow.status === 'failed') {
+      return res.json({
+        status: 'failed',
+        hasStrategy: false,
+        strategy: null,
+        error_code: strategyRow.error_code,
+        error_message: strategyRow.error_message,
+        next_retry_at: strategyRow.next_retry_at
+      });
+    }
+    
+    // Still pending
     return res.json({
+      status: 'pending',
       hasStrategy: false,
-      strategy: null
+      strategy: null,
+      attempt: strategyRow.attempt
     });
   } catch (error) {
     console.error('[blocks] Strategy fetch error:', error);
@@ -166,32 +192,56 @@ router.post('/', async (req, res) => {
     let claudeStrategy = null;
     
     if (snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
-      console.log(`🧠 [${correlationId}] Generating Claude strategy for snapshot ${snapshotId} (synchronous triad)...`);
+      // Check if strategy already exists or is in progress
+      const [existing] = await db
+        .select()
+        .from(strategies)
+        .where(eq(strategies.snapshot_id, snapshotId))
+        .orderBy(desc(strategies.created_at))
+        .limit(1);
       
-      const claudeStart = Date.now();
-      const { generateStrategyForSnapshot } = await import('../lib/strategy-generator.js');
-      
-      try {
-        claudeStrategy = await generateStrategyForSnapshot(snapshotId);
-        const claudeElapsed = Date.now() - claudeStart;
+      if (existing && existing.status === 'ok') {
+        // Strategy already generated successfully
+        claudeStrategy = existing.strategy;
+        console.log(`✅ [${correlationId}] Using existing Claude strategy from DB`);
+      } else if (existing && existing.status === 'pending') {
+        // Strategy generation in progress from snapshot background task
+        console.log(`⏳ [${correlationId}] Strategy generation already in progress, skipping duplicate attempt`);
+        return sendOnce(202, { 
+          message: 'Strategy generation in progress',
+          status: 'pending',
+          attempt: existing.attempt,
+          correlationId 
+        });
+      } else if (!existing || existing.status === 'failed') {
+        // No strategy or failed - generate new one
+        console.log(`🧠 [${correlationId}] Generating Claude strategy for snapshot ${snapshotId} (synchronous triad)...`);
         
-        if (!claudeStrategy) {
-          console.error(`❌ [${correlationId}] Claude returned null/empty strategy`);
+        const claudeStart = Date.now();
+        const { generateStrategyForSnapshot } = await import('../lib/strategy-generator.js');
+        
+        try {
+          claudeStrategy = await generateStrategyForSnapshot(snapshotId);
+          const claudeElapsed = Date.now() - claudeStart;
+          
+          if (!claudeStrategy) {
+            console.error(`❌ [${correlationId}] Claude returned null/empty strategy`);
+            return sendOnce(500, { 
+              error: 'Claude strategy generation failed', 
+              details: 'Strategy generator returned no content',
+              correlationId 
+            });
+          }
+          
+          console.log(`✅ [${correlationId}] Claude strategy generated in ${claudeElapsed}ms: "${claudeStrategy.slice(0, 80)}..."`);
+        } catch (err) {
+          console.error(`❌ [${correlationId}] Claude strategy generation failed: ${err.message}`);
           return sendOnce(500, { 
             error: 'Claude strategy generation failed', 
-            details: 'Strategy generator returned no content',
+            details: err.message,
             correlationId 
           });
         }
-        
-        console.log(`✅ [${correlationId}] Claude strategy generated in ${claudeElapsed}ms: "${claudeStrategy.slice(0, 80)}..."`);
-      } catch (err) {
-        console.error(`❌ [${correlationId}] Claude strategy generation failed: ${err.message}`);
-        return sendOnce(500, { 
-          error: 'Claude strategy generation failed', 
-          details: err.message,
-          correlationId 
-        });
       }
     }
     
