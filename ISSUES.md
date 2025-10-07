@@ -507,6 +507,178 @@ Use this before making middleware changes:
 
 ---
 
+---
+
+## 🔍 NEWLY DISCOVERED ISSUES (2025-10-07)
+
+### ⚠️ ISSUE #11: Perplexity Model Name Outdated
+**Status:** 🔴 NEEDS FIX  
+**Date:** 2025-10-07  
+**Location:** `server/lib/perplexity-research.js:7`
+
+**Problem:**
+- Using deprecated model name `sonar-pro`
+- Should use current 2025 model names from Perplexity docs
+
+**Fix Required:**
+```javascript
+// Current (WRONG):
+this.model = 'sonar-pro';
+
+// Should be (verify latest from https://docs.perplexity.ai/guides/model-cards):
+this.model = 'llama-3.1-sonar-small-128k-online';
+```
+
+---
+
+### ⚠️ ISSUE #12: Internet Access Test Endpoint Missing Timeout
+**Status:** 🟡 MINOR  
+**Date:** 2025-10-07  
+**Location:** `server/routes/health.js:43`
+
+**Problem:**
+- Internet connectivity test has `timeout: 5000` in fetch options
+- Node's native fetch doesn't support timeout option (throws error)
+- Should use AbortController pattern
+
+**Fix Required:**
+```javascript
+// Add AbortController for timeout
+const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+const response = await fetch('https://api.perplexity.ai/chat/completions', {
+  method: 'POST',
+  signal: controller.signal,
+  headers: { /* ... */ }
+});
+
+clearTimeout(timeoutId);
+```
+
+---
+
+### ⚠️ ISSUE #13: Blocks Route Missing Error Handling for Invalid Snapshot ID
+**Status:** 🟡 MINOR  
+**Date:** 2025-10-07  
+**Location:** `server/routes/blocks.js:93-107`
+
+**Problem:**
+- Snapshot validation checks missing fields but doesn't handle malformed UUID gracefully
+- Could throw unhandled error if snapshot_id is invalid UUID format
+
+**Current Code:**
+```javascript
+const [snap] = await db
+  .select()
+  .from(snapshots)
+  .where(eq(snapshots.snapshot_id, snapshotId))
+  .limit(1);
+```
+
+**Fix Required:**
+Add try-catch around database query to handle malformed UUIDs.
+
+---
+
+### ⚠️ ISSUE #14: Missing Idempotency Key Validation
+**Status:** 🟡 MINOR  
+**Date:** 2025-10-07  
+**Location:** `server/middleware/idempotency.js`
+
+**Problem:**
+- Idempotency middleware doesn't validate key format
+- Could accept malformed keys leading to cache pollution
+- Should enforce max length and character whitelist
+
+**Fix Required:**
+```javascript
+// Add validation at start of middleware
+if (key && (key.length > 256 || !/^[a-zA-Z0-9:_-]+$/.test(key))) {
+  console.warn('[idempotency] Invalid key format, skipping cache');
+  return next();
+}
+```
+
+---
+
+### ⚠️ ISSUE #15: Co-Pilot Page Has Unused State Variables
+**Status:** 🟢 CLEANUP  
+**Date:** 2025-10-07  
+**Location:** `client/src/pages/co-pilot.tsx:34-38`
+
+**Problem:**
+- `showOffPeak`, `testMode`, `selectedModel`, `modelParameter` are declared but never used
+- Dead code from testing/development phase
+
+**Fix Required:**
+Remove unused state variables or implement their intended functionality.
+
+---
+
+### ⚠️ ISSUE #16: Memory Compactor Missing Startup Logging (Already Fixed)
+**Status:** ✅ FIXED  
+**Date:** 2025-10-07  
+**Location:** `server/eidolon/memory/compactor.js`
+
+**Already Applied:** Startup confirmation logging added in previous changes.
+
+---
+
+### ⚠️ ISSUE #17: Strategy Generator Missing Proper Error Classification
+**Status:** 🟡 MINOR  
+**Date:** 2025-10-07  
+**Location:** `server/lib/strategy-generator.js` (referenced but file not in context)
+
+**Problem:**
+- Strategy generation errors should be classified (API_ERROR, TIMEOUT, VALIDATION_ERROR)
+- Current implementation may not distinguish between retryable and non-retryable errors
+
+**Fix Required:**
+Implement error classification similar to triad orchestrator pattern.
+
+---
+
+### ⚠️ ISSUE #18: Missing Index on ranking_candidates.ranking_id
+**Status:** 🟡 PERFORMANCE  
+**Date:** 2025-10-07  
+**Location:** Database schema
+
+**Problem:**
+- Foreign key `ranking_candidates.ranking_id → rankings.ranking_id` has no index
+- Could cause slow queries when fetching candidates for a ranking
+
+**Fix Required:**
+```sql
+CREATE INDEX IF NOT EXISTS idx_ranking_candidates_ranking_id 
+ON ranking_candidates(ranking_id);
+```
+
+---
+
+### ⚠️ ISSUE #19: Google Places API Error Handling Incomplete
+**Status:** 🟡 MINOR  
+**Date:** 2025-10-07  
+**Location:** `server/lib/places-hours.js` (referenced in blocks.js)
+
+**Problem:**
+- Catches errors but may not handle specific Google API error codes (OVER_QUERY_LIMIT, REQUEST_DENIED)
+- Should implement exponential backoff for rate limits
+
+---
+
+### ⚠️ ISSUE #20: Test Blocks Route Query Parameter Validation Missing
+**Status:** 🟡 SECURITY  
+**Date:** 2025-10-07  
+**Location:** `server/routes/test-blocks.js` (referenced in tools/testing)
+
+**Problem:**
+- llmModel and llmParam from query string not validated
+- Could accept arbitrary model names or parameters
+- Should whitelist allowed values
+
+---
+
 **END OF ISSUES DOCUMENT**
 
 *This document serves as the single source of truth for what went wrong, why it happened, and how to prevent it. All future middleware changes must reference this post-mortem.*
