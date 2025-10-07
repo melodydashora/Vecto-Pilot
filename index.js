@@ -49,9 +49,12 @@ app.use((req, res, next) => {
 // Core middleware
 // ───────────────────────────────────────────────────────────────────────────────
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+// No global JSON parsing to avoid client abort errors - mount per-route instead
 app.use(loggingMiddleware);
 app.use(securityMiddleware);
+
+// JSON parser for routes that accept JSON bodies (not mounted globally)
+const parseJson = express.json({ limit: "1mb", strict: true });
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Health endpoints (before everything else for pilot monitoring)
@@ -100,14 +103,14 @@ app.use('/api', (req, res, next) => {
 });
 
 app.use("/api/health", healthRoutes);
-app.use("/api/blocks", strictLimiter, blocksRoutes); // 🚀 Production: Claude → GPT-5 → Gemini Triad
-app.use("/api/blocks-discovery", strictLimiter, blocksDiscoveryRoutes); // 🔬 Hybrid discovery testing
-app.use("/api/location", apiLimiter, locationRoutes);
-app.use("/api/actions", apiLimiter, actionsRoutes);
-app.use("/api/research", apiLimiter, researchRoutes); // Internet research via Perplexity
-app.use("/api/feedback", apiLimiter, feedbackRoutes); // Venue feedback and reliability scoring
-app.use("/api/venue", apiLimiter, venueEventsRoutes); // Event checking via Perplexity
-app.use("/api/snapshot", apiLimiter, snapshotRoutes); // Context snapshot storage
+app.use("/api/blocks", parseJson, strictLimiter, blocksRoutes); // 🚀 Production: Claude → GPT-5 → Gemini Triad
+app.use("/api/blocks-discovery", parseJson, strictLimiter, blocksDiscoveryRoutes); // 🔬 Hybrid discovery testing
+app.use("/api/location", parseJson, apiLimiter, locationRoutes); // parseJson for POST /snapshot
+app.use("/api/actions", parseJson, apiLimiter, actionsRoutes);
+app.use("/api/research", parseJson, apiLimiter, researchRoutes); // Internet research via Perplexity
+app.use("/api/feedback", parseJson, apiLimiter, feedbackRoutes); // Venue feedback and reliability scoring
+app.use("/api/venue", parseJson, apiLimiter, venueEventsRoutes); // Event checking via Perplexity
+app.use("/api/snapshot", parseJson, apiLimiter, snapshotRoutes); // Context snapshot storage
 app.use(jobMetricsRoutes); // Job queue metrics and monitoring
 
 // Quick status endpoint
@@ -1307,6 +1310,21 @@ app.post("/api/workspace/architectural-review", async (_req, res) => {
   } catch (err) {
     res.status(400).json({ ok: false, error: err.message });
   }
+});
+
+// Error gate for client aborts and oversized payloads
+app.use((err, req, res, next) => {
+  // Client closed connection mid-read
+  if (err?.type === "request.aborted" || err?.code === "ECONNRESET") {
+    if (!res.headersSent) res.status(499).end(); // 499: client closed request
+    return; // treat as noise, don't log
+  }
+  // Payload too large
+  if (err?.type === "entity.too.large") {
+    return res.status(413).json({ ok: false, error: "payload too large" });
+  }
+  // Pass other errors to default handler
+  next(err);
 });
 
 // 404 for unknown API endpoints (avoids a second "*" catch-all)

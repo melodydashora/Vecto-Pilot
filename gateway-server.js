@@ -198,11 +198,11 @@ const proxyLog = (label) => ({
   onProxyRes: (proxyRes, req) => console.log(`[${label}→proxy] ${req.method} ${req.originalUrl} -> ${proxyRes.statusCode} ${proxyRes.headers["content-type"]||""}`)
 });
 
-// Parse JSON bodies for all requests
-app.use(express.json({ limit: "10mb" }));
-
+// Skip /health logging to reduce noise
 app.use((req, res, next) => {
-  console.log("[trace]", req.method, req.originalUrl);
+  if (req.path !== "/health") {
+    console.log("[trace]", req.method, req.originalUrl);
+  }
   if (process.env.NODE_ENV !== "production") {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
@@ -364,6 +364,9 @@ function ensureClientBuild() {
 if (IS_PRODUCTION) {
   console.log(`✅ [vecto] Production mode - loading API routes synchronously`);
   
+  // JSON parser for routes that need it (not global to avoid abort errors)
+  const parseJson = express.json({ limit: "1mb", strict: true });
+  
   // Load routes synchronously BEFORE server.listen()
   const { default: healthRoutes } = await import('./server/routes/health.js');
   const { default: blocksRoutes } = await import('./server/routes/blocks.js');
@@ -374,11 +377,11 @@ if (IS_PRODUCTION) {
   const { default: jobMetricsRoutes } = await import('./server/routes/job-metrics.js');
   
   app.use("/api/health", healthRoutes);
-  app.use("/api/blocks", blocksRoutes);
-  app.use(blocksTriadStrictRoutes);
-  app.use(locationRoutes); // Mount without prefix since route defines /api/location internally
-  app.use("/api/actions", actionsRoutes);
-  app.use("/api/feedback", feedbackRoutes);
+  app.use("/api/blocks", parseJson, blocksRoutes);
+  app.use(parseJson, blocksTriadStrictRoutes);
+  app.use("/api/location", parseJson, locationRoutes); // parseJson for POST /snapshot
+  app.use("/api/actions", parseJson, actionsRoutes);
+  app.use("/api/feedback", parseJson, feedbackRoutes);
   app.use(jobMetricsRoutes); // Job queue metrics endpoint
   
   sdkReady = true;
@@ -456,6 +459,21 @@ if (process.env.NODE_ENV !== "production") {
     res.sendFile(indexHtml);
   });
 }
+
+// Error gate for client aborts and oversized payloads
+app.use((err, req, res, next) => {
+  // Client closed connection mid-read
+  if (err?.type === "request.aborted" || err?.code === "ECONNRESET") {
+    if (!res.headersSent) res.status(499).end(); // 499: client closed request
+    return; // treat as noise, don't log
+  }
+  // Payload too large
+  if (err?.type === "entity.too.large") {
+    return res.status(413).json({ ok: false, error: "payload too large" });
+  }
+  // Pass other errors to default handler
+  next(err);
+});
 
 // last resort 404 as JSON so jq never chokes on HTML
 app.use((req, res) => res.status(404).json({ ok: false, error: "route_not_found", path: req.path }));
