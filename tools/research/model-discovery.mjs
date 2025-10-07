@@ -8,7 +8,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
-const MODEL = 'llama-3.1-sonar-small-128k-online';
+const MODEL = 'sonar-pro';
 
 async function perplexitySearch(query, systemPrompt) {
   if (!PERPLEXITY_API_KEY) {

@@ -5,8 +5,8 @@ export class PerplexityResearch {
   constructor(apiKey = process.env.PERPLEXITY_API_KEY) {
     this.apiKey = apiKey;
     this.baseUrl = 'https://api.perplexity.ai/chat/completions';
-    // Updated model name for 2025 - check https://docs.perplexity.ai/guides/model-cards
-    this.model = 'llama-3.1-sonar-small-128k-online'; // Current model as of 2025
+    // Updated to current Sonar model - llama-3.1-* models discontinued
+    this.model = 'sonar-pro'; // Current production model as of 2025
   }
 
   async search(query, options = {}) {

@@ -511,18 +511,18 @@ Use this before making middleware changes:
 
 ## 🔍 NEWLY DISCOVERED ISSUES (2025-10-07)
 
-### ⚠️ ISSUE #11: Perplexity Model Name Outdated
-**Status:** 🔴 NEEDS FIX  
+### ✅ ISSUE #11: Perplexity Model Name Updated
+**Status:** ✅ FIXED  
 **Date:** 2025-10-07  
-**Location:** `server/lib/perplexity-research.js:7`
+**Location:** Multiple files
 
 **Problem:**
-- Using deprecated model name `sonar-pro`
-- Should use current 2025 model names from Perplexity docs
+- Using deprecated model names `llama-3.1-sonar-*-128k-online`
+- These models were discontinued and replaced with new Sonar models
 
-**Fix Required:**
+**Fix Applied:**
 ```javascript
-// Current (WRONG):
+// Updated to current production model:
 this.model = 'sonar-pro';
 
 // Should be (verify latest from https://docs.perplexity.ai/guides/model-cards):
