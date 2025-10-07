@@ -3,7 +3,6 @@
 // Model Discovery Script - Uses Perplexity to research latest AI models
 // Outputs structured data for updating model configurations
 
-import fetch from 'node-fetch';
 import fs from 'fs/promises';
 import path from 'path';
 
