@@ -210,22 +210,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// ---------- Gateway debounce for POST /api/blocks ----------
-const lastPostBySnap = new Map();
-
-app.post("/api/blocks", (req, res, next) => {
-  const k = String(req.body?.snapshotId || "");
-  const now = Date.now();
-  const t = lastPostBySnap.get(k) || 0;
-  
-  if (k && now - t < 250) {
-    // Duplicate request within 250ms, return cached response
-    return res.status(202).json({ ok: true, status: "queued", snapshotId: k });
-  }
-  
-  if (k) lastPostBySnap.set(k, now);
-  next();
-});
 
 // ---------- metrics endpoint ----------
 
@@ -472,25 +456,6 @@ if (process.env.NODE_ENV !== "production") {
     res.sendFile(indexHtml);
   });
 }
-
-// Global error handler - suppress noisy "request aborted" errors from client cancellations
-app.use((err, req, res, next) => {
-  // Silently ignore client abort errors (happens when React Query cancels requests or debounce closes connections)
-  if (err.type === 'request.aborted' || err.code === 'ECONNRESET' || err.message?.includes('aborted')) {
-    return res.end(); // Just close the connection cleanly
-  }
-  
-  // Log actual errors
-  console.error('[gateway] Error:', err.message);
-  
-  // Send error response if headers not sent
-  if (!res.headersSent) {
-    res.status(err.status || 500).json({ 
-      ok: false, 
-      error: err.message || 'Internal server error' 
-    });
-  }
-});
 
 // last resort 404 as JSON so jq never chokes on HTML
 app.use((req, res) => res.status(404).json({ ok: false, error: "route_not_found", path: req.path }));
