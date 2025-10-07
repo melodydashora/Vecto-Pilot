@@ -1,6 +1,3 @@
-
-#!/usr/bin/env node
-
 import fetch from 'node-fetch';
 import assert from 'node:assert';
 

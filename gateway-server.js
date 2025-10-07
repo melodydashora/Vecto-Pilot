@@ -325,6 +325,7 @@ if (IS_PRODUCTION) {
   const { default: locationRoutes } = await import('./server/routes/location.js');
   const { default: actionsRoutes } = await import('./server/routes/actions.js');
   const { default: feedbackRoutes } = await import('./server/routes/feedback.js');
+  const { default: jobMetricsRoutes } = await import('./server/routes/job-metrics.js');
   
   app.use("/api/health", healthRoutes);
   app.use("/api/blocks", blocksRoutes);
@@ -332,10 +333,11 @@ if (IS_PRODUCTION) {
   app.use(locationRoutes); // Mount without prefix since route defines /api/location internally
   app.use("/api/actions", actionsRoutes);
   app.use("/api/feedback", feedbackRoutes);
+  app.use(jobMetricsRoutes); // Job queue metrics endpoint
   
   sdkReady = true;
   console.log(`✅ [vecto] API routes loaded and mounted synchronously`);
-  console.log(`✅ [vecto] Routes available: /api/health, /api/blocks, /api/location, /api/actions, /api/feedback`);
+  console.log(`✅ [vecto] Routes available: /api/health, /api/blocks, /api/location, /api/actions, /api/feedback, /api/metrics/jobs`);
 }
 
 if (process.env.NODE_ENV !== "production") {

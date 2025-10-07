@@ -18,6 +18,7 @@ import researchRoutes from "./server/routes/research.js";
 import feedbackRoutes from "./server/routes/feedback.js";
 import venueEventsRoutes from "./server/routes/venue-events.js";
 import snapshotRoutes from "./server/routes/snapshot.js";
+import jobMetricsRoutes from "./server/routes/job-metrics.js";
 
 // Middleware
 import { loggingMiddleware } from "./server/middleware/logging.js";
@@ -76,6 +77,7 @@ app.use("/api/research", apiLimiter, researchRoutes); // Internet research via P
 app.use("/api/feedback", apiLimiter, feedbackRoutes); // Venue feedback and reliability scoring
 app.use("/api/venue", apiLimiter, venueEventsRoutes); // Event checking via Perplexity
 app.use("/api/snapshot", apiLimiter, snapshotRoutes); // Context snapshot storage
+app.use(jobMetricsRoutes); // Job queue metrics and monitoring
 
 // Quick status endpoint
 app.get("/api/copilot", (_req, res) => {

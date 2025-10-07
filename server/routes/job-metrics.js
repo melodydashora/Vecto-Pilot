@@ -4,7 +4,8 @@ import { jobQueue } from '../lib/job-queue.js';
 
 const router = Router();
 
-router.get('/metrics/jobs', (req, res) => {
+// Mount under /api/metrics for consistency with other API routes
+router.get('/api/metrics/jobs', (req, res) => {
   const metrics = jobQueue.getMetrics();
   res.json({
     ok: true,
@@ -13,7 +14,7 @@ router.get('/metrics/jobs', (req, res) => {
   });
 });
 
-router.get('/metrics/jobs/:jobId', (req, res) => {
+router.get('/api/metrics/jobs/:jobId', (req, res) => {
   const status = jobQueue.getStatus(req.params.jobId);
   
   if (!status) {
