@@ -386,10 +386,17 @@ router.get('/airquality', async (req, res) => {
         body: JSON.stringify(requestBody),
         signal
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `API error: ${response.status}`);
+      }
+      
       return await response.json();
     });
 
-    if (!response.ok) {
+    // Check if data contains an error (circuit breaker might have returned error state)
+    if (data?.error) {
       console.error('[location] Air Quality API error:', data);
       return res.status(500).json({ 
         available: false,
