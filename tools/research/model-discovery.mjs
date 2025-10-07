@@ -195,11 +195,12 @@ function generateRecommendations(research) {
         detail: 'Verify Claude Sonnet 4.5 model ID matches what you have in server/lib/adapters/anthropic-sonnet45.js'
       });
     }
+    
+    return recommendations;
   } catch (error) {
     console.error('Error generating recommendations:', error);
+    return [];
   }
-  
-  return recommendations;
 }
 
 async function main() {
