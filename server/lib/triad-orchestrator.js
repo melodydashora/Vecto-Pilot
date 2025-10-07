@@ -44,6 +44,10 @@ export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
   } finally { clearTimeout(claudeTimer); }
 
   // 2) GPT-5 — planner (JSON: strategy_for_now, per_venue[{name,pro_tips[]}], staging[{name,notes}])
+  // Step 2: GPT-5 Tactical Planning (60s hard timeout - no waiting)
+  const plannerDeadline = 60000; // 60 seconds max
+  console.log(`[triad] ⏱️  GPT-5 planner deadline: ${plannerDeadline}ms (hard timeout)`);
+
   const dev = [
     "You are a rideshare planner.",
     "Use only the provided venues; do not add venues or facts.",
@@ -61,7 +65,7 @@ export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
   ].join("\n");
 
   const gptCtrl = new AbortController();
-  const gptTimer = setTimeout(() => gptCtrl.abort(), Math.min(parseInt(process.env.GPT5_TIMEOUT_MS || "120000"), left()));
+  const gptTimer = setTimeout(() => gptCtrl.abort(), Math.min(plannerDeadline, left()));
   let planner = {};
   try {
     const raw = await callGPT5({

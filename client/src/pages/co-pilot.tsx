@@ -314,11 +314,16 @@ const CoPilot: React.FC = () => {
     // AUTO-RUN when GPS + snapshot ready + strategy ready - keep spinning until success
     enabled: !!coords && !!lastSnapshotId && !!persistentStrategy, // Auto-start when coordinates, snapshot, and strategy are available
     refetchInterval: false, // No periodic auto-refresh (only on demand)
-    retry: (failureCount, error) => {
-      // Keep retrying until success (up to 20 attempts)
-      return failureCount < 20;
+    retry: (failureCount, error: any) => {
+      // Stop retrying if we got a timeout (504)
+      if (error?.message?.includes('504') || error?.message?.includes('timeout')) {
+        console.error('[co-pilot] Strategy generation timed out, stopping retries');
+        return false;
+      }
+      // Otherwise retry up to 12 times (max ~60 seconds total with backoff)
+      return failureCount < 12;
     },
-    retryDelay: (attemptIndex) => Math.min(2000 * 2 ** attemptIndex, 30000), // Exponential backoff: 2s, 4s, 8s, 16s, 30s max
+    retryDelay: (attemptIndex) => Math.min(2000 * 2 ** attemptIndex, 10000), // Exponential backoff: 2s, 4s, 8s, 10s max
   });
 
   useEffect(() => {
@@ -720,9 +725,15 @@ const CoPilot: React.FC = () => {
             <Card className="p-8 border-red-200" data-testid="error-state">
               <div className="flex flex-col items-center justify-center text-center">
                 <AlertCircle className="w-8 h-8 text-red-600 mb-4" />
-                <p className="text-gray-800 font-semibold mb-2">Failed to Load Blocks</p>
+                <p className="text-gray-800 font-semibold mb-2">
+                  {error instanceof Error && error.message.includes('timeout') 
+                    ? 'Strategy Generation Timed Out' 
+                    : 'Failed to Load Blocks'}
+                </p>
                 <p className="text-gray-600 text-sm mb-4">
-                  {error instanceof Error ? error.message : 'Unable to connect to AI engine'}
+                  {error instanceof Error && error.message.includes('timeout')
+                    ? 'The AI took longer than 60 seconds to generate blocks. This usually means high API load. Please try again in a moment.'
+                    : (error instanceof Error ? error.message : 'Unable to connect to AI engine')}
                 </p>
                 <Button onClick={() => refetch()} variant="outline">
                   <RefreshCw className="w-4 h-4 mr-2" />

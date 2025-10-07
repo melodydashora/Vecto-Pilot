@@ -18,7 +18,7 @@ const router = Router();
 router.get('/strategy/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
-    
+
     // Allow internal test traffic to bypass crawler detection
     if (req.get("x-internal-test") !== "1") {
       // Cheap crawler screen: missing UA or classic bot strings → no content
@@ -28,11 +28,11 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         return res.status(204).end();
       }
     }
-    
+
     if (!snapshotId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
       return res.status(400).json({ error: 'Invalid snapshot ID' });
     }
-    
+
     // Query the strategies table for this snapshot
     const [strategyRow] = await db
       .select()
@@ -40,7 +40,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       .where(eq(strategies.snapshot_id, snapshotId))
       .orderBy(desc(strategies.created_at))
       .limit(1);
-    
+
     if (!strategyRow) {
       // No strategy row yet - check if snapshot exists and validate completeness
       const [snap] = await db
@@ -48,7 +48,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         .from(snapshots)
         .where(eq(snapshots.snapshot_id, snapshotId))
         .limit(1);
-      
+
       if (snap) {
         // Check if snapshot has all required fields
         const missing = [];
@@ -56,7 +56,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         if (snap.lng == null || !Number.isFinite(snap.lng)) missing.push("lng");
         if (!snap.city && !snap.formatted_address) missing.push("city_or_formattedAddress");
         if (!snap.timezone) missing.push("timezone");
-        
+
         if (missing.length > 0) {
           // Snapshot exists but has missing critical fields - likely crawler or denied permissions
           console.warn('[blocks] Incomplete snapshot detected', { snapshotId, missing });
@@ -67,7 +67,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
             tip: 'Please refresh the page and enable location to continue.'
           });
         }
-        
+
         // Snapshot is complete but strategy not written yet → report pending
         return res.json({
           status: 'pending',
@@ -75,7 +75,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
           strategy: null
         });
       }
-      
+
       // Truly unknown snapshot ID
       return res.status(404).json({
         status: 'not_found',
@@ -83,7 +83,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         strategy: null
       });
     }
-    
+
     // Return current status from DB
     if (strategyRow.status === 'ok') {
       return res.json({
@@ -95,7 +95,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         createdAt: strategyRow.created_at
       });
     }
-    
+
     if (strategyRow.status === 'failed') {
       return res.json({
         status: 'failed',
@@ -106,7 +106,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         next_retry_at: strategyRow.next_retry_at
       });
     }
-    
+
     // Still pending
     return res.json({
       status: 'pending',
@@ -126,7 +126,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
 router.post('/', async (req, res) => {
   const startTime = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
-  
+
   let responded = false;
   const sendOnce = (code, body) => {
     if (!responded) {
@@ -134,20 +134,20 @@ router.post('/', async (req, res) => {
       res.status(code).json(body);
     }
   };
-  
+
   try {
     const { userId = 'demo', origin } = req.body;
-    
+
     if (!origin?.lat || !origin?.lng) {
       return sendOnce(400, {
         error: 'Missing origin coordinates',
         message: 'Request body must include origin.lat and origin.lng'
       });
     }
-    
+
     const { lat, lng } = origin;
     console.log(`🎯 [${correlationId}] BLOCKS REQUEST: lat=${lat} lng=${lng} userId=${userId}`);
-    
+
     // Get deterministic shortlist
     const currentHour = new Date().getHours();
     let daypart = 'afternoon';
@@ -157,15 +157,15 @@ router.post('/', async (req, res) => {
     else if (currentHour >= 14 && currentHour < 18) daypart = 'afternoon';
     else if (currentHour >= 18 && currentHour < 22) daypart = 'evening';
     else daypart = 'late_night';
-    
+
     const catalogVenues = await db.select().from(venue_catalog);
     const daypartVenues = catalogVenues.filter(v => 
       v.dayparts && (v.dayparts.includes(daypart) || v.dayparts.includes('all_day'))
     );
-    
+
     const metricsData = await db.select().from(venue_metrics);
     const metricsMap = new Map(metricsData.map(m => [m.venue_id, m]));
-    
+
     const venues = daypartVenues.map(v => {
       const metrics = metricsMap.get(v.venue_id);
       return {
@@ -176,23 +176,23 @@ router.post('/', async (req, res) => {
         reliability_score: metrics?.reliability_score || 0.5
       };
     });
-    
+
     const scored = venues.map(venue => ({
       ...venue,
       score: scoreCandidate(venue, { lat, lng })
     }));
-    
+
     scored.sort((a, b) => b.score - a.score);
     const diverse = applyDiversityGuardrails(scored, { minCategories: 2, maxPerCategory: 3 });
     const shortlist = diverse.slice(0, 6);
-    
+
     // Enrich with drive times
     const driveCtx = { 
       tz: 'America/Chicago', // Default to Central (DFW area)
       dow: new Date().getDay(), 
       hour: new Date().getHours() 
     };
-    
+
     const enriched = await Promise.all(
       shortlist.map(async (v) => {
         const driveMin = await predictDriveMinutes({lat, lng}, {lat: v.lat, lng: v.lng}, driveCtx);
@@ -204,13 +204,13 @@ router.post('/', async (req, res) => {
         };
       })
     );
-    
+
     // ============================================
     // STEP 1: Load snapshot for context
     // ============================================
     const snapshotId = req.headers['x-snapshot-id'];
     let fullSnapshot = null;
-    
+
     // Only load from DB if we have a valid UUID (not "live-snapshot" dummy)
     if (snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
       try {
@@ -229,12 +229,12 @@ router.post('/', async (req, res) => {
     } else if (snapshotId === 'live-snapshot') {
       console.log(`📸 Using live snapshot mode (no DB lookup)`);
     }
-    
+
     // ============================================
     // STEP 2: Generate Claude's Strategy (synchronous triad)
     // ============================================
     let claudeStrategy = null;
-    
+
     if (snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
       // Check if strategy already exists or is in progress
       const [existing] = await db
@@ -243,31 +243,51 @@ router.post('/', async (req, res) => {
         .where(eq(strategies.snapshot_id, snapshotId))
         .orderBy(desc(strategies.created_at))
         .limit(1);
-      
+
       if (existing && existing.status === 'ok') {
         // Strategy already generated successfully
         claudeStrategy = existing.strategy;
         console.log(`✅ [${correlationId}] Using existing Claude strategy from DB`);
       } else if (existing && existing.status === 'pending') {
         // Strategy generation in progress from snapshot background task
-        console.log(`⏳ [${correlationId}] Strategy generation already in progress, skipping duplicate attempt`);
-        return sendOnce(202, { 
-          message: 'Strategy generation in progress',
-          status: 'pending',
-          attempt: existing.attempt,
-          correlationId 
-        });
+        const job = existing; // Alias for clarity
+        const jobStatus = job.status;
+        const attempt = job.attempt;
+
+        // If strategy generation is pending, check for timeout
+        if (jobStatus === 'pending') {
+          const jobAge = Date.now() - job.createdAt;
+          const maxWaitTime = 60000; // 60 seconds
+
+          if (jobAge > maxWaitTime) {
+            console.error(`[blocks] ⏱️ Job ${correlationId} exceeded 60s timeout, failing gracefully`);
+            return sendOnce(504, {
+              message: 'Strategy generation timed out after 60 seconds',
+              status: 'timeout',
+              correlationId: job.correlationId,
+              error: 'The AI took too long to generate a strategy. Please try again.'
+            });
+          }
+
+          return sendOnce(202, {
+            message: 'Strategy generation in progress',
+            status: 'pending',
+            attempt: attempt,
+            correlationId: job.correlationId,
+            timeElapsed: `${Math.floor(jobAge / 1000)}s`
+          });
+        }
       } else if (!existing || existing.status === 'failed') {
         // No strategy or failed - generate new one
         console.log(`🧠 [${correlationId}] Generating Claude strategy for snapshot ${snapshotId} (synchronous triad)...`);
-        
+
         const claudeStart = Date.now();
         const { generateStrategyForSnapshot } = await import('../lib/strategy-generator.js');
-        
+
         try {
           claudeStrategy = await generateStrategyForSnapshot(snapshotId);
           const claudeElapsed = Date.now() - claudeStart;
-          
+
           if (!claudeStrategy) {
             console.error(`❌ [${correlationId}] Claude returned null/empty strategy`);
             return sendOnce(500, { 
@@ -276,7 +296,7 @@ router.post('/', async (req, res) => {
               correlationId 
             });
           }
-          
+
           console.log(`✅ [${correlationId}] Claude strategy generated in ${claudeElapsed}ms: "${claudeStrategy.slice(0, 80)}..."`);
         } catch (err) {
           console.error(`❌ [${correlationId}] Claude strategy generation failed: ${err.message}`);
@@ -288,48 +308,48 @@ router.post('/', async (req, res) => {
         }
       }
     }
-    
+
     // ============================================
     // STEP 3: Run GPT-5 Tactical Planner with Claude's Strategy
     // ============================================
     const plannerStart = Date.now();
     let tacticalPlan = null;
-    
+
     try {
       tacticalPlan = await generateTacticalPlan({
         strategy: claudeStrategy,
         snapshot: fullSnapshot
       });
-      
+
       const plannerElapsed = Date.now() - plannerStart;
       console.log(`✅ [${correlationId}] GPT-5 tactical plan complete (${plannerElapsed}ms): ${tacticalPlan.recommended_venues?.length || 0} venues recommended`);
     } catch (err) {
       console.error(`❌ [${correlationId}] GPT-5 tactical planner failed: ${err.message}`);
       return sendOnce(500, { error: 'Tactical planning failed', details: err.message, correlationId });
     }
-    
+
     if (!tacticalPlan || !tacticalPlan.recommended_venues?.length) {
       console.error(`❌ [${correlationId}] No valid output from GPT-5 tactical planner`);
       return sendOnce(500, { error: 'Tactical planning failed', correlationId });
     }
-    
+
     // ============================================
     // STEP 4: Enrich venues with business hours from Google Places API
     // ============================================
     console.log(`🔍 [${correlationId}] Enriching ${tacticalPlan.recommended_venues.length} venues with business hours...`);
     const { findPlaceId, getFormattedHours } = await import('../lib/places-hours.js');
-    
+
     const enrichedVenues = await Promise.all(
       tacticalPlan.recommended_venues.map(async (v) => {
         try {
           // Find Place ID using name and coordinates
           const placeId = await findPlaceId(v.name, { lat: v.lat, lng: v.lng });
-          
+
           // Get business hours, address, AND precise coordinates from Google Places API
           const hoursData = await getFormattedHours(placeId);
-          
+
           console.log(`✅ [${correlationId}] Enriched ${v.name}: ${hoursData.status}, ${hoursData.hours?.length || 0} hours, address: ${hoursData.address || 'N/A'}`);
-          
+
           return {
             ...v,
             address: hoursData.address || null,
@@ -355,9 +375,9 @@ router.post('/', async (req, res) => {
         }
       })
     );
-    
+
     console.log(`✅ [${correlationId}] Business hours enrichment complete`);
-    
+
     // ============================================
     // STEP 4.5: Enrich staging location with Google Places API
     // ============================================
@@ -370,25 +390,25 @@ router.post('/', async (req, res) => {
           { lat: tacticalPlan.best_staging_location.lat, lng: tacticalPlan.best_staging_location.lng }
         );
         const stagingData = await getFormattedHours(stagingPlaceId);
-        
+
         enrichedStagingLocation = {
           ...tacticalPlan.best_staging_location,
           address: stagingData.address || null,
           lat: stagingData.lat || tacticalPlan.best_staging_location.lat,
           lng: stagingData.lng || tacticalPlan.best_staging_location.lng
         };
-        
+
         console.log(`✅ [${correlationId}] Staging location enriched: ${enrichedStagingLocation.address}`);
       } catch (error) {
         console.warn(`⚠️ [${correlationId}] Failed to enrich staging location: ${error.message}`);
       }
     }
-    
+
     // ============================================
     // STEP 5: Calculate precise distance using API-validated coordinates
     // ============================================
     console.log(`🔍 [${correlationId}] Calculating precise distances from validated coordinates...`);
-    
+
     // Use Haversine formula with precise coords: driver snapshot + Google Places API coords
     const venuesWithDistance = enrichedVenues.map(v => {
       const R = 3959; // Earth radius in miles
@@ -396,18 +416,18 @@ router.post('/', async (req, res) => {
       const lat2 = v.lat * Math.PI / 180;
       const dLat = (v.lat - fullSnapshot.lat) * Math.PI / 180;
       const dLng = (v.lng - fullSnapshot.lng) * Math.PI / 180;
-      
+
       const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                 Math.cos(lat1) * Math.cos(lat2) *
                 Math.sin(dLng/2) * Math.sin(dLng/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       const distance = parseFloat((R * c).toFixed(2));
-      
+
       console.log(`📏 [${correlationId}] ${v.name}: ${distance} miles from driver`);
-      
+
       return { ...v, calculated_distance_miles: distance };
     });
-    
+
     // Use Gemini to calculate earnings and validate (with closed venue reasoning)
     const { enrichVenuesWithGemini } = await import('../lib/gemini-enricher.js');
     const geminiEnriched = await enrichVenuesWithGemini({
@@ -415,9 +435,9 @@ router.post('/', async (req, res) => {
       driverLocation: { lat: fullSnapshot.lat, lng: fullSnapshot.lng },
       snapshot: fullSnapshot
     });
-    
+
     console.log(`🔍 [${correlationId}] Gemini raw response (first venue):`, JSON.stringify(geminiEnriched[0], null, 2));
-    
+
     // Merge Gemini data back with venue data
     const fullyEnrichedVenues = venuesWithDistance.map((v, i) => ({
       ...v,
@@ -428,7 +448,7 @@ router.post('/', async (req, res) => {
       validation_status: geminiEnriched[i]?.validation_status || 'unknown',
       closed_venue_reasoning: geminiEnriched[i]?.closed_venue_reasoning || null
     }));
-    
+
     console.log(`✅ [${correlationId}] Gemini enrichment complete`);
     console.log(`💰 [${correlationId}] Sample enriched venue:`, {
       name: fullyEnrichedVenues[0]?.name,
@@ -437,7 +457,7 @@ router.post('/', async (req, res) => {
       earningsPerMile: fullyEnrichedVenues[0]?.earnings_per_mile,
       validation: fullyEnrichedVenues[0]?.validation_status
     });
-    
+
     // Convert to compatible format for existing ML pipeline
     const triadPlan = {
       version: "2.0",
@@ -471,22 +491,22 @@ router.post('/', async (req, res) => {
       validation: { status: "ok", flags: [] },
       metadata: tacticalPlan.metadata
     };
-    
+
     // ============================================
     // STEP 3: ML Training Data Capture
     // ============================================
     const validated = triadPlan;
-    
+
     // Log to ML tables for training
     try {
       const rankingId = correlationId; // Use correlation ID as ranking ID
-      
+
       // Only use userId if it's a valid UUID format
       const isValidUuid = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-      
+
       // Only use snapshotId if it's a valid UUID (not "live-snapshot")
       const isValidSnapshotId = snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId);
-      
+
       // Create ranking record
       await db.insert(rankings).values({
         ranking_id: rankingId,
@@ -502,7 +522,7 @@ router.post('/', async (req, res) => {
           validation: triadPlan.validation
         }
       });
-      
+
       // Log each venue as a ranking candidate for ML training
       for (let i = 0; i < enriched.length; i++) {
         const venue = enriched[i];
@@ -532,12 +552,12 @@ router.post('/', async (req, res) => {
           h3_r8: fullSnapshot?.h3_r8 || null
         });
       }
-      
+
       console.log(`📊 ML Training: Logged ranking ${rankingId} with ${enriched.length} LLM-recommended venues`);
     } catch (mlError) {
       console.error('⚠️ ML logging failed (non-blocking):', mlError);
     }
-    
+
     // ============================================
     // STEP 4: Return complete result
     // ============================================
@@ -591,10 +611,10 @@ router.post('/', async (req, res) => {
         validation: triadPlan.validation
       }
     };
-    
+
     console.log(`✅ [${correlationId}] Complete in ${response.elapsed_ms}ms: ${response.blocks.length} venues with business hours`);
     sendOnce(200, response);
-    
+
   } catch (error) {
     console.error(`❌ [${correlationId}] Error:`, error);
     sendOnce(500, {
