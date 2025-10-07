@@ -3,37 +3,78 @@ import path from "path";
 
 const BASE_DIR = process.env.BASE_DIR || process.cwd();
 const ALLOWED_CONFIG_FILES = [
+  // Environment files
   ".env",
   ".env.local",
   ".env.example",
   ".env.production",
+  ".env.development",
+  
+  // Replit config
   ".replit",
   "replit.nix",
   ".replit.nix",
+  ".replit-assistant-override.json",
+  
+  // Package management
   "package.json",
   "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  
+  // Build & bundler configs
   "drizzle.config.ts",
   "drizzle.config.js",
   "vite.config.ts",
   "vite.config.js",
   "tailwind.config.ts",
   "tailwind.config.js",
-  "tsconfig.json",
-  "tsconfig.node.json",
-  "eslint.config.js",
-  ".eslintrc.json",
-  ".prettierrc",
-  ".prettierrc.json",
   "postcss.config.js",
   "postcss.config.cjs",
+  
+  // TypeScript configs
+  "tsconfig.json",
+  "tsconfig.node.json",
+  "tsconfig.app.json",
+  
+  // Linting & formatting
+  "eslint.config.js",
+  ".eslintrc.json",
+  ".eslintrc.js",
+  ".prettierrc",
+  ".prettierrc.json",
+  ".prettierrc.js",
+  
+  // Git & Docker
   ".gitignore",
   ".dockerignore",
   "Dockerfile",
   "docker-compose.yml",
+  
+  // Monorepo tools
   "nx.json",
   "turbo.json",
+  "lerna.json",
+  
+  // Testing
   "jest.config.js",
   "vitest.config.ts",
+  "playwright.config.ts",
+  
+  // Root config files
+  "gateway-server.js",
+  "agent-server.js",
+  "index.js",
+  
+  // Assistant & Eidolon configs
+  "config/assistant-policy.json",
+  "server/config/assistant-policy.json",
+  
+  // Documentation
+  "README.md",
+  "ARCHITECTURE.md",
+  "ISSUES.md",
+  "replit.md",
 ];
 
 export async function readConfigFile(filename) {

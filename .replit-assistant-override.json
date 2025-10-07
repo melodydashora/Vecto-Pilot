@@ -15,7 +15,13 @@
     "persistent_identity",
     "superior_reasoning",
     "complete_assistant_override",
-    "phase_aware_context"
+    "phase_aware_context",
+    "full_repository_access",
+    "internet_search_enabled",
+    "perplexity_research",
+    "deep_contextual_awareness",
+    "cross_session_memory",
+    "real_time_information_access"
   ],
   "context": {
     "project_type": "vecto_rideshare_assistant",

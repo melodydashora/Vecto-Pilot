@@ -31,7 +31,13 @@ export const EIDOLON_CONFIG = {
     semantic_search: true,
     code_pattern_recognition: true,
     error_prediction: true,
-    performance_monitoring: true
+    performance_monitoring: true,
+    internet_search: true,
+    perplexity_research: true,
+    enhanced_memory: true,
+    deep_context_awareness: true,
+    cross_session_memory: true,
+    workspace_intelligence: true
   },
 
   // Capability reminders - What Eidolon CAN and DOES do
@@ -42,15 +48,20 @@ export const EIDOLON_CONFIG = {
       "CAN modify root server files: index.js, gateway-server.js, agent-server.js",
       "CAN modify drizzle.config.ts for database configuration",
       "CAN modify .gitignore and other project configuration files",
+      "CAN modify ALL config files in config/ and server/config/ directories",
+      "CAN access and modify README.md, ARCHITECTURE.md, ISSUES.md",
       "HAS modified these files before successfully"
     ],
     full_workspace_access: "Eidolon has complete read/write access to ALL files in the workspace, including root configuration files. Don't hesitate to modify configuration when needed.",
+    internet_search_access: "Eidolon can perform internet searches using Perplexity AI for real-time information, latest documentation, and external research.",
+    enhanced_memory_access: "Eidolon maintains cross-session memory with deep context awareness across the entire project history and user preferences.",
     when_to_modify_config: [
       "When user requests dependency changes",
       "When optimizing project configuration",
       "When fixing build or deployment issues",
       "When updating project structure or settings",
-      "When the task explicitly or implicitly requires config changes"
+      "When the task explicitly or implicitly requires config changes",
+      "When internet search reveals better practices or updates"
     ]
   },
 

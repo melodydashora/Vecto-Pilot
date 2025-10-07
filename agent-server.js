@@ -413,6 +413,43 @@ app.post("/agent/memory/project", async (req, res, next) => {
   }
 });
 
+// Enhanced context endpoint
+app.get("/agent/context/enhanced", async (req, res, next) => {
+  try {
+    const { getEnhancedProjectContext } = await import("./server/agent/enhanced-context.js");
+    const context = await getEnhancedProjectContext();
+    res.json({ ok: true, context });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Internet search endpoint
+app.post("/agent/search/internet", async (req, res, next) => {
+  try {
+    const { performInternetSearch } = await import("./server/agent/enhanced-context.js");
+    const { query, userId } = req.body || {};
+    if (!query) {
+      return res.status(400).json({ ok: false, error: "query_required" });
+    }
+    const result = await performInternetSearch(query, userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Deep workspace analysis endpoint
+app.get("/agent/analyze/deep", async (req, res, next) => {
+  try {
+    const { analyzeWorkspaceDeep } = await import("./server/agent/enhanced-context.js");
+    const analysis = await analyzeWorkspaceDeep();
+    res.json({ ok: true, analysis });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post("/agent/memory/conversation", async (req, res, next) => {
   try {
     const { rememberConversation } = await import("./server/agent/context-awareness.js");
