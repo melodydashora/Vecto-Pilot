@@ -168,31 +168,35 @@ async function generateReport(research) {
 function generateRecommendations(research) {
   const recommendations = [];
   
-  // Check for common issues in the research
-  const allText = JSON.stringify(research).toLowerCase();
-  
-  if (allText.includes('gpt-5') && allText.includes('reasoning_effort')) {
-    recommendations.push({
-      priority: 'HIGH',
-      item: 'GPT-5 Parameter Update',
-      detail: 'GPT-5 uses reasoning_effort instead of temperature. Update server/lib/adapters/openai-gpt5.js to remove unsupported parameters.'
-    });
-  }
-  
-  if (allText.includes('deprecated') || allText.includes('superseded')) {
-    recommendations.push({
-      priority: 'HIGH',
-      item: 'Model Deprecation',
-      detail: 'Some models may be deprecated. Review the deprecated_models section and update your codebase.'
-    });
-  }
-  
-  if (allText.includes('claude') && allText.includes('4.5')) {
-    recommendations.push({
-      priority: 'MEDIUM',
-      item: 'Claude 4.5 Verification',
-      detail: 'Verify Claude Sonnet 4.5 model ID matches what you have in server/lib/adapters/anthropic-sonnet45.js'
-    });
+  try {
+    // Check for common issues in the research
+    const allText = JSON.stringify(research).toLowerCase();
+    
+    if (allText.includes('gpt-5') && allText.includes('reasoning_effort')) {
+      recommendations.push({
+        priority: 'HIGH',
+        item: 'GPT-5 Parameter Update',
+        detail: 'GPT-5 uses reasoning_effort instead of temperature. Update server/lib/adapters/openai-gpt5.js to remove unsupported parameters.'
+      });
+    }
+    
+    if (allText.includes('deprecated') || allText.includes('superseded')) {
+      recommendations.push({
+        priority: 'HIGH',
+        item: 'Model Deprecation',
+        detail: 'Some models may be deprecated. Review the deprecated_models section and update your codebase.'
+      });
+    }
+    
+    if (allText.includes('claude') && allText.includes('4.5')) {
+      recommendations.push({
+        priority: 'MEDIUM',
+        item: 'Claude 4.5 Verification',
+        detail: 'Verify Claude Sonnet 4.5 model ID matches what you have in server/lib/adapters/anthropic-sonnet45.js'
+      });
+    }
+  } catch (error) {
+    console.error('Error generating recommendations:', error);
   }
   
   return recommendations;
