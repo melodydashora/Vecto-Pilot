@@ -9,6 +9,7 @@ import { generateStrategyForSnapshot } from '../lib/strategy-generator.js';
 import { validateSnapshotV1 } from '../util/validate-snapshot.js';
 import { uuidOrNull } from '../util/uuid.js';
 import { makeCircuit } from '../util/circuit.js';
+import { jobQueue } from '../lib/job-queue.js';
 
 const router = Router();
 
@@ -47,12 +48,12 @@ const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;
 router.use((req, res, next) => {
   const isProd = process.env.NODE_ENV === 'production';
   const manualCityProvided = !!(req.query?.city || req.query?.cityName || req.body?.city || req.body?.cityName);
-  
+
   if (isProd && manualCityProvided) {
     console.warn('🚫 Manual city override blocked in production');
     return res.status(400).json({ error: 'manual-city-disabled-in-prod' });
   }
-  
+
   next();
 });
 
@@ -77,7 +78,7 @@ router.get('/geocode/reverse', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    
+
     if (!isFinite(lat) || !isFinite(lng)) {
       return res.status(400).json({ error: 'lat/lng required' });
     }
@@ -132,7 +133,7 @@ router.get('/geocode/reverse', async (req, res) => {
 router.get('/geocode/forward', async (req, res) => {
   try {
     const cityName = req.query.city;
-    
+
     if (!cityName) {
       return res.status(400).json({ error: 'city query parameter required' });
     }
@@ -188,7 +189,7 @@ router.get('/timezone', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    
+
     if (!isFinite(lat) || !isFinite(lng)) {
       return res.status(400).json({ error: 'lat/lng required' });
     }
@@ -240,7 +241,7 @@ router.get('/resolve', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    
+
     if (!isFinite(lat) || !isFinite(lng)) {
       return res.status(400).json({ error: 'lat/lng required' });
     }
@@ -316,7 +317,7 @@ router.get('/weather', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    
+
     if (!isFinite(lat) || !isFinite(lng)) {
       return res.status(400).json({ error: 'lat/lng required' });
     }
@@ -377,7 +378,7 @@ router.get('/airquality', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    
+
     if (!isFinite(lat) || !isFinite(lng)) {
       return res.status(400).json({ error: 'lat/lng required' });
     }
@@ -407,12 +408,12 @@ router.get('/airquality', async (req, res) => {
         body: JSON.stringify(requestBody),
         signal
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error?.message || `API error: ${response.status}`);
       }
-      
+
       return await response.json();
     });
 
@@ -455,7 +456,7 @@ router.get('/airquality', async (req, res) => {
 router.post('/snapshot', async (req, res) => {
   const reqId = crypto.randomUUID();
   res.setHeader('x-req-id', reqId);
-  
+
   console.log('[snapshot] handler ENTER', { url: req.originalUrl, method: req.method, hasBody: !!req.body, req_id: reqId });
   try {
     console.log('[snapshot] processing snapshot...');
@@ -463,7 +464,7 @@ router.post('/snapshot', async (req, res) => {
 
     // Validate SnapshotV1 structure using dedicated validator
     const v = validateSnapshotV1(snapshotV1);
-    
+
     if (!v.ok) {
       console.warn('[snapshot] INCOMPLETE_SNAPSHOT_V1 - possible web crawler or incomplete client', { 
         fields_missing: v.errors,
@@ -485,14 +486,14 @@ router.post('/snapshot', async (req, res) => {
     console.log('[snapshot] Fetching airport context...');
     const { getNearestMajorAirport, fetchFAADelayData } = await import('../lib/faa-asws.js');
     let airportContext = null;
-    
+
     try {
       const nearbyAirport = await getNearestMajorAirport(
         snapshotV1.coord.lat, 
         snapshotV1.coord.lng, 
         25 // 25 mile threshold for suburban metro areas
       );
-      
+
       if (nearbyAirport) {
         const airportData = await fetchFAADelayData(nearbyAirport.code);
         if (airportData) {
@@ -561,7 +562,7 @@ router.post('/snapshot', async (req, res) => {
     const path = await import('path');
     const dataDir = path.join(process.cwd(), 'data', 'context-snapshots');
     await fs.mkdir(dataDir, { recursive: true });
-    
+
     const filename = `snapshot_${snapshotV1.device_id}_${Date.now()}.json`;
     await fs.writeFile(
       path.join(dataDir, filename),
@@ -571,10 +572,10 @@ router.post('/snapshot', async (req, res) => {
     // Convert dow to day name
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = dayNames[snapshotV1.time_context?.dow] || 'unknown';
-    
+
     // Format date from local_iso
     const localDate = snapshotV1.time_context?.local_iso ? new Date(snapshotV1.time_context.local_iso).toISOString().split('T')[0] : 'unknown';
-    
+
     console.log('[location] Snapshot saved to Postgres + filesystem:', {
       snapshot_id: snapshotV1.snapshot_id,
       user_id: snapshotV1.user_id,
@@ -624,16 +625,15 @@ router.post('/snapshot', async (req, res) => {
       iOwnTheJob = rows?.rows?.length === 1;
 
       if (iOwnTheJob) {
-        queueMicrotask(async () => {
-          try {
-            await generateStrategyForSnapshot(snapshotV1.snapshot_id);
-          } catch (e) {
-            // Ensure a durable status for observability
-            await db.update(strategies)
-              .set({ status: 'failed', updated_at: new Date(), error: String(e).slice(0, 2000) })
-              .where(eq(strategies.snapshot_id, snapshotV1.snapshot_id));
+        // Enqueue strategy generation with monitoring and retry
+        await jobQueue.enqueue(
+          `strategy-${snapshotV1.snapshot_id}`,
+          () => generateStrategyForSnapshot(snapshotV1.snapshot_id),
+          { 
+            maxRetries: 2,
+            context: { snapshot_id: snapshotV1.snapshot_id, city: snapshotV1.city }
           }
-        });
+        );
       }
     }
 
@@ -655,15 +655,15 @@ router.post('/snapshot', async (req, res) => {
 router.get('/snapshot/latest', async (req, res) => {
   try {
     const userId = req.query.userId || 'default';
-    
+
     const fs = await import('fs/promises');
     const path = await import('path');
     const dataDir = path.join(process.cwd(), 'data', 'context-snapshots');
     const filename = path.join(dataDir, `latest_${userId}.json`);
-    
+
     const data = await fs.readFile(filename, 'utf-8');
     const snapshot = JSON.parse(data);
-    
+
     res.json(snapshot);
   } catch (err) {
     if (err.code === 'ENOENT') {

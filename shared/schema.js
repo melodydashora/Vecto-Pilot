@@ -33,7 +33,7 @@ export const snapshots = pgTable("snapshots", {
 
 export const strategies = pgTable("strategies", {
   id: uuid("id").primaryKey().defaultRandom(),
-  snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id),
+  snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   strategy: text("strategy"),
   status: text("status").notNull().default("pending"), // pending|ok|failed
   error_code: integer("error_code"),
@@ -58,7 +58,7 @@ export const rankings = pgTable("rankings", {
 
 export const ranking_candidates = pgTable("ranking_candidates", {
   id: uuid("id").primaryKey(),
-  ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id),
+  ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id, { onDelete: 'cascade' }),
   block_id: text("block_id").notNull(),
   name: text("name").notNull(),
   lat: doublePrecision("lat").notNull(),
@@ -80,7 +80,7 @@ export const actions = pgTable("actions", {
   action_id: uuid("action_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
   ranking_id: uuid("ranking_id").references(() => rankings.ranking_id),
-  snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id),
+  snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   user_id: uuid("user_id"),
   action: text("action").notNull(),
   block_id: text("block_id"),
