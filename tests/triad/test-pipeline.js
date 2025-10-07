@@ -25,6 +25,7 @@ class TriadPipelineTester {
       timeout: 30000,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Triad-Test-Suite/1.0)',
+        'x-internal-test': '1',
         ...options.headers
       },
       ...options

@@ -187,6 +187,24 @@ app.use((req, res, next) => {
 
 app.get("/metrics", (_req, res) => { res.set("Cache-Control", "no-store"); res.json({ counts, time: Date.now() }); });
 
+// Job queue metrics endpoint (proxies to SDK server in dev, direct in prod)
+app.get("/metrics/jobs", async (_req, res) => {
+  try {
+    // In production, we'd import getJobMetrics directly. In dev, proxy to SDK server.
+    if (IS_PRODUCTION) {
+      const { getJobMetrics } = await import("./server/lib/job-queue.js");
+      res.json({ ok: true, ...(await getJobMetrics()) });
+    } else {
+      // Proxy to SDK server which has the job queue
+      const response = await fetch(`http://127.0.0.1:${SDK_PORT}/api/metrics/jobs`);
+      const data = await response.json();
+      res.status(response.status).json(data);
+    }
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 // ---------- proxies (before any static) ----------
 // In production, no SDK = always ready. In dev, wait for SDK.
 const guard = (_req, res, next) => (IS_PRODUCTION || sdkReady ? next() : res.status(503).json({ ok: false, reason: "sdk_warming" }));
