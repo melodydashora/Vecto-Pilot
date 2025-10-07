@@ -147,6 +147,31 @@ The system will automatically:
 
 ## 🏗️ System Architecture
 
+### **Data Architecture Principles**
+
+**Database-Driven Reconciliation - Zero Hardcoding Policy**
+
+This application follows a strict **database reconciliation model** where all location data, venue information, and model configurations are stored in and retrieved from the database. **No hardcoded locations, coordinates, model names, or business logic constants are permitted in the codebase.**
+
+**Core Principles:**
+1. **All locations are database records** - Venue coordinates, addresses, and metadata live in PostgreSQL tables
+2. **Models configured via environment variables** - AI model names, API endpoints, and parameters are `.env` driven
+3. **Dynamic reconciliation** - The app queries the database for current state, never assumes static data
+4. **No magic strings** - Location names, categories, and filters are database-driven, not code constants
+5. **Live data only** - GPS coordinates, weather, timezone, and context are fetched in real-time
+
+**What This Means:**
+- ❌ **Never** hardcode `if (city === "Dallas")` or `lat: 32.776` in code
+- ✅ **Always** query database: `SELECT * FROM venues WHERE city = $1`
+- ❌ **Never** hardcode `model: "gpt-4"` in code  
+- ✅ **Always** use env vars: `process.env.OPENAI_MODEL`
+- ❌ **Never** assume static venue catalogs in code
+- ✅ **Always** reconcile against live database state
+
+This architecture ensures the app scales dynamically as new venues are added to the database and adapts automatically when model configurations change via environment variables.
+
+---
+
 ### **Multi-Server Design**
 
 ```
@@ -326,33 +351,66 @@ lng: number (required)
 ```
 
 #### `POST /api/location/snapshot`
-Save context snapshot to database and filesystem
+Save context snapshot to database (SnapshotV1 format)
 
 **Request Body**:
 ```json
 {
-  "userId": "uuid",
-  "deviceId": "uuid",
-  "sessionId": "uuid",
-  "lat": 33.12886,
-  "lng": -96.87570,
-  "accuracy_m": 85,
-  "city": "Frisco",
-  "state": "TX",
-  "timezone": "America/Chicago",
-  "day_part_key": "morning",
-  "is_weekend": true,
-  "weather": { "tempF": 69, "conditions": "Clear" },
-  "air": { "aqi": 78, "category": "Good air quality" }
+  "snapshot_id": "uuid",
+  "user_id": "uuid",
+  "device_id": "uuid",
+  "session_id": "uuid",
+  "created_at": "2025-10-07T12:00:00Z",
+  "coord": {
+    "lat": 33.12886,
+    "lng": -96.87570,
+    "accuracyMeters": 85,
+    "source": "gps"
+  },
+  "resolved": {
+    "city": "Frisco",
+    "state": "TX",
+    "country": "United States",
+    "timezone": "America/Chicago",
+    "formattedAddress": "1701 Timber Ridge Dr, Frisco, TX 75036, USA"
+  },
+  "time_context": {
+    "local_iso": "2025-10-07T09:00:00-05:00",
+    "dow": 1,
+    "hour": 9,
+    "is_weekend": false,
+    "day_part_key": "morning"
+  },
+  "weather": {
+    "tempF": 69,
+    "conditions": "Clear",
+    "description": "clear sky"
+  },
+  "air": {
+    "aqi": 78,
+    "category": "Good air quality"
+  },
+  "device": {
+    "ua": "Mozilla/5.0...",
+    "platform": "web"
+  },
+  "permissions": {
+    "geolocation": "granted"
+  }
 }
 ```
 
 **Response**:
 ```json
 {
-  "success": true,
+  "ok": true,
   "snapshot_id": "uuid",
-  "h3_r8": "8826c87297fffff"
+  "h3_r8": "8826c87297fffff",
+  "airport_context": {
+    "airport_code": "DFW",
+    "distance_miles": 18.6,
+    "delay_minutes": 30
+  }
 }
 ```
 

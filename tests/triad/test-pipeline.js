@@ -23,27 +23,65 @@ class TriadPipelineTester {
   async makeRequest(path, options = {}) {
     const response = await fetch(`${BASE_URL}${path}`, {
       timeout: 30000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Triad-Test-Suite/1.0)',
+        ...options.headers
+      },
       ...options
     });
-    const data = await response.json();
-    return { status: response.status, data };
+    
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return { status: response.status, data: null };
+    }
+    
+    // Try to parse JSON, fallback to text for error messages
+    const text = await response.text();
+    try {
+      const data = JSON.parse(text);
+      return { status: response.status, data };
+    } catch {
+      return { status: response.status, data: { error: text } };
+    }
   }
 
   async testFullPipeline() {
     await this.test('Full Pipeline: Snapshot → Strategy → Blocks', async () => {
-      // Step 1: Create snapshot
+      // Step 1: Create snapshot (SnapshotV1 format)
       const snapshotRes = await this.makeRequest('/api/location/snapshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          lat: 33.128,
-          lng: -96.875,
-          city: 'Frisco',
-          timezone: 'America/Chicago',
-          dayPart: 'evening',
-          isWeekend: false,
-          weather: '75°F',
-          airQuality: 'Good'
+          snapshot_id: crypto.randomUUID(),
+          user_id: null,
+          device_id: crypto.randomUUID(),
+          session_id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+          coord: {
+            lat: 33.128,
+            lng: -96.875,
+            accuracyMeters: 10,
+            source: 'gps'
+          },
+          resolved: {
+            city: 'Frisco',
+            state: 'TX',
+            timezone: 'America/Chicago',
+            formattedAddress: 'Frisco, TX 75034, USA'
+          },
+          time_context: {
+            local_iso: new Date().toISOString(),
+            dow: 1,
+            hour: 21,
+            is_weekend: false,
+            day_part_key: 'evening'
+          },
+          device: {
+            platform: 'web'
+          },
+          permissions: {
+            geolocation: 'granted'
+          }
         })
       });
 
@@ -83,13 +121,36 @@ class TriadPipelineTester {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          lat: 32.776,
-          lng: -96.797,
-          city: 'Dallas',
-          timezone: 'America/Chicago',
-          dayPart: 'night',
-          isWeekend: true,
-          weather: '68°F'
+          snapshot_id: crypto.randomUUID(),
+          user_id: null,
+          device_id: crypto.randomUUID(),
+          session_id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+          coord: {
+            lat: 32.776,
+            lng: -96.797,
+            accuracyMeters: 10,
+            source: 'gps'
+          },
+          resolved: {
+            city: 'Dallas',
+            state: 'TX',
+            timezone: 'America/Chicago',
+            formattedAddress: 'Dallas, TX, USA'
+          },
+          time_context: {
+            local_iso: new Date().toISOString(),
+            dow: 6,
+            hour: 22,
+            is_weekend: true,
+            day_part_key: 'late_evening'
+          },
+          device: {
+            platform: 'web'
+          },
+          permissions: {
+            geolocation: 'granted'
+          }
         })
       });
 
@@ -162,31 +223,67 @@ class TriadPipelineTester {
 
   async testRetryLogic() {
     await this.test('Retry: Duplicate snapshot request race condition', async () => {
-      const snapshotData = {
-        lat: 33.128,
-        lng: -96.875,
-        city: 'Frisco',
-        timezone: 'America/Chicago',
-        dayPart: 'evening',
-        isWeekend: false
+      const baseData = {
+        user_id: null,
+        created_at: new Date().toISOString(),
+        coord: {
+          lat: 33.128,
+          lng: -96.875,
+          accuracyMeters: 10,
+          source: 'gps'
+        },
+        resolved: {
+          city: 'Frisco',
+          state: 'TX',
+          timezone: 'America/Chicago',
+          formattedAddress: 'Frisco, TX 75034, USA'
+        },
+        time_context: {
+          local_iso: new Date().toISOString(),
+          dow: 1,
+          hour: 21,
+          is_weekend: false,
+          day_part_key: 'evening'
+        },
+        device: {
+          platform: 'web'
+        },
+        permissions: {
+          geolocation: 'granted'
+        }
       };
 
-      // Fire 3 identical requests simultaneously
+      // Fire 3 requests with unique IDs simultaneously
       const requests = [
         this.makeRequest('/api/location/snapshot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(snapshotData)
+          body: JSON.stringify({
+            ...baseData,
+            snapshot_id: crypto.randomUUID(),
+            device_id: crypto.randomUUID(),
+            session_id: crypto.randomUUID()
+          })
         }),
         this.makeRequest('/api/location/snapshot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(snapshotData)
+          body: JSON.stringify({
+            ...baseData,
+            snapshot_id: crypto.randomUUID(),
+            device_id: crypto.randomUUID(),
+            session_id: crypto.randomUUID()
+          })
         }),
         this.makeRequest('/api/location/snapshot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(snapshotData)
+          body: JSON.stringify({
+            ...baseData,
+            snapshot_id: crypto.randomUUID(),
+            device_id: crypto.randomUUID(),
+            session_id: crypto.randomUUID()
+          })
         })
       ];
 
