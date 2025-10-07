@@ -610,18 +610,20 @@ router.post('/snapshot', async (req, res) => {
     };
 
     // Save to Postgres using Drizzle
-    console.log('[Snapshot DB] 💾 Writing to snapshots table:', {
-      snapshot_id: dbSnapshot.snapshot_id,
-      user_id: dbSnapshot.user_id,
-      lat: dbSnapshot.lat,
-      lng: dbSnapshot.lng,
-      city: dbSnapshot.city,
-      state: dbSnapshot.state,
-      timezone: dbSnapshot.timezone,
-      day_part_key: dbSnapshot.day_part_key,
-      h3_r8: dbSnapshot.h3_r8,
-      airport_context: dbSnapshot.airport_context
-    });
+    console.log('[Snapshot DB] 💾 Writing to snapshots table - Field Mapping:');
+    console.log('  → snapshot_id:', dbSnapshot.snapshot_id);
+    console.log('  → user_id:', dbSnapshot.user_id);
+    console.log('  → device_id:', dbSnapshot.device_id);
+    console.log('  → lat:', dbSnapshot.lat);
+    console.log('  → lng:', dbSnapshot.lng);
+    console.log('  → city:', dbSnapshot.city);
+    console.log('  → state:', dbSnapshot.state);
+    console.log('  → timezone:', dbSnapshot.timezone);
+    console.log('  → day_part_key:', dbSnapshot.day_part_key);
+    console.log('  → h3_r8:', dbSnapshot.h3_r8);
+    console.log('  → weather:', dbSnapshot.weather);
+    console.log('  → air:', dbSnapshot.air);
+    console.log('  → airport_context:', dbSnapshot.airport_context);
     
     await db.insert(snapshots).values(dbSnapshot);
     
@@ -646,25 +648,12 @@ router.post('/snapshot', async (req, res) => {
     // Format date from local_iso
     const localDate = snapshotV1.time_context?.local_iso ? new Date(snapshotV1.time_context.local_iso).toISOString().split('T')[0] : 'unknown';
 
-    console.log('[location] ✅ Snapshot saved to Postgres + filesystem with fields:', [
-      'snapshot_id',
-      'user_id',
-      'device_id',
-      'coords (lat, lng)',
-      'date',
-      'day_of_week (dow)',
-      'hour',
-      'city',
-      'state',
-      'formatted_address',
-      'timezone',
-      'day_part',
-      'weather',
-      'air_quality',
-      'airport_context',
-      'h3_r8',
-      'filename'
-    ]);
+    console.log('[location] ✅ Snapshot saved - Summary:');
+    console.log('  📍 Location: city =', snapshotV1.resolved?.city, ', state =', snapshotV1.resolved?.state);
+    console.log('  🕐 Time: day_part =', snapshotV1.time_context?.day_part_key, ', hour =', snapshotV1.time_context?.hour);
+    console.log('  🌤️ Weather: weather =', snapshotV1.weather ? `${snapshotV1.weather.tempF}°F ${snapshotV1.weather.conditions}` : 'none');
+    console.log('  🌫️ Air: air_quality =', snapshotV1.air ? `AQI ${snapshotV1.air.aqi}` : 'none');
+    console.log('  🛫 Airport: airport_context =', airportContext ? `${airportContext.airport_code} (${airportContext.distance_miles}mi, ${airportContext.delay_minutes}min delays)` : 'none');
 
     // Create or claim strategy row without a race; only the winner proceeds
     const now = new Date();
