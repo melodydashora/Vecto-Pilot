@@ -24,6 +24,11 @@ import jobMetricsRoutes from "./server/routes/job-metrics.js";
 import { loggingMiddleware } from "./server/middleware/logging.js";
 import { securityMiddleware, apiLimiter, strictLimiter } from "./server/middleware/security.js";
 
+// Parity contract modules
+import { capsFromEnv } from "./server/lib/capabilities.js";
+import { bearer } from "./server/lib/auth.js";
+import { makeRemoteExecutor, mountAbilityRoutes } from "./server/lib/ability-routes.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -58,6 +63,32 @@ app.get("/healthz", (_req, res) => {
 app.get("/ready", (_req, res) => {
   res.json({ ok: true, status: "ready", timestamp: new Date().toISOString() });
 });
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Parity contract: unified capability routes (Eidolon forwards to Agent)
+// ───────────────────────────────────────────────────────────────────────────────
+const eidolonCaps = capsFromEnv("EIDOLON");
+const eidolonToken = process.env.EIDOLON_TOKEN || "";
+const agentBase = process.env.AGENT_BASE_URL || `http://127.0.0.1:${process.env.AGENT_PORT || 43717}`;
+const agentToken = process.env.AGENT_TOKEN || process.env.ASSISTANT_OVERRIDE_TOKEN || "";
+
+// Create Eidolon parity router
+const eidolonRouter = express.Router();
+if (eidolonToken) {
+  eidolonRouter.use(bearer(eidolonToken));
+}
+mountAbilityRoutes(eidolonRouter, "eidolon", eidolonCaps, makeRemoteExecutor(agentBase, agentToken));
+app.use("/api/assistant", eidolonRouter);
+
+// Create Assistant Override parity router (separate from Eidolon)
+const assistantCaps = capsFromEnv("ASSISTANT");
+const assistantToken = process.env.ASSISTANT_OVERRIDE_TOKEN || "";
+const assistantRouter = express.Router();
+if (assistantToken) {
+  assistantRouter.use(bearer(assistantToken));
+}
+mountAbilityRoutes(assistantRouter, "assistant", assistantCaps, makeRemoteExecutor(agentBase, agentToken));
+app.use("/api/assistant/override", assistantRouter);
 
 // ───────────────────────────────────────────────────────────────────────────────
 // API routes with rate limiting

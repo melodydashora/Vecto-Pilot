@@ -11,6 +11,9 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import pkg from "pg";
 const { Pool } = pkg;
+import { capsFromEnv } from "./server/lib/capabilities.js";
+import { bearer } from "./server/lib/auth.js";
+import { makeLocalExecutor, mountAbilityRoutes } from "./server/lib/ability-routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -159,16 +162,28 @@ app.get("/agent/health", (_req, res) => {
   });
 });
 
-// Auth gate (if TOKEN set, require it)
+// Parity contract: unified capability routes
+const caps = capsFromEnv("AGENT");
+const agentRouter = express.Router();
+
+// Auth gate (if TOKEN set, require it) - using unified bearer auth
 if (TOKEN) {
-  app.use((req, res, next) => {
-    const tok = bearerOrHeaderToken(req);
-    if (tok !== TOKEN) {
-      return res.status(401).json({ error: "unauthorized" });
-    }
-    next();
-  });
+  agentRouter.use(bearer(TOKEN, "x-agent-token"));
 }
+
+// Shell whitelist enforcement for parity routes
+agentRouter.use("/shell/exec", (req, res, next) => {
+  const wl = caps.shellWhitelist;
+  if (!wl?.length) return next();
+  const { cmd } = req.body || {};
+  if (!cmd || !wl.includes(cmd)) {
+    return res.status(403).json({ ok: false, error: "shell_command_not_allowed" });
+  }
+  next();
+});
+
+mountAbilityRoutes(agentRouter, "agent", caps, makeLocalExecutor(caps));
+app.use("/agent", agentRouter);
 
 // FS: read
 app.post("/agent/fs/read", async (req, res, next) => {
