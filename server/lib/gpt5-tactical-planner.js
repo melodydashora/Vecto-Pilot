@@ -51,7 +51,17 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
   }
 
   const startTime = Date.now();
-  console.log(`[TRIAD 2/3 - GPT-5 Planner] Generating tactical recommendations from Claude strategy: "${strategy.slice(0, 100)}..."`);
+  console.log(`[TRIAD 2/3 - GPT-5 Planner] ========== INPUT DATA ==========`);
+  console.log(`[TRIAD 2/3 - GPT-5 Planner] Claude Strategy: "${strategy}"`);
+  console.log(`[TRIAD 2/3 - GPT-5 Planner] Snapshot Context:`, {
+    city: snapshot?.city,
+    state: snapshot?.state,
+    lat: snapshot?.lat,
+    lng: snapshot?.lng,
+    dayPart: snapshot?.day_part_key,
+    weather: snapshot?.weather,
+    airQuality: snapshot?.air
+  });
 
   // Get day name from dow
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -186,8 +196,17 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     }
 
     const validated = validation.data;
-    console.log(`✅ [GPT-5 Tactical Planner] Validation passed: ${validated.recommended_venues.length} venues`);
-    console.log(`📊 [GPT-5 Tactical Planner] Suggested DB fields:`, JSON.stringify(validated.suggested_db_fields || {}));
+    console.log(`[TRIAD 2/3 - GPT-5 Planner] ========== OUTPUT DATA ==========`);
+    console.log(`[TRIAD 2/3 - GPT-5 Planner] ✅ Validation passed: ${validated.recommended_venues.length} venues`);
+    console.log(`[TRIAD 2/3 - GPT-5 Planner] Tactical Summary: "${validated.tactical_summary}"`);
+    console.log(`[TRIAD 2/3 - GPT-5 Planner] Venues:`, validated.recommended_venues.map(v => ({
+      name: v.name,
+      category: v.category,
+      lat: v.lat,
+      lng: v.lng,
+      description: v.description.slice(0, 100) + '...'
+    })));
+    console.log(`[TRIAD 2/3 - GPT-5 Planner] 📊 Suggested DB fields:`, JSON.stringify(validated.suggested_db_fields || {}));
 
     // Add rank to each venue and prepare final response
     const normalized = {

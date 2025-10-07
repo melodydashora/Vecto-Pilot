@@ -158,10 +158,12 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
     const totalDuration = Date.now() - startTime;
     
     if (result.ok) {
+      const strategyText = result.text.trim();
+      
       await db.update(strategies)
         .set({
           status: 'ok',
-          strategy: result.text.trim(),
+          strategy: strategyText,
           latency_ms: result.ms,
           tokens: result.tokens,
           attempt: result.attempt,
@@ -169,8 +171,18 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
         })
         .where(eq(strategies.snapshot_id, snapshot_id));
       
+      console.log(`[TRIAD 1/3 - Claude] ✅ Strategy generated successfully`);
+      console.log(`[TRIAD 1/3 - Claude] Strategy text: "${strategyText}"`);
+      console.log(`[TRIAD 1/3 - Claude] 💾 DB Write to 'strategies' table:`, {
+        snapshot_id,
+        status: 'ok',
+        strategy_length: strategyText.length,
+        latency_ms: result.ms,
+        tokens: result.tokens,
+        attempt: result.attempt
+      });
       console.log(`[triad] strategist.ok id=${snapshot_id} ms=${totalDuration} claude_ms=${result.ms} tokens=${result.tokens} attempts=${result.attempt}`);
-      return result.text;
+      return strategyText;
     }
     
     // Handle failure - check if transient for retry scheduling

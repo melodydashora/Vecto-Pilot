@@ -510,7 +510,7 @@ router.post('/', async (req, res) => {
       const isValidSnapshotId = snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId);
 
       // Create ranking record
-      await db.insert(rankings).values({
+      const rankingRecord = {
         ranking_id: rankingId,
         created_at: new Date(),
         snapshot_id: isValidSnapshotId ? snapshotId : null,
@@ -523,12 +523,22 @@ router.post('/', async (req, res) => {
           timing: triadPlan.timing || {},
           validation: triadPlan.validation
         }
+      };
+      
+      await db.insert(rankings).values(rankingRecord);
+      
+      console.log(`[ML Training] 💾 DB Write to 'rankings' table:`, {
+        ranking_id: rankingRecord.ranking_id,
+        snapshot_id: rankingRecord.snapshot_id,
+        user_id: rankingRecord.user_id,
+        city: rankingRecord.city,
+        model_name: rankingRecord.model_name
       });
 
       // Log each venue as a ranking candidate for ML training
       for (let i = 0; i < enriched.length; i++) {
         const venue = enriched[i];
-        await db.insert(ranking_candidates).values({
+        const candidateRecord = {
           id: randomUUID(),
           ranking_id: rankingId,
           block_id: venue.venue_id,
@@ -552,6 +562,16 @@ router.post('/', async (req, res) => {
             airport_context: fullSnapshot?.airport_context || null
           },
           h3_r8: fullSnapshot?.h3_r8 || null
+        };
+        
+        await db.insert(ranking_candidates).values(candidateRecord);
+        
+        console.log(`[ML Training] 💾 DB Write to 'ranking_candidates' table [${i+1}/${enriched.length}]:`, {
+          name: candidateRecord.name,
+          rank: candidateRecord.rank,
+          est_earnings: candidateRecord.est_earnings_per_ride,
+          drive_time: candidateRecord.drive_time_min,
+          category: candidateRecord.features.category
         });
       }
 

@@ -281,13 +281,21 @@ router.get('/resolve', async (req, res) => {
       const first = geocodeData.results?.[0];
       ({ city, state, country } = first ? pickAddressParts(first.address_components) : {});
       formattedAddress = first?.formatted_address;
+      console.log(`[Location API] 🗺️ Geocode resolved:`, {
+        lat,
+        lng,
+        city,
+        state,
+        country,
+        formattedAddress
+      });
     }
 
     // Extract timezone
     let timeZone;
     if (timezoneData && timezoneData.status === 'OK' && timezoneData.timeZoneId) {
       timeZone = timezoneData.timeZoneId;
-      console.log(`[location] Timezone resolved: ${timeZone}`);
+      console.log(`[Location API] 🕐 Timezone resolved: ${timeZone}`);
     } else {
       console.error('[location] Timezone API failed:', {
         status: timezoneData.status,
@@ -298,13 +306,16 @@ router.get('/resolve', async (req, res) => {
       console.log(`[location] Using fallback timezone: ${timeZone}`);
     }
 
-    res.json({
+    const resolvedData = {
       city,
       state,
       country,
       timeZone,
       formattedAddress: formattedAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-    });
+    };
+    
+    console.log(`[Location API] ✅ Complete resolution:`, resolvedData);
+    res.json(resolvedData);
   } catch (err) {
     console.error('[location] resolve error', err);
     res.status(500).json({ error: 'location-resolve-failed' });
@@ -352,7 +363,7 @@ router.get('/weather', async (req, res) => {
       });
     }
 
-    res.json({
+    const weatherData = {
       available: true,
       temperature: Math.round(data.main?.temp || 0),
       feelsLike: Math.round(data.main?.feels_like || 0),
@@ -362,7 +373,19 @@ router.get('/weather', async (req, res) => {
       windSpeed: Math.round(data.wind?.speed || 0),
       precipitation: data.rain?.['1h'] || data.snow?.['1h'] || 0,
       icon: data.weather?.[0]?.icon || '',
+    };
+    
+    console.log(`[Location API] 🌤️ Weather fetched:`, {
+      lat,
+      lng,
+      temp: weatherData.temperature,
+      feelsLike: weatherData.feelsLike,
+      conditions: weatherData.conditions,
+      humidity: weatherData.humidity,
+      windSpeed: weatherData.windSpeed
     });
+    
+    res.json(weatherData);
   } catch (err) {
     console.error('[location] weather error', err);
     res.status(500).json({ 
@@ -433,7 +456,7 @@ router.get('/airquality', async (req, res) => {
       null
     );
 
-    res.json({
+    const aqData = {
       available: true,
       aqi: aqi?.aqi || 0,
       category: aqi?.category || 'Unknown',
@@ -441,7 +464,17 @@ router.get('/airquality', async (req, res) => {
       healthRecommendations: aqi?.healthRecommendations || {},
       dateTime: data.dateTime,
       regionCode: data.regionCode,
+    };
+    
+    console.log(`[Location API] 🌫️ Air Quality fetched:`, {
+      lat,
+      lng,
+      aqi: aqData.aqi,
+      category: aqData.category,
+      dominantPollutant: aqData.dominantPollutant
     });
+    
+    res.json(aqData);
   } catch (err) {
     console.error('[location] air quality error', err);
     res.status(500).json({ 
