@@ -135,6 +135,20 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
 
     const claudeStart = Date.now();
     
+    // Log the complete snapshot data being sent to Claude
+    console.log(`[TRIAD 1/3 - Claude] Snapshot data being sent:`, {
+      address: snap.formatted_address,
+      city: snap.city,
+      state: snap.state,
+      dayOfWeek,
+      date: formattedDate,
+      time: exactTime,
+      daypart: snap.day_part_key,
+      weather: weatherStr,
+      airQuality: airStr,
+      airport: airportStr || 'none'
+    });
+    
     // Call Claude with transient retry and hard budget (45s with 6 retries)
     const result = await callClaudeWithBudget(payload, { 
       timeoutMs: 45000, 
