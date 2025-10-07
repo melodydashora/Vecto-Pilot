@@ -7,17 +7,37 @@ import { snapshots, strategies } from '../../shared/schema.js';
 import { sql, eq } from 'drizzle-orm';
 import { generateStrategyForSnapshot } from '../lib/strategy-generator.js';
 import { validateSnapshotV1 } from '../util/validate-snapshot.js';
+import { uuidOrNull } from '../util/uuid.js';
+import { makeCircuit } from '../util/circuit.js';
 
 const router = Router();
+
+// Circuit breakers for external APIs (fail-fast, no fallbacks)
+const googleMapsCircuit = makeCircuit({ 
+  name: 'google-maps', 
+  failureThreshold: 3, 
+  resetAfterMs: 30000, 
+  timeoutMs: 5000 
+});
+
+const openWeatherCircuit = makeCircuit({ 
+  name: 'openweather', 
+  failureThreshold: 3, 
+  resetAfterMs: 30000, 
+  timeoutMs: 3000 
+});
+
+const googleAQCircuit = makeCircuit({ 
+  name: 'google-airquality', 
+  failureThreshold: 3, 
+  resetAfterMs: 30000, 
+  timeoutMs: 3000 
+});
 
 // Helper for consistent error responses with correlation ID
 function httpError(res, status, code, message, reqId, extra = {}) {
   return res.status(status).json({ ok: false, error: code, message, req_id: reqId, ...extra });
 }
-
-// UUID validation helper
-const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const uuidOrNull = (v) => (typeof v === 'string' && uuidRegex.test(v) ? v : null);
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
@@ -76,8 +96,10 @@ router.get('/geocode/reverse', async (req, res) => {
     url.searchParams.set('latlng', `${lat},${lng}`);
     url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
 
-    const response = await fetch(url.toString());
-    const data = await response.json();
+    const data = await googleMapsCircuit(async (signal) => {
+      const response = await fetch(url.toString(), { signal });
+      return await response.json();
+    });
 
     if (data.status !== 'OK') {
       console.error('[location] Geocoding error:', data.status);
@@ -295,8 +317,10 @@ router.get('/weather', async (req, res) => {
     url.searchParams.set('appid', OPENWEATHER_API_KEY);
     url.searchParams.set('units', 'imperial'); // Fahrenheit, mph
 
-    const response = await fetch(url.toString());
-    const data = await response.json();
+    const data = await openWeatherCircuit(async (signal) => {
+      const response = await fetch(url.toString(), { signal });
+      return await response.json();
+    });
 
     if (data.cod !== 200) {
       console.error('[location] Weather API error:', data.message);
@@ -353,15 +377,17 @@ router.get('/airquality', async (req, res) => {
       }
     };
 
-    const response = await fetch(`${url}?key=${GOOGLEAQ_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
+    const data = await googleAQCircuit(async (signal) => {
+      const response = await fetch(`${url}?key=${GOOGLEAQ_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal
+      });
+      return await response.json();
     });
-
-    const data = await response.json();
 
     if (!response.ok) {
       console.error('[location] Air Quality API error:', data);

@@ -5,6 +5,7 @@ import { db } from "../db/drizzle.js";
 import { snapshots, strategies } from "../../shared/schema.js";
 import { generateStrategyForSnapshot } from "../lib/strategy-generator.js";
 import { validateIncomingSnapshot } from "../util/validate-snapshot.js";
+import { uuidOrNull } from "../util/uuid.js";
 
 const router = Router();
 
@@ -57,13 +58,11 @@ router.post("/", async (req, res) => {
     }
     
     // Get userId from header or body - must be valid UUID or null
-    let userId = req.headers["x-user-id"] || req.body?.user_id || null;
+    const userIdRaw = req.headers["x-user-id"] || req.body?.user_id || null;
+    const userId = uuidOrNull(userIdRaw);
     
-    // Validate user_id is a valid UUID format, otherwise set to null
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (userId && !uuidRegex.test(userId)) {
-      console.warn("[snapshot] Invalid user_id format (not UUID), setting to null", { userId });
-      userId = null;
+    if (userIdRaw && !userId) {
+      console.warn("[snapshot] Invalid user_id format (not UUID), setting to null", { userId: userIdRaw });
     }
     
     const deviceId = req.body?.device_id || uuid();
