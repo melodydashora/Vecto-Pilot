@@ -20,17 +20,21 @@ export function idempotency({ header = "x-idempotency-key", ttlMs = 60000 } = {}
         return res.status(hit[0].status).json(hit[0].body);
       }
 
-      // Intercept res.json to save response
+      // Intercept res.json to save response (only cache good outcomes, not 5xx errors)
       const originalJson = res.json.bind(res);
       res.json = async (body) => {
-        try {
-          await db.insert(http_idem).values({
-            key,
-            status: res.statusCode || 200,
-            body
-          }).onConflictDoNothing();
-        } catch (err) {
-          console.warn('[idempotency] Failed to save response:', err.message);
+        const s = res.statusCode || 200;
+        // Only cache: 2xx success, 202 accepted, and deterministic 4xx like 400
+        if ((s >= 200 && s < 300) || s === 202 || s === 400) {
+          try {
+            await db.insert(http_idem).values({
+              key,
+              status: s,
+              body
+            }).onConflictDoNothing();
+          } catch (err) {
+            console.warn('[idempotency] Failed to save response:', err.message);
+          }
         }
         return originalJson(body);
       };

@@ -372,6 +372,84 @@ $ grep -i "request aborted" /tmp/logs/Eidolon_Main_*.log
 
 ---
 
+## ✅ FINAL IDEMPOTENCY IMPROVEMENTS (2025-10-07 12:46 CST)
+
+### Expert Feedback Applied
+
+**Problem:** Idempotency infrastructure built but not optimally configured
+- HTTP cache storing 5xx errors (replay failures on subsequent requests)
+- Client using random keys instead of deterministic snapshot-based keys
+- Missing stable idempotency for duplicate POST /api/blocks requests
+
+**Solutions Applied:**
+
+#### 1. Filter 5xx from HTTP Idempotency Cache
+**Changed:** `server/middleware/idempotency.js`
+```javascript
+// ❌ OLD: Cached all responses including server errors
+await db.insert(http_idem).values({ key, status: res.statusCode, body });
+
+// ✅ NEW: Only cache good outcomes (2xx/202/400), not 5xx errors
+const s = res.statusCode || 200;
+if ((s >= 200 && s < 300) || s === 202 || s === 400) {
+  await db.insert(http_idem).values({ key, status: s, body });
+}
+```
+
+**Why:** If first attempt fails with 500, we don't want to replay that failure for the TTL. Cache only successful responses and deterministic errors (400).
+
+#### 2. Deterministic Idempotency Keys
+**Changed:** `client/src/pages/co-pilot.tsx`
+```typescript
+// ❌ OLD: No idempotency key (or random UUID that changes every request)
+
+// ✅ NEW: Deterministic key per snapshot
+const idemKey = lastSnapshotId ? `POST:/api/blocks:${lastSnapshotId}` : undefined;
+
+await fetch('/api/blocks', {
+  headers: {
+    'x-idempotency-key': idemKey, // Stable per snapshot
+  }
+});
+```
+
+**Why:** Same snapshot ID = same idempotency key = HTTP cache hit. Collapses duplicate POST requests to single backend execution.
+
+#### 3. Health Check Logging Already Optimized
+**Verified:** Gateway already skips /health from logs (line 202-205 in gateway-server.js)
+```javascript
+app.use((req, res, next) => {
+  if (req.path !== "/health") {
+    console.log("[trace]", req.method, req.originalUrl);
+  }
+  next();
+});
+```
+
+**Result:** Health checks (every 5s) don't pollute logs ✅
+
+---
+
+### Remaining Integration (Optional)
+
+**Status:** Infrastructure complete, inline execution still active
+
+**To Fully Integrate Idempotency:**
+1. Start worker: `node server/jobs/triad-worker.js` in separate process
+2. Switch POST /api/blocks to use `server/routes/blocks-idempotent.js` (enqueue pattern)
+3. Client already uses deterministic keys ✅
+4. Monitor for single "BLOCKS REQUEST" per snapshot_id
+
+**Current State:**
+- ✅ Deterministic idempotency keys in client
+- ✅ HTTP cache only stores good responses (not 5xx)
+- ✅ Health checks filtered from logs
+- ✅ Client abort errors handled gracefully (499 status)
+- ❌ Worker not started (optional - inline execution works)
+- ❌ Enqueue route not active (optional - inline execution works)
+
+---
+
 ## 🚨 PREVIOUS CRITICAL ISSUES (ALL RESOLVED)
 
 ### ✅ ISSUE #1: Missing `crypto` Import in `server/routes/location.js`

@@ -233,11 +233,15 @@ const CoPilot: React.FC = () => {
           return response.json();
         } else {
           // Production: Triad Architecture (Claude → GPT-5 → Gemini)
+          // Deterministic idempotency key per snapshot to collapse duplicate requests
+          const idemKey = lastSnapshotId ? `POST:/api/blocks:${lastSnapshotId}` : undefined;
+          
           const response = await fetch('/api/blocks', {
             method: 'POST',
             signal: controller.signal,
             headers: {
               'Content-Type': 'application/json',
+              ...(idemKey ? { 'x-idempotency-key': idemKey } : {}),
               ...headers
             },
             body: JSON.stringify({
