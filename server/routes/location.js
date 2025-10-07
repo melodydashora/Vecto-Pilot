@@ -98,6 +98,9 @@ router.get('/geocode/reverse', async (req, res) => {
 
     const data = await googleMapsCircuit(async (signal) => {
       const response = await fetch(url.toString(), { signal });
+      if (!response.ok) {
+        throw new Error(`Google Maps API error: ${response.status}`);
+      }
       return await response.json();
     });
 
@@ -143,8 +146,13 @@ router.get('/geocode/forward', async (req, res) => {
     url.searchParams.set('address', cityName);
     url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
 
-    const response = await fetch(url.toString());
-    const data = await response.json();
+    const data = await googleMapsCircuit(async (signal) => {
+      const response = await fetch(url.toString(), { signal });
+      if (!response.ok) {
+        throw new Error(`Google Maps API error: ${response.status}`);
+      }
+      return await response.json();
+    });
 
     if (data.status !== 'OK') {
       console.error('[location] Forward geocoding error:', data.status);
@@ -199,8 +207,13 @@ router.get('/timezone', async (req, res) => {
     url.searchParams.set('timestamp', String(ts));
     url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
 
-    const response = await fetch(url.toString());
-    const data = await response.json();
+    const data = await googleMapsCircuit(async (signal) => {
+      const response = await fetch(url.toString(), { signal });
+      if (!response.ok) {
+        throw new Error(`Google Maps API error: ${response.status}`);
+      }
+      return await response.json();
+    });
 
     if (data.status !== 'OK') {
       console.error('[location] Timezone error:', data.status);
@@ -243,18 +256,23 @@ router.get('/resolve', async (req, res) => {
       });
     }
 
-    // Make both API calls in parallel using GOOGLE_MAPS_API_KEY for both geocoding and timezone
-    const apiCalls = [
-      fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`),
-      fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`)
-    ];
-    
-    const responses = await Promise.all(apiCalls);
-    const geocodeResponse = responses[0];
-    const timezoneResponse = responses[1];
-
-    const geocodeData = await geocodeResponse.json();
-    const timezoneData = await timezoneResponse.json();
+    // Make both API calls in parallel using circuit breaker protection
+    const [geocodeData, timezoneData] = await Promise.all([
+      googleMapsCircuit(async (signal) => {
+        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
+        if (!response.ok) {
+          throw new Error(`Google Maps API error: ${response.status}`);
+        }
+        return await response.json();
+      }),
+      googleMapsCircuit(async (signal) => {
+        const response = await fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
+        if (!response.ok) {
+          throw new Error(`Google Maps API error: ${response.status}`);
+        }
+        return await response.json();
+      })
+    ]);
 
     // Extract location data
     let city, state, country, formattedAddress;
@@ -319,6 +337,9 @@ router.get('/weather', async (req, res) => {
 
     const data = await openWeatherCircuit(async (signal) => {
       const response = await fetch(url.toString(), { signal });
+      if (!response.ok) {
+        throw new Error(`OpenWeather API error: ${response.status}`);
+      }
       return await response.json();
     });
 
