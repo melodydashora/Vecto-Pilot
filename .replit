@@ -60,6 +60,6 @@ externalPort = 5000
 exposeLocalhost = true
 
 [deployment]
-deploymentTarget = "vm"
-run = ["sh", "-c", "NODE_ENV=production PORT=80 node gateway-server.js"]
-build = ["npm", "run", "build"]
+run = ["sh", "-c", "npm run build && npm run start"]
+
+onBoot = "bash server/scripts/workspace-startup.sh"
