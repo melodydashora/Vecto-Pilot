@@ -521,6 +521,7 @@ router.post('/snapshot', async (req, res) => {
     let airportContext = null;
 
     try {
+      console.log('[Airport API] 🛫 Searching for nearby airports within 25 miles...');
       const nearbyAirport = await getNearestMajorAirport(
         snapshotV1.coord.lat, 
         snapshotV1.coord.lng, 
@@ -528,8 +529,23 @@ router.post('/snapshot', async (req, res) => {
       );
 
       if (nearbyAirport) {
+        console.log('[Airport API] 🛫 Found airport:', {
+          code: nearbyAirport.code,
+          name: nearbyAirport.name,
+          distance_miles: nearbyAirport.distance.toFixed(1)
+        });
+        
+        console.log('[Airport API] 🛫 Fetching FAA delay data for', nearbyAirport.code);
         const airportData = await fetchFAADelayData(nearbyAirport.code);
+        
         if (airportData) {
+          console.log('[Airport API] 🛫 FAA data received:', {
+            delay_minutes: airportData.delay_minutes || 0,
+            delay_reason: airportData.delay_reason || 'none',
+            closure_status: airportData.closure_status,
+            weather: airportData.weather
+          });
+          
           airportContext = {
             airport_code: nearbyAirport.code,
             airport_name: nearbyAirport.name,
@@ -545,7 +561,13 @@ router.post('/snapshot', async (req, res) => {
               wind: airportData.weather.wind
             } : null
           };
+          
+          console.log('[Airport API] ✅ Airport context prepared for DB:', airportContext);
+        } else {
+          console.log('[Airport API] ⚠️ No FAA data available for', nearbyAirport.code);
         }
+      } else {
+        console.log('[Airport API] ℹ️ No airports found within 25 miles');
       }
     } catch (airportErr) {
       console.warn('[snapshot] Airport context fetch failed:', airportErr.message);
@@ -588,7 +610,22 @@ router.post('/snapshot', async (req, res) => {
     };
 
     // Save to Postgres using Drizzle
+    console.log('[Snapshot DB] 💾 Writing to snapshots table:', {
+      snapshot_id: dbSnapshot.snapshot_id,
+      user_id: dbSnapshot.user_id,
+      lat: dbSnapshot.lat,
+      lng: dbSnapshot.lng,
+      city: dbSnapshot.city,
+      state: dbSnapshot.state,
+      timezone: dbSnapshot.timezone,
+      day_part_key: dbSnapshot.day_part_key,
+      h3_r8: dbSnapshot.h3_r8,
+      airport_context: dbSnapshot.airport_context
+    });
+    
     await db.insert(snapshots).values(dbSnapshot);
+    
+    console.log('[Snapshot DB] ✅ Snapshot successfully written to database');
 
     // Also save to filesystem for backup/debugging
     const fs = await import('fs/promises');
@@ -609,25 +646,25 @@ router.post('/snapshot', async (req, res) => {
     // Format date from local_iso
     const localDate = snapshotV1.time_context?.local_iso ? new Date(snapshotV1.time_context.local_iso).toISOString().split('T')[0] : 'unknown';
 
-    console.log('[location] Snapshot saved to Postgres + filesystem:', {
-      snapshot_id: snapshotV1.snapshot_id,
-      user_id: snapshotV1.user_id,
-      device_id: snapshotV1.device_id,
-      coords: `${snapshotV1.coord.lat.toFixed(5)}, ${snapshotV1.coord.lng.toFixed(5)}`,
-      date: localDate,
-      day_of_week: `${dayOfWeek} (dow=${snapshotV1.time_context?.dow})`,
-      hour: snapshotV1.time_context?.hour,
-      city: snapshotV1.resolved?.city,
-      state: snapshotV1.resolved?.state,
-      formatted_address: snapshotV1.resolved?.formattedAddress,
-      timezone: snapshotV1.resolved?.timezone,
-      day_part: snapshotV1.time_context?.day_part_key,
-      weather: snapshotV1.weather ? `${snapshotV1.weather.tempF}°F ${snapshotV1.weather.conditions}` : 'none',
-      air_quality: snapshotV1.air ? `AQI ${snapshotV1.air.aqi}` : 'none',
-      airport_context: airportContext ? `${airportContext.airport_code} (${airportContext.distance_miles}mi, ${airportContext.delay_minutes}min delays)` : 'none',
-      h3_r8,
-      filename
-    });
+    console.log('[location] ✅ Snapshot saved to Postgres + filesystem with fields:', [
+      'snapshot_id',
+      'user_id',
+      'device_id',
+      'coords (lat, lng)',
+      'date',
+      'day_of_week (dow)',
+      'hour',
+      'city',
+      'state',
+      'formatted_address',
+      'timezone',
+      'day_part',
+      'weather',
+      'air_quality',
+      'airport_context',
+      'h3_r8',
+      'filename'
+    ]);
 
     // Create or claim strategy row without a race; only the winner proceeds
     const now = new Date();
