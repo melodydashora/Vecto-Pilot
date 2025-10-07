@@ -203,10 +203,9 @@
 ### AI/ML Stack
 | Provider | Model | Purpose | Timeout |
 |----------|-------|---------|---------|
-| **Anthropic** | Claude Sonnet 4.5 | Strategic analysis | 120s |
-| **OpenAI** | GPT-5 | Tactical planning | 60s |
-| **Google** | Gemini 2.5 Pro | Validation & earnings | 45s |
-| **Perplexity** | Sonar Large | Research & insights | 30s |
+| **Anthropic** | claude-sonnet-4-5-20250929 | Strategic analysis | 15s |
+| **OpenAI** | gpt-5 | Tactical planning | 60s |
+| **Google** | gemini-2.5-pro | Validation & earnings | 20s |
 
 ### External APIs
 | Service | Purpose | Rate Limits |
@@ -252,6 +251,8 @@ The **Triad Pipeline** is the core intelligence engine, processing driver locati
 
 **Role:** High-level strategic analysis and narrative generation
 
+**Critical Guard:** If Claude fails to generate `strategy_for_now`, the entire triad pipeline aborts. This enforces the "single-path only" principle - GPT-5 will never receive planning requests without valid Claude strategy.
+
 **Input:**
 ```json
 {
@@ -290,11 +291,11 @@ The **Triad Pipeline** is the core intelligence engine, processing driver locati
 ```
 
 **Processing:**
-- **Model:** `claude-sonnet-4.5-20250920`
+- **Model:** `claude-sonnet-4-5-20250929`
 - **Max Tokens:** 2048
 - **Temperature:** 0.7 (balanced creativity)
-- **Timeout:** 120 seconds (planner deadline)
-- **Retry Strategy:** 3 attempts with exponential backoff (5s, 15s, 45s)
+- **Timeout:** 15 seconds (strategist deadline)
+- **Guard:** Pipeline aborts if Claude fails (single-path only - no fallbacks)
 
 **Output Example:**
 ```
@@ -345,12 +346,12 @@ Estimated hourly potential: $32-45/hour with strategic positioning
 ```
 
 **Processing:**
-- **Model:** `gpt-5-turbo-preview` (or `gpt-4` as fallback)
-- **Max Tokens:** 4096
-- **Temperature:** 0.3 (precise, factual)
-- **Timeout:** 60 seconds (validator deadline)
-- **Reasoning Tokens:** Enabled (extended thinking for complex decisions)
-- **System Prompt:** 2,500 characters (venue selection rules, safety guidelines)
+- **Model:** `gpt-5`
+- **Max Tokens:** 32000
+- **Reasoning Effort:** `high` (deep tactical analysis)
+- **Timeout:** 60 seconds (planner deadline)
+- **Guard:** Only runs if Claude provides valid strategy_for_now (single-path only)
+- **Developer Role Prompt:** 2,500 characters (venue selection rules, safety guidelines)
 
 **Output Schema (Zod Validated):**
 ```typescript
@@ -545,7 +546,7 @@ Earnings Per Mile = Final Earnings ÷ Distance
 │    • blocks (6 enriched venues)                               │
 │    • best_staging_location                                    │
 │    • tactical_summary                                         │
-│    • model_route: "claude-opus-4.1→gpt-5→gemini-2.0"         │
+│    • model_route: "claude-sonnet-4-5→gpt-5→gemini-2.5-pro"   │
 └────────────────────────────────────────────────────────────────┘
 ```
 

@@ -51,7 +51,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
   }
 
   const startTime = Date.now();
-  console.log(`[GPT-5 Tactical Planner] Generating venue recommendations from strategy: "${strategy.slice(0, 100)}..."`);
+  console.log(`[TRIAD 2/3 - GPT-5 Planner] Generating tactical recommendations from Claude strategy: "${strategy.slice(0, 100)}..."`);
 
   // Get day name from dow
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -147,7 +147,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
   ].join("\n");
 
   const reasoningEffort = process.env.GPT5_REASONING_EFFORT || "medium"; // Default to medium
-  console.log(`[GPT-5 Tactical Planner] Calling GPT-5 with reasoning_effort=${reasoningEffort}...`);
+  console.log(`[TRIAD 2/3 - GPT-5 Planner] Calling GPT-5 with reasoning_effort=${reasoningEffort} (requires valid Claude strategy)...`);
 
   // Call GPT-5 with configurable reasoning effort
   const abortCtrl = new AbortController();

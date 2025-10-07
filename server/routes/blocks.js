@@ -247,7 +247,7 @@ router.post('/', async (req, res) => {
       if (existing && existing.status === 'ok') {
         // Strategy already generated successfully
         claudeStrategy = existing.strategy;
-        console.log(`✅ [${correlationId}] Using existing Claude strategy from DB`);
+        console.log(`✅ [${correlationId}] TRIAD Step 1/3: Using existing Claude Sonnet 4.5 strategy from DB`);
       } else if (existing && existing.status === 'pending') {
         // Strategy generation in progress from snapshot background task
         const job = existing; // Alias for clarity
@@ -279,7 +279,7 @@ router.post('/', async (req, res) => {
         }
       } else if (!existing || existing.status === 'failed') {
         // No strategy or failed - generate new one
-        console.log(`🧠 [${correlationId}] Generating Claude strategy for snapshot ${snapshotId} (synchronous triad)...`);
+        console.log(`🧠 [${correlationId}] TRIAD Step 1/3: Generating Claude Sonnet 4.5 strategy for snapshot ${snapshotId}...`);
 
         const claudeStart = Date.now();
         const { generateStrategyForSnapshot } = await import('../lib/strategy-generator.js');
@@ -297,7 +297,7 @@ router.post('/', async (req, res) => {
             });
           }
 
-          console.log(`✅ [${correlationId}] Claude strategy generated in ${claudeElapsed}ms: "${claudeStrategy.slice(0, 80)}..."`);
+          console.log(`✅ [${correlationId}] TRIAD Step 1/3 Complete: Claude Sonnet 4.5 strategy generated in ${claudeElapsed}ms: "${claudeStrategy.slice(0, 80)}..."`);
         } catch (err) {
           console.error(`❌ [${correlationId}] Claude strategy generation failed: ${err.message}`);
           return sendOnce(500, { 
@@ -312,6 +312,8 @@ router.post('/', async (req, res) => {
     // ============================================
     // STEP 3: Run GPT-5 Tactical Planner with Claude's Strategy
     // ============================================
+    console.log(`🎯 [${correlationId}] TRIAD Step 2/3: Starting GPT-5 tactical planner (requires Claude strategy)...`);
+    
     const plannerStart = Date.now();
     let tacticalPlan = null;
 
@@ -322,7 +324,7 @@ router.post('/', async (req, res) => {
       });
 
       const plannerElapsed = Date.now() - plannerStart;
-      console.log(`✅ [${correlationId}] GPT-5 tactical plan complete (${plannerElapsed}ms): ${tacticalPlan.recommended_venues?.length || 0} venues recommended`);
+      console.log(`✅ [${correlationId}] TRIAD Step 2/3 Complete: GPT-5 tactical plan (${plannerElapsed}ms): ${tacticalPlan.recommended_venues?.length || 0} venues`);
     } catch (err) {
       console.error(`❌ [${correlationId}] GPT-5 tactical planner failed: ${err.message}`);
       return sendOnce(500, { error: 'Tactical planning failed', details: err.message, correlationId });
@@ -334,9 +336,9 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
-    // STEP 4: Enrich venues with business hours from Google Places API
+    // STEP 4: Gemini 2.5 Pro Validation & Enrichment (Google Places API)
     // ============================================
-    console.log(`🔍 [${correlationId}] Enriching ${tacticalPlan.recommended_venues.length} venues with business hours...`);
+    console.log(`🔍 [${correlationId}] TRIAD Step 3/3: Gemini 2.5 Pro validation - enriching ${tacticalPlan.recommended_venues.length} venues...`);
     const { findPlaceId, getFormattedHours } = await import('../lib/places-hours.js');
 
     const enrichedVenues = await Promise.all(
@@ -449,7 +451,7 @@ router.post('/', async (req, res) => {
       closed_venue_reasoning: geminiEnriched[i]?.closed_venue_reasoning || null
     }));
 
-    console.log(`✅ [${correlationId}] Gemini enrichment complete`);
+    console.log(`✅ [${correlationId}] TRIAD Step 3/3 Complete: Gemini 2.5 Pro validation with earnings calculation`);
     console.log(`💰 [${correlationId}] Sample enriched venue:`, {
       name: fullyEnrichedVenues[0]?.name,
       distance: fullyEnrichedVenues[0]?.estimated_distance_miles,
@@ -485,7 +487,7 @@ router.post('/', async (req, res) => {
       best_staging_location: enrichedStagingLocation,
       staging: [], // Legacy field
       seed_additions: [], // Legacy field
-      model_route: "claude-opus-4.1→gpt-5→gemini-2.0",
+      model_route: "claude-sonnet-4-5→gpt-5→gemini-2.5-pro",
       tactical_summary: tacticalPlan.tactical_summary,
       suggested_db_fields: tacticalPlan.suggested_db_fields,
       validation: { status: "ok", flags: [] },
