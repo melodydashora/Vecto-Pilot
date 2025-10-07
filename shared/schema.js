@@ -119,6 +119,23 @@ export const venue_metrics = pgTable("venue_metrics", {
   last_verified_by_driver: timestamp("last_verified_by_driver", { withTimezone: true }),
 });
 
+export const triad_jobs = pgTable("triad_jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  kind: text("kind").notNull().default('triad'),
+  status: text("status").notNull().default('queued'), // queued|running|ok|error
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  uniqueSnapshotKind: sql`unique(snapshot_id, kind)`
+}));
+
+export const http_idem = pgTable("http_idem", {
+  key: text("key").primaryKey(),
+  status: integer("status").notNull(),
+  body: jsonb("body").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const places_cache = pgTable("places_cache", {
   place_id: text("place_id").primaryKey(),
   formatted_hours: jsonb("formatted_hours"),
