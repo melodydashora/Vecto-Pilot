@@ -198,6 +198,9 @@ const proxyLog = (label) => ({
   onProxyRes: (proxyRes, req) => console.log(`[${label}→proxy] ${req.method} ${req.originalUrl} -> ${proxyRes.statusCode} ${proxyRes.headers["content-type"]||""}`)
 });
 
+// Parse JSON bodies for all requests
+app.use(express.json({ limit: "10mb" }));
+
 app.use((req, res, next) => {
   console.log("[trace]", req.method, req.originalUrl);
   if (process.env.NODE_ENV !== "production") {
@@ -376,7 +379,6 @@ function ensureClientBuild() {
 // ---------- production: setup middleware and routes BEFORE server starts ----------
 if (IS_PRODUCTION) {
   console.log(`✅ [vecto] Production mode - loading API routes synchronously`);
-  app.use(express.json({ limit: "10mb" }));
   
   // Load routes synchronously BEFORE server.listen()
   const { default: healthRoutes } = await import('./server/routes/health.js');
