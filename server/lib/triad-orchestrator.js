@@ -43,6 +43,11 @@ export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
     strategist = safeJson(raw) || {};
   } finally { clearTimeout(claudeTimer); }
 
+  // Guard: Single-path only - GPT-5 requires valid Claude strategy
+  if (!strategist?.strategy_for_now) {
+    throw new Error("Claude strategist failed - triad pipeline aborted (single-path only)");
+  }
+
   // 2) GPT-5 — planner (JSON: strategy_for_now, per_venue[{name,pro_tips[]}], staging[{name,notes}])
   // Step 2: GPT-5 Tactical Planning (60s hard timeout - no waiting)
   const plannerDeadline = 60000; // 60 seconds max
