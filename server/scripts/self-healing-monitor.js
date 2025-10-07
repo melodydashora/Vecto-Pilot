@@ -1,5 +1,4 @@
 
-#!/usr/bin/env node
 import 'dotenv/config';
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
