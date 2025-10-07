@@ -207,6 +207,23 @@ app.use((req, res, next) => {
   next();
 });
 
+// ---------- Gateway debounce for POST /api/blocks ----------
+const lastPostBySnap = new Map();
+
+app.post("/api/blocks", (req, res, next) => {
+  const k = String(req.body?.snapshotId || "");
+  const now = Date.now();
+  const t = lastPostBySnap.get(k) || 0;
+  
+  if (k && now - t < 250) {
+    // Duplicate request within 250ms, return cached response
+    return res.status(202).json({ ok: true, status: "queued", snapshotId: k });
+  }
+  
+  if (k) lastPostBySnap.set(k, now);
+  next();
+});
+
 // ---------- metrics endpoint ----------
 
 app.get("/metrics", (_req, res) => { res.set("Cache-Control", "no-store"); res.json({ counts, time: Date.now() }); });
