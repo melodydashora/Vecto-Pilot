@@ -1,6 +1,7 @@
 // gateway-server.js (ESM, single SDK watchdog, sane build guard)
 
 import express from "express";
+import helmet from "helmet";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import http from "node:http";
 import path from "node:path";
@@ -23,6 +24,31 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, gateway: true, timestamp: new Date().toISOString() });
 });
+
+// ---------- Security headers with Helmet ----------
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: [
+        "'self'",
+        "https://replit.com", "wss://replit.com",
+        "https://*.replit.dev", "wss://*.replit.dev",
+        "https://app.launchdarkly.com", "https://events.launchdarkly.com",
+        "https://www.google-analytics.com", "https://stats.g.doubleclick.net"
+      ],
+      scriptSrc: [
+        "'self'", "'unsafe-inline'", "'unsafe-eval'",
+        "https://js.stripe.com", "https://www.googletagmanager.com",
+        "https://www.google-analytics.com", "https://www.google.com", "https://www.gstatic.com"
+      ],
+      imgSrc: ["'self'", "data:", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ["'self'", "https://js.stripe.com", "https://www.google.com", "https://recaptcha.net"]
+    }
+  }
+}));
 
 // Load assistant policy and start memory compactor (deferred to avoid blocking startup)
 setImmediate(() => {
@@ -84,8 +110,6 @@ function startSDK() {
     ...process.env,
     PORT: String(SDK_PORT),
     HOST: "127.0.0.1",
-    ASSISTANT_OVERRIDE_MODE: "true",
-    EIDOLON_ASSISTANT_OVERRIDE: "true",
     EIDOLON_DISABLE_STATIC: "1", // gateway serves UI
     EIDOLON_APP_DIST: ""         // no SDK static path
   };
@@ -233,7 +257,8 @@ if (!IS_PRODUCTION) {
 
       on: {
         proxyReq: (proxyReq, req, res) => {
-          const t = process.env.AGENT_TOKEN;
+          // Support both new (AGENT_TOKEN) and legacy (ASSISTANT_OVERRIDE_TOKEN) names
+          const t = process.env.AGENT_TOKEN || process.env.ASSISTANT_OVERRIDE_TOKEN;
           if (t) {
             proxyReq.setHeader("x-agent-token", t);
             proxyReq.setHeader("authorization", `Bearer ${t}`); // covers either check
