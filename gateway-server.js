@@ -473,6 +473,25 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
+// Global error handler - suppress noisy "request aborted" errors from client cancellations
+app.use((err, req, res, next) => {
+  // Silently ignore client abort errors (happens when React Query cancels requests or debounce closes connections)
+  if (err.type === 'request.aborted' || err.code === 'ECONNRESET' || err.message?.includes('aborted')) {
+    return res.end(); // Just close the connection cleanly
+  }
+  
+  // Log actual errors
+  console.error('[gateway] Error:', err.message);
+  
+  // Send error response if headers not sent
+  if (!res.headersSent) {
+    res.status(err.status || 500).json({ 
+      ok: false, 
+      error: err.message || 'Internal server error' 
+    });
+  }
+});
+
 // last resort 404 as JSON so jq never chokes on HTML
 app.use((req, res) => res.status(404).json({ ok: false, error: "route_not_found", path: req.path }));
 
