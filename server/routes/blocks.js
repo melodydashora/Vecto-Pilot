@@ -68,8 +68,9 @@ router.get('/strategy/:snapshotId', async (req, res) => {
           });
         }
 
-        // Snapshot is complete but strategy not written yet → report pending
-        return res.json({
+        // Snapshot is complete but strategy not written yet → report pending with Retry-After
+        res.set('Retry-After', '1');
+        return res.status(202).json({
           status: 'pending',
           hasStrategy: false,
           strategy: null
@@ -84,8 +85,17 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       });
     }
 
-    // Return current status from DB
+    // Generate ETag from updated_at timestamp
+    const etag = `"${new Date(strategyRow.updated_at).getTime()}"`;
+    
+    // Check If-None-Match for caching
+    if (req.get('if-none-match') === etag) {
+      return res.status(304).end();
+    }
+
+    // Return current status from DB with ETag
     if (strategyRow.status === 'ok') {
+      res.set('ETag', etag);
       return res.json({
         status: 'ok',
         hasStrategy: true,
@@ -97,6 +107,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
     }
 
     if (strategyRow.status === 'failed') {
+      res.set('ETag', etag);
       return res.json({
         status: 'failed',
         hasStrategy: false,
@@ -107,8 +118,9 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       });
     }
 
-    // Still pending
-    return res.json({
+    // Still pending - tell client to back off
+    res.set('Retry-After', '1');
+    return res.status(202).json({
       status: 'pending',
       hasStrategy: false,
       strategy: null,
