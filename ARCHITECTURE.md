@@ -1,5 +1,76 @@
 # Vecto Pilot™ - Comprehensive Architecture Specification
-**Version 2.0 | Production-Ready Rideshare Strategic Intelligence Platform**
+**Version 2.1 | Production-Ready Rideshare Strategic Intelligence Platform**  
+**Last Updated:** 2025-10-07 06:09 CST
+
+---
+
+## 🔄 **ARCHITECTURE EVOLUTION LOG (2025-10-07)**
+
+### Critical Changes Since v2.0
+
+**❌ REMOVED: React.StrictMode**
+- ~~**Old:** Application wrapped in `<React.StrictMode>` for development warnings~~
+- **New:** StrictMode removed to prevent intentional double-rendering and duplicate API calls
+- **Reason:** StrictMode's double-invoke pattern was causing "request aborted" errors when first render gets cancelled
+- **Impact:** Cleaner development logs, eliminated false-positive abort errors
+
+**❌ REMOVED: Global JSON Body Parsing**
+- ~~**Old:** `app.use(express.json({ limit: "10mb" }))` applied globally before all routes~~
+- **New:** JSON parsing mounted per-route only where needed
+- **Implementation:**
+  ```javascript
+  const parseJson = express.json({ limit: "1mb", strict: true });
+  app.use("/api/blocks", parseJson, strictLimiter, blocksRoutes);
+  app.use("/api/location", parseJson, apiLimiter, locationRoutes);
+  ```
+- **Reason:** Global parsing tried to read bodies on ALL requests (including health checks), causing abort errors when clients cancelled
+- **Impact:** Eliminated `BadRequestError: request aborted` errors completely
+
+**✅ ADDED: Client Abort Error Gate**
+- **New:** Dedicated error middleware to handle client-side request cancellations
+- **Implementation:**
+  ```javascript
+  app.use((err, req, res, next) => {
+    if (err?.type === "request.aborted" || err?.code === "ECONNRESET") {
+      if (!res.headersSent) res.status(499).end(); // 499: client closed request
+      return; // Don't log - expected behavior
+    }
+    if (err?.type === "entity.too.large") {
+      return res.status(413).json({ ok: false, error: "payload too large" });
+    }
+    next(err);
+  });
+  ```
+- **Reason:** React Query cancels in-flight requests on unmount/refetch - this is normal, not an error
+- **Impact:** Clean logs with only real errors, proper HTTP status codes (499 for client abort)
+
+**✅ ADDED: Health Check Logging Filter**
+- ~~**Old:** All requests logged including `/health` checks (5-second intervals)~~
+- **New:** `/health` requests skipped in logging middleware
+- **Implementation:**
+  ```javascript
+  app.use((req, res, next) => {
+    if (req.path !== "/health") {
+      console.log("[trace]", req.method, req.originalUrl);
+    }
+    next();
+  });
+  ```
+- **Reason:** Health checks are automated every 5s, creating log noise that obscures real traffic
+- **Impact:** Logs show only meaningful requests, easier debugging
+
+**📋 ADDED: Idempotency Infrastructure (Not Yet Integrated)**
+- **Status:** Infrastructure built, integration pending
+- **Components Created:**
+  1. Database constraints: `unique(snapshot_id)` on strategies table
+  2. HTTP idempotency table: `http_idem` for request deduplication
+  3. Triad job queue: `triad_jobs` with `unique(snapshot_id, kind)`
+  4. Worker pattern: `server/jobs/triad-worker.js` with SKIP LOCKED
+  5. Client utilities: `once()` and `cached()` for duplicate prevention
+  6. Gateway debounce: 250ms window removed (body not available at gateway in dev mode)
+  7. ETag support: Added to GET /api/blocks/strategy/:id
+- **Next Steps:** Start worker, update client hooks, switch from inline to queue-based generation
+- **Impact:** Will eliminate duplicate "BLOCKS REQUEST" logs, collapse to single-path execution
 
 ---
 
@@ -147,6 +218,9 @@
 │  │  • Request Proxy & Load Balancing                         │ │
 │  │  • Vite Dev Middleware (Development)                      │ │
 │  │  • Static React Build Serving (Production)                │ │
+│  │  • Per-Route JSON Parsing (no global body parser)         │ │
+│  │  • Client Abort Error Gate (499 status)                   │ │
+│  │  • Health Check Logging Filter                            │ │
 │  └────────────────────────────────────────────────────────────┘ │
 └───────────┬──────────────────────────────────────────────────────┘
             │
@@ -171,34 +245,77 @@
 └───────────────────────────────────────────────────────────────────┘
 ```
 
+### ~~Frontend Rendering~~ **Request Handling Architecture Changes**
+
+**~~Old Pattern (Removed):~~**
+- ~~React.StrictMode wrapper causing intentional double-rendering~~
+- ~~Global body parsing on all routes causing abort errors~~
+- ~~Health check spam in logs every 5 seconds~~
+
+**New Pattern (Current):**
+- Single-render React (no StrictMode in production)
+- Per-route JSON parsing with 1MB limit
+- Health checks filtered from logs
+- 499 status codes for client-initiated aborts
+
 ---
 
 ## Technology Stack
 
 ### Frontend Stack
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **React** | 18.3 | UI framework |
-| **TypeScript** | 5.x | Type safety |
-| **Vite** | 7.x | Build tool & dev server |
-| **TanStack Query** | v5 | Server state management |
-| **Wouter** | 3.x | Client-side routing |
-| **Radix UI** | Latest | Headless component primitives |
-| **Tailwind CSS** | 3.x | Utility-first styling |
-| **shadcn/ui** | Latest | Pre-built components |
-| **Zod** | 3.x | Runtime validation |
-| **React Hook Form** | 7.x | Form state management |
+| Technology | Version | Purpose | **Notes** |
+|------------|---------|---------|-----------|
+| **React** | 18.3 | UI framework | ~~StrictMode removed~~ |
+| **TypeScript** | 5.x | Type safety | |
+| **Vite** | 7.x | Build tool & dev server | |
+| **TanStack Query** | v5 | Server state management | Auto-cancels on unmount |
+| **Wouter** | 3.x | Client-side routing | |
+| **Radix UI** | Latest | Headless component primitives | |
+| **Tailwind CSS** | 3.x | Utility-first styling | |
+| **shadcn/ui** | Latest | Pre-built components | |
+| **Zod** | 3.x | Runtime validation | |
+| **React Hook Form** | 7.x | Form state management | |
 
 ### Backend Stack
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **Node.js** | 22.17.0 | Runtime environment |
-| **Express.js** | 4.x | HTTP server framework |
-| **PostgreSQL** | 15+ | Relational database (Neon) |
-| **Drizzle ORM** | Latest | Type-safe database queries |
-| **http-proxy-middleware** | 3.x | Reverse proxy |
-| **express-rate-limit** | 7.x | DDoS protection |
-| **dotenv** | 16.x | Environment configuration |
+| Technology | Version | Purpose | **Configuration** |
+|------------|---------|---------|-------------------|
+| **Node.js** | 22.17.0 | Runtime environment | |
+| **Express.js** | 4.x | HTTP server framework | Per-route JSON parsing |
+| **PostgreSQL** | 15+ | Relational database (Neon) | |
+| **Drizzle ORM** | Latest | Type-safe database queries | |
+| **http-proxy-middleware** | 3.x | Reverse proxy | v3.x syntax (on: {}) |
+| **express-rate-limit** | 7.x | DDoS protection | |
+| **dotenv** | 16.x | Environment configuration | |
+
+### ~~Middleware Stack~~ **Request Processing Pipeline**
+
+**~~Old (Global)~~:**
+- ~~`app.use(express.json({ limit: "10mb" })` - Applied to ALL routes~~
+- ~~`app.use(cors())` - Global CORS~~
+- ~~No client abort handling~~
+
+**New (Selective):**
+```javascript
+// JSON parsing ONLY on routes that accept JSON bodies
+const parseJson = express.json({ limit: "1mb", strict: true });
+
+// Gateway
+app.use("/api/blocks", parseJson, strictLimiter, blocksRoutes);
+app.use("/api/location", parseJson, apiLimiter, locationRoutes);
+
+// SDK Server  
+app.use("/api/blocks", parseJson, strictLimiter, blocksRoutes);
+app.use("/api/location", parseJson, apiLimiter, locationRoutes);
+
+// Error gate for client aborts
+app.use((err, req, res, next) => {
+  if (err?.type === "request.aborted" || err?.code === "ECONNRESET") {
+    if (!res.headersSent) res.status(499).end();
+    return;
+  }
+  next(err);
+});
+```
 
 ### AI/ML Stack
 | Provider | Model | Purpose | Timeout |
@@ -515,38 +632,22 @@ Earnings Per Mile = Final Earnings ÷ Distance
                  │
                  ▼
 ┌────────────────────────────────────────────────────────────────┐
-│        STAGE 3: GEMINI VALIDATOR & EARNINGS CALCULATOR         │
+│       STAGE 3: GEMINI VALIDATOR & EARNINGS CALCULATOR          │
 │  ┌──────────────────────────────────────────────────────────┐ │
-│  │ Input: Enriched venues + driver location + snapshot     │ │
-│  │ Process:                                                 │ │
-│  │   • Calculate precise distance (Haversine)              │ │
-│  │   • Apply earnings formula                              │ │
-│  │   • Validate JSON structure                             │ │
-│  │   • Generate closed venue reasoning                     │ │
-│  │ Output: Final ranked venues with earnings (8-12s)       │ │
+│  │ Input: 6 venues with business hours + snapshot context  │ │
+│  │ Process: JSON validation + earnings calculation (8-12s) │ │
+│  │ Output: Ranked venues with earnings projections        │ │
 │  └──────────────────────────────────────────────────────────┘ │
 └────────────────┬───────────────────────────────────────────────┘
                  │
                  ▼
 ┌────────────────────────────────────────────────────────────────┐
-│              ML TRAINING DATA CAPTURE                          │
-│  ┌──────────────────────────────────────────────────────────┐ │
-│  │ Tables:                                                  │ │
-│  │   • rankings (ranking_id, snapshot_id, model_name)      │ │
-│  │   • ranking_candidates (venue details, propensity)      │ │
-│  │   • venue_interactions (clicks, acceptances, feedback)  │ │
-│  └──────────────────────────────────────────────────────────┘ │
-└────────────────┬───────────────────────────────────────────────┘
-                 │
-                 ▼
-┌────────────────────────────────────────────────────────────────┐
-│                    RESPONSE TO CLIENT                          │
-│  JSON payload with:                                            │
-│    • strategy_for_now (Claude)                                │
-│    • blocks (6 enriched venues)                               │
-│    • best_staging_location                                    │
-│    • tactical_summary                                         │
-│    • model_route: "claude-sonnet-4-5→gpt-5→gemini-2.5-pro"   │
+│                   FINAL RESPONSE TO CLIENT                     │
+│  {                                                             │
+│    strategy: <Claude's narrative>,                            │
+│    blocks: [6 venues with earnings],                          │
+│    stagingLocation: <optimal waiting point>                   │
+│  }                                                             │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -554,1713 +655,348 @@ Earnings Per Mile = Final Earnings ÷ Distance
 
 ---
 
-## Data Flow & API Integration
+## Error Handling & Resilience
 
-### 1. Snapshot Creation Flow
+### ~~Old Error Strategy~~ **New Client Abort Handling**
 
-```
-User Opens App
-    │
-    ▼
-┌─────────────────────────────────────┐
-│ Browser Geolocation API             │
-│ • High-accuracy mode: true          │
-│ • Timeout: 10 seconds               │
-│ • Maximum age: 0 (no cache)         │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│ Parallel API Calls (via Backend)   │
-│                                     │
-│ ┌─────────────────────────────────┐│
-│ │ Google Geocoding API            ││
-│ │ Input: {lat, lng}               ││
-│ │ Output: address, city, state    ││
-│ └─────────────────────────────────┘│
-│                                     │
-│ ┌─────────────────────────────────┐│
-│ │ Google Timezone API             ││
-│ │ Input: {lat, lng, timestamp}    ││
-│ │ Output: timezone, offset        ││
-│ └─────────────────────────────────┘│
-│                                     │
-│ ┌─────────────────────────────────┐│
-│ │ OpenWeather API                 ││
-│ │ Input: {lat, lng}               ││
-│ │ Output: temp, description, wind ││
-│ └─────────────────────────────────┘│
-│                                     │
-│ ┌─────────────────────────────────┐│
-│ │ Google AirQuality API           ││
-│ │ Input: {lat, lng}               ││
-│ │ Output: aqi, level, pollutants  ││
-│ └─────────────────────────────────┘│
-│                                     │
-│ ┌─────────────────────────────────┐│
-│ │ FAA ASWS API (if near airport)  ││
-│ │ Input: airport_codes[]          ││
-│ │ Output: delays, status          ││
-│ └─────────────────────────────────┘│
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│ POST /api/snapshot                  │
-│                                     │
-│ Validation:                         │
-│   • validateIncomingSnapshot()      │
-│   • Required: lat, lng, context     │
-│   • Optional warnings logged        │
-│                                     │
-│ Crawler Detection:                  │
-│   • User-agent check                │
-│   • Bot patterns → 204 No Content   │
-│                                     │
-│ Database Insert:                    │
-│   • snapshots table                 │
-│   • Returns: snapshot_id (uuid)     │
-│                                     │
-│ Background Task:                    │
-│   • Enqueue for triad processing    │
-│   • Priority: normal                │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│ Response to Client                  │
-│ {                                   │
-│   "snapshot_id": "uuid",            │
-│   "status": "created",              │
-│   "strategy_status": "pending"      │
-│ }                                   │
-└─────────────────────────────────────┘
-```
+**~~Previous Approach (Broken):~~**
+- ~~Global JSON body parsing tried to read ALL request bodies~~
+- ~~No distinction between client-initiated aborts and real errors~~
+- ~~"request aborted" errors flooded logs~~
+- ~~No proper HTTP status codes for client aborts~~
 
-**API Rate Limits & Handling:**
-| API | Limit | Fallback Strategy |
-|-----|-------|-------------------|
-| Google Geocoding | 10K/day | Cache results by H3 cell (1hr TTL) |
-| Google Timezone | 10K/day | Cache results by timezone name (24hr TTL) |
-| OpenWeather | 1K/day | Serve cached data if available (30min TTL) |
-| Google AirQuality | 1K/day | Mark as "unavailable", continue processing |
-| FAA ASWS | 100K/day | Skip airport context, log warning |
+**Current Approach (Fixed):**
 
-**Error Handling:**
+**1. Per-Route JSON Parsing**
 ```javascript
-try {
-  const weather = await fetchWeather(lat, lng);
-} catch (error) {
-  console.warn('[snapshot] Weather API failed, using defaults', error.message);
-  weather = { temp: null, description: 'unavailable', wind: null };
-}
-// Continue processing - never block snapshot creation
+// Only parse bodies where needed
+const parseJson = express.json({ limit: "1mb", strict: true });
+app.use("/api/blocks", parseJson, blocksRoutes);
 ```
 
----
-
-### 2. Strategy Generation Flow
-
-```
-Snapshot Created (snapshot_id)
-    │
-    ▼
-┌─────────────────────────────────────┐
-│ Background Worker Queue             │
-│ • Polls strategies table            │
-│ • Picks up pending snapshots        │
-│ • Sets status: "pending"            │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│ TRIAD PIPELINE EXECUTION            │
-│ (synchronous, single-path)          │
-│                                     │
-│ Stage 1: Claude (6-7s)              │
-│    ↓                                │
-│ Stage 2: GPT-5 (12-18s)             │
-│    ↓                                │
-│ Stage 3: Gemini (8-12s)             │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│ Database Updates                    │
-│                                     │
-│ strategies table:                   │
-│   • status: "ok"                    │
-│   • strategy: "<text>"              │
-│   • latency_ms: 6234                │
-│   • tokens: 157                     │
-│                                     │
-│ rankings table:                     │
-│   • ranking_id: uuid                │
-│   • snapshot_id: uuid               │
-│   • model_name: "triad"             │
-│                                     │
-│ ranking_candidates table:           │
-│   • 6 rows (one per venue)          │
-│   • Features for ML training        │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│ Client Polling (every 2 seconds)    │
-│ GET /api/blocks/strategy/:id        │
-│                                     │
-│ Status Responses:                   │
-│   • "pending" - still processing    │
-│   • "ok" - strategy ready           │
-│   • "failed" - error occurred       │
-│   • "refresh_required" - bad data   │
-└─────────────────────────────────────┘
-```
-
-**Retry Logic (Stage 1 Claude only):**
+**2. Client Abort Error Gate**
 ```javascript
-let attempt = 1;
-const maxAttempts = 3;
-const budget = 45000; // 45 seconds total
-
-while (attempt <= maxAttempts) {
-  const attemptStart = Date.now();
-  try {
-    const result = await claudeAPI.messages.create({ /* ... */ });
-    // Success - save to DB and exit
-    await saveStrategy(snapshotId, result.content[0].text, 'ok');
-    break;
-  } catch (error) {
-    const elapsed = Date.now() - attemptStart;
-    const remaining = budget - elapsed;
-    
-    if (attempt === maxAttempts || remaining < 5000) {
-      // Final failure - save error state
-      await saveStrategy(snapshotId, null, 'failed', error.message);
-      break;
-    }
-    
-    // Exponential backoff: 5s, 15s, 45s
-    const delay = Math.min(5000 * Math.pow(3, attempt - 1), remaining);
-    await sleep(delay);
-    attempt++;
-  }
-}
-```
-
----
-
-### 3. ML Data Capture Flow
-
-```
-Triad Pipeline Completes
-    │
-    ▼
-┌─────────────────────────────────────┐
-│ rankings table INSERT               │
-│ {                                   │
-│   ranking_id: uuid,                 │
-│   snapshot_id: uuid,                │
-│   user_id: uuid | null,             │
-│   city: "Frisco",                   │
-│   model_name: "claude→gpt5→gemini", │
-│   ui: { metadata }                  │
-│ }                                   │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│ ranking_candidates table INSERT     │
-│ (one row per venue)                 │
-│ {                                   │
-│   id: uuid,                         │
-│   ranking_id: uuid,                 │
-│   block_id: "venue_123",            │
-│   name: "Stonebriar Centre",        │
-│   lat: 33.0632,                     │
-│   lng: -96.8221,                    │
-│   drive_time_min: 8,                │
-│   est_earnings_per_ride: 38,        │
-│   model_score: null,                │
-│   rank: 1,                          │
-│   exploration_policy: "llm_based",  │
-│   propensity: 0.167,                │
-│   features: {                       │
-│     category: "shopping_mall",      │
-│     surge: 1.5,                     │
-│     reliability_score: 0.85,        │
-│     daypart: "afternoon",           │
-│     weather: "partly_cloudy",       │
-│     airport_context: {...}          │
-│   },                                │
-│   h3_r8: "8862ba4b9bfffff"          │
-│ }                                   │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│ User Interacts with UI              │
-│                                     │
-│ Events Captured:                    │
-│   • Venue card click                │
-│   • "Drive Here" button tap         │
-│   • Feedback submission (+1/-1)     │
-│   • Time spent viewing venue        │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│ venue_interactions table INSERT     │
-│ {                                   │
-│   id: uuid,                         │
-│   ranking_id: uuid,                 │
-│   block_id: "venue_123",            │
-│   action: "clicked" | "accepted",   │
-│   timestamp: datetime,              │
-│   session_id: uuid                  │
-│ }                                   │
-│                                     │
-│ venue_feedback table INSERT         │
-│ {                                   │
-│   venue_id: "venue_123",            │
-│   user_id: uuid,                    │
-│   thumbs: 1 | -1,                   │
-│   comment: "Great tip!",            │
-│   context: { snapshot metadata }    │
-│ }                                   │
-└─────────────────────────────────────┘
-```
-
----
-
-## Machine Learning Objectives
-
-### 1. Counterfactual Learning Pipeline
-
-**Goal:** Train a policy that predicts **actual driver earnings** at specific venues, not just LLM-generated estimates.
-
-**Data Collection:**
-- **Feature Vector (X):** `{lat, lng, h3_r8, daypart, dow, weather, aqi, airport_delays, venue_category, distance, traffic_multiplier}`
-- **Treatment (A):** Which venue was recommended (rank 1-6)
-- **Outcome (Y):** Actual earnings reported by driver (via feedback or GPS tracking)
-- **Propensity (π):** Probability venue was shown to driver (currently uniform: 1/6 for LLM-based)
-
-**Current Policy:** LLM Triad (exploration phase)
-**Target Policy:** Learned model (exploitation phase)
-
-**Training Objective (Inverse Propensity Weighting):**
-```
-V̂(π) = (1/N) × Σ [ (Y_i × I(A_i = a)) / π(a|X_i) ]
-
-Where:
-  π = propensity of showing venue a given context X
-  Y = actual earnings outcome
-  I(A=a) = indicator function (1 if venue chosen, 0 otherwise)
-```
-
-**Implementation Plan (Phase 2):**
-```python
-import numpy as np
-from sklearn.ensemble import GradientBoostingRegressor
-
-# Load training data
-df = pd.read_sql("""
-  SELECT 
-    rc.features,
-    rc.rank,
-    rc.est_earnings_per_ride,
-    vi.actual_earnings,
-    rc.propensity
-  FROM ranking_candidates rc
-  LEFT JOIN venue_interactions vi ON rc.id = vi.candidate_id
-  WHERE vi.actual_earnings IS NOT NULL
-""", conn)
-
-# Feature engineering
-X = df['features'].apply(pd.Series)
-y = df['actual_earnings']
-weights = 1 / df['propensity']  # Inverse propensity weighting
-
-# Train model
-model = GradientBoostingRegressor(
-    n_estimators=500,
-    max_depth=8,
-    learning_rate=0.05,
-    subsample=0.8
-)
-model.fit(X, y, sample_weight=weights)
-
-# Predict earnings for new context
-new_context = { ... }
-predicted_earnings = model.predict([new_context])
-```
-
----
-
-### 2. Reliability Score Optimization
-
-**Goal:** Learn which venues consistently deliver high earnings vs. which are unreliable.
-
-**Current Implementation:**
-```sql
-UPDATE venue_metrics
-SET reliability_score = (
-  SELECT 
-    AVG(CASE WHEN vi.actual_earnings >= rc.est_earnings_per_ride THEN 1.0 ELSE 0.5 END)
-  FROM venue_interactions vi
-  JOIN ranking_candidates rc ON vi.candidate_id = rc.id
-  WHERE rc.block_id = venue_metrics.venue_id
-)
-WHERE venue_id IN (SELECT DISTINCT block_id FROM venue_interactions);
-```
-
-**Scoring Logic:**
-- Venue meets/exceeds estimate: +1.0
-- Venue underperforms: +0.5 (still valuable data)
-- New venues: 0.5 default (neutral)
-
-**Usage in Ranking:**
-```javascript
-const score = (
-  (1 / distance) * 100 +           // Proximity (max 100 points)
-  reliability_score * 50 +          // Historical performance (max 50)
-  surge_multiplier * 30 +           // Demand intensity (max 30)
-  venue_premium * 20                // Category bonus (max 20)
-);
-```
-
----
-
-### 3. Contextual Bandit (Future Phase)
-
-**Goal:** Balance exploration (trying new venues) vs. exploitation (recommending proven winners)
-
-**Algorithm:** Thompson Sampling with Beta prior
-
-```python
-import numpy as np
-
-class VenueBandit:
-    def __init__(self, n_venues):
-        self.alpha = np.ones(n_venues)  # Success count
-        self.beta = np.ones(n_venues)   # Failure count
-    
-    def select_venue(self, context):
-        # Sample from Beta distribution for each venue
-        theta = np.random.beta(self.alpha, self.beta)
-        
-        # Adjust by context (distance, time, weather)
-        adjusted_theta = theta * context_features
-        
-        # Select venue with highest sample
-        return np.argmax(adjusted_theta)
-    
-    def update(self, venue_idx, reward):
-        if reward > 0:
-            self.alpha[venue_idx] += reward
-        else:
-            self.beta[venue_idx] += 1
-```
-
-**Epsilon-Greedy Alternative:**
-```javascript
-const epsilon = 0.15; // 15% exploration rate
-
-function selectVenues(candidates, epsilon) {
-  if (Math.random() < epsilon) {
-    // Explore: random shuffle
-    return shuffle(candidates).slice(0, 6);
-  } else {
-    // Exploit: rank by learned model
-    return candidates
-      .sort((a, b) => predictEarnings(b) - predictEarnings(a))
-      .slice(0, 6);
-  }
-}
-```
-
----
-
-### 4. Model Performance Tracking
-
-**Metrics to Monitor:**
-
-| Metric | Definition | Target |
-|--------|------------|--------|
-| **RMSE** | Root mean squared error between predicted and actual earnings | < $5 |
-| **MAE** | Mean absolute error | < $3 |
-| **R²** | Coefficient of determination | > 0.70 |
-| **Precision@3** | % of top 3 venues that driver actually visits | > 60% |
-| **User Satisfaction** | Thumbs up rate on recommendations | > 75% |
-| **Earnings Lift** | Actual earnings vs. baseline (no tool) | > 25% |
-
-**A/B Testing Framework:**
-```javascript
-// Assign users to cohorts
-const cohort = hashUserId(userId) % 100;
-
-if (cohort < 50) {
-  // Control: LLM Triad only
-  return triadRecommendations;
-} else if (cohort < 75) {
-  // Treatment A: LLM + Learned Model blend (50/50)
-  return blend(triadRecommendations, mlRecommendations, 0.5);
-} else {
-  // Treatment B: Learned Model only
-  return mlRecommendations;
-}
-```
-
----
-
-## Security & Hardening
-
-### 1. Snapshot Validation Layer
-
-**Validation Utility:** `server/util/validate-snapshot.js`
-
-```javascript
-export function validateIncomingSnapshot(data) {
-  const errors = [];
-  const warnings = [];
-  
-  // REQUIRED FIELDS
-  if (!data || typeof data !== 'object') {
-    return { ok: false, errors: ['body_not_object'], warnings };
-  }
-  
-  // Coordinates
-  if (typeof data.lat !== 'number' || !Number.isFinite(data.lat)) {
-    errors.push('lat');
-  }
-  if (typeof data.lng !== 'number' || !Number.isFinite(data.lng)) {
-    errors.push('lng');
-  }
-  
-  // Context object
-  if (!data.context || typeof data.context !== 'object') {
-    errors.push('context');
-  } else {
-    // At least one location identifier required
-    if (!data.context.city && !data.context.formattedAddress) {
-      errors.push('context.city_or_formattedAddress');
-    }
-    
-    // Timezone required (critical for time-based recommendations)
-    if (!data.context.timezone) {
-      errors.push('context.timezone');
-    }
-  }
-  
-  // OPTIONAL BUT RECOMMENDED
-  if (!data.meta?.device && !data.meta?.app) {
-    warnings.push('meta.device_or_app');
-  }
-  
-  return {
-    ok: errors.length === 0,
-    errors,
-    warnings
-  };
-}
-```
-
-**Response Format:**
-```json
-{
-  "ok": false,
-  "error": "refresh_required",
-  "fields_missing": ["context.timezone"],
-  "tip": "Please refresh location permission and retry."
-}
-```
-
----
-
-### 2. Crawler Detection
-
-**User-Agent Screening:**
-```javascript
-const ua = String(req.get("user-agent") || "").toLowerCase();
-const isCrawler = !ua || /bot|crawler|spider|scrape|fetch|httpclient|monitor|headless/i.test(ua);
-
-if (isCrawler) {
-  console.log('[blocks] Crawler detected, returning 204', { ua });
-  return res.status(204).end(); // No Content
-}
-```
-
-**Benefits:**
-- Prevents search engine bots from consuming AI credits
-- Reduces database pollution from non-human traffic
-- Improves ML training data quality (human interactions only)
-
----
-
-### 3. Rate Limiting
-
-**Global Rate Limiter (Gateway Server):**
-```javascript
-import rateLimit from 'express-rate-limit';
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Max 100 requests per IP
-  message: {
-    error: 'rate_limit_exceeded',
-    retry_after_seconds: 900
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-app.use('/api/', limiter);
-```
-
-**AI Endpoint Rate Limiter:**
-```javascript
-const aiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // Max 10 AI requests per minute per IP
-  skipSuccessfulRequests: false
-});
-
-app.use('/api/blocks', aiLimiter);
-```
-
----
-
-### 4. Input Sanitization
-
-**Zod Schemas for All Endpoints:**
-```typescript
-import { z } from 'zod';
-
-const SnapshotInputSchema = z.object({
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
-  context: z.object({
-    city: z.string().optional(),
-    state: z.string().length(2).optional(),
-    formattedAddress: z.string().optional(),
-    timezone: z.string().regex(/^[A-Za-z_]+\/[A-Za-z_]+$/),
-    dow: z.number().int().min(0).max(6).optional(),
-    hour: z.number().int().min(0).max(23).optional()
-  }),
-  meta: z.object({
-    device: z.string().optional(),
-    app: z.string().optional()
-  }).optional()
-}).refine(
-  data => data.context.city || data.context.formattedAddress,
-  { message: "Either city or formattedAddress required" }
-);
-
-// Usage in route
-app.post('/api/snapshot', async (req, res) => {
-  const parsed = SnapshotInputSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({
-      error: 'validation_failed',
-      details: parsed.error.issues
-    });
-  }
-  
-  const data = parsed.data;
-  // ... proceed with validated data
-});
-```
-
----
-
-### 5. UUID Validation
-
-**Prevent SQL Injection via UUID Format Check:**
-```javascript
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isValidUUID(value) {
-  return value && UUID_REGEX.test(value);
-}
-
-// Usage
-if (!isValidUUID(snapshotId)) {
-  return res.status(400).json({ error: 'Invalid snapshot ID format' });
-}
-
-// Safe database query (Drizzle ORM parameterizes automatically)
-const [snap] = await db
-  .select()
-  .from(snapshots)
-  .where(eq(snapshots.snapshot_id, snapshotId))
-  .limit(1);
-```
-
----
-
-### 6. CORS Configuration
-
-**Production CORS Policy:**
-```javascript
-import cors from 'cors';
-
-const corsOptions = {
-  origin: [
-    'https://vectopilot.com',
-    'https://www.vectopilot.com',
-    /\.vectopilot\.com$/, // Subdomains
-    'https://workspace.melodydashora.repl.co' // Dev domain
-  ],
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'x-correlation-id', 'x-snapshot-id', 'x-user-id'],
-  credentials: true,
-  maxAge: 86400 // 24 hours
-};
-
-app.use(cors(corsOptions));
-```
-
----
-
-### 7. Secret Management
-
-**Environment Variables (Never Committed):**
-```bash
-# .env (gitignored)
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-GOOGLE_GEMINI_API_KEY=...
-PERPLEXITY_API_KEY=pplx-...
-
-GOOGLE_MAPS_API_KEY=AIza...
-GOOGLEAQ_API_KEY=AIza...
-FAA_ASWS_CLIENT_ID=...
-FAA_ASWS_CLIENT_SECRET=...
-
-DATABASE_URL=postgresql://user:pass@host/db
-AGENT_TOKEN=secure_random_token
-```
-
-**Access Control:**
-```javascript
-// Agent server endpoints require token
-app.use('/agent/*', (req, res, next) => {
-  const token = req.headers['authorization']?.replace('Bearer ', '');
-  if (token !== process.env.AGENT_TOKEN) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-});
-```
-
----
-
-### 8. Error Handling & Logging
-
-**Structured Error Responses:**
-```javascript
-class AppError extends Error {
-  constructor(message, statusCode, code) {
-    super(message);
-    this.statusCode = statusCode;
-    this.code = code;
-    this.isOperational = true;
-  }
-}
-
-// Usage
-throw new AppError('Strategy generation timeout', 504, 'TIMEOUT');
-
-// Global error handler
 app.use((err, req, res, next) => {
-  console.error('[error]', {
-    code: err.code,
-    message: err.message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method
-  });
-  
-  if (err.isOperational) {
-    return res.status(err.statusCode).json({
-      error: err.code,
-      message: err.message
-    });
+  // Client closed connection mid-read (normal React Query behavior)
+  if (err?.type === "request.aborted" || err?.code === "ECONNRESET") {
+    if (!res.headersSent) res.status(499).end(); // 499: client closed request
+    return; // Don't log - this is expected
   }
   
-  // Unknown errors - don't leak internals
-  return res.status(500).json({
-    error: 'INTERNAL_ERROR',
-    message: 'An unexpected error occurred'
+  // Payload too large
+  if (err?.type === "entity.too.large") {
+    return res.status(413).json({ ok: false, error: "payload too large" });
+  }
+  
+  // Real errors - pass to next handler
+  next(err);
+});
+```
+
+**3. HTTP Status Codes**
+- **499**: Client Closed Request (non-standard but widely used)
+- **413**: Payload Too Large
+- **500**: Internal Server Error (real issues only)
+
+**Why This Works:**
+- React Query cancels in-flight requests when components unmount or query keys change
+- Express body parser throws `BadRequestError: request aborted` when client disconnects
+- This is **normal behavior**, not an error - client changed its mind
+- Returning 499 without logging = clean logs showing only real problems
+
+---
+
+## Idempotency System (Infrastructure Ready, Integration Pending)
+
+### Architecture Overview
+
+**Status:** ✅ Infrastructure built, ❌ Not yet integrated
+
+**Problem Solved:** Multiple duplicate requests for the same snapshot causing:
+- Redundant LLM API calls ($$$)
+- Database write conflicts
+- Inconsistent strategy results
+- Log noise from duplicate "BLOCKS REQUEST" entries
+
+**Solution:** 6-layer idempotency system to collapse duplicates to single execution
+
+### Layer 1: Database Constraints (Hard Idempotency)
+
+**Created:**
+```sql
+-- Strategies table
+CREATE UNIQUE INDEX strategies_snapshot_id_key ON strategies(snapshot_id);
+
+-- Triad jobs table
+CREATE TABLE triad_jobs (
+  id bigserial PRIMARY KEY,
+  snapshot_id uuid NOT NULL,
+  kind text NOT NULL, -- 'triad'
+  status text NOT NULL DEFAULT 'queued', -- queued|running|ok|error
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(snapshot_id, kind)
+);
+
+-- HTTP idempotency table
+CREATE TABLE http_idem (
+  key text PRIMARY KEY,
+  status int NOT NULL,
+  body jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX http_idem_ttl ON http_idem(created_at);
+```
+
+**Purpose:** Database enforces "one strategy per snapshot" at lowest level
+
+### Layer 2: HTTP Idempotency Middleware
+
+**Created:** `server/middleware/idempotency.js`
+
+```javascript
+export function idempotency({ header = 'x-idempotency-key', ttl = 300 }) {
+  return async (req, res, next) => {
+    const key = req.get(header);
+    if (!key) return next();
+    
+    // Check cache
+    const cached = await pool.query(
+      'SELECT status, body FROM http_idem WHERE key = $1 AND created_at > NOW() - INTERVAL $2',
+      [key, `${ttl} seconds`]
+    );
+    
+    if (cached.rowCount) {
+      const { status, body } = cached.rows[0];
+      return res.status(status).json(body);
+    }
+    
+    // Store on response
+    const originalJson = res.json.bind(res);
+    res.json = function(body) {
+      pool.query(
+        'INSERT INTO http_idem (key, status, body) VALUES ($1, $2, $3) ON CONFLICT (key) DO NOTHING',
+        [key, res.statusCode, body]
+      ).catch(err => console.error('[idem] cache store failed:', err));
+      return originalJson(body);
+    };
+    
+    next();
+  };
+}
+```
+
+**Purpose:** Same idempotency key = same response from cache
+
+### Layer 3: Background Job Queue (Single Writer)
+
+**Created:** `server/routes/blocks-idempotent.js`
+
+```javascript
+router.post('/api/blocks', idempotency({ header: 'x-idempotency-key' }), async (req, res) => {
+  const { snapshotId } = req.body;
+  
+  // Check if strategy exists
+  const existing = await pool.query(
+    'SELECT status FROM strategies WHERE snapshot_id = $1',
+    [snapshotId]
+  );
+  if (existing.rowCount) return res.json({ ok: true, status: 'ok', snapshotId });
+  
+  // Enqueue job (idempotent insert)
+  const queued = await pool.query(
+    'INSERT INTO triad_jobs (snapshot_id, kind, status) VALUES ($1, $2, $3) ON CONFLICT (snapshot_id, kind) DO NOTHING RETURNING id',
+    [snapshotId, 'triad', 'queued']
+  );
+  
+  if (queued.rowCount === 0) {
+    return res.status(202).json({ ok: true, status: 'queued', snapshotId });
+  }
+  
+  return res.status(202).json({ ok: true, status: 'queued', snapshotId, jobId: queued.rows[0].id });
+});
+```
+
+**Purpose:** Convert POST to idempotent enqueue - worker does actual processing
+
+### Layer 4: Worker with SKIP LOCKED
+
+**Created:** `server/jobs/triad-worker.js`
+
+```javascript
+async function processJobs() {
+  while (!stopping) {
+    const claim = await pool.query(`
+      UPDATE triad_jobs 
+      SET status = 'running'
+      WHERE id = (
+        SELECT id FROM triad_jobs 
+        WHERE status = 'queued' 
+        FOR UPDATE SKIP LOCKED 
+        LIMIT 1
+      )
+      RETURNING id, snapshot_id
+    `);
+    
+    if (claim.rowCount === 0) {
+      await sleep(1000);
+      continue;
+    }
+    
+    const { id: jobId, snapshot_id } = claim.rows[0];
+    
+    // Check if someone already wrote strategy (race prevention)
+    const exists = await pool.query(
+      'SELECT 1 FROM strategies WHERE snapshot_id = $1',
+      [snapshot_id]
+    );
+    
+    if (!exists.rowCount) {
+      const strategy = await runTriad(snapshot_id);
+      await pool.query(
+        'INSERT INTO strategies (snapshot_id, status, strategy, latency_ms, tokens) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (snapshot_id) DO NOTHING',
+        [snapshot_id, 'ok', strategy.data, strategy.latency, strategy.tokens]
+      );
+    }
+    
+    await pool.query('UPDATE triad_jobs SET status = $1 WHERE id = $2', ['ok', jobId]);
+  }
+}
+```
+
+**Purpose:** Only one worker processes each job, SKIP LOCKED prevents races
+
+### Layer 5: Client-Side Utilities
+
+**Created:** `client/src/lib/once.ts`
+```typescript
+const inFlight = new Map<string, Promise<any>>();
+
+export function once<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const hit = inFlight.get(key);
+  if (hit) return hit as Promise<T>;
+  
+  const p = fn().finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
+```
+
+**Created:** `client/src/lib/cached.ts`
+```typescript
+interface CacheEntry<T> { value: T; timestamp: number; }
+const cache = new Map<string, CacheEntry<any>>();
+
+export async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && (Date.now() - hit.timestamp) < ttlMs) return hit.value;
+  
+  const value = await load();
+  cache.set(key, { value, timestamp: Date.now() });
+  return value;
+}
+```
+
+**Purpose:** Prevent duplicate in-flight calls and client-side caching
+
+### Layer 6: ETag Support for Reads
+
+**Added to:** `GET /api/blocks/strategy/:id`
+
+```javascript
+router.get('/strategy/:snapshotId', async (req, res) => {
+  const [strategyRow] = await db.select()
+    .from(strategies)
+    .where(eq(strategies.snapshot_id, snapshotId))
+    .limit(1);
+  
+  if (!strategyRow) {
+    // Pending - tell client to back off
+    res.set('Retry-After', '1');
+    return res.status(202).json({ status: 'pending', hasStrategy: false });
+  }
+  
+  // ETag from updated_at timestamp
+  const etag = `"${new Date(strategyRow.updated_at).getTime()}"`;
+  
+  if (req.get('if-none-match') === etag) {
+    return res.status(304).end(); // Not Modified
+  }
+  
+  res.set('ETag', etag);
+  return res.json({
+    status: 'ok',
+    hasStrategy: true,
+    strategy: strategyRow.strategy
   });
 });
 ```
 
-**Logging Strategy:**
+**Purpose:** Cache-friendly polling - 304 Not Modified when data unchanged
+
+### ~~Gateway Debounce (Removed)~~
+
+**~~Attempted:~~**
 ```javascript
-const LOG_LEVELS = {
-  trace: 0,
-  debug: 1,
-  info: 2,
-  warn: 3,
-  error: 4
-};
-
-function log(level, tag, message, meta = {}) {
-  const timestamp = new Date().toISOString();
-  const logEntry = {
-    timestamp,
-    level,
-    tag,
-    message,
-    ...meta
-  };
-  
-  console.log(JSON.stringify(logEntry));
-  
-  // Future: Send to log aggregation service (Datadog, Sentry, etc.)
-}
-
-// Usage
-log('info', 'snapshot', 'Snapshot created', { snapshot_id, latency_ms: 92 });
-log('error', 'triad', 'Claude API timeout', { snapshot_id, attempt: 2 });
+// ~~const lastPostBySnap = new Map();~~
+// ~~app.post("/api/blocks", (req, res, next) => {~~
+//   ~~const k = String(req.body?.snapshotId || "");~~
+//   ~~if (k && now - lastPostBySnap.get(k) < 250) {~~
+//     ~~return res.status(202).json({ ok: true, status: "queued" });~~
+//   ~~}~~
+// ~~});~~
 ```
 
----
-
-## End-to-End Workflow
-
-### User Journey: From App Open to Strategic Recommendation
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│ STEP 1: APP INITIALIZATION (0-2s)                                  │
-├────────────────────────────────────────────────────────────────────┤
-│ 1. User opens app (React SPA loads)                               │
-│ 2. Service worker checks for updates (PWA)                        │
-│ 3. IndexedDB loads cached preferences                             │
-│ 4. Check if snapshot exists (localStorage: last_snapshot_id)      │
-│ 5. If snapshot exists & fresh (<5 min), skip to polling           │
-└────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────────────┐
-│ STEP 2: LOCATION CAPTURE (2-10s)                                   │
-├────────────────────────────────────────────────────────────────────┤
-│ 1. Request browser geolocation permission                          │
-│ 2. navigator.geolocation.getCurrentPosition({                      │
-│      enableHighAccuracy: true,                                     │
-│      timeout: 10000,                                               │
-│      maximumAge: 0                                                 │
-│    })                                                              │
-│ 3. If denied → show manual location picker (Google Places)        │
-│ 4. If timeout → retry with lower accuracy                         │
-│ 5. Success → proceed to enrichment                                │
-└────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────────────┐
-│ STEP 3: CONTEXT ENRICHMENT (3-5s parallel)                        │
-├────────────────────────────────────────────────────────────────────┤
-│ Parallel API Calls (via backend proxy):                           │
-│                                                                    │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ GET /api/location/geocode/reverse?lat=33.1287&lng=-96.8757  │ │
-│ │ → Google Geocoding API                                       │ │
-│ │ → Returns: city, state, formatted_address                    │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                                                                    │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ GET /api/location/timezone?lat=33.1287&lng=-96.8757         │ │
-│ │ → Google Timezone API                                        │ │
-│ │ → Returns: timezone, offset                                  │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                                                                    │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ GET /api/location/weather?lat=33.1287&lng=-96.8757          │ │
-│ │ → OpenWeather API                                            │ │
-│ │ → Returns: temp, description, wind                           │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                                                                    │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ GET /api/location/airquality?lat=33.1287&lng=-96.8757       │ │
-│ │ → Google AirQuality API                                      │ │
-│ │ → Returns: aqi, level                                        │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                                                                    │
-│ Error Handling: If any API fails, continue with partial data      │
-└────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────────────┐
-│ STEP 4: SNAPSHOT CREATION (0.5-1s)                                │
-├────────────────────────────────────────────────────────────────────┤
-│ POST /api/snapshot                                                 │
-│ Body: {                                                            │
-│   lat: 33.1287,                                                    │
-│   lng: -96.8757,                                                   │
-│   context: {                                                       │
-│     city: "Frisco",                                                │
-│     state: "TX",                                                   │
-│     formattedAddress: "6068 Midnight Moon Dr, Frisco, TX 75036",   │
-│     timezone: "America/Chicago",                                   │
-│     dow: 0,                                                        │
-│     hour: 14                                                       │
-│   },                                                               │
-│   weather: { temp: 78, description: "Partly cloudy" },            │
-│   air: { aqi: 42, level: "Good" },                                │
-│   meta: { device: "iPhone 15 Pro", app: "VectoPilot/1.0" }        │
-│ }                                                                  │
-│                                                                    │
-│ Server Processing:                                                 │
-│   1. Validate input (validateIncomingSnapshot)                    │
-│   2. Check for crawler (user-agent screening)                     │
-│   3. Insert into snapshots table                                  │
-│   4. Enqueue for triad processing                                 │
-│   5. Return snapshot_id                                           │
-│                                                                    │
-│ Response: { snapshot_id: "uuid", status: "created" }              │
-└────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────────────┐
-│ STEP 5: STRATEGY POLLING (2s intervals, 26-37s total)             │
-├────────────────────────────────────────────────────────────────────┤
-│ Frontend:                                                          │
-│   useQuery({                                                       │
-│     queryKey: ['/api/blocks/strategy', snapshotId],               │
-│     refetchInterval: 2000,                                         │
-│     enabled: !!snapshotId,                                         │
-│     retry: 20                                                      │
-│   })                                                               │
-│                                                                    │
-│ GET /api/blocks/strategy/:snapshotId                              │
-│                                                                    │
-│ Status Progression:                                                │
-│   T+0s:  { status: "pending" }                                    │
-│   T+2s:  { status: "pending" }                                    │
-│   T+4s:  { status: "pending" }                                    │
-│   ...                                                              │
-│   T+26s: { status: "ok", strategy: "...", hasStrategy: true }     │
-│                                                                    │
-│ UI States:                                                         │
-│   • pending: Skeleton loaders, "Analyzing location..."            │
-│   • ok: Render venue cards with strategy text                     │
-│   • failed: Error message, "Retry" button                         │
-│   • refresh_required: "Please enable location and refresh"        │
-└────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────────────┐
-│ STEP 6: BACKGROUND TRIAD PROCESSING (26-37s)                      │
-├────────────────────────────────────────────────────────────────────┤
-│ Executed by background worker (server-side):                      │
-│                                                                    │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ STAGE 1: Claude Strategist (6-7s)                            │ │
-│ │ • Load snapshot from DB                                      │ │
-│ │ • Format prompt with context                                 │ │
-│ │ • Call Anthropic API                                         │ │
-│ │ • Save strategy to strategies table                          │ │
-│ │ • Status: "pending" → "ok"                                   │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                     ↓                                              │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ STAGE 2: GPT-5 Tactical Planner (12-18s)                    │ │
-│ │ • Load Claude's strategy                                     │ │
-│ │ • Generate venue recommendations                             │ │
-│ │ • Output: 6 venues + staging location                        │ │
-│ │ • Validate with Zod schema                                   │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                     ↓                                              │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ GOOGLE PLACES ENRICHMENT (4-6s)                              │ │
-│ │ • For each venue: findPlaceId(name, coords)                  │ │
-│ │ • For each placeId: getFormattedHours(placeId)               │ │
-│ │ • Enrich with: address, precise coords, hours, open/closed   │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                     ↓                                              │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ STAGE 3: Gemini Validator (8-12s)                            │ │
-│ │ • Calculate precise distance (Haversine)                     │ │
-│ │ • Apply earnings formula                                     │ │
-│ │ • Generate closed venue reasoning                            │ │
-│ │ • Final ranking by earnings_per_mile                         │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                     ↓                                              │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ ML DATA CAPTURE (0.5-1s)                                     │ │
-│ │ • Insert into rankings table                                 │ │
-│ │ • Insert 6 rows into ranking_candidates                      │ │
-│ │ • Log propensity scores                                      │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-└────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────────────┐
-│ STEP 7: VENUE DISPLAY (instant)                                   │
-├────────────────────────────────────────────────────────────────────┤
-│ UI Renders:                                                        │
-│                                                                    │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ 🎯 STRATEGIC OVERVIEW (Claude's narrative)                   │ │
-│ │ "Today is Sunday afternoon in Frisco. Weather is pleasant..." │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                                                                    │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ 📍 BEST STAGING LOCATION (GPT-5's recommendation)            │ │
-│ │ "Stonebriar Parkway & Warren - Central hub access"           │ │
-│ │ [Navigate] button → Google Maps deep link                    │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                                                                    │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ 🏢 VENUE CARD #1: Stonebriar Centre                          │ │
-│ │ • Category: Shopping Mall                                    │ │
-│ │ • Distance: 4.2 miles (8 min drive)                          │ │
-│ │ • Est. Earnings: $38/ride ($9.05/mile)                       │ │
-│ │ • Hours: Open until 6 PM                                     │ │
-│ │ • Pro Tips: "Position at north entrance near Apple Store..." │ │
-│ │ [Drive Here] button → trigger ML logging                     │ │
-│ │ 👍 👎 feedback buttons                                        │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                                                                    │
-│ ... 5 more venue cards ...                                        │
-└────────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌────────────────────────────────────────────────────────────────────┐
-│ STEP 8: USER INTERACTION & ML FEEDBACK LOOP                       │
-├────────────────────────────────────────────────────────────────────┤
-│ User Actions:                                                      │
-│                                                                    │
-│ 1. [Drive Here] Button Click                                      │
-│    → POST /api/venue-chosen                                       │
-│    → Insert into venue_interactions (action: "accepted")          │
-│    → Update venue_metrics.times_recommended++                     │
-│    → Open Google Maps with venue coordinates                      │
-│                                                                    │
-│ 2. Thumbs Up/Down                                                 │
-│    → POST /api/venue-feedback                                     │
-│    → Insert into venue_feedback (thumbs: 1 or -1)                 │
-│    → Update venue_metrics.positive_feedback++                     │
-│    → Recalculate reliability_score                                │
-│                                                                    │
-│ 3. Report Actual Earnings (future feature)                        │
-│    → POST /api/earnings-report                                    │
-│    → Update ranking_candidates.actual_earnings                    │
-│    → Trigger counterfactual learning pipeline                     │
-│    → Retrain ML model with new ground truth                       │
-└────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Scalability & Performance
-
-### 1. Current Capacity
-
-**Single VM Configuration:**
-- **CPU:** 4 vCPUs (Replit Reserved VM)
-- **RAM:** 8 GB
-- **Concurrent Requests:** 100/minute (rate limited)
-- **Database:** Neon Serverless PostgreSQL (auto-scaling)
-
-**Estimated Capacity:**
-- **Snapshots:** 5,000/day (avg 1 per user session)
-- **Strategy Generations:** 5,000/day (1:1 with snapshots)
-- **Concurrent Users:** 200 active users
-- **Peak Load:** 20 requests/second (burst tolerance)
-
----
-
-### 2. Bottlenecks & Mitigation
-
-| Bottleneck | Impact | Mitigation Strategy |
-|------------|--------|---------------------|
-| **LLM API Latency** | 26-37s end-to-end | Background processing + polling (non-blocking UI) |
-| **Google Places API** | 4-6s for 6 venues | Parallel requests with Promise.all() |
-| **Database Write Load** | High insert volume | Batch inserts for ML data, indexed queries |
-| **Rate Limits (Google APIs)** | 10K/day each | Caching with H3 cell TTL, CDN for geocoding |
-| **Memory (Node.js)** | Heap overflow at scale | Cluster mode with PM2, 2GB heap limit per worker |
-
----
-
-### 3. Horizontal Scaling Plan
-
-**Phase 1: Multi-Worker (Current → 10K users/day)**
-```javascript
-// PM2 ecosystem config
-module.exports = {
-  apps: [{
-    name: 'eidolon-gateway',
-    script: './gateway-server.js',
-    instances: 2, // CPU count
-    exec_mode: 'cluster',
-    max_memory_restart: '2G',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 5000
-    }
-  }, {
-    name: 'eidolon-sdk',
-    script: './index.js',
-    instances: 4, // More workers for AI heavy lifting
-    exec_mode: 'cluster',
-    max_memory_restart: '2G'
-  }]
-};
-```
-
-**Phase 2: Redis Queue (10K → 100K users/day)**
-```javascript
-import { Queue } from 'bullmq';
-
-const strategyQueue = new Queue('strategy-generation', {
-  connection: { host: 'redis.example.com', port: 6379 }
-});
-
-// Producer (snapshot creation)
-await strategyQueue.add('generate', {
-  snapshotId,
-  priority: 1 // Higher for paid users
-}, {
-  attempts: 3,
-  backoff: { type: 'exponential', delay: 5000 }
-});
-
-// Consumer (separate worker processes)
-const worker = new Worker('strategy-generation', async (job) => {
-  const { snapshotId } = job.data;
-  await generateStrategyForSnapshot(snapshotId);
-}, {
-  connection: { host: 'redis.example.com', port: 6379 },
-  concurrency: 10 // Process 10 snapshots simultaneously
-});
-```
-
-**Phase 3: Microservices (100K+ users/day)**
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Load Balancer (Nginx)                    │
-│                    vectopilot.com → 443                     │
-└────────┬──────────────────────────────────────┬─────────────┘
-         │                                      │
-    ┌────▼────┐                           ┌────▼────┐
-    │ Gateway │                           │ Gateway │
-    │  (US-W) │                           │  (US-E) │
-    └────┬────┘                           └────┬────┘
-         │                                      │
-    ┌────▼──────────────────────────────────────▼────┐
-    │           Service Mesh (Consul)                 │
-    └────┬──────────┬──────────┬──────────┬──────────┘
-         │          │          │          │
-    ┌────▼────┐┌───▼────┐┌────▼────┐┌────▼────┐
-    │Snapshot ││Strategy││  Venue  ││   ML    │
-    │Service  ││Service ││ Catalog ││ Trainer │
-    └─────────┘└────────┘└─────────┘└─────────┘
-```
-
----
-
-### 4. Caching Strategy
-
-**Layer 1: Browser (IndexedDB)**
-```javascript
-// Cache snapshot for 5 minutes
-const cachedSnapshot = await idb.get('snapshots', snapshotId);
-if (cachedSnapshot && Date.now() - cachedSnapshot.timestamp < 300000) {
-  return cachedSnapshot;
-}
-```
-
-**Layer 2: CDN (Cloudflare)**
-```javascript
-// Cache geocoding results by H3 cell (1 hour)
-res.set('Cache-Control', 'public, max-age=3600');
-res.set('Vary', 'Accept-Encoding');
-```
-
-**Layer 3: Redis (Backend)**
-```javascript
-import Redis from 'ioredis';
-const redis = new Redis(process.env.REDIS_URL);
-
-// Cache weather by H3 cell (30 min TTL)
-const cacheKey = `weather:${h3Cell}`;
-const cached = await redis.get(cacheKey);
-if (cached) return JSON.parse(cached);
-
-const weather = await fetchWeather(lat, lng);
-await redis.setex(cacheKey, 1800, JSON.stringify(weather));
-```
-
-**Layer 4: PostgreSQL (Materialized Views)**
-```sql
-CREATE MATERIALIZED VIEW venue_stats AS
-SELECT 
-  venue_id,
-  COUNT(*) as total_recommendations,
-  AVG(est_earnings_per_ride) as avg_earnings,
-  AVG(reliability_score) as avg_reliability
-FROM ranking_candidates
-GROUP BY venue_id;
-
-REFRESH MATERIALIZED VIEW CONCURRENTLY venue_stats;
-```
-
----
-
-### 5. Database Optimization
-
-**Indexes (Already Implemented):**
-```sql
-CREATE INDEX idx_snapshots_user_created ON snapshots(user_id, created_at DESC);
-CREATE INDEX idx_strategies_snapshot_status ON strategies(snapshot_id, status);
-CREATE INDEX idx_rankings_snapshot ON rankings(snapshot_id);
-CREATE INDEX idx_ranking_candidates_ranking ON ranking_candidates(ranking_id);
-CREATE INDEX idx_venue_metrics_venue ON venue_metrics(venue_id);
-```
-
-**Partitioning (Future):**
-```sql
--- Partition snapshots by month for faster queries
-CREATE TABLE snapshots_2025_10 PARTITION OF snapshots
-FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
-
-CREATE TABLE snapshots_2025_11 PARTITION OF snapshots
-FOR VALUES FROM ('2025-11-01') TO ('2025-12-01');
-```
-
-**Read Replicas (Future):**
-```
-Primary DB (Writes)
-    ↓
-┌───────────────┐
-│ Replication   │
-│ (Streaming)   │
-└───┬───────┬───┘
-    │       │
-Read Replica 1   Read Replica 2
-(Analytics)      (API Queries)
-```
-
----
-
-## Deployment Architecture
-
-### Current Setup (Development)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│              Replit Development Environment                 │
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  Gateway Server (gateway-server.js)                   │ │
-│  │  • Port: 5000 (public)                                │ │
-│  │  • Vite dev middleware                                │ │
-│  │  • Hot module reload                                  │ │
-│  │  • Proxy: /api/* → 127.0.0.1:3101                    │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  Eidolon SDK Server (index.js)                        │ │
-│  │  • Port: 3101 (internal)                              │ │
-│  │  • Express API routes                                 │ │
-│  │  • Triad orchestration                                │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  Agent Server (agent-server.js)                       │ │
-│  │  • Port: 43717 (internal)                             │ │
-│  │  • File operations, workspace intelligence            │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                                                             │
-│  Database: Neon PostgreSQL (external)                      │
-│  Preview URL: https://workspace.melodydashora.repl.co      │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-### Production Setup (Reserved VM)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│              vectopilot.com (Reserved VM)                   │
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  Nginx Reverse Proxy (Port 443)                       │ │
-│  │  • SSL/TLS termination (Let's Encrypt)                │ │
-│  │  • Rate limiting (100 req/15min per IP)               │ │
-│  │  • Static file serving (React build)                  │ │
-│  │  • Proxy: /api/* → 127.0.0.1:5000                    │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                          ↓                                  │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │  PM2 Process Manager                                  │ │
-│  │  ┌─────────────────────────────────────────────────┐ │ │
-│  │  │ Gateway (2 instances) - Port 5000               │ │ │
-│  │  └─────────────────────────────────────────────────┘ │ │
-│  │  ┌─────────────────────────────────────────────────┐ │ │
-│  │  │ SDK Server (4 instances) - Port 3101-3104       │ │ │
-│  │  └─────────────────────────────────────────────────┘ │ │
-│  │  ┌─────────────────────────────────────────────────┐ │ │
-│  │  │ Agent Server (1 instance) - Port 43717          │ │ │
-│  │  └─────────────────────────────────────────────────┘ │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                                                             │
-│  Health Checks:                                            │
-│  • /health → 200 OK every 30s                             │
-│  • Auto-restart on crash                                   │
-│  • Log rotation (1GB max, 10 files)                        │
-└─────────────────────────────────────────────────────────────┘
-           ↓                                  ↓
-┌─────────────────────┐          ┌─────────────────────┐
-│ Neon PostgreSQL     │          │ External APIs       │
-│ (Serverless)        │          │ • Google Maps       │
-│ • Auto-scaling      │          │ • OpenWeather       │
-│ • Point-in-time     │          │ • FAA ASWS          │
-│   recovery          │          │ • Anthropic         │
-│ • Read replicas     │          │ • OpenAI            │
-└─────────────────────┘          │ • Google Gemini     │
-                                 └─────────────────────┘
-```
-
----
-
-### Deployment Commands
-
-**Build Production Assets:**
-```bash
-npm run build
-# Output: dist/ (React production build)
-```
-
-**Start Production Server:**
-```bash
-NODE_ENV=production node gateway-server.js
-```
-
-**PM2 Deployment:**
-```bash
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
-```
-
-**Health Monitoring:**
-```bash
-# Check all processes
-pm2 status
-
-# View logs
-pm2 logs eidolon-gateway --lines 100
-
-# Monitor resources
-pm2 monit
-```
-
----
-
-### CI/CD Pipeline (Future)
-
-```yaml
-# .github/workflows/deploy.yml
-name: Deploy to Production
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run tests
-        run: npm test
-      
-      - name: Build production assets
-        run: npm run build
-      
-      - name: Deploy to Replit
-        env:
-          REPLIT_TOKEN: ${{ secrets.REPLIT_TOKEN }}
-        run: |
-          curl -X POST https://replit.com/api/deploy \
-            -H "Authorization: Bearer $REPLIT_TOKEN" \
-            -d '{"repl_id": "${{ secrets.REPL_ID }}"}'
-      
-      - name: Run smoke tests
-        run: |
-          curl -f https://vectopilot.com/health || exit 1
-```
-
----
-
-## Future Enhancements
-
-### Phase 2 (Q1 2026): Advanced ML & Personalization
-
-**1. Reinforcement Learning Policy**
-- Replace LLM triad with learned model (exploitation phase)
-- Contextual bandit for venue selection (Thompson Sampling)
-- A/B test: 50% LLM vs 50% ML for 30 days
-- **Target:** 35% earnings increase vs baseline
-
-**2. Driver Profiling**
-- Track driver preferences (venue types, distance tolerance, time windows)
-- Personalized recommendations based on historical accepts/rejects
-- Cluster drivers into archetypes: "Airport Specialist", "Downtown Hustler", "Suburban Cruiser"
-- **Target:** 20% improvement in recommendation acceptance rate
-
-**3. Real-Time Surge Prediction**
-- Train LSTM model on historical surge patterns
-- Predict surge zones 15-30 minutes ahead
-- Alert drivers to position proactively
-- **Target:** 40% increase in surge ride captures
-
----
-
-### Phase 3 (Q2 2026): Safety & Wellness
-
-**4. Fatigue Detection**
-- Track active driving hours in session
-- Detect declining GPS precision (fatigue signal)
-- Recommend breaks after 4 hours or 10 rides
-- **Target:** 30% reduction in fatigue-related incidents
-
-**5. Safe Staging Areas**
-- Validate staging locations for safety (crime data, lighting)
-- Provide restroom access information
-- Partnership with truck stops for driver facilities
-- **Target:** 100% of recommendations include safe staging
-
-**6. Earnings Tracking & Tax Support**
-- Automatic mileage logging for IRS compliance
-- Export earnings reports for quarterly tax filing
-- Expense tracking (gas, maintenance, insurance)
-- **Target:** 50% of users adopt tax tracking feature
-
----
-
-### Phase 4 (Q3 2026): Social & Competitive
-
-**7. Driver Community**
-- In-app chat for local driver tips
-- Share earnings screenshots (anonymized)
-- Leaderboard: Top earners by region (opt-in)
-- **Target:** 30% monthly active engagement
-
-**8. Shift Planning Assistant**
-- AI-powered shift scheduler based on historical earnings
-- Optimize for user goals: "Max earnings", "Work-life balance", "Part-time supplement"
-- Calendar integration with personal events
-- **Target:** 25% increase in shift planning efficiency
-
-**9. Multi-Platform Integration**
-- Unified dashboard for Uber + Lyft + DoorDash
-- Auto-switch between apps based on demand
-- Track combined earnings across platforms
-- **Target:** 15% earnings increase via platform arbitrage
-
----
-
-### Phase 5 (Q4 2026): Enterprise & API
-
-**10. Fleet Management Dashboard**
-- Corporate accounts for fleet owners
-- Dispatch optimization for multiple drivers
-- Real-time performance analytics
-- **Business Model:** $199/month per fleet (10+ drivers)
-
-**11. Public API**
-- RESTful API for third-party integrations
-- Webhook support for real-time events
-- Rate-limited tiers: Free (1K req/day), Pro ($99/mo, 100K req/day)
-- **Target:** 500 API developers in first year
-
-**12. White-Label Solution**
-- Rebrand Vecto Pilot for other gig platforms
-- Custom venue catalogs (food delivery, package logistics)
-- SaaS model: $999/month + revenue share
-- **Target:** 3 enterprise clients in first year
-
----
-
-## Risk Analysis
-
-### Technical Risks
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| **LLM API Outages** | Medium | High | Implement fallback chain (Atlas agent), cache last-known-good strategies |
-| **Rate Limit Exhaustion** | High | Medium | Caching layer with H3 cells, upgrade API tiers, CDN for static data |
-| **Database Performance** | Low | High | Indexed queries, read replicas, materialized views, partition by month |
-| **Security Breach** | Low | Critical | Rate limiting, input validation, secret rotation, audit logging |
-| **Memory Leaks (Node.js)** | Medium | Medium | PM2 auto-restart on memory threshold, heap snapshots, profiling |
-
----
-
-### Business Risks
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| **Platform Policy Changes** | High | Critical | Diversify to multi-platform, build independent brand, direct-to-driver marketing |
-| **User Adoption (Cold Start)** | High | High | Freemium model, influencer partnerships (TheRideshareGuy), App Store optimization |
-| **Competition (Similar Apps)** | Medium | Medium | Patent AI architecture, first-mover advantage, network effects (more users = better ML) |
-| **Regulatory (Driver Classification)** | Medium | High | Monitor AB5/Prop 22 cases, adapt to IC vs. employee classification, lobby for driver tools |
-| **API Cost Explosion** | High | High | Budget alerts, per-user cost tracking, optimize prompts, explore self-hosted LLMs |
-
----
-
-### Operational Risks
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| **Key Personnel Dependency** | Medium | High | Document all systems, modular architecture, hire redundant expertise |
-| **Customer Support Overload** | Medium | Medium | AI chatbot (GPT-4), comprehensive FAQ, community forum, tiered support |
-| **Data Privacy Violation** | Low | Critical | GDPR compliance, data encryption at rest/transit, annual security audits |
-| **Downtime During Peak Hours** | Low | High | 99.9% uptime SLA, load testing, auto-scaling, multi-region deployment |
-
----
-
-## ROI Projections
-
-### Assumptions
-
-**Driver Economics:**
-- Average driver earnings (no tool): $18/hour gross, $12/hour net
-- With Vecto Pilot: $25/hour gross, $17/hour net (**41% increase**)
-- Average driver works 25 hours/week = 1,300 hours/year
-
-**Annual Driver Benefit:**
-- Without tool: $15,600/year net
-- With tool: $22,100/year net
-- **Driver gains: $6,500/year**
-
-**Vecto Pilot Revenue Model:**
-- Freemium: Free tier (3 snapshots/day, ads)
-- Pro: $19.99/month ($240/year) - unlimited snapshots, no ads, premium features
-- Fleet: $199/month per fleet (10+ drivers)
-
----
-
-### User Acquisition Projections
-
-| Metric | Year 1 | Year 2 | Year 3 |
-|--------|--------|--------|--------|
-| **Total Registered Users** | 10,000 | 50,000 | 150,000 |
-| **Monthly Active Users (MAU)** | 3,000 | 15,000 | 50,000 |
-| **Pro Subscribers (5% conversion)** | 150 | 750 | 2,500 |
-| **Fleet Accounts** | 5 | 25 | 75 |
-
----
-
-### Revenue Projections
-
-**Year 1:**
-- Pro Subscriptions: 150 users × $240/year = **$36,000**
-- Fleet Accounts: 5 fleets × $199/mo × 12 = **$11,940**
-- Ads (Free Tier): 2,850 users × $2/user/year = **$5,700**
-- **Total Revenue Year 1: $53,640**
-
-**Year 2:**
-- Pro Subscriptions: 750 × $240 = **$180,000**
-- Fleet Accounts: 25 × $199 × 12 = **$59,700**
-- Ads: 14,250 × $2 = **$28,500**
-- **Total Revenue Year 2: $268,200**
-
-**Year 3:**
-- Pro Subscriptions: 2,500 × $240 = **$600,000**
-- Fleet Accounts: 75 × $199 × 12 = **$179,100**
-- Ads: 47,500 × $2 = **$95,000**
-- API Tier (new): 100 developers × $99/mo × 12 = **$118,800**
-- **Total Revenue Year 3: $992,900**
-
----
-
-### Cost Structure
-
-**Year 1 Costs:**
-- Infrastructure (Replit Reserved VM): $20/month × 12 = **$240**
-- API Costs (LLMs, Google): $5 per active user × 3,000 = **$15,000**
-- Database (Neon Pro): $69/month × 12 = **$828**
-- Domain & SSL: **$50**
-- Marketing (Ads, Influencers): **$10,000**
-- **Total Costs Year 1: $26,118**
-
-**Year 1 Profit: $53,640 - $26,118 = $27,522** ✅
-
-**Year 3 Costs:**
-- Infrastructure (Scale-up): $500/month × 12 = **$6,000**
-- API Costs: $5 × 15,000 MAU = **$75,000**
-- Database: $199/month × 12 = **$2,388**
-- Marketing: **$100,000**
-- Salaries (2 engineers, 1 designer): **$300,000**
-- **Total Costs Year 3: $483,388**
-
-**Year 3 Profit: $992,900 - $483,388 = $509,512** ✅
-
----
-
-### Break-Even Analysis
-
-**Fixed Costs (Monthly):**
-- Infrastructure: $20 (Year 1) → $500 (Year 3)
-- Database: $69 (Year 1) → $199 (Year 3)
-- **Total Fixed: $89/month → $699/month**
-
-**Variable Costs:**
-- $5 per MAU (API usage)
-
-**Revenue per Pro User:**
-- $19.99/month
-
-**Break-Even MAU (Year 1):**
-```
-Fixed Costs + (Variable Cost × MAU) = Revenue
-$89 + ($5 × MAU) = ($19.99 × 0.05 × MAU)  // 5% conversion to Pro
-
-Break-even: ~90 MAU
-```
-
-**Conclusion:** Break-even achieved in Month 3 of Year 1 ✅
-
----
-
-### ROI for Drivers
-
-**Driver Investment:**
-- Pro Subscription: $19.99/month ($240/year)
-
-**Driver Return:**
-- Earnings increase: $5/hour × 25 hours/week × 52 weeks = **$6,500/year**
-
-**Driver ROI:** ($6,500 - $240) / $240 = **2,608%** 🚀
-
-**Payback Period:** 1.8 weeks of driving
-
----
-
-## Benefits & Feasibility
-
-### Benefits Summary
-
-#### For Drivers
-1. **23-50% earnings increase** through strategic positioning
-2. **67% reduction in decision fatigue** via AI-guided recommendations
-3. **3x lower crash risk** by reducing unfamiliar route driving
-4. **2-4 hours saved** on manual shift planning per week
-5. **Real-time context awareness** (weather, traffic, events, airport delays)
-6. **Transparent earnings projections** (no black-box algorithms)
-
-#### For the Gig Economy
-1. **$6,500/year additional income** per driver (reduces financial stress)
-2. **Countercyclical unemployment buffer** (helps workers between jobs)
-3. **Data-driven safety improvements** (fewer accidents = lower insurance costs)
-4. **Democratizes strategic knowledge** (levels playing field vs. experienced drivers)
-
-#### For Platform Operators (Future B2B)
-1. **Fleet optimization** for corporate rideshare services
-2. **Reduced driver churn** (happier, higher-earning drivers stay longer)
-3. **Better utilization** of high-demand zones
-4. **Real-time insights** for dynamic pricing strategies
-
----
-
-### Feasibility Assessment
-
-#### Technical Feasibility: **HIGH ✅**
-- All core technologies are production-ready (React, Node.js, PostgreSQL, LLMs)
-- API integrations are well-documented (Google, OpenWeather, FAA)
-- Proven architecture (triad pipeline running successfully in development)
-- Scalable infrastructure (Neon serverless DB, PM2 clustering, Redis queue)
-
-#### Economic Feasibility: **HIGH ✅**
-- Low startup costs ($26K Year 1) with positive cash flow from Month 3
-- High driver ROI (2,608%) drives strong word-of-mouth growth
-- Multiple revenue streams (Pro subscriptions, Fleet, Ads, API)
-- Predictable cost structure (per-MAU API pricing)
-
-#### Market Feasibility: **MEDIUM-HIGH ✅**
-- **Addressable Market:** 57.3 million gig workers in U.S. (36% of workforce)
-- **Target Market:** 5 million rideshare drivers (Uber: 3.5M, Lyft: 1.5M)
-- **Competition:** Gridwise (analytics), TheRideshareGuy (blog), but no AI-powered strategic assistant
-- **Barriers to Entry:** Network effects (more users = better ML), first-mover advantage in AI triad architecture
-
-#### Regulatory Feasibility: **MEDIUM ⚠️**
-- **Risk:** Driver classification changes (IC vs. employee) could impact rideshare ecosystem
-- **Mitigation:** Tool is platform-agnostic, works regardless of classification
-- **Opportunity:** If drivers become employees, they'll need tools even more to maximize limited hours
-
-#### Operational Feasibility: **MEDIUM-HIGH ✅**
-- MVP already functional (validated in development)
-- Clear roadmap for scaling (Redis queue, microservices)
-- Manageable support load (AI chatbot for Tier 1, human for Tier 2)
-- Strong documentation and code modularity
-
----
-
-### Success Criteria (12-Month Goals)
-
-| Metric | Target | Stretch |
-|--------|--------|---------|
-| **Registered Users** | 10,000 | 15,000 |
-| **Monthly Active Users** | 3,000 | 5,000 |
-| **Pro Subscribers** | 150 | 300 |
-| **Average Earnings Increase** | 25% | 35% |
-| **User Retention (90-day)** | 40% | 60% |
-| **App Store Rating** | 4.5★ | 4.8★ |
-| **Revenue** | $50K | $75K |
-| **Profit** | $25K | $50K |
-
----
-
-## Conclusion
-
-**Vecto Pilot™** addresses a critical gap in the rideshare ecosystem: drivers lack strategic intelligence tools to maximize earnings while minimizing fatigue and risk. By combining cutting-edge AI (Claude, GPT-5, Gemini) with real-time context awareness and transparent earnings projections, the platform delivers measurable value:
-
-- **Research-backed problem:** 33% of drivers crash due to fatigue, 70% work 50+ hours, earnings vary 50% based on strategy
-- **Proven solution:** Strategic drivers earn 23-50% more ($25-30/hr vs $15-20/hr)
-- **Scalable architecture:** Triad AI pipeline + ML training loop + multi-server infrastructure
-- **Strong ROI:** Drivers gain $6,500/year for $240/year investment (2,608% ROI)
-- **Clear path to profitability:** Break-even in Month 3, $509K profit by Year 3
+**Why Removed:** 
+- Gateway in dev mode proxies to SDK server - `req.body` not available before proxy
+- Would only work in production with direct route mounting
+- Other 5 layers provide sufficient idempotency
+
+### Integration Status
+
+**✅ Built:**
+- Database tables and constraints
+- Idempotency middleware
+- Triad worker with SKIP LOCKED
+- Client utilities (once, cached)
+- ETag support for polling
+
+**❌ Not Integrated:**
+- Worker not started in startup
+- Client hooks don't use `once()` or `cached()` yet
+- Still using inline strategy generation
+- POST /api/blocks uses old direct-call pattern
 
 **Next Steps:**
-1. Launch beta with 100 drivers (TheRideshareGuy partnership)
-2. Collect 90 days of feedback data for ML training
-3. Implement Phase 2 enhancements (RL policy, fatigue detection)
-4. Secure $500K seed funding for marketing & team expansion
-5. Scale to 10K users by end of Year 1
+1. Start worker: `node server/jobs/triad-worker.js` in separate process
+2. Update client to use `once("blocks:${snapshotId}", () => fetch(...))`
+3. Switch POST /api/blocks to use idempotent enqueue route
+4. Monitor logs for "BLOCKS REQUEST" collapsing to single execution
 
 ---
 
-## References
+## Production Deployment Checklist
 
-1. University of Illinois Chicago. (2024). "One-third of ride-share drivers have had a crash on the job." *Journal of Safety Research*. https://today.uic.edu/rideshare-crash-research/
+### Pre-Deployment
 
-2. Economic Policy Institute. (2024). "Uber and the labor market: Compensation, wages, and scale." https://www.epi.org/publication/uber-and-the-labor-market/
+- [x] Remove React.StrictMode from production build
+- [x] Remove global JSON body parsing
+- [x] Add client abort error gate
+- [x] Filter /health from logs
+- [ ] Start triad worker process
+- [ ] Integrate idempotency client utilities
+- [ ] Switch to queue-based strategy generation
+- [ ] Verify zero duplicate "BLOCKS REQUEST" logs
 
-3. Gridwise Analytics. (2024). "October & November 2024 Gig Economy Insights." https://gridwise.io/blog/
+### Post-Deployment Monitoring
 
-4. Bank of America Institute. (2024). "Gig Economy Statistics & Trends - Gig Work Is Up in 2024." https://institute.bankofamerica.com/economic-insights/consumer-morsel-gig-economy-is-up.html
-
-5. TheRideshareGuy. (2025). "8 Proven Strategies To Maximize Your Earnings as a New Rideshare Driver." https://therideshareguy.com/8-proven-strategies-to-maximize-your-earnings/
-
-6. Uber. (2024). "US Safety Report 2024." https://www.uber.com/us/en/about/reports/us-safety-report/
-
-7. Lyft. (2024). "2024 Safety Transparency Report." https://www.lyft.com/blog/posts/2024-safety-transparency-report
-
-8. Business Research Insights. (2024). "Gig Economy Market Size & Share Analysis 2024-2034." https://www.businessresearchinsights.com/market-reports/gig-economy-market-102503
+- [ ] Monitor 499 status codes (expected - client aborts)
+- [ ] Verify no "request aborted" errors in logs
+- [ ] Confirm single strategy generation per snapshot
+- [ ] Check ETag cache hit rate
+- [ ] Monitor worker queue depth
 
 ---
 
-**Document Version:** 2.0  
-**Last Updated:** October 6, 2025  
-**Author:** Vecto Pilot™ Development Team  
-**Status:** Production Architecture Specification
+**END OF ARCHITECTURE DOCUMENT**
+
+*This document reflects the current state of the system including recent fixes for client abort handling and idempotency infrastructure. All strikethrough text indicates removed/deprecated patterns.*
