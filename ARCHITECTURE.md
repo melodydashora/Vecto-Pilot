@@ -29,6 +29,12 @@ When the venue's open/closed status materially affects driver income, we must ei
 ### 5. **Deterministic Logging for ML**
 For every block served: input snapshot hash, model ID, token budget, confidence, and downstream outcome (accept/skip/abort) are recorded for counterfactual learning.
 
+### 6. **Coordinates and Business Hours Come From Google or DB, Never Models**
+Truth sources are Google Places/Routes and our persisted cache. Generative models must not originate or "correct" lat/lng or hours. If Google is unavailable, we use last verified DB copy; otherwise we fail-closed.
+
+### 7. **Deterministic Merge by Key, Never by Index**
+All enrich/validate merges use stable keys (place_id preferred; name fallback) and numeric coercion. Defaulting earnings/distance to 0 is forbidden. Fallback order: server potential → computed epm → fail-closed when neither is available.
+
 ---
 
 ## ⬅️ **BACKWARD PRESSURE (Explicitly Deprecated)**
@@ -38,6 +44,8 @@ For every block served: input snapshot hash, model ID, token budget, confidence,
 - ~~React.StrictMode in production UI~~
 - ~~Treating cost-only heuristics as overrides for accuracy-critical decisions~~
 - ~~"Cheap-first" MVP for business hours (replaced with risk-gated validation)~~
+- ~~Index-based merge (replaced with key-based merge, Oct 8 2025)~~
+- ~~Client GPS overwrite of venue coordinates (replaced with server truth, Oct 8 2025)~~
 
 ---
 
@@ -495,7 +503,7 @@ Every block recommendation flows through 13 strategic components in sequence. Ea
 - **What**: Candidate selection from curated catalog + 20% AI-discovered new venues
 - **Why**: Prevents hallucinations while enabling exploration of emerging hotspots
 - **When**: On every recommendation request after strategic overview
-- **How**: H3 geospatial filtering + deterministic scoring + Gemini exploration (20% budget)
+- **How**: H3 geospatial filtering + deterministic scoring + Gemini exploration (20% budget). **Key discipline:** every venue entering the pipeline must carry a stable merge key (place_id preferred; name fallback). Validators must echo the same key unchanged. Any response missing the key is rejected and logged.
 - **Data Storage**: `venue_catalog` + `llm_venue_suggestions` + `venue_metrics` tables
   - **venue_catalog**: `venue_id` (UUID PK), `place_id` (Google Places unique ID), `name/address/category`, `lat/lng`, `dayparts[]` (text array), `staging_notes/business_hours` (JSONB), `discovery_source` (seed/llm/driver), `validated_at`
   - **llm_venue_suggestions**: `suggestion_id` (UUID PK), `model_name`, `ranking_id` (FK), `venue_name`, `validation_status` (pending/valid/rejected), `place_id_found`, `rejection_reason`
@@ -513,7 +521,7 @@ Every block recommendation flows through 13 strategic components in sequence. Ea
 - **What**: Risk-gated validation ensuring "unknown" never presented as "open"
 - **Why**: Closure status materially affects driver income and trust
 - **When**: Closure risk >0.3 triggers validation; <0.1 uses estimates with badge
-- **How**: Closure risk calculation → Google Places API validation → cache 24h → substitute if unknown
+- **How**: Closure risk calculation → Google Places API validation → cache 24h → substitute if unknown. **DB-first policy:** for any known place_id, read address, lat/lng, and the last known open/closed metadata from our places cache before calling external APIs. TTL: coords_verified_at is authoritative for coordinates; hours_last_checked is authoritative for open/closed metadata. If both are within policy, skip the external call.
 - **Data Storage**: `places_cache` table + `venue_feedback` table
   - **places_cache**: `place_id` (PK), `formatted_hours` (JSONB), `cached_at`, `access_count` (48h TTL constraint)
   - **venue_feedback**: `id` (UUID PK), `venue_id` (FK), `driver_user_id`, `feedback_type` (hours_wrong/closed_when_open), `comment`, `reported_at`
@@ -531,7 +539,7 @@ Every block recommendation flows through 13 strategic components in sequence. Ea
 - **What**: Real-time traffic-aware distance and drive time calculations
 - **Why**: Straight-line estimates underestimate actual drive time, reducing earnings accuracy
 - **When**: For top-ranked venues after scoring, re-calculated on navigation launch
-- **How**: Google Routes API with TRAFFIC_AWARE routing → fallback to Haversine if API fails
+- **How**: Google Routes API with TRAFFIC_AWARE routing → fallback to Haversine if API fails. **Source of truth:** distance shown to drivers is the server calculation (Routes when available; otherwise Haversine). The client must never overwrite venue coordinates with device GPS for display or math. Any UI calculation relies on server-returned venue lat/lng.
 - **System Impact**: $10 per 1,000 requests balanced against accuracy needs
 - **ML Impact**: Logs actual drive times vs. estimates for prediction model training
 - **Accuracy Foundation**: Live traffic data ensures realistic ETAs for earnings projections
@@ -549,7 +557,7 @@ Every block recommendation flows through 13 strategic components in sequence. Ea
 - **What**: Realistic per-ride earnings estimates based on context and historical data
 - **Why**: Drivers need accurate income projections to evaluate opportunity cost
 - **When**: For every recommended venue after hours/distance/surge enrichment
-- **How**: base_earnings_hr × adjustment_factor (open=0.9x, closed=0.7x, event=variable, surge=additive)
+- **How**: base_earnings_hr × adjustment_factor (open=0.9x, closed=0.7x, event=variable, surge=additive). **Deterministic fallbacks:** when validator earnings fields are absent or unparsable, use server "potential" as the first fallback. If potential is absent, derive earnings_per_mile from distance and a conservative base_earnings_hr; if still undefined, fail-closed instead of returning $0.
 - **System Impact**: Pulls from venue_metrics historical performance for grounded estimates
 - **ML Impact**: Logs projected vs. actual earnings for calibration model training
 - **Accuracy Foundation**: Context-aware adjustments prevent over-optimistic projections
@@ -1612,6 +1620,70 @@ curl -X POST http://localhost:5000/api/blocks \
 | `docs/reference/V2-ROUTER-INTEGRATION.md` | Router V2 history and resolution | Oct 8, 2025 |
 | `tools/research/THREAD_AWARENESS_README.md` | Thread system documentation | Oct 8, 2025 |
 | `ARCHITECTURE.md` | This document - constraints & decisions | Oct 8, 2025 |
+
+---
+
+## 📝 **FIX CAPSULE (Agent-Authored, append one per fix)**
+
+### Template: Use for Every Future Fix
+
+**Impact**  
+Describe the user-visible change (driver trust, earnings accuracy, latency, cost).
+
+**When**  
+Describe exactly when the logic runs (route name, stage in triad, gating).
+
+**Why**  
+Name the invariant(s) this change enforces and the root cause it removes.
+
+**How**  
+Summarize the code change at a systems level and any data model or cache impact.
+
+**Files Touched**  
+List paths and a one-line intent for each.
+
+**Tests and Acceptance**  
+List the command(s) to reproduce the prior bug and the command(s) to observe the fix.
+
+**Observability**  
+Name the log lines, counters, or traces that prove the fix works in prod.
+
+**Back/Forward Pressure**  
+Note what we deprecate and what we make easier going forward.
+
+---
+
+### Fix Capsule — Key-Based Merge, DB-First Coords/Hours (Oct 8, 2025)
+
+**Impact**  
+Eliminates $0 earnings and incorrect miles. Restores driver trust by grounding distances in server truth and earnings in deterministic fallbacks.
+
+**When**  
+Runs during `/api/blocks` validation/merge phase after planner output and before final ranking. Applies to every venue in the response.
+
+**Why**  
+Enforces new invariants 6 and 7 (Google/DB as truth for coords/hours; merge by key never index). Removes root causes: index-based merge and client GPS overwrite.
+
+**How**  
+Server merges by place_id/name with numeric coercion and safe fallbacks; validator must echo placeId; client uses server venue coords. Adds places cache and DB-first reads for coords/hours.
+
+**Files Touched**  
+- `server/routes/blocks.js` - Key-based merge with numeric coercion and fallbacks
+- `server/lib/gemini-enricher.js` - Validator prompt requires placeId echo
+- `client/src/pages/co-pilot.tsx` - Use server venue coordinates, not device GPS
+- `shared/schema.js` - places_cache table (already exists, TTL policies enforced)
+
+**Tests and Acceptance**  
+1. POST `/api/blocks` with known venues → no $0 earnings; epm computed when validator fields absent
+2. Inspect UI → venue coords equal server payload; distance matches server
+3. Repeat same venues within TTL → no external Places call; DB-first hit logged
+
+**Observability**  
+Logs include `calculated_distance_miles`, `estimated_earnings`, merged key, and `distanceSource`. Places cache writes emit `place_id` with timestamps.
+
+**Back/Forward Pressure**  
+**Backward:** Index-merge and UI GPS overwrite removed.  
+**Forward:** Weekly Places sync; validator prompts always echo placeId; earnings never default to $0.
 
 ---
 

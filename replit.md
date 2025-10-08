@@ -54,6 +54,8 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
 - **100% Variable-Based Data**: All location, time, and weather data are fetched live.
 - **Fail-Safe Design**: The system is designed to never crash on API failures, showing clear error messages instead.
 - **Mobile-First GPS Precision**: High-accuracy GPS is enabled by default.
+- **Key-Based Merge Only** (Oct 8, 2025): All validator/enricher merges use stable keys (place_id or name), never array index. Prevents $0 earnings from misalignment.
+- **Server as Coordinate Truth** (Oct 8, 2025): Client uses server-returned venue coordinates for all calculations. Device GPS never overwrites venue positions.
 
 ## External Dependencies
 

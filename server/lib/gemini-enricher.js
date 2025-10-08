@@ -44,9 +44,10 @@ RANKING:
 - Calculate ranking_score (1-10) based on earnings potential vs distance
 - Higher score = better earnings per mile ratio
 
-OUTPUT (JSON array, same order as input):
+OUTPUT (JSON array; MUST preserve input order and echo "placeId" unchanged for each item):
 [
   {
+    "placeId": "PLACE_ID_HERE",
     "name": "venue name",
     "estimated_distance_miles": 5.2,
     "estimated_earnings_per_ride": 18.50,

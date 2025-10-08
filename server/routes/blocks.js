@@ -452,16 +452,34 @@ router.post('/', async (req, res) => {
 
     console.log(`🔍 [${correlationId}] Gemini raw response (first venue):`, JSON.stringify(geminiEnriched[0], null, 2));
 
-    // Merge Gemini data back with venue data
-    const fullyEnrichedVenues = venuesWithDistance.map((v, i) => ({
-      ...v,
-      estimated_distance_miles: geminiEnriched[i]?.estimated_distance_miles || v.calculated_distance_miles,
-      estimated_earnings: geminiEnriched[i]?.estimated_earnings_per_ride || geminiEnriched[i]?.estimated_earnings || 0,
-      earnings_per_mile: geminiEnriched[i]?.earnings_per_mile || 0,
-      ranking_score: geminiEnriched[i]?.ranking_score || 0,
-      validation_status: geminiEnriched[i]?.validation_status || 'unknown',
-      closed_venue_reasoning: geminiEnriched[i]?.closed_venue_reasoning || null
-    }));
+    // Key-based merge (Invariant 7: merge by key never index)
+    const keyOf = (x) => (x.placeId || x.name || '').toLowerCase();
+    const toNum = (v) => Number(String(v ?? '').replace(/[^0-9.]/g, ''));
+    const gmap = new Map(
+      geminiEnriched.map(g => [keyOf(g), {
+        dist: Number(g.estimated_distance_miles),
+        earn: toNum(g.estimated_earnings_per_ride ?? g.estimated_earnings),
+        epm: Number(g.earnings_per_mile),
+        rank: Number(g.ranking_score),
+        vs: g.validation_status,
+        cr: g.closed_venue_reasoning
+      }])
+    );
+    const fullyEnrichedVenues = venuesWithDistance.map(v => {
+      const g = gmap.get(keyOf(v)) || {};
+      const dist = Number.isFinite(g.dist) ? g.dist : v.calculated_distance_miles;
+      const earn = Number.isFinite(g.earn) ? g.earn : (v?.data?.potential ?? 0);
+      const epm = Number.isFinite(g.epm) ? g.epm : (dist > 0 && earn > 0 ? Number((earn / dist).toFixed(2)) : 0);
+      return {
+        ...v,
+        estimated_distance_miles: dist,
+        estimated_earnings: earn,
+        earnings_per_mile: epm,
+        ranking_score: g.rank || 0,
+        validation_status: g.vs || 'unknown',
+        closed_venue_reasoning: g.cr || null
+      };
+    });
 
     console.log(`✅ [${correlationId}] TRIAD Step 3/3 Complete: Gemini 2.5 Pro validation with earnings calculation`);
     console.log(`💰 [${correlationId}] Sample enriched venue:`, {

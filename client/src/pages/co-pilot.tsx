@@ -282,7 +282,10 @@ const CoPilot: React.FC = () => {
                 name: block.name,
                 address: block.address,
                 category: block.category,
-                coordinates: block.coordinates || { lat: coords.latitude, lng: coords.longitude },
+                coordinates: {
+                  lat: block.coordinates?.lat ?? block.lat,
+                  lng: block.coordinates?.lng ?? block.lng
+                },
                 estimatedWaitTime: block.estimatedWaitTime,
                 estimatedEarningsPerRide: block.estimatedEarningsPerRide,
                 demandLevel: block.demandLevel,
