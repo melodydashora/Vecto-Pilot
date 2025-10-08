@@ -54,6 +54,10 @@ externalPort = 80
 localPort = 24678
 externalPort = 3000
 
+[[ports]]
+localPort = 42709
+externalPort = 3002
+
 [deployment]
 run = ["sh", "-c", "npm run build && npm run start"]
 

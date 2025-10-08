@@ -149,6 +149,21 @@ Navigate to the Secrets tab and add:
 - **`AGENT_TOKEN`** - Generate with: `openssl rand -hex 32`
 - **`DATABASE_URL`** - PostgreSQL connection string (auto-configured in Replit)
 
+### 1.1. Verify/Fix Claude Model Configuration
+
+If you need to update the Claude model in your `.env` file to use the verified Sonnet 4.5 model:
+
+**Using Shell (Recommended):**
+```bash
+# Update CLAUDE_MODEL to verified Sonnet 4.5
+sed -i 's/CLAUDE_MODEL=.*/CLAUDE_MODEL=claude-sonnet-4-5-20250929/' .env
+```
+
+**Manual Method:**
+- Open `.env` file in editor
+- Change `CLAUDE_MODEL` to `claude-sonnet-4-5-20250929`
+- Save and restart the workflow
+
 ### 2. Click Run
 
 The system will automatically:
