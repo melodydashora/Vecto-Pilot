@@ -108,7 +108,7 @@ CLAUDE_MODEL=claude-opus-4-1-20250805
 
 ### Fallback #2 (38.8s response time)
 **Anthropic Claude Sonnet 4.5**
-- **Model ID**: `claude-sonnet-4-5-20250929`
+- **Model ID**: `claude-sonnet-4-5-20250929` ⭐ **This is the official Sonnet model used in production**
 - **Endpoint**: `https://api.anthropic.com/v1/messages`
 - **API Key**: `process.env.ANTHROPIC_API_KEY`
 - **Required Headers**:

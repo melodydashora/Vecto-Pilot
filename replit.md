@@ -22,12 +22,12 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
 ### Feature Specifications
 - **Location Services**: Integrates Browser Geolocation API, Google Maps JavaScript API, and H3 geospatial indexing for context snapshots (GPS, geocoded location, timezone, weather, air quality, airport context).
 - **AI & Machine Learning (Triad Pipeline)**: A three-stage LLM pipeline (Claude Sonnet 4.5 → GPT-5 → Gemini 2.5 Pro) provides strategic analysis, tactical planning, and JSON validation.
-    - **Claude Sonnet 4.5 (Strategist)**: Analyzes context, generates strategic overview, pro tips, and earnings estimates.
+    - **Claude Sonnet 4.5 (Strategist)**: Model `claude-sonnet-4-5-20250929` - Analyzes context, generates strategic overview, pro tips, and earnings estimates.
     - **GPT-5 (Planner)**: Performs deep reasoning for venue selection and timing.
     - **Gemini 2.5 Pro (Validator)**: Validates JSON structure and ensures a minimum number of recommendations.
     - **Triad is single-path ONLY** - No fallbacks in the triad pipeline to ensure consistent quality.
 - **Agent Override (Atlas) with Fallback Resilience**: Workspace intelligence layer with fallback chain for operational continuity.
-    - **Primary: Atlas (Claude Sonnet 4.5)** - Main workspace assistant for file ops, SQL, and diagnostics.
+    - **Primary: Atlas (Claude Sonnet 4.5)**: Model `claude-sonnet-4-5-20250929` - Main workspace assistant for file ops, SQL, and diagnostics.
     - **Fallback Chain**: Claude → GPT-5 → Gemini if Anthropic servers fail.
     - **Separate Keys**: Uses AGENT_OVERRIDE_API_KEYC/5/G (different from triad keys).
     - **Endpoint**: `/agent/llm` on Agent Server (Port 43717).
