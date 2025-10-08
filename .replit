@@ -55,12 +55,12 @@ localPort = 24678
 externalPort = 3000
 
 [[ports]]
-localPort = 40703
-externalPort = 3002
+localPort = 37045
+externalPort = 5000
 
 [[ports]]
 localPort = 43717
-externalPort = 5000
+externalPort = 3002
 exposeLocalhost = true
 
 [deployment]
