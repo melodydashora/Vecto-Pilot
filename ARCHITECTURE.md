@@ -608,6 +608,24 @@ Every block recommendation flows through 13 strategic components in sequence. Ea
 - **ML Impact**: Every ranking logged with ranking_id for counterfactual "what if" analysis
 - **Accuracy Foundation**: Quantitative scoring prevents LLM ranking bias
 
+#### **8.5 ML TRAINING DATA PERSISTENCE (Atomic Capture)** 💾
+- **What**: Transactional persistence of rankings and candidates for ML training
+- **Why**: Partial writes corrupt training data; atomic commits ensure data integrity
+- **When**: Immediately after final enrichment, before returning blocks to UI
+- **How**: Single transaction writes one `rankings` row + N `ranking_candidates` rows (target 6). If transaction fails, endpoint returns 502 and blocks UI response. No partial data lands in DB.
+- **Data Storage**: `rankings` + `ranking_candidates` tables with strict constraints
+  - **rankings**: `ranking_id` (UUID PK), `snapshot_id` (FK), `user_id`, `city`, `model_name`, `correlation_id`, `created_at`
+  - **ranking_candidates**: `id` (serial PK), `ranking_id` (FK CASCADE), `name`, `place_id`, `category`, `rank` (1-N), `distance_miles`, `drive_time_minutes`, `value_per_min`, `value_grade`, `surge`, `est_earnings`
+  - **Constraints**: Unique index on `(ranking_id, rank)` prevents duplicate ranks; check constraint ensures `distance_miles ≥ 0` and `drive_time_minutes ≥ 0`; FK cascade deletes orphaned candidates
+- **Required Fields Per Candidate**: `name`, `place_id`, `rank`, `distance_miles`, `drive_time_minutes` (NULLs forbidden for these core fields)
+- **System Impact**: Fail-hard on persistence errors keeps DB and UI consistent; no stale/partial data
+- **ML Impact**: 
+  - **Training Data Quality**: Atomic writes guarantee complete training examples; no partial rankings
+  - **Counterfactual Integrity**: `correlation_id` links rankings to strategies/actions for "what we recommended vs what they chose" analysis
+  - **Feature Completeness**: Every candidate has distance/time/earnings for model training
+  - **Audit Trail**: `created_at` + `snapshot_id` + `correlation_id` enable full pipeline reconstruction
+- **Accuracy Foundation**: "Persist or fail" rule prevents corrupted training data from landing in DB
+
 #### **9. STAGING INTELLIGENCE (Waiting Strategy)** 🅿️
 - **What**: Specific waiting location recommendations with parking/walk-time details
 - **Why**: Helps drivers avoid tickets and optimize positioning for pickups
