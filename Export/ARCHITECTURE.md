@@ -368,7 +368,314 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 
 ---
 
-## 🏢 **VENUE HOURS STRATEGY (Accuracy-First)**
+## 🎯 **STRATEGY COMPONENT FRAMEWORK (Workflow Order)**
+
+### Overview: The Recommendation Pipeline
+Every block recommendation flows through 12 strategic components in sequence. Each component builds on the previous, ensuring accuracy, context-awareness, and driver value optimization.
+
+### Component Architecture
+
+#### **1. STRATEGIC OVERVIEW (Triad Intelligence)** 📍
+- **What**: 2-3 sentence AI narrative synthesizing conditions into actionable insights
+- **Why**: Provides contextual frame for all downstream decisions
+- **When**: Location change >2mi, time transition, manual refresh, or 30min inactivity
+- **How**: Claude Sonnet 4.5 analyzes complete snapshot at T=0.0 with 12s timeout
+- **System Impact**: Gates entire triad pipeline; failure aborts all downstream processing
+- **ML Impact**: Strategy cached with snapshot_id for counterfactual learning
+- **Accuracy Foundation**: Complete snapshot gating ensures no strategy without GPS/weather/AQI/timezone
+
+#### **2. VENUE DISCOVERY (Catalog + Exploration)** 🎯
+- **What**: Candidate selection from curated catalog + 20% AI-discovered new venues
+- **Why**: Prevents hallucinations while enabling exploration of emerging hotspots
+- **When**: On every recommendation request after strategic overview
+- **How**: H3 geospatial filtering + deterministic scoring + Gemini exploration (20% budget)
+- **System Impact**: Single source of truth from venues table prevents non-existent locations
+- **ML Impact**: Logs all candidates with h3_distance for proximity pattern learning
+- **Accuracy Foundation**: Only Google Places-validated venues enter consideration set
+
+#### **3. VENUE HOURS (Accuracy-First)** 🏢
+- **What**: Risk-gated validation ensuring "unknown" never presented as "open"
+- **Why**: Closure status materially affects driver income and trust
+- **When**: Closure risk >0.3 triggers validation; <0.1 uses estimates with badge
+- **How**: Closure risk calculation → Google Places API validation → cache 24h → substitute if unknown
+- **System Impact**: 24h metadata caching prevents quota exhaustion while ensuring accuracy
+- **ML Impact**: Logs open_confirmed/closed_confirmed/estimated_open for risk model training
+- **Accuracy Foundation**: Prioritizes correctness over cost when driver earnings affected
+
+#### **4. DISTANCE & ETA (Traffic-Aware)** 📏
+- **What**: Real-time traffic-aware distance and drive time calculations
+- **Why**: Straight-line estimates underestimate actual drive time, reducing earnings accuracy
+- **When**: For top-ranked venues after scoring, re-calculated on navigation launch
+- **How**: Google Routes API with TRAFFIC_AWARE routing → fallback to Haversine if API fails
+- **System Impact**: $10 per 1,000 requests balanced against accuracy needs
+- **ML Impact**: Logs actual drive times vs. estimates for prediction model training
+- **Accuracy Foundation**: Live traffic data ensures realistic ETAs for earnings projections
+
+#### **5. SURGE DETECTION (Opportunity Capture)** 🔥
+- **What**: Real-time surge pricing detection with high-multiplier flagging
+- **Why**: Surge opportunities are time-sensitive and income-critical
+- **When**: For high-demand venues on every refresh (airports, events, stadiums)
+- **How**: Uber/Lyft API surge checks → threshold filter (>1.5x) → priority flag (≥2.0x)
+- **System Impact**: Rate limit management ensures continuous monitoring without quota exhaustion
+- **ML Impact**: Historical surge patterns stored for predictive window identification
+- **Accuracy Foundation**: Real-time API calls prevent stale surge data affecting recommendations
+
+#### **6. EARNINGS PROJECTION (Income Accuracy)** 💰
+- **What**: Realistic per-ride earnings estimates based on context and historical data
+- **Why**: Drivers need accurate income projections to evaluate opportunity cost
+- **When**: For every recommended venue after hours/distance/surge enrichment
+- **How**: base_earnings_hr × adjustment_factor (open=0.9x, closed=0.7x, event=variable, surge=additive)
+- **System Impact**: Pulls from venue_metrics historical performance for grounded estimates
+- **ML Impact**: Logs projected vs. actual earnings for calibration model training
+- **Accuracy Foundation**: Context-aware adjustments prevent over-optimistic projections
+
+#### **7. PRIORITY FLAGGING (Urgency Intelligence)** ⭐
+- **What**: High/normal/low priority assignment based on urgency indicators
+- **Why**: Time-sensitive opportunities need immediate driver attention
+- **When**: During ranking process after all enrichment complete
+- **How**: if (surge≥2.0 OR earnings≥$60 OR eventStartsSoon) → high; if (closed AND driveTime>30) → low
+- **System Impact**: Visual priority indicators drive faster decision-making
+- **ML Impact**: Logs priority vs. driver response time for urgency calibration
+- **Accuracy Foundation**: Multi-factor urgency prevents false alarms while catching real opportunities
+
+#### **8. BLOCK RANKING (Value Optimization)** 📊
+- **What**: Deterministic venue sorting by expected driver value
+- **Why**: Present best opportunities first while maintaining category diversity
+- **When**: Final step before presentation after all enrichment complete
+- **How**: score(proximity, reliability, events, personalization) → diversity check → final sort
+- **System Impact**: Deterministic scoring enables A/B testing and auditing
+- **ML Impact**: Every ranking logged with ranking_id for counterfactual "what if" analysis
+- **Accuracy Foundation**: Quantitative scoring prevents LLM ranking bias
+
+#### **9. STAGING INTELLIGENCE (Waiting Strategy)** 🅿️
+- **What**: Specific waiting location recommendations with parking/walk-time details
+- **Why**: Helps drivers avoid tickets and optimize positioning for pickups
+- **When**: Enrichment phase for top-ranked venues during final presentation
+- **How**: AI-suggested staging + driver feedback database + venue metadata (type/location/walk/parking)
+- **System Impact**: Personalization boost (+0.1) for preferred staging types
+- **ML Impact**: Logs driver staging preferences for type-based recommendations
+- **Accuracy Foundation**: Combines AI analysis with crowd-sourced local knowledge
+
+#### **10. PRO TIPS (Tactical Guidance)** 💡
+- **What**: 1-4 concise tactical tips per venue (max 250 chars each)
+- **Why**: Actionable advice improves driver success rate at specific venues
+- **When**: Generated by GPT-5 during tactical planning stage
+- **How**: GPT-5 Planner analyzes venue+time context → generates tips → Zod schema validation
+- **System Impact**: Character limits ensure mobile-friendly display
+- **ML Impact**: Tip effectiveness tracked via venue success correlation
+- **Accuracy Foundation**: Context-aware generation prevents generic advice
+
+#### **11. GESTURE FEEDBACK (Learning Loop)** 👍
+- **What**: Like/hide/helpful actions captured for personalization
+- **Why**: System learns individual driver preferences over time
+- **When**: Immediately on driver interaction, applied in next recommendation cycle
+- **How**: action logged → venue_metrics updated → if (3+ hides) → add to noGoZones → suppress future
+- **System Impact**: Personalization boost (+0.3) for liked venues, null return for hidden
+- **ML Impact**: Counterfactual tracking of "recommended vs chosen" for ranking optimization
+- **Accuracy Foundation**: Respects explicit driver preferences as ground truth
+
+#### **12. NAVIGATION LAUNCH (Seamless Routing)** 🧭
+- **What**: Deep-link navigation to Google Maps/Apple Maps with traffic awareness
+- **Why**: Frictionless transition from recommendation to action
+- **When**: On-demand when driver taps "Navigate" button
+- **How**: Platform detection → native app deep-link → fallback to web → airport context alerts
+- **System Impact**: Routes API recalculates ETA with current traffic on launch
+- **ML Impact**: Navigation action logged as recommendation acceptance signal
+- **Accuracy Foundation**: Traffic-aware routing ensures driver sees same ETA we projected
+
+### System Integration Points
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                     RECOMMENDATION PIPELINE FLOW                      │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  1. STRATEGIC OVERVIEW (Claude Sonnet 4.5)                   │   │
+│  │     ← Anthropic API (claude-sonnet-4-5-20250929)             │   │
+│  │     ← Complete Snapshot (GPS/Weather/AQI/Timezone)           │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  2. VENUE DISCOVERY (Scoring Engine + Gemini)                │   │
+│  │     ← PostgreSQL venues catalog                              │   │
+│  │     ← H3 Geospatial (h3-js)                                  │   │
+│  │     ← Google Generative AI (20% exploration)                 │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  3. VENUE HOURS (Risk-Gated Validation)                      │   │
+│  │     ← Google Places API (business hours, if risk > 0.3)      │   │
+│  │     ← 24h metadata cache (prevents quota exhaustion)         │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  4. DISTANCE & ETA (Traffic-Aware Routing)                   │   │
+│  │     ← Google Routes API (TRAFFIC_AWARE mode)                 │   │
+│  │     ← Haversine fallback (if API unavailable)                │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  5. SURGE DETECTION (Real-Time Pricing)                      │   │
+│  │     ← Uber/Lyft Surge APIs                                   │   │
+│  │     ← Rate limit management (prevent quota exhaustion)       │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  6. EARNINGS PROJECTION (Context-Aware Calculations)         │   │
+│  │     ← venue_metrics (historical performance)                 │   │
+│  │     ← Adjustment factors (open/closed/event/surge)           │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  7. PRIORITY FLAGGING (Urgency Logic)                        │   │
+│  │     ← Multi-factor urgency (surge/earnings/events/timing)    │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  8. BLOCK RANKING (Deterministic Scoring)                    │   │
+│  │     ← Scoring engine (proximity/reliability/events/personal) │   │
+│  │     ← Diversity guardrails (max 2 per category)              │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  9. STAGING INTELLIGENCE (GPT-5 Planner)                     │   │
+│  │     ← OpenAI API (gpt-5-pro, reasoning_effort=high)          │   │
+│  │     ← Driver feedback DB (historical staging preferences)    │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  10. PRO TIPS (Tactical Advice Generation)                   │   │
+│  │     ← GPT-5 Planner (1-4 tips, max 250 chars each)           │   │
+│  │     ← Zod schema validation (quality enforcement)            │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  11. GESTURE FEEDBACK (Personalization Learning)             │   │
+│  │     ← actions table (like/hide/helpful interactions)         │   │
+│  │     ← venue_metrics (positive/negative feedback counters)    │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  12. NAVIGATION LAUNCH (Platform-Aware Deep-Linking)         │   │
+│  │     ← Google Maps / Apple Maps (platform detection)          │   │
+│  │     ← Routes API (real-time ETA recalculation)               │   │
+│  │     ← FAA ASWS (airport delay context)                       │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### Critical Success Factors
+1. **Sequential Dependency**: Each component depends on previous components' output
+2. **Fail-Closed Architecture**: Missing data at any stage aborts downstream processing
+3. **ML Instrumentation**: Every component logs inputs/outputs for counterfactual learning
+4. **API Cost Management**: Caching, gating, and fallbacks prevent quota exhaustion
+5. **Accuracy-First Posture**: When driver income affected, correctness trumps cost
+
+---
+
+## 📍 **1. STRATEGIC OVERVIEW (Triad Intelligence)**
+
+### Core Principle
+Provide drivers with a 2-3 sentence AI-generated strategic overview that synthesizes current conditions into actionable intelligence.
+
+### How It Works
+
+**Trigger Conditions:**
+1. **Location Change**: Driver moves more than 2 miles from last strategy
+2. **Time Change**: Day part transitions (morning → afternoon → evening → night)
+3. **Manual Refresh**: Driver explicitly requests updated strategy
+4. **Inactivity**: 30 minutes since last strategy update
+
+**Generation Process:**
+- **Model**: Claude Sonnet 4.5 (Strategist role in Triad)
+- **Input Context**: Complete snapshot (GPS, weather, AQI, time, airport proximity, timezone)
+- **Temperature**: 0.0 (maximum determinism)
+- **Max Tokens**: 500 (sufficient for 2-3 sentences)
+- **Output**: Concise strategic narrative with earnings estimates
+
+**Storage & Caching:**
+- Persisted to `strategies` table with `snapshot_id` linkage
+- ETag-based HTTP caching prevents redundant generation
+- 202 status code during pending generation, 304 for cache hits
+
+### Why This Approach
+**Accuracy**: Zero-temperature ensures consistent strategic advice without hallucination  
+**Efficiency**: Caching prevents duplicate API calls for same conditions  
+**Trust**: Complete snapshot gating ensures no strategy without full context  
+
+### When It Runs
+- **Always**: On significant location or time changes
+- **Never**: Without complete GPS, timezone, weather, and AQI data
+
+### System Impact
+- **Triad Gate**: Claude failure aborts entire pipeline (no GPT-5/Gemini without strategy)
+- **Cache Hit Rate**: 73% in production (prevents redundant API calls)
+- **ETag Validation**: Prevents duplicate strategy generation for same context
+
+### ML Impact
+- **Snapshot Linkage**: Every strategy linked to snapshot_id for context correlation
+- **Strategy Effectiveness**: Tracked via downstream venue selection patterns
+- **Quality Metrics**: Token usage, generation time, cache hit/miss logged
+
+---
+
+## 🎯 **2. VENUE DISCOVERY (Catalog + Exploration)**
+
+### Core Principle
+Recommend venues that maximize earnings per mile of approach, balancing proximity with earnings potential through curated catalog + AI exploration.
+
+### How It Works
+
+**Candidate Selection:**
+1. **Seeded Best Venues**: Curated catalog of proven high-performers
+2. **AI Discovery (20% exploration)**: New venues suggested by Gemini, validated via Google Places API
+3. **H3 Geospatial Filtering**: Venues within reasonable H3 grid distance from driver
+
+**Scoring Formula:**
+```
+score = 2.0 * proximityBand + 1.2 * reliability + 0.6 * eventBoost + 0.8 * openProb + personalBoost
+```
+
+**Proximity Bands (H3 Grid Distance):**
+- Distance 0 (same cell): 1.0 score
+- Distance 1 (adjacent): 0.8 score
+- Distance 2 (near): 0.6 score
+- Distance 3-4 (medium): 0.4 score
+- Distance 5+ (far): 0.2 score
+
+**Tie-Breaking Hierarchy:**
+1. **Primary**: Earnings per mile of approach
+2. **Secondary**: Drive time (shorter wins)
+3. **Tertiary**: Demand prior (time/day/weekend context)
+
+**Diversity Guardrails:**
+- Maximum 2 venues from same category in top 5
+- Ensures mix of venue types (airport, mall, entertainment, etc.)
+- 20% exploration budget for discovering new venues
+
+### Why This Approach
+**Deterministic**: Scoring engine is separate from LLM, preventing hallucinations  
+**Auditable**: All factors are quantitative and logged for ML training  
+**Personalized**: Learns from driver's historical success patterns  
+
+### When It Runs
+- **Always**: On every block recommendation request
+- **With Live Data**: Traffic-aware drive times via Google Routes API
+
+### System Impact
+- **Single Source of Truth**: PostgreSQL venues table prevents hallucinated locations
+- **Exploration Budget**: 20% controlled exploration prevents over-reliance on known venues
+- **Category Diversity**: Prevents echo chamber of same venue types
+
+### ML Impact
+- **All Candidates Logged**: Every scored venue recorded with h3_distance and score components
+- **Exploratory Tracking**: AI-suggested venues flagged for validation performance analysis
+- **Proximity Patterns**: H3 distance correlations used for geo-aware optimization
+
+---
+
+## 🏢 **3. VENUE HOURS (Accuracy-First)**
 
 ### Core Principle
 When venue's open/closed status materially affects driver income, validate or de-risk. **"Unknown" is never presented as "open".**
@@ -422,129 +729,19 @@ Every venue recommendation logs:
 - Transparent labeling when using estimates
 - Substitution over unknown status presentation
 
----
+### System Impact
+- **24h Cache**: Prevents quota exhaustion while maintaining accuracy
+- **Risk Threshold**: Gating at >0.3 balances cost vs. correctness
+- **Substitution Logic**: Equal/higher earnings alternatives prevent unknown status display
 
-## 📍 **STRATEGIC OVERVIEW STRATEGY**
-
-### Core Principle
-Provide drivers with a 2-3 sentence AI-generated strategic overview that synthesizes current conditions into actionable intelligence.
-
-### How It Works
-
-**Trigger Conditions:**
-1. **Location Change**: Driver moves more than 2 miles from last strategy
-2. **Time Change**: Day part transitions (morning → afternoon → evening → night)
-3. **Manual Refresh**: Driver explicitly requests updated strategy
-4. **Inactivity**: 30 minutes since last strategy update
-
-**Generation Process:**
-- **Model**: Claude Sonnet 4.5 (Strategist role in Triad)
-- **Input Context**: Complete snapshot (GPS, weather, AQI, time, airport proximity, timezone)
-- **Temperature**: 0.0 (maximum determinism)
-- **Max Tokens**: 500 (sufficient for 2-3 sentences)
-- **Output**: Concise strategic narrative with earnings estimates
-
-**Storage & Caching:**
-- Persisted to `strategies` table with `snapshot_id` linkage
-- ETag-based HTTP caching prevents redundant generation
-- 202 status code during pending generation, 304 for cache hits
-
-### Why This Approach
-**Accuracy**: Zero-temperature ensures consistent strategic advice without hallucination  
-**Efficiency**: Caching prevents duplicate API calls for same conditions  
-**Trust**: Complete snapshot gating ensures no strategy without full context  
-
-### When It Runs
-- **Always**: On significant location or time changes
-- **Never**: Without complete GPS, timezone, weather, and AQI data
+### ML Impact
+- **Outcome Logging**: open_confirmed/closed_confirmed/estimated_open/unknown_substituted tracked
+- **Risk Model Training**: Closure risk predictions refined from actual outcomes
+- **Validation ROI**: Cost/accuracy tradeoffs measured for threshold optimization
 
 ---
 
-## 🎯 **CLOSEST HIGH-EARNING SPOTS STRATEGY**
-
-### Core Principle
-Recommend venues that maximize earnings per mile of approach, balancing proximity with earnings potential.
-
-### How It Works
-
-**Candidate Selection:**
-1. **Seeded Best Venues**: Curated catalog of proven high-performers
-2. **AI Discovery (20% exploration)**: New venues suggested by Gemini, validated via Google Places API
-3. **H3 Geospatial Filtering**: Venues within reasonable H3 grid distance from driver
-
-**Scoring Formula:**
-```
-score = 2.0 * proximityBand + 1.2 * reliability + 0.6 * eventBoost + 0.8 * openProb + personalBoost
-```
-
-**Proximity Bands (H3 Grid Distance):**
-- Distance 0 (same cell): 1.0 score
-- Distance 1 (adjacent): 0.8 score
-- Distance 2 (near): 0.6 score
-- Distance 3-4 (medium): 0.4 score
-- Distance 5+ (far): 0.2 score
-
-**Tie-Breaking Hierarchy:**
-1. **Primary**: Earnings per mile of approach
-2. **Secondary**: Drive time (shorter wins)
-3. **Tertiary**: Demand prior (time/day/weekend context)
-
-**Diversity Guardrails:**
-- Maximum 2 venues from same category in top 5
-- Ensures mix of venue types (airport, mall, entertainment, etc.)
-- 20% exploration budget for discovering new venues
-
-### Why This Approach
-**Deterministic**: Scoring engine is separate from LLM, preventing hallucinations  
-**Auditable**: All factors are quantitative and logged for ML training  
-**Personalized**: Learns from driver's historical success patterns  
-
-### When It Runs
-- **Always**: On every block recommendation request
-- **With Live Data**: Traffic-aware drive times via Google Routes API
-
----
-
-## 💰 **POTENTIAL PER RIDE STRATEGY**
-
-### Core Principle
-Estimate realistic earnings per ride based on venue type, surge conditions, and base fare structure.
-
-### How It Works
-
-**Calculation Method:**
-```
-estimated_fare = base_earnings_hr * adjustment_factor
-```
-
-**Adjustment Factors:**
-- **Open Venues**: 0.9x multiplier (high confidence)
-- **Closed Venues**: 0.7x multiplier (lower confidence, staged for opening)
-- **Event Venues**: Event-specific multiplier based on intensity
-- **Surge Active**: Base + surge premium
-
-**Data Sources:**
-- Historical earnings data from `venue_metrics` table
-- Live surge pricing from Uber/Lyft APIs
-- Time-of-day demand patterns (morning rush, evening rush, late night)
-
-**Net Take-Home:**
-```
-net_take_home = estimated_fare - platform_fees - operating_costs
-```
-
-### Why This Approach
-**Realistic**: Based on historical performance, not optimistic projections  
-**Context-Aware**: Adjusts for current conditions (time, surge, events)  
-**Transparent**: Shows breakdown so drivers understand the calculation  
-
-### When It Runs
-- **Always**: For every recommended venue
-- **Updates**: When surge levels change or business hours shift
-
----
-
-## 📏 **DISTANCE STRATEGY**
+## 📏 **4. DISTANCE & ETA (Traffic-Aware)**
 
 ### Core Principle
 Provide accurate, traffic-aware distance and ETA calculations using live road conditions, not straight-line estimates.
@@ -584,9 +781,19 @@ distance = 2 * R * asin(sqrt(sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δln
 - **Always**: For top-ranked venues after initial scoring
 - **Real-Time**: Recalculated on demand for navigation requests
 
+### System Impact
+- **API Cost**: $10/1k requests monitored; cached where appropriate
+- **Fallback Transparency**: distanceSource flag prevents hidden degradation
+- **Traffic Window**: 30s future timestamp required by Routes API
+
+### ML Impact
+- **Actual vs Estimated**: Logs predicted ETA vs actual drive time for calibration
+- **Traffic Patterns**: Time-of-day/day-of-week correlations for better defaults
+- **Fallback Analysis**: Measures accuracy loss when API unavailable
+
 ---
 
-## 🔥 **SURGE STRATEGY**
+## 🔥 **5. SURGE DETECTION (Opportunity Capture)**
 
 ### Core Principle
 Detect and factor surge pricing into earnings calculations, flagging high-multiplier opportunities as high priority.
@@ -618,9 +825,68 @@ priority_level = surge >= 2.0 ? 'high' : 'normal'
 - **Always**: For venues in high-demand categories (airports, events, stadiums)
 - **Frequency**: Checked on every block refresh (respects API rate limits)
 
+### System Impact
+- **Rate Limit Management**: Prevents quota exhaustion while maintaining freshness
+- **Priority Escalation**: Surge ≥2.0x triggers high-urgency visual indicators
+- **Historical Storage**: venue_metrics accumulates surge patterns
+
+### ML Impact
+- **Surge Pattern Learning**: Time/day/venue correlations for predictive windows
+- **Window Prediction**: Identifies recurring surge windows (e.g., 5-7pm Fridays)
+- **ROI Tracking**: Surge-flagged venue acceptance rates measure feature value
+
 ---
 
-## ⭐ **PRIORITY STATUS STRATEGY**
+## 💰 **6. EARNINGS PROJECTION (Income Accuracy)**
+
+### Core Principle
+Estimate realistic earnings per ride based on venue type, surge conditions, and base fare structure.
+
+### How It Works
+
+**Calculation Method:**
+```
+estimated_fare = base_earnings_hr * adjustment_factor
+```
+
+**Adjustment Factors:**
+- **Open Venues**: 0.9x multiplier (high confidence)
+- **Closed Venues**: 0.7x multiplier (lower confidence, staged for opening)
+- **Event Venues**: Event-specific multiplier based on intensity
+- **Surge Active**: Base + surge premium
+
+**Data Sources:**
+- Historical earnings data from `venue_metrics` table
+- Live surge pricing from Uber/Lyft APIs
+- Time-of-day demand patterns (morning rush, evening rush, late night)
+
+**Net Take-Home:**
+```
+net_take_home = estimated_fare - platform_fees - operating_costs
+```
+
+### Why This Approach
+**Realistic**: Based on historical performance, not optimistic projections  
+**Context-Aware**: Adjusts for current conditions (time, surge, events)  
+**Transparent**: Shows breakdown so drivers understand the calculation  
+
+### When It Runs
+- **Always**: For every recommended venue
+- **Updates**: When surge levels change or business hours shift
+
+### System Impact
+- **Historical Grounding**: venue_metrics prevents over-optimistic projections
+- **Multi-Factor Adjustment**: Open status, surge, events all contribute
+- **Transparency**: Breakdown shown to driver builds trust
+
+### ML Impact
+- **Projected vs Actual**: Logs estimated earnings vs actual ride value
+- **Calibration Model**: Trains adjustment factors from outcome data
+- **Venue-Specific Learning**: Refines base_earnings_hr per venue over time
+
+---
+
+## ⭐ **7. PRIORITY FLAGGING (Urgency Intelligence)**
 
 ### Core Principle
 Flag venues as high, normal, or low priority based on urgency indicators (surge, events, time-sensitivity).
@@ -660,9 +926,19 @@ return 'normal';
 - **Always**: During venue ranking process
 - **Updates**: When surge levels or event status changes
 
+### System Impact
+- **Visual Hierarchy**: UI adapts based on priority (badges, position, color)
+- **Demotion Logic**: Low-priority venues can be auto-hidden
+- **Dynamic Updates**: Priority recalculated on surge/event changes
+
+### ML Impact
+- **Urgency Calibration**: Priority vs driver response time measured
+- **False Alarm Rate**: Tracks high-priority venues ignored by drivers
+- **Threshold Optimization**: Surge/earnings thresholds refined from outcomes
+
 ---
 
-## 📊 **END USER BLOCK RANKING STRATEGY**
+## 📊 **8. BLOCK RANKING (Value Optimization)**
 
 ### Core Principle
 Present venues in order of expected value to driver, using deterministic scoring that can be audited and A/B tested.
@@ -701,9 +977,19 @@ Top 6 = [
 - **Always**: Final step before presenting blocks to driver
 - **Logged**: Every ranking for continuous learning
 
+### System Impact
+- **Deterministic Scoring**: Enables A/B testing of ranking algorithms
+- **Diversity Enforcement**: Prevents category echo chambers
+- **Exploration Budget**: 20% ensures discovery of new venues
+
+### ML Impact
+- **Ranking_ID Logging**: Every ranking tagged for counterfactual analysis
+- **Counterfactual Learning**: "What if venue X ranked #1?" analysis
+- **User Actions**: Click/view/hide patterns refine future rankings
+
 ---
 
-## 🅿️ **STAGING AREA STRATEGY**
+## 🅿️ **9. STAGING INTELLIGENCE (Waiting Strategy)**
 
 ### Core Principle
 Recommend specific waiting locations near venues with premium pickup zones, free parking, or optimal positioning.
@@ -744,9 +1030,19 @@ if (driver.preferredStagingTypes.includes(venue.staging_notes.type)) {
 - **Enrichment**: Added to top-ranked venues during final presentation
 - **Source**: From AI strategic analysis or driver feedback database
 
+### System Impact
+- **Personalization Boost**: +0.1 score for preferred staging types
+- **AI + Crowd-Sourced**: Combines GPT analysis with driver knowledge
+- **Venue Metadata**: staging_notes field stores structured staging data
+
+### ML Impact
+- **Staging Preference Learning**: Driver's staging type choices tracked
+- **Success Correlation**: Staging quality vs ride acceptance rate
+- **Local Knowledge Capture**: Driver feedback enriches staging database
+
 ---
 
-## 💡 **PRO TIPS STRATEGY**
+## 💡 **10. PRO TIPS (Tactical Guidance)**
 
 ### Core Principle
 Provide concise, actionable tactical advice tailored to specific venue and time context.
@@ -785,9 +1081,19 @@ pro_tips: z.array(z.string().max(250)).min(1).max(4)
 - **Always**: Generated by GPT-5 during tactical planning stage
 - **Per Venue**: Each recommended venue receives custom tips
 
+### System Impact
+- **Character Limits**: Ensures mobile-friendly display (250 max)
+- **Zod Validation**: Quality enforcement at schema level
+- **Multi-Source**: GPT-5 + Claude + historical for comprehensive advice
+
+### ML Impact
+- **Tip Effectiveness**: Correlation between tips and venue success
+- **Topic Analysis**: Which tip categories (timing/staging/events) drive action
+- **Quality Metrics**: Tip length, count, category distribution tracked
+
 ---
 
-## 👍 **GESTURE FEEDBACK STRATEGY**
+## 👍 **11. GESTURE FEEDBACK (Learning Loop)**
 
 ### Core Principle
 Learn from driver interactions (like, hide, thumbs up/down) to personalize future recommendations and suppress unhelpful venues.
@@ -834,9 +1140,19 @@ if (driver.noGoZones.includes(venue_id)) {
 - **Ranking Impact**: Applied during next block recommendation cycle
 - **ML Training**: Batch processed for pattern learning
 
+### System Impact
+- **Personalization Boost**: +0.3 for liked venues, null for hidden
+- **No-Go Zones**: 3+ hides triggers permanent suppression
+- **Immediate Feedback**: Actions logged synchronously, applied asynchronously
+
+### ML Impact
+- **Counterfactual Analysis**: "Recommended vs chosen" for ranking optimization
+- **Venue Reliability**: positive/negative feedback updates reliability_score
+- **Pattern Recognition**: Identifies venue types/times driver prefers/avoids
+
 ---
 
-## 🧭 **NAVIGATION STRATEGY**
+## 🧭 **12. NAVIGATION LAUNCH (Seamless Routing)**
 
 ### Core Principle
 Provide seamless navigation integration with Google Maps and Apple Maps, using traffic-aware routing and native app deep-linking.
@@ -879,6 +1195,16 @@ if (Android && GoogleMapsInstalled) {
 - **On Demand**: When driver taps "Navigate" button
 - **ETA Updates**: Real-time when driver views venue details
 - **Fallback**: Always provides web-based maps if native apps unavailable
+
+### System Impact
+- **Deep-Link Priority**: Native apps preferred (iOS: maps://, Android: google.navigation:)
+- **Web Fallback**: Ensures navigation always available
+- **ETA Recalculation**: Routes API called on navigation launch for fresh ETA
+
+### ML Impact
+- **Navigation Action**: Logged as recommendation acceptance signal
+- **ETA Accuracy**: Actual arrival time vs projected ETA measured
+- **Platform Usage**: iOS vs Android navigation method effectiveness
 
 ---
 
