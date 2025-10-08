@@ -986,6 +986,16 @@ distance = 2 * R * asin(sqrt(sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δln
 - **Traffic Patterns**: Time-of-day/day-of-week correlations for better defaults
 - **Fallback Analysis**: Measures accuracy loss when API unavailable
 
+### UI Display Policy
+**Center metric shows Distance in miles from server.** Subtext shows "est drive time X min". Keep Surge on the right. If `distanceSource=haversine_fallback`, show an "est." badge next to the miles to indicate fallback estimation.
+
+**Display Format:**
+- **Left**: Earnings potential ($/ride)
+- **Center**: Distance (X.X mi) with "est drive time X min" below
+- **Right**: Surge multiplier (X.Xx)
+
+**Fallback Indicator**: When using Haversine estimation, append small "EST." badge to distance value for transparency.
+
 ---
 
 ## 🔥 **5. SURGE DETECTION (Opportunity Capture)**

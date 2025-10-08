@@ -42,6 +42,12 @@ interface SmartBlock {
   };
   estimatedWaitTime?: number;
   estimatedEarningsPerRide?: number;
+  estimated_earnings?: number;
+  potential?: number;
+  estimated_distance_miles?: number;
+  distanceSource?: string;
+  driveTimeMinutes?: number;
+  surge?: number;
   demandLevel?: string;
   category?: string;
   businessHours?: string;
@@ -812,16 +818,25 @@ const CoPilot: React.FC = () => {
                       <div className="grid grid-cols-3 gap-4 mb-3">
                         <div className="text-center">
                           <div className="text-2xl font-bold text-green-600">
-                            ${block.estimatedEarningsPerRide || 0}/ride
+                            ${Number(block.estimatedEarningsPerRide ?? block.estimated_earnings ?? block.potential ?? 0).toFixed(2)}/ride
                           </div>
                           <div className="text-xs text-gray-500">Potential</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-gray-700">{block.estimatedWaitTime || 0} min</div>
-                          <div className="text-xs text-gray-500">Drive Time</div>
+                          <div className="text-2xl font-bold text-gray-700">
+                            {Number(block.estimated_distance_miles ?? 0).toFixed(1)} mi
+                            {block.distanceSource === "haversine_fallback" && (
+                              <span className="ml-2 text-xs uppercase tracking-wide text-gray-400">est.</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            est drive time {Math.round(Number(block.driveTimeMinutes ?? block.estimatedWaitTime ?? 0))} min
+                          </div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-purple-600">{block.demandLevel === 'high' ? '1.5x' : block.demandLevel === 'medium' ? '1.3x' : '1.0x'}</div>
+                          <div className="text-2xl font-bold text-purple-600">
+                            {block.surge ?? (block.demandLevel === 'high' ? '1.5' : block.demandLevel === 'medium' ? '1.3' : '1.0')}x
+                          </div>
                           <div className="text-xs text-gray-500">Surge</div>
                         </div>
                       </div>
