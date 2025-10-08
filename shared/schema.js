@@ -34,6 +34,7 @@ export const snapshots = pgTable("snapshots", {
 export const strategies = pgTable("strategies", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  correlation_id: uuid("correlation_id"),
   strategy: text("strategy"),
   status: text("status").notNull().default("pending"), // pending|ok|failed
   error_code: integer("error_code"),
@@ -50,6 +51,7 @@ export const rankings = pgTable("rankings", {
   ranking_id: uuid("ranking_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id),
+  correlation_id: uuid("correlation_id"),
   user_id: uuid("user_id"),
   city: text("city"),
   ui: jsonb("ui"),
@@ -85,6 +87,10 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   wait_minutes_used: integer("wait_minutes_used"),
   snapshot_id: uuid("snapshot_id"),
   place_id: text("place_id"),
+  // Additional workflow trace fields
+  estimated_distance_miles: doublePrecision("estimated_distance_miles"),
+  drive_time_minutes: integer("drive_time_minutes"),
+  distance_source: text("distance_source"),
 });
 
 export const actions = pgTable("actions", {

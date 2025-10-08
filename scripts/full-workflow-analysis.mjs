@@ -270,8 +270,8 @@ console.log('   📥 Output: strategy text, pro tips, earnings estimate');
 console.log();
 
 const strategyResult = await client.query(
-  'SELECT * FROM strategies WHERE correlation_id = $1',
-  [correlationId]
+  'SELECT * FROM strategies WHERE snapshot_id = $1 ORDER BY created_at DESC LIMIT 1',
+  [snapshot_id]
 );
 
 if (strategyResult.rows.length > 0) {
@@ -279,9 +279,12 @@ if (strategyResult.rows.length > 0) {
   console.log('🔷 STEP 9B: DB WRITE → strategies table');
   console.log('   💾 Table: strategies');
   console.log('   ✅ Record:', {
-    correlation_id: strategy.correlation_id,
-    strategy_length: strategy.strategy_for_now?.length || 0,
-    pro_tips_count: strategy.pro_tips?.length || 0
+    snapshot_id: strategy.snapshot_id,
+    status: strategy.status,
+    strategy_length: strategy.strategy?.length || 0,
+    latency_ms: strategy.latency_ms,
+    tokens: strategy.tokens,
+    attempt: strategy.attempt
   });
   console.log();
 } else {
