@@ -12,6 +12,7 @@ import { predictDriveMinutes } from '../lib/driveTime.js';
 import { runTriadPlan } from '../lib/triad-orchestrator.js';
 import { generateTacticalPlan } from '../lib/gpt5-tactical-planner.js';
 import { getRouteWithTraffic } from '../lib/routes-api.js';
+import { persistRankingTx } from '../lib/persist-ranking.js';
 
 const router = Router();
 
@@ -667,89 +668,49 @@ router.post('/', async (req, res) => {
     };
 
     // ============================================
-    // STEP 3: ML Training Data Capture
+    // STEP 3: ML Training Data Capture (Transactional)
     // ============================================
     const validated = triadPlan;
 
-    // Log to ML tables for training
+    // Only use userId if it's a valid UUID format
+    const isValidUuid = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+
+    // Only use snapshotId if it's a valid UUID (not "live-snapshot")
+    const isValidSnapshotId = snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId);
+
+    // Persist ranking and candidates atomically - FAIL HARD if this fails
+    let ranking_id;
     try {
-      const rankingId = correlationId; // Use correlation ID as ranking ID
+      const venues = enriched.map((venue, i) => ({
+        name: venue.name,
+        place_id: venue.placeId || null,
+        category: venue.category || null,
+        rank: i + 1,
+        distance_miles: venue.estimated_distance_miles ?? null,
+        drive_time_minutes: venue.driveTimeMinutes ?? null,
+        value_per_min: venue.value_per_min ?? null,
+        value_grade: venue.value_grade || null,
+        surge: venue.surge ?? null,
+        est_earnings: venue.estimated_earnings ?? null
+      }));
 
-      // Only use userId if it's a valid UUID format
-      const isValidUuid = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-
-      // Only use snapshotId if it's a valid UUID (not "live-snapshot")
-      const isValidSnapshotId = snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId);
-
-      // Create ranking record
-      const rankingRecord = {
-        ranking_id: rankingId,
-        created_at: new Date(),
+      ranking_id = await persistRankingTx({
         snapshot_id: isValidSnapshotId ? snapshotId : null,
         user_id: isValidUuid ? userId : null,
         city: fullSnapshot?.city || null,
         model_name: triadPlan.model_route,
-        ui: { 
-          model_route: triadPlan.model_route,
-          version: triadPlan.version,
-          timing: triadPlan.timing || {},
-          validation: triadPlan.validation
-        }
-      };
-      
-      await db.insert(rankings).values(rankingRecord);
-      
-      console.log(`[ML Training] 💾 DB Write to 'rankings' table:`, {
-        ranking_id: rankingRecord.ranking_id,
-        snapshot_id: rankingRecord.snapshot_id,
-        user_id: rankingRecord.user_id,
-        city: rankingRecord.city,
-        model_name: rankingRecord.model_name
+        venues,
+        correlation_id: correlationId
       });
 
-      // Log each venue as a ranking candidate for ML training
-      for (let i = 0; i < enriched.length; i++) {
-        const venue = enriched[i];
-        const candidateRecord = {
-          id: randomUUID(),
-          ranking_id: rankingId,
-          block_id: venue.venue_id,
-          name: venue.name,
-          lat: venue.lat,
-          lng: venue.lng,
-          drive_time_min: venue.data.driveTimeMinutes,
-          est_earnings_per_ride: venue.data.potential,
-          model_score: null, // LLM-based, not scored
-          rank: i + 1,
-          exploration_policy: 'llm_based',
-          epsilon: null,
-          was_forced: false,
-          propensity: 1.0 / enriched.length, // Equal propensity for LLM selections
-          features: {
-            category: venue.category,
-            surge: parseFloat(venue.data.surge),
-            reliability_score: venue.reliability_score,
-            daypart,
-            weather: fullSnapshot?.weather || null,
-            airport_context: fullSnapshot?.airport_context || null
-          },
-          h3_r8: fullSnapshot?.h3_r8 || null
-        };
-        
-        await db.insert(ranking_candidates).values(candidateRecord);
-        
-        console.log(`[ML Training] 💾 DB Write to 'ranking_candidates' table [${i+1}/${enriched.length}]:`, {
-          name: candidateRecord.name,
-          rank: candidateRecord.rank,
-          est_earnings: candidateRecord.est_earnings_per_ride,
-          drive_time: candidateRecord.drive_time_min,
-          category: candidateRecord.features.category
-        });
-      }
-
-      console.log(`📊 ML Training: Logged ranking ${rankingId} with ${enriched.length} LLM-recommended venues`);
-    } catch (mlError) {
-      console.error('⚠️ ML logging failed (non-blocking):', mlError);
+      console.log(`[ML Training] ✅ Atomically persisted ranking ${ranking_id} with ${venues.length} candidates`);
+    } catch (persistError) {
+      console.error('💥 FATAL: Ranking persistence failed - blocking response', persistError);
+      return res.status(502).json({ 
+        ok: false, 
+        error: 'persist_failed',
+        message: 'Failed to save ranking data. Please try again.'
+      });
     }
 
     // ============================================
