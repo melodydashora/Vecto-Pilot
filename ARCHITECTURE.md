@@ -1,10 +1,8 @@
 # Vecto Pilot™ - Architecture & Constraints Reference
-# Accuracy-First Operating Invariants
-**Last Updated:** 2025-10-08 21:00 CST
 
 ---
 
-## 📍 **WHY WE'RE BUILDING THIS**
+## 📍 **MISSION STATEMENT**
 
 **Drivers don't lose money because they can't drive.** They lose it in the gaps—time with no passenger, miles with no rider, and opaque pricing that shifts under their feet. In big markets, as much as 40% of ridehail miles are "deadhead" miles between trips, which drags down earnings even when the per-trip payout looks decent.
 
@@ -23,6 +21,11 @@
 **Safety benefits are equally critical.** Real-time strategic positioning guidance reduces driver fatigue from aimless driving and long hours, helps avoid unsafe areas through better planning, and gets drivers home faster with fewer total miles driven—addressing key safety risks identified in rideshare safety research.
 
 **Bottom line for drivers:** Higher utilization, fewer empty miles, and fewer bad bets on closed or low-yield venues. **Bottom line for the industry:** Decisions that are auditable, repeatable, and aligned with driver income instead of speculation.
+
+---
+
+# Accuracy-First Operating Invariants
+**Last Updated:** 2025-10-08 21:00 CST
 
 ---
 
