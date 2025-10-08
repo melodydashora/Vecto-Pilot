@@ -74,6 +74,17 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   propensity: doublePrecision("propensity"),
   features: jsonb("features"),
   h3_r8: text("h3_r8"),
+  // Value per minute fields
+  distance_miles: doublePrecision("distance_miles"),
+  drive_minutes: integer("drive_minutes"),
+  value_per_min: doublePrecision("value_per_min"),
+  value_grade: text("value_grade"),
+  not_worth: boolean("not_worth"),
+  rate_per_min_used: doublePrecision("rate_per_min_used"),
+  trip_minutes_used: integer("trip_minutes_used"),
+  wait_minutes_used: integer("wait_minutes_used"),
+  snapshot_id: uuid("snapshot_id"),
+  place_id: text("place_id"),
 });
 
 export const actions = pgTable("actions", {
