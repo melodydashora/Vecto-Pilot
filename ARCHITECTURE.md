@@ -454,17 +454,41 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 ## 🎯 **STRATEGY COMPONENT FRAMEWORK (Workflow Order)**
 
 ### Overview: The Recommendation Pipeline
-Every block recommendation flows through 12 strategic components in sequence. Each component builds on the previous, ensuring accuracy, context-awareness, and driver value optimization.
+Every block recommendation flows through 13 strategic components in sequence. Each component builds on the previous, ensuring accuracy, context-awareness, and driver value optimization. This framework demonstrates how AI-built systems achieve accuracy enforcement, root cause analysis, and ML instrumentation at scale.
 
 ### Component Architecture
+
+#### **0. HEADER STRATEGY (Context Capture)** 📋
+- **What**: Complete environmental snapshot capturing GPS, weather, time, and contextual data
+- **Why**: Foundation for all downstream decisions; incomplete context corrupts ML training
+- **When**: On every recommendation request before any AI processing
+- **How**: Browser Geolocation → Geocoding → Timezone detection → Weather/AQI APIs → H3 geospatial indexing → Airport proximity check
+- **Data Storage**: `snapshots` table
+  - **Key Fields**: `snapshot_id` (UUID PK), `lat/lng` (GPS), `city/state/timezone` (geocoded), `dow/hour/day_part_key` (temporal), `h3_r8` (geospatial), `weather/air/airport_context` (JSONB context), `trigger_reason` (why snapshot created)
+  - **Linkage**: Foreign key for `strategies`, `rankings`, `actions` tables
+- **System Impact**: Gates entire pipeline; missing fields abort processing with clear error
+- **ML Impact**: 
+  - **Training Data**: Every field becomes model input; incomplete snapshots excluded from training
+  - **Feature Engineering**: `dow` enables weekend pattern learning, `h3_r8` enables geo-clustering
+  - **Counterfactual Analysis**: `trigger_reason` tracks why snapshot created (location change, time shift, manual)
+  - **Quality Metrics**: `accuracy_m` (GPS precision), `coord_source` (browser/fallback) logged for reliability analysis
+- **Accuracy Foundation**: "Complete Snapshot Gating" invariant enforced; no partial context sent to LLMs
 
 #### **1. STRATEGIC OVERVIEW (Triad Intelligence)** 📍
 - **What**: 2-3 sentence AI narrative synthesizing conditions into actionable insights
 - **Why**: Provides contextual frame for all downstream decisions
 - **When**: Location change >2mi, time transition, manual refresh, or 30min inactivity
 - **How**: Claude Sonnet 4.5 analyzes complete snapshot at T=0.0 with 12s timeout
+- **Data Storage**: `strategies` table
+  - **Key Fields**: `id` (UUID PK), `snapshot_id` (FK to snapshots, CASCADE), `strategy` (AI text), `status` (pending/ok/failed), `error_code/error_message` (failure tracking), `attempt` (retry count), `latency_ms` (performance), `tokens` (cost tracking)
+  - **Caching**: ETag-based HTTP cache for duplicate requests
 - **System Impact**: Gates entire triad pipeline; failure aborts all downstream processing
-- **ML Impact**: Strategy cached with snapshot_id for counterfactual learning
+- **ML Impact**: 
+  - **Strategy Effectiveness**: `snapshot_id` linkage enables "strategy → venue selection → user action" correlation
+  - **Performance Tracking**: `latency_ms` identifies slow Claude calls for optimization
+  - **Cost Monitoring**: `tokens` field enables cost per recommendation analysis
+  - **Quality Metrics**: `attempt` count measures retry frequency; high retries indicate model instability
+  - **Error Classification**: `error_code` enables failure pattern analysis (timeout vs API error vs validation)
 - **Accuracy Foundation**: Complete snapshot gating ensures no strategy without GPS/weather/AQI/timezone
 
 #### **2. VENUE DISCOVERY (Catalog + Exploration)** 🎯
@@ -472,8 +496,17 @@ Every block recommendation flows through 12 strategic components in sequence. Ea
 - **Why**: Prevents hallucinations while enabling exploration of emerging hotspots
 - **When**: On every recommendation request after strategic overview
 - **How**: H3 geospatial filtering + deterministic scoring + Gemini exploration (20% budget)
+- **Data Storage**: `venue_catalog` + `llm_venue_suggestions` + `venue_metrics` tables
+  - **venue_catalog**: `venue_id` (UUID PK), `place_id` (Google Places unique ID), `name/address/category`, `lat/lng`, `dayparts[]` (text array), `staging_notes/business_hours` (JSONB), `discovery_source` (seed/llm/driver), `validated_at`
+  - **llm_venue_suggestions**: `suggestion_id` (UUID PK), `model_name`, `ranking_id` (FK), `venue_name`, `validation_status` (pending/valid/rejected), `place_id_found`, `rejection_reason`
+  - **venue_metrics**: `venue_id` (FK to catalog), `times_recommended/times_chosen` (counters), `positive_feedback/negative_feedback`, `reliability_score` (0.0-1.0)
 - **System Impact**: Single source of truth from venues table prevents non-existent locations
-- **ML Impact**: Logs all candidates with h3_distance for proximity pattern learning
+- **ML Impact**: 
+  - **Exploration Tracking**: `discovery_source` field enables "seed vs LLM vs driver" performance comparison
+  - **Validation Pipeline**: `llm_venue_suggestions` logs AI recommendations before catalog entry; `validation_status` tracks success rate
+  - **Reliability Learning**: `venue_metrics.reliability_score` refined from `positive_feedback/negative_feedback` ratio
+  - **Geospatial Patterns**: H3 distance calculations enable proximity-based filtering and geo-clustering analysis
+  - **A/B Testing**: `dayparts[]` enables time-of-day recommendation optimization
 - **Accuracy Foundation**: Only Google Places-validated venues enter consideration set
 
 #### **3. VENUE HOURS (Accuracy-First)** 🏢
@@ -481,8 +514,17 @@ Every block recommendation flows through 12 strategic components in sequence. Ea
 - **Why**: Closure status materially affects driver income and trust
 - **When**: Closure risk >0.3 triggers validation; <0.1 uses estimates with badge
 - **How**: Closure risk calculation → Google Places API validation → cache 24h → substitute if unknown
+- **Data Storage**: `places_cache` table + `venue_feedback` table
+  - **places_cache**: `place_id` (PK), `formatted_hours` (JSONB), `cached_at`, `access_count` (48h TTL constraint)
+  - **venue_feedback**: `id` (UUID PK), `venue_id` (FK), `driver_user_id`, `feedback_type` (hours_wrong/closed_when_open), `comment`, `reported_at`
+  - **Outcome Logging**: Each recommendation tagged with `open_confirmed/closed_confirmed/estimated_open/unknown_substituted` in rankings
 - **System Impact**: 24h metadata caching prevents quota exhaustion while ensuring accuracy
-- **ML Impact**: Logs open_confirmed/closed_confirmed/estimated_open for risk model training
+- **ML Impact**: 
+  - **Risk Model Training**: Closure risk predictions refined from actual outcomes (was venue actually open/closed?)
+  - **Validation ROI**: Cost/accuracy tradeoffs measured for threshold optimization (when is validation worth the API call?)
+  - **Driver Feedback Loop**: `venue_feedback` reports improve risk calculations for future predictions
+  - **Cache Hit Rate**: `access_count` tracks how often cached hours are reused (cost savings metric)
+  - **Substitution Analysis**: Tracks when high-risk venues replaced vs validated (substitution strategy effectiveness)
 - **Accuracy Foundation**: Prioritizes correctness over cost when driver earnings affected
 
 #### **4. DISTANCE & ETA (Traffic-Aware)** 📏
@@ -535,8 +577,15 @@ Every block recommendation flows through 12 strategic components in sequence. Ea
 - **Why**: Helps drivers avoid tickets and optimize positioning for pickups
 - **When**: Enrichment phase for top-ranked venues during final presentation
 - **How**: AI-suggested staging + driver feedback database + venue metadata (type/location/walk/parking)
+- **Data Storage**: `venue_catalog.staging_notes` (JSONB) + driver preference tracking
+  - **staging_notes Fields**: `type` (Premium/Standard/Free/Street), `name`, `address`, `walk_time`, `parking_tip`
+  - **Driver Preferences**: `preferredStagingTypes[]` stored in user profile
 - **System Impact**: Personalization boost (+0.1) for preferred staging types
-- **ML Impact**: Logs driver staging preferences for type-based recommendations
+- **ML Impact**:
+  - **Preference Learning**: Driver's staging type selections tracked to identify patterns (covered vs open, paid vs free)
+  - **Success Correlation**: Staging quality vs ride acceptance rate measured
+  - **Crowd-Sourced Intel**: Driver feedback enriches `staging_notes` database
+  - **Venue-Specific Learning**: Each venue accumulates staging recommendations from AI + drivers
 - **Accuracy Foundation**: Combines AI analysis with crowd-sourced local knowledge
 
 #### **10. PRO TIPS (Tactical Guidance)** 💡
@@ -544,8 +593,16 @@ Every block recommendation flows through 12 strategic components in sequence. Ea
 - **Why**: Actionable advice improves driver success rate at specific venues
 - **When**: Generated by GPT-5 during tactical planning stage
 - **How**: GPT-5 Planner analyzes venue+time context → generates tips → Zod schema validation
+- **Data Storage**: Generated by GPT-5, stored in-memory during request, not persisted to DB (ephemeral)
+  - **Validation**: Zod schema enforces `z.array(z.string().max(250)).min(1).max(4)`
+  - **Context**: Generated from snapshot + venue + historical patterns
 - **System Impact**: Character limits ensure mobile-friendly display
-- **ML Impact**: Tip effectiveness tracked via venue success correlation
+- **ML Impact**:
+  - **Tip Effectiveness**: Correlation between tip categories (timing/staging/events) and venue success
+  - **Topic Analysis**: NLP on tip content identifies which advice types drive driver action
+  - **Quality Metrics**: Tip length, count, category distribution logged per model/venue
+  - **Contextual Relevance**: Tips tagged with snapshot conditions for "tip → outcome" analysis
+  - **A/B Testing**: Tip presence vs absence measured for conversion impact
 - **Accuracy Foundation**: Context-aware generation prevents generic advice
 
 #### **11. GESTURE FEEDBACK (Learning Loop)** 👍
@@ -553,8 +610,18 @@ Every block recommendation flows through 12 strategic components in sequence. Ea
 - **Why**: System learns individual driver preferences over time
 - **When**: Immediately on driver interaction, applied in next recommendation cycle
 - **How**: action logged → venue_metrics updated → if (3+ hides) → add to noGoZones → suppress future
+- **Data Storage**: `actions` table + `venue_metrics` updates
+  - **actions**: `action_id` (UUID PK), `created_at`, `ranking_id` (FK), `snapshot_id` (FK CASCADE), `user_id`, `action` (like/hide/helpful/not_helpful), `block_id`, `dwell_ms` (time spent viewing), `from_rank` (position in list), `raw` (JSONB metadata)
+  - **venue_metrics**: `positive_feedback++` (on like/helpful), `negative_feedback++` (on hide/not_helpful), `reliability_score` recalculated
+  - **Driver Profile**: `successfulVenues[]` (liked), `noGoZones[]` (hidden 3+times)
 - **System Impact**: Personalization boost (+0.3) for liked venues, null return for hidden
-- **ML Impact**: Counterfactual tracking of "recommended vs chosen" for ranking optimization
+- **ML Impact**:
+  - **Counterfactual Learning**: "What we recommended vs what they chose" enables ranking algorithm optimization
+  - **Venue Reliability**: `positive_feedback/negative_feedback` ratio updates `reliability_score` (0.0-1.0 scale)
+  - **Pattern Recognition**: Identifies venue types/times driver prefers or avoids across sessions
+  - **Suppression Threshold**: 3+ hides triggers `noGoZones[]` addition (permanent unless manually removed)
+  - **Dwell Time Analysis**: `dwell_ms` measures engagement; low dwell + hide = immediate rejection signal
+  - **Position Bias Correction**: `from_rank` enables "position in list → action" correlation for ranking bias adjustment
 - **Accuracy Foundation**: Respects explicit driver preferences as ground truth
 
 #### **12. NAVIGATION LAUNCH (Seamless Routing)** 🧭
@@ -562,8 +629,17 @@ Every block recommendation flows through 12 strategic components in sequence. Ea
 - **Why**: Frictionless transition from recommendation to action
 - **When**: On-demand when driver taps "Navigate" button
 - **How**: Platform detection → native app deep-link → fallback to web → airport context alerts
+- **Data Storage**: `actions` table (navigate action) + Routes API call (real-time, not stored)
+  - **Navigation Action**: `action='navigate'`, `block_id` (venue navigated to), `dwell_ms` (time before tap), `raw.platform` (iOS/Android), `raw.eta_shown` (projected ETA)
+  - **Actual Arrival**: Not captured (future enhancement: compare projected vs actual ETA)
 - **System Impact**: Routes API recalculates ETA with current traffic on launch
-- **ML Impact**: Navigation action logged as recommendation acceptance signal
+- **ML Impact**:
+  - **Acceptance Signal**: Navigate action = strongest positive signal (driver committed to venue)
+  - **ETA Accuracy**: `raw.eta_shown` vs actual arrival time (if tracked) measures projection accuracy
+  - **Platform Effectiveness**: iOS vs Android navigation success rates compared
+  - **Decision Latency**: `dwell_ms` before navigate measures driver confidence (fast tap = high confidence)
+  - **Conversion Funnel**: View → Dwell → Navigate funnel analysis per venue/ranking position
+  - **Airport Context Impact**: FAA delay alerts shown → navigate rate measures value of contextual warnings
 - **Accuracy Foundation**: Traffic-aware routing ensures driver sees same ETA we projected
 
 ### System Integration Points
