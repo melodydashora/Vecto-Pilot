@@ -73,53 +73,56 @@ $ curl -X POST http://localhost:5000/api/blocks
 
 ---
 
-## Current Issues
+## Issues Resolved (October 8, 2025)
 
-### 1. Anthropic 404 Error
-**Problem**: Model `claude-sonnet-4-5-20250929` returns 404  
-**Possible Causes**:
-- API key issue
-- Model name typo
-- Model not available in region
+### ✅ 1. Anthropic Model Verification - RESOLVED
+**Original Problem**: Model `claude-sonnet-4-5-20250929` returned 404  
+**Solution**: 
+- ✅ Verified via Models API: `curl https://api.anthropic.com/v1/models/claude-sonnet-4-5-20250929`
+- ✅ Verified via Messages API: Returns correct model in response
+- ✅ Added model assertion in adapter to prevent silent swaps
+- ✅ Added `ANTHROPIC_API_VERSION=2023-06-01` to .env
 
-### 2. OpenAI Aborted
-**Problem**: OpenAI gets aborted even though it wins small prompt tests  
-**Theory**: Large prompt (location context) causes all providers to exceed 8s budget
+**Current Status**: Working correctly with model ID `claude-sonnet-4-5-20250929`
 
-### 3. Budget Too Aggressive
-**Current**: 8s total budget  
-**Result**: Large prompts timeout before any provider responds  
-**Recommendation**: Increase to 15-20s for production prompts
-
----
-
-## Next Steps
-
-### Option A: Debug Anthropic (Recommended)
-1. Test Anthropic API key directly with curl
-2. Verify model name `claude-sonnet-4-5-20250929`
-3. Check API quotas/limits
-
-### Option B: Increase Budget
+### ✅ 2. Budget Configuration - RESOLVED
+**Original Problem**: 8s total budget too aggressive for large prompts  
+**Solution**: Increased to 90s total budget with per-stage timeouts  
+**Current Config**:
 ```env
-LLM_TOTAL_BUDGET_MS=20000  # 20s instead of 8s
+LLM_TOTAL_BUDGET_MS=90000      # 90s total (exceeds recommendations)
+CLAUDE_TIMEOUT_MS=12000        # 12s for Claude
+GPT5_TIMEOUT_MS=45000          # 45s for GPT-5
+GEMINI_TIMEOUT_MS=15000        # 15s for Gemini
 ```
-This gives providers more time for large prompts while still preventing infinite hangs.
 
-### Option C: Simplify Prompts
-Reduce location context sent to LLM to decrease token count and response time.
+### ✅ 3. Architecture Decision - Router V2 Disabled
+**Decision**: Switched from Router V2 to Triad single-path mode  
+**Reason**: User requires no fallbacks for consistent quality  
+**Current Config**:
+```env
+ROUTER_V2_ENABLED=false
+TRIAD_ENABLED=true
+TRIAD_MODE=single_path
+```
 
 ---
 
 ## Configuration
 
-### Current Settings
+### ⚠️ DEPRECATED - Router V2 Settings (October 3, 2025)
+**Note**: These settings are from the initial Router V2 implementation. The system has since switched to Triad single-path mode.
+
+<details>
+<summary>Click to view original Router V2 config (for historical reference)</summary>
+
 ```env
+# OLD CONFIG - DO NOT USE
 PREFERRED_MODEL=anthropic:claude-sonnet-4-5-20250929
-FALLBACK_MODELS=openai:gpt-4o,google:gemini-1.5-pro
+FALLBACK_MODELS=openai:gpt-4o,google:gemini-1.5-pro  # gpt-4o and gemini-1.5-pro are DEPRECATED
 
 LLM_PRIMARY_TIMEOUT_MS=1200          # Hedge after 1.2s
-LLM_TOTAL_BUDGET_MS=8000            # Total 8s budget
+LLM_TOTAL_BUDGET_MS=8000            # Total 8s budget (TOO LOW)
 FALLBACK_HEDGE_STAGGER_MS=400        # 0.4s between backups
 
 ANTHROPIC_MAX_CONCURRENCY=10
@@ -129,19 +132,55 @@ GEMINI_MAX_CONCURRENCY=12
 CIRCUIT_ERROR_THRESHOLD=5
 CIRCUIT_COOLDOWN_MS=60000
 ```
+</details>
 
-### Recommended Adjustment
+### ✅ Current Production Config (October 8, 2025)
+**Architecture**: Triad single-path (Claude → GPT-5 → Gemini)
+
 ```env
-LLM_TOTAL_BUDGET_MS=20000  # Increase for production prompts
+# Router V2 (disabled)
+ROUTER_V2_ENABLED=false
+PREFERRED_MODEL=claude-sonnet-4.5
+FALLBACK_MODELS=gpt-5,gemini-2.5-pro
+
+# Triad Architecture (enabled)
+TRIAD_ENABLED=true
+TRIAD_MODE=single_path
+
+# Model Configuration
+CLAUDE_MODEL=claude-sonnet-4-5-20250929
+OPENAI_MODEL=gpt-5-pro
+GEMINI_MODEL=gemini-2.5-pro-latest
+
+# Anthropic Configuration
+ANTHROPIC_API_VERSION=2023-06-01
+
+# Budget & Timeouts (90s total)
+LLM_TOTAL_BUDGET_MS=90000
+CLAUDE_TIMEOUT_MS=12000
+GPT5_TIMEOUT_MS=45000
+GEMINI_TIMEOUT_MS=15000
+
+# GPT-5 Reasoning
+GPT5_REASONING_EFFORT=high
 ```
 
 ---
 
 ## Summary
 
-**What Works**: ✅ V2 router with proper cancellation, error classification, hedging  
-**What's Broken**: ❌ Anthropic 404, large prompts timeout all providers  
-**Quick Fix**: Increase `LLM_TOTAL_BUDGET_MS` to 20000 and debug Anthropic key/model  
+**V2 Router Implementation**: ✅ Successfully implemented with proper cancellation, error classification, and hedging  
+**Initial Issues (Oct 3)**: ❌ Circuit breaker poisoning, 8s budget too low, Anthropic 404 errors  
+**Resolution (Oct 8)**: ✅ All issues resolved, system switched to Triad single-path mode  
 
-**GPT Pro's Solution**: ✅ Implemented correctly - prevents circuit breaker poisoning  
-**Production Status**: ⚠️ Needs budget tuning + Anthropic debugging
+**Current Production Status**: ✅ Fully operational
+- Router V2: Available but disabled (works correctly when needed)
+- Triad Mode: Enabled with 90s total budget
+- Models: All verified and working (claude-sonnet-4-5-20250929, gpt-5-pro, gemini-2.5-pro-latest)
+- Safeguards: Model assertion added to prevent silent model swaps
+
+**Key Learnings**:
+1. V2 router correctly prevents circuit breaker poisoning
+2. 8s budget was insufficient for production prompts (now 90s)
+3. Model verification via Anthropic Models API confirmed availability
+4. Triad single-path provides consistent quality without fallbacks

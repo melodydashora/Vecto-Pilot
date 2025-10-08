@@ -48,10 +48,11 @@ OPENAI_MODEL=gpt-5-pro
 ---
 
 ### Anthropic Claude Sonnet 4.5
-**Status**: ⚠️ Model ID Issue Detected (See Notes)
+**Status**: ✅ Verified Working (October 8, 2025)
 
 ```env
 CLAUDE_MODEL=claude-sonnet-4-5-20250929
+ANTHROPIC_API_VERSION=2023-06-01
 ```
 
 **API Details**:
@@ -76,19 +77,26 @@ CLAUDE_MODEL=claude-sonnet-4-5-20250929
 }
 ```
 
-**⚠️ KNOWN ISSUE**:
-- Requesting `claude-sonnet-4-5-20250929` returns `claude-opus-4-1-20250805`
-- API appears to fallback to Opus 4.1 when Sonnet 4.5 is unavailable
-- **Action Required**: Verify API key has Sonnet 4.5 access or use Opus 4.1
+**✅ VERIFICATION COMPLETE** (October 8, 2025):
+```bash
+# Models API confirms availability
+curl https://api.anthropic.com/v1/models/claude-sonnet-4-5-20250929
+# Response: {"type":"model","id":"claude-sonnet-4-5-20250929","display_name":"Claude Sonnet 4.5"}
 
-**Alternative (Verified Working)**:
-```env
-CLAUDE_MODEL=claude-opus-4-1-20250805  # Confirmed working via API test
+# Messages API returns correct model
+curl https://api.anthropic.com/v1/messages -d '{"model":"claude-sonnet-4-5-20250929",...}'
+# Response: {"model":"claude-sonnet-4-5-20250929",...}
 ```
 
+**Model Assertion**: Adapter includes validation to prevent silent model swaps  
 **Pricing**:
 - Input: $8.00 per million tokens
 - Output: $24.00 per million tokens
+
+**⚠️ Partner Platform ID Differences** (do NOT use with native Anthropic API):
+- **Vertex AI**: `claude-sonnet-4-5@20250929` (different format)
+- **AWS Bedrock**: `anthropic.claude-sonnet-4-5-20250929-v1:0` (global prefix)
+- **Native Anthropic**: `claude-sonnet-4-5-20250929` ✅ Use this
 
 ---
 

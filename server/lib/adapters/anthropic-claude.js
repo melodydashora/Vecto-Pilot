@@ -29,7 +29,7 @@ export async function callClaude({
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "anthropic-version": "2023-06-01",
+      "anthropic-version": process.env.ANTHROPIC_API_VERSION || "2023-06-01",
       "x-api-key": apiKey
     },
     body: JSON.stringify(body),
@@ -37,6 +37,13 @@ export async function callClaude({
   });
   if (!res.ok) throw new Error(`Anthropic ${res.status}`);
   const j = await res.json();
+  
+  // Model assertion: Ensure we got exactly what we requested (prevent silent swaps)
+  if (j.model && j.model !== model) {
+    console.error(`❌ Model mismatch: requested ${model}, got ${j.model}`);
+    throw new Error(`Model mismatch: wanted ${model}, got ${j.model || 'none'}`);
+  }
+  
   const parts = j.content?.map(p => (p.text || "")).join("");
   return parts || "";
 }
