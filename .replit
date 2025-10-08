@@ -59,6 +59,10 @@ localPort = 43717
 externalPort = 5000
 exposeLocalhost = true
 
+[[ports]]
+localPort = 44585
+externalPort = 3002
+
 [deployment]
 run = ["sh", "-c", "npm run build && npm run start"]
 
