@@ -86,6 +86,63 @@ export async function findPlaceId(name, location) {
 }
 
 /**
+ * Search for place by text name and return place_id + coordinates
+ * Used for name-to-place_id resolution per architectural guidance
+ * @param {Object} params
+ * @param {string} params.text - Business name or search text
+ * @param {number} [params.lat] - Optional latitude for location bias
+ * @param {number} [params.lng] - Optional longitude for location bias
+ * @param {string} [params.apiKey] - Google Maps API key
+ * @returns {Promise<{place_id, lat, lng, formatted_address}>}
+ */
+export async function findPlaceIdByText({ text, lat, lng, apiKey = process.env.GOOGLE_MAPS_API_KEY }) {
+  try {
+    const url = new URL('https://maps.googleapis.com/maps/api/place/findplacefromtext/json');
+    url.searchParams.set('input', text);
+    url.searchParams.set('inputtype', 'textquery');
+    
+    if (lat != null && lng != null) {
+      url.searchParams.set('locationbias', `point:${lat},${lng}`);
+    }
+    
+    url.searchParams.set('fields', 'place_id,geometry,name,formatted_address');
+    url.searchParams.set('key', apiKey);
+
+    const response = await fetch(url.toString());
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Places API] Error ${response.status}: ${errorText}`);
+      throw new Error(`Places API failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.status !== 'OK' || !data.candidates || data.candidates.length === 0) {
+      throw new Error(`places_no_match: ${text}`);
+    }
+
+    const candidate = data.candidates[0];
+    
+    if (!candidate.place_id) {
+      throw new Error('places_no_match');
+    }
+
+    console.log(`🔍 [Places API] Found place_id for "${text}": ${candidate.place_id}`);
+
+    return {
+      place_id: candidate.place_id,
+      lat: candidate.geometry?.location?.lat || null,
+      lng: candidate.geometry?.location?.lng || null,
+      formatted_address: candidate.formatted_address || null
+    };
+  } catch (error) {
+    console.error('[Places API] findPlaceIdByText failed:', error.message);
+    throw error;
+  }
+}
+
+/**
  * Check if a place is currently open
  * @param {string} placeId - Google Place ID
  * @returns {Promise<boolean>}
@@ -153,9 +210,11 @@ function formatHoursCompact(hoursArray) {
 }
 
 /**
- * Get formatted hours for display
+ * Get formatted hours for display (ONLY business metadata, no coordinates)
+ * Per architectural guidance: Places Details is ONLY for opening_hours and business_status
+ * Coordinates should come from Geocoding API, not Places API
  * @param {string} placeId - Google Place ID
- * @returns {Promise<{status, hours, address}>}
+ * @returns {Promise<{status, hours, hasSpecialHours}>}
  */
 export async function getFormattedHours(placeId) {
   try {
@@ -164,21 +223,55 @@ export async function getFormattedHours(placeId) {
     
     return {
       status: data.openNow ? 'open' : 'closed',
-      hours: formatHoursCompact(hoursArray), // Format to concise string
-      hasSpecialHours: data.hasHolidayHours,
-      address: data.address,
-      lat: data.lat,
-      lng: data.lng
+      hours: formatHoursCompact(hoursArray),
+      hasSpecialHours: data.hasHolidayHours
     };
   } catch (error) {
     console.error('[Places API] getFormattedHours failed:', error.message);
     return {
       status: 'unknown',
       hours: null,
-      hasSpecialHours: false,
-      address: null,
-      lat: null,
-      lng: null
+      hasSpecialHours: false
     };
+  }
+}
+
+/**
+ * Get business hours ONLY for a place (no coordinates per architectural guidance)
+ * @param {string} placeId - Google Place ID
+ * @returns {Promise<{status, hours, weekdayText}>}
+ */
+export async function getBusinessHoursOnly(placeId) {
+  try {
+    const url = new URL(PLACE_DETAILS_URL);
+    url.searchParams.set('place_id', placeId);
+    url.searchParams.set('fields', 'opening_hours,current_opening_hours,business_status');
+    url.searchParams.set('key', process.env.GOOGLE_MAPS_API_KEY);
+
+    const response = await fetch(url.toString());
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Places API] Error ${response.status}: ${errorText}`);
+      throw new Error(`Places API failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.status !== 'OK') {
+      throw new Error(`Places API status: ${data.status}`);
+    }
+
+    const result = data.result;
+    
+    return {
+      status: result.opening_hours?.open_now ? 'open' : 'closed',
+      hours: formatHoursCompact(result.current_opening_hours?.weekday_text || result.opening_hours?.weekday_text),
+      weekdayText: result.opening_hours?.weekday_text || [],
+      hasHolidayHours: !!result.current_opening_hours
+    };
+  } catch (error) {
+    console.error('[Places API] getBusinessHoursOnly failed:', error.message);
+    throw error;
   }
 }
