@@ -1,12 +1,73 @@
 # Vecto Pilot™ - Architecture & Constraints Reference
-**Version 3.0 | Production-Ready AI-Driven Rideshare Intelligence**  
-**Last Updated:** 2025-10-08 (Model Verification, Thread Awareness, Trust-First Stack)
+# Accuracy-First Operating Invariants
+**Last Updated:** 2025-10-08 21:00 CST
 
 ---
 
-## 🎯 **PURPOSE OF THIS DOCUMENT**
+## 🎯 **CORE PRINCIPLE: ACCURACY BEFORE EXPENSE**
 
-This document is the **single source of truth** for:
+This document is the **single source of truth** for constraints. **Cost matters but cannot override correctness for drivers.** When tension exists, we resolve in favor of accuracy and transparent failure.
+
+---
+
+## 🔒 **INVARIANTS (Hard Rules - Fail-Closed)**
+
+These are non-negotiable constraints. Violations are deployment blockers, not runtime surprises.
+
+### 1. **Single-Path Orchestration Only**
+Triad is authoritative. No hedging, no silent swaps, no router fallbacks. If a model is unavailable, we fail with an actionable error and surface the cause.
+
+### 2. **Model IDs Are Pinned and Verified Monthly**
+Missing or changed IDs are treated as deployment blockers. Messages responses must echo the requested model; mismatches throw.
+
+### 3. **Complete Snapshot Gating**
+No LLM call without a complete location snapshot (GPS, timezone, daypart, weather/AQI). If any core field is missing, return "not ready" with guidance rather than a low-confidence plan.
+
+### 4. **Accuracy Over Expense for Closure-Sensitive Recs**
+When the venue's open/closed status materially affects driver income, we must either validate status or choose a de-risked alternative. **"Unknown" is never presented as "open".**
+
+### 5. **Deterministic Logging for ML**
+For every block served: input snapshot hash, model ID, token budget, confidence, and downstream outcome (accept/skip/abort) are recorded for counterfactual learning.
+
+---
+
+## ⬅️ **BACKWARD PRESSURE (Explicitly Deprecated)**
+
+- ~~Multi-model router with fallback/hedging for production~~
+- ~~Global JSON body parsing (per-route only)~~
+- ~~React.StrictMode in production UI~~
+- ~~Treating cost-only heuristics as overrides for accuracy-critical decisions~~
+- ~~"Cheap-first" MVP for business hours (replaced with risk-gated validation)~~
+
+---
+
+## ➡️ **FORWARD PRESSURE (Near-Term Enforcement)**
+
+### A) Model Verification in CI
+Model verification script runs in CI and rewrites MODEL.md; deployment blocks on failures.
+
+### B) Closure Risk Gate in /api/blocks
+If probability of closure > threshold for a venue and time window, call a single validation path or substitute a venue with equal or higher expected earnings and known availability.
+
+### C) Confidence Thresholds with Visible Badges
+Below-threshold items are hidden by default; drivers can expand them explicitly with confidence warnings.
+
+---
+
+## 🔧 **ROOT-CAUSE PROTOCOL (No Iterative Debate Required)**
+
+When issues arise, follow this protocol to avoid rework:
+
+**Step 1** - Identify invariant violated (e.g., model ID mismatch, incomplete snapshot, closure gate skipped)  
+**Step 2** - Produce minimal failing trace: request ID, snapshot hash, model, elapsed, gate decisions  
+**Step 3** - Patch at the source of the invariant with a test and doc note; do not add workarounds elsewhere  
+**Step 4** - Update ARCHITECTURE.md "Decision Log" with date, invariant, and fix locus
+
+---
+
+## 📋 **PURPOSE OF THIS DOCUMENT**
+
+Single source of truth for:
 1. **Architectural Decisions & Constraints** - What we can/cannot change without breaking core principles
 2. **Backward/Forward Pressure** - What we're moving away from (deprecated) vs. where we're going (roadmap)
 3. **Integration Boundaries** - External dependencies and their limits
@@ -119,17 +180,27 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 - `replit.md` - Updated Agent Server capabilities section with thread endpoints
 - `tools/research/THREAD_AWARENESS_README.md` - Complete thread system documentation
 
+**What Changed (Accuracy-First Evolution):**
+- ✅ Locked orchestration to Triad single-path with 90s total budget and per-stage timeouts
+- ✅ Router V2 remains for test rigs only and is marked historical
+- ✅ Added model echo assertion on Anthropic calls; Sonnet 4.5 must echo `claude-sonnet-4-5-20250929`
+- ✅ Introduced thread-aware context capture to improve continuity without changing Triad behavior
+- ✅ Shifted from ~~"cheap-first" hours strategy~~ to risk-gated validation for closure-sensitive venues
+
 **Backward Pressure (Moving Away From):**
 - ❌ `gpt-4o` and `gemini-1.5-pro` (deprecated models)
 - ❌ 8s total budget (way too low for production)
 - ❌ Global JSON body parsing (caused abort errors)
 - ❌ React.StrictMode (caused duplicate API calls)
+- ❌ ~~Router V2 hedging in production~~ (deterministic single-path instead)
+- ❌ ~~Open-ended "cheap-first" hours strategy~~ (risk-gated validator for closure-sensitive cases)
 
 **Forward Pressure (Moving Toward):**
 - ✅ Monthly model verification via research scripts
 - ✅ Automated model discovery (Perplexity + live API checks)
 - ✅ Enhanced contextual awareness across all AI systems
 - ✅ Trust-first architecture with deterministic scoring
+- ✅ Closure risk gate for accuracy-critical venue recommendations
 
 ---
 
@@ -294,6 +365,62 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 - No hallucinations possible (venues must exist in catalog)
 
 **Constraint:** Scoring engine is separate from LLM pipeline (can be A/B tested independently)
+
+---
+
+## 🏢 **VENUE HOURS STRATEGY (Accuracy-First)**
+
+### Core Principle
+When venue's open/closed status materially affects driver income, validate or de-risk. **"Unknown" is never presented as "open".**
+
+### Risk-Gated Validation Approach
+
+**1. For High-Risk Venues (Airports, Stadiums, Event Venues):**
+- Treat event calendars and operating windows as ground truth
+- Assume "open" only inside confirmed windows
+- No guessing on edge cases
+
+**2. For Closure-Sensitive Venues (Restaurants/Bars at Edge Hours):**
+- **Holiday windows or late-night edge cases:** Trigger single validation path if closure risk is non-trivial
+- **Alternative:** Demote venue ranking rather than present as "open" with unknown status
+- **Cache:** Single validation call per high-risk venue per 24h (metadata only, per ToS)
+
+**3. For Low-Impact Venues (Daytime, Well-Known Hours):**
+- Allow feedback-first path
+- Label as "hours estimated" with visible badge
+- Driver can expand for details
+
+### Closure Risk Calculation
+```
+closure_risk = f(category, daypart, holiday_proximity, historic_feedback)
+```
+
+**Thresholds:**
+- `closure_risk > 0.3` → Trigger validation or substitute venue
+- `closure_risk < 0.1` → Use estimated hours with badge
+- `0.1 ≤ closure_risk ≤ 0.3` → Show with warning badge
+
+### Outcome Tracking (ML Pipeline)
+Every venue recommendation logs:
+- `open_confirmed` - Validated open via API
+- `closed_confirmed` - Validated closed via API
+- `estimated_open` - Inferred from patterns (with badge)
+- `unknown_substituted` - High-risk venue replaced with known alternative
+
+### Cost Posture
+**We prefer correctness when it directly impacts earnings.** Costs are constrained by:
+- Single validation call per venue per 24h (cached)
+- Gating on closure risk threshold (not validating everything)
+- Substitution with equal/higher earnings alternatives when validation would exceed budget
+
+~~**Old Approach (Deprecated):**~~
+- ~~Option 3 (Minimal + feedback) as MVP default - "cheap-first"~~
+- ~~Zero validation, rely entirely on crowd feedback~~
+
+**New Approach (Accuracy-First):**
+- Risk-gated validation for closure-sensitive cases
+- Transparent labeling when using estimates
+- Substitution over unknown status presentation
 
 ---
 

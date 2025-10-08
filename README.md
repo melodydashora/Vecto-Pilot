@@ -131,6 +131,9 @@ CLAUDE_MODEL=claude-opus-4-1-20250805
 - **⚠️ Important**: Use **raw HTTP** instead of `@anthropic-ai/sdk` - the SDK doesn't recognize Claude 4.5 yet and will return 404. See `server/lib/anthropic-extended.js` for working implementation.
 
 ### Router Configuration
+
+> **📋 See [MODEL.md](./MODEL.md)** for pinned model IDs and monthly verification command.
+
 ```env
 PREFERRED_MODEL=google:gemini-2.5-pro
 FALLBACK_MODELS=openai:gpt-5,anthropic:claude-sonnet-4-5-20250929
