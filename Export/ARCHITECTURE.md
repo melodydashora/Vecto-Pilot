@@ -100,6 +100,89 @@ Single source of truth for:
 
 ---
 
+### ✅ VERIFIED: OpenAI GPT-5 Pro Model
+**Issue Resolved:** Model ID `gpt-5-pro` confirmed working via direct API tests
+
+**What Changed:**
+- ✅ **Chat Completions API Verification**: `curl https://api.openai.com/v1/chat/completions -d '{"model":"gpt-5-pro",...}'` → Returns `{"model":"gpt-5-pro",...}`
+- ✅ **Reasoning Effort Parameter**: Uses `reasoning_effort` (not temperature/top_p - those are deprecated in GPT-5)
+- ✅ **Token Usage Tracking**: Separate counts for input/reasoning/output tokens
+- ✅ **Model Assertion Added**: Adapter validates correct model in response
+- ✅ **Context Window**: 256K tokens (256,000 tokens/request)
+
+**Files Updated:**
+- `server/lib/adapters/openai-gpt5.js` - Reasoning effort support + token tracking
+- `.env` - `OPENAI_MODEL=gpt-5-pro`
+- `MODEL.md` - Updated with verified working status
+
+**Supported Parameters:**
+```javascript
+{
+  model: "gpt-5-pro",
+  messages: [...],
+  reasoning_effort: "minimal" | "low" | "medium" | "high",  // ✅ USE THIS
+  max_completion_tokens: 32000
+}
+```
+
+**❌ DEPRECATED in GPT-5** (will cause errors):
+- `temperature` → Use `reasoning_effort` instead
+- `top_p` → Use `reasoning_effort` instead
+- `frequency_penalty` → Not supported
+- `presence_penalty` → Not supported
+
+**Pricing:**
+- Input: ~$2.50 per million tokens
+- Output: ~$10.00 per million tokens
+- Reasoning: Counted separately (internal chain-of-thought)
+
+**Constraint:** GPT-5 requires `reasoning_effort` parameter; old temperature-based configs will fail
+
+---
+
+### ✅ VERIFIED: Google Gemini 2.5 Pro Model
+**Issue Resolved:** Model ID `gemini-2.5-pro-latest` confirmed working via direct API tests
+
+**What Changed:**
+- ✅ **Generate Content API Verification**: `curl https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-latest:generateContent` → Returns valid response
+- ✅ **Context Window**: 1M tokens (1,000,000 tokens/request)
+- ✅ **Contents Format**: Uses `contents` array (not `messages` like OpenAI/Anthropic)
+- ✅ **System Instructions**: Separate `systemInstruction` field (not in messages)
+- ✅ **Model Assertion Added**: Adapter validates correct model in response
+
+**Files Updated:**
+- `server/lib/adapters/google-gemini.js` - Enhanced error handling + model assertion
+- `.env` - `GEMINI_MODEL=gemini-2.5-pro-latest`
+- `MODEL.md` - Updated with verified working status
+
+**Supported Parameters:**
+```javascript
+{
+  model: "gemini-2.5-pro-latest",
+  contents: [...],              // ✅ Use "contents" not "messages"
+  systemInstruction: "...",     // ✅ Separate field
+  generationConfig: {
+    temperature: 0.7,           // ✅ Standard 0.0-2.0
+    topP: 0.95,                 // ✅ Supported
+    maxOutputTokens: 8192
+  }
+}
+```
+
+**Alternative Models:**
+- `gemini-2.5-pro-latest` - Flagship model (1M context)
+- `gemini-2.5-flash-latest` - Faster, lower cost
+- `gemini-2.0-flash-exp` - Experimental features
+
+**Pricing:**
+- Input: $1.25 per million tokens
+- Output: $5.00 per million tokens
+- Cached Input: $0.3125 per million tokens (75% discount)
+
+**Constraint:** Gemini uses different message format; cannot directly swap with OpenAI/Anthropic adapters
+
+---
+
 ### ✅ IMPLEMENTED: Thread-Aware Context System
 **Goal:** Maintain conversation context across Agent/Assistant/Eidolon interactions
 
