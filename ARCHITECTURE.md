@@ -943,18 +943,56 @@ Model-supplied coordinates or hours are rejected; Places/DB only.
 ## 📏 **4. DISTANCE & ETA (Traffic-Aware)**
 
 ### Core Principle
-Provide accurate, traffic-aware distance and ETA calculations using live road conditions, not straight-line estimates.
+Provide accurate, traffic-aware distance and ETA calculations using live road conditions, not straight-line estimates. **Coordinates and address come from Geocoding API (reverse/forward). Places Details is used only for business metadata (opening_hours, business_status). Distances/times come from Routes API.**
+
+### Data Sources - Split of Duties
+
+**Architectural Rule: Each Google API has a specific, non-overlapping purpose**
+
+1. **Geocoding API**: Coordinates ⇄ address conversion (+ place_id)
+   - Forward geocoding: address → coordinates + place_id  
+   - Reverse geocoding: coordinates → address + place_id
+   - **Purpose**: Resolve location data ONLY
+   
+2. **Places Details API**: Business metadata ONLY
+   - opening_hours (regular + holiday hours)
+   - business_status (open/closed)
+   - **Purpose**: Business operational data ONLY
+   - **Never used for coordinates or address resolution**
+
+3. **Routes API**: Distance and time calculations
+   - Traffic-aware distance (meters)
+   - ETA with current traffic conditions
+   - **Purpose**: Navigation metrics ONLY
+
+4. **Database**: Source of truth for cached place data
+   - place_id, lat, lng, formatted_address cached
+   - Business hours cached separately
+   - **Purpose**: Prevent redundant API calls
+
+### Venue Resolution Flow (DB-first)
+
+```javascript
+// Order for every candidate:
+// a) DB-first: If we have place_id in DB → load lat/lng + address. Done.
+// b) If only name (from GPT): Use Places Find Place to get place_id + coords
+// c) If only coords (from GPT): Use Geocoding Reverse to get place_id + address  
+// d) Hours: Use Places Details(fields=opening_hours,business_status) after we have place_id
+// e) Distance/time: Use Routes with validated coords
+```
+
+**Model-supplied coordinates are untrusted. Names from models may seed search. place_id is obtained via Places Find Place/Text Search or via Geocoding→place_id; hours then come from Places Details.**
 
 ### How It Works
 
 **Primary Method - Google Routes API:**
 ```javascript
 {
-  origin: { lat, lng },
-  destination: { lat, lng },
+  origin: { lat, lng },           // From snapshot (validated, non-null)
+  destination: { lat, lng },       // From Geocoding/Places (validated, non-null)
   travelMode: 'DRIVE',
   routingPreference: 'TRAFFIC_AWARE',
-  departureTime: now + 30s  // Routes API requires future timestamp
+  departureTime: now + 30s        // Routes API requires future timestamp
 }
 ```
 
@@ -1758,6 +1796,56 @@ Legacy West example should show ≈6.6 mi, ≈13 min, value_per_min around (1.00
 
 **Observability**  
 Log {placeId, miles, driveMin, tripMin, waitMin, surge, value_per_min, grade, not_worth} per venue; persist same in the candidates table.
+
+---
+
+### Fix Capsule — Geocoding vs Places Split (Oct 8, 2025)
+
+**Impact**  
+Eliminates coordinate drift, removes zero-mile artifacts, and enforces the architectural rule: Google/DB only for location data. Places API is strictly for business metadata, not coordinates.
+
+**When**  
+Venue resolution step before Routes API and Gemini validation. Runs during `/api/blocks` TRIAD Step 3/3 (venue enrichment).
+
+**Why**  
+Enforces Invariant 6: Models never provide coords or hours; only Google (Geocoding/Places) and DB are sources of truth. Places was being misused to "resolve" coordinates, causing drift and violating the architectural split of duties.
+
+**How**  
+1. Created `geocoding.js` module with `reverseGeocode` (coords → address + place_id) and `forwardGeocode` (address → coords + place_id)
+2. Updated `places-hours.js` to remove coordinates from `getFormattedHours` (hours/status ONLY)
+3. Added `findPlaceIdByText` for name → place_id resolution
+4. Updated `blocks.js` resolution flow:
+   - If venue has name: `findPlaceIdByText` → place_id + coords + address
+   - If venue has coords: `reverseGeocode` → place_id + address
+   - Then `getBusinessHoursOnly` for hours (no coords)
+   - Then Routes API with validated coords
+5. Added workflow gating:
+   - No GPT until snapshot.lat/lng non-null
+   - No GPT-5 until Claude strategy exists
+   - No Gemini until all venues have place_id, lat, lng resolved
+
+**Files Touched**  
+- `server/lib/geocoding.js` - NEW: Geocoding API wrapper (reverse/forward)
+- `server/lib/places-hours.js` - Updated: Remove coords from hours, add findPlaceIdByText
+- `server/routes/blocks.js` - Updated: DB-first → Geocoding/Places → Routes flow + workflow gating
+- `ARCHITECTURE.md` - Updated: Distance & ETA section with split-of-duties documentation
+
+**Tests and Acceptance**  
+1. Log shows "Geocode resolved … place_id=…" when GPT provided coords
+2. Followed by "Routes API … mi, … min" with validated coords
+3. UI distance matches server (no 0.0 mi artifacts)
+4. No venue has missing place_id/coords before Gemini call
+
+**Observability**  
+Logs show: 
+- `🗺️ [Geocoding] Reverse geocoded (lat, lng) → place_id: ...`
+- `🔍 [Places API] Found place_id for "name": ...`
+- `✅ Enriched ${name}: ${status}, ${hours}, address: ${address}`
+- Workflow gating logs: `⚠️ Origin coordinates not ready` or `⚠️ Strategy required for tactical planning`
+
+**Back/Forward Pressure**  
+**Backward:** Places API no longer returns coordinates; getFormattedHours removed lat/lng fields.  
+**Forward:** All venue resolution uses Geocoding for coords, Places for hours only, DB for caching. Workflow gating prevents incomplete data propagation.
 
 ---
 
