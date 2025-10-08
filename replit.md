@@ -149,3 +149,28 @@ Safe file editing with validation and backups:
 - 10MB file size limit
 - Path traversal protection
 - Token-based authentication
+
+## Documentation & Workflow Maintenance
+
+### Documentation Update Protocol
+Whenever changes affect the workflow, update these files in order:
+
+1. **`ARCHITECTURE.md`** - High-level architectural decisions and Fix Capsules
+2. **`replit.md`** (this file) - System overview and user preferences  
+3. **`scripts/full-workflow-analysis.mjs`** - Technical workflow trace with exact API calls and DB operations
+4. **`logs/WORKFLOW-DATA-FLOW.md`** - Human-readable workflow documentation (generated from the script)
+
+### What Triggers Updates
+Update the workflow scripts when we change:
+- **API flow** (new Google APIs, different endpoints)
+- **Database operations** (new tables, different fields, caching strategy)
+- **Triad pipeline** (model changes, prompt modifications, new validation steps)
+- **Workflow gating** (new validation checks, different sequencing)
+- **Data transformations** (how data flows from one stage to another)
+- **UI mapper** (how frontend transforms server response)
+
+### Workflow Testing Scripts
+- **`scripts/workflow-snapshot.mjs`** - End-to-end workflow test that triggers GPS → snapshot → strategy → blocks and validates DB writes
+- **`scripts/full-workflow-analysis.mjs`** - Comprehensive analysis showing every API call, DB operation, and data flow step
+
+These scripts serve as **living documentation** - they can be run to verify the system works as documented and ensure docs stay accurate.

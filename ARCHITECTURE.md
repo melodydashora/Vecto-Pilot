@@ -1849,6 +1849,75 @@ Logs show:
 
 ---
 
+### Fix Capsule — UI Mapper for Distance/ETA (Oct 8, 2025)
+
+**Impact**  
+Eliminates 0.0 mi and 0 min artifacts in UI. Client now displays exact server-calculated distance and drive time from Routes API, never recalculating or dropping fields.
+
+**When**  
+Frontend transformation of `/api/blocks` response in `client/src/pages/co-pilot.tsx` (lines 284-320).
+
+**Why**  
+UI mapper was dropping critical fields (`estimated_distance_miles`, `driveTimeMinutes`, `distanceSource`, `value_per_min`, `value_grade`, `not_worth`, `surge`, `earnings_per_mile`) that server was sending. Raw API response had correct data but transformed blocks lost it, causing 0's in UI.
+
+**How**  
+Updated mapper to copy all server fields verbatim:
+```javascript
+// OLD (dropped distance/time fields):
+blocks: data.blocks?.map((block) => ({
+  name: block.name,
+  estimatedWaitTime: block.estimatedWaitTime,
+  // ... missing distance, driveTime, value metrics
+}))
+
+// NEW (preserves all fields):
+blocks: data.blocks?.map((v) => ({
+  name: v.name,
+  placeId: v.placeId,
+  coordinates: { lat: v.coordinates?.lat ?? v.lat, lng: v.coordinates?.lng ?? v.lng },
+  estimated_distance_miles: Number(v.estimated_distance_miles ?? v.distance ?? 0),
+  driveTimeMinutes: Number(v.driveTimeMinutes ?? v.drive_time ?? 0),
+  distanceSource: v.distanceSource ?? "routes_api",
+  estimatedEarningsPerRide: v.estimated_earnings ?? v.estimatedEarningsPerRide ?? null,
+  earnings_per_mile: v.earnings_per_mile ?? null,
+  value_per_min: v.value_per_min ?? null,
+  value_grade: v.value_grade ?? null,
+  not_worth: !!v.not_worth,
+  surge: v.surge ?? null,
+  // ... plus all other fields
+}))
+```
+
+**Files Touched**  
+- `client/src/pages/co-pilot.tsx` - Fixed mapper to preserve distance/time/value fields
+
+**Tests and Acceptance**  
+```bash
+# Run workflow snapshot to verify:
+node scripts/workflow-snapshot.mjs
+
+# Expected output:
+# first venue: { 
+#   name: "...", 
+#   placeId: "ChIJ...", 
+#   miles: 4.33,        # ← non-zero
+#   minutes: 11,        # ← non-zero  
+#   src: "routes_api"   # ← from Routes API
+# }
+```
+
+**Observability**  
+Browser console logs now show:
+- `🔍 Raw API response:` - server data (should have miles/minutes)
+- `🔄 Transforming block:` - per-venue showing `estimated_distance_miles`, `driveTimeMinutes`, `distanceSource`, `value_per_min`, `value_grade`
+- `✅ Transformed blocks:` - final data (should match raw)
+
+**Back/Forward Pressure**  
+**Backward:** Removed field-dropping mapper logic.  
+**Forward:** All server distance/time/value fields flow through to UI; client never synthesizes or recalculates server metrics.
+
+---
+
 ## 🎯 **DECISION LOG**
 
 ### October 8, 2025

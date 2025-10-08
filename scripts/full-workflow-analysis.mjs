@@ -307,12 +307,20 @@ console.log();
 
 console.log('🔷 STEP 16: FRONTEND RENDERING');
 console.log('   📥 Client receives response');
-console.log('   🎨 Transforms to UI blocks:');
-console.log('      - Displays distance (from server, never recalculated)');
-console.log('      - Shows value_grade badge (A/B/C/D)');
-console.log('      - Highlights "Not worth it" if flagged');
-console.log('      - Renders business hours and status');
-console.log('      - Shows staging area info');
+console.log('   🎨 UI Mapper (client/src/pages/co-pilot.tsx):');
+console.log('      CRITICAL: Preserves ALL server fields verbatim');
+console.log('      - estimated_distance_miles (from Routes API)');
+console.log('      - driveTimeMinutes (from Routes API)');
+console.log('      - distanceSource ("routes_api")');
+console.log('      - value_per_min, value_grade, not_worth');
+console.log('      - surge, earnings_per_mile');
+console.log('      - coordinates (from server, NEVER device GPS)');
+console.log('   🖼️ UI Display:');
+console.log('      - Distance badge: server miles (never recalculated)');
+console.log('      - Value grade badge (A/B/C/D)');
+console.log('      - "Not worth it" flag if below floor');
+console.log('      - Business hours and open/closed status');
+console.log('      - Staging area with parking tips');
 console.log();
 
 console.log('🔷 STEP 17: USER ACTION LOGGING');

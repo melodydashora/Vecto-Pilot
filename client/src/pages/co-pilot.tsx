@@ -278,34 +278,41 @@ const CoPilot: React.FC = () => {
             now: data.generatedAt || new Date().toISOString(),
             timezone: 'America/Chicago',
             strategy: data.strategy_for_now,
-            blocks: data.blocks?.map((block: any) => {
-              console.log('🔄 Transforming block:', block.name, {
-                address: block.address,
-                estimatedWaitTime: block.estimatedWaitTime,
-                businessHours: block.businessHours,
-                isOpen: block.isOpen,
-                stagingArea: block.stagingArea,
-                closed_venue_reasoning: block.closed_venue_reasoning
+            blocks: data.blocks?.map((v: any) => {
+              console.log('🔄 Transforming block:', v.name, {
+                estimated_distance_miles: v.estimated_distance_miles,
+                driveTimeMinutes: v.driveTimeMinutes,
+                distanceSource: v.distanceSource,
+                value_per_min: v.value_per_min,
+                value_grade: v.value_grade
               });
               
               return {
-                name: block.name,
-                address: block.address,
-                category: block.category,
-                coordinates: {
-                  lat: block.coordinates?.lat ?? block.lat,
-                  lng: block.coordinates?.lng ?? block.lng
+                name: v.name,
+                address: v.address,
+                category: v.category,
+                placeId: v.placeId,
+                coordinates: { 
+                  lat: v.coordinates?.lat ?? v.lat, 
+                  lng: v.coordinates?.lng ?? v.lng 
                 },
-                estimatedWaitTime: block.estimatedWaitTime,
-                estimatedEarningsPerRide: block.estimatedEarningsPerRide,
-                demandLevel: block.demandLevel,
-                businessHours: block.businessHours,
-                isOpen: block.isOpen,
-                businessStatus: block.businessStatus,
-                placeId: block.placeId,
-                closed_venue_reasoning: block.closed_venue_reasoning,
-                stagingArea: block.stagingArea,
-                proTips: block.proTips || block.pro_tips || []
+                estimated_distance_miles: Number(v.estimated_distance_miles ?? v.distance ?? 0),
+                driveTimeMinutes: Number(v.driveTimeMinutes ?? v.drive_time ?? 0),
+                distanceSource: v.distanceSource ?? "routes_api",
+                estimatedEarningsPerRide: v.estimated_earnings ?? v.estimatedEarningsPerRide ?? null,
+                earnings_per_mile: v.earnings_per_mile ?? null,
+                value_per_min: v.value_per_min ?? null,
+                value_grade: v.value_grade ?? null,
+                not_worth: !!v.not_worth,
+                surge: v.surge ?? null,
+                estimatedWaitTime: v.estimatedWaitTime,
+                demandLevel: v.demandLevel,
+                businessHours: v.businessHours,
+                isOpen: v.isOpen,
+                businessStatus: v.businessStatus,
+                closed_venue_reasoning: v.closed_venue_reasoning,
+                stagingArea: v.stagingArea,
+                proTips: v.proTips || v.pro_tips || []
               };
             }) || [],
             ranking_id: data.correlationId,
