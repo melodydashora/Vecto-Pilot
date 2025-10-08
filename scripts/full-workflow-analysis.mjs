@@ -36,27 +36,14 @@ console.log(`   📍 Longitude: ${LNG}`);
 console.log(`   👤 User ID: ${USER_ID}`);
 console.log();
 
-console.log('🔷 STEP 2: CREATE LOCATION SNAPSHOT');
-console.log(`   📤 POST /api/location/snapshot`);
-console.log();
-
-const snapResponse = await post('/api/location/snapshot', { lat: LAT, lng: LNG, userId: USER_ID });
-const snapshotId = snapResponse.json?.snapshot_id || snapResponse.json?.id;
-
-if (!snapshotId) {
-  console.error('❌ Failed to create snapshot:', snapResponse);
-  process.exit(1);
-}
-
-console.log(`   ✅ Snapshot ID: ${snapshotId}`);
-console.log();
-
-console.log('🔷 STEP 3: TRIGGER WORKFLOW - POST /api/blocks (with polling)');
-console.log(`   📤 Request: {lat: ${LAT}, lng: ${LNG}, userId: "${USER_ID}", origin: {lat, lng}}`);
+console.log('🔷 STEP 2: TRIGGER WORKFLOW - POST /api/blocks (with polling)');
+console.log(`   📤 Request: {lat: ${LAT}, lng: ${LNG}, userId: "${USER_ID}"}`);
+console.log(`   ℹ️  Blocks endpoint will create snapshot internally`);
 console.log();
 
 let correlationId = null;
 let blocks = null;
+let snapshotId = null;
 let attempts = 0;
 const maxAttempts = 20;
 
@@ -64,30 +51,34 @@ const maxAttempts = 20;
 for (let i = 0; i < maxAttempts; i++) {
   attempts++;
   const res = await post('/api/blocks', { 
-    lat: LAT, 
-    lng: LNG, 
-    userId: USER_ID, 
-    snapshot_id: snapshotId,
-    origin: { lat: LAT, lng: LNG }
+    origin: { lat: LAT, lng: LNG },
+    userId: USER_ID
   });
   
   correlationId = res.json?.correlationId || correlationId;
+  snapshotId = res.json?.snapshot_id || snapshotId;
   
   if (res.status === 202) { 
-    console.log(`   ⏳ Attempt ${attempts}: Strategy pending, retrying in 1s...`);
-    await sleep(1000);
+    console.log(`   ⏳ Attempt ${attempts}: Strategy pending, retrying in 2s...`);
+    await sleep(2000);
     continue;
   }
   
   if (res.status === 200 && Array.isArray(res.json?.blocks)) { 
     blocks = res.json.blocks;
     correlationId = res.json.correlationId;
+    snapshotId = res.json.snapshot_id;
     console.log(`   ✅ Blocks ready after ${attempts} attempts`);
     break;
   }
   
-  console.log(`   ⚠️ Attempt ${attempts}: Unexpected response (status ${res.status}), retrying...`);
-  await sleep(1000);
+  if (res.status === 400) {
+    console.error(`   ❌ Attempt ${attempts}: Bad request (400)`, res.json);
+    process.exit(1);
+  }
+  
+  console.log(`   ⚠️ Attempt ${attempts}: Unexpected response (status ${res.status}), retrying in 2s...`);
+  await sleep(2000);
 }
 
 if (!blocks) {
@@ -96,12 +87,13 @@ if (!blocks) {
 }
 
 console.log(`   ✅ Correlation ID: ${correlationId}`);
+console.log(`   ✅ Snapshot ID: ${snapshotId}`);
 console.log(`   ✅ Received ${blocks.length} blocks`);
 console.log();
 
 // Validate first venue has non-zero distance/time
 const firstVenue = blocks[0];
-console.log('🔷 STEP 18: VALIDATE FIRST VENUE (Routes API data)');
+console.log('🔷 STEP 3: VALIDATE FIRST VENUE (Routes API data)');
 console.log(`   📍 Name: ${firstVenue.name}`);
 console.log(`   🆔 Place ID: ${firstVenue.placeId}`);
 console.log(`   📏 Distance: ${firstVenue.estimated_distance_miles} mi`);
@@ -136,7 +128,7 @@ console.log('━━━━━━━━━━━━━━━━━━━━━━�
 console.log();
 
 // 1. Check snapshot table
-console.log('🔷 STEP 19: GEOCODING API CALL (Reverse Geocode)');
+console.log('🔷 STEP 4: GEOCODING API CALL (Reverse Geocode)');
 console.log('   📡 Google Geocoding API: coordinates → address + place_id');
 console.log(`   📤 Input: lat=${LAT}, lng=${LNG}`);
 console.log('   📥 Output: city, state, address, timezone');
@@ -149,349 +141,131 @@ const snapshotResult = await client.query(
 
 if (snapshotResult.rows.length > 0) {
   const snapshot = snapshotResult.rows[0];
-  console.log('🔷 STEP 5B: DB WRITE → snapshots table');
+  console.log('🔷 STEP 4B: DB WRITE → snapshots table');
   console.log('   💾 Table: snapshots');
-  console.log('   📝 Fields written:');
-  console.log(`      - snapshot_id: ${snapshot.snapshot_id}`);
-  console.log(`      - user_id: ${snapshot.user_id}`);
-  console.log(`      - lat: ${snapshot.lat}`);
-  console.log(`      - lng: ${snapshot.lng}`);
-  console.log(`      - city: ${snapshot.city}`);
-  console.log(`      - state: ${snapshot.state}`);
-  console.log(`      - formatted_address: ${snapshot.formatted_address}`);
-  console.log(`      - timezone: ${snapshot.timezone}`);
-  console.log(`      - day_part_key: ${snapshot.day_part_key}`);
-  console.log(`      - weather: ${JSON.stringify(snapshot.weather)}`);
-  console.log(`      - created_at: ${snapshot.created_at}`);
-  console.log();
-}
-
-// 2. Check if Claude strategy exists
-const strategyCheck = await client.query(
-  'SELECT * FROM strategies WHERE snapshot_id = $1 AND status = $2',
-  [snapshotId, 'ok']
-);
-
-if (strategyCheck.rows.length > 0) {
-  console.log('🔷 STEP 18: WORKFLOW GATING CHECK');
-  console.log('   ✅ Snapshot has lat/lng → Proceed to TRIAD');
-  console.log();
-  
-  console.log('🔷 STEP 19: TRIAD 1/3 - CLAUDE SONNET 4.5 (STRATEGIST)');
-  console.log('   📖 DB READ from: snapshots table');
-  console.log('   📝 Fields read:');
-  console.log(`      - city: ${snapshotResult.rows[0].city}`);
-  console.log(`      - state: ${snapshotResult.rows[0].state}`);
-  console.log(`      - day_part_key: ${snapshotResult.rows[0].day_part_key}`);
-  console.log(`      - weather: ${JSON.stringify(snapshotResult.rows[0].weather)}`);
-  console.log(`      - lat, lng, timezone, formatted_address`);
-  console.log();
-  
-  console.log('   📤 Sent to Claude Sonnet 4.5:');
-  console.log('      - Full snapshot context (city, state, weather, time, etc.)');
-  console.log('      - Prompt: Generate strategic overview with pro tips');
-  console.log();
-  
-  const strategy = strategyCheck.rows[0];
-  console.log('   📥 Claude Response:');
-  console.log(`      - strategy: "${strategy.strategy.substring(0, 150)}..."`);
-  console.log();
-  
-  console.log('   💾 DB WRITE → strategies table');
-  console.log(`      - id: ${strategy.id}`);
-  console.log(`      - snapshot_id: ${strategy.snapshot_id}`);
-  console.log(`      - strategy: [saved]`);
-  console.log(`      - status: ${strategy.status}`);
-  console.log(`      - latency_ms: ${strategy.latency_ms}`);
-  console.log(`      - created_at: ${strategy.created_at}`);
-  console.log();
-}
-
-// 3. Check GPT-5 planning
-console.log('🔷 STEP 18: WORKFLOW GATING CHECK');
-console.log('   ✅ Claude strategy exists → Proceed to GPT-5');
-console.log();
-
-console.log('🔷 STEP 19: TRIAD 2/3 - GPT-5 PRO (TACTICAL PLANNER)');
-console.log('   📖 DB READ from: strategies table');
-console.log('   📝 Fields read:');
-console.log(`      - strategy: [Claude's strategy]`);
-console.log('   📖 DB READ from: snapshots table');
-console.log('   📝 Fields read:');
-console.log(`      - Full snapshot context`);
-console.log();
-
-console.log('   📤 Sent to GPT-5 Pro:');
-console.log('      - Claude strategy_for_now (strategic guidance)');
-console.log('      - Snapshot context (city, weather, time)');
-console.log('      - Prompt: Generate tactical venue recommendations');
-console.log();
-
-console.log('   📥 GPT-5 Response:');
-console.log('      - venues: [6 venues with name, category, lat, lng, description]');
-console.log('      - tactical_summary: [positioning guidance]');
-console.log('      - staging_location: [optimal staging point]');
-console.log();
-
-// 4. Check venue resolution
-console.log('🔷 STEP 18: VENUE RESOLUTION (DB-First → API)');
-console.log('   For each GPT-5 venue:');
-console.log();
-
-const placesResult = await client.query(
-  'SELECT place_id, formatted_hours, cached_at FROM places_cache ORDER BY cached_at DESC LIMIT 3'
-);
-
-if (placesResult.rows.length > 0) {
-  console.log('   🔍 STEP 8A: DB CHECK - places_cache table');
-  placesResult.rows.forEach((place, idx) => {
-    console.log(`      Cache ${idx + 1}:`);
-    console.log(`         ✅ place_id="${place.place_id}"`);
-    console.log(`         📖 formatted_hours cached at: ${place.cached_at}`);
+  console.log('   ✅ Record:', {
+    snapshot_id: snapshot.snapshot_id,
+    city: snapshot.city,
+    state: snapshot.state,
+    timezone: snapshot.timezone,
+    lat: snapshot.lat,
+    lng: snapshot.lng,
+    h3_r8: snapshot.h3_r8,
+    weather: snapshot.weather
   });
   console.log();
+} else {
+  console.warn('⚠️ No snapshot found in database');
+  console.log();
 }
-  
-console.log('   🔍 STEP 8B: IF NOT IN DB - API RESOLUTION');
-console.log('      a) Has name only?');
-console.log('         📡 Places Find Place API: name → place_id + lat/lng');
-console.log('         💾 Coordinates stored in memory for this request (not DB)');
-console.log('      b) Has coords only?');
-console.log('         📡 Geocoding API: lat/lng → place_id + address');
-console.log('         💾 place_id + address stored in memory for this request');
-console.log();
-  
-console.log('   💾 DB WRITE → places_cache table (business hours only)');
-console.log('      - place_id, formatted_hours, cached_at');
-console.log('      - Note: Coordinates NOT cached (always from APIs)');
+
+// 2. Check strategy table
+console.log('🔷 STEP 5: CLAUDE SONNET 4.5 STRATEGIC ANALYSIS');
+console.log('   🧠 Model: claude-sonnet-4-5-20250929 (Strategist)');
+console.log('   📤 Input: snapshot context (GPS, weather, time, airport status)');
+console.log('   📥 Output: strategy text, pro tips, earnings estimate');
 console.log();
 
-console.log('🔷 STEP 19: BUSINESS HOURS ENRICHMENT');
-console.log('   📡 Google Places Details API (fields=opening_hours,business_status)');
-console.log('   📤 Input: place_id (from DB or resolved)');
-console.log('   📥 Output: opening_hours, business_status');
-console.log('   💾 NO DB WRITE (hours are real-time, not cached)');
+const strategyResult = await client.query(
+  'SELECT * FROM strategies WHERE correlation_id = $1',
+  [correlationId]
+);
+
+if (strategyResult.rows.length > 0) {
+  const strategy = strategyResult.rows[0];
+  console.log('🔷 STEP 5B: DB WRITE → strategies table');
+  console.log('   💾 Table: strategies');
+  console.log('   ✅ Record:', {
+    correlation_id: strategy.correlation_id,
+    strategy_length: strategy.strategy_for_now?.length || 0,
+    pro_tips_count: strategy.pro_tips?.length || 0
+  });
+  console.log();
+} else {
+  console.warn('⚠️ No strategy found in database');
+  console.log();
+}
+
+// 3. Check rankings table
+console.log('🔷 STEP 6: GPT-5 TACTICAL PLANNING');
+console.log('   🧠 Model: gpt-5-preview (Planner)');
+console.log('   📤 Input: Claude strategy + venue catalog');
+console.log('   📥 Output: ranked venues with timing & value scores');
 console.log();
 
-console.log('🔷 STEP 18: WORKFLOW GATING CHECK');
-console.log('   ✅ All venues have place_id, lat, lng → Proceed to Routes + Gemini');
-console.log();
-
-console.log('🔷 STEP 19: DISTANCE & ETA CALCULATION');
-console.log('   📡 Google Routes API (traffic-aware)');
-console.log('   📤 Input per venue:');
-console.log('      - origin: {lat: snapshot.lat, lng: snapshot.lng}');
-console.log('      - destination: {lat: venue.lat, lng: venue.lng}');
-console.log('   📥 Output per venue:');
-console.log('      - distanceMeters, durationSeconds (drive time)');
-console.log('   💾 NO DB WRITE (distances calculated real-time)');
-console.log();
-
-console.log('🔷 STEP 18: TRIAD 3/3 - GEMINI 2.5 PRO (VALIDATOR)');
-console.log('   📤 Sent to Gemini:');
-console.log('      - venues with: name, lat, lng, distance, driveTime, hours, status');
-console.log('      - snapshot context');
-console.log('      - Prompt: Validate, calculate earnings, rank by value_per_min');
-console.log();
-
-console.log('   📥 Gemini Response per venue:');
-console.log('      - placeId (echo back)');
-console.log('      - estimated_earnings_per_ride');
-console.log('      - earnings_per_mile');
-console.log('      - validation_status');
-console.log('      - ranking_score');
-console.log();
-
-// 5. Check ranking table
 const rankingResult = await client.query(
-  `SELECT r.*, 
-    (SELECT COUNT(*) FROM ranking_candidates WHERE ranking_id = r.ranking_id) as candidate_count
-   FROM rankings r 
-   WHERE r.snapshot_id = $1`,
-  [snapshotId]
+  'SELECT * FROM rankings WHERE correlation_id = $1',
+  [correlationId]
 );
 
 if (rankingResult.rows.length > 0) {
   const ranking = rankingResult.rows[0];
-  console.log('🔷 STEP 19: ML TRAINING - DB WRITES');
-  console.log('   💾 DB WRITE → rankings table');
-  console.log(`      - ranking_id: ${ranking.ranking_id} (correlation_id)`);
-  console.log(`      - snapshot_id: ${ranking.snapshot_id}`);
-  console.log(`      - user_id: ${ranking.user_id}`);
-  console.log(`      - city: ${ranking.city}`);
-  console.log(`      - model_name: ${ranking.model_name}`);
-  console.log(`      - created_at: ${ranking.created_at}`);
+  console.log('🔷 STEP 6B: DB WRITE → rankings table');
+  console.log('   💾 Table: rankings');
+  console.log('   ✅ Record:', {
+    ranking_id: ranking.ranking_id,
+    correlation_id: ranking.correlation_id,
+    snapshot_id: ranking.snapshot_id
+  });
   console.log();
-  
-  console.log('   💾 DB WRITE → ranking_candidates table');
+
+  // 4. Check ranking_candidates table
+  console.log('🔷 STEP 7: DB WRITE → ranking_candidates table');
   const candidatesResult = await client.query(
-    'SELECT * FROM ranking_candidates WHERE ranking_id = $1 ORDER BY rank',
+    'SELECT * FROM ranking_candidates WHERE ranking_id = $1',
     [ranking.ranking_id]
   );
   
-  console.log(`      Total candidates: ${candidatesResult.rows.length}`);
-  candidatesResult.rows.forEach(c => {
-    console.log(`      Rank ${c.rank}: ${c.name}`);
-    console.log(`         - place_id: ${c.place_id}`);
-    console.log(`         - category: ${c.category}`);
-    console.log(`         - distance_miles: ${c.distance_miles}`);
-    console.log(`         - drive_time_minutes: ${c.drive_time_minutes}`);
-    console.log(`         - est_earnings: $${c.est_earnings}`);
-    console.log(`         - value_per_min: $${c.value_per_min}/min`);
-    console.log(`         - value_grade: ${c.value_grade}`);
-  });
+  console.log(`   💾 Table: ranking_candidates (${candidatesResult.rows.length} records)`);
+  if (candidatesResult.rows.length > 0) {
+    const first = candidatesResult.rows[0];
+    console.log('   ✅ First Candidate:', {
+      name: first.name,
+      place_id: first.place_id,
+      lat: first.lat,
+      lng: first.lng,
+      estimated_distance_miles: first.estimated_distance_miles,
+      drive_time_minutes: first.drive_time_minutes,
+      distance_source: first.distance_source
+    });
+  }
+  console.log();
+} else {
+  console.warn('⚠️ No ranking found in database');
   console.log();
 }
 
-console.log('🔷 STEP 18: VALUE-PER-MINUTE CALCULATION');
-console.log('   Formula: (base_rate × surge × trip_minutes) / (drive + wait + trip)');
-console.log('   Server computes per venue:');
-console.log('      - value_per_min');
-console.log('      - value_grade (A/B/C/D)');
-console.log('      - not_worth flag (if below floor)');
+// 5. Display Routes API enrichment
+console.log('🔷 STEP 8: GOOGLE ROUTES API ENRICHMENT');
+console.log('   📡 Google Routes API: traffic-aware distance & ETA');
+console.log(`   📤 Input: origin (${LAT}, ${LNG}) → destination coords`);
+console.log('   📥 Output: estimated_distance_miles, driveTimeMinutes');
 console.log();
 
-console.log('🔷 STEP 19: FINAL RESPONSE TO CLIENT');
-console.log('   📤 API Response Structure:');
-console.log('      {');
-console.log('        correlationId,');
-console.log('        snapshot_id,');
-console.log('        userId,');
-console.log('        generatedAt,');
-console.log('        strategy_for_now,');
-console.log('        blocks: [');
-console.log('          {');
-console.log('            name, address, category,');
-console.log('            coordinates: {lat, lng},');
-console.log('            estimated_distance_miles,');
-console.log('            driveTimeMinutes,');
-console.log('            distanceSource: "routes_api",');
-console.log('            value_per_min,');
-console.log('            value_grade,');
-console.log('            not_worth,');
-console.log('            surge,');
-console.log('            estimatedWaitTime,');
-console.log('            estimatedEarningsPerRide,');
-console.log('            estimated_earnings,');
-console.log('            businessHours,');
-console.log('            isOpen,');
-console.log('            placeId,');
-console.log('            proTips: []');
-console.log('          }');
-console.log('        ],');
-console.log('        staging_area: {...}');
-console.log('      }');
+console.log('🔷 STEP 9: GEMINI 2.5 PRO JSON VALIDATION');
+console.log('   🧠 Model: gemini-2.5-pro (Validator)');
+console.log('   📤 Input: GPT-5 ranking + Routes API data');
+console.log('   📥 Output: validated JSON with ≥6 venues');
 console.log();
 
-console.log('🔷 STEP 18: FRONTEND RENDERING');
-console.log('   📥 Client receives response');
-console.log('   🎨 UI Mapper (client/src/pages/co-pilot.tsx):');
-console.log('      CRITICAL: Preserves ALL server fields verbatim');
-console.log('      - estimated_distance_miles (from Routes API)');
-console.log('      - driveTimeMinutes (from Routes API)');
-console.log('      - distanceSource ("routes_api")');
-console.log('      - value_per_min, value_grade, not_worth');
-console.log('      - surge, earnings_per_mile');
-console.log('      - coordinates (from server, NEVER device GPS)');
-console.log('   🖼️ UI Display:');
-console.log('      - Distance badge: server miles (never recalculated)');
-console.log('      - Value grade badge (A/B/C/D)');
-console.log('      - "Not worth it" flag if below floor');
-console.log('      - Business hours and open/closed status');
-console.log('      - Staging area with parking tips');
+// 6. Display final blocks
+console.log('🔷 STEP 10: FINAL BLOCKS TO UI');
+console.log(`   📦 ${blocks.length} venues ready for display`);
 console.log();
 
-console.log('🔷 STEP 19: USER ACTION LOGGING');
-const actionsResult = await client.query(
-  'SELECT * FROM actions WHERE ranking_id = $1 ORDER BY created_at DESC LIMIT 5',
-  [correlationId]
-).catch(() => ({ rows: [] }));
-
-if (actionsResult.rows.length > 0) {
-  console.log('   💾 DB WRITE → actions table');
-  actionsResult.rows.forEach(action => {
-    console.log(`      - action_type: ${action.action_type}`);
-    console.log(`        ranking_id: ${action.ranking_id}`);
-    console.log(`        snapshot_id: ${action.snapshot_id}`);
-    console.log(`        created_at: ${action.created_at}`);
-  });
-} else {
-  console.log('   💾 DB WRITE → actions table (when user interacts)');
-  console.log('      - action_type: blocks_viewed / venue_selected / navigation_started');
-  console.log('      - ranking_id: links action to specific recommendation set');
-  console.log('      - snapshot_id: links to snapshot context');
-  console.log('      - venue_id: which venue was selected');
-}
-console.log();
-
-await client.end();
+blocks.forEach((block, i) => {
+  console.log(`   ${i + 1}. ${block.name}`);
+  console.log(`      Distance: ${block.estimated_distance_miles} mi`);
+  console.log(`      Drive Time: ${block.driveTimeMinutes} min`);
+  console.log(`      Value/Min: $${block.value_per_min?.toFixed(2) || '0.00'}`);
+  console.log(`      Grade: ${block.value_grade || 'N/A'}`);
+  console.log(`      Earnings: $${block.estimatedEarningsPerRide || 0}`);
+  console.log();
+});
 
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('✅ WORKFLOW COMPLETE');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log();
 
-console.log('📊 SUMMARY OF DATA FLOW:');
-console.log();
-console.log('┌─ GPS Device');
-console.log('│  └─→ lat/lng');
-console.log('│');
-console.log('├─ Geocoding API');
-console.log('│  └─→ city, state, address, timezone');
-console.log('│      └─→ DB: snapshots table (write)');
-console.log('│');
-console.log('├─ Weather/AirQuality APIs');
-console.log('│  └─→ weather_summary, air_quality');
-console.log('│      └─→ DB: snapshots table (update)');
-console.log('│');
-console.log('├─ TRIAD 1/3: Claude Sonnet 4.5');
-console.log('│  ├─→ DB: snapshots (read context)');
-console.log('│  └─→ strategy_for_now');
-console.log('│      └─→ DB: snapshots.strategy_for_now (write)');
-console.log('│');
-console.log('├─ TRIAD 2/3: GPT-5 Pro');
-console.log('│  ├─→ DB: snapshots.strategy_for_now (read)');
-console.log('│  └─→ venues[], tactical_summary, staging_location');
-console.log('│');
-console.log('├─ Venue Resolution (per venue)');
-console.log('│  ├─→ DB: places_cache (read if exists)');
-console.log('│  ├─→ If not in DB:');
-console.log('│  │   ├─→ Places Find Place API (name → place_id + coords)');
-console.log('│  │   └─→ Geocoding API (coords → place_id + address)');
-console.log('│  └─→ DB: places_cache (write if new)');
-console.log('│');
-console.log('├─ Business Hours');
-console.log('│  └─→ Places Details API (place_id → hours, status)');
-console.log('│');
-console.log('├─ Distance & ETA');
-console.log('│  └─→ Routes API (origin + destination → distance, time)');
-console.log('│');
-console.log('├─ TRIAD 3/3: Gemini 2.5 Pro');
-console.log('│  └─→ earnings, validation, ranking per venue');
-console.log('│');
-console.log('├─ Value Calculation (server)');
-console.log('│  └─→ value_per_min, value_grade, not_worth');
-console.log('│');
-console.log('├─ ML Training');
-console.log('│  ├─→ DB: rankings table (write)');
-console.log('│  └─→ DB: ranking_candidates table (write all venues)');
-console.log('│');
-console.log('├─ API Response');
-console.log('│  └─→ Client receives smartblocks');
-console.log('│');
-console.log('├─ Frontend Rendering');
-console.log('│  └─→ UI displays blocks (server coordinates only)');
-console.log('│');
-console.log('└─ User Actions');
-console.log('   └─→ DB: user_actions table (write on interaction)');
-console.log();
-
-console.log('🔑 KEY ARCHITECTURAL RULES ENFORCED:');
-console.log('   ✅ Geocoding API = coordinates ⇄ address (+ place_id)');
-console.log('   ✅ Places Details API = business metadata ONLY (hours, status)');
-console.log('   ✅ Routes API = distance & time calculations');
-console.log('   ✅ Database = source of truth for cached places');
-console.log('   ✅ Server coordinates = always used (never client GPS)');
-console.log('   ✅ Workflow gating = prevents incomplete data propagation');
-console.log('   ✅ Key-based merge = no index-based alignment errors');
-console.log();
+await client.end();
+process.exit(0);
