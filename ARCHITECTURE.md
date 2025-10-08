@@ -2,6 +2,10 @@
 
 ---
 
+**Last Updated:** 2025-10-08 21:00 CST
+
+---
+
 ## 📍 **MISSION STATEMENT**
 
 **Drivers don't lose money because they can't drive.** They lose it in the gaps—time with no passenger, miles with no rider, and opaque pricing that shifts under their feet. In big markets, as much as 40% of ridehail miles are "deadhead" miles between trips, which drags down earnings even when the per-trip payout looks decent.
@@ -25,7 +29,6 @@
 ---
 
 # Accuracy-First Operating Invariants
-**Last Updated:** 2025-10-08 21:00 CST
 
 ---
 
