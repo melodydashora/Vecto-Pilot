@@ -263,7 +263,78 @@ Gemini uses different JSON structure:
 
 ## 🧪 Testing & Verification
 
-### Quick API Tests
+### Curl Examples (Using .env Parameters)
+
+#### Test Claude Sonnet 4.5
+```bash
+# Using exact .env configuration
+curl -X POST "https://api.anthropic.com/v1/messages" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250929",
+    "max_tokens": 30000,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Respond with only: CLAUDE SONNET 4.5 VERIFIED"
+      }
+    ]
+  }'
+
+# Expected response:
+# {"id":"msg_...","model":"claude-sonnet-4-5-20250929",...,"content":[{"text":"CLAUDE SONNET 4.5 VERIFIED"}]}
+```
+
+#### Test OpenAI GPT-5
+```bash
+# Using exact .env configuration (reasoning_effort: medium)
+curl -X POST "https://api.openai.com/v1/chat/completions" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-5",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Respond with only: GPT-5 VERIFIED"
+      }
+    ],
+    "reasoning_effort": "medium",
+    "max_completion_tokens": 32000
+  }'
+
+# Expected response:
+# {"id":"chatcmpl-...","model":"gpt-5",...,"choices":[{"message":{"content":"GPT-5 VERIFIED"}}]}
+```
+
+#### Test Google Gemini 2.5 Pro
+```bash
+# Using exact .env configuration (temperature: 0.2)
+curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=$GOOGLEAQ_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "Respond with only: GEMINI 2.5 PRO VERIFIED"
+          }
+        ]
+      }
+    ],
+    "generationConfig": {
+      "temperature": 0.2,
+      "maxOutputTokens": 2048
+    }
+  }'
+
+# Expected response:
+# {"candidates":[{"content":{"parts":[{"text":"GEMINI 2.5 PRO VERIFIED"}]}}]}
+```
+
+### Quick Node.js Tests
 
 **Test Anthropic**:
 ```bash
@@ -272,12 +343,12 @@ node -e "fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'
 
 **Test OpenAI GPT-5**:
 ```bash
-node -e "fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'authorization':'Bearer '+process.env.OPENAI_API_KEY,'content-type':'application/json'},body:JSON.stringify({model:'gpt-5-pro',messages:[{role:'user',content:'ping'}],reasoning_effort:'low',max_completion_tokens:64})}).then(r=>r.json()).then(console.log)"
+node -e "fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'authorization':'Bearer '+process.env.OPENAI_API_KEY,'content-type':'application/json'},body:JSON.stringify({model:'gpt-5',messages:[{role:'user',content:'ping'}],reasoning_effort:'medium',max_completion_tokens:64})}).then(r=>r.json()).then(console.log)"
 ```
 
 **Test Gemini**:
 ```bash
-curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-latest:generateContent?key=$GOOGLEAQ_API_KEY" \
+curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=$GOOGLEAQ_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"contents":[{"parts":[{"text":"ping"}]}]}'
 ```
