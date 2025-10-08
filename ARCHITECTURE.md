@@ -1893,17 +1893,17 @@ blocks: data.blocks?.map((v) => ({
 
 **Tests and Acceptance**  
 ```bash
-# Run workflow snapshot to verify:
-node scripts/workflow-snapshot.mjs
+# Run complete workflow analysis with validation:
+node scripts/full-workflow-analysis.mjs
 
-# Expected output:
-# first venue: { 
-#   name: "...", 
-#   placeId: "ChIJ...", 
-#   miles: 4.33,        # ← non-zero
-#   minutes: 11,        # ← non-zero  
-#   src: "routes_api"   # ← from Routes API
-# }
+# Expected validation output:
+# 🔷 STEP 4: VALIDATE FIRST VENUE (Routes API data)
+#    📍 Name: "..."
+#    🆔 Place ID: ChIJ...
+#    📏 Distance: 4.33 mi        # ← non-zero
+#    ⏱️  Drive Time: 11 min       # ← non-zero
+#    📡 Source: routes_api        # ← from Routes API
+#    ✅ VALIDATION PASSED: Distance and time are non-zero
 ```
 
 **Observability**  

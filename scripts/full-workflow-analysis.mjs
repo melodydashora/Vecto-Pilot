@@ -9,7 +9,21 @@ const { Client } = pg;
 
 const LAT = 33.12855399613802;
 const LNG = -96.87550973624359;
-const USER_ID = '97b62815-2fbd-4f64-9338-7744bb62ae7c';
+const USER_ID = process.env.TEST_USER_ID || '97b62815-2fbd-4f64-9338-7744bb62ae7c';
+const BASE = process.env.BASE_URL || 'http://localhost:5000';
+
+// Helper functions
+async function post(path, body) {
+  const r = await fetch(`${BASE}${path}`, { 
+    method: 'POST', 
+    headers: { 'content-type': 'application/json' }, 
+    body: JSON.stringify(body) 
+  });
+  const j = await r.json().catch(() => ({}));
+  return { status: r.status, json: j };
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('📊 COMPLETE WORKFLOW ANALYSIS: GPS → API → DB → Models → UI');
@@ -22,27 +36,91 @@ console.log(`   📍 Longitude: ${LNG}`);
 console.log(`   👤 User ID: ${USER_ID}`);
 console.log();
 
-console.log('🔷 STEP 2: TRIGGER WORKFLOW - POST /api/blocks');
-console.log(`   📤 Request: {lat: ${LAT}, lng: ${LNG}, userId: "${USER_ID}"}`);
+console.log('🔷 STEP 2: CREATE LOCATION SNAPSHOT');
+console.log(`   📤 POST /api/location/snapshot`);
 console.log();
 
-const response = await fetch('http://localhost:5000/api/blocks', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ lat: LAT, lng: LNG, userId: USER_ID })
-});
+const snapResponse = await post('/api/location/snapshot', { lat: LAT, lng: LNG, userId: USER_ID });
+const snapshotId = snapResponse.json?.snapshot_id || snapResponse.json?.id;
 
-const data = await response.json();
-const correlationId = data.correlationId;
-const snapshotId = data.snapshot_id;
+if (!snapshotId) {
+  console.error('❌ Failed to create snapshot:', snapResponse);
+  process.exit(1);
+}
 
-console.log(`   ✅ Correlation ID: ${correlationId}`);
 console.log(`   ✅ Snapshot ID: ${snapshotId}`);
 console.log();
 
-// Wait for workflow to process
-console.log('⏳ Waiting for workflow to complete...');
-await new Promise(resolve => setTimeout(resolve, 3000));
+console.log('🔷 STEP 3: TRIGGER WORKFLOW - POST /api/blocks (with polling)');
+console.log(`   📤 Request: {lat: ${LAT}, lng: ${LNG}, userId: "${USER_ID}", origin: {lat, lng}}`);
+console.log();
+
+let correlationId = null;
+let blocks = null;
+let attempts = 0;
+const maxAttempts = 20;
+
+// Poll until strategy exists and blocks are ready
+for (let i = 0; i < maxAttempts; i++) {
+  attempts++;
+  const res = await post('/api/blocks', { 
+    lat: LAT, 
+    lng: LNG, 
+    userId: USER_ID, 
+    snapshot_id: snapshotId,
+    origin: { lat: LAT, lng: LNG }
+  });
+  
+  correlationId = res.json?.correlationId || correlationId;
+  
+  if (res.status === 202) { 
+    console.log(`   ⏳ Attempt ${attempts}: Strategy pending, retrying in 1s...`);
+    await sleep(1000);
+    continue;
+  }
+  
+  if (res.status === 200 && Array.isArray(res.json?.blocks)) { 
+    blocks = res.json.blocks;
+    correlationId = res.json.correlationId;
+    console.log(`   ✅ Blocks ready after ${attempts} attempts`);
+    break;
+  }
+  
+  console.log(`   ⚠️ Attempt ${attempts}: Unexpected response (status ${res.status}), retrying...`);
+  await sleep(1000);
+}
+
+if (!blocks) {
+  console.error('❌ Blocks never became ready after', maxAttempts, 'attempts');
+  process.exit(1);
+}
+
+console.log(`   ✅ Correlation ID: ${correlationId}`);
+console.log(`   ✅ Received ${blocks.length} blocks`);
+console.log();
+
+// Validate first venue has non-zero distance/time
+const firstVenue = blocks[0];
+console.log('🔷 STEP 18: VALIDATE FIRST VENUE (Routes API data)');
+console.log(`   📍 Name: ${firstVenue.name}`);
+console.log(`   🆔 Place ID: ${firstVenue.placeId}`);
+console.log(`   📏 Distance: ${firstVenue.estimated_distance_miles} mi`);
+console.log(`   ⏱️  Drive Time: ${firstVenue.driveTimeMinutes} min`);
+console.log(`   📡 Source: ${firstVenue.distanceSource}`);
+console.log();
+
+if (!firstVenue.estimated_distance_miles || firstVenue.estimated_distance_miles === 0) {
+  console.error('❌ VALIDATION FAILED: Distance is 0 or missing!');
+  process.exit(1);
+}
+
+if (!firstVenue.driveTimeMinutes || firstVenue.driveTimeMinutes === 0) {
+  console.error('❌ VALIDATION FAILED: Drive time is 0 or missing!');
+  process.exit(1);
+}
+
+console.log('   ✅ VALIDATION PASSED: Distance and time are non-zero');
+console.log();
 
 // Connect to database
 const client = new Client({
@@ -53,12 +131,12 @@ await client.connect();
 
 console.log();
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-console.log('💾 DATABASE OPERATIONS');
+console.log('💾 DATABASE OPERATIONS & WORKFLOW TRACE');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log();
 
 // 1. Check snapshot table
-console.log('🔷 STEP 3A: GEOCODING API CALL (Reverse Geocode)');
+console.log('🔷 STEP 19: GEOCODING API CALL (Reverse Geocode)');
 console.log('   📡 Google Geocoding API: coordinates → address + place_id');
 console.log(`   📤 Input: lat=${LAT}, lng=${LNG}`);
 console.log('   📥 Output: city, state, address, timezone');
@@ -71,7 +149,7 @@ const snapshotResult = await client.query(
 
 if (snapshotResult.rows.length > 0) {
   const snapshot = snapshotResult.rows[0];
-  console.log('🔷 STEP 3B: DB WRITE → snapshots table');
+  console.log('🔷 STEP 5B: DB WRITE → snapshots table');
   console.log('   💾 Table: snapshots');
   console.log('   📝 Fields written:');
   console.log(`      - snapshot_id: ${snapshot.snapshot_id}`);
@@ -95,11 +173,11 @@ const strategyCheck = await client.query(
 );
 
 if (strategyCheck.rows.length > 0) {
-  console.log('🔷 STEP 4: WORKFLOW GATING CHECK');
+  console.log('🔷 STEP 18: WORKFLOW GATING CHECK');
   console.log('   ✅ Snapshot has lat/lng → Proceed to TRIAD');
   console.log();
   
-  console.log('🔷 STEP 5: TRIAD 1/3 - CLAUDE SONNET 4.5 (STRATEGIST)');
+  console.log('🔷 STEP 19: TRIAD 1/3 - CLAUDE SONNET 4.5 (STRATEGIST)');
   console.log('   📖 DB READ from: snapshots table');
   console.log('   📝 Fields read:');
   console.log(`      - city: ${snapshotResult.rows[0].city}`);
@@ -130,11 +208,11 @@ if (strategyCheck.rows.length > 0) {
 }
 
 // 3. Check GPT-5 planning
-console.log('🔷 STEP 6: WORKFLOW GATING CHECK');
+console.log('🔷 STEP 18: WORKFLOW GATING CHECK');
 console.log('   ✅ Claude strategy exists → Proceed to GPT-5');
 console.log();
 
-console.log('🔷 STEP 7: TRIAD 2/3 - GPT-5 PRO (TACTICAL PLANNER)');
+console.log('🔷 STEP 19: TRIAD 2/3 - GPT-5 PRO (TACTICAL PLANNER)');
 console.log('   📖 DB READ from: strategies table');
 console.log('   📝 Fields read:');
 console.log(`      - strategy: [Claude's strategy]`);
@@ -156,7 +234,7 @@ console.log('      - staging_location: [optimal staging point]');
 console.log();
 
 // 4. Check venue resolution
-console.log('🔷 STEP 8: VENUE RESOLUTION (DB-First → API)');
+console.log('🔷 STEP 18: VENUE RESOLUTION (DB-First → API)');
 console.log('   For each GPT-5 venue:');
 console.log();
 
@@ -188,18 +266,18 @@ console.log('      - place_id, formatted_hours, cached_at');
 console.log('      - Note: Coordinates NOT cached (always from APIs)');
 console.log();
 
-console.log('🔷 STEP 9: BUSINESS HOURS ENRICHMENT');
+console.log('🔷 STEP 19: BUSINESS HOURS ENRICHMENT');
 console.log('   📡 Google Places Details API (fields=opening_hours,business_status)');
 console.log('   📤 Input: place_id (from DB or resolved)');
 console.log('   📥 Output: opening_hours, business_status');
 console.log('   💾 NO DB WRITE (hours are real-time, not cached)');
 console.log();
 
-console.log('🔷 STEP 10: WORKFLOW GATING CHECK');
+console.log('🔷 STEP 18: WORKFLOW GATING CHECK');
 console.log('   ✅ All venues have place_id, lat, lng → Proceed to Routes + Gemini');
 console.log();
 
-console.log('🔷 STEP 11: DISTANCE & ETA CALCULATION');
+console.log('🔷 STEP 19: DISTANCE & ETA CALCULATION');
 console.log('   📡 Google Routes API (traffic-aware)');
 console.log('   📤 Input per venue:');
 console.log('      - origin: {lat: snapshot.lat, lng: snapshot.lng}');
@@ -209,7 +287,7 @@ console.log('      - distanceMeters, durationSeconds (drive time)');
 console.log('   💾 NO DB WRITE (distances calculated real-time)');
 console.log();
 
-console.log('🔷 STEP 12: TRIAD 3/3 - GEMINI 2.5 PRO (VALIDATOR)');
+console.log('🔷 STEP 18: TRIAD 3/3 - GEMINI 2.5 PRO (VALIDATOR)');
 console.log('   📤 Sent to Gemini:');
 console.log('      - venues with: name, lat, lng, distance, driveTime, hours, status');
 console.log('      - snapshot context');
@@ -235,7 +313,7 @@ const rankingResult = await client.query(
 
 if (rankingResult.rows.length > 0) {
   const ranking = rankingResult.rows[0];
-  console.log('🔷 STEP 13: ML TRAINING - DB WRITES');
+  console.log('🔷 STEP 19: ML TRAINING - DB WRITES');
   console.log('   💾 DB WRITE → rankings table');
   console.log(`      - ranking_id: ${ranking.ranking_id} (correlation_id)`);
   console.log(`      - snapshot_id: ${ranking.snapshot_id}`);
@@ -265,7 +343,7 @@ if (rankingResult.rows.length > 0) {
   console.log();
 }
 
-console.log('🔷 STEP 14: VALUE-PER-MINUTE CALCULATION');
+console.log('🔷 STEP 18: VALUE-PER-MINUTE CALCULATION');
 console.log('   Formula: (base_rate × surge × trip_minutes) / (drive + wait + trip)');
 console.log('   Server computes per venue:');
 console.log('      - value_per_min');
@@ -273,7 +351,7 @@ console.log('      - value_grade (A/B/C/D)');
 console.log('      - not_worth flag (if below floor)');
 console.log();
 
-console.log('🔷 STEP 15: FINAL RESPONSE TO CLIENT');
+console.log('🔷 STEP 19: FINAL RESPONSE TO CLIENT');
 console.log('   📤 API Response Structure:');
 console.log('      {');
 console.log('        correlationId,');
@@ -305,7 +383,7 @@ console.log('        staging_area: {...}');
 console.log('      }');
 console.log();
 
-console.log('🔷 STEP 16: FRONTEND RENDERING');
+console.log('🔷 STEP 18: FRONTEND RENDERING');
 console.log('   📥 Client receives response');
 console.log('   🎨 UI Mapper (client/src/pages/co-pilot.tsx):');
 console.log('      CRITICAL: Preserves ALL server fields verbatim');
@@ -323,7 +401,7 @@ console.log('      - Business hours and open/closed status');
 console.log('      - Staging area with parking tips');
 console.log();
 
-console.log('🔷 STEP 17: USER ACTION LOGGING');
+console.log('🔷 STEP 19: USER ACTION LOGGING');
 const actionsResult = await client.query(
   'SELECT * FROM actions WHERE ranking_id = $1 ORDER BY created_at DESC LIMIT 5',
   [correlationId]

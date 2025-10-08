@@ -169,8 +169,15 @@ Update the workflow scripts when we change:
 - **Data transformations** (how data flows from one stage to another)
 - **UI mapper** (how frontend transforms server response)
 
-### Workflow Testing Scripts
-- **`scripts/workflow-snapshot.mjs`** - End-to-end workflow test that triggers GPS → snapshot → strategy → blocks and validates DB writes
-- **`scripts/full-workflow-analysis.mjs`** - Comprehensive analysis showing every API call, DB operation, and data flow step
+### Workflow Testing Script
+- **`scripts/full-workflow-analysis.mjs`** - Complete end-to-end workflow test with comprehensive tracing
+  - Creates location snapshot
+  - Triggers full workflow (GPS → snapshot → strategy → blocks)
+  - Polls until strategy and blocks are ready
+  - Validates first venue has non-zero distance/time from Routes API
+  - Shows every API call, DB operation, and data flow step
+  - Displays database writes to snapshots, strategies, rankings, and ranking_candidates tables
 
-These scripts serve as **living documentation** - they can be run to verify the system works as documented and ensure docs stay accurate.
+Run with: `node scripts/full-workflow-analysis.mjs`
+
+This script serves as **living documentation** - it can be run to verify the system works as documented and ensures docs stay accurate.
