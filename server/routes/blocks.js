@@ -244,6 +244,20 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
+    // STEP 1.5: Workflow Gating (enforce non-null snapshot coords)
+    // Architectural guidance: No GPT/Gemini until snapshot.lat/lng are non-null
+    // ============================================
+    if (!fullSnapshot || fullSnapshot.lat == null || fullSnapshot.lng == null) {
+      console.warn(`⚠️ [${correlationId}] Origin coordinates not ready - snapshot incomplete`);
+      return sendOnce(400, { 
+        ok: false, 
+        error: 'origin_not_ready',
+        message: 'Snapshot coordinates are required before generating recommendations',
+        correlationId 
+      });
+    }
+
+    // ============================================
     // STEP 2: Generate Claude's Strategy (synchronous triad)
     // ============================================
     let claudeStrategy = null;
@@ -323,6 +337,20 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
+    // STEP 2.5: Workflow Gating (enforce strategy exists before GPT-5)
+    // Architectural guidance: No GPT-5 until Claude strategy exists
+    // ============================================
+    if (!claudeStrategy) {
+      console.warn(`⚠️ [${correlationId}] Strategy required for tactical planning`);
+      return sendOnce(202, { 
+        ok: false, 
+        status: 'pending_strategy',
+        message: 'Strategy generation in progress',
+        correlationId 
+      });
+    }
+
+    // ============================================
     // STEP 3: Run GPT-5 Tactical Planner with Claude's Strategy
     // ============================================
     console.log(`🎯 [${correlationId}] TRIAD Step 2/3: Starting GPT-5 tactical planner (requires Claude strategy)...`);
@@ -349,28 +377,69 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
-    // STEP 4: Gemini 2.5 Pro Validation & Enrichment (Google Places API)
+    // STEP 4: Venue Resolution & Enrichment (Geocoding + Places split)
+    // Architectural guidance: Geocoding for coords/address, Places for hours ONLY
     // ============================================
-    console.log(`🔍 [${correlationId}] TRIAD Step 3/3: Gemini 2.5 Pro validation - enriching ${tacticalPlan.recommended_venues.length} venues...`);
-    const { findPlaceId, getFormattedHours } = await import('../lib/places-hours.js');
+    console.log(`🔍 [${correlationId}] TRIAD Step 3/3: Resolving ${tacticalPlan.recommended_venues.length} venues (Geocoding + Places)...`);
+    const { findPlaceIdByText, getBusinessHoursOnly } = await import('../lib/places-hours.js');
+    const { reverseGeocode } = await import('../lib/geocoding.js');
 
     const enrichedVenues = await Promise.all(
       tacticalPlan.recommended_venues.map(async (v) => {
         try {
-          // Find Place ID using name and coordinates
-          const placeId = await findPlaceId(v.name, { lat: v.lat, lng: v.lng });
+          let placeId = v.placeId || null;
+          let lat = null;
+          let lng = null;
+          let address = null;
 
-          // Get business hours, address, AND precise coordinates from Google Places API
-          const hoursData = await getFormattedHours(placeId);
+          // DB-first check would go here (TODO: implement places cache)
+          // const cached = placeId ? await placesRepo.get(placeId) : null;
+          
+          // Resolve coordinates and place_id using proper API split
+          if (v.name && !placeId) {
+            // Have name: use Places Find Place to get place_id + coords
+            console.log(`🔍 [${correlationId}] Resolving "${v.name}" via Places Find Place...`);
+            const placeData = await findPlaceIdByText({ 
+              text: v.name, 
+              lat: v.lat, 
+              lng: v.lng 
+            });
+            placeId = placeData.place_id;
+            lat = placeData.lat;
+            lng = placeData.lng;
+            address = placeData.formatted_address;
+            
+          } else if (v.lat != null && v.lng != null) {
+            // Have coords: use Geocoding API to get place_id + address
+            console.log(`🗺️ [${correlationId}] Reverse geocoding (${v.lat}, ${v.lng})...`);
+            const geoData = await reverseGeocode({ lat: v.lat, lng: v.lng });
+            placeId = geoData.place_id;
+            lat = geoData.lat;
+            lng = geoData.lng;
+            address = geoData.formatted_address;
+            
+          } else {
+            throw new Error('candidate_missing_name_or_coords');
+          }
 
-          console.log(`✅ [${correlationId}] Enriched ${v.name}: ${hoursData.status}, ${hoursData.hours?.length || 0} hours, address: ${hoursData.address || 'N/A'}`);
+          if (!placeId || lat == null || lng == null) {
+            throw new Error('venue_not_resolved');
+          }
+
+          // TODO: Cache resolved place data
+          // await placesRepo.upsert({ place_id: placeId, lat, lng, formatted_address: address });
+
+          // Get business hours ONLY from Places Details (no coordinates)
+          const hoursData = await getBusinessHoursOnly(placeId);
+
+          console.log(`✅ [${correlationId}] Enriched ${v.name}: ${hoursData.status}, ${hoursData.hours?.length || 0} hours, address: ${address}`);
 
           return {
             ...v,
-            address: hoursData.address || null,
-            lat: hoursData.lat || v.lat, // Use API coords if available, fallback to GPT-5
-            lng: hoursData.lng || v.lng,
             placeId,
+            lat,
+            lng,
+            address,
             businessHours: hoursData.hours,
             isOpen: hoursData.status === 'open',
             businessStatus: hoursData.status,
@@ -378,15 +447,8 @@ router.post('/', async (req, res) => {
           };
         } catch (error) {
           console.warn(`⚠️ [${correlationId}] Failed to enrich ${v.name}: ${error.message}`);
-          // Return venue without hours enrichment
-          return {
-            ...v,
-            address: null,
-            businessHours: null,
-            isOpen: null,
-            businessStatus: 'unknown',
-            hasSpecialHours: false
-          };
+          // Fail hard - don't proceed with unresolved venues
+          throw new Error(`Venue resolution failed for ${v.name}: ${error.message}`);
         }
       })
     );
@@ -394,26 +456,49 @@ router.post('/', async (req, res) => {
     console.log(`✅ [${correlationId}] Business hours enrichment complete`);
 
     // ============================================
-    // STEP 4.5: Enrich staging location with Google Places API
+    // STEP 4.5: Enrich staging location (Geocoding + Places split)
     // ============================================
     let enrichedStagingLocation = tacticalPlan.best_staging_location;
     if (tacticalPlan.best_staging_location) {
       try {
         console.log(`🔍 [${correlationId}] Resolving staging location: ${tacticalPlan.best_staging_location.name}`);
-        const stagingPlaceId = await findPlaceId(
-          tacticalPlan.best_staging_location.name, 
-          { lat: tacticalPlan.best_staging_location.lat, lng: tacticalPlan.best_staging_location.lng }
-        );
-        const stagingData = await getFormattedHours(stagingPlaceId);
+        
+        let placeId = null;
+        let lat = null;
+        let lng = null;
+        let address = null;
+
+        // Resolve using name → Places or coords → Geocoding
+        if (tacticalPlan.best_staging_location.name) {
+          const placeData = await findPlaceIdByText({ 
+            text: tacticalPlan.best_staging_location.name,
+            lat: tacticalPlan.best_staging_location.lat,
+            lng: tacticalPlan.best_staging_location.lng
+          });
+          placeId = placeData.place_id;
+          lat = placeData.lat;
+          lng = placeData.lng;
+          address = placeData.formatted_address;
+        } else if (tacticalPlan.best_staging_location.lat && tacticalPlan.best_staging_location.lng) {
+          const geoData = await reverseGeocode({
+            lat: tacticalPlan.best_staging_location.lat,
+            lng: tacticalPlan.best_staging_location.lng
+          });
+          placeId = geoData.place_id;
+          lat = geoData.lat;
+          lng = geoData.lng;
+          address = geoData.formatted_address;
+        }
 
         enrichedStagingLocation = {
           ...tacticalPlan.best_staging_location,
-          address: stagingData.address || null,
-          lat: stagingData.lat || tacticalPlan.best_staging_location.lat,
-          lng: stagingData.lng || tacticalPlan.best_staging_location.lng
+          placeId,
+          lat,
+          lng,
+          address
         };
 
-        console.log(`✅ [${correlationId}] Staging location enriched: ${enrichedStagingLocation.address}`);
+        console.log(`✅ [${correlationId}] Staging location enriched: ${address}`);
       } catch (error) {
         console.warn(`⚠️ [${correlationId}] Failed to enrich staging location: ${error.message}`);
       }
@@ -452,6 +537,17 @@ router.post('/', async (req, res) => {
         }
       })
     );
+
+    // ============================================
+    // STEP 5.5: Workflow Gating (enforce all venues resolved before Gemini)
+    // Architectural guidance: No Gemini until every candidate has place_id, lat, lng
+    // ============================================
+    for (const v of venuesWithDistance) {
+      if (!v.placeId || v.lat == null || v.lng == null) {
+        console.error(`❌ [${correlationId}] Venue not resolved: ${v.name} (missing place_id/coords)`);
+        throw new Error('venue_not_resolved - all venues must have place_id, lat, lng before Gemini');
+      }
+    }
 
     // Use Gemini to calculate earnings and validate (with closed venue reasoning)
     const { enrichVenuesWithGemini } = await import('../lib/gemini-enricher.js');
