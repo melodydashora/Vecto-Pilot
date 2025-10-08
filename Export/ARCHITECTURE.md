@@ -868,6 +868,8 @@ score = 2.0 * proximityBand + 1.2 * reliability + 0.6 * eventBoost + 0.8 * openP
 - **Exploratory Tracking**: AI-suggested venues flagged for validation performance analysis
 - **Proximity Patterns**: H3 distance correlations used for geo-aware optimization
 
+Model-supplied coordinates or hours are rejected; Places/DB only.
+
 ---
 
 ## 🏢 **3. VENUE HOURS (Accuracy-First)**
@@ -934,6 +936,8 @@ Every venue recommendation logs:
 - **Risk Model Training**: Closure risk predictions refined from actual outcomes
 - **Validation ROI**: Cost/accuracy tradeoffs measured for threshold optimization
 
+Model-supplied coordinates or hours are rejected; Places/DB only.
+
 ---
 
 ## 📏 **4. DISTANCE & ETA (Traffic-Aware)**
@@ -996,6 +1000,8 @@ distance = 2 * R * asin(sqrt(sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δln
 
 **Fallback Indicator**: When using Haversine estimation, append small "EST." badge to distance value for transparency.
 
+Routes API is the only source of distance/time. Cards display Distance and 'est drive time'. Sorting never uses client math. If Routes fails, the endpoint fails (HTTP 5xx); we do not fallback to Haversine in production.
+
 ---
 
 ## 🔥 **5. SURGE DETECTION (Opportunity Capture)**
@@ -1045,7 +1051,7 @@ priority_level = surge >= 2.0 ? 'high' : 'normal'
 ## 💰 **6. EARNINGS PROJECTION (Income Accuracy)**
 
 ### Core Principle
-Estimate realistic earnings per ride based on venue type, surge conditions, and base fare structure.
+Primary ranking is Value Per Minute, not $/ride. We estimate engaged revenue as base_rate_per_min × surge × expected_trip_minutes. We divide by total time cost (nav + wait + trip). The server sorts by value_per_min, marks not_worth when below a configurable floor, and returns value_grade A–D. This removes speculation about unknown trip payouts and centers driver time.
 
 ### How It Works
 
@@ -1069,6 +1075,8 @@ estimated_fare = base_earnings_hr * adjustment_factor
 ```
 net_take_home = estimated_fare - platform_fees - operating_costs
 ```
+
+Expected trip minutes and wait minutes come from DB medians by city/daypart; if missing, defaults are VALUE_DEFAULT_TRIP_MIN=15 and VALUE_DEFAULT_WAIT_MIN=0. Base engaged rate defaults to VALUE_BASE_RATE_PER_MIN=1.00 and multiplies by surge. All parameters are stored with each candidate for audit/ML.
 
 ### Why This Approach
 **Realistic**: Based on historical performance, not optimistic projections  
@@ -1167,6 +1175,9 @@ Top 6 = [
   Exploratory option (20% chance, for discovery)
 ]
 ```
+
+### Ranking Key
+Ranking Key: value_per_min (descending), tie-breakers: surge, proximity, historical acceptance. not_worth items appear last and are annotated.
 
 **ML Instrumentation:**
 - Every ranking logged with `ranking_id`
@@ -1722,6 +1733,31 @@ Logs include `calculated_distance_miles`, `estimated_earnings`, merged key, and 
 **Back/Forward Pressure**  
 **Backward:** Index-merge and UI GPS overwrite removed.  
 **Forward:** Weekly Places sync; validator prompts always echo placeId; earnings never default to $0.
+
+---
+
+### Fix Capsule — Value Per Minute Ranking (Oct 8, 2025)
+
+**Impact**  
+Ranks opportunities by time value, not speculative $/ride. Drivers see when a card isn't worth it (below floor).
+
+**When**  
+After Places and Routes, before final sort and response.
+
+**Why**  
+Time is the scarce resource; per-minute value is stable even when exact trip revenue is unknown. Matches the accuracy-first policy and no-fallback rule.
+
+**How**  
+Server computes value_per_min from Routes time and DB medians; sorts and flags; persists parameters with snapshot_id and place_id.
+
+**Files**  
+server/routes/blocks.js (value calc + sort), migrations (value fields), docs (sections listed above).
+
+**Tests**  
+Legacy West example should show ≈6.6 mi, ≈13 min, value_per_min around (1.00×13)/(13+15+0) ≈ 0.46/min → flagged "Not worth it" if floor=0.50; increasing surge to 1.5 lifts it above the floor; sorting updates accordingly.
+
+**Observability**  
+Log {placeId, miles, driveMin, tripMin, waitMin, surge, value_per_min, grade, not_worth} per venue; persist same in the candidates table.
 
 ---
 
