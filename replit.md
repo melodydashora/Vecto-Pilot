@@ -98,9 +98,18 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
 ### Enhanced Memory System
 The agent server now includes comprehensive memory and context awareness:
 
-**Endpoints:**
-- `GET /agent/context` - Full project context with recent activity
+**Context Endpoints:**
+- `GET /agent/context?threadId={id}` - Full project context with optional thread awareness
 - `GET /agent/context/summary` - High-level project summary
+
+**Thread Awareness Endpoints (NEW):**
+- `POST /agent/thread/init` - Initialize new conversation thread with contextual tracking
+- `GET /agent/thread/:threadId` - Get full thread context with all messages and metadata
+- `POST /agent/thread/:threadId/message` - Add message to thread (auto-extracts topics/entities)
+- `POST /agent/thread/:threadId/decision` - Track important decisions within thread
+- `GET /agent/threads/recent?limit={n}` - Get recent threads with summaries
+
+**Memory Endpoints:**
 - `POST /agent/memory/preference` - Save user preferences
 - `POST /agent/memory/session` - Save session state
 - `POST /agent/memory/project` - Save project state
@@ -108,8 +117,15 @@ The agent server now includes comprehensive memory and context awareness:
 - `GET /agent/memory/conversations` - Retrieve recent conversations
 
 **Database Tables:**
-- `assistant_memory` - User preferences and conversation history
-- `eidolon_memory` - Project state and session tracking
+- `assistant_memory` - User preferences, conversation history, and thread messages
+- `eidolon_memory` - Project state, session tracking, and conversation threads
+
+**Thread Features:**
+- **Automatic Context Enrichment**: Extracts topics, entities (model names, file paths), and tracks model interactions
+- **Parent-Child Threads**: Support for threaded conversations with parentThreadId
+- **Decision Tracking**: Log important decisions with reasoning and impact
+- **Message Summaries**: Auto-generated summaries by role and provider
+- **Lightweight NLP**: Automatic extraction of technical entities and topics from conversation
 
 ### Configuration Management
 Safe file editing with validation and backups:

@@ -5,13 +5,16 @@ import { snapshots, strategies, actions, rankings } from "../../shared/schema.js
 import { desc, eq, sql } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
+import { getThreadAwareContext } from "./thread-context.js";
 
 const ASSISTANT_TABLE = "assistant_memory";
 const EIDOLON_TABLE = "eidolon_memory";
 const BASE_DIR = process.env.BASE_DIR || process.cwd();
 
 // Enhanced context gathering with full repo access
-export async function getEnhancedProjectContext() {
+export async function getEnhancedProjectContext(options = {}) {
+  const { threadId = null, includeThreadContext = true } = options;
+  
   const context = {
     currentTime: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
@@ -28,6 +31,9 @@ export async function getEnhancedProjectContext() {
     projectState: {},
     conversationHistory: [],
     
+    // Thread awareness (NEW)
+    threadContext: null,
+    
     // Repository structure
     repositoryStructure: {},
     configFiles: {},
@@ -39,7 +45,8 @@ export async function getEnhancedProjectContext() {
       perplexityResearch: true,
       fullRepoAccess: true,
       enhancedMemory: true,
-      deepContextAwareness: true
+      deepContextAwareness: true,
+      threadAwareness: true // NEW capability
     }
   };
   
@@ -123,6 +130,16 @@ export async function getEnhancedProjectContext() {
     });
     context.conversationHistory = convs.map(c => c.content);
   } catch {}
+  
+  // Gather thread context (NEW)
+  if (includeThreadContext) {
+    try {
+      const threadAwareContext = await getThreadAwareContext(threadId);
+      context.threadContext = threadAwareContext;
+    } catch (err) {
+      console.warn('[Enhanced Context] Thread context unavailable:', err.message);
+    }
+  }
   
   // Scan repository structure
   try {

@@ -25,7 +25,9 @@ This prevents costly rework and maintains system integrity.
 
 ## 🤖 AI Models - CURRENT PRODUCTION CONFIG
 
-> **⚠️ IMPORTANT FOR AI ASSISTANTS**: These models were released in 2025 (after most training cutoffs). The information below is tested and verified as of October 5, 2025. Trust these exact model names and parameters - don't second-guess them based on older training data.
+> **📋 See [MODEL.md](./MODEL.md)** for complete model specifications, API details, parameter constraints, and deprecation notices.
+
+> **⚠️ IMPORTANT FOR AI ASSISTANTS**: These models were released in 2025 (after most training cutoffs). The information below is tested and verified as of October 8, 2025. Trust these exact model names and parameters - don't second-guess them based on older training data.
 
 ---
 
