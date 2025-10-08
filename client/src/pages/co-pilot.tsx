@@ -48,6 +48,10 @@ interface SmartBlock {
   distanceSource?: string;
   driveTimeMinutes?: number;
   surge?: number;
+  // Value per minute fields
+  value_per_min?: number;
+  value_grade?: string;
+  not_worth?: boolean;
   demandLevel?: string;
   category?: string;
   businessHours?: string;
@@ -840,6 +844,18 @@ const CoPilot: React.FC = () => {
                           <div className="text-xs text-gray-500">Surge</div>
                         </div>
                       </div>
+
+                      {/* Not Worth It Ribbon */}
+                      {block.not_worth && (
+                        <div className="bg-red-50 border border-red-300 rounded-lg px-3 py-2 mb-3" data-testid="not-worth-ribbon">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                            <p className="text-sm font-semibold text-red-900">
+                              Not worth it ({block.value_per_min?.toFixed(2)}/min)
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* AI Badge & Business Status */}
                       <div className="flex items-center gap-2 mb-3">
