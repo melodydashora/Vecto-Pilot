@@ -11,6 +11,7 @@ import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.
 import { predictDriveMinutes } from '../lib/driveTime.js';
 import { runTriadPlan } from '../lib/triad-orchestrator.js';
 import { generateTacticalPlan } from '../lib/gpt5-tactical-planner.js';
+import { getRouteWithTraffic } from '../lib/routes-api.js';
 
 const router = Router();
 
@@ -419,28 +420,38 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
-    // STEP 5: Calculate precise distance using API-validated coordinates
+    // STEP 5: Calculate traffic-aware distance & ETA using Routes API
     // ============================================
-    console.log(`🔍 [${correlationId}] Calculating precise distances from validated coordinates...`);
+    console.log(`🔍 [${correlationId}] Calculating traffic-aware distance and ETA from validated coordinates...`);
 
-    // Use Haversine formula with precise coords: driver snapshot + Google Places API coords
-    const venuesWithDistance = enrichedVenues.map(v => {
-      const R = 3959; // Earth radius in miles
-      const lat1 = fullSnapshot.lat * Math.PI / 180;
-      const lat2 = v.lat * Math.PI / 180;
-      const dLat = (v.lat - fullSnapshot.lat) * Math.PI / 180;
-      const dLng = (v.lng - fullSnapshot.lng) * Math.PI / 180;
+    // Use Routes API (TRAFFIC_AWARE_OPTIMAL) with precise coords: driver snapshot + Google Places API coords
+    const venuesWithDistance = await Promise.all(
+      enrichedVenues.map(async v => {
+        try {
+          const routeData = await getRouteWithTraffic(
+            { lat: fullSnapshot.lat, lng: fullSnapshot.lng },
+            { lat: v.lat, lng: v.lng },
+            { trafficModel: 'TRAFFIC_AWARE_OPTIMAL' }
+          );
+          
+          const distanceMiles = (routeData.distanceMeters / 1609.344).toFixed(2);
+          const driveTimeMinutes = Math.round(routeData.durationSeconds / 60);
+          
+          console.log(`📏 [${correlationId}] ${v.name}: ${distanceMiles} mi, ${driveTimeMinutes} min drive (Routes API)`);
 
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1) * Math.cos(lat2) *
-                Math.sin(dLng/2) * Math.sin(dLng/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distance = parseFloat((R * c).toFixed(2));
-
-      console.log(`📏 [${correlationId}] ${v.name}: ${distance} miles from driver`);
-
-      return { ...v, calculated_distance_miles: distance };
-    });
+          return { 
+            ...v, 
+            calculated_distance_miles: parseFloat(distanceMiles),
+            driveTimeMinutes,
+            distanceSource: 'routes_api'
+          };
+        } catch (error) {
+          // If Routes API fails, fail the request (no Haversine fallback in production)
+          console.error(`❌ [${correlationId}] Routes API failed for ${v.name}: ${error.message}`);
+          throw new Error(`Routes API unavailable for ${v.name}`);
+        }
+      })
+    );
 
     // Use Gemini to calculate earnings and validate (with closed venue reasoning)
     const { enrichVenuesWithGemini } = await import('../lib/gemini-enricher.js');
@@ -470,6 +481,20 @@ router.post('/', async (req, res) => {
       const dist = Number.isFinite(g.dist) ? g.dist : v.calculated_distance_miles;
       const earn = Number.isFinite(g.earn) ? g.earn : (v?.data?.potential ?? 0);
       const epm = Number.isFinite(g.epm) ? g.epm : (dist > 0 && earn > 0 ? Number((earn / dist).toFixed(2)) : 0);
+      
+      // Calculate value per minute using env-based parameters
+      const base = Number(process.env.VALUE_BASE_RATE_PER_MIN || 1);
+      const tTrip = v.stats?.medianTripMin ?? Number(process.env.VALUE_DEFAULT_TRIP_MIN || 15);
+      const tWait = v.queue?.expectedWaitMin ?? Number(process.env.VALUE_DEFAULT_WAIT_MIN || 0);
+      const surge = v.surge ?? 1.0;
+      const perMin = base * surge;
+      const engagedRevenue = perMin * tTrip;
+      const totalTime = (v.driveTimeMinutes ?? 0) + tWait + tTrip;
+      const valuePerMin = totalTime > 0 ? +(engagedRevenue / totalTime).toFixed(2) : 0;
+      const minAccept = Number(process.env.VALUE_MIN_ACCEPTABLE_PER_MIN || 0.5);
+      const valueGrade = valuePerMin >= 1.0 ? "A" : valuePerMin >= 0.75 ? "B" : valuePerMin >= 0.5 ? "C" : "D";
+      const notWorth = valuePerMin < minAccept;
+      
       return {
         ...v,
         estimated_distance_miles: dist,
@@ -477,16 +502,31 @@ router.post('/', async (req, res) => {
         earnings_per_mile: epm,
         ranking_score: g.rank || 0,
         validation_status: g.vs || 'unknown',
-        closed_venue_reasoning: g.cr || null
+        closed_venue_reasoning: g.cr || null,
+        // Value per minute fields
+        value_per_min: valuePerMin,
+        value_grade: valueGrade,
+        not_worth: notWorth,
+        rate_per_min_used: perMin,
+        trip_minutes_used: tTrip,
+        wait_minutes_used: tWait
       };
     });
 
-    console.log(`✅ [${correlationId}] TRIAD Step 3/3 Complete: Gemini 2.5 Pro validation with earnings calculation`);
+    // Sort by value_per_min (descending), with not_worth items last
+    fullyEnrichedVenues.sort((a, b) => {
+      if (a.not_worth !== b.not_worth) return a.not_worth - b.not_worth;
+      return b.value_per_min - a.value_per_min;
+    });
+
+    console.log(`✅ [${correlationId}] TRIAD Step 3/3 Complete: Gemini 2.5 Pro validation with value-per-minute ranking`);
     console.log(`💰 [${correlationId}] Sample enriched venue:`, {
       name: fullyEnrichedVenues[0]?.name,
       distance: fullyEnrichedVenues[0]?.estimated_distance_miles,
-      earnings: fullyEnrichedVenues[0]?.estimated_earnings,
-      earningsPerMile: fullyEnrichedVenues[0]?.earnings_per_mile,
+      driveTime: fullyEnrichedVenues[0]?.driveTimeMinutes,
+      value_per_min: fullyEnrichedVenues[0]?.value_per_min,
+      value_grade: fullyEnrichedVenues[0]?.value_grade,
+      not_worth: fullyEnrichedVenues[0]?.not_worth,
       validation: fullyEnrichedVenues[0]?.validation_status
     });
 
@@ -503,8 +543,14 @@ router.post('/', async (req, res) => {
         lng: v.lng,
         category: v.category,
         estimated_distance_miles: v.estimated_distance_miles,
+        driveTimeMinutes: v.driveTimeMinutes,
+        distanceSource: v.distanceSource,
         estimated_earnings: v.estimated_earnings,
         earnings_per_mile: v.earnings_per_mile,
+        value_per_min: v.value_per_min,
+        value_grade: v.value_grade,
+        not_worth: v.not_worth,
+        surge: v.surge ?? 1.0,
         pro_tips: v.pro_tips || [],
         placeId: v.placeId,
         businessHours: v.businessHours,
@@ -626,10 +672,21 @@ router.post('/', async (req, res) => {
         address: venue.address,
         category: venue.category,
         coordinates: { lat: venue.lat, lng: venue.lng },
-        estimatedWaitTime: venue.estimated_distance_miles ? Math.round(venue.estimated_distance_miles * 2) : null, // ~2 min per mile estimate
+        // Distance & drive time from Routes API
+        estimated_distance_miles: venue.estimated_distance_miles,
+        driveTimeMinutes: venue.driveTimeMinutes,
+        distanceSource: venue.distanceSource,
+        // Value per minute ranking
+        value_per_min: venue.value_per_min,
+        value_grade: venue.value_grade,
+        not_worth: venue.not_worth,
+        surge: venue.surge,
+        // Legacy earnings fields
+        estimatedWaitTime: venue.estimated_distance_miles ? Math.round(venue.estimated_distance_miles * 2) : null,
         estimatedEarningsPerRide: venue.estimated_earnings,
-        earningsPerMile: venue.earnings_per_mile,
+        estimated_earnings: venue.estimated_earnings,
         potential: venue.estimated_earnings,
+        earningsPerMile: venue.earnings_per_mile,
         demandLevel: venue.earnings_per_mile > 4 ? 'high' : venue.earnings_per_mile > 3 ? 'medium' : 'low',
         proTips: venue.pro_tips || [],
         pro_tips: venue.pro_tips || [],
