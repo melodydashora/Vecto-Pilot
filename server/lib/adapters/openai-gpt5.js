@@ -7,32 +7,44 @@ export async function callGPT5({
   model = process.env.OPENAI_MODEL || "gpt-5", 
   system, 
   user, 
+  messages,
   developer, // GPT-5 supports 'developer' role (stronger than 'system')
-  reasoning_effort = process.env.GPT5_REASONING_EFFORT || "high", // "minimal", "low", "medium", "high"
-  max_completion_tokens = parseInt(process.env.OPENAI_MAX_TOKENS || "32000"), 
+  reasoning_effort,
+  max_completion_tokens,
   abortSignal 
 }) {
   const url = "https://api.openai.com/v1/chat/completions";
   
-  // Build messages array - use developer role if provided, otherwise system
-  const messages = [];
-  if (developer) {
-    messages.push({ role: "developer", content: developer });
-  } else if (system) {
-    messages.push({ role: "system", content: system });
+  // Build messages array if not provided
+  let messageArray = messages;
+  if (!messageArray) {
+    messageArray = [];
+    if (developer) {
+      messageArray.push({ role: "developer", content: developer });
+    } else if (system) {
+      messageArray.push({ role: "system", content: system });
+    }
+    messageArray.push({ role: "user", content: user });
   }
-  messages.push({ role: "user", content: user });
+  
+  // Effort fallback: param > env > "medium"
+  const effort = reasoning_effort || process.env.OPENAI_REASONING_EFFORT || "medium";
+  
+  // Token floor: ensure minimum 16 tokens
+  const envMax = Number(process.env.OPENAI_MAX_COMPLETION_TOKENS || 0);
+  const requested = Number(max_completion_tokens || envMax || 512);
+  const tokens = Math.max(16, requested);
   
   const body = {
     model,
-    messages,
-    max_completion_tokens,
-    reasoning_effort
+    messages: messageArray,
+    max_completion_tokens: tokens,
+    reasoning_effort: effort
     // Note: GPT-5 reasoning models do NOT support: temperature, top_p, response_format, 
     // presence_penalty, frequency_penalty, logprobs, logit_bias
   };
   
-  console.log(`[GPT-5] Calling ${model} with reasoning_effort=${reasoning_effort}, max_completion_tokens=${max_completion_tokens}`);
+  console.log(`[GPT-5] Calling ${model} with reasoning_effort=${effort}, max_completion_tokens=${tokens}`);
   
   const res = await fetch(url, {
     method: "POST",
@@ -45,17 +57,27 @@ export async function callGPT5({
   });
   
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`OpenAI ${res.status}: ${errorText}`);
+    const err = await res.text().catch(() => "");
+    throw new Error(`OpenAI ${res.status}: ${err}`);
   }
   
   const j = await res.json();
   
-  // Log token usage including reasoning tokens
+  // Model family check: ensure response model starts with requested family
+  if (!j?.model || !String(j.model).startsWith(model)) {
+    throw new Error(`OpenAI model mismatch: wanted family ${model}, got ${j?.model || "none"}`);
+  }
+  
+  // Log snapshot and usage for ops/metrics
+  try { 
+    console.info("[openai]", { snapshot: j.model, usage: j.usage }); 
+  } catch {}
+  
+  // Enhanced token logging including reasoning tokens
   if (j.usage) {
     const reasoningTokens = j.usage.completion_tokens_details?.reasoning_tokens || 0;
     const outputTokens = (j.usage.completion_tokens || 0) - reasoningTokens;
-    console.log(`[GPT-5] Tokens: ${j.usage.prompt_tokens} input + ${reasoningTokens} reasoning + ${outputTokens} output = ${j.usage.total_tokens} total`);
+    console.log(`[GPT-5] Model: ${j.model} | Tokens: ${j.usage.prompt_tokens} input + ${reasoningTokens} reasoning + ${outputTokens} output = ${j.usage.total_tokens} total`);
   }
   
   const msg = j.choices?.[0]?.message || {};

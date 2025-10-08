@@ -193,7 +193,8 @@ function generateRecommendations(research) {
       recommendations.push({
         priority: 'HIGH',
         item: 'GPT-5 Parameter Update',
-        detail: 'GPT-5 uses reasoning_effort instead of temperature. Update server/lib/adapters/openai-gpt5.js to remove unsupported parameters.'
+        detail: 'GPT-5 uses reasoning_effort instead of temperature. Update server/lib/adapters/openai-gpt5.js to remove unsupported parameters.',
+        snapshot_note: 'OpenAI may return snapshot IDs like gpt-5-2025-08-07. Adapter should check model family (startsWith) not exact match.'
       });
     }
     
