@@ -1,203 +1,141 @@
-# Vecto Pilot™ - Comprehensive Architecture Specification
-**Version 2.1 | Production-Ready Rideshare Strategic Intelligence Platform**  
-**Last Updated:** 2025-10-07 06:09 CST
+# Vecto Pilot™ - Architecture & Constraints Reference
+**Version 3.0 | Production-Ready AI-Driven Rideshare Intelligence**  
+**Last Updated:** 2025-10-08 (Model Verification, Thread Awareness, Trust-First Stack)
 
 ---
 
-## 🔄 **ARCHITECTURE EVOLUTION LOG (2025-10-07)**
+## 🎯 **PURPOSE OF THIS DOCUMENT**
 
-### Critical Changes Since v2.0
+This document is the **single source of truth** for:
+1. **Architectural Decisions & Constraints** - What we can/cannot change without breaking core principles
+2. **Backward/Forward Pressure** - What we're moving away from (deprecated) vs. where we're going (roadmap)
+3. **Integration Boundaries** - External dependencies and their limits
+4. **Trust-First Stack** - Why we chose deterministic scoring over pure LLM hallucination
+5. **AI Development Guardrails** - Constraints for AI-driven development at speed
 
-**❌ REMOVED: React.StrictMode**
-- ~~**Old:** Application wrapped in `<React.StrictMode>` for development warnings~~
-- **New:** StrictMode removed to prevent intentional double-rendering and duplicate API calls
-- **Reason:** StrictMode's double-invoke pattern was causing "request aborted" errors when first render gets cancelled
-- **Impact:** Cleaner development logs, eliminated false-positive abort errors
-
-**❌ REMOVED: Global JSON Body Parsing**
-- ~~**Old:** `app.use(express.json({ limit: "10mb" }))` applied globally before all routes~~
-- **New:** JSON parsing mounted per-route only where needed
-- **Implementation:**
-  ```javascript
-  const parseJson = express.json({ limit: "1mb", strict: true });
-  app.use("/api/blocks", parseJson, strictLimiter, blocksRoutes);
-  app.use("/api/location", parseJson, apiLimiter, locationRoutes);
-  ```
-- **Reason:** Global parsing tried to read bodies on ALL requests (including health checks), causing abort errors when clients cancelled
-- **Impact:** Eliminated `BadRequestError: request aborted` errors completely
-
-**✅ ADDED: Client Abort Error Gate**
-- **New:** Dedicated error middleware to handle client-side request cancellations
-- **Implementation:**
-  ```javascript
-  app.use((err, req, res, next) => {
-    if (err?.type === "request.aborted" || err?.code === "ECONNRESET") {
-      if (!res.headersSent) res.status(499).end(); // 499: client closed request
-      return; // Don't log - expected behavior
-    }
-    if (err?.type === "entity.too.large") {
-      return res.status(413).json({ ok: false, error: "payload too large" });
-    }
-    next(err);
-  });
-  ```
-- **Reason:** React Query cancels in-flight requests on unmount/refetch - this is normal, not an error
-- **Impact:** Clean logs with only real errors, proper HTTP status codes (499 for client abort)
-
-**✅ ADDED: Health Check Logging Filter**
-- ~~**Old:** All requests logged including `/health` checks (5-second intervals)~~
-- **New:** `/health` requests skipped in logging middleware
-- **Implementation:**
-  ```javascript
-  app.use((req, res, next) => {
-    if (req.path !== "/health") {
-      console.log("[trace]", req.method, req.originalUrl);
-    }
-    next();
-  });
-  ```
-- **Reason:** Health checks are automated every 5s, creating log noise that obscures real traffic
-- **Impact:** Logs show only meaningful requests, easier debugging
-
-**📋 ADDED: Idempotency Infrastructure (Not Yet Integrated)**
-- **Status:** Infrastructure built, integration pending
-- **Components Created:**
-  1. Database constraints: `unique(snapshot_id)` on strategies table
-  2. HTTP idempotency table: `http_idem` for request deduplication
-  3. Triad job queue: `triad_jobs` with `unique(snapshot_id, kind)`
-  4. Worker pattern: `server/jobs/triad-worker.js` with SKIP LOCKED
-  5. Client utilities: `once()` and `cached()` for duplicate prevention
-  6. Gateway debounce: 250ms window removed (body not available at gateway in dev mode)
-  7. ETag support: Added to GET /api/blocks/strategy/:id
-- **Next Steps:** Start worker, update client hooks, switch from inline to queue-based generation
-- **Impact:** Will eliminate duplicate "BLOCKS REQUEST" logs, collapse to single-path execution
+**Critical for:** Fast-moving AI-driven development where rework must be avoided and alignment must be maintained despite rapid iteration.
 
 ---
 
-## Table of Contents
-1. [Executive Summary](#executive-summary)
-2. [Problem Statement (Research-Backed)](#problem-statement)
-3. [System Architecture](#system-architecture)
-4. [Technology Stack](#technology-stack)
-5. [AI/ML Pipeline Specifications](#aiml-pipeline-specifications)
-6. [Data Flow & API Integration](#data-flow--api-integration)
-7. [Machine Learning Objectives](#machine-learning-objectives)
-8. [Security & Hardening](#security--hardening)
-9. [End-to-End Workflow](#end-to-end-workflow)
-10. [Scalability & Performance](#scalability--performance)
-11. [Deployment Architecture](#deployment-architecture)
-12. [Future Enhancements](#future-enhancements)
-13. [Risk Analysis](#risk-analysis)
-14. [ROI Projections](#roi-projections)
-15. [Benefits & Feasibility](#benefits--feasibility)
+## 🔄 **CRITICAL ARCHITECTURE EVOLUTION (Oct 8, 2025)**
+
+### ✅ VERIFIED: Anthropic Claude Sonnet 4.5 Model
+**Issue Resolved:** Model ID `claude-sonnet-4-5-20250929` confirmed working via direct API tests
+
+**What Changed:**
+- ✅ **Models API Verification**: `curl https://api.anthropic.com/v1/models/claude-sonnet-4-5-20250929` → Returns `{"id":"claude-sonnet-4-5-20250929","display_name":"Claude Sonnet 4.5"}`
+- ✅ **Messages API Verification**: Response echoes correct model (not Opus)
+- ✅ **Model Assertion Added**: Adapter now throws error if API returns different model than requested
+- ✅ **Environment Variable**: Added `ANTHROPIC_API_VERSION=2023-06-01`
+- ✅ **Error Surfacing**: Enhanced error messages with server response text
+
+**Files Updated:**
+- `server/lib/adapters/anthropic-claude.js` - Model assertion + better error text
+- `.env` - Added `ANTHROPIC_API_VERSION=2023-06-01`
+- `MODEL.md` - Updated with verified working status
+- `docs/reference/V2-ROUTER-INTEGRATION.md` - Marked issue as resolved
+
+**Constraint:** Partner platform IDs are different namespaces (Vertex uses `@20250929`, Bedrock uses `anthropic.` prefix) - don't mix with native API
 
 ---
 
-## Executive Summary
+### ✅ IMPLEMENTED: Thread-Aware Context System
+**Goal:** Maintain conversation context across Agent/Assistant/Eidolon interactions
 
-**Vecto Pilot™** is an AI-powered strategic intelligence platform designed to maximize rideshare driver earnings, reduce fatigue-related accidents, and provide real-time tactical recommendations. Built on a hybrid triad AI architecture (Claude Sonnet 4.5 → GPT-5 → Gemini 2.5 Pro), the system processes live location context, weather, traffic, and venue data to generate personalized driving strategies.
+**What Was Built:**
+- ✅ **Thread Context Manager** (`server/agent/thread-context.js`)
+  - Conversation thread initialization and resumption
+  - Message tracking with role attribution (user, assistant, agent, system)
+  - Automatic entity extraction (model names, file paths, technical terms)
+  - Topic discovery from natural language
+  - Decision tracking with reasoning and impact
+  - Model interaction logging by provider
 
-**Core Value Proposition:**
-- **23-50% earnings increase** through strategic positioning and route optimization
-- **67% reduction** in fatigue-related decision paralysis through AI-guided recommendations
-- **Real-time context awareness** across 12+ data sources (GPS, weather, air quality, airport delays, traffic)
-- **ML-powered continuous improvement** via counterfactual learning pipeline
+- ✅ **Enhanced Context Integration** (`server/agent/enhanced-context.js`)
+  - Thread-aware project context via `getEnhancedProjectContext({ threadId, includeThreadContext })`
+  - Access to current thread and recent thread history
 
----
+- ✅ **API Endpoints** (`server/agent/routes.js`)
+  - `POST /agent/thread/init` - Initialize new conversation thread
+  - `GET /agent/thread/:threadId` - Get full thread context
+  - `POST /agent/thread/:threadId/message` - Add message (auto-extracts topics/entities)
+  - `POST /agent/thread/:threadId/decision` - Track important decisions
+  - `GET /agent/threads/recent?limit=10` - Recent threads with summaries
 
-## Problem Statement
+**Storage:**
+- `assistant_memory` table - User preferences, conversation history, thread messages (30-day TTL)
+- `eidolon_memory` table - Project state, session tracking, conversation threads (30-day TTL)
 
-### 1. Driver Fatigue & Safety Crisis
-
-**Research Findings (UIC Study, April 2024):**
-- **33% of rideshare drivers** have been involved in work-related crashes
-- **Driver fatigue increases crash risk by 3.03x** (primary modifiable risk factor)
-- **70% of drivers work 50+ hours per week**, often as a second job
-- **~1,000 rideshare accidents occur daily** in the U.S. (100,000+ annually)
-- **80+ drivers killed on the job** since 2017
-
-**Source:** University of Illinois Chicago, *Journal of Safety Research* (2024)  
-**Citation:** https://today.uic.edu/rideshare-crash-research/
-
-**Root Causes:**
-- Decision fatigue from constant route optimization
-- Extended hours without strategic break planning
-- Driving on unfamiliar roads (1.72x crash risk)
-- Lack of data-driven guidance on when/where to drive
-
-**Vecto Pilot Solution:**
-- AI-powered strategic planning reduces cognitive load by 67%
-- Venue recommendations include staging areas for strategic breaks
-- Familiar route suggestions based on historical driver patterns
-- Real-time fatigue indicators (planned Phase 2)
+**Constraint:** Thread messages limited to last 200 per thread, topics/entities limited to last 50 (performance bounds)
 
 ---
 
-### 2. Economic Pressure & Unemployment Impact
+### ✅ ARCHITECTURAL PRINCIPLE: Single-Path Triad (No Fallbacks)
+**Decision Date:** October 3-8, 2025  
+**Rationale:** User requires consistent quality without silent model swaps
 
-**Research Findings (Economic Policy Institute, 2024):**
-- **Gig economy market: $556 billion in 2024**, growing to **$1.8 trillion by 2032** (17% CAGR)
-- **57.3 million Americans** (36% of workforce) participate in gig work
-- **Uber presence reduces city unemployment by 0.2-0.5 percentage points** (countercyclical buffer)
-- Average driver earnings: **$18-28/hour gross**, **$12-17/hour net** after expenses
+~~**Old Approach (Deprecated):**~~
+- ~~Router V2 with fallback chain (Claude → GPT-5 → Gemini if primary fails)~~
+- ~~Circuit breakers with automatic failover~~
+- ~~8s total budget (too aggressive)~~
 
-**Source:** Economic Policy Institute, *Uber and the Labor Market* (2024)  
-**Citation:** https://www.epi.org/publication/uber-and-the-labor-market/
+**Current Approach (Locked):**
+```env
+TRIAD_ENABLED=true
+TRIAD_MODE=single_path
+ROUTER_V2_ENABLED=false
 
-**Key Insight:**
-- Rising unemployment drives more workers to rideshare platforms
-- Increased driver supply **decreases per-driver earnings** without strategic tools
-- Competition for high-value zones intensifies during economic downturns
+# Models (all verified)
+CLAUDE_MODEL=claude-sonnet-4-5-20250929
+OPENAI_MODEL=gpt-5-pro
+GEMINI_MODEL=gemini-2.5-pro-latest
 
-**Vecto Pilot Solution:**
-- Identifies underutilized high-value venues (reduces direct competition)
-- Provides precise timing recommendations (avoid oversaturated periods)
-- Earnings projections help drivers make informed shift decisions
+# Budget (90s total)
+LLM_TOTAL_BUDGET_MS=90000
+CLAUDE_TIMEOUT_MS=12000   # Strategist
+GPT5_TIMEOUT_MS=45000     # Planner (deep reasoning)
+GEMINI_TIMEOUT_MS=15000   # Validator
+```
 
----
+**Why No Fallbacks in Triad:**
+1. **Quality Consistency** - Each model has a specific role; substitution breaks the pipeline
+2. **ML Training Integrity** - Fallbacks corrupt training data (don't know which model produced what)
+3. **Trust-First Philosophy** - If primary fails, surface the error properly, don't hide it
 
-### 3. Earnings Optimization Gap
+**Exception:** Agent Override (Atlas) has fallback chain (Claude → GPT-5 → Gemini) for operational resilience (workspace ops must not fail)
 
-**Research Findings (TheRideshareGuy, 2024-2025):**
-- **Experienced strategic drivers earn 50% more** than average ($25-30/hr vs $15-20/hr)
-- **Top performers hit $50/hour** during optimized surge periods
-- Strategic positioning reduces **empty miles by 30-40%**
-- **Tips average 8% of earnings** but vary widely based on service quality
-
-**Source:** Gridwise Analytics, *Rideshare Earnings Optimization Report* (2024)  
-**Citation:** https://gridwise.io/blog/strategies-to-maximize-earnings-as-an-uber-or-lyft-driver/
-
-**Core Problems:**
-1. **Information asymmetry**: Platforms don't reveal optimal positioning strategies
-2. **Manual optimization**: Drivers spend 2-4 hours planning shifts manually
-3. **Real-time blind spots**: No unified dashboard for weather, traffic, events, airport delays
-4. **Algorithmic wage discrimination**: AI-powered dynamic pricing favors platforms over drivers
-
-**Vecto Pilot Solution:**
-- Automated strategic planning in 6-7 seconds (vs 2-4 hours manual)
-- Transparent venue rankings with precise earnings projections
-- Unified context dashboard (weather, AQI, airport delays, event schedules)
-- Driver-first AI architecture (not platform-biased)
+**Constraint:** If Triad fails, entire strategy generation fails - this is intentional, not a bug
 
 ---
 
-### 4. Safety Through Strategic Guidance
+### ✅ UPDATED: Documentation Alignment
+**Problem:** Stale docs showed deprecated models and old configs  
+**Solution:** Comprehensive doc updates to reflect current state
 
-**Research Findings:**
-- Drivers taking **10+ trips per day: 1.84x higher crash risk**
-- **Unfamiliar roads: 1.72x crash risk**
-- **Cell phone distraction** from constant app checking increases accidents
+**Files Updated:**
+- `MODEL.md` - Verified model specs with API test examples
+- `docs/reference/V2-ROUTER-INTEGRATION.md` - Marked all Oct 3 issues as RESOLVED, deprecated old config
+- `README.md` - References MODEL.md as single source of truth
+- `replit.md` - Updated Agent Server capabilities section with thread endpoints
+- `tools/research/THREAD_AWARENESS_README.md` - Complete thread system documentation
 
-**Vecto Pilot Solution:**
-- Reduces trip churn by recommending strategic staging areas (fewer, longer trips)
-- Provides familiar venue suggestions based on driver history
-- Single-dashboard design minimizes phone interactions
+**Backward Pressure (Moving Away From):**
+- ❌ `gpt-4o` and `gemini-1.5-pro` (deprecated models)
+- ❌ 8s total budget (way too low for production)
+- ❌ Global JSON body parsing (caused abort errors)
+- ❌ React.StrictMode (caused duplicate API calls)
+
+**Forward Pressure (Moving Toward):**
+- ✅ Monthly model verification via research scripts
+- ✅ Automated model discovery (Perplexity + live API checks)
+- ✅ Enhanced contextual awareness across all AI systems
+- ✅ Trust-first architecture with deterministic scoring
 
 ---
 
-## System Architecture
+## 🏗️ **SYSTEM ARCHITECTURE**
 
-### High-Level Architecture Diagram
+### Multi-Server Architecture (Production)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -212,791 +150,438 @@
             │
 ┌───────────▼──────────────────────────────────────────────────────┐
 │                    GATEWAY SERVER (Port 5000)                    │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  • Rate Limiting (100 req/15min per IP)                    │ │
-│  │  • CORS Security                                           │ │
-│  │  • Request Proxy & Load Balancing                         │ │
-│  │  • Vite Dev Middleware (Development)                      │ │
-│  │  • Static React Build Serving (Production)                │ │
-│  │  • Per-Route JSON Parsing (no global body parser)         │ │
-│  │  • Client Abort Error Gate (499 status)                   │ │
-│  │  • Health Check Logging Filter                            │ │
-│  └────────────────────────────────────────────────────────────┘ │
+│  • Rate Limiting (100 req/15min per IP)                         │
+│  • CORS Security + Helmet                                       │
+│  • Request Proxy & Load Balancing                              │
+│  • Per-Route JSON Parsing (1MB limit, no global parser)        │
+│  • Client Abort Error Gate (499 status)                        │
+│  • Health Check Logging Filter                                 │
+│  • Vite Dev Middleware (dev) / Static Build (prod)            │
 └───────────┬──────────────────────────────────────────────────────┘
             │
     ┌───────┴──────┬──────────────┬────────────────┐
     │              │              │                │
 ┌───▼────────┐ ┌──▼─────────┐ ┌─▼──────────┐ ┌──▼──────────────┐
 │ Eidolon SDK│ │   Agent    │ │  Postgres  │ │  External APIs  │
-│ Server     │ │   Server   │ │  Database  │ │  (Google/FAA/   │
+│ Server     │ │   Server   │ │  (Neon)    │ │  (Google/FAA/   │
 │ (3101)     │ │  (43717)   │ │            │ │   OpenWeather)  │
 └────┬───────┘ └──────┬─────┘ └─────┬──────┘ └─────────────────┘
      │                │              │
-     │                │              │
 ┌────▼────────────────▼──────────────▼──────────────────────────────┐
-│                 TRIAD AI PIPELINE                                 │
+│                 TRIAD AI PIPELINE (Single-Path)                   │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
 │  │   Claude     │─▶│    GPT-5     │─▶│   Gemini     │          │
 │  │  Sonnet 4.5  │  │   Planner    │  │   2.5 Pro    │          │
 │  │  (Strategist)│  │   (Tactician)│  │  (Validator) │          │
 │  └──────────────┘  └──────────────┘  └──────────────┘          │
-│       6-7s              Deep            JSON +                   │
-│     Strategy          Reasoning        Earnings                  │
+│    12s timeout      45s timeout       15s timeout               │
+│    Strategic        Deep Reasoning    JSON Validation           │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-### ~~Frontend Rendering~~ **Request Handling Architecture Changes**
-
-**~~Old Pattern (Removed):~~**
-- ~~React.StrictMode wrapper causing intentional double-rendering~~
-- ~~Global body parsing on all routes causing abort errors~~
-- ~~Health check spam in logs every 5 seconds~~
-
-**New Pattern (Current):**
-- Single-render React (no StrictMode in production)
-- Per-route JSON parsing with 1MB limit
-- Health checks filtered from logs
-- 499 status codes for client-initiated aborts
+**Constraint:** Gateway MUST run on port 5000 (Replit firewall requirement)  
+**Constraint:** All servers use same PostgreSQL database (single source of truth)  
+**Constraint:** JSON parsing is per-route only (no global body parser to avoid abort errors)
 
 ---
 
-## Technology Stack
+## 🤖 **AI/ML PIPELINE: TRIAD ARCHITECTURE**
 
-### Frontend Stack
-| Technology | Version | Purpose | **Notes** |
-|------------|---------|---------|-----------|
-| **React** | 18.3 | UI framework | ~~StrictMode removed~~ |
-| **TypeScript** | 5.x | Type safety | |
-| **Vite** | 7.x | Build tool & dev server | |
-| **TanStack Query** | v5 | Server state management | Auto-cancels on unmount |
-| **Wouter** | 3.x | Client-side routing | |
-| **Radix UI** | Latest | Headless component primitives | |
-| **Tailwind CSS** | 3.x | Utility-first styling | |
-| **shadcn/ui** | Latest | Pre-built components | |
-| **Zod** | 3.x | Runtime validation | |
-| **React Hook Form** | 7.x | Form state management | |
+### Design Philosophy (LOCKED - DO NOT CHANGE)
 
-### Backend Stack
-| Technology | Version | Purpose | **Configuration** |
-|------------|---------|---------|-------------------|
-| **Node.js** | 22.17.0 | Runtime environment | |
-| **Express.js** | 4.x | HTTP server framework | Per-route JSON parsing |
-| **PostgreSQL** | 15+ | Relational database (Neon) | |
-| **Drizzle ORM** | Latest | Type-safe database queries | |
-| **http-proxy-middleware** | 3.x | Reverse proxy | v3.x syntax (on: {}) |
-| **express-rate-limit** | 7.x | DDoS protection | |
-| **dotenv** | 16.x | Environment configuration | |
+1. **Single-Path Only** - No fallbacks in triad, fail properly instead of silently degrading
+2. **Complete Data Snapshots** - Never send partial context (corrupts ML training)
+3. **Zero Pre-Computed Flags** - Models infer patterns from raw data
+4. **Idempotent Processing** - Same input = same output (critical for ML)
+5. **Observable at Every Stage** - Full logging for counterfactual learning
 
-### ~~Middleware Stack~~ **Request Processing Pipeline**
-
-**~~Old (Global)~~:**
-- ~~`app.use(express.json({ limit: "10mb" })` - Applied to ALL routes~~
-- ~~`app.use(cors())` - Global CORS~~
-- ~~No client abort handling~~
-
-**New (Selective):**
-```javascript
-// JSON parsing ONLY on routes that accept JSON bodies
-const parseJson = express.json({ limit: "1mb", strict: true });
-
-// Gateway
-app.use("/api/blocks", parseJson, strictLimiter, blocksRoutes);
-app.use("/api/location", parseJson, apiLimiter, locationRoutes);
-
-// SDK Server  
-app.use("/api/blocks", parseJson, strictLimiter, blocksRoutes);
-app.use("/api/location", parseJson, apiLimiter, locationRoutes);
-
-// Error gate for client aborts
-app.use((err, req, res, next) => {
-  if (err?.type === "request.aborted" || err?.code === "ECONNRESET") {
-    if (!res.headersSent) res.status(499).end();
-    return;
-  }
-  next(err);
-});
-```
-
-### AI/ML Stack
-| Provider | Model | Purpose | Timeout |
-|----------|-------|---------|---------|
-| **Anthropic** | claude-sonnet-4-5-20250929 | Strategic analysis | 15s |
-| **OpenAI** | gpt-5 | Tactical planning | 60s |
-| **Google** | gemini-2.5-pro | Validation & earnings | 20s |
-
-### External APIs
-| Service | Purpose | Rate Limits |
-|---------|---------|-------------|
-| **Google Maps JavaScript API** | Map rendering, autocomplete | 10K requests/day |
-| **Google Routes API** | Traffic-aware distance/ETA | 10K requests/day |
-| **Google Places API** | Business hours, coordinates | 10K requests/day |
-| **Google Geocoding API** | Address resolution | 10K requests/day |
-| **Google Timezone API** | Timezone lookup | 10K requests/day |
-| **OpenWeather API** | Current weather data | 1K requests/day (free tier) |
-| **AirVisual API (GOOGLEAQ)** | Air quality index | 1K requests/day |
-| **FAA ASWS API** | Airport delay data | OAuth2, 100K requests/day |
-
-### Infrastructure
-| Component | Specification |
-|-----------|--------------|
-| **Deployment** | Replit Reserved VM |
-| **Domain** | vectopilot.com (planned) |
-| **Database** | Neon PostgreSQL (serverless) |
-| **CDN** | Replit Edge Network |
-| **SSL/TLS** | Automatic (Let's Encrypt) |
-
----
-
-## AI/ML Pipeline Specifications
-
-### Triad Architecture Overview
-
-The **Triad Pipeline** is the core intelligence engine, processing driver location context through three specialized LLMs in sequence. This architecture ensures:
-- **High-quality strategic insights** (no fallbacks = consistent output)
-- **Deep tactical reasoning** via GPT-5's extended thinking
-- **Accurate earnings projections** through Gemini's validation
-
-**Design Philosophy:**
-- **Single-path only** (no fallback chain in triad)
-- **Complete data snapshots** (no partial context)
-- **Idempotent processing** (same input = same output)
-- **Observable at every stage** (full ML training data capture)
+**Why This Matters:**
+- **ML Training Integrity** - We're building a dataset for future model fine-tuning
+- **Trust-First Stack** - Curated venue catalog + deterministic scoring prevents hallucinations
+- **Quality > Availability** - Better to fail visibly than succeed with wrong answer
 
 ---
 
 ### Stage 1: Claude Sonnet 4.5 (Strategist)
-
-**Role:** High-level strategic analysis and narrative generation
+**Model:** `claude-sonnet-4-5-20250929` ✅ Verified Working  
+**Role:** High-level strategic analysis and narrative generation  
+**Timeout:** 12 seconds (CLAUDE_TIMEOUT_MS)
 
 **Critical Guard:** If Claude fails to generate `strategy_for_now`, the entire triad pipeline aborts. This enforces the "single-path only" principle - GPT-5 will never receive planning requests without valid Claude strategy.
 
-**Input:**
-```json
-{
-  "snapshot_id": "uuid",
-  "location": {
-    "lat": 33.1287,
-    "lng": -96.8757,
-    "city": "Frisco",
-    "state": "TX",
-    "timezone": "America/Chicago",
-    "h3_r8": "8862ba4b9bfffff"
-  },
-  "time_context": {
-    "dow": 0,
-    "hour": 14,
-    "localTime": "2025-10-06T14:30:00-05:00",
-    "daypart": "afternoon"
-  },
-  "weather": {
-    "temp": 78,
-    "description": "Partly cloudy",
-    "windSpeed": 8
-  },
-  "air_quality": {
-    "aqi": 42,
-    "level": "Good"
-  },
-  "airport_context": {
-    "dfw": {
-      "distance_miles": 18.3,
-      "avg_delay_min": 12,
-      "status": "minor_delays"
-    }
-  }
-}
-```
+**Input:** Complete snapshot (location, weather, AQI, airport delays, time context, H3 geospatial)  
+**Output:** Strategic overview, pro tips, earnings estimate  
+**Token Usage:** 150-200 tokens average  
+**Success Rate:** 98.7% (production data)
 
-**Processing:**
-- **Model:** `claude-sonnet-4-5-20250929`
-- **Max Tokens:** 2048
-- **Temperature:** 0.7 (balanced creativity)
-- **Timeout:** 15 seconds (strategist deadline)
-- **Guard:** Pipeline aborts if Claude fails (single-path only - no fallbacks)
-
-**Output Example:**
-```
-Today is Sunday, October 6, 2025 at 2:30 PM in Frisco's upscale residential 
-neighborhoods. Weather is pleasant (78°F, partly cloudy) with good air quality 
-(AQI 42), making outdoor dining and events attractive. DFW Airport is 18 miles 
-away with minor delays (12 min average).
-
-STRATEGIC OVERVIEW:
-Sunday afternoon in Frisco presents premium opportunities around:
-1. Upscale shopping districts (Stonebriar Centre - family outings)
-2. Restaurant corridors (Main Street - post-brunch crowd)
-3. Entertainment venues (Top Golf, Star District events)
-
-Pro Tips:
-- Position near Stonebriar Centre for return-trip families (3-5 PM window)
-- Target Main Street for dinner reservations (5-7 PM surge)
-- Monitor Star District for evening event traffic (check Cowboys game schedule)
-
-Estimated hourly potential: $32-45/hour with strategic positioning
-```
-
-**Performance Metrics:**
-- **Latency:** 6-7 seconds average
-- **Token Usage:** 150-200 tokens
-- **Success Rate:** 98.7% (production data)
-- **Retry Rate:** 1.3%
+**Constraint:** Must return text with strategic insights or pipeline aborts (no silent failures)
 
 ---
 
 ### Stage 2: GPT-5 (Tactical Planner)
-
-**Role:** Deep reasoning for venue selection, timing, and precise recommendations
-
-**Input:**
-```json
-{
-  "strategy": "<Claude's strategic overview>",
-  "snapshot": {
-    "lat": 33.1287,
-    "lng": -96.8757,
-    "city": "Frisco",
-    "weather": "78°F, partly cloudy",
-    "air_quality": "AQI 42 (Good)",
-    "airport_context": "DFW 18mi, 12min delays"
-  }
-}
-```
+**Model:** `gpt-5-pro` ✅ Verified Working  
+**Role:** Deep reasoning for venue selection and timing  
+**Timeout:** 45 seconds (GPT5_TIMEOUT_MS)
 
 **Processing:**
-- **Model:** `gpt-5`
-- **Max Tokens:** 32000
-- **Reasoning Effort:** `high` (deep tactical analysis)
-- **Timeout:** 60 seconds (planner deadline)
-- **Guard:** Only runs if Claude provides valid strategy_for_now (single-path only)
-- **Developer Role Prompt:** 2,500 characters (venue selection rules, safety guidelines)
+- **Reasoning Effort:** `high` (GPT5_REASONING_EFFORT=high)
+- **Max Completion Tokens:** 32000
+- **Uses:** `reasoning_effort` (NOT temperature/top_p - those are deprecated in GPT-5)
 
-**Output Schema (Zod Validated):**
-```typescript
-{
-  "recommended_venues": [
-    {
-      "name": "Stonebriar Centre",
-      "lat": 33.0632,
-      "lng": -96.8221,
-      "category": "Shopping Mall",
-      "description": "Major upscale shopping destination with 180+ stores",
-      "estimated_distance_miles": 4.2,
-      "pro_tips": [
-        "Position at north entrance near Apple Store for high-value pickups",
-        "Peak window: 3-7 PM on Sundays for families returning home",
-        "Use destination filter toward residential areas for return trips"
-      ],
-      "best_time_window": "3:00 PM - 7:00 PM"
-    }
-    // ... 5 more venues
-  ],
-  "best_staging_location": {
-    "name": "Stonebriar Parkway & Warren Pkwy Intersection",
-    "lat": 33.0645,
-    "lng": -96.8198,
-    "reason": "Central hub with 360° access to top 3 venues within 5-minute radius"
-  },
-  "tactical_summary": "Sunday afternoon strategy: Triangulate around Stonebriar-Main-Star corridor...",
-  "suggested_db_fields": ["venue_mall_tier", "family_orientation_score"],
-  "metadata": {
-    "reasoning_tokens": 1842,
-    "confidence": 0.89
-  }
-}
-```
+**Critical Constraint:** GPT-5 does NOT support:
+- ❌ `temperature`
+- ❌ `top_p`
+- ❌ `frequency_penalty`
+- ❌ `presence_penalty`
 
-**Performance Metrics:**
-- **Latency:** 12-18 seconds with reasoning tokens
-- **Token Usage:** 800-1200 prompt + 1500-2000 reasoning + 600-800 completion
-- **Validation Success:** 95% pass Zod schema on first attempt
-- **Venue Count:** Always 6 recommendations (enforced)
+**Only Supports:**
+- ✅ `reasoning_effort` (values: minimal, low, medium, high)
+- ✅ `max_completion_tokens`
+
+**Output:** 6 venue recommendations with coordinates, pro tips, best staging location, tactical summary  
+**Validation:** Zod schema ensures minimum 6 venues with required fields  
+**Token Usage:** 800-1200 prompt + 1500-2000 reasoning + 600-800 completion
+
+**Constraint:** Only runs if Claude provides valid strategy (dependency enforced)
 
 ---
 
-### Stage 3: Gemini 2.5 Pro (Validator & Earnings Calculator)
-
-**Role:** JSON validation, business hours enrichment, and earnings projections
-
-**Input:**
-```json
-{
-  "venues": [
-    {
-      "name": "Stonebriar Centre",
-      "lat": 33.0632,
-      "lng": -96.8221,
-      "calculated_distance_miles": 4.2,
-      "businessHours": ["Mon-Sat: 10 AM - 9 PM", "Sun: 12 PM - 6 PM"],
-      "isOpen": true,
-      "businessStatus": "open"
-    }
-    // ... 5 more
-  ],
-  "driverLocation": { "lat": 33.1287, "lng": -96.8757 },
-  "snapshot": { /* full context */ }
-}
-```
+### Stage 3: Gemini 2.5 Pro (Validator)
+**Model:** `gemini-2.5-pro-latest` ✅ Verified Working  
+**Role:** JSON validation, business hours enrichment, earnings projections  
+**Timeout:** 15 seconds (GEMINI_TIMEOUT_MS)
 
 **Processing:**
-- **Model:** `gemini-2.5-pro-latest`
-- **Max Tokens:** 2048
-- **Temperature:** 0.1 (deterministic calculations)
-- **Timeout:** 45 seconds
-- **System Prompt:** Includes earnings calculation formulas, closed venue reasoning
+- Validates GPT-5 JSON structure
+- Enriches with Google Places business hours
+- Calculates traffic-aware distances
+- Generates earnings projections per venue
 
-**Earnings Calculation Formula:**
-```
-Base Earnings = $25 (baseline ride value)
-Distance Penalty = -$2 per mile beyond 5 miles
-Time Multiplier = 1.5x (surge period) | 1.0x (normal)
-Venue Premium = Shopping Mall: +15% | Airport: +20% | Stadium: +25%
-Open/Closed Adjustment = Closed: -50% (waiting passengers only)
+**Output:** Final validated strategy with open/closed status, distances, earnings per venue  
+**Token Usage:** 500-800 tokens average
 
-Final Earnings = (Base - Distance Penalty) × Time Multiplier × (1 + Venue Premium) × Open/Closed Factor
-Earnings Per Mile = Final Earnings ÷ Distance
-```
-
-**Output Example:**
-```json
-[
-  {
-    "name": "Stonebriar Centre",
-    "estimated_distance_miles": 4.2,
-    "estimated_earnings_per_ride": 38,
-    "earnings_per_mile": 9.05,
-    "ranking_score": 95,
-    "validation_status": "open_verified",
-    "closed_venue_reasoning": null
-  },
-  {
-    "name": "Legacy West",
-    "estimated_distance_miles": 6.8,
-    "estimated_earnings_per_ride": 18,
-    "earnings_per_mile": 2.65,
-    "ranking_score": 45,
-    "validation_status": "closed_likely_empty",
-    "closed_venue_reasoning": "Venue closed (8 PM Sunday). Only nearby residents requesting rides - low probability pickups."
-  }
-]
-```
-
-**Performance Metrics:**
-- **Latency:** 8-12 seconds
-- **Token Usage:** 400-600 tokens
-- **Validation Success:** 99.2% (JSON structure compliance)
-- **Minimum Venues:** 6 (enforces count requirement)
+**Constraint:** Must return at least 6 venues or pipeline fails (minimum quality threshold)
 
 ---
 
-### Complete Triad Flow Diagram
+## 🏛️ **TRUST-FIRST STACK ARCHITECTURE**
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                    SNAPSHOT CAPTURE                            │
-│  Driver → GPS → Geocoding → Weather → AQI → Airport → DB      │
-│                    snapshot_id: uuid                           │
-└────────────────┬───────────────────────────────────────────────┘
-                 │
-                 ▼
-┌────────────────────────────────────────────────────────────────┐
-│              STAGE 1: CLAUDE STRATEGIST                        │
-│  ┌──────────────────────────────────────────────────────────┐ │
-│  │ Input: Complete snapshot (location, time, weather, etc)  │ │
-│  │ Process: High-level strategic analysis                   │ │
-│  │ Output: Strategic overview + pro tips (6-7s)            │ │
-│  │ Storage: strategies table (status: ok/failed/pending)   │ │
-│  └──────────────────────────────────────────────────────────┘ │
-└────────────────┬───────────────────────────────────────────────┘
-                 │
-                 ▼
-┌────────────────────────────────────────────────────────────────┐
-│              STAGE 2: GPT-5 TACTICAL PLANNER                   │
-│  ┌──────────────────────────────────────────────────────────┐ │
-│  │ Input: Claude strategy + snapshot context                │ │
-│  │ Process: Deep reasoning for venue selection (12-18s)     │ │
-│  │ Output: 6 venues + staging location + tactical summary  │ │
-│  │ Validation: Zod schema enforcement                       │ │
-│  └──────────────────────────────────────────────────────────┘ │
-└────────────────┬───────────────────────────────────────────────┘
-                 │
-                 ▼
-┌────────────────────────────────────────────────────────────────┐
-│        BUSINESS HOURS ENRICHMENT (Google Places API)           │
-│  ┌──────────────────────────────────────────────────────────┐ │
-│  │ For each venue:                                          │ │
-│  │   1. findPlaceId(name, {lat, lng})                       │ │
-│  │   2. getFormattedHours(placeId)                          │ │
-│  │   3. Enrich with: address, precise coords, hours, status│ │
-│  └──────────────────────────────────────────────────────────┘ │
-└────────────────┬───────────────────────────────────────────────┘
-                 │
-                 ▼
-┌────────────────────────────────────────────────────────────────┐
-│       STAGE 3: GEMINI VALIDATOR & EARNINGS CALCULATOR          │
-│  ┌──────────────────────────────────────────────────────────┐ │
-│  │ Input: 6 venues with business hours + snapshot context  │ │
-│  │ Process: JSON validation + earnings calculation (8-12s) │ │
-│  │ Output: Ranked venues with earnings projections        │ │
-│  └──────────────────────────────────────────────────────────┘ │
-└────────────────┬───────────────────────────────────────────────┘
-                 │
-                 ▼
-┌────────────────────────────────────────────────────────────────┐
-│                   FINAL RESPONSE TO CLIENT                     │
-│  {                                                             │
-│    strategy: <Claude's narrative>,                            │
-│    blocks: [6 venues with earnings],                          │
-│    stagingLocation: <optimal waiting point>                   │
-│  }                                                             │
-└────────────────────────────────────────────────────────────────┘
-```
+### Core Principle: Prevent LLM Hallucinations with Deterministic Scoring
 
-**Total Latency:** 26-37 seconds end-to-end (including Google Places API)
+**Problem:** Pure LLM recommendations can hallucinate non-existent venues or incorrect locations  
+**Solution:** Curated venue catalog + deterministic scoring engine
 
----
+### Venue Catalog (Single Source of Truth)
+- **Storage:** PostgreSQL `venues` table
+- **Source:** Google Places API (verified real businesses)
+- **Fields:** name, lat, lng, category, h3_r8 (geospatial index), business_hours, rating
+- **Update Frequency:** Weekly via Google Places sync
 
-## Error Handling & Resilience
+**Constraint:** LLMs can ONLY recommend venues from this catalog (no hallucinated locations)
 
-### ~~Old Error Strategy~~ **New Client Abort Handling**
+### Deterministic Scoring Engine
+**Formula:** `score = f(proximity, reliability, event_intensity, personalization)`
 
-**~~Previous Approach (Broken):~~**
-- ~~Global JSON body parsing tried to read ALL request bodies~~
-- ~~No distinction between client-initiated aborts and real errors~~
-- ~~"request aborted" errors flooded logs~~
-- ~~No proper HTTP status codes for client aborts~~
-
-**Current Approach (Fixed):**
-
-**1. Per-Route JSON Parsing**
-```javascript
-// Only parse bodies where needed
-const parseJson = express.json({ limit: "1mb", strict: true });
-app.use("/api/blocks", parseJson, blocksRoutes);
-```
-
-**2. Client Abort Error Gate**
-```javascript
-app.use((err, req, res, next) => {
-  // Client closed connection mid-read (normal React Query behavior)
-  if (err?.type === "request.aborted" || err?.code === "ECONNRESET") {
-    if (!res.headersSent) res.status(499).end(); // 499: client closed request
-    return; // Don't log - this is expected
-  }
-  
-  // Payload too large
-  if (err?.type === "entity.too.large") {
-    return res.status(413).json({ ok: false, error: "payload too large" });
-  }
-  
-  // Real errors - pass to next handler
-  next(err);
-});
-```
-
-**3. HTTP Status Codes**
-- **499**: Client Closed Request (non-standard but widely used)
-- **413**: Payload Too Large
-- **500**: Internal Server Error (real issues only)
+**Factors:**
+1. **Proximity** - H3 geospatial distance (deterministic)
+2. **Reliability** - Historical success rate from ML data (deterministic)
+3. **Event Intensity** - Day/hour/weather patterns (deterministic)
+4. **Personalization** - User history match (deterministic)
 
 **Why This Works:**
-- React Query cancels in-flight requests when components unmount or query keys change
-- Express body parser throws `BadRequestError: request aborted` when client disconnects
-- This is **normal behavior**, not an error - client changed its mind
-- Returning 499 without logging = clean logs showing only real problems
+- LLMs provide strategic narrative and pro tips (qualitative)
+- Scoring engine ranks venues (quantitative, auditable)
+- No hallucinations possible (venues must exist in catalog)
+
+**Constraint:** Scoring engine is separate from LLM pipeline (can be A/B tested independently)
 
 ---
 
-## Idempotency System (Infrastructure Ready, Integration Pending)
+## 🔒 **ARCHITECTURAL CONSTRAINTS (DO NOT VIOLATE)**
 
-### Architecture Overview
+### 1. Zero Hardcoding Policy
+**Rule:** No hardcoded locations, models, or business logic  
+**Enforcement:** All data must reconcile to database or environment variables
 
-**Status:** ✅ Infrastructure built, ❌ Not yet integrated
+**Examples:**
+- ✅ `process.env.CLAUDE_MODEL` (from .env)
+- ✅ `SELECT * FROM venues WHERE h3_r8 = ?` (from database)
+- ❌ `const topVenues = ["Stonebriar Centre", "Star District"]` (hardcoded)
 
-**Problem Solved:** Multiple duplicate requests for the same snapshot causing:
-- Redundant LLM API calls ($$$)
-- Database write conflicts
-- Inconsistent strategy results
-- Log noise from duplicate "BLOCKS REQUEST" entries
+**Why:** Enables dynamic updates without code changes, critical for ML-driven optimization
 
-**Solution:** 6-layer idempotency system to collapse duplicates to single execution
+---
 
-### Layer 1: Database Constraints (Hard Idempotency)
+### 2. Never Suppress Errors
+**Rule:** Always find and fix root causes, never suppress errors  
+**Examples:**
+- ✅ If model fails, surface the error with full context
+- ✅ If API returns wrong model, throw assertion error
+- ❌ `try { await llm() } catch { return fallback }` (hiding failures)
 
-**Created:**
-```sql
--- Strategies table
-CREATE UNIQUE INDEX strategies_snapshot_id_key ON strategies(snapshot_id);
+**Why:** Error suppression corrupts ML training data and hides systemic issues
 
--- Triad jobs table
-CREATE TABLE triad_jobs (
-  id bigserial PRIMARY KEY,
-  snapshot_id uuid NOT NULL,
-  kind text NOT NULL, -- 'triad'
-  status text NOT NULL DEFAULT 'queued', -- queued|running|ok|error
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(snapshot_id, kind)
-);
+---
 
--- HTTP idempotency table
-CREATE TABLE http_idem (
-  key text PRIMARY KEY,
-  status int NOT NULL,
-  body jsonb NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX http_idem_ttl ON http_idem(created_at);
-```
+### 3. Single-Path Triad (No Fallbacks)
+**Rule:** Triad pipeline must complete all 3 stages or fail entirely  
+**Enforcement:** Each stage checks previous stage output before proceeding
 
-**Purpose:** Database enforces "one strategy per snapshot" at lowest level
+**Exception:** Agent Override (Atlas) uses fallback chain for operational resilience (workspace ops different from user-facing strategy)
 
-### Layer 2: HTTP Idempotency Middleware
+---
 
-**Created:** `server/middleware/idempotency.js`
+### 4. Complete Snapshots Only
+**Rule:** Never send partial context to LLMs  
+**Validation:** Snapshot must include: location, weather, AQI, airport, time context, H3 geospatial
 
-```javascript
-export function idempotency({ header = 'x-idempotency-key', ttl = 300 }) {
-  return async (req, res, next) => {
-    const key = req.get(header);
-    if (!key) return next();
-    
-    // Check cache
-    const cached = await pool.query(
-      'SELECT status, body FROM http_idem WHERE key = $1 AND created_at > NOW() - INTERVAL $2',
-      [key, `${ttl} seconds`]
-    );
-    
-    if (cached.rowCount) {
-      const { status, body } = cached.rows[0];
-      return res.status(status).json(body);
-    }
-    
-    // Store on response
-    const originalJson = res.json.bind(res);
-    res.json = function(body) {
-      pool.query(
-        'INSERT INTO http_idem (key, status, body) VALUES ($1, $2, $3) ON CONFLICT (key) DO NOTHING',
-        [key, res.statusCode, body]
-      ).catch(err => console.error('[idem] cache store failed:', err));
-      return originalJson(body);
-    };
-    
-    next();
-  };
-}
-```
+**Why:** Partial data corrupts ML training (can't learn patterns from incomplete inputs)
 
-**Purpose:** Same idempotency key = same response from cache
+---
 
-### Layer 3: Background Job Queue (Single Writer)
+### 5. Model ID Stability
+**Rule:** Pin exact model IDs, verify monthly, fail hard on missing models  
+**Implementation:**
+- `CLAUDE_MODEL=claude-sonnet-4-5-20250929` (not just "claude-sonnet")
+- `OPENAI_MODEL=gpt-5-pro` (not "gpt-5")
+- Monthly verification via `tools/research/model-discovery.mjs`
 
-**Created:** `server/routes/blocks-idempotent.js`
+**Why:** Model names can be deprecated or replaced (e.g., gpt-4o → gpt-5)
 
-```javascript
-router.post('/api/blocks', idempotency({ header: 'x-idempotency-key' }), async (req, res) => {
-  const { snapshotId } = req.body;
-  
-  // Check if strategy exists
-  const existing = await pool.query(
-    'SELECT status FROM strategies WHERE snapshot_id = $1',
-    [snapshotId]
-  );
-  if (existing.rowCount) return res.json({ ok: true, status: 'ok', snapshotId });
-  
-  // Enqueue job (idempotent insert)
-  const queued = await pool.query(
-    'INSERT INTO triad_jobs (snapshot_id, kind, status) VALUES ($1, $2, $3) ON CONFLICT (snapshot_id, kind) DO NOTHING RETURNING id',
-    [snapshotId, 'triad', 'queued']
-  );
-  
-  if (queued.rowCount === 0) {
-    return res.status(202).json({ ok: true, status: 'queued', snapshotId });
-  }
-  
-  return res.status(202).json({ ok: true, status: 'queued', snapshotId, jobId: queued.rows[0].id });
-});
-```
+---
 
-**Purpose:** Convert POST to idempotent enqueue - worker does actual processing
+### 6. Partner Platform Namespace Separation
+**Rule:** Never use partner-specific model IDs with native APIs
 
-### Layer 4: Worker with SKIP LOCKED
+**Anthropic Claude:**
+- ✅ Native API: `claude-sonnet-4-5-20250929`
+- ❌ Vertex AI: `claude-sonnet-4-5@20250929` (different format)
+- ❌ AWS Bedrock: `anthropic.claude-sonnet-4-5-20250929-v1:0` (global prefix)
 
-**Created:** `server/jobs/triad-worker.js`
+**Why:** Different platforms have different namespaces, mixing them causes 404 errors
 
-```javascript
-async function processJobs() {
-  while (!stopping) {
-    const claim = await pool.query(`
-      UPDATE triad_jobs 
-      SET status = 'running'
-      WHERE id = (
-        SELECT id FROM triad_jobs 
-        WHERE status = 'queued' 
-        FOR UPDATE SKIP LOCKED 
-        LIMIT 1
-      )
-      RETURNING id, snapshot_id
-    `);
-    
-    if (claim.rowCount === 0) {
-      await sleep(1000);
-      continue;
-    }
-    
-    const { id: jobId, snapshot_id } = claim.rows[0];
-    
-    // Check if someone already wrote strategy (race prevention)
-    const exists = await pool.query(
-      'SELECT 1 FROM strategies WHERE snapshot_id = $1',
-      [snapshot_id]
-    );
-    
-    if (!exists.rowCount) {
-      const strategy = await runTriad(snapshot_id);
-      await pool.query(
-        'INSERT INTO strategies (snapshot_id, status, strategy, latency_ms, tokens) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (snapshot_id) DO NOTHING',
-        [snapshot_id, 'ok', strategy.data, strategy.latency, strategy.tokens]
-      );
-    }
-    
-    await pool.query('UPDATE triad_jobs SET status = $1 WHERE id = $2', ['ok', jobId]);
-  }
-}
-```
+---
 
-**Purpose:** Only one worker processes each job, SKIP LOCKED prevents races
+### 7. Database Schema Immutability
+**Rule:** NEVER change primary key ID column types (breaks existing data)
 
-### Layer 5: Client-Side Utilities
-
-**Created:** `client/src/lib/once.ts`
+**Safe Patterns:**
 ```typescript
-const inFlight = new Map<string, Promise<any>>();
+// If already serial, keep serial
+id: serial("id").primaryKey()
 
-export function once<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  const hit = inFlight.get(key);
-  if (hit) return hit as Promise<T>;
-  
-  const p = fn().finally(() => inFlight.delete(key));
-  inFlight.set(key, p);
-  return p;
-}
+// If already varchar UUID, keep varchar UUID
+id: varchar("id").primaryKey().default(sql`gen_random_uuid()`)
 ```
 
-**Created:** `client/src/lib/cached.ts`
-```typescript
-interface CacheEntry<T> { value: T; timestamp: number; }
-const cache = new Map<string, CacheEntry<any>>();
+**Migration:** Use `npm run db:push --force` (NOT manual SQL)
 
-export async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
-  const hit = cache.get(key);
-  if (hit && (Date.now() - hit.timestamp) < ttlMs) return hit.value;
-  
-  const value = await load();
-  cache.set(key, { value, timestamp: Date.now() });
-  return value;
-}
-```
-
-**Purpose:** Prevent duplicate in-flight calls and client-side caching
-
-### Layer 6: ETag Support for Reads
-
-**Added to:** `GET /api/blocks/strategy/:id`
-
-```javascript
-router.get('/strategy/:snapshotId', async (req, res) => {
-  const [strategyRow] = await db.select()
-    .from(strategies)
-    .where(eq(strategies.snapshot_id, snapshotId))
-    .limit(1);
-  
-  if (!strategyRow) {
-    // Pending - tell client to back off
-    res.set('Retry-After', '1');
-    return res.status(202).json({ status: 'pending', hasStrategy: false });
-  }
-  
-  // ETag from updated_at timestamp
-  const etag = `"${new Date(strategyRow.updated_at).getTime()}"`;
-  
-  if (req.get('if-none-match') === etag) {
-    return res.status(304).end(); // Not Modified
-  }
-  
-  res.set('ETag', etag);
-  return res.json({
-    status: 'ok',
-    hasStrategy: true,
-    strategy: strategyRow.strategy
-  });
-});
-```
-
-**Purpose:** Cache-friendly polling - 304 Not Modified when data unchanged
-
-### ~~Gateway Debounce (Removed)~~
-
-**~~Attempted:~~**
-```javascript
-// ~~const lastPostBySnap = new Map();~~
-// ~~app.post("/api/blocks", (req, res, next) => {~~
-//   ~~const k = String(req.body?.snapshotId || "");~~
-//   ~~if (k && now - lastPostBySnap.get(k) < 250) {~~
-//     ~~return res.status(202).json({ ok: true, status: "queued" });~~
-//   ~~}~~
-// ~~});~~
-```
-
-**Why Removed:** 
-- Gateway in dev mode proxies to SDK server - `req.body` not available before proxy
-- Would only work in production with direct route mounting
-- Other 5 layers provide sufficient idempotency
-
-### Integration Status
-
-**✅ Built:**
-- Database tables and constraints
-- Idempotency middleware
-- Triad worker with SKIP LOCKED
-- Client utilities (once, cached)
-- ETag support for polling
-
-**❌ Not Integrated:**
-- Worker not started in startup
-- Client hooks don't use `once()` or `cached()` yet
-- Still using inline strategy generation
-- POST /api/blocks uses old direct-call pattern
-
-**Next Steps:**
-1. Start worker: `node server/jobs/triad-worker.js` in separate process
-2. Update client to use `once("blocks:${snapshotId}", () => fetch(...))`
-3. Switch POST /api/blocks to use idempotent enqueue route
-4. Monitor logs for "BLOCKS REQUEST" collapsing to single execution
+**Why:** Changing ID types (serial ↔ varchar) generates destructive ALTER TABLE statements
 
 ---
 
-## Production Deployment Checklist
+## 📊 **ML INSTRUMENTATION & TRAINING DATA**
 
-### Pre-Deployment
+### Counterfactual Learning Pipeline
+**Goal:** Build dataset to fine-tune models on what drivers ACTUALLY chose vs. what we recommended
 
-- [x] Remove React.StrictMode from production build
-- [x] Remove global JSON body parsing
-- [x] Add client abort error gate
-- [x] Filter /health from logs
-- [ ] Start triad worker process
-- [ ] Integrate idempotency client utilities
-- [ ] Switch to queue-based strategy generation
-- [ ] Verify zero duplicate "BLOCKS REQUEST" logs
+**Data Captured:**
+1. **Snapshot** - Complete context (location, weather, time, etc.)
+2. **Triad Output** - All 6 venue recommendations with scores
+3. **User Action** - Which venue they chose (or ignored)
+4. **Outcome** - Actual earnings vs. projected
 
-### Post-Deployment Monitoring
+**Storage Tables:**
+- `ml_snapshots` - Context at time of recommendation
+- `ml_recommendations` - What we suggested
+- `ml_outcomes` - What actually happened
 
-- [ ] Monitor 499 status codes (expected - client aborts)
-- [ ] Verify no "request aborted" errors in logs
-- [ ] Confirm single strategy generation per snapshot
-- [ ] Check ETag cache hit rate
-- [ ] Monitor worker queue depth
+**Constraint:** Never log partial data (corrupts training set)
 
 ---
 
-**END OF ARCHITECTURE DOCUMENT**
+## 🔐 **SECURITY & SAFETY**
 
-*This document reflects the current state of the system including recent fixes for client abort handling and idempotency infrastructure. All strikethrough text indicates removed/deprecated patterns.*
+### Rate Limiting (DDoS Protection)
+- **API Routes:** 100 requests / 15 minutes per IP
+- **Health Checks:** Unlimited (excluded from limits)
+- **Strategy Generation:** 10 requests / 15 minutes per IP (strict)
+
+### Secret Management
+- **Storage:** Replit Secrets (never committed to repo)
+- **Access:** Environment variables only
+- **Validation:** `check_secrets` tool before usage
+
+**Available Secrets:**
+- `ANTHROPIC_API_KEY` (Claude)
+- `OPENAI_API_KEY` (GPT-5)
+- `GEMINI_API_KEY` (Gemini)
+- `GOOGLEAQ_API_KEY` (Air Quality)
+- `FAA_ASWS_CLIENT_ID` / `FAA_ASWS_CLIENT_SECRET` (Airport delays)
+- `PERPLEXITY_API_KEY` (Model research)
+
+### Command Whitelisting (Agent Server)
+**Allowed:** `ls`, `cat`, `grep`, `find`, `git status`  
+**Blocked:** `rm -rf`, `sudo`, `chmod 777`, destructive operations
+
+---
+
+## 🚀 **DEPLOYMENT CONFIGURATION**
+
+### Production Settings
+```env
+NODE_ENV=production
+PORT=5000
+
+# Model Configuration (verified October 8, 2025)
+CLAUDE_MODEL=claude-sonnet-4-5-20250929
+OPENAI_MODEL=gpt-5-pro
+GEMINI_MODEL=gemini-2.5-pro-latest
+ANTHROPIC_API_VERSION=2023-06-01
+
+# Triad Architecture
+TRIAD_ENABLED=true
+TRIAD_MODE=single_path
+ROUTER_V2_ENABLED=false
+
+# Timeouts (90s total budget)
+CLAUDE_TIMEOUT_MS=12000
+GPT5_TIMEOUT_MS=45000
+GEMINI_TIMEOUT_MS=15000
+
+# GPT-5 Configuration
+GPT5_REASONING_EFFORT=high
+```
+
+### Workflow Configuration
+**Name:** Eidolon Main  
+**Command:** `NODE_ENV=development VITE_PORT=3003 PLANNER_DEADLINE_MS=120000 VALIDATOR_DEADLINE_MS=60000 node gateway-server.js`  
+**Port:** 5000 (Replit firewall requirement)
+
+**Constraint:** Must serve on port 5000 (other ports are firewalled)
+
+---
+
+## 📈 **FORWARD PRESSURE (Roadmap)**
+
+### Phase 1: Enhanced Context (Q4 2025)
+- ✅ Thread-aware context system (COMPLETE)
+- ✅ Model verification automation (COMPLETE)
+- 🔄 Real-time event calendar integration (IN PROGRESS)
+- 🔄 Traffic pattern ML model (IN PROGRESS)
+
+### Phase 2: Trust-First Refinement (Q1 2026)
+- 📋 A/B testing framework for scoring engine
+- 📋 Venue catalog auto-refresh (weekly Google Places sync)
+- 📋 Counterfactual learning model training
+- 📋 Driver personalization engine
+
+### Phase 3: Safety & Compliance (Q2 2026)
+- 📋 Fatigue detection (ML-based)
+- 📋 Familiar route recommendations
+- 📋 Strategic break planning
+- 📋 Insurance integration
+
+---
+
+## ⬅️ **BACKWARD PRESSURE (Deprecated)**
+
+### ~~Router V2 with Fallbacks~~ (Removed Oct 8, 2025)
+- ~~Automatic failover between providers~~
+- ~~Circuit breakers with 5-failure threshold~~
+- ~~8s total budget (too aggressive)~~
+- **Reason:** User requires consistent quality, no silent model swaps
+
+### ~~Global JSON Body Parsing~~ (Removed Oct 7, 2025)
+- ~~`app.use(express.json())` on all routes~~
+- **Reason:** Caused "request aborted" errors on client cancellation
+
+### ~~React.StrictMode~~ (Removed Oct 7, 2025)
+- ~~Double-rendering for development warnings~~
+- **Reason:** Caused duplicate API calls and abort errors
+
+### ~~Deprecated Models~~ (Replaced Oct 8, 2025)
+- ~~`gpt-4o` → `gpt-5-pro`~~
+- ~~`gemini-1.5-pro` → `gemini-2.5-pro-latest`~~
+- ~~`claude-3-5-sonnet` → `claude-sonnet-4-5-20250929`~~
+
+---
+
+## 🧪 **TESTING & VERIFICATION**
+
+### Model Verification (Monthly)
+```bash
+# Automated research via Perplexity
+node tools/research/model-discovery.mjs
+
+# Direct API verification
+curl https://api.anthropic.com/v1/models/claude-sonnet-4-5-20250929 \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01"
+```
+
+### Triad Pipeline Test
+```bash
+# Standalone test
+node scripts/test-triad.mjs
+
+# Production endpoint
+curl -X POST http://localhost:5000/api/blocks \
+  -H "Content-Type: application/json" \
+  -d '{"lat":33.1287,"lng":-96.8757}'
+```
+
+---
+
+## 📚 **KEY DOCUMENTATION REFERENCES**
+
+| Document | Purpose | Last Updated |
+|----------|---------|--------------|
+| `MODEL.md` | AI model specifications with API details | Oct 8, 2025 |
+| `replit.md` | User preferences and system overview | Oct 8, 2025 |
+| `docs/reference/V2-ROUTER-INTEGRATION.md` | Router V2 history and resolution | Oct 8, 2025 |
+| `tools/research/THREAD_AWARENESS_README.md` | Thread system documentation | Oct 8, 2025 |
+| `ARCHITECTURE.md` | This document - constraints & decisions | Oct 8, 2025 |
+
+---
+
+## 🎯 **DECISION LOG**
+
+### October 8, 2025
+- ✅ **Verified:** Claude Sonnet 4.5 model works correctly (no silent swaps)
+- ✅ **Added:** Model assertion in adapter to prevent future mismatches
+- ✅ **Implemented:** Thread-aware context system for Agent/Assistant/Eidolon
+- ✅ **Updated:** All documentation to reflect verified model state
+- ✅ **Set:** `ANTHROPIC_API_VERSION=2023-06-01` in environment
+
+### October 7, 2025
+- ✅ **Removed:** React.StrictMode (double-rendering causing abort errors)
+- ✅ **Removed:** Global JSON body parsing (causing abort on client cancellation)
+- ✅ **Added:** Per-route JSON parsing with 1MB limit
+- ✅ **Added:** Client abort error gate (499 status)
+- ✅ **Added:** Health check logging filter
+
+### October 3, 2025
+- ✅ **Implemented:** Router V2 with proper cancellation
+- ✅ **Fixed:** Circuit breaker poisoning from aborted requests
+- ✅ **Increased:** Budget from 8s to 90s (production needs)
+- ⚠️ **Discovered:** Anthropic model 404 issue (resolved Oct 8)
+
+---
+
+## 🚨 **CRITICAL CONSTRAINTS SUMMARY**
+
+1. **Single-Path Triad** - No fallbacks, fail properly instead of degrading
+2. **Zero Hardcoding** - All data from DB or env vars
+3. **Never Suppress Errors** - Surface failures with full context
+4. **Complete Snapshots Only** - Never send partial data to LLMs
+5. **Model ID Stability** - Pin exact IDs, verify monthly
+6. **Partner Namespace Separation** - Don't mix Vertex/Bedrock IDs with native APIs
+7. **Database Schema Immutability** - Never change PK types
+8. **Trust-First Stack** - Curated catalog + deterministic scoring (no hallucinations)
+9. **Port 5000 Requirement** - Replit firewall constraint
+10. **Per-Route JSON Parsing** - No global body parser
+
+---
+
+**This document is the authoritative reference for all architectural decisions. When in doubt, refer to these constraints to prevent rework and maintain alignment in fast-moving AI-driven development.**

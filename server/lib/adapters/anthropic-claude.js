@@ -35,7 +35,10 @@ export async function callClaude({
     body: JSON.stringify(body),
     signal: abortSignal
   });
-  if (!res.ok) throw new Error(`Anthropic ${res.status}`);
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Anthropic ${res.status}: ${errText}`);
+  }
   const j = await res.json();
   
   // Model assertion: Ensure we got exactly what we requested (prevent silent swaps)

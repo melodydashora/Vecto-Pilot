@@ -32,7 +32,9 @@
     "check:ts": "npm run typecheck || true",
     "build:dev": "npm run build:client",
     "build:deploy": "npm run guard && npm run build:client",
-    "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true"
+    "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true",
+    "model:research": "node tools/research/model-discovery.mjs",
+    "model:verify": "node tools/research/model-discovery.mjs >/dev/null && echo '✅ Model verification passed'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
