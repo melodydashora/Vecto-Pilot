@@ -1,10 +1,11 @@
 
-#!/usr/bin/env node
 // Model Discovery Script - Uses Perplexity to research latest AI models
 // Outputs structured data for updating model configurations
+// Run with: node tools/research/model-discovery.mjs
 
 import fs from 'fs/promises';
 import path from 'path';
+import 'dotenv/config';
 
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 const MODEL = 'sonar-pro';
@@ -50,7 +51,7 @@ async function perplexitySearch(query, systemPrompt) {
 async function researchProvider(providerName) {
   console.log(`\n🔍 Researching ${providerName}...`);
   
-  const query = `What are the current production AI models from ${providerName} as of January 2025? 
+  const query = `What are the current production AI models from ${providerName} as of October 2025? 
   Include:
   1. Latest model names/IDs (exact strings for API calls)
   2. API endpoint URLs
@@ -61,13 +62,23 @@ async function researchProvider(providerName) {
   7. Special features or constraints
   8. Any SDK package names
   
+  Known flagship models to verify:
+  - OpenAI: gpt-5 (supports reasoning_effort: minimal/low/medium/high, NOT temperature/top_p)
+  - Anthropic: claude-sonnet-4-5-20250929 (Claude Sonnet 4.5)
+  - Google: gemini-2.5-pro (Gemini 2.5 Pro)
+  
   Focus on models suitable for production use in chatbot/completion tasks.`;
 
   const systemPrompt = `You are a technical researcher specializing in AI/LLM APIs. 
-  Provide precise, up-to-date information about production AI models.
+  Provide precise, up-to-date information about production AI models as of October 2025.
   Include exact API endpoint URLs, model IDs, and parameter names.
   Format your response with clear sections for each piece of information.
-  Only include information from official documentation or reliable tech sources from 2024-2025.`;
+  Only include information from official documentation or reliable tech sources from 2024-2025.
+  
+  VERIFY these specific production models:
+  - claude-sonnet-4-5-20250929 (Anthropic's latest Sonnet)
+  - gpt-5 (OpenAI's latest, uses reasoning_effort not temperature)
+  - gemini-2.5-pro (Google's latest Gemini)`;
 
   const result = await perplexitySearch(query, systemPrompt);
   
@@ -98,8 +109,14 @@ async function researchParameterConstraints() {
   Provide exact parameter names and valid ranges.`;
 
   const systemPrompt = `You are an AI API expert. Provide precise information about API parameters.
-  Focus on what's currently supported in production as of January 2025.
-  Include any deprecation warnings or breaking changes.`;
+  Focus on what's currently supported in production as of October 2025.
+  Include any deprecation warnings or breaking changes.
+  
+  KEY FACTS TO VERIFY:
+  - GPT-5 does NOT support temperature, top_p, frequency_penalty, or presence_penalty
+  - GPT-5 only supports reasoning_effort (values: minimal, low, medium, high)
+  - Claude Sonnet 4.5 model ID is claude-sonnet-4-5-20250929
+  - Gemini 2.5 Pro supports standard temperature/max_tokens parameters`;
 
   const result = await perplexitySearch(query, systemPrompt);
   

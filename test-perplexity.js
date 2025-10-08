@@ -1,5 +1,7 @@
 
-#!/usr/bin/env node
+// Test Perplexity Research Module
+// Run with: node test-perplexity.js
+
 import 'dotenv/config';
 import { PerplexityResearch } from './server/lib/perplexity-research.js';
 

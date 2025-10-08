@@ -164,6 +164,25 @@ sed -i 's/CLAUDE_MODEL=.*/CLAUDE_MODEL=claude-sonnet-4-5-20250929/' .env
 - Change `CLAUDE_MODEL` to `claude-sonnet-4-5-20250929`
 - Save and restart the workflow
 
+### 1.2. Research Latest AI Models (Optional)
+
+Use Perplexity AI to automatically discover the newest flagship models and their parameters:
+
+```bash
+# Run model research (requires PERPLEXITY_API_KEY in .env)
+node tools/research/model-discovery.mjs
+```
+
+This generates a comprehensive JSON report with:
+- Latest model IDs and API endpoints
+- Supported parameters and constraints
+- Deprecated models and replacements
+- Citations from official sources
+
+**Output**: `tools/research/model-research-YYYY-MM-DD.json`
+
+See `tools/research/README.md` for detailed usage instructions for both SDK and HTML/frontend updates.
+
 ### 2. Click Run
 
 The system will automatically:
