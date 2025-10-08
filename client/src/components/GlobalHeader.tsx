@@ -500,18 +500,6 @@ const GlobalHeader: React.FC = () => {
         </div>
       </div>
 
-      {/* Mission Statement Banner */}
-      <div className="bg-gradient-to-r from-blue-700/40 to-purple-700/40 backdrop-blur-sm border-y border-white/10">
-        <div className="max-w-7xl mx-auto px-4 py-2.5">
-          <p className="text-sm text-white/95 leading-relaxed font-medium text-center">
-            <span className="font-bold text-white">Drivers don't lose money because they can't drive.</span> They lose it in the gaps—deadhead miles, surge chasing penalties, and guesswork that burns fuel and time. 
-            <span className="inline-block mx-1.5 text-white/60">•</span>
-            This app eliminates that waste with <span className="text-white font-semibold">verified venue data, real-time strategic positioning, and earnings-per-mile targets</span>—helping both new and seasoned drivers 
-            <span className="text-white font-semibold">get home faster, safer, and with more money per ride</span> by reducing fatigue from aimless driving and cutting unnecessary mileage.
-          </p>
-        </div>
-      </div>
-
       {/* Location Strip */}
       <div className="bg-black/10 backdrop-blur-sm border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-2">
