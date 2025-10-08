@@ -1,0 +1,24 @@
+
+{
+  "timestamp": "2025-10-08T01:12:00.000Z",
+  "practice": "test_validation_before_checkpoint",
+  "description": "Always validate tests before marking a checkpoint to ensure code changes work correctly",
+  "steps": [
+    "Run relevant tests after making changes",
+    "Verify all endpoints are responding correctly",
+    "Check health status of all services",
+    "Confirm no regressions were introduced",
+    "Only mark checkpoint after successful validation"
+  ],
+  "applied_to": [
+    "code_changes",
+    "configuration_updates",
+    "model_updates",
+    "infrastructure_changes"
+  ],
+  "verification_commands": [
+    "curl health endpoints",
+    "run test suites",
+    "check service status"
+  ]
+}
