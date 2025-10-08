@@ -424,6 +424,464 @@ Every venue recommendation logs:
 
 ---
 
+## 📍 **STRATEGIC OVERVIEW STRATEGY**
+
+### Core Principle
+Provide drivers with a 2-3 sentence AI-generated strategic overview that synthesizes current conditions into actionable intelligence.
+
+### How It Works
+
+**Trigger Conditions:**
+1. **Location Change**: Driver moves more than 2 miles from last strategy
+2. **Time Change**: Day part transitions (morning → afternoon → evening → night)
+3. **Manual Refresh**: Driver explicitly requests updated strategy
+4. **Inactivity**: 30 minutes since last strategy update
+
+**Generation Process:**
+- **Model**: Claude Sonnet 4.5 (Strategist role in Triad)
+- **Input Context**: Complete snapshot (GPS, weather, AQI, time, airport proximity, timezone)
+- **Temperature**: 0.0 (maximum determinism)
+- **Max Tokens**: 500 (sufficient for 2-3 sentences)
+- **Output**: Concise strategic narrative with earnings estimates
+
+**Storage & Caching:**
+- Persisted to `strategies` table with `snapshot_id` linkage
+- ETag-based HTTP caching prevents redundant generation
+- 202 status code during pending generation, 304 for cache hits
+
+### Why This Approach
+**Accuracy**: Zero-temperature ensures consistent strategic advice without hallucination  
+**Efficiency**: Caching prevents duplicate API calls for same conditions  
+**Trust**: Complete snapshot gating ensures no strategy without full context  
+
+### When It Runs
+- **Always**: On significant location or time changes
+- **Never**: Without complete GPS, timezone, weather, and AQI data
+
+---
+
+## 🎯 **CLOSEST HIGH-EARNING SPOTS STRATEGY**
+
+### Core Principle
+Recommend venues that maximize earnings per mile of approach, balancing proximity with earnings potential.
+
+### How It Works
+
+**Candidate Selection:**
+1. **Seeded Best Venues**: Curated catalog of proven high-performers
+2. **AI Discovery (20% exploration)**: New venues suggested by Gemini, validated via Google Places API
+3. **H3 Geospatial Filtering**: Venues within reasonable H3 grid distance from driver
+
+**Scoring Formula:**
+```
+score = 2.0 * proximityBand + 1.2 * reliability + 0.6 * eventBoost + 0.8 * openProb + personalBoost
+```
+
+**Proximity Bands (H3 Grid Distance):**
+- Distance 0 (same cell): 1.0 score
+- Distance 1 (adjacent): 0.8 score
+- Distance 2 (near): 0.6 score
+- Distance 3-4 (medium): 0.4 score
+- Distance 5+ (far): 0.2 score
+
+**Tie-Breaking Hierarchy:**
+1. **Primary**: Earnings per mile of approach
+2. **Secondary**: Drive time (shorter wins)
+3. **Tertiary**: Demand prior (time/day/weekend context)
+
+**Diversity Guardrails:**
+- Maximum 2 venues from same category in top 5
+- Ensures mix of venue types (airport, mall, entertainment, etc.)
+- 20% exploration budget for discovering new venues
+
+### Why This Approach
+**Deterministic**: Scoring engine is separate from LLM, preventing hallucinations  
+**Auditable**: All factors are quantitative and logged for ML training  
+**Personalized**: Learns from driver's historical success patterns  
+
+### When It Runs
+- **Always**: On every block recommendation request
+- **With Live Data**: Traffic-aware drive times via Google Routes API
+
+---
+
+## 💰 **POTENTIAL PER RIDE STRATEGY**
+
+### Core Principle
+Estimate realistic earnings per ride based on venue type, surge conditions, and base fare structure.
+
+### How It Works
+
+**Calculation Method:**
+```
+estimated_fare = base_earnings_hr * adjustment_factor
+```
+
+**Adjustment Factors:**
+- **Open Venues**: 0.9x multiplier (high confidence)
+- **Closed Venues**: 0.7x multiplier (lower confidence, staged for opening)
+- **Event Venues**: Event-specific multiplier based on intensity
+- **Surge Active**: Base + surge premium
+
+**Data Sources:**
+- Historical earnings data from `venue_metrics` table
+- Live surge pricing from Uber/Lyft APIs
+- Time-of-day demand patterns (morning rush, evening rush, late night)
+
+**Net Take-Home:**
+```
+net_take_home = estimated_fare - platform_fees - operating_costs
+```
+
+### Why This Approach
+**Realistic**: Based on historical performance, not optimistic projections  
+**Context-Aware**: Adjusts for current conditions (time, surge, events)  
+**Transparent**: Shows breakdown so drivers understand the calculation  
+
+### When It Runs
+- **Always**: For every recommended venue
+- **Updates**: When surge levels change or business hours shift
+
+---
+
+## 📏 **DISTANCE STRATEGY**
+
+### Core Principle
+Provide accurate, traffic-aware distance and ETA calculations using live road conditions, not straight-line estimates.
+
+### How It Works
+
+**Primary Method - Google Routes API:**
+```javascript
+{
+  origin: { lat, lng },
+  destination: { lat, lng },
+  travelMode: 'DRIVE',
+  routingPreference: 'TRAFFIC_AWARE',
+  departureTime: now + 30s  // Routes API requires future timestamp
+}
+```
+
+**Returns:**
+- `distanceMeters`: Actual road distance
+- `durationSeconds`: ETA without traffic
+- `durationInTrafficSeconds`: ETA with current traffic
+
+**Fallback - Haversine Formula:**
+```javascript
+distance = 2 * R * asin(sqrt(sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δlng/2)))
+```
+- Used only when Google Routes API fails
+- Provides straight-line distance estimate
+- Flagged as `distanceSource: "fallback"` for transparency
+
+### Why This Approach
+**Accuracy**: Live traffic data ensures realistic ETAs  
+**Reliability**: Fallback ensures distance info always available  
+**Cost-Aware**: $10 per 1,000 requests balanced against accuracy needs  
+
+### When It Runs
+- **Always**: For top-ranked venues after initial scoring
+- **Real-Time**: Recalculated on demand for navigation requests
+
+---
+
+## 🔥 **SURGE STRATEGY**
+
+### Core Principle
+Detect and factor surge pricing into earnings calculations, flagging high-multiplier opportunities as high priority.
+
+### How It Works
+
+**Detection Methods:**
+1. **Uber API Integration**: `uberApi.getSurgePricing(lat, lng)`
+2. **Surge Threshold**: Filter for `surge_multiplier > 1.5x`
+3. **High Priority Flag**: Surge ≥ 2.0x triggers urgent recommendation
+
+**Integration into Scoring:**
+```
+earnings_boost = base_fare * surge_multiplier
+priority_level = surge >= 2.0 ? 'high' : 'normal'
+```
+
+**Data Storage:**
+- `blocks` table includes `surge` field (decimal)
+- Historical surge patterns stored in `venue_metrics`
+- Logged for ML training to predict future surge windows
+
+### Why This Approach
+**Opportunistic**: Helps drivers capitalize on high-demand windows  
+**Dynamic**: Real-time API calls ensure current surge data  
+**Predictive**: ML learns surge patterns for proactive recommendations  
+
+### When It Runs
+- **Always**: For venues in high-demand categories (airports, events, stadiums)
+- **Frequency**: Checked on every block refresh (respects API rate limits)
+
+---
+
+## ⭐ **PRIORITY STATUS STRATEGY**
+
+### Core Principle
+Flag venues as high, normal, or low priority based on urgency indicators (surge, events, time-sensitivity).
+
+### How It Works
+
+**Priority Determination:**
+```javascript
+if (surge >= 2.0 || earnings_hr >= 60) return 'high';
+if (isEvent && eventStartingSoon) return 'high';
+if (openState === 'closed' && driveTime > 30) return 'low';
+return 'normal';
+```
+
+**High Priority Indicators:**
+- Surge multiplier ≥ 2.0x
+- Earnings per hour ≥ $60
+- Active events starting within 1 hour
+- Peak demand windows (morning/evening rush)
+
+**Low Priority Indicators:**
+- Venue closed with drive time > 30 minutes
+- Historical low success rate
+- Driver has hidden this venue previously
+
+**Display Impact:**
+- High priority: Top of list, urgent badge, highlighted
+- Normal: Standard display order
+- Low: Demoted or hidden based on settings
+
+### Why This Approach
+**Actionable**: Helps drivers identify time-sensitive opportunities  
+**Personalized**: Learns from driver's feedback and patterns  
+**Clear**: Visual indicators make priority instantly obvious  
+
+### When It Runs
+- **Always**: During venue ranking process
+- **Updates**: When surge levels or event status changes
+
+---
+
+## 📊 **END USER BLOCK RANKING STRATEGY**
+
+### Core Principle
+Present venues in order of expected value to driver, using deterministic scoring that can be audited and A/B tested.
+
+### How It Works
+
+**Final Ranking Process:**
+1. **Score Calculation**: Apply scoring formula to all candidates
+2. **Diversity Check**: Ensure category mix (no more than 2 from same category in top 5)
+3. **Drive Time Enrichment**: Add traffic-aware ETAs
+4. **Priority Flagging**: Mark high-urgency venues
+5. **Final Sort**: By score (descending), then drive time (ascending)
+
+**User-Facing Order:**
+```
+Top 6 = [
+  Highest scoring nearby venue (proximity winner),
+  Best earnings/mile (efficiency winner),
+  Event/surge opportunity (urgency winner),
+  Category-diverse options (2-3 different types),
+  Exploratory option (20% chance, for discovery)
+]
+```
+
+**ML Instrumentation:**
+- Every ranking logged with `ranking_id`
+- User actions tracked (view, click, hide, like)
+- Counterfactual learning: "What if we ranked differently?"
+
+### Why This Approach
+**Transparent**: Scoring is deterministic and explainable  
+**Adaptive**: Learns from user feedback to improve rankings  
+**Fair**: No LLM bias; venues ranked by objective metrics  
+
+### When It Runs
+- **Always**: Final step before presenting blocks to driver
+- **Logged**: Every ranking for continuous learning
+
+---
+
+## 🅿️ **STAGING AREA STRATEGY**
+
+### Core Principle
+Recommend specific waiting locations near venues with premium pickup zones, free parking, or optimal positioning.
+
+### How It Works
+
+**Data Sources:**
+1. **AI-Suggested**: Claude/GPT identifies staging areas from venue context
+2. **Driver Feedback**: Historical staging preferences stored per venue
+3. **Venue Metadata**: `staging_notes` field includes type, location, walk time
+
+**Staging Area Types:**
+- **Premium**: Rideshare-specific lots (airports, malls)
+- **Standard**: Public parking near pickup zones
+- **Free Lot**: No-cost staging with short walk
+- **Street**: Curb staging for quick pickups
+
+**Personalization Boost:**
+```javascript
+if (driver.preferredStagingTypes.includes(venue.staging_notes.type)) {
+  score += 0.1;  // Boost for preferred staging type
+}
+```
+
+**Display Information:**
+- Type: Premium / Standard / Free Lot
+- Name: Specific staging area name
+- Address: Exact staging location
+- Walk Time: "2 min walk to pickup zone"
+- Parking Tip: "Free lot, no time limit"
+
+### Why This Approach
+**Practical**: Helps drivers avoid tickets and find optimal waiting spots  
+**Local Knowledge**: Captures venue-specific staging intel  
+**Personalized**: Learns driver's staging preferences (covered vs. open, paid vs. free)  
+
+### When It Runs
+- **Enrichment**: Added to top-ranked venues during final presentation
+- **Source**: From AI strategic analysis or driver feedback database
+
+---
+
+## 💡 **PRO TIPS STRATEGY**
+
+### Core Principle
+Provide concise, actionable tactical advice tailored to specific venue and time context.
+
+### How It Works
+
+**Generation Sources:**
+1. **GPT-5 Planner**: Generates 1-4 pro tips per venue during tactical planning
+2. **Claude Strategist**: Provides strategic-level tips in overview
+3. **Historical Data**: Tips derived from successful driver patterns
+
+**Tip Categories:**
+- **Timing**: "Target international flights 7-9pm for longer fares"
+- **Staging**: "Park in Lot C for fastest pickup access"
+- **Events**: "Concert ends at 10:30pm, stage 15 min early"
+- **Navigation**: "Avoid I-35 construction, use service road"
+- **Surge**: "Surge peaks 30 min after event end"
+
+**Validation:**
+```javascript
+// Pro tips schema (from GPT-5)
+pro_tips: z.array(z.string().max(250)).min(1).max(4)
+```
+
+**Character Limits:**
+- Maximum 250 characters per tip
+- 1-4 tips per venue
+- Concise, non-hedged language
+
+### Why This Approach
+**Actionable**: Tips provide specific tactical advice, not generic statements  
+**Context-Aware**: Generated based on current time, weather, events  
+**Validated**: Schema ensures tips meet quality standards  
+
+### When It Runs
+- **Always**: Generated by GPT-5 during tactical planning stage
+- **Per Venue**: Each recommended venue receives custom tips
+
+---
+
+## 👍 **GESTURE FEEDBACK STRATEGY**
+
+### Core Principle
+Learn from driver interactions (like, hide, thumbs up/down) to personalize future recommendations and suppress unhelpful venues.
+
+### How It Works
+
+**Feedback Actions:**
+- **Like** ➜ Boost this venue in future rankings (+0.3 score)
+- **Hide** ➜ Add to driver's no-go zones, suppress from future results
+- **Helpful** ➜ Increase venue reliability score
+- **Not Helpful** ➜ Decrease venue reliability score, consider suppression
+
+**Data Logging:**
+```javascript
+// actions table
+{
+  action_id, snapshot_id, ranking_id, user_id,
+  venue_id, action_type, timestamp
+}
+```
+
+**ML Learning:**
+- Positive feedback → `positive_feedback++` in `venue_metrics`
+- Negative feedback → `negative_feedback++`, adjust `reliability_score`
+- Suppression threshold: If 3+ hides, add to `driver.noGoZones[]`
+
+**Personalization Impact:**
+```javascript
+if (driver.successfulVenues.includes(venue_id)) {
+  personalBoost += 0.3;  // Prioritize venues driver liked before
+}
+if (driver.noGoZones.includes(venue_id)) {
+  return null;  // Completely hide from recommendations
+}
+```
+
+### Why This Approach
+**Adaptive**: System learns what works for each individual driver  
+**Respectful**: Hidden venues stay hidden (unless driver manually unhides)  
+**Counterfactual**: Tracks "what we recommended vs what they chose" for ML  
+
+### When It Runs
+- **Action Logging**: Immediately when driver taps like/hide/helpful
+- **Ranking Impact**: Applied during next block recommendation cycle
+- **ML Training**: Batch processed for pattern learning
+
+---
+
+## 🧭 **NAVIGATION STRATEGY**
+
+### Core Principle
+Provide seamless navigation integration with Google Maps and Apple Maps, using traffic-aware routing and native app deep-linking.
+
+### How It Works
+
+**Platform Detection:**
+```javascript
+// iOS
+if (iOS && AppleMapsInstalled) {
+  url = `maps://?daddr=${lat},${lng}`;
+} else {
+  url = `https://maps.apple.com/?daddr=${lat},${lng}`;
+}
+
+// Android
+if (Android && GoogleMapsInstalled) {
+  url = `google.navigation:q=${lat},${lng}`;
+} else {
+  url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}
+```
+
+**Traffic Integration:**
+- Google Maps: Traffic layer included by default
+- Routes API: Provides `durationInTrafficSeconds` for ETA
+- Real-time updates: Recalculated on demand when driver taps navigate
+
+**Airport Context:**
+- If near airport, includes terminal info: "Terminal C pickup zone"
+- FAA delay data: "DFW: 45 min departure delays, target arrivals"
+- Alerts displayed before navigation starts
+
+### Why This Approach
+**Seamless**: Deep-links to native apps for best UX  
+**Accurate**: Traffic-aware routing prevents underestimated ETAs  
+**Context-Rich**: Airport alerts help drivers avoid wasted trips  
+
+### When It Runs
+- **On Demand**: When driver taps "Navigate" button
+- **ETA Updates**: Real-time when driver views venue details
+- **Fallback**: Always provides web-based maps if native apps unavailable
+
+---
+
 ## 🔒 **ARCHITECTURAL CONSTRAINTS (DO NOT VIOLATE)**
 
 ### 1. Zero Hardcoding Policy
