@@ -82,7 +82,7 @@ This report contains the latest information about production AI models from majo
 
 ## Research Metadata
 
-- **Research Engine:** Perplexity AI (`llama-3.1-sonar-small-128k-online`)
+- **Research Engine:** Perplexity AI (`sonar-pro`)
 - **Recency Filter:** Last 30 days
 - **Total Citations:** {CITATION_COUNT}
 - **Confidence Level:** Based on source diversity and recency
