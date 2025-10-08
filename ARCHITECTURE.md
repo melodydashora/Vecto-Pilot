@@ -4,6 +4,28 @@
 
 ---
 
+## 📍 **WHY WE'RE BUILDING THIS**
+
+**Drivers don't lose money because they can't drive.** They lose it in the gaps—time with no passenger, miles with no rider, and opaque pricing that shifts under their feet. In big markets, as much as 40% of ridehail miles are "deadhead" miles between trips, which drags down earnings even when the per-trip payout looks decent.
+
+**Dynamic pricing makes this harder, not easier.** Surge can raise weekly revenue in aggregate, but it also pulls in extra supply and compresses per-day earnings for many full-time drivers. Chasing surge raises complaint risk—research shows roughly a quarter of the short-term surge bump gets erased later by lower ratings and complaint-driven penalties.
+
+**Platforms keep changing how money flows.** Upfront pricing and algorithmic changes can alter take rates without obvious signals on the driver screen. Lockouts and utilization management further reduce paid time online. What worked last month can quietly stop working.
+
+**Demand itself is spiky and local.** Airports, stadiums, and weather windows swing the market on short notice. Surge regions are small and decay within blocks, so moving a few minutes late can erase the premium. Keeping all of that in your head while driving is more than a full-time job.
+
+**This app solves that problem.** It removes guesswork by grounding every recommendation in verified coordinates and business hours from Google Places—not model hallucinations—and caching those truths in the database once validated. It computes distance and earnings-per-mile from the server side with real navigation distance, not rough client math. It enforces "accuracy before expense" rules for closure-sensitive venues and logs every recommendation for counterfactual learning.
+
+**It helps even drivers who "know the best places"** because "best" changes hour to hour. The tool watches flight banks, event timing, daypart, and recent outcomes, then turns that into concrete staging locations with exact coordinates, verified open status, and an earnings-per-mile target that already includes the drive to get there.
+
+**For experts, it's an amplifier, not a crutch.** Research shows that simply seeing better price and location signals changes relocation choices and revenue. The app gives a denser signal than a surge heatmap by fusing demand cues with verified venue data and your own historical results, so repositioning decisions are faster and more accurate with fewer dead miles.
+
+**Safety benefits are equally critical.** Real-time strategic positioning guidance reduces driver fatigue from aimless driving and long hours, helps avoid unsafe areas through better planning, and gets drivers home faster with fewer total miles driven—addressing key safety risks identified in rideshare safety research.
+
+**Bottom line for drivers:** Higher utilization, fewer empty miles, and fewer bad bets on closed or low-yield venues. **Bottom line for the industry:** Decisions that are auditable, repeatable, and aligned with driver income instead of speculation.
+
+---
+
 ## 🎯 **CORE PRINCIPLE: ACCURACY BEFORE EXPENSE**
 
 This document is the **single source of truth** for constraints. **Cost matters but cannot override correctness for drivers.** When tension exists, we resolve in favor of accuracy and transparent failure.
