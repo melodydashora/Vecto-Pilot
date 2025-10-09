@@ -4,18 +4,19 @@
 Vecto Pilot™ is a rideshare driver assistance platform designed to maximize driver earnings and efficiency. It offers intelligent shift planning, automated trip tracking, earnings analytics, and AI-powered strategic recommendations. The platform integrates an advanced AI assistant layer, "Eidolon," for enhanced workspace intelligence. Its primary goal is to equip rideshare drivers with data-driven insights and real-time strategic support to optimize their work and income. The project aims to leverage advanced AI and a robust, trust-first architecture to deliver reliable and actionable recommendations.
 
 ## Recent Changes (Oct 9, 2025)
-### Production Error Fixes ✅
-1. **TypeScript Syntax Error** - Fixed `number is not defined` in feedback enrichment (removed TS generics from JS files)
-2. **Database Replication Lag** - Enhanced retry logic (8 attempts, exponential backoff up to 10s) for Neon's distributed database
-3. **Venue Resolution** - Fixed coordinate priority: GPT-5 coords → reverse geocoding (was: name search → Places API)
-4. **Location-Agnostic (Zero Fallbacks)** - Removed ALL hardcoded locations and timezone fallbacks from 7 files - system now fails hard if timezone missing (no silent defaults)
-5. **Action Logging Foreign Key Error** - Fixed actions endpoint using correlation_id instead of ranking_id, causing FK constraint violations
-   - Backend: Added ranking_id to /api/blocks response
-   - Frontend: Updated to use data.ranking_id instead of data.correlationId
-   - Schema: Added onDelete: 'cascade' to actions.ranking_id FK
-6. **Bot Protection** - Added rate limiting (200 req/15min per IP) to gateway-server.js to block scanner traffic and save compute costs
+### Database Tables Wired & User Preferences System ✅
+1. **All Tables Connected** - Wired 5 previously empty tables (venue_catalog, venue_metrics, llm_venue_suggestions, places_cache, travel_disruptions) with atomic upsert logic in ranking flow
+2. **User Preferences Table** - Created comprehensive `user_preferences` table (separate from auth) for future personalization:
+   - **Driver Info**: first_name, last_name, preferred_name, home_address, city, state, assigned_region
+   - **Car Details**: year, make, model, color, seatbelt_count
+   - **Services**: Uber, Lyft, Private, Ridehail, Other (checkboxes)
+   - **Ride Tiers**: Tier 1-5, Planet Friendly, Other (checkboxes with explanations)
+   - API endpoints: GET/POST /api/preferences/:userId
+3. **GPT-5 Venue Diversity** - Updated planner prompt to spread venues 2-3 min apart (prevents clustering in same complex), single shared staging location
+4. **Production Error Fixes** - Fixed TypeScript syntax, database replication lag, venue resolution, action logging FK errors, added bot rate limiting
 
-All fixes deployed and tested. App is now truly location-agnostic.
+### Architecture Note
+**Schema-First Development**: User preferences table built as placeholder for future customization (e.g., "Hi <Driver>" feature). Does NOT affect authentication or sign-up flow. Demonstrates best practice: build table → document fields → implement features.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
