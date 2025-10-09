@@ -40,11 +40,24 @@ export async function reverseGeocode({ lat, lng, apiKey = process.env.GOOGLE_MAP
       throw new Error(`Geocoding API status: ${data.status}`);
     }
 
-    const best = data.results?.[0];
-    if (!best) {
+    if (!data.results || data.results.length === 0) {
       throw new Error('geocode_no_results');
     }
 
+    // Filter out Plus Codes (they look like "35WJ+64") and prefer street addresses
+    const streetAddress = data.results.find(result => {
+      const addr = result.formatted_address || '';
+      // Skip Plus Codes (format: XXXX+XX)
+      if (/^[A-Z0-9]{4}\+[A-Z0-9]{2}/.test(addr)) {
+        return false;
+      }
+      // Prefer street_address, premise, or route types
+      const preferredTypes = ['street_address', 'premise', 'route', 'establishment'];
+      return result.types?.some(type => preferredTypes.includes(type));
+    });
+
+    const best = streetAddress || data.results[0];
+    
     console.log(`🗺️ [Geocoding] Reverse geocoded (${lat}, ${lng}) → place_id: ${best.place_id}, address: ${best.formatted_address}`);
 
     return {
