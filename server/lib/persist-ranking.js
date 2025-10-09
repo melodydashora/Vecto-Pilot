@@ -35,8 +35,8 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
           ranking_id,
           v.place_id || `block_${v.rank}`,  // Use place_id as block_id (unique identifier)
           v.name,
-          v.lat ?? v.latitude ?? 0,  // Required NOT NULL field
-          v.lng ?? v.longitude ?? 0,  // Required NOT NULL field
+          v.lat ?? 0,  // Required NOT NULL field
+          v.lng ?? 0,  // Required NOT NULL field
           v.place_id || null,
           v.rank,
           'epsilon_greedy', // Default exploration policy

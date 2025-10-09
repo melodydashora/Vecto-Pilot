@@ -252,8 +252,6 @@ router.post('/', async (req, res) => {
       })
     );
 
-    // Snapshot loading moved to top for origin fallback (see lines 161-177)
-
     // ============================================
     // STEP 2: Generate Claude's Strategy (synchronous triad)
     // ============================================
@@ -697,13 +695,15 @@ router.post('/', async (req, res) => {
       console.log(`💾 [${correlationId}] Preparing database persistence for ${fullyEnrichedVenues.length} venues...`);
       
       const venues = fullyEnrichedVenues.map((venue, i) => {
-        console.log(`📊 [${correlationId}] Venue ${i + 1}: ${venue.name} - dist: ${venue.estimated_distance_miles} mi, time: ${venue.driveTimeMinutes} min, place_id: ${venue.placeId}, value_per_min: ${venue.value_per_min}, grade: ${venue.value_grade}`);
+        console.log(`📊 [${correlationId}] Venue ${i + 1}: ${venue.name} - lat: ${venue.lat}, lng: ${venue.lng}, dist: ${venue.estimated_distance_miles} mi, time: ${venue.driveTimeMinutes} min, place_id: ${venue.placeId}, value_per_min: ${venue.value_per_min}, grade: ${venue.value_grade}`);
         
         return {
           name: venue.name,
           place_id: venue.placeId || null,
           category: venue.category || null,
           rank: i + 1,
+          lat: venue.lat ?? null,
+          lng: venue.lng ?? null,
           distance_miles: venue.estimated_distance_miles ?? null,
           drive_time_minutes: venue.driveTimeMinutes ?? null,
           value_per_min: venue.value_per_min ?? null,
