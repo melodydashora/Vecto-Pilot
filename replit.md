@@ -3,6 +3,14 @@
 ## Overview
 Vecto Pilot™ is a rideshare driver assistance platform designed to maximize driver earnings and efficiency. It offers intelligent shift planning, automated trip tracking, earnings analytics, and AI-powered strategic recommendations. The platform integrates an advanced AI assistant layer, "Eidolon," for enhanced workspace intelligence. Its primary goal is to equip rideshare drivers with data-driven insights and real-time strategic support to optimize their work and income. The project aims to leverage advanced AI and a robust, trust-first architecture to deliver reliable and actionable recommendations.
 
+## Recent Changes (Oct 9, 2025)
+### Production Error Fixes ✅
+1. **TypeScript Syntax Error** - Fixed `number is not defined` in feedback enrichment (removed TS generics from JS files)
+2. **Database Replication Lag** - Enhanced retry logic (5 attempts, 200ms backoff) for Neon's distributed database
+3. **Venue Resolution** - Fixed coordinate priority: GPT-5 coords → reverse geocoding (was: name search → Places API)
+
+All fixes deployed and tested in production.
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 

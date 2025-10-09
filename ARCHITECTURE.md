@@ -2,7 +2,7 @@
 
 ---
 
-**Last Updated:** 2025-10-09 05:00 CST
+**Last Updated:** 2025-10-09 05:30 CST
 
 ---
 
@@ -285,6 +285,38 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 **Exception:** Agent Override (Atlas) has fallback chain (Claude → GPT-5 → Gemini) for operational resilience (workspace ops must not fail)
 
 **Constraint:** If Triad fails, entire strategy generation fails - this is intentional, not a bug
+
+---
+
+### ✅ PRODUCTION FIXES: Error Resolution (Oct 9, 2025)
+**Issues Resolved:** Three critical production errors fixed and deployed
+
+**Fix 1: TypeScript Syntax in JavaScript Files**
+- **Error:** `number is not defined` in feedback enrichment
+- **Cause:** Used TypeScript generic syntax `sql<number>` in `.js` files
+- **Fixed:** Removed type annotations from SQL queries in `server/routes/blocks.js` and `server/routes/feedback.js`
+- **Impact:** Feedback enrichment now works without errors
+
+**Fix 2: Database Replication Lag**
+- **Error:** Foreign key violations on `actions_ranking_id_rankings_ranking_id_fk`
+- **Cause:** Neon's multi-region replication creates 50-500ms delays
+- **Fixed:** Enhanced retry logic in `server/routes/actions.js`:
+  - Increased retries: 3 → 5 attempts
+  - Increased backoff: 100ms → 200ms exponential
+  - Graceful degradation: logs action without ranking_id if all retries fail
+- **Impact:** Actions now handle distributed database lag gracefully
+
+**Fix 3: Venue Resolution Priority**
+- **Error:** `places_no_match` for district-level recommendations (e.g., "The Star District")
+- **Cause:** Code searched Places API by name before using GPT-5 coordinates
+- **Fixed:** Reversed priority in `server/routes/blocks.js`:
+  - **Primary:** Use GPT-5 coordinates → Reverse geocoding → Get place_id + address
+  - **Fallback:** Use venue name → Places Find Place (only if no coords)
+  - **Graceful handling:** Skip unresolvable venues instead of crashing entire request
+- **Improved GPT-5 prompt:** Explicitly instruct to avoid generic districts/areas
+- **Impact:** District-level recommendations (with coordinates) now resolve correctly
+
+**Deployment Status:** All fixes tested and running in production ✅
 
 ---
 
