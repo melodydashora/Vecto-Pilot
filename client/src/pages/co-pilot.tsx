@@ -659,9 +659,9 @@ const CoPilot: React.FC = () => {
           </Card>
         )}
 
-        {/* Strategy Section - Always visible */}
+        {/* Strategy Section - Always visible with sticky header */}
         <div className="mb-6 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-600" />
               <h2 className="text-lg font-semibold text-gray-800">Strategy</h2>
