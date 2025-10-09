@@ -447,12 +447,11 @@ if (process.env.NODE_ENV !== "production") {
 } else {
   console.log("[gateway] Production mode - serving built SPA");
   ensureClientBuild();
-  // Disable index.html serving for "/" - health endpoint handles that
+  // Serve static assets from dist/ (but not auto-serve index.html for root)
   app.use(express.static(distDir, { index: false }));
   app.get("*", (req, res, next) => {
-    // Don't serve SPA for API/proxy routes or root health check
+    // Don't serve SPA for API/proxy routes
     if (
-      req.path === "/" ||
       req.path.startsWith("/eidolon") ||
       req.path.startsWith("/assistant") ||
       req.path.startsWith("/agent") ||
@@ -460,7 +459,7 @@ if (process.env.NODE_ENV !== "production") {
       req.path.startsWith("/health") ||
       req.path.startsWith("/metrics")
     ) return next();
-    // Serve SPA for all other routes
+    // Serve SPA for root and all client routes
     res.sendFile(indexHtml);
   });
 }
