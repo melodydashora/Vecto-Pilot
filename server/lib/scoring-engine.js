@@ -15,6 +15,19 @@ function calculateProximityBand(venue, context) {
     return 0.3;
   }
   
+  // First check: Is this venue even in the same geographic region?
+  // Use haversine to calculate actual distance - if > 100km, skip H3 (different regions)
+  const haversineKm = haversineDistance(
+    context.lat, context.lng,
+    venue.lat, venue.lng
+  );
+  
+  // If venue is > 100km away, it's in a different region - H3 grid distance won't work
+  // Return very low score so this venue is filtered out
+  if (haversineKm > 100) {
+    return 0.0; // Skip distant venues - not relevant
+  }
+  
   try {
     const driverH3 = latLngToCell(context.lat, context.lng, 8);
     const venueH3 = latLngToCell(venue.lat, venue.lng, 8);
@@ -26,9 +39,22 @@ function calculateProximityBand(venue, context) {
     if (distance <= 4) return 0.4;
     return 0.2;
   } catch (err) {
-    console.error('H3 distance calculation error:', err);
-    return 0.3;
+    // H3 error - likely different continents/hemispheres
+    return 0.0; // Skip this venue entirely
   }
+}
+
+// Haversine distance in kilometers
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
 }
 
 function calculatePersonalizationBoost(venue, context) {

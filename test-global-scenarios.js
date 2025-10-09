@@ -6,8 +6,8 @@
  * No code changes - pure API testing via HTTP calls
  */
 
-const http = require('http');
-const fs = require('fs');
+import http from 'http';
+import fs from 'fs';
 
 const BASE_URL = 'http://localhost:5000';
 
@@ -113,14 +113,22 @@ async function createSnapshot(location) {
 
 // Helper: Get blocks/recommendations
 async function getBlocks(snapshotId) {
+  const payload = {
+    snapshot_id: snapshotId,
+    userId: 'global-test-user'
+  };
+
   const options = {
     hostname: 'localhost',
     port: 5000,
-    path: `/api/blocks?snapshotId=${snapshotId}`,
-    method: 'GET'
+    path: '/api/blocks',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
   };
 
-  return await makeRequest(options);
+  return await makeRequest(options, payload);
 }
 
 // Main test runner
@@ -155,22 +163,33 @@ async function runGlobalTests() {
       console.log(`   🗺️  Geocoded city: ${snapshot.city || 'null'}`);
       console.log(`   📬 Address: ${snapshot.formatted_address || 'N/A'}`);
 
-      // Step 2: Get blocks (triggers AI pipeline)
+      // Step 2: Get blocks (triggers AI pipeline) - with polling
       console.log('   🤖 Fetching blocks (AI pipeline)...');
-      const blocksRes = await getBlocks(snapshotId);
+      let blocksRes = await getBlocks(snapshotId);
+      
+      // Poll for completion if strategy is pending (202 status)
+      let attempts = 0;
+      const maxAttempts = 60; // 60 attempts x 2 seconds = 2 minutes max
+      
+      while (blocksRes.status === 202 && attempts < maxAttempts) {
+        attempts++;
+        console.log(`   ⏳ Strategy generating... (attempt ${attempts}/${maxAttempts})`);
+        await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds
+        blocksRes = await getBlocks(snapshotId);
+      }
       
       if (blocksRes.status !== 200) {
         console.error(`   ❌ Blocks failed: ${blocksRes.status}`, blocksRes.data);
         results.push({ 
           location: loc, 
           snapshot, 
-          error: 'Blocks generation failed', 
+          error: `Blocks generation failed: ${blocksRes.status === 202 ? 'Timeout after 2 minutes' : blocksRes.data.message || 'Unknown error'}`, 
           details: blocksRes 
         });
         continue;
       }
 
-      const blocks = blocksRes.data;
+      const blocks = blocksRes.data.blocks || blocksRes.data;
       
       // Extract key data
       const claudeBlock = blocks.find(b => b.type === 'strategy');
