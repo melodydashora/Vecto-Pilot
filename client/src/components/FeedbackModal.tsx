@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,9 +38,18 @@ export function FeedbackModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  // Reset state when modal closes or when initialSentiment changes
+  // Sync sentiment state when modal opens or initialSentiment changes
+  useEffect(() => {
+    if (isOpen) {
+      setSentiment(initialSentiment);
+      setComment('');
+      setIsSubmitting(false);
+    }
+  }, [isOpen, initialSentiment]);
+
+  // Reset state when modal closes
   const handleClose = () => {
-    setSentiment(initialSentiment);
+    setSentiment(null);
     setComment('');
     onClose();
   };
