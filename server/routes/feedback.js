@@ -1,138 +1,274 @@
 import express from 'express';
 import { db } from '../db/drizzle.js';
-import { venue_catalog, venue_metrics, venue_feedback } from '../../shared/schema.js';
+import { venue_feedback, strategy_feedback, ranking_candidates, actions } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
+import crypto from 'crypto';
 
 const router = express.Router();
 
-router.post('/venue-feedback', async (req, res) => {
+// Rate limiting: 10 requests per minute per user_id
+const rateLimits = new Map(); // user_id -> { count, resetAt }
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60 * 1000; // 1 minute
+
+function checkRateLimit(userId) {
+  const now = Date.now();
+  const key = userId || 'anonymous';
+  
+  if (!rateLimits.has(key)) {
+    rateLimits.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  
+  const limit = rateLimits.get(key);
+  
+  if (now > limit.resetAt) {
+    rateLimits.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  
+  if (limit.count >= RATE_LIMIT) {
+    return false;
+  }
+  
+  limit.count++;
+  return true;
+}
+
+// Clean up expired rate limits every minute
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, limit] of rateLimits.entries()) {
+    if (now > limit.resetAt) {
+      rateLimits.delete(key);
+    }
+  }
+}, 60000);
+
+// POST /api/feedback/venue
+router.post('/venue', async (req, res) => {
+  const correlationId = crypto.randomUUID();
+  
   try {
-    const { venueId, feedbackType, driverId, comment } = req.body;
+    const { userId, snapshot_id, ranking_id, place_id, venue_name, sentiment, comment } = req.body;
     
-    if (!venueId || !feedbackType || !driverId) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Validate required fields
+    if (!snapshot_id || !ranking_id || !venue_name || !sentiment) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Missing required fields (snapshot_id, ranking_id, venue_name, sentiment)' 
+      });
     }
     
-    const validTypes = ['open', 'closed', 'busy', 'slow', 'correct_hours', 'incorrect_hours'];
-    if (!validTypes.includes(feedbackType)) {
-      return res.status(400).json({ error: 'Invalid feedback type' });
+    // Validate sentiment
+    if (sentiment !== 'up' && sentiment !== 'down') {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Invalid sentiment. Must be "up" or "down"' 
+      });
     }
     
-    await db.insert(venue_feedback).values({
-      venue_id: venueId,
-      driver_user_id: driverId,
-      feedback_type: feedbackType,
-      comment: comment || null,
+    // Sanitize comment (limit to 1000 chars, strip HTML)
+    const sanitizedComment = comment 
+      ? String(comment).replace(/<[^>]*>/g, '').slice(0, 1000)
+      : null;
+    
+    // Check rate limit
+    if (!checkRateLimit(userId)) {
+      console.warn('[feedback] Rate limit exceeded', { 
+        correlation_id: correlationId, 
+        user_id: userId 
+      });
+      return res.status(429).json({ 
+        ok: false, 
+        error: 'Rate limit exceeded. Maximum 10 requests per minute.' 
+      });
+    }
+    
+    // Upsert feedback (update if exists, insert if new)
+    await db
+      .insert(venue_feedback)
+      .values({
+        user_id: userId || null,
+        snapshot_id,
+        ranking_id,
+        place_id: place_id || null,
+        venue_name,
+        sentiment,
+        comment: sanitizedComment,
+      })
+      .onConflictDoUpdate({
+        target: [venue_feedback.user_id, venue_feedback.ranking_id, venue_feedback.place_id],
+        set: {
+          sentiment,
+          comment: sanitizedComment,
+          created_at: sql`now()`,
+        },
+      });
+    
+    // Log to actions table (optional instrumentation)
+    try {
+      await db.insert(actions).values({
+        action_id: crypto.randomUUID(),
+        created_at: new Date(),
+        ranking_id,
+        snapshot_id,
+        user_id: userId || null,
+        action: 'venue_feedback',
+        raw: { place_id, venue_name, sentiment },
+      });
+    } catch (actionErr) {
+      console.warn('[feedback] Failed to log action', { error: actionErr.message });
+    }
+    
+    console.log('[feedback] upsert ok', {
+      corr: correlationId,
+      user: userId || 'anon',
+      ranking: ranking_id,
+      place: place_id || 'null',
+      sent: sentiment,
     });
     
-    const isPositive = ['open', 'busy', 'correct_hours'].includes(feedbackType);
-    const field = isPositive ? 'positive_feedback' : 'negative_feedback';
+    res.json({ ok: true });
     
-    const metrics = await db.select().from(venue_metrics).where(eq(venue_metrics.venue_id, venueId)).limit(1);
+  } catch (error) {
+    console.error('[feedback] venue feedback error', { 
+      correlation_id: correlationId, 
+      error: error.message 
+    });
+    res.status(500).json({ 
+      ok: false, 
+      error: 'Failed to record feedback' 
+    });
+  }
+});
+
+// GET /api/feedback/venue/summary?ranking_id=<UUID>
+router.get('/venue/summary', async (req, res) => {
+  const correlationId = crypto.randomUUID();
+  
+  try {
+    const { ranking_id } = req.query;
     
-    if (metrics.length === 0) {
-      await db.insert(venue_metrics).values({
-        venue_id: venueId,
-        times_recommended: 0,
-        times_chosen: 0,
-        positive_feedback: isPositive ? 1 : 0,
-        negative_feedback: isPositive ? 0 : 1,
-        reliability_score: isPositive ? 1.0 : 0.0,
-        last_verified_by_driver: new Date(),
+    if (!ranking_id) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Missing ranking_id parameter' 
       });
-    } else {
-      const current = metrics[0];
-      const newPositive = current.positive_feedback + (isPositive ? 1 : 0);
-      const newNegative = current.negative_feedback + (isPositive ? 0 : 1);
-      const total = newPositive + newNegative;
-      const newScore = total > 0 ? newPositive / total : 0.5;
-      
-      await db.update(venue_metrics)
-        .set({
-          positive_feedback: newPositive,
-          negative_feedback: newNegative,
-          reliability_score: newScore,
-          last_verified_by_driver: new Date(),
-        })
-        .where(eq(venue_metrics.venue_id, venueId));
     }
+    
+    // Query per-venue counts for this ranking
+    const results = await db
+      .select({
+        place_id: venue_feedback.place_id,
+        venue_name: sql<string>`MAX(${venue_feedback.venue_name})`.as('venue_name'),
+        up_count: sql<number>`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'up')::int`.as('up_count'),
+        down_count: sql<number>`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'down')::int`.as('down_count'),
+      })
+      .from(venue_feedback)
+      .where(eq(venue_feedback.ranking_id, ranking_id))
+      .groupBy(venue_feedback.place_id);
+    
+    console.log('[feedback] summary', { 
+      correlation_id: correlationId,
+      ranking: ranking_id, 
+      rows: results.length 
+    });
     
     res.json({ 
-      success: true,
-      message: 'Feedback recorded successfully',
-      creditsEarned: 10
+      ok: true, 
+      items: results 
     });
     
   } catch (error) {
-    console.error('Feedback error:', error);
-    res.status(500).json({ error: 'Failed to record feedback' });
-  }
-});
-
-router.get('/reliable-venues', async (req, res) => {
-  try {
-    const { city, metro, minScore = 0.7, limit = 50 } = req.query;
-    
-    const query = db
-      .select({
-        venue: venue_catalog,
-        metrics: venue_metrics,
-      })
-      .from(venue_catalog)
-      .leftJoin(venue_metrics, eq(venue_catalog.venue_id, venue_metrics.venue_id))
-      .where(sql`${venue_metrics.reliability_score} >= ${parseFloat(minScore)}`)
-      .limit(parseInt(limit));
-    
-    if (city) {
-      query.where(eq(venue_catalog.city, city));
-    } else if (metro) {
-      query.where(eq(venue_catalog.metro, metro));
-    }
-    
-    const results = await query;
-    
-    res.json({
-      venues: results.map(r => ({
-        ...r.venue,
-        ...r.metrics,
-      })),
+    console.error('[feedback] summary error', { 
+      correlation_id: correlationId, 
+      error: error.message 
     });
-    
-  } catch (error) {
-    console.error('Reliable venues error:', error);
-    res.status(500).json({ error: 'Failed to fetch reliable venues' });
+    res.status(500).json({ 
+      ok: false, 
+      error: 'Failed to fetch feedback summary' 
+    });
   }
 });
 
-router.post('/venue-chosen', async (req, res) => {
+// POST /api/feedback/strategy
+router.post('/strategy', async (req, res) => {
+  const correlationId = crypto.randomUUID();
+  
   try {
-    const { venueId, driverId } = req.body;
+    const { userId, snapshot_id, ranking_id, sentiment, comment } = req.body;
     
-    if (!venueId || !driverId) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    const metrics = await db.select().from(venue_metrics).where(eq(venue_metrics.venue_id, venueId)).limit(1);
-    
-    if (metrics.length === 0) {
-      await db.insert(venue_metrics).values({
-        venue_id: venueId,
-        times_recommended: 0,
-        times_chosen: 1,
+    // Validate required fields
+    if (!snapshot_id || !ranking_id || !sentiment) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Missing required fields (snapshot_id, ranking_id, sentiment)' 
       });
-    } else {
-      await db.update(venue_metrics)
-        .set({
-          times_chosen: sql`${venue_metrics.times_chosen} + 1`,
-        })
-        .where(eq(venue_metrics.venue_id, venueId));
     }
     
-    res.json({ success: true });
+    // Validate sentiment
+    if (sentiment !== 'up' && sentiment !== 'down') {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Invalid sentiment. Must be "up" or "down"' 
+      });
+    }
+    
+    // Sanitize comment
+    const sanitizedComment = comment 
+      ? String(comment).replace(/<[^>]*>/g, '').slice(0, 1000)
+      : null;
+    
+    // Check rate limit
+    if (!checkRateLimit(userId)) {
+      console.warn('[feedback] Rate limit exceeded (strategy)', { 
+        correlation_id: correlationId, 
+        user_id: userId 
+      });
+      return res.status(429).json({ 
+        ok: false, 
+        error: 'Rate limit exceeded. Maximum 10 requests per minute.' 
+      });
+    }
+    
+    // Upsert strategy feedback
+    await db
+      .insert(strategy_feedback)
+      .values({
+        user_id: userId || null,
+        snapshot_id,
+        ranking_id,
+        sentiment,
+        comment: sanitizedComment,
+      })
+      .onConflictDoUpdate({
+        target: [strategy_feedback.user_id, strategy_feedback.ranking_id],
+        set: {
+          sentiment,
+          comment: sanitizedComment,
+          created_at: sql`now()`,
+        },
+      });
+    
+    console.log('[feedback] strategy upsert ok', {
+      corr: correlationId,
+      user: userId || 'anon',
+      ranking: ranking_id,
+      sent: sentiment,
+    });
+    
+    res.json({ ok: true });
     
   } catch (error) {
-    console.error('Venue chosen error:', error);
-    res.status(500).json({ error: 'Failed to record venue choice' });
+    console.error('[feedback] strategy feedback error', { 
+      correlation_id: correlationId, 
+      error: error.message 
+    });
+    res.status(500).json({ 
+      ok: false, 
+      error: 'Failed to record strategy feedback' 
+    });
   }
 });
 
