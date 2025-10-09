@@ -396,7 +396,7 @@ if (IS_PRODUCTION) {
   const { default: actionsRoutes } = await import('./server/routes/actions.js');
   const { default: feedbackRoutes } = await import('./server/routes/feedback.js');
   const { default: jobMetricsRoutes } = await import('./server/routes/job-metrics.js');
-  const { default: profileRoutes } = await import('./server/routes/profile.js');
+  const { default: diagnosticsRoutes } = await import('./server/routes/diagnostics.js');
   
   app.use("/api/health", healthRoutes);
   app.use("/api/blocks", parseJson, blocksRoutes);
@@ -404,12 +404,12 @@ if (IS_PRODUCTION) {
   app.use("/api/location", parseJson, locationRoutes); // parseJson for POST /snapshot
   app.use("/api/actions", parseJson, actionsRoutes);
   app.use("/api/feedback", parseJson, feedbackRoutes);
-  app.use("/api/profile", parseJson, profileRoutes);
+  app.use("/api/diagnostics", diagnosticsRoutes);
   app.use(jobMetricsRoutes); // Job queue metrics endpoint
   
   sdkReady = true;
   console.log(`✅ [vecto] API routes loaded and mounted synchronously`);
-  console.log(`✅ [vecto] Routes available: /api/health, /api/blocks, /api/location, /api/actions, /api/feedback, /api/profile, /api/metrics/jobs`);
+  console.log(`✅ [vecto] Routes available: /api/health, /api/blocks, /api/location, /api/actions, /api/feedback, /api/diagnostics, /api/metrics/jobs`);
 }
 
 if (process.env.NODE_ENV !== "production") {
