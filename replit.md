@@ -4,19 +4,18 @@
 Vecto Pilot™ is a rideshare driver assistance platform designed to maximize driver earnings and efficiency. It offers intelligent shift planning, automated trip tracking, earnings analytics, and AI-powered strategic recommendations. The platform integrates an advanced AI assistant layer, "Eidolon," for enhanced workspace intelligence. Its primary goal is to equip rideshare drivers with data-driven insights and real-time strategic support to optimize their work and income. The project aims to leverage advanced AI and a robust, trust-first architecture to deliver reliable and actionable recommendations.
 
 ## Recent Changes (Oct 9, 2025)
-### Database Tables Wired & User Preferences System ✅
-1. **All Tables Connected** - Wired 5 previously empty tables (venue_catalog, venue_metrics, llm_venue_suggestions, places_cache, travel_disruptions) with atomic upsert logic in ranking flow
-2. **User Preferences Table** - Created comprehensive `user_preferences` table (separate from auth) for future personalization:
-   - **Driver Info**: first_name, last_name, preferred_name, home_address, city, state, assigned_region
-   - **Car Details**: year, make, model, color, seatbelt_count
-   - **Services**: Uber, Lyft, Private, Ridehail, Other (checkboxes)
-   - **Ride Tiers**: Tier 1-5, Planet Friendly, Other (checkboxes with explanations)
-   - API endpoints: GET/POST /api/preferences/:userId
-3. **GPT-5 Venue Diversity** - Updated planner prompt to spread venues 2-3 min apart (prevents clustering in same complex), single shared staging location
-4. **Production Error Fixes** - Fixed TypeScript syntax, database replication lag, venue resolution, action logging FK errors, added bot rate limiting
+### Database Cleanup & ML Focus ✅
+1. **Database Tables Streamlined** - Removed all non-ML tables (user_profiles, user_preferences, assistant_memory, eidolon_memory, places)
+2. **Core ML Tables Active** (15 tables):
+   - **Triad Pipeline**: snapshots, strategies, rankings, ranking_candidates
+   - **Venue Intelligence**: venue_catalog, venue_metrics, llm_venue_suggestions, places_cache, travel_disruptions
+   - **Feedback Loop**: venue_feedback, strategy_feedback, app_feedback, actions
+   - **Infrastructure**: http_idem, triad_jobs
+3. **GPT-5 Venue Diversity** - Updated planner prompt to spread venues 2-3 min apart (prevents clustering), single shared staging location
+4. **Production Fixes** - TypeScript syntax, database replication lag, venue resolution, action logging FK errors, bot rate limiting
 
-### Architecture Note
-**Schema-First Development**: User preferences table built as placeholder for future customization (e.g., "Hi <Driver>" feature). Does NOT affect authentication or sign-up flow. Demonstrates best practice: build table → document fields → implement features.
+### Architecture Philosophy
+**Methodical Build Approach**: Focus on core ML functionality first. Build tables → document fields → wire to workflow → implement features when ready. No premature feature development.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
