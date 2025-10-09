@@ -258,4 +258,21 @@ export const eidolon_memory = pgTable("eidolon_memory", {
   expires_at: timestamp("expires_at", { withTimezone: true }),
 });
 
+export const user_profiles = pgTable("user_profiles", {
+  user_id: uuid("user_id").primaryKey(),
+  full_name: text("full_name"),
+  email: text("email"),
+  phone: text("phone"),
+  preferred_city: text("preferred_city"),
+  preferred_state: text("preferred_state"),
+  rideshare_platform: text("rideshare_platform"),
+  target_hourly_rate: doublePrecision("target_hourly_rate"),
+  avg_trip_minutes: integer("avg_trip_minutes").default(15),
+  avg_wait_minutes: integer("avg_wait_minutes").default(5),
+  driver_experience_level: text("driver_experience_level").default('intermediate'),
+  preferences: jsonb("preferences"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
