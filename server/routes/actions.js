@@ -84,10 +84,9 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'No snapshot available' });
     }
 
-    // Create action record
+    // Create action record with retry logic for replication lag
     const action_id = crypto.randomUUID();
-
-    await db.insert(actions).values({
+    const actionData = {
       action_id,
       created_at: new Date(),
       ranking_id: ranking_id || null,
@@ -98,24 +97,76 @@ router.post('/', async (req, res) => {
       dwell_ms: dwell_ms || null,
       from_rank: from_rank || null,
       raw: raw || null,
-    });
-
-    console.log(`📊 Action logged: ${action}${block_id ? ` on ${block_id}` : ''}${dwell_ms ? ` (${dwell_ms}ms)` : ''}`);
-
-    const response = { 
-      success: true, 
-      action_id,
     };
 
-    // Cache response for idempotency
-    if (idempotencyKey) {
-      idempotencyCache.set(idempotencyKey, {
-        response,
-        timestamp: Date.now()
-      });
+    // Retry logic for foreign key constraint errors (replication lag)
+    const maxRetries = 3;
+    const retryDelayMs = 100; // Start with 100ms
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await db.insert(actions).values(actionData);
+        console.log(`📊 Action logged: ${action}${block_id ? ` on ${block_id}` : ''}${dwell_ms ? ` (${dwell_ms}ms)` : ''}${attempt > 1 ? ` (retry ${attempt})` : ''}`);
+        
+        const response = { 
+          success: true, 
+          action_id,
+        };
+
+        // Cache response for idempotency
+        if (idempotencyKey) {
+          idempotencyCache.set(idempotencyKey, {
+            response,
+            timestamp: Date.now()
+          });
+        }
+
+        return res.json(response);
+      } catch (err) {
+        lastError = err;
+        
+        // Check if it's a foreign key constraint error for ranking_id
+        if (err.code === '23503' && err.constraint === 'actions_ranking_id_rankings_ranking_id_fk') {
+          if (attempt < maxRetries) {
+            const delay = retryDelayMs * attempt; // Exponential backoff
+            console.warn(`⚠️ Foreign key error (replication lag), retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          // If all retries exhausted, log action without ranking_id
+          console.warn(`⚠️ Replication lag persists after ${maxRetries} retries, logging without ranking_id`);
+          actionData.ranking_id = null;
+          try {
+            await db.insert(actions).values(actionData);
+            console.log(`📊 Action logged (no ranking): ${action}${block_id ? ` on ${block_id}` : ''}`);
+            
+            const response = { 
+              success: true, 
+              action_id,
+              warning: 'logged_without_ranking_id'
+            };
+
+            if (idempotencyKey) {
+              idempotencyCache.set(idempotencyKey, {
+                response,
+                timestamp: Date.now()
+              });
+            }
+
+            return res.json(response);
+          } catch (finalErr) {
+            lastError = finalErr;
+            break;
+          }
+        }
+        // For other errors, break immediately
+        break;
+      }
     }
 
-    res.json(response);
+    // If we get here, all retries failed
+    throw lastError;
 
   } catch (error) {
     console.error('❌ Action logging error:', error);
