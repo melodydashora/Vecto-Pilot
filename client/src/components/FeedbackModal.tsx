@@ -55,10 +55,11 @@ export function FeedbackModal({
 
     if (!snapshotId || !rankingId) {
       toast({
-        title: 'Missing data',
-        description: 'Unable to submit feedback. Please try again.',
-        variant: 'destructive',
+        title: 'No strategy loaded yet',
+        description: 'Please wait for a strategy to load before giving feedback.',
+        variant: 'default',
       });
+      onClose(); // Close the modal
       return;
     }
 
