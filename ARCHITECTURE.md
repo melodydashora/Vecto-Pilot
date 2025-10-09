@@ -2,7 +2,7 @@
 
 ---
 
-**Last Updated:** 2025-10-09 04:00 CST
+**Last Updated:** 2025-10-09 05:00 CST
 
 ---
 
@@ -371,7 +371,8 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 
 **Constraint:** Gateway MUST run on port 5000 (Replit firewall requirement)  
 **Constraint:** All servers use same PostgreSQL database (single source of truth)  
-**Constraint:** JSON parsing is per-route only (no global body parser to avoid abort errors)
+**Constraint:** JSON parsing is per-route only (no global body parser to avoid abort errors)  
+**Constraint:** Staging areas MUST be within 2 minutes drive of all recommended venues (Oct 9, 2025)
 
 ---
 
@@ -431,6 +432,13 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 **Output:** 6 venue recommendations with coordinates, pro tips, best staging location, tactical summary  
 **Validation:** Zod schema ensures minimum 6 venues with required fields  
 **Token Usage:** 800-1200 prompt + 1500-2000 reasoning + 600-800 completion
+
+**Staging Area Optimization (Oct 9, 2025):**
+- **Constraint:** Staging location MUST be centrally positioned within 2 minutes drive of ALL recommended venues
+- **Priority:** Free parking lots, gas stations, or safe pull-off areas with good visibility
+- **Goal:** Driver can reach ANY venue within 1-2 minutes for quick ride capture
+- **Purpose:** Minimize deadhead time and maximize response speed
+- **Implementation:** Enforced via GPT-5 system prompt with explicit CRITICAL constraint
 
 **Constraint:** Only runs if Claude provides valid strategy (dependency enforced)
 
