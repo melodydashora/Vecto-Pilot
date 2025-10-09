@@ -150,16 +150,49 @@ router.post('/', async (req, res) => {
   };
 
   try {
-    const { userId = 'demo', origin } = req.body;
+    const { userId = 'demo' } = req.body;
 
-    if (!origin?.lat || !origin?.lng) {
+    // Accept snapshot_id from multiple sources
+    const snapshotId = req.body?.snapshot_id || req.body?.snapshotId || req.header('x-snapshot-id') || req.query?.snapshot_id;
+
+    if (!snapshotId) {
       return sendOnce(400, {
-        error: 'Missing origin coordinates',
-        message: 'Request body must include origin.lat and origin.lng'
+        error: 'snapshot_required',
+        message: 'snapshot_id is required'
       });
     }
 
-    const { lat, lng } = origin;
+    // Load snapshot - this is the ONLY source of origin coordinates
+    let fullSnapshot = null;
+    if (snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
+      try {
+        const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+        if (snap) {
+          fullSnapshot = {
+            ...snap,
+            weather: `${snap.weather?.temp || ''}°F ${snap.weather?.description || ''}`.trim(),
+            air_quality: `AQI ${snap.air?.aqi || ''}`,
+            airport_context: snap.airport_context ? JSON.stringify(snap.airport_context) : 'No delays'
+          };
+        }
+      } catch (err) {
+        console.log(`⚠️ Snapshot load failed: ${err.message}`);
+      }
+    }
+
+    // Origin coordinates MUST come from snapshot - no fallbacks
+    if (!fullSnapshot || fullSnapshot.lat == null || fullSnapshot.lng == null) {
+      return sendOnce(400, {
+        error: 'origin_not_ready',
+        message: 'Snapshot coordinates are required. Create a valid snapshot first.'
+      });
+    }
+
+    const lat = fullSnapshot.lat;
+    const lng = fullSnapshot.lng;
+    
+    const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+    console.info(`[db] pool tag @blocks`, dbUrl?.slice(0, 32));
     console.log(`🎯 [${correlationId}] BLOCKS REQUEST: lat=${lat} lng=${lng} userId=${userId}`);
 
     // Get deterministic shortlist
@@ -219,44 +252,7 @@ router.post('/', async (req, res) => {
       })
     );
 
-    // ============================================
-    // STEP 1: Load snapshot for context
-    // ============================================
-    const snapshotId = req.headers['x-snapshot-id'];
-    let fullSnapshot = null;
-
-    // Only load from DB if we have a valid UUID (not "live-snapshot" dummy)
-    if (snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
-      try {
-        const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-        if (snap) {
-          fullSnapshot = {
-            ...snap,
-            weather: `${snap.weather?.temp || ''}°F ${snap.weather?.description || ''}`.trim(),
-            air_quality: `AQI ${snap.air?.aqi || ''}`,
-            airport_context: snap.airport_context ? JSON.stringify(snap.airport_context) : 'No delays'
-          };
-        }
-      } catch (err) {
-        console.log(`⚠️ Snapshot load failed: ${err.message}`);
-      }
-    } else if (snapshotId === 'live-snapshot') {
-      console.log(`📸 Using live snapshot mode (no DB lookup)`);
-    }
-
-    // ============================================
-    // STEP 1.5: Workflow Gating (enforce non-null snapshot coords)
-    // Architectural guidance: No GPT/Gemini until snapshot.lat/lng are non-null
-    // ============================================
-    if (!fullSnapshot || fullSnapshot.lat == null || fullSnapshot.lng == null) {
-      console.warn(`⚠️ [${correlationId}] Origin coordinates not ready - snapshot incomplete`);
-      return sendOnce(400, { 
-        ok: false, 
-        error: 'origin_not_ready',
-        message: 'Snapshot coordinates are required before generating recommendations',
-        correlationId 
-      });
-    }
+    // Snapshot loading moved to top for origin fallback (see lines 161-177)
 
     // ============================================
     // STEP 2: Generate Claude's Strategy (synchronous triad)

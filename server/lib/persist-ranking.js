@@ -12,8 +12,8 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
     
     console.log(`📝 [${correlation_id}] INSERT rankings: { snapshot_id: ${snapshot_id}, user_id: ${user_id}, city: ${city}, model_name: ${model_name} }`);
     const r = await client.query(
-      `INSERT INTO rankings (ranking_id, snapshot_id, user_id, city, model_name)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4)
+      `INSERT INTO rankings (ranking_id, snapshot_id, user_id, city, model_name, created_at)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, now())
        RETURNING ranking_id`,
       [snapshot_id, user_id || null, city || null, model_name]
     );

@@ -13,6 +13,16 @@ import { jobQueue } from '../lib/job-queue.js';
 
 const router = Router();
 
+// Helper to classify day part from hour
+function getDayPartKey(hour) {
+  if (hour >= 0 && hour < 5) return 'overnight';
+  if (hour >= 5 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 15) return 'late_morning_noon';
+  if (hour >= 15 && hour < 17) return 'afternoon';
+  if (hour >= 17 && hour < 21) return 'early_evening';
+  return 'evening';
+}
+
 // Circuit breakers for external APIs (fail-fast, no fallbacks)
 const googleMapsCircuit = makeCircuit({ 
   name: 'google-maps', 
@@ -486,6 +496,7 @@ router.get('/airquality', async (req, res) => {
 
 // POST /api/location/snapshot
 // Save a context snapshot for ML/analytics (SnapshotV1 format)
+// Supports minimal mode: if only lat/lng provided, resolves city/timezone server-side
 router.post('/snapshot', async (req, res) => {
   const reqId = crypto.randomUUID();
   res.setHeader('x-req-id', reqId);
@@ -495,20 +506,79 @@ router.post('/snapshot', async (req, res) => {
     console.log('[snapshot] processing snapshot...');
     const snapshotV1 = req.body;
 
-    // Validate SnapshotV1 structure using dedicated validator
-    const v = validateSnapshotV1(snapshotV1);
+    // Minimal mode support for curl/preflight tests
+    const isMinimalMode = snapshotV1?.lat && snapshotV1?.lng && !snapshotV1?.resolved;
+    
+    if (isMinimalMode) {
+      console.log('[snapshot] Minimal mode detected - resolving city/timezone server-side');
+      const { lat, lng, userId } = snapshotV1;
+      
+      if (!lat || !lng) {
+        return httpError(res, 400, 'missing_lat_lng', 'Coordinates required', reqId);
+      }
 
-    if (!v.ok) {
-      console.warn('[snapshot] INCOMPLETE_SNAPSHOT_V1 - possible web crawler or incomplete client', { 
-        fields_missing: v.errors,
-        hasUserAgent: !!req.get("user-agent"),
-        userAgent: req.get("user-agent"),
-        snapshot_id: snapshotV1?.snapshot_id,
-        req_id: reqId
+      // Call internal resolver to get city/timezone
+      const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+      const resolveUrl = `${baseUrl}/api/location/resolve?lat=${lat}&lng=${lng}`;
+      
+      const resolveRes = await fetch(resolveUrl);
+      if (!resolveRes.ok) {
+        return httpError(res, 502, 'resolve_failed', 'Failed to resolve location', reqId);
+      }
+      
+      const resolved = await resolveRes.json();
+      if (!resolved.timeZone || !(resolved.city || resolved.formattedAddress)) {
+        return httpError(res, 400, 'resolve_incomplete', 'Location resolution incomplete', reqId);
+      }
+
+      // Build minimal SnapshotV1 with resolved data
+      const now = new Date();
+      const snapshot_id = crypto.randomUUID();
+      
+      snapshotV1.snapshot_id = snapshot_id;
+      snapshotV1.created_at = now.toISOString();
+      snapshotV1.device_id = snapshotV1.device_id || crypto.randomUUID();
+      snapshotV1.session_id = snapshotV1.session_id || crypto.randomUUID();
+      snapshotV1.user_id = userId || null;
+      snapshotV1.coord = { lat, lng, source: 'manual' };
+      snapshotV1.resolved = {
+        city: resolved.city,
+        state: resolved.state,
+        country: resolved.country,
+        formattedAddress: resolved.formattedAddress,
+        timezone: resolved.timeZone
+      };
+      
+      // Add time context
+      const localTime = new Date(now.toLocaleString('en-US', { timeZone: resolved.timeZone }));
+      snapshotV1.time_context = {
+        local_iso: localTime.toISOString(),
+        dow: localTime.getDay(),
+        hour: localTime.getHours(),
+        day_part_key: getDayPartKey(localTime.getHours())
+      };
+      
+      console.log('[snapshot] Minimal mode enriched with:', { 
+        city: resolved.city, 
+        timezone: resolved.timeZone,
+        snapshot_id 
       });
-      return httpError(res, 400, 'refresh_required', 'Please refresh location permission and retry.', reqId, { 
-        fields_missing: v.errors
-      });
+    } else {
+      // Full SnapshotV1 validation
+      const v = validateSnapshotV1(snapshotV1);
+
+      if (!v.ok) {
+        console.warn('[snapshot] INCOMPLETE_SNAPSHOT_V1 - possible web crawler or incomplete client', { 
+          fields_missing: v.errors,
+          hasUserAgent: !!req.get("user-agent"),
+          userAgent: req.get("user-agent"),
+          snapshot_id: snapshotV1?.snapshot_id,
+          req_id: reqId
+        });
+        return httpError(res, 400, 'refresh_required', 'Please refresh location permission and retry.', reqId, { 
+          fields_missing: v.errors
+        });
+      }
     }
 
     console.log('[snapshot] Calculating H3 geohash...');
@@ -610,6 +680,8 @@ router.post('/snapshot', async (req, res) => {
     };
 
     // Save to Postgres using Drizzle
+    const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+    console.info(`[db] pool tag @snapshot`, dbUrl?.slice(0, 32));
     console.log('[Snapshot DB] 💾 Writing to snapshots table - Field Mapping:');
     console.log('  → snapshot_id:', dbSnapshot.snapshot_id);
     console.log('  → user_id:', dbSnapshot.user_id);

@@ -4,8 +4,11 @@ const { Pool } = pkg;
 // Singleton pool - survives hot reloads in development
 // Prevents duplicate pools that cause connection churn
 if (!globalThis.__pgPool__) {
+  const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+  console.info('[db] Connecting to:', connectionString?.slice(0, 32), '…');
+  
   globalThis.__pgPool__ = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString,
     ssl: { rejectUnauthorized: false }, // Neon requires SSL
     keepAlive: true,                     // Detect dropped connections fast
     max: 10,                             // Reasonable pool size for Neon
