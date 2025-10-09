@@ -2026,6 +2026,73 @@ Browser console logs now show:
 
 ---
 
+## 🔧 **FIX CAPSULE: Coordinate Persistence (Oct 9, 2025)**
+
+**Issue:** Venue coordinates were persisting as lat=0, lng=0 in database instead of actual values.
+
+**Symptoms:**
+- Rankings and candidates tables showed 0,0 coordinates for all venues
+- ML training data corrupted with invalid geospatial information
+- Workflow analysis showed correct coordinates in API responses but 0,0 in DB
+
+**Root Cause:**
+Database mapping in `server/routes/blocks.js` (lines 697-711) was missing lat/lng field extraction:
+
+```javascript
+// BEFORE (missing lat/lng):
+const venueForDB = {
+  place_id: venue.placeId,
+  name: venue.name,
+  address: venue.address,
+  category: venue.category,
+  // ... lat/lng missing
+  estimated_distance_miles: Number(venue.estimated_distance_miles ?? 0),
+  drive_time_minutes: Number(venue.driveTimeMinutes ?? 0)
+};
+
+// AFTER (includes coordinates):
+const venueForDB = {
+  place_id: venue.placeId,
+  name: venue.name,
+  address: venue.address,
+  category: venue.category,
+  lat: venue.lat,                    // ← Added
+  lng: venue.lng,                    // ← Added
+  estimated_distance_miles: Number(venue.estimated_distance_miles ?? 0),
+  drive_time_minutes: Number(venue.driveTimeMinutes ?? 0)
+};
+```
+
+**Fix Strategy:**
+1. Added `lat: venue.lat` and `lng: venue.lng` to venue mapper
+2. Removed complex fallback chain from persist-ranking.js (simplified to direct access)
+3. Verified coordinates are already properly set in venue objects from enrichment stage
+
+**Verification:**
+```bash
+# Database query confirms fix:
+SELECT place_id, name, lat, lng FROM ranking_candidates WHERE ranking_id = '...';
+# Before: lat=0, lng=0
+# After:  lat=33.1106, lng=-96.8283 (actual coordinates)
+```
+
+**Files Changed:**
+- `server/routes/blocks.js` - Added lat/lng to venue mapping (lines 705-706)
+- `server/lib/persist-ranking.js` - Simplified coordinate extraction
+
+**Architectural Insight:**
+- Coordinates are already correct in venue objects from enrichment stage
+- Issue was purely in DB mapping layer, not data flow
+- Demonstrates importance of field-level logging to catch silent data loss
+
+**Testing Protocol:**
+```bash
+node scripts/full-workflow-analysis.mjs
+# Validates coordinates persist correctly end-to-end
+```
+
+---
+
 ## 🎯 **DECISION LOG**
 
 ### October 9, 2025
