@@ -703,68 +703,59 @@ router.post('/', async (req, res) => {
         correlation_id: correlationId
       });
 
-      console.log(`[ML Training] ✅ Atomically persisted ranking ${ranking_id} with ${venues.length} candidates`);
-    } catch (persistError) {
-      console.error('💥 FATAL: Ranking persistence failed - blocking response', persistError);
-      return res.status(502).json({ 
-        ok: false, 
-        error: 'persist_failed',
-        message: 'Failed to save ranking data. Please try again.'
-      });
+      console.info(`[${correlationId}] persisted ranking ${ranking_id} with ${venues.length} candidates`);
+    } catch (e) {
+      console.error(`[${correlationId}] persist_failed`, e);
+      return res.status(502).json({ ok:false, error:"persist_failed", correlationId });
     }
 
     // ============================================
-    // STEP 4: Return complete result
+    // STEP 4: Return normalized result
     // ============================================
+    const blocks = triadPlan.per_venue.map((v, index) => ({
+      name: v.name,
+      address: v.address,
+      category: v.category,
+      placeId: v.placeId,
+      coordinates: { lat: v.lat, lng: v.lng },
+      estimated_distance_miles: Number(v.estimated_distance_miles),
+      driveTimeMinutes: Number(v.driveTimeMinutes),
+      distanceSource: v.distanceSource || "routes_api",
+      value_per_min: v.value_per_min ?? null,
+      value_grade: v.value_grade ?? null,
+      not_worth: !!v.not_worth,
+      surge: v.surge ?? 1.0,
+      estimated_earnings: v.estimated_earnings ?? null,
+      earnings_per_mile: v.earnings_per_mile ?? null,
+      businessHours: v.businessHours ?? null,
+      isOpen: v.isOpen === true,
+      type: v.type || "destination",
+      stagingArea: v.stagingArea ?? enrichedStagingLocation ?? null,
+      // Additional fields for backward compat
+      description: v.description,
+      estimatedWaitTime: v.estimated_distance_miles ? Math.round(v.estimated_distance_miles * 2) : null,
+      estimatedEarningsPerRide: v.estimated_earnings,
+      potential: v.estimated_earnings,
+      earningsPerMile: v.earnings_per_mile,
+      demandLevel: v.earnings_per_mile > 4 ? 'high' : v.earnings_per_mile > 3 ? 'medium' : 'low',
+      proTips: v.pro_tips || [],
+      pro_tips: v.pro_tips || [],
+      bestTimeWindow: v.best_time_window,
+      businessStatus: v.businessStatus,
+      hasSpecialHours: v.hasSpecialHours,
+      closed_venue_reasoning: v.closed_venue_reasoning
+    }));
+
     const response = {
+      ok: true,
       correlationId,
+      snapshot_id: fullSnapshot.snapshot_id,
+      blocks,
       userId,
       generatedAt: new Date().toISOString(),
       strategy_for_now: triadPlan.strategy_for_now,
-      tactical_summary: triadPlan.tactical_summary, // GPT-5's tactical summary
-      best_staging_location: enrichedStagingLocation, // GPT-5's staging recommendation (enriched with Google Places API)
-      blocks: triadPlan.per_venue.map((venue, index) => ({
-        name: venue.name,
-        description: venue.description,
-        address: venue.address,
-        category: venue.category,
-        coordinates: { lat: venue.lat, lng: venue.lng },
-        // Distance & drive time from Routes API
-        estimated_distance_miles: venue.estimated_distance_miles,
-        driveTimeMinutes: venue.driveTimeMinutes,
-        distanceSource: venue.distanceSource,
-        // Value per minute ranking
-        value_per_min: venue.value_per_min,
-        value_grade: venue.value_grade,
-        not_worth: venue.not_worth,
-        surge: venue.surge,
-        // Legacy earnings fields
-        estimatedWaitTime: venue.estimated_distance_miles ? Math.round(venue.estimated_distance_miles * 2) : null,
-        estimatedEarningsPerRide: venue.estimated_earnings,
-        estimated_earnings: venue.estimated_earnings,
-        potential: venue.estimated_earnings,
-        earningsPerMile: venue.earnings_per_mile,
-        demandLevel: venue.earnings_per_mile > 4 ? 'high' : venue.earnings_per_mile > 3 ? 'medium' : 'low',
-        proTips: venue.pro_tips || [],
-        pro_tips: venue.pro_tips || [],
-        bestTimeWindow: venue.best_time_window,
-        // Business hours enrichment
-        placeId: venue.placeId,
-        businessHours: venue.businessHours,
-        isOpen: venue.isOpen,
-        businessStatus: venue.businessStatus,
-        hasSpecialHours: venue.hasSpecialHours,
-        // Gemini closed venue reasoning
-        closed_venue_reasoning: venue.closed_venue_reasoning,
-        // Staging area if this is one of the top venues
-        stagingArea: (index < 3 && enrichedStagingLocation) ? {
-          type: "Free Lot",
-          name: enrichedStagingLocation.name,
-          address: enrichedStagingLocation.address,
-          walkTime: "Position nearby",
-          parkingTip: enrichedStagingLocation.reason
-        } : null
-      })),
+      tactical_summary: triadPlan.tactical_summary,
+      best_staging_location: enrichedStagingLocation,
       seed_additions: triadPlan.seed_additions || [],
       validation: triadPlan.validation || { status: 'ok', flags: [] },
       elapsed_ms: Date.now() - startTime,
