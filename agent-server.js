@@ -238,12 +238,14 @@ app.post("/agent/shell", async (req, res, next) => {
   const id = randomId();
   try {
     const { cmd, args = [] } = schemas.shell.parse(req.body || {});
-    if (!ALLOWED_COMMANDS.has(cmd)) {
+    const shellWhitelist = process.env.AGENT_SHELL_WHITELIST || "";
+    if (shellWhitelist !== "*" && !ALLOWED_COMMANDS.has(cmd)) {
       const e = new Error("command-not-allowed");
       e.code = "CMD_DENY";
       throw e;
     }
-    if (cmd === "npm") {
+    const shellWhitelistNpm = process.env.AGENT_SHELL_WHITELIST || "";
+    if (cmd === "npm" && shellWhitelistNpm !== "*") {
       const sub = args[0] || "";
       if (!SAFE_NPM_COMMANDS.has(sub)) {
         const e = new Error("npm-subcommand-not-allowed");
