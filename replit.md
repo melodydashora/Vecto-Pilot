@@ -6,9 +6,14 @@ Vecto Pilot™ is a rideshare driver assistance platform designed to maximize dr
 ## Recent Changes (Oct 9, 2025)
 ### Production Error Fixes ✅
 1. **TypeScript Syntax Error** - Fixed `number is not defined` in feedback enrichment (removed TS generics from JS files)
-2. **Database Replication Lag** - Enhanced retry logic (5 attempts, 200ms backoff) for Neon's distributed database
+2. **Database Replication Lag** - Enhanced retry logic (8 attempts, exponential backoff up to 10s) for Neon's distributed database
 3. **Venue Resolution** - Fixed coordinate priority: GPT-5 coords → reverse geocoding (was: name search → Places API)
 4. **Location-Agnostic (Zero Fallbacks)** - Removed ALL hardcoded locations and timezone fallbacks from 7 files - system now fails hard if timezone missing (no silent defaults)
+5. **Action Logging Foreign Key Error** - Fixed actions endpoint using correlation_id instead of ranking_id, causing FK constraint violations
+   - Backend: Added ranking_id to /api/blocks response
+   - Frontend: Updated to use data.ranking_id instead of data.correlationId
+   - Schema: Added onDelete: 'cascade' to actions.ranking_id FK
+6. **Bot Protection** - Added rate limiting (200 req/15min per IP) to gateway-server.js to block scanner traffic and save compute costs
 
 All fixes deployed and tested. App is now truly location-agnostic.
 

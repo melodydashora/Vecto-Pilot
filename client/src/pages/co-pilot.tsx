@@ -337,7 +337,7 @@ const CoPilot: React.FC = () => {
                 proTips: v.proTips || v.pro_tips || []
               };
             }) || [],
-            ranking_id: data.correlationId,
+            ranking_id: data.ranking_id || data.correlationId,  // Use actual ranking_id from DB
             metadata: {
               totalBlocks: data.blocks?.length || 0,
               processingTimeMs: data.elapsed_ms || 0,

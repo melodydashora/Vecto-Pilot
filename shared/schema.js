@@ -96,7 +96,7 @@ export const ranking_candidates = pgTable("ranking_candidates", {
 export const actions = pgTable("actions", {
   action_id: uuid("action_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
-  ranking_id: uuid("ranking_id").references(() => rankings.ranking_id),
+  ranking_id: uuid("ranking_id").references(() => rankings.ranking_id, { onDelete: 'cascade' }),
   snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   user_id: uuid("user_id"),
   action: text("action").notNull(),

@@ -808,6 +808,7 @@ router.post('/', async (req, res) => {
     const response = {
       ok: true,
       correlationId,
+      ranking_id,  // ✅ Add actual database ranking_id for action logging
       snapshot_id: fullSnapshot.snapshot_id,
       blocks,
       userId,

@@ -100,8 +100,9 @@ router.post('/', async (req, res) => {
     };
 
     // Retry logic for foreign key constraint errors (replication lag)
-    const maxRetries = 5;
-    const retryDelayMs = 200; // Start with 200ms
+    // Extended for Neon's distributed database architecture
+    const maxRetries = 8;
+    const retryDelayMs = 150; // Start with 150ms, grows exponentially
     let lastError;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -132,7 +133,8 @@ router.post('/', async (req, res) => {
         
         if (isRankingFKError || isSnapshotFKError) {
           if (attempt < maxRetries) {
-            const delay = retryDelayMs * attempt; // Exponential backoff
+            // Exponential backoff with jitter: 150ms, 300ms, 600ms, 1200ms, 2400ms, 4800ms, 9600ms
+            const delay = Math.min(retryDelayMs * Math.pow(2, attempt - 1), 10000);
             const constraint = isRankingFKError ? 'ranking_id' : 'snapshot_id';
             console.warn(`⚠️ Foreign key error on ${constraint} (replication lag), retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, delay));
