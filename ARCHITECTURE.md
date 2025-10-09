@@ -2028,6 +2028,21 @@ Browser console logs now show:
 
 ## 🎯 **DECISION LOG**
 
+### October 9, 2025
+- ✅ **Fixed:** Coordinate persistence in database (rankings + candidates atomic writes)
+  - Root cause: Venue mapping for DB persistence was missing lat/lng fields
+  - Solution: Added `lat: venue.lat` and `lng: venue.lng` to venue mapper in blocks.js
+  - Impact: All venue coordinates now correctly persisted (no more 0,0 values)
+  - Verification: Database query shows actual coordinates (e.g., 33.1106, -96.8283)
+- ✅ **Configured:** Replit Autoscale deployment for production
+  - Port binding: Uses `process.env.PORT` for Autoscale compatibility
+  - Build command: `npm run build` (clean Vite build)
+  - Run command: `npm start` (NODE_ENV=production)
+  - Error handling: Try-catch around server.listen() with detailed logging
+  - Startup logs: Shows mode, port config, and health status
+- ✅ **Cleaned:** Removed stale TODO comments (places cache already implemented)
+- ✅ **Removed:** Stale "origin fallback" comment per architectural requirements
+
 ### October 8, 2025
 - ✅ **Verified:** Claude Sonnet 4.5 model works correctly (no silent swaps)
 - ✅ **Added:** Model assertion in adapter to prevent future mismatches

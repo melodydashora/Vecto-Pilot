@@ -100,6 +100,15 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
 
 ### Deployment Environment
 - **Platform**: Replit
+- **Deployment Type**: Autoscale (stateless, auto-scaling web apps)
+- **Port Configuration**: Uses `process.env.PORT` (dynamically assigned by Replit)
+- **Build Process**: `npm run build` (Vite production build)
+- **Start Command**: `npm start` (NODE_ENV=production)
+- **Production Features**:
+  - Gateway serves pre-built React app from `/dist`
+  - All API routes mounted directly on gateway
+  - Single process, minimal overhead
+  - Comprehensive error logging and health checks
 
 ## Agent Server Capabilities
 

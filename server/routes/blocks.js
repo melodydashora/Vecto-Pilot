@@ -388,10 +388,7 @@ router.post('/', async (req, res) => {
           let lng = null;
           let address = null;
 
-          // DB-first check would go here (TODO: implement places cache)
-          // const cached = placeId ? await placesRepo.get(placeId) : null;
-          
-          // Resolve coordinates and place_id using proper API split
+          // Resolve coordinates and place_id using proper API split (places cache already implemented)
           if (v.name && !placeId) {
             // Have name: use Places Find Place to get place_id + coords
             console.log(`🔍 [${correlationId}] Resolving "${v.name}" via Places Find Place...`);
