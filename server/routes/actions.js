@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/drizzle.js';
-import { actions, snapshots, rankings } from '../../shared/schema.js';
-import { desc, eq } from 'drizzle-orm';
+import { actions, snapshots, rankings, venue_catalog, venue_metrics } from '../../shared/schema.js';
+import { desc, eq, sql } from 'drizzle-orm';
 
 const router = Router();
 
@@ -109,6 +109,24 @@ router.post('/', async (req, res) => {
       try {
         await db.insert(actions).values(actionData);
         console.log(`📊 Action logged: ${action}${block_id ? ` on ${block_id}` : ''}${dwell_ms ? ` (${dwell_ms}ms)` : ''}${attempt > 1 ? ` (retry ${attempt})` : ''}`);
+        
+        // Bump venue_metrics.times_chosen for clicks (best-effort, non-blocking)
+        if (action === 'click' && block_id) {
+          try {
+            const result = await db.execute(sql`
+              UPDATE venue_metrics vm
+              SET times_chosen = vm.times_chosen + 1
+              FROM venue_catalog vc
+              WHERE (vc.venue_id = vm.venue_id) 
+                AND (vc.venue_id::text = ${block_id} OR vc.place_id = ${block_id})
+            `);
+            if (result.rowCount > 0) {
+              console.log(`📈 Bumped times_chosen for ${block_id}`);
+            }
+          } catch (metricsErr) {
+            console.warn(`⚠️ Metrics bump skipped for ${block_id}:`, metricsErr.message);
+          }
+        }
         
         const response = { 
           success: true, 
