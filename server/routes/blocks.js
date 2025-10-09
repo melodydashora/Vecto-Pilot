@@ -384,6 +384,7 @@ router.post('/', async (req, res) => {
     console.log(`🔍 [${correlationId}] TRIAD Step 3/3: Resolving ${tacticalPlan.recommended_venues.length} venues (Geocoding + Places)...`);
     const { findPlaceIdByText, getBusinessHoursOnly } = await import('../lib/places-hours.js');
     const { reverseGeocode } = await import('../lib/geocoding.js');
+    const { upsertPlace, upsertPlaceHours } = await import('../lib/places-cache.js');
 
     const enrichedVenues = await Promise.all(
       tacticalPlan.recommended_venues.map(async (v) => {
@@ -427,11 +428,25 @@ router.post('/', async (req, res) => {
             throw new Error('venue_not_resolved');
           }
 
-          // TODO: Cache resolved place data
-          // await placesRepo.upsert({ place_id: placeId, lat, lng, formatted_address: address });
+          // Cache resolved place data (coords/address separate from hours)
+          await upsertPlace({ 
+            place_id: placeId, 
+            name: v.name, 
+            formatted_address: address, 
+            lat, 
+            lng 
+          });
 
           // Get business hours ONLY from Places Details (no coordinates)
           const hoursData = await getBusinessHoursOnly(placeId);
+          
+          // Cache business hours separately  
+          if (hoursData.hours) {
+            await upsertPlaceHours({
+              place_id: placeId,
+              formatted_hours: hoursData.hours
+            });
+          }
 
           console.log(`✅ [${correlationId}] Enriched ${v.name}: ${hoursData.status}, ${hoursData.hours?.length || 0} hours, address: ${address}`);
 
