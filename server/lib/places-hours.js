@@ -39,7 +39,7 @@ export async function getPlaceHours(placeId) {
 
     const result = data.result;
     
-    return {
+    const hoursData = {
       name: result.name,
       address: result.formatted_address || null,
       lat: result.geometry?.location?.lat || null,
@@ -50,6 +50,27 @@ export async function getPlaceHours(placeId) {
       currentHours: result.current_opening_hours?.weekday_text || null, // Holiday-adjusted hours
       hasHolidayHours: !!result.current_opening_hours
     };
+
+    // Cache the hours data (non-blocking)
+    if (result.opening_hours) {
+      try {
+        const { db } = await import('../db/drizzle.js');
+        const { sql } = await import('drizzle-orm');
+        
+        await db.execute(sql`
+          INSERT INTO places_cache (place_id, formatted_hours, cached_at, access_count)
+          VALUES (${placeId}, ${JSON.stringify(result.opening_hours)}, NOW(), 1)
+          ON CONFLICT (place_id) DO UPDATE
+          SET formatted_hours = EXCLUDED.formatted_hours,
+              cached_at = NOW(),
+              access_count = places_cache.access_count + 1
+        `);
+      } catch (cacheErr) {
+        console.warn(`⚠️ Places cache upsert skipped for ${placeId}:`, cacheErr.message);
+      }
+    }
+    
+    return hoursData;
   } catch (error) {
     console.error('[Places API] getPlaceHours failed:', error.message);
     throw error;
