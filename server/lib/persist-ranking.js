@@ -22,7 +22,7 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
 
     if (venues?.length) {
       const cols = [
-        "ranking_id","block_id","name","place_id","rank","exploration_policy",
+        "id","ranking_id","block_id","name","lat","lng","place_id","rank","exploration_policy",
         "distance_miles","drive_time_minutes","value_per_min","value_grade","not_worth"
       ];
       const rows = [];
@@ -30,11 +30,13 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
       let p = 1;
       for (const v of venues) {
         console.log(`📊 [${correlation_id}] Candidate ${v.rank}: ${v.name} - place_id: ${v.place_id}, dist: ${v.distance_miles} mi, time: ${v.drive_time_minutes} min, value_per_min: ${v.value_per_min}, grade: ${v.value_grade}`);
-        rows.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+        rows.push(`(gen_random_uuid(),$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
         args.push(
           ranking_id,
           v.place_id || `block_${v.rank}`,  // Use place_id as block_id (unique identifier)
           v.name,
+          v.lat ?? v.latitude ?? 0,  // Required NOT NULL field
+          v.lng ?? v.longitude ?? 0,  // Required NOT NULL field
           v.place_id || null,
           v.rank,
           'epsilon_greedy', // Default exploration policy
