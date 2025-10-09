@@ -291,6 +291,7 @@ export const user_preferences = pgTable("user_preferences", {
   car_year: integer("car_year"),
   car_make: text("car_make"),
   car_model: text("car_model"),
+  car_color: text("car_color"),
   seatbelt_count: integer("seatbelt_count"),
   
   // Services (checkboxes - 0/1)
