@@ -1867,6 +1867,96 @@ Logs show:
 
 ---
 
+### Fix Capsule — Atomic Database Persistence (Oct 9, 2025)
+
+**Impact**  
+Ensures ML training data integrity through atomic transactions. All rankings and candidates are now persisted together or not at all, eliminating partial writes that corrupt training datasets.
+
+**What Changed**  
+- ✅ **PostgreSQL ACID Transactions**: Implemented BEGIN/COMMIT/ROLLBACK pattern using pg.Client for atomic writes
+- ✅ **Fail-Hard Error Handling**: Database persistence failures now return 502 instead of silent success
+- ✅ **Database Constraints**: Added unique indexes on rank, check constraints for non-negative values, foreign key cascades
+- ✅ **Places Caching Architecture**: Separated stable data (coords/address in `places`) from volatile data (hours in `places_cache`)
+- ✅ **Comprehensive Logging**: Field-level visibility throughout workflow showing API calls, data transformations, and DB operations
+- ✅ **Correct Data Structure**: persist-ranking.js now uses exact schema (no correlation_id in INSERT, uses fullyEnrichedVenues not old enriched array)
+
+**When Applied**  
+Oct 9, 2025 - Database persistence layer refactored for production reliability
+
+**Root Cause**  
+Non-atomic writes allowed partial data corruption: 672 rankings but only 1,402 candidates (instead of 4,032), with all candidates having NULL distance/time/place_id values. Old code used separate INSERT statements without transaction boundaries.
+
+**How Fixed**  
+1. **Created `server/lib/persist-ranking.js`**: Single-transaction function using PostgreSQL client pool
+   ```javascript
+   await client.query("BEGIN");
+   // Insert ranking
+   // Insert all candidates in one batch
+   await client.query("COMMIT");
+   ```
+
+2. **Updated `server/routes/blocks.js`**: Fail-hard persistence with 502 on error
+   ```javascript
+   try {
+     ranking_id = await persistRankingTx({...});
+   } catch (e) {
+     return res.status(502).json({ ok:false, error:"persist_failed" });
+   }
+   ```
+
+3. **Added Database Constraints** via migrations:
+   - `UNIQUE INDEX idx_rankings_snapshot_model` on (snapshot_id, model_name)
+   - `UNIQUE INDEX idx_ranking_candidates_rank` on (ranking_id, rank)
+   - `CHECK (distance_miles >= 0)` and `CHECK (drive_time_minutes >= 0)`
+   - `ON DELETE CASCADE` for ranking_id foreign key
+
+4. **Implemented Places Caching** (`server/lib/places-cache.js`):
+   - `upsertPlace()`: Caches place_id, coords, address in `places` table
+   - `upsertPlaceHours()`: Caches business hours separately in `places_cache`
+   - Called after every Geocoding/Places API resolution
+
+5. **Added Comprehensive Logging**:
+   - Every API call shows inputs/outputs with correlation_id
+   - Database operations log field values being written
+   - Transaction boundaries clearly marked (BEGIN/COMMIT/ROLLBACK)
+
+**Verification SQL**  
+```sql
+-- Check transaction integrity
+SELECT r.ranking_id, COUNT(c.id) as candidates
+FROM rankings r
+LEFT JOIN ranking_candidates c ON c.ranking_id = r.ranking_id
+GROUP BY r.ranking_id
+HAVING COUNT(c.id) != 6;  -- Should return 0 rows
+
+-- Check data quality
+SELECT COUNT(*) FROM ranking_candidates
+WHERE distance_miles IS NULL OR drive_time_minutes IS NULL;
+-- Should return 0 for new data
+```
+
+**Files Changed**  
+- `server/lib/persist-ranking.js` - Atomic transaction implementation
+- `server/lib/places-cache.js` - NEW: Coordinate and hours caching
+- `server/routes/blocks.js` - Fail-hard persistence, uses fullyEnrichedVenues
+- `shared/schema.ts` - Added places and places_cache tables
+- Migration SQL - Constraints and indexes
+
+**Observability**  
+Every transaction now logs:
+- 🔐 BEGIN/COMMIT/ROLLBACK status
+- 📝 Exact SQL with field values
+- 📊 Per-candidate details (name, place_id, distance, time, value_per_min, grade)
+- ✅/❌ Success/failure with correlation_id tracing
+
+**Backward Pressure**  
+Deprecated: Non-atomic INSERT statements, silent persistence failures, partial data writes
+
+**Forward Pressure**  
+Enforced: PostgreSQL transactions for all multi-row writes, fail-hard on DB errors, places caching for all venue resolutions
+
+---
+
 ### Fix Capsule — UI Mapper for Distance/ETA (Oct 8, 2025)
 
 **Impact**  

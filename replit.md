@@ -26,6 +26,12 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
     - **GPT-5 (Planner)**: Performs deep reasoning for venue selection and timing.
     - **Gemini 2.5 Pro (Validator)**: Validates JSON structure and ensures a minimum number of recommendations.
     - **Triad is single-path ONLY** - No fallbacks in the triad pipeline to ensure consistent quality.
+- **Atomic Database Persistence (Oct 9, 2025)**: Production-grade ML training data capture with ACID guarantees.
+    - **PostgreSQL Transactions**: BEGIN/COMMIT/ROLLBACK pattern ensures rankings and candidates persist together or not at all.
+    - **Fail-Hard Error Handling**: Persistence failures return 502 instead of silent success.
+    - **Database Constraints**: Unique indexes on rank, check constraints for non-negative values, foreign key cascades.
+    - **Places Caching**: Separates stable data (coords/address in `places`) from volatile data (hours in `places_cache`).
+    - **Comprehensive Logging**: Field-level visibility with correlation_id tracing throughout entire workflow.
 - **Agent Override (Atlas) with Fallback Resilience**: Workspace intelligence layer with fallback chain for operational continuity.
     - **Primary: Atlas (Claude Sonnet 4.5)**: Model `claude-sonnet-4-5-20250929` - Main workspace assistant for file ops, SQL, and diagnostics.
     - **Fallback Chain**: Claude → GPT-5 → Gemini if Anthropic servers fail.
