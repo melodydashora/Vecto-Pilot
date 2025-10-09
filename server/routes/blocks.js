@@ -380,7 +380,7 @@ router.post('/', async (req, res) => {
     const { reverseGeocode } = await import('../lib/geocoding.js');
     const { upsertPlace, upsertPlaceHours } = await import('../lib/places-cache.js');
 
-    const enrichedVenues = await Promise.all(
+    let enrichedVenues = await Promise.all(
       tacticalPlan.recommended_venues.map(async (v) => {
         try {
           let placeId = v.placeId || null;
