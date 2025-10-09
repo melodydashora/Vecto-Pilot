@@ -27,10 +27,14 @@ import {
   Zap,
   AlertCircle,
   RefreshCw,
-  Lightbulb
+  Lightbulb,
+  ThumbsUp,
+  ThumbsDown,
+  MessageSquare
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
+import { FeedbackModal } from '@/components/FeedbackModal';
 
 interface SmartBlock {
   name: string;
@@ -68,6 +72,8 @@ interface SmartBlock {
     parkingTip: string;
   };
   proTips?: string[];
+  up_count?: number;
+  down_count?: number;
 }
 
 interface BlocksResponse {
@@ -104,6 +110,22 @@ const CoPilot: React.FC = () => {
   const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(() => {
     return localStorage.getItem('vecto_strategy_snapshot_id');
   });
+  
+  // Feedback modal state
+  const [feedbackModal, setFeedbackModal] = useState<{
+    isOpen: boolean;
+    sentiment: 'up' | 'down' | null;
+    block: SmartBlock | null;
+    blockIndex: number | null;
+  }>({
+    isOpen: false,
+    sentiment: null,
+    block: null,
+    blockIndex: null,
+  });
+  
+  // Strategy feedback modal state  
+  const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
 
   // Get coords from shared location context (same as GlobalHeader)
   const gpsCoords = locationContext?.currentCoords;
@@ -665,9 +687,21 @@ const CoPilot: React.FC = () => {
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-semibold text-purple-900">Claude's Strategic Overview</p>
-                      <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
-                        Auto-Generated
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
+                          Auto-Generated
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-6 px-2 text-xs"
+                          onClick={() => setStrategyFeedbackOpen(true)}
+                          data-testid="button-strategy-feedback"
+                        >
+                          <MessageSquare className="w-3 h-3 mr-1" />
+                          Give feedback
+                        </Button>
+                      </div>
                     </div>
                     <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
                     <div className="mt-3 flex items-center gap-2 text-xs text-purple-600">
@@ -974,18 +1008,35 @@ const CoPilot: React.FC = () => {
                             variant="ghost"
                             size="sm"
                             className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                            onClick={() => toggleBlockSelection(index)}
+                            onClick={() => {
+                              setFeedbackModal({
+                                isOpen: true,
+                                sentiment: 'up',
+                                block,
+                                blockIndex: index,
+                              });
+                            }}
+                            data-testid={`button-thumbs-up-${index}`}
                           >
-                            <CheckCircle2 className="w-4 h-4 mr-1" />
-                            {isSelected ? 'Selected' : 'Like'}
+                            <ThumbsUp className="w-4 h-4 mr-1" />
+                            {block.up_count ? block.up_count : ''}
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                              setFeedbackModal({
+                                isOpen: true,
+                                sentiment: 'down',
+                                block,
+                                blockIndex: index,
+                              });
+                            }}
+                            data-testid={`button-thumbs-down-${index}`}
                           >
-                            <Circle className="w-4 h-4 mr-1" />
-                            Hide
+                            <ThumbsDown className="w-4 h-4 mr-1" />
+                            {block.down_count ? block.down_count : ''}
                           </Button>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1047,6 +1098,42 @@ const CoPilot: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {/* Venue Feedback Modal */}
+      <FeedbackModal
+        isOpen={feedbackModal.isOpen}
+        onClose={() => setFeedbackModal({ isOpen: false, sentiment: null, block: null, blockIndex: null })}
+        initialSentiment={feedbackModal.sentiment}
+        venueName={feedbackModal.block?.name}
+        placeId={feedbackModal.block?.placeId}
+        snapshotId={lastSnapshotId || undefined}
+        rankingId={blocksData?.ranking_id}
+        userId={userId}
+        onSuccess={(sentiment) => {
+          // Optimistically update the block counts
+          if (feedbackModal.block && feedbackModal.blockIndex !== null) {
+            const updatedBlocks = [...blocks];
+            const block = updatedBlocks[feedbackModal.blockIndex];
+            if (sentiment === 'up') {
+              block.up_count = (block.up_count || 0) + 1;
+            } else {
+              block.down_count = (block.down_count || 0) + 1;
+            }
+            // This will trigger a re-render with updated counts
+          }
+        }}
+      />
+      
+      {/* Strategy Feedback Modal */}
+      <FeedbackModal
+        isOpen={strategyFeedbackOpen}
+        onClose={() => setStrategyFeedbackOpen(false)}
+        initialSentiment={null}
+        snapshotId={lastSnapshotId || undefined}
+        rankingId={blocksData?.ranking_id}
+        userId={userId}
+        isStrategyFeedback={true}
+      />
     </div>
   );
 };
