@@ -777,19 +777,32 @@ const CoPilot: React.FC = () => {
             </div>
           </div>
 
-          {/* Loading State - only show when strategy is ready and we're actually fetching blocks */}
+          {/* Loading State with Skeleton Cards */}
           {persistentStrategy && (isLoading || (!error && coords && blocks.length === 0)) && (
-            <Card className="p-8" data-testid="loading-state">
-              <div className="flex flex-col items-center justify-center text-center">
-                <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-4" />
-                <p className="text-gray-800 font-semibold mb-2">
-                  AI is analyzing your area...
-                </p>
-                <p className="text-gray-600 text-sm">
-                  This may take up to two minutes for blocks to load
-                </p>
-              </div>
-            </Card>
+            <div className="space-y-4" data-testid="loading-state">
+              <Card className="p-8 border-blue-100 bg-blue-50/50">
+                <div className="flex items-center gap-3 mb-4">
+                  <RefreshCw className="w-6 h-6 text-blue-600 animate-spin flex-shrink-0" />
+                  <div>
+                    <p className="text-gray-800 font-semibold">AI is analyzing your area...</p>
+                    <p className="text-gray-600 text-sm">Calculating optimal venues with traffic data</p>
+                  </div>
+                </div>
+              </Card>
+              {/* Skeleton Cards */}
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="p-4 animate-pulse">
+                  <div className="h-6 bg-gray-200 rounded w-3/4 mb-3"></div>
+                  <div className="h-4 bg-gray-100 rounded w-1/2 mb-4"></div>
+                  <div className="grid grid-cols-3 gap-4 mb-3">
+                    <div className="h-12 bg-gray-200 rounded"></div>
+                    <div className="h-12 bg-gray-200 rounded"></div>
+                    <div className="h-12 bg-gray-200 rounded"></div>
+                  </div>
+                  <div className="h-20 bg-gray-100 rounded"></div>
+                </Card>
+              ))}
+            </div>
           )}
 
           {/* Error State */}
