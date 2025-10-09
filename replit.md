@@ -118,6 +118,7 @@ The agent server now includes comprehensive memory and context awareness:
 **Context Endpoints:**
 - `GET /agent/context?threadId={id}` - Full project context with optional thread awareness
 - `GET /agent/context/summary` - High-level project summary
+- `GET /agent/context/enhanced` - Enhanced project context with deep analysis
 
 **Thread Awareness Endpoints (NEW):**
 - `POST /agent/thread/init` - Initialize new conversation thread with contextual tracking
@@ -132,6 +133,10 @@ The agent server now includes comprehensive memory and context awareness:
 - `POST /agent/memory/project` - Save project state
 - `POST /agent/memory/conversation` - Remember conversation topics
 - `GET /agent/memory/conversations` - Retrieve recent conversations
+
+**Workspace Intelligence Endpoints:**
+- `POST /agent/search/internet` - Perform internet research using Perplexity API
+- `GET /agent/analyze/deep` - Deep workspace analysis with file statistics
 
 **Database Tables:**
 - `assistant_memory` - User preferences, conversation history, and thread messages
@@ -164,6 +169,12 @@ Safe file editing with validation and backups:
 - 10MB file size limit
 - Path traversal protection
 - Token-based authentication
+
+**Additional Capabilities:**
+- **File Operations**: Read/write with 10MB limit and path validation
+- **Shell Execution**: Whitelisted commands only (git, npm, node, ls, cat, etc.)
+- **SQL Operations**: Query and execute with database connection pooling
+- **Health Monitoring**: `/agent/health` endpoint for status checks
 
 ## Documentation & Workflow Maintenance
 
