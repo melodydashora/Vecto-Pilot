@@ -28,7 +28,7 @@ router.post("/api/blocks-triad", async (req, res) => {
   }
 
   const clock = new Date().toLocaleString("en-US", {
-    timeZone: snapshot?.timezone || "America/Chicago",
+    timeZone: snapshot?.timezone, // No fallback - timezone required
     weekday: "short", hour: "numeric", minute: "2-digit"
   });
 

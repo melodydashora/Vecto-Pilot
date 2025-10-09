@@ -11,7 +11,7 @@ export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
   if (!Array.isArray(shortlist) || !shortlist.length) throw new Error("Empty shortlist");
 
   const clock = new Date().toLocaleString("en-US", {
-    timeZone: snapshot?.timezone || "America/Chicago",
+    timeZone: snapshot?.timezone, // No fallback - timezone required
     weekday: "short", hour: "numeric", minute: "2-digit"
   });
 

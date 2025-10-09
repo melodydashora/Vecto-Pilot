@@ -316,15 +316,21 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 - **Improved GPT-5 prompt:** Explicitly instruct to avoid generic districts/areas
 - **Impact:** District-level recommendations (with coordinates) now resolve correctly
 
-**Fix 4: Hardcoded Location References**
-- **Error:** Hardcoded timezone and metro area in production code
-- **Found:** 
-  - `server/routes/blocks.js` - Hardcoded `'America/Chicago'` timezone
-  - `server/lib/venue-discovery.js` - Hardcoded `metro: 'DFW'`
+**Fix 4: Hardcoded Location References - ZERO FALLBACKS**
+- **Error:** Hardcoded timezone and metro area with fallbacks in production code
+- **Found & Removed:** 
+  - `server/routes/blocks.js` - Removed `|| 'America/Chicago'` fallback
+  - `server/lib/venue-discovery.js` - Removed hardcoded `metro: 'DFW'`
+  - `server/lib/strategy-generator.js` - Removed all timezone fallbacks (2 instances)
+  - `server/lib/gpt5-tactical-planner.js` - Removed all timezone fallbacks (2 instances)
+  - `server/routes/blocks-triad-strict.js` - Removed timezone fallback
+  - `server/lib/triad-orchestrator.js` - Removed timezone fallback
+  - `server/routes/blocks-discovery.js` - Removed timezone fallbacks (2 instances)
 - **Fixed:**
-  - Timezone now uses `fullSnapshot.timezone` (falls back to America/Chicago only if missing)
+  - Timezone now ALWAYS uses `snapshot.timezone` - no fallbacks whatsoever
   - Metro now uses `suggestion.metro || suggestion.city || 'Unknown'` (fully dynamic)
-- **Impact:** App is now truly location-agnostic, works anywhere in the world
+  - If timezone missing, system will fail-hard (no silent fallbacks)
+- **Impact:** App is 100% location-agnostic, works anywhere worldwide, no hidden location assumptions
 
 **Deployment Status:** All fixes tested and running in production ✅
 

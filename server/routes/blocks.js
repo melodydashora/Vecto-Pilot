@@ -235,7 +235,7 @@ router.post('/', async (req, res) => {
 
     // Enrich with drive times
     const driveCtx = { 
-      tz: fullSnapshot.timezone || 'America/Chicago', // Use snapshot timezone
+      tz: fullSnapshot.timezone, // Snapshot timezone required - no fallback
       dow: new Date().getDay(), 
       hour: new Date().getHours() 
     };

@@ -77,7 +77,7 @@ router.get('/', async (req, res) => {
     // ============================================
     let city = 'Unknown';
     let state = '';
-    let timezone = 'America/Chicago';
+    let timezone = null; // No default - must come from snapshot
     let dayPart = 'morning';
     let currentSnapshot = null;
     let lastSnapshot = null;
@@ -92,7 +92,7 @@ router.get('/', async (req, res) => {
         currentSnapshot = rows[0];
         city = currentSnapshot.city || 'Unknown';
         state = currentSnapshot.state || '';
-        timezone = currentSnapshot.timezone || 'America/Chicago';
+        timezone = currentSnapshot.timezone; // No fallback - timezone required
         dayPart = currentSnapshot.day_part_key || 'morning';
         
         console.log(`📸 Current snapshot: ${city}, ${state} (${dayPart})`);

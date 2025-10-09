@@ -45,7 +45,7 @@ export async function generateStrategyForSnapshot(snapshot_id) {
     const exactTime = snap.created_at ? new Date(snap.created_at).toLocaleTimeString('en-US', { 
       hour: '2-digit', 
       minute: '2-digit',
-      timeZone: snap.timezone || 'America/Chicago'
+      timeZone: snap.timezone // No fallback - timezone required
     }) : 'unknown time';
     
     // Build weather string with all details
@@ -95,7 +95,7 @@ Example: "Today is Sunday, 10/05/2025 at 5:59 PM in Frisco's Coral Ridge area. W
     // Format date as MM/DD/YYYY
     const formattedDate = snap.created_at 
       ? new Date(snap.created_at).toLocaleDateString('en-US', { 
-          timeZone: snap.timezone || 'America/Chicago',
+          timeZone: snap.timezone, // No fallback - timezone required
           year: 'numeric',
           month: '2-digit',
           day: '2-digit'

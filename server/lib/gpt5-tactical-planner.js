@@ -70,7 +70,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
   // Format date as MM/DD/YYYY
   const dateStr = snapshot?.created_at 
     ? new Date(snapshot.created_at).toLocaleDateString('en-US', { 
-        timeZone: snapshot.timezone || 'America/Chicago',
+        timeZone: snapshot.timezone, // No fallback - timezone required
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
@@ -80,7 +80,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
   // Format time
   const timeStr = snapshot?.created_at
     ? new Date(snapshot.created_at).toLocaleTimeString('en-US', { 
-        timeZone: snapshot.timezone || 'America/Chicago',
+        timeZone: snapshot.timezone, // No fallback - timezone required
         hour: '2-digit',
         minute: '2-digit'
       })
