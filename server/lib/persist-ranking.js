@@ -22,26 +22,27 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
 
     if (venues?.length) {
       const cols = [
-        "ranking_id","name","place_id","category","rank",
-        "distance_miles","drive_time_minutes","value_per_min","value_grade","surge"
+        "ranking_id","block_id","name","place_id","rank","exploration_policy",
+        "distance_miles","drive_time_minutes","value_per_min","value_grade","not_worth"
       ];
       const rows = [];
       const args = [];
       let p = 1;
       for (const v of venues) {
         console.log(`📊 [${correlation_id}] Candidate ${v.rank}: ${v.name} - place_id: ${v.place_id}, dist: ${v.distance_miles} mi, time: ${v.drive_time_minutes} min, value_per_min: ${v.value_per_min}, grade: ${v.value_grade}`);
-        rows.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+        rows.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
         args.push(
           ranking_id,
+          v.place_id || `block_${v.rank}`,  // Use place_id as block_id (unique identifier)
           v.name,
           v.place_id || null,
-          v.category || null,
           v.rank,
+          'epsilon_greedy', // Default exploration policy
           v.distance_miles ?? null,
           v.drive_time_minutes ?? null,
           v.value_per_min ?? null,
           v.value_grade ?? null,
-          v.surge ?? null
+          v.not_worth ?? false
         );
       }
       console.log(`📝 [${correlation_id}] INSERT ranking_candidates: ${venues.length} rows`);
