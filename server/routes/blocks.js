@@ -388,10 +388,20 @@ router.post('/', async (req, res) => {
           let lng = null;
           let address = null;
 
-          // Resolve coordinates and place_id using proper API split (places cache already implemented)
-          if (v.name && !placeId) {
-            // Have name: use Places Find Place to get place_id + coords
-            console.log(`🔍 [${correlationId}] Resolving "${v.name}" via Places Find Place...`);
+          // Resolve coordinates and place_id using proper API split
+          // PRIORITY: Use coords from GPT-5 for reverse geocoding (address resolution)
+          if (v.lat != null && v.lng != null) {
+            // Have coords from GPT-5: use Geocoding API to get place_id + address
+            console.log(`🗺️ [${correlationId}] Reverse geocoding "${v.name}" (${v.lat}, ${v.lng})...`);
+            const geoData = await reverseGeocode({ lat: v.lat, lng: v.lng });
+            placeId = geoData.place_id;
+            lat = geoData.lat;
+            lng = geoData.lng;
+            address = geoData.formatted_address;
+            
+          } else if (v.name && !placeId) {
+            // Fallback: Have name only, use Places Find Place
+            console.log(`🔍 [${correlationId}] Resolving "${v.name}" via Places Find Place (no coords provided)...`);
             const placeData = await findPlaceIdByText({ 
               text: v.name, 
               lat: v.lat, 
@@ -401,15 +411,6 @@ router.post('/', async (req, res) => {
             lat = placeData.lat;
             lng = placeData.lng;
             address = placeData.formatted_address;
-            
-          } else if (v.lat != null && v.lng != null) {
-            // Have coords: use Geocoding API to get place_id + address
-            console.log(`🗺️ [${correlationId}] Reverse geocoding (${v.lat}, ${v.lng})...`);
-            const geoData = await reverseGeocode({ lat: v.lat, lng: v.lng });
-            placeId = geoData.place_id;
-            lat = geoData.lat;
-            lng = geoData.lng;
-            address = geoData.formatted_address;
             
           } else {
             throw new Error('candidate_missing_name_or_coords');
