@@ -1137,15 +1137,13 @@ const CoPilot: React.FC = () => {
         }}
       />
       
-      {/* Strategy Feedback Modal */}
+      {/* App Feedback Modal */}
       <FeedbackModal
         isOpen={strategyFeedbackOpen}
         onClose={() => setStrategyFeedbackOpen(false)}
         initialSentiment={null}
         snapshotId={lastSnapshotId || undefined}
-        rankingId={blocksData?.ranking_id}
-        userId={localStorage.getItem('vecto_user_id') || 'default'}
-        isStrategyFeedback={true}
+        isAppFeedback={true}
       />
     </div>
   );

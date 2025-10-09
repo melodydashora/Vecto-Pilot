@@ -16,6 +16,7 @@ interface FeedbackModalProps {
   rankingId?: string;
   userId?: string;
   isStrategyFeedback?: boolean;
+  isAppFeedback?: boolean;
   onSuccess?: (sentiment: 'up' | 'down') => void;
 }
 
@@ -29,6 +30,7 @@ export function FeedbackModal({
   rankingId,
   userId,
   isStrategyFeedback = false,
+  isAppFeedback = false,
   onSuccess
 }: FeedbackModalProps) {
   const [sentiment, setSentiment] = useState<'up' | 'down' | null>(initialSentiment);
@@ -53,37 +55,48 @@ export function FeedbackModal({
       return;
     }
 
-    if (!snapshotId || !rankingId) {
+    // App feedback doesn't require ranking data
+    if (!isAppFeedback && (!snapshotId || !rankingId)) {
       toast({
         title: 'No strategy loaded yet',
         description: 'Please wait for a strategy to load before giving feedback.',
         variant: 'default',
       });
-      onClose(); // Close the modal
+      onClose();
       return;
     }
 
     setIsSubmitting(true);
 
-    const endpoint = isStrategyFeedback ? '/api/feedback/strategy' : '/api/feedback/venue';
+    // Choose endpoint based on feedback type
+    const endpoint = isAppFeedback 
+      ? '/api/feedback/app' 
+      : (isStrategyFeedback ? '/api/feedback/strategy' : '/api/feedback/venue');
     
-    const payload = isStrategyFeedback 
+    // Build payload based on feedback type
+    const payload = isAppFeedback
       ? {
-          userId,
-          snapshot_id: snapshotId,
-          ranking_id: rankingId,
+          snapshot_id: snapshotId || null,
           sentiment,
           comment: comment.trim() || null,
         }
-      : {
-          userId,
-          snapshot_id: snapshotId,
-          ranking_id: rankingId,
-          place_id: placeId || null,
-          venue_name: venueName,
-          sentiment,
-          comment: comment.trim() || null,
-        };
+      : (isStrategyFeedback 
+        ? {
+            userId,
+            snapshot_id: snapshotId,
+            ranking_id: rankingId,
+            sentiment,
+            comment: comment.trim() || null,
+          }
+        : {
+            userId,
+            snapshot_id: snapshotId,
+            ranking_id: rankingId,
+            place_id: placeId || null,
+            venue_name: venueName,
+            sentiment,
+            comment: comment.trim() || null,
+          });
 
     // Close modal immediately for better UX
     onSuccess?.(sentiment);
@@ -127,16 +140,20 @@ export function FeedbackModal({
           <DialogTitle>
             {initialSentiment 
               ? 'Add Your Feedback' 
-              : isStrategyFeedback 
-                ? 'Strategy Feedback' 
-                : `Feedback for ${venueName}`}
+              : isAppFeedback
+                ? 'App Feedback'
+                : isStrategyFeedback 
+                  ? 'Strategy Feedback' 
+                  : `Feedback for ${venueName}`}
           </DialogTitle>
           <DialogDescription>
             {initialSentiment
               ? `You selected ${initialSentiment === 'up' ? '👍 thumbs up' : '👎 thumbs down'}. Add optional comments below.`
-              : isStrategyFeedback 
-                ? 'Was this strategy helpful for your driving session?'
-                : 'How was your experience at this venue?'}
+              : isAppFeedback
+                ? 'How is your experience with Vecto Pilot?'
+                : isStrategyFeedback 
+                  ? 'Was this strategy helpful for your driving session?'
+                  : 'How was your experience at this venue?'}
           </DialogDescription>
         </DialogHeader>
 
