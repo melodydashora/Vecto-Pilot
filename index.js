@@ -16,6 +16,7 @@ import locationRoutes from "./server/routes/location.js";
 import actionsRoutes from "./server/routes/actions.js";
 import researchRoutes from "./server/routes/research.js";
 import feedbackRoutes from "./server/routes/feedback.js";
+import diagnosticsRoutes from "./server/routes/diagnostics.js";
 import venueEventsRoutes from "./server/routes/venue-events.js";
 import snapshotRoutes from "./server/routes/snapshot.js";
 import jobMetricsRoutes from "./server/routes/job-metrics.js";
@@ -109,6 +110,7 @@ app.use("/api/location", parseJson, apiLimiter, locationRoutes); // parseJson fo
 app.use("/api/actions", parseJson, apiLimiter, actionsRoutes);
 app.use("/api/research", parseJson, apiLimiter, researchRoutes); // Internet research via Perplexity
 app.use("/api/feedback", parseJson, apiLimiter, feedbackRoutes); // Venue feedback and reliability scoring
+app.use("/api/diagnostics", apiLimiter, diagnosticsRoutes); // System health checks
 app.use("/api/venue", parseJson, apiLimiter, venueEventsRoutes); // Event checking via Perplexity
 app.use("/api/snapshot", parseJson, apiLimiter, snapshotRoutes); // Context snapshot storage
 app.use(jobMetricsRoutes); // Job queue metrics and monitoring
