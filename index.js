@@ -19,6 +19,8 @@ import feedbackRoutes from "./server/routes/feedback.js";
 import venueEventsRoutes from "./server/routes/venue-events.js";
 import snapshotRoutes from "./server/routes/snapshot.js";
 import jobMetricsRoutes from "./server/routes/job-metrics.js";
+import profileRoutes from "./server/routes/profile.js";
+import preferencesRoutes from "./server/routes/preferences.js";
 
 // Middleware
 import { loggingMiddleware } from "./server/middleware/logging.js";
@@ -111,6 +113,8 @@ app.use("/api/research", parseJson, apiLimiter, researchRoutes); // Internet res
 app.use("/api/feedback", parseJson, apiLimiter, feedbackRoutes); // Venue feedback and reliability scoring
 app.use("/api/venue", parseJson, apiLimiter, venueEventsRoutes); // Event checking via Perplexity
 app.use("/api/snapshot", parseJson, apiLimiter, snapshotRoutes); // Context snapshot storage
+app.use("/api/profile", parseJson, apiLimiter, profileRoutes); // User profile (basic info)
+app.use("/api/preferences", parseJson, apiLimiter, preferencesRoutes); // User preferences (driver customization)
 app.use(jobMetricsRoutes); // Job queue metrics and monitoring
 
 // Quick status endpoint
