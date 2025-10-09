@@ -701,6 +701,34 @@ router.post('/snapshot', async (req, res) => {
     
     console.log('[Snapshot DB] ✅ Snapshot successfully written to database');
 
+    // Log travel disruptions for airports with delays (non-blocking)
+    if (airportContext && airportContext.airport_code && (airportContext.delay_minutes || airportContext.closure_status !== 'open')) {
+      try {
+        const { travel_disruptions } = await import('../../shared/schema.js');
+        const { randomUUID } = await import('crypto');
+        
+        await db.insert(travel_disruptions).values({
+          id: randomUUID(),
+          country_code: 'US',
+          airport_code: airportContext.airport_code,
+          airport_name: airportContext.airport_name || null,
+          delay_minutes: Number(airportContext.delay_minutes || 0),
+          ground_stops: airportContext.ground_stops || [],
+          ground_delay_programs: airportContext.ground_delay_programs || [],
+          closure_status: airportContext.closure_status || 'open',
+          delay_reason: airportContext.delay_reason || null,
+          ai_summary: airportContext.ai_summary || null,
+          impact_level: airportContext.impact_level || (airportContext.delay_minutes > 30 ? 'high' : airportContext.delay_minutes > 0 ? 'medium' : 'none'),
+          data_source: 'FAA',
+          last_updated: new Date(),
+          next_update_at: null
+        });
+        console.log(`✈️ Travel disruption logged for ${airportContext.airport_code}: ${airportContext.delay_minutes}min delay`);
+      } catch (disruptionErr) {
+        console.warn(`⚠️ Travel disruption logging failed (non-blocking):`, disruptionErr.message);
+      }
+    }
+
     // Also save to filesystem for backup/debugging
     const fs = await import('fs/promises');
     const path = await import('path');
