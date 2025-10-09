@@ -64,59 +64,59 @@ export function FeedbackModal({
 
     setIsSubmitting(true);
 
-    try {
-      const endpoint = isStrategyFeedback ? '/api/feedback/strategy' : '/api/feedback/venue';
-      
-      const payload = isStrategyFeedback 
-        ? {
-            userId,
-            snapshot_id: snapshotId,
-            ranking_id: rankingId,
-            sentiment,
-            comment: comment.trim() || null,
-          }
-        : {
-            userId,
-            snapshot_id: snapshotId,
-            ranking_id: rankingId,
-            place_id: placeId || null,
-            venue_name: venueName,
-            sentiment,
-            comment: comment.trim() || null,
-          };
+    const endpoint = isStrategyFeedback ? '/api/feedback/strategy' : '/api/feedback/venue';
+    
+    const payload = isStrategyFeedback 
+      ? {
+          userId,
+          snapshot_id: snapshotId,
+          ranking_id: rankingId,
+          sentiment,
+          comment: comment.trim() || null,
+        }
+      : {
+          userId,
+          snapshot_id: snapshotId,
+          ranking_id: rankingId,
+          place_id: placeId || null,
+          venue_name: venueName,
+          sentiment,
+          comment: comment.trim() || null,
+        };
 
-      await apiRequest('POST', endpoint, payload);
+    // Close modal immediately for better UX
+    onSuccess?.(sentiment);
+    setSentiment(initialSentiment);
+    setComment('');
+    onClose();
 
-      toast({
-        title: 'Thanks for the feedback!',
-        description: 'Your feedback helps us improve recommendations.',
+    // Submit feedback in background
+    toast({
+      title: 'Thanks for the feedback!',
+      description: 'Your feedback helps us improve recommendations.',
+    });
+
+    apiRequest('POST', endpoint, payload)
+      .catch((error: any) => {
+        console.error('Feedback submission error:', error);
+        
+        if (error.message?.includes('429')) {
+          toast({
+            title: 'Too many requests',
+            description: 'Please wait a moment before submitting more feedback.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Failed to submit feedback',
+            description: 'Please try again later.',
+            variant: 'destructive',
+          });
+        }
+      })
+      .finally(() => {
+        setIsSubmitting(false);
       });
-
-      onSuccess?.(sentiment);
-      
-      // Reset state and close
-      setSentiment(initialSentiment);
-      setComment('');
-      onClose();
-    } catch (error: any) {
-      console.error('Feedback submission error:', error);
-      
-      if (error.message?.includes('429')) {
-        toast({
-          title: 'Too many requests',
-          description: 'Please wait a moment before submitting more feedback.',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Failed to submit feedback',
-          description: 'Please try again later.',
-          variant: 'destructive',
-        });
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   return (
