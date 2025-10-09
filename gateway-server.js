@@ -2,6 +2,7 @@
 
 import express from "express";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import http from "node:http";
 import path from "node:path";
@@ -29,6 +30,21 @@ console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, gateway: true, timestamp: new Date().toISOString() });
 });
+
+// ---------- Bot/Scanner Protection (Rate Limiting) ----------
+// Aggressive rate limiting to block scanners and bots
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // Limit each IP to 200 requests per 15 minutes
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for health checks
+  skip: (req) => req.path === '/health'
+});
+
+// Apply rate limiting to all routes (except health check)
+app.use(generalLimiter);
 
 // ---------- Security headers with Helmet ----------
 app.use(helmet({
