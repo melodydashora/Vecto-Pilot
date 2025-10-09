@@ -21,6 +21,36 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
     console.log(`✅ [${correlation_id}] Ranking inserted with ID: ${ranking_id}`);
 
     if (venues?.length) {
+      // UPSERT venues to catalog and bump metrics (atomic with ranking)
+      for (const v of venues) {
+        if (v.place_id) {
+          try {
+            // 1) Upsert to venue_catalog
+            await client.query(`
+              INSERT INTO venue_catalog (place_id, name, address, lat, lng, category, city, metro, discovery_source, created_at)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'llm', NOW())
+              ON CONFLICT (place_id) DO UPDATE
+              SET name = EXCLUDED.name,
+                  address = EXCLUDED.address,
+                  lat = EXCLUDED.lat,
+                  lng = EXCLUDED.lng,
+                  category = EXCLUDED.category,
+                  city = EXCLUDED.city,
+                  metro = EXCLUDED.metro
+            `, [v.place_id, v.name, '', v.lat, v.lng, v.category || 'unknown', city || null, null]);
+
+            // 2) Upsert to venue_metrics (bump times_recommended)
+            await client.query(`
+              INSERT INTO venue_metrics (venue_id, times_recommended, times_chosen, positive_feedback, negative_feedback, reliability_score)
+              SELECT venue_id, 1, 0, 0, 0, 0.5 FROM venue_catalog WHERE place_id = $1
+              ON CONFLICT (venue_id) DO UPDATE SET times_recommended = venue_metrics.times_recommended + 1
+            `, [v.place_id]);
+          } catch (catalogErr) {
+            console.warn(`⚠️ [${correlation_id}] Catalog/metrics upsert skipped for ${v.name}:`, catalogErr.message);
+          }
+        }
+      }
+
       const cols = [
         "id","ranking_id","block_id","name","lat","lng","place_id","rank","exploration_policy",
         "distance_miles","drive_time_minutes","value_per_min","value_grade","not_worth"
