@@ -1,7 +1,7 @@
 # Vecto Pilot™ - Strategic Rideshare Assistant
 
 ## Overview
-Vecto Pilot™ is a comprehensive rideshare driver assistance platform designed to maximize driver earnings and efficiency. It provides intelligent shift planning, automated trip tracking, earnings analytics, and AI-powered strategic recommendations. The platform integrates an advanced AI assistant layer, "Eidolon," for enhanced workspace intelligence. Its primary goal is to equip rideshare drivers with data-driven insights and real-time strategic support to optimize their work and income. The project aims to provide data-driven insights and real-time strategic support to optimize rideshare drivers' work and income, leveraging advanced AI and a robust, trust-first architecture to deliver reliable and actionable recommendations.
+Vecto Pilot™ is a rideshare driver assistance platform designed to maximize driver earnings and efficiency. It offers intelligent shift planning, automated trip tracking, earnings analytics, and AI-powered strategic recommendations. The platform integrates an advanced AI assistant layer, "Eidolon," for enhanced workspace intelligence. Its primary goal is to equip rideshare drivers with data-driven insights and real-time strategic support to optimize their work and income. The project aims to leverage advanced AI and a robust, trust-first architecture to deliver reliable and actionable recommendations.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -9,7 +9,7 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### UI/UX
-The frontend is built with React 18, TypeScript, and Vite 7, featuring a mobile-first design using Radix UI and Tailwind CSS (shadcn/ui). State management is handled by `@tanstack/react-query`, and routing by Wouter. Form handling uses `react-hook-form` with Zod validation. Key design principles include a global header, location context for GPS, and strict TypeScript.
+The frontend is built with React 18, TypeScript, and Vite 7, utilizing a mobile-first design with Radix UI and Tailwind CSS (shadcn/ui). State management uses `@tanstack/react-query`, and routing is handled by Wouter. Form handling employs `react-hook-form` with Zod validation. Key design principles include a global header, location context for GPS, and strict TypeScript.
 
 ### Technical Implementations
 The backend uses Node.js v22.17.0 with Express.js, operating on a multi-server architecture:
@@ -21,41 +21,15 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
 
 ### Feature Specifications
 - **Location Services**: Integrates Browser Geolocation API, Google Maps JavaScript API, and H3 geospatial indexing for context snapshots (GPS, geocoded location, timezone, weather, air quality, airport context).
-- **AI & Machine Learning (Triad Pipeline)**: A three-stage LLM pipeline (Claude Sonnet 4.5 → GPT-5 → Gemini 2.5 Pro) provides strategic analysis, tactical planning, and JSON validation.
-    - **Claude Sonnet 4.5 (Strategist)**: Model `claude-sonnet-4-5-20250929` - Analyzes context, generates strategic overview, pro tips, and earnings estimates.
-    - **GPT-5 (Planner)**: Performs deep reasoning for venue selection and timing.
+- **AI & Machine Learning (Triad Pipeline)**: A three-stage LLM pipeline (Claude Sonnet 4.5 → GPT-5 → Gemini 2.5 Pro) provides strategic analysis, tactical planning, and JSON validation. The Triad is single-path only, with no fallbacks.
+    - **Claude Sonnet 4.5 (Strategist)**: Analyzes context, generates strategic overview, pro tips, and earnings estimates.
+    - **GPT-5 (Planner)**: Performs deep reasoning for venue selection and timing, ensuring centrally-positioned staging areas within 1-2 minutes drive of all recommended venues.
     - **Gemini 2.5 Pro (Validator)**: Validates JSON structure and ensures a minimum number of recommendations.
-    - **Triad is single-path ONLY** - No fallbacks in the triad pipeline to ensure consistent quality.
-- **Atomic Database Persistence (Oct 9, 2025)**: Production-grade ML training data capture with ACID guarantees.
-    - **PostgreSQL Transactions**: BEGIN/COMMIT/ROLLBACK pattern ensures rankings and candidates persist together or not at all.
-    - **Fail-Hard Error Handling**: Persistence failures return 502 instead of silent success.
-    - **Database Constraints**: Unique indexes on rank, check constraints for non-negative values, foreign key cascades.
-    - **Places Caching**: Separates stable data (coords/address in `places`) from volatile data (hours in `places_cache`).
-    - **Comprehensive Logging**: Field-level visibility with correlation_id tracing throughout entire workflow.
-- **Agent Override (Atlas) with Fallback Resilience**: Workspace intelligence layer with fallback chain for operational continuity.
-    - **Primary: Atlas (Claude Sonnet 4.5)**: Model `claude-sonnet-4-5-20250929` - Main workspace assistant for file ops, SQL, and diagnostics.
-    - **Fallback Chain**: Claude → GPT-5 → Gemini if Anthropic servers fail.
-    - **Separate Keys**: Uses AGENT_OVERRIDE_API_KEYC/5/G (different from triad keys).
-    - **Endpoint**: `/agent/llm` on Agent Server (Port 43717).
-- **Enhanced Memory & Context Awareness**: PostgreSQL-backed persistent memory system for assistant and Eidolon.
-    - **Assistant Memory**: Stores user preferences, conversation history, and session state.
-    - **Eidolon Memory**: Tracks project state, recent activity, and system context.
-    - **Context APIs**: Real-time project summaries, recent snapshots, strategies, and actions.
-    - **Automatic Retention**: 365-day retention for preferences, 30-day for conversations, 7-day for sessions.
-- **Per-Ranking Feedback System (Oct 9, 2025)**: Continuous learning loop for venue and strategy improvement.
-    - **Venue Feedback**: Thumbs up/down on individual venues with optional comments.
-    - **Strategy Feedback**: Overall strategy assessment per ranking.
-    - **App Feedback (NEW)**: Simplified whole-app feedback with minimal data requirements (snapshot context only, no user_id or ranking_id required).
-    - **Database**: venue_feedback, strategy_feedback, and app_feedback tables with unique constraints.
-    - **API Endpoints**: POST /api/feedback/venue, POST /api/feedback/strategy, POST /api/feedback/app, GET /api/feedback/venue/summary.
-    - **Rate Limiting**: 10 requests per minute for venue/strategy, no limit for app feedback.
-    - **Blocks Enrichment**: Non-blocking feedback counts (up_count, down_count) added to venue cards.
-    - **UI Components**: Unified FeedbackModal supporting venue, strategy, and app feedback modes with sentiment selection and comment input.
-- **Configuration Management**: Safe file editing capabilities with backup and validation.
-    - **Allowed Files**: `.env`, `.env.local`, `.env.example`, config files (Vite, Tailwind, TypeScript, etc.).
-    - **Env Updates**: Atomic updates to environment variables with automatic backup.
-    - **Config Backup**: Timestamped backups before any modifications.
-    - **Safety**: Whitelist-based file access, size limits, and path validation.
+- **Atomic Database Persistence**: Production-grade ML training data capture with ACID guarantees using PostgreSQL transactions, fail-hard error handling, and database constraints.
+- **Agent Override (Atlas) with Fallback Resilience**: A workspace intelligence layer with a fallback chain (Claude → GPT-5 → Gemini) for operational continuity, accessible via `/agent/llm` on the Agent Server.
+- **Enhanced Memory & Context Awareness**: PostgreSQL-backed persistent memory system for assistant and Eidolon, storing user preferences, conversation history, session state, and project state with defined retention policies.
+- **Per-Ranking Feedback System**: Continuous learning loop via user feedback on venues, strategies, and the app itself, captured in `venue_feedback`, `strategy_feedback`, and `app_feedback` tables.
+- **Configuration Management**: Safe file editing capabilities with backup and validation for allowed config files (e.g., `.env`, `drizzle.config.ts`), featuring whitelisted file access, size limits, and path validation.
 - **Trust-First Stack**: Employs a curated venue catalog and a deterministic scoring engine to prevent hallucinations, ranking venues based on proximity, reliability, event intensity, and personalization.
 - **ML Instrumentation**: Full logging of rankings, candidates, and user actions for counterfactual learning.
 - **Error Handling**: Implements try-catch blocks, circuit breakers for LLM providers, error classification, idempotency, and graceful degradation.
@@ -63,14 +37,14 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
 
 ### System Design Choices
 - **Zero Pre-Computed Flags**: Models infer patterns directly from raw context.
-- **No Graceful Fallbacks in Triad**: Triad pipeline is single-path only; issues are fixed properly, and complete snapshots are sent.
-- **Agent Override Has Fallbacks**: Atlas (Agent Override) uses fallback chain (Claude → GPT-5 → Gemini) for operational resilience.
+- **No Graceful Fallbacks in Triad**: Triad pipeline is single-path only.
+- **Agent Override Has Fallbacks**: Atlas (Agent Override) uses a fallback chain.
 - **Single Source of Truth**: All model configurations are managed via `.env` variables.
 - **100% Variable-Based Data**: All location, time, and weather data are fetched live.
-- **Fail-Safe Design**: The system is designed to never crash on API failures, showing clear error messages instead.
+- **Fail-Safe Design**: System is designed to show clear error messages on API failures, not crash.
 - **Mobile-First GPS Precision**: High-accuracy GPS is enabled by default.
-- **Key-Based Merge Only** (Oct 8, 2025): All validator/enricher merges use stable keys (place_id or name), never array index. Prevents $0 earnings from misalignment.
-- **Server as Coordinate Truth** (Oct 8, 2025): Client uses server-returned venue coordinates for all calculations. Device GPS never overwrites venue positions.
+- **Key-Based Merge Only**: All validator/enricher merges use stable keys (place_id or name).
+- **Server as Coordinate Truth**: Client uses server-returned venue coordinates for all calculations.
 
 ## External Dependencies
 
@@ -81,138 +55,30 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
 
 ### Maps & Location
 - **Google Maps JavaScript API**: `@googlemaps/js-api-loader`
-- **Google Routes API**: For traffic-aware distance/ETA.
-- **Google Places API**: For business hours.
-- **OpenWeather API**: For current weather data.
+- **Google Routes API**
+- **Google Places API**
+- **OpenWeather API**
 - **H3 Geospatial**: `h3-js`
 
 ### UI Component Libraries
-- **Radix UI**: Headless primitives.
-- **Tailwind CSS**: Utility-first styling.
-- **shadcn/ui**: Pre-built components.
-- **Lucide React**: Icon library.
-- **Recharts**: Data visualization.
+- **Radix UI**
+- **Tailwind CSS**
+- **shadcn/ui**
+- **Lucide React**
+- **Recharts**
 
 ### Form & Data Management
-- **React Hook Form**: Form state management.
-- **Zod**: Runtime validation.
-- **@tanstack/react-query**: Server state management.
+- **React Hook Form**
+- **Zod**
+- **@tanstack/react-query**
 
 ### Backend Infrastructure
-- **Express**: HTTP server.
-- **http-proxy-middleware**: Reverse proxy.
-- **cors**: Cross-origin resource sharing.
-- **express-rate-limit**: API rate limiting.
-- **dotenv**: Environment configuration.
-- **PostgreSQL**: Database with Drizzle ORM.
-- **pg**: PostgreSQL client.
+- **Express**
+- **http-proxy-middleware**
+- **cors**
+- **express-rate-limit**
+- **dotenv**
+- **PostgreSQL** (with Drizzle ORM and `pg` client)
 
 ### Deployment Environment
-- **Platform**: Replit
-- **Deployment Type**: Autoscale (stateless, auto-scaling web apps)
-- **Port Configuration**: Uses `process.env.PORT` (dynamically assigned by Replit)
-- **Build Process**: `npm run build` (Vite production build)
-- **Start Command**: `npm start` (NODE_ENV=production)
-- **Production Features**:
-  - Gateway serves pre-built React app from `/dist`
-  - All API routes mounted directly on gateway
-  - Single process, minimal overhead
-  - Comprehensive error logging and health checks
-
-## Agent Server Capabilities
-
-### Enhanced Memory System
-The agent server now includes comprehensive memory and context awareness:
-
-**Context Endpoints:**
-- `GET /agent/context?threadId={id}` - Full project context with optional thread awareness
-- `GET /agent/context/summary` - High-level project summary
-- `GET /agent/context/enhanced` - Enhanced project context with deep analysis
-
-**Thread Awareness Endpoints (NEW):**
-- `POST /agent/thread/init` - Initialize new conversation thread with contextual tracking
-- `GET /agent/thread/:threadId` - Get full thread context with all messages and metadata
-- `POST /agent/thread/:threadId/message` - Add message to thread (auto-extracts topics/entities)
-- `POST /agent/thread/:threadId/decision` - Track important decisions within thread
-- `GET /agent/threads/recent?limit={n}` - Get recent threads with summaries
-
-**Memory Endpoints:**
-- `POST /agent/memory/preference` - Save user preferences
-- `POST /agent/memory/session` - Save session state
-- `POST /agent/memory/project` - Save project state
-- `POST /agent/memory/conversation` - Remember conversation topics
-- `GET /agent/memory/conversations` - Retrieve recent conversations
-
-**Workspace Intelligence Endpoints:**
-- `POST /agent/search/internet` - Perform internet research using Perplexity API
-- `GET /agent/analyze/deep` - Deep workspace analysis with file statistics
-
-**Database Tables:**
-- `assistant_memory` - User preferences, conversation history, and thread messages
-- `eidolon_memory` - Project state, session tracking, and conversation threads
-
-**Thread Features:**
-- **Automatic Context Enrichment**: Extracts topics, entities (model names, file paths), and tracks model interactions
-- **Parent-Child Threads**: Support for threaded conversations with parentThreadId
-- **Decision Tracking**: Log important decisions with reasoning and impact
-- **Message Summaries**: Auto-generated summaries by role and provider
-- **Lightweight NLP**: Automatic extraction of technical entities and topics from conversation
-
-### Configuration Management
-Safe file editing with validation and backups:
-
-**Endpoints:**
-- `GET /agent/config/list` - List all allowed config files
-- `GET /agent/config/read/:filename` - Read config file contents
-- `POST /agent/config/env/update` - Update .env variables
-- `POST /agent/config/backup/:filename` - Create timestamped backup
-
-**Allowed Configuration Files:**
-- `.env`, `.env.local`, `.env.example`
-- `drizzle.config.ts`, `vite.config.ts`, `tailwind.config.ts`
-- `tsconfig.json`, `package.json`
-
-**Safety Features:**
-- Whitelist-based file access
-- Automatic backups before modifications
-- 10MB file size limit
-- Path traversal protection
-- Token-based authentication
-
-**Additional Capabilities:**
-- **File Operations**: Read/write with 10MB limit and path validation
-- **Shell Execution**: Whitelisted commands only (git, npm, node, ls, cat, etc.)
-- **SQL Operations**: Query and execute with database connection pooling
-- **Health Monitoring**: `/agent/health` endpoint for status checks
-
-## Documentation & Workflow Maintenance
-
-### Documentation Update Protocol
-Whenever changes affect the workflow, update these files in order:
-
-1. **`ARCHITECTURE.md`** - High-level architectural decisions and Fix Capsules
-2. **`replit.md`** (this file) - System overview and user preferences  
-3. **`scripts/full-workflow-analysis.mjs`** - Technical workflow trace with exact API calls and DB operations
-4. **`logs/WORKFLOW-DATA-FLOW.md`** - Human-readable workflow documentation (generated from the script)
-
-### What Triggers Updates
-Update the workflow scripts when we change:
-- **API flow** (new Google APIs, different endpoints)
-- **Database operations** (new tables, different fields, caching strategy)
-- **Triad pipeline** (model changes, prompt modifications, new validation steps)
-- **Workflow gating** (new validation checks, different sequencing)
-- **Data transformations** (how data flows from one stage to another)
-- **UI mapper** (how frontend transforms server response)
-
-### Workflow Testing Script
-- **`scripts/full-workflow-analysis.mjs`** - Complete end-to-end workflow test with comprehensive tracing
-  - Creates location snapshot
-  - Triggers full workflow (GPS → snapshot → strategy → blocks)
-  - Polls until strategy and blocks are ready
-  - Validates first venue has non-zero distance/time from Routes API
-  - Shows every API call, DB operation, and data flow step
-  - Displays database writes to snapshots, strategies, rankings, and ranking_candidates tables
-
-Run with: `node scripts/full-workflow-analysis.mjs`
-
-This script serves as **living documentation** - it can be run to verify the system works as documented and ensures docs stay accurate.
+- **Platform**: Replit (Autoscale deployment)
