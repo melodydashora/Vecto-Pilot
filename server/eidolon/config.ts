@@ -86,8 +86,7 @@ export const EIDOLON_CONFIG = {
     primary: "claude-sonnet-4-5-20250929",
     provider: "anthropic",
     max_tokens: 64000, // Maximum for deep reasoning
-    temperature: 1.0, // Focused mode - balanced creativity & precision
-    top_p: 0.95,
+    temperature: 1.0, // Focused mode - balanced creativity & precision (Claude only supports temp OR top_p, not both)
     context_window: 200000, // 200K token context
     thinking_mode: "focused", // Extended thinking for complex tasks
     api_version: "2023-06-01"

@@ -4,6 +4,29 @@
 Vecto Pilot™ is a rideshare driver assistance platform designed to maximize driver earnings and efficiency. It offers intelligent shift planning, automated trip tracking, earnings analytics, and AI-powered strategic recommendations. The platform integrates an advanced AI assistant layer, "Eidolon," for enhanced workspace intelligence. Its primary goal is to equip rideshare drivers with data-driven insights and real-time strategic support to optimize their work and income. The project aims to leverage advanced AI and a robust, trust-first architecture to deliver reliable and actionable recommendations.
 
 ## Recent Changes (Oct 9, 2025)
+### Agent/Assistant/Eidolon MAXIMUM Enhancement ✅
+1. **Claude Sonnet 4.5 Focused Mode** - All three systems (Agent, Assistant, Eidolon) now use claude-sonnet-4-5-20250929 with:
+   - 200K token context window
+   - 64K max output tokens
+   - Temperature 1.0 (balanced creativity & precision)
+   - Extended thinking mode for deep reasoning
+2. **Full Root Access** - Agent server has unrestricted capabilities:
+   - File operations: read/write/delete (no restrictions)
+   - Shell commands: unrestricted whitelist (*)
+   - SQL operations: DDL + DML + read/write
+   - Web search via Perplexity API (sonar-pro)
+   - Design & architecture consultation mode
+3. **Enhanced Memory Systems**:
+   - 200K context window across all sessions
+   - Semantic search enabled
+   - Cross-session workspace intelligence
+   - 2-year memory retention (730 days)
+   - PostgreSQL-backed with compaction
+4. **Atlas Fallback Chain Enhanced**:
+   - Primary: Claude Sonnet 4.5 (64K tokens, temp=1.0)
+   - Fallback 1: GPT-5 (reasoning_effort=high)
+   - Fallback 2: Gemini 2.5 Pro (8K tokens)
+
 ### Database Cleanup & ML Focus ✅
 1. **Database Tables Streamlined** - Removed all non-ML tables (user_profiles, user_preferences, assistant_memory, eidolon_memory, places)
 2. **Core ML Tables Active** (15 tables):

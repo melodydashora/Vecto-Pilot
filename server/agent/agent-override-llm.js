@@ -8,9 +8,17 @@ const CLAUDE_KEY = process.env.AGENT_OVERRIDE_API_KEYC || process.env.ANTHROPIC_
 const GPT5_KEY = process.env.AGENT_OVERRIDE_API_KEY5 || process.env.OPENAI_API_KEY;
 const GEMINI_KEY = process.env.AGENT_OVERRIDE_API_KEYG || process.env.GOOGLEAQ_API_KEY;
 
-const CLAUDE_MODEL = process.env.AGENT_OVERRIDE_CLAUDE_MODEL || "claude-sonnet-4-5-20250929";
+// MAXIMUM CONTEXT MODELS - Claude Sonnet 4.5 Focused Mode
+const CLAUDE_MODEL = process.env.AGENT_OVERRIDE_CLAUDE_MODEL || process.env.AGENT_MODEL || "claude-sonnet-4-5-20250929";
 const GPT5_MODEL = process.env.AGENT_OVERRIDE_GPT5_MODEL || "gpt-5";
 const GEMINI_MODEL = process.env.AGENT_OVERRIDE_GEMINI_MODEL || "gemini-2.5-pro";
+
+// Enhanced parameters from env
+const CLAUDE_MAX_TOKENS = parseInt(process.env.AGENT_MAX_TOKENS || "64000");
+const CLAUDE_TEMPERATURE = parseFloat(process.env.AGENT_TEMPERATURE || "1.0");
+const CLAUDE_TOP_P = parseFloat(process.env.AGENT_TOP_P || "0.95");
+const GPT5_REASONING_EFFORT = process.env.GPT5_REASONING_EFFORT || "high";
+const GEMINI_TEMPERATURE = parseFloat(process.env.GEMINI_TEMPERATURE || "0.7");
 
 async function callClaude({ system, user, json }) {
   if (!CLAUDE_KEY) throw new Error("AGENT_OVERRIDE_API_KEYC not configured");
@@ -20,11 +28,14 @@ async function callClaude({ system, user, json }) {
   
   const params = {
     model: CLAUDE_MODEL,
-    max_tokens: 4096,
+    max_tokens: CLAUDE_MAX_TOKENS,
+    temperature: CLAUDE_TEMPERATURE, // Use temperature only (Claude doesn't allow both temp & top_p)
     system,
     messages: [{ role: "user", content: user }],
   };
 
+  console.log(`[Atlas/Claude] Using ${CLAUDE_MODEL} with ${CLAUDE_MAX_TOKENS} max tokens, temp=${CLAUDE_TEMPERATURE}`);
+  
   const completion = await anthropic.messages.create(params);
   
   return {
@@ -32,6 +43,7 @@ async function callClaude({ system, user, json }) {
     model: CLAUDE_MODEL,
     text: completion.content[0].text,
     elapsed_ms: Date.now() - start,
+    usage: completion.usage,
   };
 }
 
@@ -47,12 +59,16 @@ async function callGPT5({ system, user, json }) {
       { role: "system", content: system },
       { role: "user", content: user }
     ],
+    reasoning_effort: GPT5_REASONING_EFFORT,
+    max_completion_tokens: 32000,
   };
 
   if (json) {
     params.response_format = { type: "json_object" };
   }
 
+  console.log(`[Atlas/GPT-5] Using ${GPT5_MODEL} with reasoning_effort=${GPT5_REASONING_EFFORT}`);
+  
   const completion = await openai.chat.completions.create(params);
   
   return {
@@ -60,6 +76,7 @@ async function callGPT5({ system, user, json }) {
     model: GPT5_MODEL,
     text: completion.choices[0].message.content,
     elapsed_ms: Date.now() - start,
+    usage: completion.usage,
   };
 }
 
@@ -74,10 +91,16 @@ async function callGemini({ system, user, json }) {
   
   const start = Date.now();
   
-  const generationConfig = {};
+  const generationConfig = {
+    temperature: GEMINI_TEMPERATURE,
+    maxOutputTokens: 8192,
+  };
+  
   if (json) {
     generationConfig.responseMimeType = "application/json";
   }
+  
+  console.log(`[Atlas/Gemini] Using ${GEMINI_MODEL} with temp=${GEMINI_TEMPERATURE}`);
   
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: user }] }],
@@ -89,6 +112,7 @@ async function callGemini({ system, user, json }) {
     model: GEMINI_MODEL,
     text: result.response.text(),
     elapsed_ms: Date.now() - start,
+    usage: result.response.usageMetadata,
   };
 }
 
