@@ -44,6 +44,7 @@ Data is stored in PostgreSQL for ML data. Security measures include token-based 
 - **Mobile-First GPS Precision**: High-accuracy GPS is enabled by default.
 - **Key-Based Merge Only**: All validator/enricher merges use stable keys (place_id or name).
 - **Server as Coordinate Truth**: Client uses server-returned venue coordinates for all calculations.
+- **Global Location Support**: GPT-5 generates venues from GPS coordinates - works worldwide even without catalog venues.
 
 ## External Dependencies
 
@@ -78,3 +79,41 @@ Data is stored in PostgreSQL for ML data. Security measures include token-based 
 - **express-rate-limit**
 - **dotenv**
 - **PostgreSQL** (with Drizzle ORM and `pg` client)
+## Global User Support
+
+**Vecto Pilot™ works worldwide** - not just in cities with venue catalog coverage!
+
+### How It Works Globally
+
+1. **GPS is Universal**: Browser geolocation works anywhere in the world
+2. **Google APIs are Global**: Geocoding, timezone, weather, and air quality work worldwide
+3. **GPT-5 Generates Venues**: The tactical planner creates venue recommendations from scratch based on GPS coordinates, not from a pre-defined catalog
+4. **Null City Handling**: If geocoding can't determine a city name, the system falls back to:
+   - Formatted address (e.g., "Paris, France")
+   - Coordinates (e.g., "48.8566, 2.3522")
+   - "unknown" in AI prompts (GPT-5 uses coordinates to find nearby venues)
+
+### Coverage Areas
+
+**Curated Venue Catalog** (for reference context only):
+- Primary: Frisco, TX (143 venues)
+- Secondary: Dallas, Plano, Arlington areas
+- **Note**: Catalog is NOT required for recommendations!
+
+**AI-Generated Recommendations** (worldwide):
+- GPT-5 generates 4-6 specific venues near driver's GPS coordinates
+- Works in any city globally (Paris, Tokyo, London, Mumbai, etc.)
+- Uses real-time context: weather, time of day, day of week
+- Validated via Google Places API for business hours and addresses
+
+### Example: International Driver (Paris)
+
+```
+GPS: 48.8566, 2.3522 (Eiffel Tower area)
+City: null → Falls back to "Paris, France"
+Claude Strategy: "Today is Thursday, 10/09/2025 at 6:00 PM in Paris..."
+GPT-5 Venues: Generates specific Paris locations (CDG airport, Gare du Nord, Champs-Élysées, etc.)
+Result: 5-7 venue recommendations tailored to Paris traffic patterns and local demand
+```
+
+The system automatically adapts to any location worldwide!

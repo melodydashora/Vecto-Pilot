@@ -233,6 +233,17 @@ router.post('/', async (req, res) => {
     const diverse = applyDiversityGuardrails(scored, { minCategories: 2, maxPerCategory: 3 });
     const shortlist = diverse.slice(0, 6);
 
+    // Global user support: Catalog may be empty for international locations
+    if (shortlist.length === 0) {
+      const locationName = fullSnapshot.city 
+        ? `${fullSnapshot.city}, ${fullSnapshot.state || fullSnapshot.country || 'global'}`
+        : `coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+      
+      console.log(`🌍 [${correlationId}] No venue catalog matches for ${locationName} - GPT-5 will generate venues from scratch`);
+    } else {
+      console.log(`📋 [${correlationId}] Venue shortlist: ${shortlist.length} venues from catalog`);
+    }
+
     // Enrich with drive times
     const driveCtx = { 
       tz: fullSnapshot.timezone, // Snapshot timezone required - no fallback
