@@ -17,7 +17,6 @@ export async function enrichVenuesWithGemini({ venues, driverLocation, snapshot 
   const prompt = `You are a rideshare earnings calculator and venue validator for ${snapshot?.city || 'the area'}.
 
 DRIVER LOCATION: ${driverLocation.lat}, ${driverLocation.lng}
-CURRENT TIME: ${snapshot?.created_at ? new Date(snapshot.created_at).toLocaleString() : 'now'}
 DAY/TIME: ${snapshot?.day_part || 'unknown'} | WEATHER: ${snapshot?.weather || 'unknown'}
 
 VENUES TO ANALYZE:
@@ -34,7 +33,7 @@ TASK - Calculate probable earnings per ride for each venue based on:
    
 3. **TIME OF DAY** - ${snapshot?.day_part || 'current time'} affects demand and pricing
 
-4. **OPEN/CLOSED** - If venue is CLOSED (isOpen=false), explain strategic value of positioning nearby
+4. **OPEN/CLOSED** - If venue is CLOSED (isOpen=false), explain strategic value of positioning nearby WITHOUT including any time references
 
 VALIDATION:
 - "valid" = coordinates accurate, venue exists
@@ -54,7 +53,7 @@ OUTPUT (JSON array; MUST preserve input order and echo "placeId" unchanged for e
     "earnings_per_mile": 3.56,
     "validation_status": "valid",
     "ranking_score": 8.5,
-    "closed_venue_reasoning": "Strategic positioning explanation" (only if closed)
+    "closed_venue_reasoning": "Strategic positioning explanation - NO TIMES" (only if closed)
   }
 ]
 

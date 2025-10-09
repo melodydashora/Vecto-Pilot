@@ -661,9 +661,24 @@ const CoPilot: React.FC = () => {
 
         {/* Strategy Section - Always visible */}
         <div className="mb-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-600" />
-            <h2 className="text-lg font-semibold text-gray-800">Strategy</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              <h2 className="text-lg font-semibold text-gray-800">Strategy</h2>
+            </div>
+            {/* Static Feedback Button - Always Visible */}
+            {lastSnapshotId && blocksData?.ranking_id && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-8 px-3 text-sm"
+                onClick={() => setStrategyFeedbackOpen(true)}
+                data-testid="button-strategy-feedback-static"
+              >
+                <MessageSquare className="w-4 h-4 mr-1" />
+                Give Feedback
+              </Button>
+            )}
           </div>
           {!coords ? (
             <Card className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 border-gray-300 shadow-md" data-testid="strategy-needs-gps">
