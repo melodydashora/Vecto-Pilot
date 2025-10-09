@@ -455,14 +455,27 @@ router.post('/', async (req, res) => {
             hasSpecialHours: hoursData.hasSpecialHours
           };
         } catch (error) {
-          console.warn(`⚠️ [${correlationId}] Failed to enrich ${v.name}: ${error.message}`);
-          // Fail hard - don't proceed with unresolved venues
-          throw new Error(`Venue resolution failed for ${v.name}: ${error.message}`);
+          console.warn(`⚠️ [${correlationId}] Failed to enrich ${v.name}: ${error.message} - SKIPPING`);
+          // Skip unresolvable venues (e.g., districts, non-specific areas)
+          return null;
         }
       })
     );
 
-    console.log(`✅ [${correlationId}] Business hours enrichment complete`);
+    // Filter out null venues (those that couldn't be resolved)
+    enrichedVenues = enrichedVenues.filter(v => v !== null);
+    
+    if (enrichedVenues.length === 0) {
+      console.error(`❌ [${correlationId}] All venues failed resolution - cannot proceed`);
+      return res.status(502).json({ 
+        ok: false, 
+        error: 'venue_resolution_failed',
+        message: 'All recommended venues could not be verified with Google Places',
+        correlationId 
+      });
+    }
+
+    console.log(`✅ [${correlationId}] Business hours enrichment complete: ${enrichedVenues.length} venues resolved`);
 
     // ============================================
     // STEP 4.5: Enrich staging location (Geocoding + Places split)
