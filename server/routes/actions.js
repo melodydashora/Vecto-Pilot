@@ -126,37 +126,49 @@ router.post('/', async (req, res) => {
       } catch (err) {
         lastError = err;
         
-        // Check if it's a foreign key constraint error for ranking_id
-        if (err.code === '23503' && err.constraint === 'actions_ranking_id_rankings_ranking_id_fk') {
+        // Check if it's a foreign key constraint error (replication lag for ranking_id or snapshot_id)
+        const isRankingFKError = err.code === '23503' && err.constraint === 'actions_ranking_id_rankings_ranking_id_fk';
+        const isSnapshotFKError = err.code === '23503' && err.constraint === 'actions_snapshot_id_snapshots_snapshot_id_fk';
+        
+        if (isRankingFKError || isSnapshotFKError) {
           if (attempt < maxRetries) {
             const delay = retryDelayMs * attempt; // Exponential backoff
-            console.warn(`⚠️ Foreign key error (replication lag), retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+            const constraint = isRankingFKError ? 'ranking_id' : 'snapshot_id';
+            console.warn(`⚠️ Foreign key error on ${constraint} (replication lag), retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
-          // If all retries exhausted, log action without ranking_id
-          console.warn(`⚠️ Replication lag persists after ${maxRetries} retries, logging without ranking_id`);
-          actionData.ranking_id = null;
-          try {
-            await db.insert(actions).values(actionData);
-            console.log(`📊 Action logged (no ranking): ${action}${block_id ? ` on ${block_id}` : ''}`);
-            
-            const response = { 
-              success: true, 
-              action_id,
-              warning: 'logged_without_ranking_id'
-            };
+          
+          // If all retries exhausted
+          if (isRankingFKError) {
+            // For ranking_id, log action without it
+            console.warn(`⚠️ Replication lag persists after ${maxRetries} retries, logging without ranking_id`);
+            actionData.ranking_id = null;
+            try {
+              await db.insert(actions).values(actionData);
+              console.log(`📊 Action logged (no ranking): ${action}${block_id ? ` on ${block_id}` : ''}`);
+              
+              const response = { 
+                success: true, 
+                action_id,
+                warning: 'logged_without_ranking_id'
+              };
 
-            if (idempotencyKey) {
-              idempotencyCache.set(idempotencyKey, {
-                response,
-                timestamp: Date.now()
-              });
+              if (idempotencyKey) {
+                idempotencyCache.set(idempotencyKey, {
+                  response,
+                  timestamp: Date.now()
+                });
+              }
+
+              return res.json(response);
+            } catch (finalErr) {
+              lastError = finalErr;
+              break;
             }
-
-            return res.json(response);
-          } catch (finalErr) {
-            lastError = finalErr;
+          } else {
+            // For snapshot_id, we can't log without it (it's required), so fail
+            console.error(`❌ Snapshot ${snapshot_id} not found after ${maxRetries} retries - cannot log action without snapshot`);
             break;
           }
         }
