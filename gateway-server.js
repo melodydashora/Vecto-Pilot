@@ -15,10 +15,15 @@ import { startMemoryCompactor } from "./server/eidolon/memory/compactor.js";
 const app = express();
 // Trust exactly 1 proxy (Replit platform) - prevents IP spoofing in rate limiting
 app.set('trust proxy', 1);
+
+// AUTOSCALE: Use Replit-provided PORT or fallback to 5000 for dev
 const PORT = Number(process.env.PORT) || 5000;
 const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3101;
 const AGENT_PORT = Number(process.env.AGENT_PORT) || 43717;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+console.log(`🚀 [gateway] Starting in ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
+console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}, Agent=${AGENT_PORT}`);
 
 // ---------- CRITICAL: health check first (must respond instantly) ----------
 app.get("/health", (_req, res) => {
@@ -483,34 +488,48 @@ app.use((req, res) => res.status(404).json({ ok: false, error: "route_not_found"
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-const server = app.listen(PORT, "0.0.0.0", async () => {
-  console.log(`🌐 [${IS_PRODUCTION ? 'vecto' : 'gateway'}] Server listening on 0.0.0.0:${PORT}`);
-  
-  if (IS_PRODUCTION) {
-    console.log(`✅ [vecto] Production server ready with all API routes mounted`);
-    if (process.env.REPL_ID) {
-      console.log(`✅ [vecto] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
-    }
-  } else {
-    // Development: Full Eidolon experience
-    console.log(`🌐 [gateway] Proxying /assistant/* -> 127.0.0.1:${SDK_PORT}/api/assistant/*`);
-    console.log(`🌐 [gateway] Proxying /eidolon/* -> 127.0.0.1:${SDK_PORT}/*`);
-    console.log(`🌐 [gateway] Proxying /agent/* -> 127.0.0.1:${AGENT_PORT}/agent/*`);
-    console.log(`🌐 [gateway] Proxying /api/* -> 127.0.0.1:${SDK_PORT}/api/*`);
-    if (process.env.REPL_ID) {
-      console.log(`🌐 [gateway] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
-    }
-    console.log("🐕 Starting Eidolon SDK watchdog…");
-    startSDK();
+let server;
+try {
+  server = app.listen(PORT, "0.0.0.0", async () => {
+    console.log(`🌐 [${IS_PRODUCTION ? 'vecto' : 'gateway'}] Server listening on 0.0.0.0:${PORT}`);
     
-    // Warm up SDK in background
-    (async () => {
-      console.log(`[gateway] Waiting for SDK to become healthy on port ${SDK_PORT}…`);
-      const ok = await probeHealth();
-      if (ok) { sdkReady = true; console.log("[gateway] SDK is healthy and ready"); }
-    })();
-  }
-});
+    if (IS_PRODUCTION) {
+      console.log(`✅ [vecto] Production server ready with all API routes mounted`);
+      if (process.env.REPL_ID) {
+        console.log(`✅ [vecto] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
+      }
+    } else {
+      // Development: Full Eidolon experience
+      console.log(`🌐 [gateway] Proxying /assistant/* -> 127.0.0.1:${SDK_PORT}/api/assistant/*`);
+      console.log(`🌐 [gateway] Proxying /eidolon/* -> 127.0.0.1:${SDK_PORT}/*`);
+      console.log(`🌐 [gateway] Proxying /agent/* -> 127.0.0.1:${AGENT_PORT}/agent/*`);
+      console.log(`🌐 [gateway] Proxying /api/* -> 127.0.0.1:${SDK_PORT}/api/*`);
+      if (process.env.REPL_ID) {
+        console.log(`🌐 [gateway] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
+      }
+      console.log("🐕 Starting Eidolon SDK watchdog…");
+      startSDK();
+      
+      // Warm up SDK in background
+      (async () => {
+        console.log(`[gateway] Waiting for SDK to become healthy on port ${SDK_PORT}…`);
+        const ok = await probeHealth();
+        if (ok) { sdkReady = true; console.log("[gateway] SDK is healthy and ready"); }
+      })();
+    }
+  });
+
+  server.on('error', (err) => {
+    console.error(`❌ [gateway] Server error:`, err);
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ [gateway] Port ${PORT} is already in use. Exiting.`);
+      process.exit(1);
+    }
+  });
+} catch (err) {
+  console.error(`❌ [gateway] Failed to start server:`, err);
+  process.exit(1);
+}
 
 // ---------- shutdown ----------
 function shutdown() {

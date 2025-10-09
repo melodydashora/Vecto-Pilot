@@ -5,10 +5,10 @@
   "main": "gateway-server.js",
   "type": "module",
   "scripts": {
-    "start": "node gateway-server.js",
+    "start": "NODE_ENV=production node gateway-server.js",
     "dev": "NODE_ENV=development node gateway-server.js",
     "eidolon-direct": "node index.js",
-    "build": "tsc --noEmit || true && vite build",
+    "build": "vite build",
     "build:client": "vite build",
     "dev:client": "vite dev",
     "lint": "eslint client/src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
