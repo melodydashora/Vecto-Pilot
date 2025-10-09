@@ -160,14 +160,37 @@ export const places_cache = pgTable("places_cache", {
   access_count: integer("access_count").notNull().default(0),
 });
 
+// Per-venue thumbs up/down feedback (tied to rankings)
 export const venue_feedback = pgTable("venue_feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
-  venue_id: uuid("venue_id").notNull().references(() => venue_catalog.venue_id),
-  driver_user_id: uuid("driver_user_id").notNull(),
-  feedback_type: text("feedback_type").notNull(),
+  user_id: uuid("user_id"),
+  snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id, { onDelete: 'cascade' }),
+  place_id: text("place_id"),
+  venue_name: text("venue_name").notNull(),
+  sentiment: text("sentiment").notNull(), // 'up' or 'down'
   comment: text("comment"),
-  reported_at: timestamp("reported_at", { withTimezone: true }).notNull().defaultNow(),
-});
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  // One vote per user per venue per ranking (allows updates)
+  uniqueUserRankPlace: sql`unique(user_id, ranking_id, place_id)`,
+  idxRanking: sql`create index if not exists ix_feedback_ranking on ${table} (ranking_id)`,
+  idxPlace: sql`create index if not exists ix_feedback_place on ${table} (place_id)`,
+}));
+
+// Strategy-level feedback (separate scope)
+export const strategy_feedback = pgTable("strategy_feedback", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id"),
+  snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id, { onDelete: 'cascade' }),
+  sentiment: text("sentiment").notNull(), // 'up' or 'down'
+  comment: text("comment"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  // One vote per user per ranking for strategy
+  uniqueUserRank: sql`unique(user_id, ranking_id)`,
+}));
 
 export const travel_disruptions = pgTable("travel_disruptions", {
   id: uuid("id").primaryKey().defaultRandom(),
