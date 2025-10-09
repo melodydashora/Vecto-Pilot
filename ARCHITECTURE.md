@@ -2,7 +2,7 @@
 
 ---
 
-**Last Updated:** 2025-10-08 21:00 CST
+**Last Updated:** 2025-10-09 04:00 CST
 
 ---
 
@@ -2093,9 +2093,86 @@ node scripts/full-workflow-analysis.mjs
 
 ---
 
+### Fix Capsule — Per-Ranking Feedback System (Oct 9, 2025)
+
+**Impact**  
+Drivers can now provide thumbs up/down feedback on both individual venues and the overall strategy, creating a continuous learning loop to improve future recommendations.
+
+**Problem**  
+No mechanism existed for drivers to quickly signal which venues were successful or unsuccessful, making it impossible to incorporate real-world driver feedback into ML training data and venue reliability scores.
+
+**Solution Architecture**  
+1. **Database Schema (PostgreSQL)**
+   - `venue_feedback` table: user_id, snapshot_id, ranking_id, place_id, venue_name, sentiment ('up'/'down'), comment
+   - `strategy_feedback` table: Same structure minus place_id/venue_name
+   - Unique constraints: One vote per user per venue per ranking (upserts allowed)
+   - Indexes: ranking_id, place_id for fast aggregation
+
+2. **API Endpoints**
+   - `POST /api/feedback/venue` - Record/update venue feedback with rate limiting (10/min/user)
+   - `GET /api/feedback/venue/summary?ranking_id=<UUID>` - Get aggregated counts per venue
+   - `POST /api/feedback/strategy` - Record/update strategy-level feedback
+
+3. **Blocks Enrichment (Non-Blocking)**
+   - Query feedback counts after ranking persistence
+   - Left join with feedback aggregates grouped by place_id
+   - Attach `up_count` and `down_count` to each block
+   - Graceful degradation: If feedback query fails, blocks still return with counts=0
+
+4. **UI Components**
+   - Replaced Like/Hide buttons with 👍/👎 buttons showing counts
+   - `FeedbackModal` component: sentiment selection + optional comment (max 1000 chars)
+   - Strategy header: "Give feedback" button opens strategy feedback modal
+   - Optimistic UI updates: Increment counts locally on successful submission
+
+**Security & Safety**  
+- Rate limiting: 10 requests per minute per user_id (429 on exceed)
+- Comment sanitization: Strip HTML, max 1000 characters
+- Validate sentiment: Only 'up' or 'down' accepted
+- Actions logging: Optional instrumentation for analytics
+
+**Observability**  
+```
+[feedback] upsert ok {corr:<id>, user:<uuid>, ranking:<uuid>, place:<id|null>, sent:'up'}
+[feedback] summary {ranking:<uuid>, rows:<n>}
+📊 [correlationId] Feedback enrichment: 3 venues with feedback
+```
+
+**No Regressions**  
+- Origin gating: Unchanged (device GPS → snapshot)
+- Geocoding/Places/Routes: Duties unchanged
+- Distance/time/earnings: Blocks payload unchanged except added counts
+- ACID persistence: Rankings + candidates transaction still atomic
+- Triad pipeline: Zero changes to model routing or prompt flow
+
+**Files Changed**  
+- `shared/schema.js` - Added venue_feedback & strategy_feedback tables
+- `server/routes/feedback.js` - New endpoints with rate limiting & sanitization
+- `server/routes/blocks.js` - Added feedback enrichment query (non-blocking)
+- `client/src/components/FeedbackModal.tsx` - Reusable feedback modal component
+- `client/src/pages/co-pilot.tsx` - Thumbs up/down buttons + modals
+
+**Exit Criteria (All Passed)**  
+✅ DB migration: Tables + indexes created  
+✅ POST endpoints: Return 200 {ok:true}, upsert behavior verified  
+✅ GET summary: Returns counts per venue for ranking_id  
+✅ Blocks enrichment: up_count/down_count present on cards (≥0)  
+✅ UI: Thumbs buttons functional, modal submits, counts update  
+✅ Strategy feedback: "Give feedback" link works, POSTs successfully  
+✅ No regressions: Snapshot gating, ACID persistence, triad flow intact
+
+---
+
 ## 🎯 **DECISION LOG**
 
 ### October 9, 2025
+- ✅ **Implemented:** Per-ranking feedback system for venues and strategy
+  - Database: venue_feedback & strategy_feedback tables with unique constraints
+  - API: POST /api/feedback/venue, POST /api/feedback/strategy with rate limiting (10/min/user)
+  - Enrichment: Non-blocking feedback counts query in /api/blocks (up_count, down_count)
+  - UI: Thumbs up/down buttons with modal, strategy feedback link, optimistic updates
+  - Security: Rate limiting, HTML sanitization, comment length validation
+  - Impact: Creates learning loop for ML training and venue reliability scoring
 - ✅ **Fixed:** Coordinate persistence in database (rankings + candidates atomic writes)
   - Root cause: Venue mapping for DB persistence was missing lat/lng fields
   - Solution: Added `lat: venue.lat` and `lng: venue.lng` to venue mapper in blocks.js

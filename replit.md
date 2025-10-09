@@ -42,6 +42,14 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
     - **Eidolon Memory**: Tracks project state, recent activity, and system context.
     - **Context APIs**: Real-time project summaries, recent snapshots, strategies, and actions.
     - **Automatic Retention**: 365-day retention for preferences, 30-day for conversations, 7-day for sessions.
+- **Per-Ranking Feedback System (Oct 9, 2025)**: Continuous learning loop for venue and strategy improvement.
+    - **Venue Feedback**: Thumbs up/down on individual venues with optional comments.
+    - **Strategy Feedback**: Overall strategy assessment per ranking.
+    - **Database**: venue_feedback & strategy_feedback tables with unique constraints (one vote per user per venue per ranking).
+    - **API Endpoints**: POST /api/feedback/venue, POST /api/feedback/strategy, GET /api/feedback/venue/summary.
+    - **Rate Limiting**: 10 requests per minute per user_id.
+    - **Blocks Enrichment**: Non-blocking feedback counts (up_count, down_count) added to venue cards.
+    - **UI Components**: FeedbackModal with sentiment selection and comment input, strategy "Give feedback" link.
 - **Configuration Management**: Safe file editing capabilities with backup and validation.
     - **Allowed Files**: `.env`, `.env.local`, `.env.example`, config files (Vite, Tailwind, TypeScript, etc.).
     - **Env Updates**: Atomic updates to environment variables with automatic backup.

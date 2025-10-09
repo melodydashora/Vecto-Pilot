@@ -1108,7 +1108,7 @@ const CoPilot: React.FC = () => {
         placeId={feedbackModal.block?.placeId}
         snapshotId={lastSnapshotId || undefined}
         rankingId={blocksData?.ranking_id}
-        userId={userId}
+        userId={localStorage.getItem('vecto_user_id') || 'default'}
         onSuccess={(sentiment) => {
           // Optimistically update the block counts
           if (feedbackModal.block && feedbackModal.blockIndex !== null) {
@@ -1131,7 +1131,7 @@ const CoPilot: React.FC = () => {
         initialSentiment={null}
         snapshotId={lastSnapshotId || undefined}
         rankingId={blocksData?.ranking_id}
-        userId={userId}
+        userId={localStorage.getItem('vecto_user_id') || 'default'}
         isStrategyFeedback={true}
       />
     </div>
