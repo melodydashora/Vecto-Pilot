@@ -275,4 +275,44 @@ export const user_profiles = pgTable("user_profiles", {
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const user_preferences = pgTable("user_preferences", {
+  user_id: uuid("user_id").primaryKey(),
+  
+  // Driver Info
+  driver_first_name: text("driver_first_name"),
+  driver_last_name: text("driver_last_name"),
+  driver_preferred_name: text("driver_preferred_name"),
+  driver_home_address: text("driver_home_address"),
+  driver_city: text("driver_city"),
+  driver_state: text("driver_state"),
+  driver_assigned_region: text("driver_assigned_region"),
+  
+  // Car Details
+  car_year: integer("car_year"),
+  car_make: text("car_make"),
+  car_model: text("car_model"),
+  seatbelt_count: integer("seatbelt_count"),
+  
+  // Services (checkboxes - 0/1)
+  service_uber: boolean("service_uber").default(false),
+  service_lyft: boolean("service_lyft").default(false),
+  service_private: boolean("service_private").default(false),
+  service_ridehail: boolean("service_ridehail").default(false),
+  service_other: boolean("service_other").default(false),
+  service_other_explanation: text("service_other_explanation"),
+  
+  // Ride Tiers (checkboxes - 0/1)
+  tier_1_all_rides: boolean("tier_1_all_rides").default(false),
+  tier_2_comfort: boolean("tier_2_comfort").default(false),
+  tier_3_7passenger: boolean("tier_3_7passenger").default(false),
+  tier_4_7pass_comfort: boolean("tier_4_7pass_comfort").default(false),
+  tier_5_7pass_xxl: boolean("tier_5_7pass_xxl").default(false),
+  planet_friendly: boolean("planet_friendly").default(false),
+  tier_other: boolean("tier_other").default(false),
+  tier_other_explanation: text("tier_other_explanation"),
+  
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
