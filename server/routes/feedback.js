@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../db/drizzle.js';
-import { venue_feedback, strategy_feedback, ranking_candidates, actions } from '../../shared/schema.js';
+import { venue_feedback, strategy_feedback, app_feedback, ranking_candidates, actions } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 
@@ -268,6 +268,65 @@ router.post('/strategy', async (req, res) => {
     res.status(500).json({ 
       ok: false, 
       error: 'Failed to record strategy feedback' 
+    });
+  }
+});
+
+// POST /api/feedback/app - Simple whole-app feedback (snapshot context only)
+router.post('/app', async (req, res) => {
+  const correlationId = crypto.randomUUID();
+  
+  try {
+    const { snapshot_id, sentiment, comment } = req.body;
+    
+    // Validate required fields (snapshot_id is optional for app feedback)
+    if (!sentiment) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Missing required field: sentiment' 
+      });
+    }
+    
+    // Validate sentiment
+    if (sentiment !== 'up' && sentiment !== 'down') {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Invalid sentiment. Must be "up" or "down"' 
+      });
+    }
+    
+    // Sanitize comment
+    const sanitizedComment = comment 
+      ? String(comment).replace(/<[^>]*>/g, '').slice(0, 1000)
+      : null;
+    
+    // No rate limiting for app feedback (it's infrequent)
+    
+    // Insert app feedback
+    await db
+      .insert(app_feedback)
+      .values({
+        snapshot_id: snapshot_id || null,
+        sentiment,
+        comment: sanitizedComment,
+      });
+    
+    console.log('[feedback] app feedback ok', {
+      corr: correlationId,
+      snapshot: snapshot_id || 'none',
+      sent: sentiment,
+    });
+    
+    res.json({ ok: true });
+    
+  } catch (error) {
+    console.error('[feedback] app feedback error', { 
+      correlation_id: correlationId, 
+      error: error.message 
+    });
+    res.status(500).json({ 
+      ok: false, 
+      error: 'Failed to record app feedback' 
     });
   }
 });
