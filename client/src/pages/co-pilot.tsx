@@ -759,11 +759,12 @@ const CoPilot: React.FC = () => {
                       variant="outline" 
                       className={`text-xs ${
                         metadata.validation?.status === 'ok' 
-                          ? 'border-green-500 text-green-700 bg-green-50' 
-                          : 'border-yellow-500 text-yellow-700 bg-yellow-50'
+                          ? 'border-green-500 text-green-700 bg-green-50 dark:bg-green-950 dark:text-green-400' 
+                          : 'border-yellow-500 text-yellow-700 bg-yellow-50 dark:bg-yellow-950 dark:text-yellow-400'
                       }`}
+                      data-testid="model-route-badge"
                     >
-                      {metadata.modelRoute} • {metadata.validation?.status || 'unknown'}
+                      🧠 Triad: {metadata.modelRoute.replace('claude-sonnet-4-5', 'Claude').replace('gpt-5', 'GPT-5').replace('gemini-2.5-pro', 'Gemini')}
                     </Badge>
                   )}
                   {metadata.processingTimeMs && (
