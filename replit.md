@@ -45,11 +45,12 @@ Data is stored in PostgreSQL for ML data and file-based storage for JSON backups
 - **Per-Ranking Feedback System (Oct 9, 2025)**: Continuous learning loop for venue and strategy improvement.
     - **Venue Feedback**: Thumbs up/down on individual venues with optional comments.
     - **Strategy Feedback**: Overall strategy assessment per ranking.
-    - **Database**: venue_feedback & strategy_feedback tables with unique constraints (one vote per user per venue per ranking).
-    - **API Endpoints**: POST /api/feedback/venue, POST /api/feedback/strategy, GET /api/feedback/venue/summary.
-    - **Rate Limiting**: 10 requests per minute per user_id.
+    - **App Feedback (NEW)**: Simplified whole-app feedback with minimal data requirements (snapshot context only, no user_id or ranking_id required).
+    - **Database**: venue_feedback, strategy_feedback, and app_feedback tables with unique constraints.
+    - **API Endpoints**: POST /api/feedback/venue, POST /api/feedback/strategy, POST /api/feedback/app, GET /api/feedback/venue/summary.
+    - **Rate Limiting**: 10 requests per minute for venue/strategy, no limit for app feedback.
     - **Blocks Enrichment**: Non-blocking feedback counts (up_count, down_count) added to venue cards.
-    - **UI Components**: FeedbackModal with sentiment selection and comment input, strategy "Give feedback" link.
+    - **UI Components**: Unified FeedbackModal supporting venue, strategy, and app feedback modes with sentiment selection and comment input.
 - **Configuration Management**: Safe file editing capabilities with backup and validation.
     - **Allowed Files**: `.env`, `.env.local`, `.env.example`, config files (Vite, Tailwind, TypeScript, etc.).
     - **Env Updates**: Atomic updates to environment variables with automatic backup.
