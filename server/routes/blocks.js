@@ -429,6 +429,7 @@ router.post('/', async (req, res) => {
           }
 
           // Cache resolved place data (coords/address separate from hours)
+          console.log(`💾 [${correlationId}] Caching place: { place_id: ${placeId}, name: ${v.name}, lat: ${lat}, lng: ${lng} }`);
           await upsertPlace({ 
             place_id: placeId, 
             name: v.name, 
@@ -442,6 +443,7 @@ router.post('/', async (req, res) => {
           
           // Cache business hours separately  
           if (hoursData.hours) {
+            console.log(`🕒 [${correlationId}] Caching hours for ${placeId}: ${hoursData.hours.length} periods, status: ${hoursData.status}`);
             await upsertPlaceHours({
               place_id: placeId,
               formatted_hours: hoursData.hours
@@ -696,19 +698,27 @@ router.post('/', async (req, res) => {
     // Persist ranking and candidates atomically - FAIL HARD if this fails
     let ranking_id;
     try {
-      const venues = enriched.map((venue, i) => ({
-        name: venue.name,
-        place_id: venue.placeId || null,
-        category: venue.category || null,
-        rank: i + 1,
-        distance_miles: venue.estimated_distance_miles ?? null,
-        drive_time_minutes: venue.driveTimeMinutes ?? null,
-        value_per_min: venue.value_per_min ?? null,
-        value_grade: venue.value_grade || null,
-        surge: venue.surge ?? null,
-        est_earnings: venue.estimated_earnings ?? null
-      }));
+      console.log(`💾 [${correlationId}] Preparing database persistence for ${fullyEnrichedVenues.length} venues...`);
+      
+      const venues = fullyEnrichedVenues.map((venue, i) => {
+        console.log(`📊 [${correlationId}] Venue ${i + 1}: ${venue.name} - dist: ${venue.estimated_distance_miles} mi, time: ${venue.driveTimeMinutes} min, place_id: ${venue.placeId}, value_per_min: ${venue.value_per_min}, grade: ${venue.value_grade}`);
+        
+        return {
+          name: venue.name,
+          place_id: venue.placeId || null,
+          category: venue.category || null,
+          rank: i + 1,
+          distance_miles: venue.estimated_distance_miles ?? null,
+          drive_time_minutes: venue.driveTimeMinutes ?? null,
+          value_per_min: venue.value_per_min ?? null,
+          value_grade: venue.value_grade || null,
+          surge: venue.surge ?? null,
+          est_earnings: venue.estimated_earnings ?? null
+        };
+      });
 
+      console.log(`🔐 [${correlationId}] Starting atomic transaction (rankings + ${venues.length} candidates)...`);
+      
       ranking_id = await persistRankingTx({
         snapshot_id: isValidSnapshotId ? snapshotId : null,
         user_id: isValidUuid ? userId : null,
@@ -718,9 +728,9 @@ router.post('/', async (req, res) => {
         correlation_id: correlationId
       });
 
-      console.info(`[${correlationId}] persisted ranking ${ranking_id} with ${venues.length} candidates`);
+      console.info(`✅ [${correlationId}] TRANSACTION COMMITTED: ranking ${ranking_id} with ${venues.length} candidates persisted successfully`);
     } catch (e) {
-      console.error(`[${correlationId}] persist_failed`, e);
+      console.error(`❌ [${correlationId}] TRANSACTION FAILED - Database persistence error:`, e);
       return res.status(502).json({ ok:false, error:"persist_failed", correlationId });
     }
 
