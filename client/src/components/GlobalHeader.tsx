@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "@/contexts/location-context-clean";
+import { UserProfileModal } from "@/components/UserProfileModal";
+import { getUserId } from "../../../shared/identity";
 
 // helpers (add these files from sections 2 and 3 below)
 import { classifyDayPart, buildTimeContext } from "@/lib/daypart";
@@ -33,6 +35,7 @@ const GlobalHeader: React.FC = () => {
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [airQuality, setAirQuality] = useState<{aqi: number; category: string} | null>(null);
   const [aqLoading, setAqLoading] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [snapshotReady, setSnapshotReady] = useState(false);
 
   // location from context, supporting both shapes
@@ -485,17 +488,17 @@ const GlobalHeader: React.FC = () => {
               </div>
             </div>
             
-            <Link href="/settings">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white hover:bg-white/20 p-2"
-                title="Driver Profile & Preferences"
-                aria-label="Open settings and driver preferences"
-              >
-                <Settings className="h-5 w-5" />
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20 p-2"
+              title="Driver Profile & Preferences"
+              aria-label="Open settings and driver preferences"
+              onClick={() => setIsProfileModalOpen(true)}
+              data-testid="button-open-profile"
+            >
+              <Settings className="h-5 w-5" />
+            </Button>
           </div>
         </div>
       </div>
@@ -550,6 +553,13 @@ const GlobalHeader: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        userId={getUserId()}
+      />
     </div>
   );
 };
