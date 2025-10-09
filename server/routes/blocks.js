@@ -5,8 +5,8 @@ import { Router } from 'express';
 import { latLngToCell } from 'h3-js';
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
-import { venue_catalog, venue_metrics, snapshots, strategies, rankings, ranking_candidates } from '../../shared/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { venue_catalog, venue_metrics, snapshots, strategies, rankings, ranking_candidates, venue_feedback } from '../../shared/schema.js';
+import { eq, desc, sql } from 'drizzle-orm';
 import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
 import { predictDriveMinutes } from '../lib/driveTime.js';
 import { runTriadPlan } from '../lib/triad-orchestrator.js';
@@ -728,9 +728,32 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
+    // STEP 3.5: Enrich with feedback counts (non-blocking)
+    // ============================================
+    let feedbackMap = new Map();
+    try {
+      const feedbackCounts = await db
+        .select({
+          place_id: venue_feedback.place_id,
+          up_count: sql<number>`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'up')::int`.as('up_count'),
+          down_count: sql<number>`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'down')::int`.as('down_count'),
+        })
+        .from(venue_feedback)
+        .where(eq(venue_feedback.ranking_id, ranking_id))
+        .groupBy(venue_feedback.place_id);
+      
+      feedbackMap = new Map(feedbackCounts.map(f => [f.place_id || '', { up: f.up_count || 0, down: f.down_count || 0 }]));
+      console.log(`📊 [${correlationId}] Feedback enrichment: ${feedbackCounts.length} venues with feedback`);
+    } catch (feedbackErr) {
+      console.warn(`⚠️ [${correlationId}] Feedback enrichment failed (non-blocking):`, feedbackErr.message);
+    }
+
+    // ============================================
     // STEP 4: Return normalized result
     // ============================================
-    const blocks = triadPlan.per_venue.map((v, index) => ({
+    const blocks = triadPlan.per_venue.map((v, index) => {
+      const feedback = feedbackMap.get(v.placeId || '') || { up: 0, down: 0 };
+      return {
       name: v.name,
       address: v.address,
       category: v.category,
@@ -761,8 +784,12 @@ router.post('/', async (req, res) => {
       bestTimeWindow: v.best_time_window,
       businessStatus: v.businessStatus,
       hasSpecialHours: v.hasSpecialHours,
-      closed_venue_reasoning: v.closed_venue_reasoning
-    }));
+      closed_venue_reasoning: v.closed_venue_reasoning,
+      // Feedback counts
+      up_count: feedback.up,
+      down_count: feedback.down
+    };
+    });
 
     const response = {
       ok: true,
