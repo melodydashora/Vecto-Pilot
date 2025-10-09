@@ -102,12 +102,12 @@ export async function validateAndAddVenue(suggestion, rankingId, modelName) {
       .values({
         place_id: placeId,
         name: suggestion.name,
-        address: suggestion.address || `${suggestion.city}, TX`,
+        address: suggestion.address || `${suggestion.city}, ${suggestion.state || ''}`,
         lat: suggestion.lat,
         lng: suggestion.lng,
         category: suggestion.category,
         city: suggestion.city,
-        metro: 'DFW',
+        metro: suggestion.metro || suggestion.city || 'Unknown', // Use provided metro or city
         business_hours: businessHours,
         discovery_source: 'llm_suggestion',
         validated_at: new Date(),

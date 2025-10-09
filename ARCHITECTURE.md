@@ -316,6 +316,16 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 - **Improved GPT-5 prompt:** Explicitly instruct to avoid generic districts/areas
 - **Impact:** District-level recommendations (with coordinates) now resolve correctly
 
+**Fix 4: Hardcoded Location References**
+- **Error:** Hardcoded timezone and metro area in production code
+- **Found:** 
+  - `server/routes/blocks.js` - Hardcoded `'America/Chicago'` timezone
+  - `server/lib/venue-discovery.js` - Hardcoded `metro: 'DFW'`
+- **Fixed:**
+  - Timezone now uses `fullSnapshot.timezone` (falls back to America/Chicago only if missing)
+  - Metro now uses `suggestion.metro || suggestion.city || 'Unknown'` (fully dynamic)
+- **Impact:** App is now truly location-agnostic, works anywhere in the world
+
 **Deployment Status:** All fixes tested and running in production ✅
 
 ---
