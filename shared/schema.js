@@ -192,6 +192,15 @@ export const strategy_feedback = pgTable("strategy_feedback", {
   uniqueUserRank: sql`unique(user_id, ranking_id)`,
 }));
 
+// General app feedback (simplified - just snapshot context)
+export const app_feedback = pgTable("app_feedback", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  sentiment: text("sentiment").notNull(), // 'up' or 'down'
+  comment: text("comment"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const travel_disruptions = pgTable("travel_disruptions", {
   id: uuid("id").primaryKey().defaultRandom(),
   country_code: text("country_code").notNull().default('US'),
