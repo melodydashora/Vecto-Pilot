@@ -735,8 +735,8 @@ router.post('/', async (req, res) => {
       const feedbackCounts = await db
         .select({
           place_id: venue_feedback.place_id,
-          up_count: sql<number>`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'up')::int`.as('up_count'),
-          down_count: sql<number>`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'down')::int`.as('down_count'),
+          up_count: sql`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'up')::int`.as('up_count'),
+          down_count: sql`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'down')::int`.as('down_count'),
         })
         .from(venue_feedback)
         .where(eq(venue_feedback.ranking_id, ranking_id))

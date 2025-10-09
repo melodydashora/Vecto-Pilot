@@ -100,8 +100,8 @@ router.post('/', async (req, res) => {
     };
 
     // Retry logic for foreign key constraint errors (replication lag)
-    const maxRetries = 3;
-    const retryDelayMs = 100; // Start with 100ms
+    const maxRetries = 5;
+    const retryDelayMs = 200; // Start with 200ms
     let lastError;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {

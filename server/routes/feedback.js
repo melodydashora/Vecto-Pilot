@@ -161,9 +161,9 @@ router.get('/venue/summary', async (req, res) => {
     const results = await db
       .select({
         place_id: venue_feedback.place_id,
-        venue_name: sql<string>`MAX(${venue_feedback.venue_name})`.as('venue_name'),
-        up_count: sql<number>`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'up')::int`.as('up_count'),
-        down_count: sql<number>`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'down')::int`.as('down_count'),
+        venue_name: sql`MAX(${venue_feedback.venue_name})`.as('venue_name'),
+        up_count: sql`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'up')::int`.as('up_count'),
+        down_count: sql`COUNT(*) FILTER (WHERE ${venue_feedback.sentiment} = 'down')::int`.as('down_count'),
       })
       .from(venue_feedback)
       .where(eq(venue_feedback.ranking_id, ranking_id))
