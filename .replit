@@ -63,10 +63,6 @@ localPort = 43717
 externalPort = 5173
 exposeLocalhost = true
 
-[[ports]]
-localPort = 44551
-externalPort = 5000
-
 [deployment]
 run = ["npm", "start"]
 
