@@ -36,6 +36,13 @@ export function FeedbackModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
+  // Reset state when modal closes or when initialSentiment changes
+  const handleClose = () => {
+    setSentiment(initialSentiment);
+    setComment('');
+    onClose();
+  };
+
   const handleSubmit = async () => {
     if (!sentiment) {
       toast({
@@ -86,9 +93,11 @@ export function FeedbackModal({
       });
 
       onSuccess?.(sentiment);
-      onClose();
-      setSentiment(null);
+      
+      // Reset state and close
+      setSentiment(initialSentiment);
       setComment('');
+      onClose();
     } catch (error: any) {
       console.error('Feedback submission error:', error);
       
@@ -111,45 +120,53 @@ export function FeedbackModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md" data-testid="feedback-modal">
         <DialogHeader>
           <DialogTitle>
-            {isStrategyFeedback ? 'Strategy Feedback' : `Feedback for ${venueName}`}
+            {initialSentiment 
+              ? 'Add Your Feedback' 
+              : isStrategyFeedback 
+                ? 'Strategy Feedback' 
+                : `Feedback for ${venueName}`}
           </DialogTitle>
           <DialogDescription>
-            {isStrategyFeedback 
-              ? 'Was this strategy helpful for your driving session?'
-              : 'How was your experience at this venue?'}
+            {initialSentiment
+              ? `You selected ${initialSentiment === 'up' ? '👍 thumbs up' : '👎 thumbs down'}. Add optional comments below.`
+              : isStrategyFeedback 
+                ? 'Was this strategy helpful for your driving session?'
+                : 'How was your experience at this venue?'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Sentiment Buttons */}
-          <div className="flex items-center justify-center gap-4">
-            <Button
-              type="button"
-              variant={sentiment === 'up' ? 'default' : 'outline'}
-              size="lg"
-              onClick={() => setSentiment('up')}
-              className={sentiment === 'up' ? 'bg-green-600 hover:bg-green-700' : ''}
-              data-testid="button-thumbs-up"
-            >
-              <ThumbsUp className="w-5 h-5 mr-2" />
-              Thumbs Up
-            </Button>
-            <Button
-              type="button"
-              variant={sentiment === 'down' ? 'default' : 'outline'}
-              size="lg"
-              onClick={() => setSentiment('down')}
-              className={sentiment === 'down' ? 'bg-red-600 hover:bg-red-700' : ''}
-              data-testid="button-thumbs-down"
-            >
-              <ThumbsDown className="w-5 h-5 mr-2" />
-              Thumbs Down
-            </Button>
-          </div>
+          {/* Sentiment Buttons - Only show if no initial sentiment */}
+          {!initialSentiment && (
+            <div className="flex items-center justify-center gap-4">
+              <Button
+                type="button"
+                variant={sentiment === 'up' ? 'default' : 'outline'}
+                size="lg"
+                onClick={() => setSentiment('up')}
+                className={sentiment === 'up' ? 'bg-green-600 hover:bg-green-700' : ''}
+                data-testid="button-thumbs-up"
+              >
+                <ThumbsUp className="w-5 h-5 mr-2" />
+                Thumbs Up
+              </Button>
+              <Button
+                type="button"
+                variant={sentiment === 'down' ? 'default' : 'outline'}
+                size="lg"
+                onClick={() => setSentiment('down')}
+                className={sentiment === 'down' ? 'bg-red-600 hover:bg-red-700' : ''}
+                data-testid="button-thumbs-down"
+              >
+                <ThumbsDown className="w-5 h-5 mr-2" />
+                Thumbs Down
+              </Button>
+            </div>
+          )}
 
           {/* Optional Comment */}
           <div>
@@ -172,7 +189,7 @@ export function FeedbackModal({
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isSubmitting}
             data-testid="button-cancel-feedback"
           >
