@@ -5,7 +5,7 @@ import { Router } from 'express';
 import { latLngToCell } from 'h3-js';
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
-import { venue_catalog, venue_metrics, snapshots, strategies, rankings, ranking_candidates, venue_feedback } from '../../shared/schema.js';
+import { venue_catalog, venue_metrics, snapshots, strategies, rankings, ranking_candidates, venue_feedback, llm_venue_suggestions } from '../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
 import { predictDriveMinutes } from '../lib/driveTime.js';
@@ -739,6 +739,30 @@ router.post('/', async (req, res) => {
     } catch (e) {
       console.error(`❌ [${correlationId}] TRANSACTION FAILED - Database persistence error:`, e);
       return res.status(502).json({ ok:false, error:"persist_failed", correlationId });
+    }
+
+    // ============================================
+    // STEP 3.4: Log seed additions to llm_venue_suggestions (non-blocking)
+    // ============================================
+    if (Array.isArray(triadPlan?.seed_additions) && triadPlan.seed_additions.length > 0) {
+      try {
+        const { randomUUID } = await import('crypto');
+        for (const seed of triadPlan.seed_additions) {
+          await db.insert(llm_venue_suggestions).values({
+            suggestion_id: randomUUID(),
+            model_name: triadPlan.model_route || 'gemini-2.5-pro',
+            ranking_id: ranking_id,
+            venue_name: String(seed?.name || seed || '').slice(0, 128),
+            suggested_category: seed?.category || null,
+            llm_reasoning: seed?.why || seed?.reasoning || null,
+            validation_status: 'pending',
+            suggested_at: new Date()
+          });
+        }
+        console.log(`💡 [${correlationId}] Logged ${triadPlan.seed_additions.length} seed additions to llm_venue_suggestions`);
+      } catch (suggErr) {
+        console.warn(`⚠️ [${correlationId}] Seed additions logging failed (non-blocking):`, suggErr.message);
+      }
     }
 
     // ============================================
