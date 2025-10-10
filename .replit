@@ -1,5 +1,5 @@
 entrypoint = "gateway-server.js"
-modules = ["nodejs-22", "nodejs-20", "nodejs-18", "postgresql-16"]
+modules = ["nodejs-22", "nodejs-20", "nodejs-18", "postgresql-16", "python-3.11"]
 
 [workflows]
 runButton = "Project"
@@ -27,7 +27,7 @@ task = "workflow.run"
 args = "Eidolon Main"
 
 [nix]
-packages = ["nodejs-22", "nodejs-20", "nodejs-18", "lsof", "openssl", "jql", "jq-lsp", "jq", "python312Packages.jq", "python313Packages.jq", "jiq", "python312Packages.xstatic-jquery-ui", "python313Packages.xstatic-jquery", "python313Packages.django-jquery-js", "tree", "undollar", "pandoc"]
+packages = ["fontconfig", "ghostscript", "glib", "harfbuzz", "jiq", "jq", "jq-lsp", "jql", "lsof", "nodejs-18", "nodejs-20", "nodejs-22", "openssl", "pandoc", "pango", "python312Packages.jq", "python312Packages.xstatic-jquery-ui", "python313Packages.django-jquery-js", "python313Packages.jq", "python313Packages.xstatic-jquery", "tree", "undollar", "wkhtmltopdf"]
 channel = "stable-25_05"
 
 [agent]
