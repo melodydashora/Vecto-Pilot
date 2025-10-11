@@ -1,3 +1,21 @@
+/**
+ * Agent Server - Workspace Intelligence Layer
+ * 
+ * Provides secure file system operations, shell command execution, and database access
+ * for the Eidolon AI assistant. This server runs on localhost and is accessed by the
+ * Eidolon SDK server via internal HTTP requests.
+ * 
+ * Security Features:
+ * - Path traversal protection
+ * - Command whitelisting
+ * - Rate limiting
+ * - Token-based authentication
+ * - File size limits
+ * - Zod schema validation
+ * 
+ * @module agent-server
+ */
+
 import "dotenv/config";
 import express from "express";
 import path from "node:path";
@@ -19,7 +37,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const execFileAsync = promisify(execFile);
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Configuration
+// ─────────────────────────────────────────────────────────────────────────────
 const BASE_DIR = process.env.BASE_DIR || "/home/runner/workspace";
 const PORT = Number(process.env.AGENT_PORT || process.env.DEFAULT_AGENT_PORT || 43717);
 const HOST = process.env.AGENT_HOST || "127.0.0.1"; // loopback by default
@@ -30,8 +50,15 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const COMMAND_TIMEOUT = 60_000; // 60s for shell ops
 const LOG_DIR = path.resolve(__dirname, "data", "agent-logs");
 
-// PostgreSQL connection
+// ─────────────────────────────────────────────────────────────────────────────
+// PostgreSQL Connection Pool
+// ─────────────────────────────────────────────────────────────────────────────
 let dbPool = null;
+
+/**
+ * Get or create PostgreSQL connection pool
+ * @returns {Pool|null} PostgreSQL pool or null if DATABASE_URL not configured
+ */
 function getDBPool() {
   if (!dbPool && process.env.DATABASE_URL) {
     dbPool = new Pool({
@@ -42,7 +69,9 @@ function getDBPool() {
   return dbPool;
 }
 
-// Validation schemas
+// ─────────────────────────────────────────────────────────────────────────────
+// Validation Schemas
+// ─────────────────────────────────────────────────────────────────────────────
 const schemas = {
   path: z.object({
     path: z.string().min(1).max(1000)
@@ -61,7 +90,9 @@ const schemas = {
   })
 };
 
-// Command whitelist
+// ─────────────────────────────────────────────────────────────────────────────
+// Security: Command Whitelists
+// ─────────────────────────────────────────────────────────────────────────────
 const ALLOWED_COMMANDS = new Set([
   // File system
   "ls", "cat", "echo", "pwd", "grep", "find", "wc",
@@ -76,7 +107,6 @@ const ALLOWED_COMMANDS = new Set([
   "ps", "kill", "pkill"
 ]);
 
-// Safe npm subcommands
 const SAFE_NPM_COMMANDS = new Set([
   "install", "ci", "update", "list", "outdated", "audit",
   "run", "test", "build", "start", "dev", "lint"
@@ -85,11 +115,23 @@ const SAFE_NPM_COMMANDS = new Set([
 // Initialize logging directory
 await fs.mkdir(LOG_DIR, { recursive: true });
 
-// Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+// Utility Functions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get current timestamp in ISO format
+ * @returns {string} ISO timestamp
+ */
 function nowTS() {
   return new Date().toISOString();
 }
 
+/**
+ * Write structured log to file
+ * @param {string} kind - Log type (e.g., "fs.read", "shell.exec")
+ * @param {Object} payload - Log data
+ */
 async function writeLog(kind, payload) {
   try {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -107,10 +149,21 @@ async function writeLog(kind, payload) {
   }
 }
 
+/**
+ * Generate random ID for operation tracking
+ * @param {number} n - Number of bytes (default: 8)
+ * @returns {string} Hex-encoded random ID
+ */
 function randomId(n = 8) {
   return crypto.randomBytes(n).toString("hex");
 }
 
+/**
+ * Resolve path safely within BASE_DIR (prevents path traversal attacks)
+ * @param {string} p - Requested path
+ * @returns {string} Absolute safe path
+ * @throws {Error} If path is outside BASE_DIR
+ */
 function resolveSafe(p) {
   const abs = path.resolve(BASE_DIR, p);
   const base = path.resolve(BASE_DIR);
@@ -122,26 +175,20 @@ function resolveSafe(p) {
   return abs;
 }
 
-function bearerOrHeaderToken(req) {
-  const hdr = req.get("authorization");
-  if (hdr && /^bearer\s+/i.test(hdr)) return hdr.replace(/^bearer\s+/i, "").trim();
-  const x = req.get("x-agent-token");
-  if (x) return x.trim();
-  return null;
-}
-
-// Express app
+// ─────────────────────────────────────────────────────────────────────────────
+// Express App Setup
+// ─────────────────────────────────────────────────────────────────────────────
 const app = express();
 app.disable("x-powered-by");
 
 // CORS: internal use via gateway; permissive for dev
 app.use(cors({ origin: true, credentials: false }));
 
-// Parsing
+// Body parsers
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
-// Rate limit (tight for safety)
+// Rate limiting (60 requests per minute for security)
 const limiter = rateLimit({
   windowMs: 60_000,
   max: 60,
@@ -150,7 +197,9 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Health (must be BEFORE auth middleware so it's publicly accessible)
+// ─────────────────────────────────────────────────────────────────────────────
+// Health Endpoint (Public - No Auth Required)
+// ─────────────────────────────────────────────────────────────────────────────
 app.get("/agent/health", (_req, res) => {
   res.json({
     status: "healthy",
@@ -162,11 +211,13 @@ app.get("/agent/health", (_req, res) => {
   });
 });
 
-// Parity contract: unified capability routes
+// ─────────────────────────────────────────────────────────────────────────────
+// Parity Contract: Unified Capability Routes
+// ─────────────────────────────────────────────────────────────────────────────
 const caps = capsFromEnv("AGENT");
 const agentRouter = express.Router();
 
-// Auth gate (if TOKEN set, require it) - using unified bearer auth
+// Auth gate (if TOKEN set, require it)
 if (TOKEN) {
   agentRouter.use(bearer(TOKEN, "x-agent-token"));
 }
@@ -185,13 +236,21 @@ agentRouter.use("/shell/exec", (req, res, next) => {
 mountAbilityRoutes(agentRouter, "agent", caps, makeLocalExecutor(caps));
 app.use("/agent", agentRouter);
 
-// FS: read
+// ─────────────────────────────────────────────────────────────────────────────
+// File System Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * POST /agent/fs/read
+ * Read file contents with security checks
+ */
 app.post("/agent/fs/read", async (req, res, next) => {
   const id = randomId();
   try {
     const { path: p } = schemas.path.parse(req.body || {});
     const abs = resolveSafe(p);
     const stat = await fs.stat(abs);
+    
     if (!stat.isFile()) {
       const e = new Error("not-a-file");
       e.code = "NOT_A_FILE";
@@ -202,6 +261,7 @@ app.post("/agent/fs/read", async (req, res, next) => {
       e.code = "FILE_TOO_LARGE";
       throw e;
     }
+    
     const content = await fs.readFile(abs, "utf8");
     await writeLog("fs.read", { id, p, abs, size: stat.size });
     res.json({ path: p, content, size: stat.size, modified: stat.mtime });
@@ -211,18 +271,23 @@ app.post("/agent/fs/read", async (req, res, next) => {
   }
 });
 
-// FS: write
+/**
+ * POST /agent/fs/write
+ * Write file contents with security checks
+ */
 app.post("/agent/fs/write", async (req, res, next) => {
   const id = randomId();
   try {
     const { path: p, content } = schemas.write.parse(req.body || {});
     const abs = resolveSafe(p);
     const size = Buffer.byteLength(content, "utf8");
+    
     if (size > MAX_FILE_SIZE) {
       const e = new Error("file-too-large");
       e.code = "FILE_TOO_LARGE";
       throw e;
     }
+    
     await fs.mkdir(path.dirname(abs), { recursive: true });
     await fs.writeFile(abs, content, "utf8");
     await writeLog("fs.write", { id, p, abs, size });
@@ -233,19 +298,29 @@ app.post("/agent/fs/write", async (req, res, next) => {
   }
 });
 
-// Shell exec (whitelisted, no shell interpolation)
+// ─────────────────────────────────────────────────────────────────────────────
+// Shell Command Execution
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * POST /agent/shell
+ * Execute whitelisted shell commands (no shell interpolation for security)
+ */
 app.post("/agent/shell", async (req, res, next) => {
   const id = randomId();
   try {
     const { cmd, args = [] } = schemas.shell.parse(req.body || {});
     const shellWhitelist = process.env.AGENT_SHELL_WHITELIST || "";
+    
+    // Check command whitelist
     if (shellWhitelist !== "*" && !ALLOWED_COMMANDS.has(cmd)) {
       const e = new Error("command-not-allowed");
       e.code = "CMD_DENY";
       throw e;
     }
-    const shellWhitelistNpm = process.env.AGENT_SHELL_WHITELIST || "";
-    if (cmd === "npm" && shellWhitelistNpm !== "*") {
+    
+    // Additional npm subcommand validation
+    if (cmd === "npm" && shellWhitelist !== "*") {
       const sub = args[0] || "";
       if (!SAFE_NPM_COMMANDS.has(sub)) {
         const e = new Error("npm-subcommand-not-allowed");
@@ -253,6 +328,7 @@ app.post("/agent/shell", async (req, res, next) => {
         throw e;
       }
     }
+    
     const options = {
       cwd: BASE_DIR,
       timeout: COMMAND_TIMEOUT,
@@ -262,6 +338,7 @@ app.post("/agent/shell", async (req, res, next) => {
 
     const started = Date.now();
     let stdout = "", stderr = "", exitCode = 0;
+    
     try {
       const out = await execFileAsync(cmd, args, options);
       stdout = out.stdout ?? "";
@@ -272,9 +349,13 @@ app.post("/agent/shell", async (req, res, next) => {
       stderr = err.stderr ?? String(err.message || "");
       exitCode = typeof err.code === "number" ? err.code : 1;
     }
+    
     const elapsedMs = Date.now() - started;
-
-    await writeLog("shell.exec", { id, cmd, args, exitCode, elapsedMs, stdoutBytes: Buffer.byteLength(stdout), stderrBytes: Buffer.byteLength(stderr) });
+    await writeLog("shell.exec", { 
+      id, cmd, args, exitCode, elapsedMs, 
+      stdoutBytes: Buffer.byteLength(stdout), 
+      stderrBytes: Buffer.byteLength(stderr) 
+    });
     res.json({ stdout, stderr, exitCode, elapsedMs });
   } catch (err) {
     await writeLog("shell.exec.error", { id, message: err.message, code: err.code });
@@ -282,7 +363,14 @@ app.post("/agent/shell", async (req, res, next) => {
   }
 });
 
-// SQL: SELECT
+// ─────────────────────────────────────────────────────────────────────────────
+// Database Operations
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * POST /agent/sql/query
+ * Execute SELECT queries (read-only)
+ */
 app.post("/agent/sql/query", async (req, res, next) => {
   const id = randomId();
   try {
@@ -292,6 +380,7 @@ app.post("/agent/sql/query", async (req, res, next) => {
       e.code = "DB_CONFIG";
       throw e;
     }
+    
     const { sql, params } = schemas.sql.parse(req.body || {});
     const result = await pool.query(sql, params);
     await writeLog("sql.query", { id, rows: result.rowCount });
@@ -302,7 +391,10 @@ app.post("/agent/sql/query", async (req, res, next) => {
   }
 });
 
-// SQL: DML/DDL
+/**
+ * POST /agent/sql/execute
+ * Execute DML/DDL statements (INSERT/UPDATE/DELETE)
+ */
 app.post("/agent/sql/execute", async (req, res, next) => {
   const id = randomId();
   try {
@@ -312,6 +404,7 @@ app.post("/agent/sql/execute", async (req, res, next) => {
       e.code = "DB_CONFIG";
       throw e;
     }
+    
     const { sql, params } = schemas.sql.parse(req.body || {});
     const result = await pool.query(sql, params);
     await writeLog("sql.execute", { id, rowCount: result.rowCount });
@@ -322,7 +415,10 @@ app.post("/agent/sql/execute", async (req, res, next) => {
   }
 });
 
-// Config Management
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuration Management
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.get("/agent/config/list", async (req, res, next) => {
   try {
     const { listConfigFiles } = await import("./server/agent/config-manager.js");
@@ -367,7 +463,10 @@ app.post("/agent/config/backup/:filename", async (req, res, next) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Context Awareness & Memory
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.get("/agent/context", async (req, res, next) => {
   try {
     const { getProjectContext } = await import("./server/agent/context-awareness.js");
@@ -430,7 +529,6 @@ app.post("/agent/memory/project", async (req, res, next) => {
   }
 });
 
-// Enhanced context endpoint
 app.get("/agent/context/enhanced", async (req, res, next) => {
   try {
     const { getEnhancedProjectContext } = await import("./server/agent/enhanced-context.js");
@@ -441,7 +539,6 @@ app.get("/agent/context/enhanced", async (req, res, next) => {
   }
 });
 
-// Internet search endpoint
 app.post("/agent/search/internet", async (req, res, next) => {
   try {
     const { performInternetSearch } = await import("./server/agent/enhanced-context.js");
@@ -456,7 +553,6 @@ app.post("/agent/search/internet", async (req, res, next) => {
   }
 });
 
-// Deep workspace analysis endpoint
 app.get("/agent/analyze/deep", async (req, res, next) => {
   try {
     const { analyzeWorkspaceDeep } = await import("./server/agent/enhanced-context.js");
@@ -492,16 +588,21 @@ app.get("/agent/memory/conversations", async (req, res, next) => {
   }
 });
 
-// Not found
+// ─────────────────────────────────────────────────────────────────────────────
+// Error Handling
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: "not-found", path: req.path });
 });
 
-// Error handler
+// Global error handler
 app.use((err, _req, res, _next) => {
   if (err instanceof z.ZodError) {
     return res.status(400).json({ error: "validation-error", details: err.issues });
   }
+  
   const code = err.code || "INTERNAL";
   const status =
     code === "PATH_OUTSIDE_BASE" ? 400 :
@@ -510,10 +611,16 @@ app.use((err, _req, res, _next) => {
     code === "NPM_DENY" ? 403 :
     code === "DB_CONFIG" ? 503 :
     500;
-  res.status(status).json({ error: String(code).toLowerCase(), message: err.message || "internal-error" });
+  
+  res.status(status).json({ 
+    error: String(code).toLowerCase(), 
+    message: err.message || "internal-error" 
+  });
 });
 
-// Startup
+// ─────────────────────────────────────────────────────────────────────────────
+// Server Startup
+// ─────────────────────────────────────────────────────────────────────────────
 app.listen(PORT, HOST, () => {
   console.log(`[agent] Listening on ${HOST}:${PORT}`);
   console.log(`[agent] Base directory: ${BASE_DIR}`);
@@ -521,7 +628,9 @@ app.listen(PORT, HOST, () => {
   if (TOKEN) console.log(`[agent] Token auth: enabled`);
 });
 
-// Graceful shutdown
+// ─────────────────────────────────────────────────────────────────────────────
+// Graceful Shutdown
+// ─────────────────────────────────────────────────────────────────────────────
 function shutdown() {
   console.log("[agent] Shutting down…");
   if (dbPool) {
@@ -530,5 +639,6 @@ function shutdown() {
     process.exit(0);
   }
 }
+
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
