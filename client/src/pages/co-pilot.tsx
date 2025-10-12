@@ -1102,28 +1102,7 @@ const CoPilot: React.FC = () => {
               })}
             </div>
           )}
-
-          {/* Empty State */}
-          {blocks.length === 0 && !isLoading && !error && coords && (
-            <Card className="p-8" data-testid="empty-state">
-              <div className="flex flex-col items-center justify-center text-center">
-                <Sparkles className="w-8 h-8 text-gray-400 mb-4" />
-                <p className="text-gray-800 font-semibold mb-2">No Active Zones</p>
-                <p className="text-gray-600 text-sm">
-                  No high-demand zones found nearby. Check back in a few minutes or try a different location.
-                </p>
-              </div>
-            </Card>
-          )}
         </div>
-
-        {/* Processing Info */}
-        {metadata && (
-          <div className="text-center text-xs text-gray-500">
-            Processed {metadata.totalBlocks} zones in {metadata.processingTimeMs}ms · 
-            Timezone: {blocksData?.timezone || 'Unknown'}
-          </div>
-        )}
       </div>
       
       {/* Venue Feedback Modal */}
