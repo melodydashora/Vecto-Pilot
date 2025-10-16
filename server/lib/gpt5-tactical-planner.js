@@ -172,7 +172,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "Return JSON only."
   ].join("\n");
 
-  const reasoningEffort = process.env.GPT5_REASONING_EFFORT || "medium"; // Default to medium
+  const reasoningEffort = process.env.GPT5_REASONING_EFFORT || "minimal"; // Changed to minimal for faster responses
   console.log(`[TRIAD 2/3 - GPT-5 Planner] Calling GPT-5 with reasoning_effort=${reasoningEffort} (requires valid Claude strategy)...`);
 
   // Call GPT-5 with configurable reasoning effort
@@ -187,7 +187,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
       developer,
       user,
       reasoning_effort: reasoningEffort,
-      max_completion_tokens: 32000, // Higher limit: reasoning tokens (~16K) + output tokens (~4K)
+      max_completion_tokens: 64000, // Increased to 64K for comprehensive venue details
       abortSignal: abortCtrl.signal
     });
 
@@ -235,7 +235,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
       suggested_db_fields: validated.suggested_db_fields || null,
       metadata: {
         model: "gpt-5",
-        reasoning_effort: "high",
+        reasoning_effort: reasoningEffort, // Use actual reasoning effort from config
         duration_ms: duration,
         venues_recommended: validated.recommended_venues.length,
         validation_passed: true
