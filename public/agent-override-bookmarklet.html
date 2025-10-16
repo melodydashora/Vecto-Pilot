@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Replit Agent Override - Bookmarklet</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      font-size: 2.5em;
+      margin-bottom: 20px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .subtitle {
+      font-size: 1.2em;
+      opacity: 0.9;
+      margin-bottom: 40px;
+    }
+    
+    .card {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    
+    h2 {
+      font-size: 1.8em;
+      margin-bottom: 15px;
+      color: #ffd700;
+    }
+    
+    h3 {
+      font-size: 1.3em;
+      margin: 20px 0 10px;
+      color: #ffd700;
+    }
+    
+    p {
+      line-height: 1.6;
+      margin-bottom: 15px;
+      opacity: 0.95;
+    }
+    
+    .bookmarklet-link {
+      display: inline-block;
+      background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+      color: white;
+      text-decoration: none;
+      padding: 15px 30px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1.1em;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: move;
+    }
+    
+    .bookmarklet-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+    }
+    
+    .code-block {
+      background: rgba(0,0,0,0.3);
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 15px 0;
+      font-family: 'SF Mono', monospace;
+      font-size: 0.9em;
+    }
+    
+    .instruction {
+      background: rgba(255,215,0,0.2);
+      border-left: 4px solid #ffd700;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    
+    .step {
+      margin: 10px 0;
+      padding-left: 30px;
+      position: relative;
+    }
+    
+    .step:before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #ffd700;
+      font-weight: bold;
+    }
+    
+    .status {
+      background: rgba(0,255,127,0.2);
+      border: 2px solid #00ff7f;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+      text-align: center;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Replit Agent Override</h1>
+    <p class="subtitle">Redirect Replit IDE's AI agent to your custom backend - no browser extensions needed!</p>
+    
+    <div class="card">
+      <h2>📌 Drag This to Your Bookmarks Bar</h2>
+      <p>Simply drag the link below to your browser's bookmarks bar:</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="javascript:(function(){if(window.__AGENT_OVERRIDE_ACTIVE__){console.log('⚠️ Agent override already active');return;}const s=document.createElement('script');s.src=window.location.origin+'/agent-override-inject.js';s.onload=()=>console.log('✅ Agent override loaded');s.onerror=()=>console.error('❌ Failed to load override script');document.head.appendChild(s);})();" 
+           class="bookmarklet-link"
+           onclick="alert('Drag this link to your bookmarks bar instead of clicking!'); return false;">
+          🚀 Agent Override
+        </a>
+      </div>
+      
+      <div class="instruction">
+        <strong>How to use:</strong>
+        <div class="step">Drag the "Agent Override" button to your bookmarks bar</div>
+        <div class="step">Open Replit IDE in your browser</div>
+        <div class="step">Click the "Agent Override" bookmark</div>
+        <div class="step">See the indicator appear at bottom-right corner</div>
+        <div class="step">All agent requests now go to YOUR backend!</div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h2>⚙️ Manual Installation</h2>
+      
+      <h3>Option 1: Browser Console (Quick Test)</h3>
+      <p>Open browser DevTools (F12) and paste this in the console:</p>
+      <div class="code-block">const s = document.createElement('script');
+s.src = window.location.origin + '/agent-override-inject.js';
+document.head.appendChild(s);</div>
+      
+      <h3>Option 2: Service Worker (Persistent)</h3>
+      <p>Register the Service Worker for persistent override across page reloads:</p>
+      <div class="code-block">navigator.serviceWorker.register('/agent-override-sw.js', { scope: '/' })
+  .then(reg => console.log('✅ Service Worker registered:', reg))
+  .catch(err => console.error('❌ Registration failed:', err));</div>
+    </div>
+    
+    <div class="card">
+      <h2>🎯 What Gets Intercepted</h2>
+      <p>The override intercepts requests to these endpoints:</p>
+      <div class="code-block">• /api/agent
+• /api/chat
+• /api/completion
+• /api/assistant
+• /agent/llm
+• /api/ai
+• /rpc/chat
+• /rpc/agent</div>
+      <p>All intercepted requests are redirected to:</p>
+      <div class="code-block" style="color: #00ff7f;">http://localhost:5000/agent/llm</div>
+    </div>
+    
+    <div class="card">
+      <h2>✅ Verification</h2>
+      <p>After activation, you should see:</p>
+      <div class="status">
+        🤖 Agent Override Active
+      </div>
+      <p>This indicator appears at the bottom-right corner. Click it to view status in console.</p>
+      
+      <p>Check the browser console for intercept logs:</p>
+      <div class="code-block">🎯 [OVERRIDE] Intercepting fetch: /api/agent
+↪️  Redirecting to: http://localhost:5000/agent/llm
+✅ [OVERRIDE] Custom backend response: 200</div>
+    </div>
+    
+    <div class="card">
+      <h2>🔧 Configuration</h2>
+      <p>Your custom backend should be running at:</p>
+      <div class="code-block">Gateway Server: http://localhost:5000
+Eidolon Server: http://localhost:3101
+Agent Server: http://localhost:43717</div>
+      
+      <p>The override routes all agent requests through your Gateway Server (port 5000), which proxies to Eidolon (port 3101).</p>
+    </div>
+    
+    <div class="card">
+      <h2>🚨 Troubleshooting</h2>
+      
+      <h3>Override not working?</h3>
+      <div class="step">Check if backend is running: <code>curl http://localhost:5000/health</code></div>
+      <div class="step">Look for errors in browser console (F12)</div>
+      <div class="step">Verify indicator appears at bottom-right</div>
+      <div class="step">Check Network tab for intercepted requests</div>
+      
+      <h3>CORS errors?</h3>
+      <div class="step">Ensure your backend has CORS enabled</div>
+      <div class="step">Check <code>Access-Control-Allow-Origin</code> header</div>
+      
+      <h3>Need to disable?</h3>
+      <div class="step">Refresh the page (override is temporary)</div>
+      <div class="step">Or run: <code>delete window.__AGENT_OVERRIDE_ACTIVE__</code></div>
+    </div>
+    
+    <div class="card" style="background: rgba(0,255,127,0.1); border: 2px solid #00ff7f;">
+      <h2>🎉 You're All Set!</h2>
+      <p>Your Replit IDE agent is now powered by <strong>Vecto Pilot™ Eidolon</strong> with:</p>
+      <div class="step">Claude Sonnet 4.5 → GPT-5 → Gemini 2.5 Pro fallback chain</div>
+      <div class="step">Full workspace intelligence</div>
+      <div class="step">Enhanced memory and context awareness</div>
+      <div class="step">Production-grade error handling</div>
+    </div>
+  </div>
+  
+  <script>
+    console.log('📚 Agent Override Bookmarklet Page Loaded');
+    console.log('   Visit: http://localhost:5000/agent-override-bookmarklet.html');
+  </script>
+</body>
+</html>
