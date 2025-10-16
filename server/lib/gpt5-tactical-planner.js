@@ -172,22 +172,24 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "Return JSON only."
   ].join("\n");
 
-  const reasoningEffort = process.env.GPT5_REASONING_EFFORT || "minimal"; // Changed to minimal for faster responses
+  const reasoningEffort = process.env.GPT5_REASONING_EFFORT || process.env.OPENAI_REASONING_EFFORT;
   console.log(`[TRIAD 2/3 - GPT-5 Planner] Calling GPT-5 with reasoning_effort=${reasoningEffort} (requires valid Claude strategy)...`);
 
   // Call GPT-5 with configurable reasoning effort
   const abortCtrl = new AbortController();
+  const timeoutMs = parseInt(process.env.GPT5_TIMEOUT_MS || process.env.PLANNER_DEADLINE_MS || "300000", 10);
   const timeout = setTimeout(() => {
-    console.error('[GPT-5 Tactical Planner] ⏱️ Request timed out after 5 minutes');
+    console.error(`[GPT-5 Tactical Planner] ⏱️ Request timed out after ${timeoutMs}ms`);
     abortCtrl.abort();
-  }, 300000); // 5 min timeout for reasoning
+  }, timeoutMs);
   
   try {
+    const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.GPT5_MAX_TOKENS || "32000", 10);
     const rawResponse = await callGPT5({
       developer,
       user,
       reasoning_effort: reasoningEffort,
-      max_completion_tokens: 64000, // Increased to 64K for comprehensive venue details
+      max_completion_tokens: maxTokens,
       abortSignal: abortCtrl.signal
     });
 

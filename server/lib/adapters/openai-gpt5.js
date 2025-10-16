@@ -27,13 +27,13 @@ export async function callGPT5({
     messageArray.push({ role: "user", content: user });
   }
   
-  // Effort fallback: param > env > "minimal" (changed for faster responses)
-  const effort = reasoning_effort || process.env.OPENAI_REASONING_EFFORT || "minimal";
+  // Effort from params or environment only - no hardcoded defaults
+  const effort = reasoning_effort || process.env.OPENAI_REASONING_EFFORT || process.env.GPT5_REASONING_EFFORT;
   
-  // Token floor: ensure minimum 16 tokens, increased default to 64000
-  const envMax = Number(process.env.OPENAI_MAX_COMPLETION_TOKENS || 64000);
-  const requested = Number(max_completion_tokens || envMax || 64000);
-  const tokens = Math.max(16, requested);
+  // Token allocation from environment only - no hardcoded defaults
+  const envMax = Number(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.OPENAI_MAX_TOKENS || 0);
+  const requested = Number(max_completion_tokens || envMax);
+  const tokens = Math.max(16, requested || 512); // Minimum 16 tokens for safety
   
   const body = {
     model,

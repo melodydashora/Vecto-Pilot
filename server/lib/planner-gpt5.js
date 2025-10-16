@@ -46,16 +46,17 @@ export async function runPlannerGPT5({
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
   if (!Array.isArray(shortlist) || !shortlist.length) throw new Error("Empty shortlist.");
 
-  // Changed to minimal reasoning effort for faster responses with more tokens
-  const reasoningEffort = process.env.OPENAI_REASONING_EFFORT || "minimal";
+  // Use environment variable for reasoning effort - no hardcoded defaults
+  const reasoningEffort = process.env.OPENAI_REASONING_EFFORT || process.env.GPT5_REASONING_EFFORT;
   console.log(`🔍 [planner-gpt5] Using reasoning_effort: ${reasoningEffort}`);
   
-  // Using minimal reasoning_effort with expanded token allocation
+  // Use environment variable for token allocation - no hardcoded defaults
+  const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.OPENAI_MAX_TOKENS || "32000", 10);
   const body = {
     model: "gpt-5",
     reasoning_effort: reasoningEffort,
     response_format: { type: "json_object" },
-    max_completion_tokens: 64000,  // Increased token allocation for comprehensive responses
+    max_completion_tokens: maxTokens,  // Configured via environment variables
     messages: [
       { role: "developer", content: plannerSystem() },
       { role: "user", content: plannerUser({ clock, shortlist, goals, strategistGuidance }) }
