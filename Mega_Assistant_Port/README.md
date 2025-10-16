@@ -202,7 +202,8 @@ AGENT_SERVER_PORT=43717
 GATEWAY_PORT=5000
 
 # AI Models (Optional - defaults shown)
-CLAUDE_MODEL=claude-sonnet-4.5-20250514
+CLAUDE_MODEL=claude-sonnet-4.5-20250929
+CLAUDE_OPUS_MODEL=claude-opus-4-1-20250805
 OPENAI_MODEL=gpt-5
 GEMINI_MODEL=gemini-2.5-pro-latest
 GPT5_REASONING_EFFORT=high
@@ -378,6 +379,11 @@ Agent Override provides LLM-powered workspace intelligence with:
 - **Shell Commands**: Execute system commands
 - **SQL Queries**: Database operations
 - **Fallback Chain**: Automatic provider switching
+
+### AI Model Architecture
+
+**Primary Assistant**: Claude Sonnet 4.5 (20250929) - Fast, accurate, context-aware
+**Task Handoff**: Claude Opus 4.1 (20250805) - Complex task delegation and deep reasoning
 
 ### Fallback Chain
 
