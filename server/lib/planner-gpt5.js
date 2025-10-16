@@ -50,8 +50,8 @@ export async function runPlannerGPT5({
   const reasoningEffort = process.env.OPENAI_REASONING_EFFORT || process.env.GPT5_REASONING_EFFORT;
   console.log(`🔍 [planner-gpt5] Using reasoning_effort: ${reasoningEffort}`);
   
-  // Use environment variable for token allocation - no hardcoded defaults
-  const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.OPENAI_MAX_TOKENS || "32000", 10);
+  // Use environment variable for token allocation
+  const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.OPENAI_MAX_TOKENS, 10);
   const body = {
     model: "gpt-5",
     reasoning_effort: reasoningEffort,

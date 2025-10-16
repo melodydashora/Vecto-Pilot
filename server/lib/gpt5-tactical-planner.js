@@ -177,14 +177,14 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
 
   // Call GPT-5 with configurable reasoning effort
   const abortCtrl = new AbortController();
-  const timeoutMs = parseInt(process.env.GPT5_TIMEOUT_MS || process.env.PLANNER_DEADLINE_MS || "300000", 10);
+  const timeoutMs = parseInt(process.env.GPT5_TIMEOUT_MS || process.env.PLANNER_DEADLINE_MS, 10) || 300000;
   const timeout = setTimeout(() => {
     console.error(`[GPT-5 Tactical Planner] ⏱️ Request timed out after ${timeoutMs}ms`);
     abortCtrl.abort();
   }, timeoutMs);
   
   try {
-    const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.GPT5_MAX_TOKENS || "32000", 10);
+    const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.GPT5_MAX_TOKENS, 10);
     const rawResponse = await callGPT5({
       developer,
       user,
