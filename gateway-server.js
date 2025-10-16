@@ -381,6 +381,13 @@ function ensureClientBuild() {
   }
 }
 
+// ---------- Serve static files from public directory (both dev and production) ----------
+const publicDir = path.resolve(process.cwd(), "public");
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+  console.log(`📂 [gateway] Serving static files from: ${publicDir}`);
+}
+
 // ---------- production: setup middleware and routes BEFORE server starts ----------
 if (IS_PRODUCTION) {
   console.log(`✅ [vecto] Production mode - loading API routes synchronously`);
