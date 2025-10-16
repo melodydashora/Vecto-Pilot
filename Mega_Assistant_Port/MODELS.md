@@ -7,76 +7,116 @@
 
 ## 🤖 Anthropic Claude Models
 
-The latest Anthropic Claude model versions released in 2025 are:
+Here are the latest Anthropic Claude model versions released in 2025, specifically **Claude Sonnet 4.5** and **Claude Opus 4.1**:
 
-| Model Name       | Exact Model ID                  | Release Date | Context Window (tokens) | Main Features                                                                                      |
-|------------------|--------------------------------|--------------|------------------------|--------------------------------------------------------------------------------------------------|
-| Claude Sonnet 4.5 | claude-sonnet-4.5-20250929     | Sep 29, 2025 | 200,000 (1M beta available) | Best model for complex agents and coding; highest intelligence across most tasks; hybrid reasoning; improved alignment and safety; strong defense against prompt injection; enhanced domain knowledge in coding, finance, cybersecurity; supports text and image input/output[1][2][4]. |
-| Claude Opus 4.1   | claude-opus-4.1-20250805       | Aug 5, 2025  | 200,000                | Drop-in replacement for Opus 4 with superior performance and precision; excels in complex multi-step coding and agentic tasks; hybrid reasoning; supports text and image input/output; available for Max, Team, Enterprise users and developer platforms[2][5][9]. |
+### Claude Sonnet 4.5
+- **Model ID**: claude-sonnet-4.5-20250929
+- **Release Date**: September 29, 2025
+- **Context Window**: 200,000 tokens (1 million context beta available)
+- **Main Features**:
+  - Best model for complex agents and coding.
+  - Highest intelligence across most tasks.
+  - Enhanced domain knowledge in coding, finance, and cybersecurity.
+  - Improved safety and alignment features, including defenses against prompt injection attacks[1][2][5].
 
-**Additional details:**
-
-- Both models feature a **200k token context window**, with Claude Sonnet 4.5 offering a beta 1 million token context window for very long inputs[2].
-- Claude Sonnet 4.5 is Anthropic’s most aligned and capable frontier model, released under AI Safety Level 3 protections, with advanced classifiers to reduce risks related to dangerous content[1].
-- Claude Opus 4.1 focuses on real-world coding and agentic reasoning with improved rigor and detail handling compared to its predecessor Opus 4[5].
-- Pricing for Sonnet 4.5 starts at $3 per million input tokens and $15 per million output tokens; Opus 4.1 pricing starts at $15 per million input tokens and $75 per million output tokens, with cost-saving options available[4][5].
-
-This information reflects the most current official releases and specifications as of October 2025.
+### Claude Opus 4.1
+- **Model ID**: claude-opus-4.1-20250805
+- **Release Date**: August 5, 2025
+- **Context Window**: 200,000 tokens
+- **Main Features**:
+  - Exceptional model for specialized complex tasks requiring advanced reasoning.
+  - Superior performance and precision for real-world coding and agentic tasks.
+  - Handles complex, multi-step problems with more rigor and attention to detail[2][6].
 
 ---
 
 ## 🧠 OpenAI GPT Models
 
-The latest OpenAI GPT models released in 2025 include **GPT-5**, **GPT-4o**, **GPT-4.1**, **GPT-4.5**, and the **o-series models** (notably o3 and o4-mini). Here are the details with exact model IDs, release dates, context windows, reasoning_effort parameter support, and key features:
+Here's an overview of the latest OpenAI GPT models released in 2025, including GPT-5 and other relevant models:
 
-| Model           | Exact Model IDs                  | Release Date       | Context Window (tokens) | reasoning_effort Support | Key Features                                                                                              |
-|-----------------|--------------------------------|--------------------|------------------------|-------------------------|----------------------------------------------------------------------------------------------------------|
-| **GPT-5**       | gpt-5, gpt-5-mini, gpt-5-nano  | August 7, 2025     | Not explicitly stated; supports agentic tasks and complex coding | Yes (steerable, collaborative, with explicit intent routing) | State-of-the-art coding and agentic tasks; unified system with smart router deciding fast vs deep reasoning; excels in front-end coding and debugging; available in API and ChatGPT Pro with extended reasoning (GPT-5 pro)[3][4][5][9][10] |
-| **GPT-4o**      | gpt-4o, gpt-4o-mini            | Before May 2025     | Up to 128k tokens       | Yes                     | Previous frontier model with strong reasoning and coding; supports multimodal inputs; baseline for GPT-4.1 improvements[2][6] |
-| **GPT-4.1**     | gpt-4.1, gpt-4.1-mini, gpt-4.1-nano | May 14, 2025       | Up to 1 million tokens  | Yes                     | Major improvements over GPT-4o in coding, instruction following, and long context comprehension; refreshed knowledge cutoff June 2024; best for long context tasks[6] |
-| **GPT-4.5**     | GPT-4.5 (research preview)     | Early 2025 (preview) | Not specified           | Yes                     | Step forward in scaling pre- and post-training; improved pattern recognition; available to Pro users; phased out July 14, 2025[2][8] |
-| **o-series (o3, o4-mini)** | o3, o3-pro, o3-mini, o4-mini | o3 and o4-mini: June 10, 2025; o3-mini: Jan 31, 2025 | Not specified           | Yes (three adjustable reasoning efforts: low, medium, high) | Reasoning models trained to think longer before responding; agentic use of tools (web search, Python, image analysis); optimized for coding, math, science; cost-efficient; supports structured outputs and function calling[1][2] |
+## Latest OpenAI GPT Models in 2025
 
-### Additional Notes:
-- **GPT-5** features a *real-time router* that dynamically chooses between fast and deep reasoning modes based on task complexity and user intent, supporting explicit "think hard" prompts[4][5].
-- The **reasoning_effort** parameter is explicitly supported in the o3-mini model, allowing users to balance speed and depth of reasoning[2].
-- **GPT-4.1** significantly extends context window size to up to 1 million tokens, a major increase over GPT-4o's 128k tokens, enhancing long-context understanding[6].
-- OpenAI also released open-weight models (gpt-oss-120b and gpt-oss-20b) for self-hosting, but these are separate from the GPT-5 and o-series frontier models[2][7].
+### GPT-5
+- **Release Date**: August 2025 (exact date not specified) [5][10].
+- **Model IDs**: GPT-5, GPT-5 mini, GPT-5 nano [3][6].
+- **Context Window**: Not explicitly stated for GPT-5, but typically around 2048 tokens for similar models.
+- **Reasoning Effort Parameter Support**: Yes, through its unified system that includes a deeper reasoning model [5].
+- **Key Features**: 
+  - **Unified System**: Combines a smart, efficient model with a deeper reasoning model and a real-time router to decide which to use based on conversation complexity [5].
+  - **Coding and Agentic Tasks**: Excels at coding, particularly in front-end development, and is designed to be a true coding collaborator [6].
+  - **Expert-Level Intelligence**: Provides expert-level responses across various domains, including coding, math, writing, and more [5].
 
-In summary, **GPT-5** is the flagship 2025 release with advanced coding and agentic capabilities, complemented by the o-series for reasoning and tool use, and GPT-4.1 for ultra-long context tasks. All these models support advanced reasoning features, with some offering adjustable reasoning effort parameters.
+### GPT-4.5
+- **Release Date**: Available as a research preview in 2025 (exact date not specified) [2][8].
+- **Model ID**: GPT-4.5.
+- **Context Window**: Typically around 2048 tokens for GPT-4 models.
+- **Reasoning Effort Parameter Support**: Not explicitly mentioned.
+- **Key Features**:
+  - **Improvements Over GPT-4o**: Shows meaningful improvements over previous models like GPT-4o through scaled-up unsupervised learning [8].
+  - **Research Preview**: Initially available for Pro users, with plans to expand to other paid plans [2].
+
+### GPT-4.1
+- **Release Date**: Released in the API in April 2025 and in ChatGPT for all paid users on May 14, 2025 [2].
+- **Model ID**: GPT-4.1.
+- **Context Window**: Typically around 2048 tokens for GPT-4 models.
+- **Reasoning Effort Parameter Support**: Not explicitly mentioned.
+- **Key Features**:
+  - **Popularity Among Developers**: Became a favorite among developers due to its performance [2].
+
+### GPT-4o
+- **Release Date**: Not explicitly mentioned in the search results for 2025.
+- **Model ID**: GPT-4o.
+- **Context Window**: Typically around 2048 tokens for GPT-4 models.
+- **Reasoning Effort Parameter Support**: Not explicitly mentioned.
+- **Key Features**:
+  - **Comparison to GPT-4.5**: GPT-4.5 shows improvements over GPT-4o [8].
+
+### GPT-4-turbo
+- **Release Date**: Not explicitly mentioned in the search results for 2025.
+- **Model ID**: Not explicitly mentioned.
+- **Context Window**: Typically around 2048 tokens for GPT-4 models.
+- **Reasoning Effort Parameter Support**: Not explicitly mentioned.
+- **Key Features**:
+  - **Note**: There is no specific mention of a "GPT-4-turbo" model in the provided search results.
+
+### OpenAI o3 and o4-mini
+- **Release Date**: OpenAI o3 and o4-mini were released in 2025, with o3-pro available as of June 10, 2025 [1].
+- **Model IDs**: o3, o4-mini.
+- **Context Window**: Not explicitly stated.
+- **Reasoning Effort Parameter Support**: Yes, these models are designed to think longer and provide more reliable responses [1].
+- **Key Features**:
+  - **Advanced Reasoning**: These models can use and combine tools within ChatGPT, such as searching the web and analyzing data [1].
+  - **Agentic Capabilities**: Designed to tackle complex problems by reasoning about when and how to use tools [1].
+
+### gpt-oss-120b and gpt-oss-20b
+- **Release Date**: Released on August 5, 2025 [2][4].
+- **Model IDs**: gpt-oss-120b, gpt-oss-20b.
+- **Context Window**: Not explicitly stated.
+- **Reasoning Effort Parameter Support**: Not explicitly mentioned.
+- **Key Features**:
+  - **Open-Weight Models**: Available under the Apache 2.0 license, designed for customization and deployment on consumer hardware [4].
+  - **Performance**: gpt-oss-120b achieves near-parity with OpenAI o4-mini on core reasoning benchmarks, while gpt-oss-20b performs similarly to OpenAI o3-mini [4].
 
 ---
 
 ## 🔮 Google Gemini Models
 
-The latest Google Gemini model versions released in 2025 include **Gemini 2.5 Pro** and **Gemini 2.5 Flash**, with specific preview and stable releases as follows:
+The latest Google Gemini model versions released in 2025 include **Gemini 2.5 Pro** and **Gemini 2.5 Flash** with the following details:
 
-| Model Version           | Exact Model ID                     | Release Date        | Context Window (Tokens)          | Main Capabilities                                                                                     |
-|------------------------|----------------------------------|---------------------|---------------------------------|-----------------------------------------------------------------------------------------------------|
-| Gemini 2.5 Pro Preview | `gemini-2.5-pro-preview-06-05`   | June 5, 2025        | Not explicitly stated, but typical Gemini 2.5 Pro supports large context windows (likely ≥65k tokens) | Most powerful model with **adaptive thinking**, improved coding, science, multimodal understanding, reasoning, creative writing, style, and structure[2][3]. Supports text, images, video, audio. |
-| Gemini 2.5 Pro GA       | `gemini-2.5-pro`                  | General availability expected June 2025 (post-preview) | Same as preview, large context window          | Stable release with similar capabilities as preview; however, users report **performance regressions** in response quality, hallucinations, context loss, and factual inaccuracies compared to preview[4][5][7][8]. |
-| Gemini 2.5 Flash Preview| `gemini-2.5-flash-preview-09-2025` | September 2025      | 1,048,576 tokens (text), 65,536 tokens (other modalities) | Price-performance optimized model for large-scale, low-latency, high-volume tasks requiring thinking and agentic use cases. Supports text, images, video, audio[6]. |
-| Gemini 2.5 Flash        | `gemini-2.5-flash`                | June 2025           | 1,048,576 tokens (text), 65,536 tokens (other modalities) | Best price-performance model, well-rounded capabilities, supports multimodal inputs including text, images, video, audio[6]. |
+| Model Name          | Exact Model ID                     | Release Date           | Context Window (Tokens)          | Main Capabilities                                                                                   |
+|---------------------|----------------------------------|-----------------------|---------------------------------|---------------------------------------------------------------------------------------------------|
+| Gemini 2.5 Pro      | `gemini-2.5-pro-preview-06-05` (preview), GA expected June 26, 2025 | Preview launched April 4, 2025; GA June 26, 2025 | Not explicitly stated, but typical Gemini 2.5 Pro models support large context windows (likely 1M tokens or less) | Most powerful model with adaptive thinking, strong in coding, science, multimodal understanding, reasoning, creative writing, style, and structure. Supports multi-tool use, asynchronous function calls, and URL context. However, the June 2025 GA release showed some performance regressions in response quality, hallucination, and context retention[1][2][3][4][5]. |
+| Gemini 2.5 Flash    | `gemini-2.5-flash` and `gemini-2.5-flash-preview-09-2025` | Flash preview May 20, 2025; latest update September 2025 | 1,048,576 tokens (text), 65,536 tokens (images, video, audio) | Optimized for price-performance, large-scale processing, low-latency, high volume tasks requiring thinking and agentic use cases. Supports text, images, video, and audio inputs with multimodal capabilities[2][6]. |
 
-### Additional Details
+Additional notes:
 
-- **Gemini 2.5 Pro** launched in public preview on April 4, 2025, with Vertex AI support rolling out gradually; general availability including batch API expected by June 2025[1][2].
+- **Gemini 2.5 Pro** preview versions were updated from `gemini-2.5-pro-preview-05-06` (deprecated June 19, 2025) to `gemini-2.5-pro-preview-06-05` with improvements, but the GA release in June 2025 showed some regression in quality and factual accuracy[2][3][4][5][7][8].
 
-- The **Gemini 2.5 Pro Preview 05-06** version was deprecated in June 2025 in favor of the improved 06-05 preview version[3].
+- **Gemini 2.5 Flash** is positioned as the best price-performance model for large-scale and agentic tasks, with extensive multimodal support and a very large context window of over 1 million tokens for text[6].
 
-- Pricing for Gemini 2.5 Pro Batch API tokens is the same as real-time API, with no discounts for batch usage[1].
+- Pricing for Gemini 2.5 Pro Batch API (launched in public preview April 4, 2025) is the same as real-time API, with no discounts for batch usage. Rate limits vary by usage tier and can be upgraded via AI Studio dashboard[1][9].
 
-- Users have reported significant **performance regressions** in the June 2025 GA release of Gemini 2.5 Pro, including hallucinations, context abandonment in multi-turn conversations, factual inaccuracies, and slower response times compared to earlier previews[4][5][7][8].
-
-- **Gemini 2.5 Flash** models are optimized for cost-efficiency and high throughput, supporting multimodal inputs with very large context windows (up to over 1 million tokens for text)[6].
-
-### Summary
-
-- **Gemini 2.5 Pro** (`gemini-2.5-pro-preview-06-05` and `gemini-2.5-pro`) is the flagship model released in early to mid-2025 with adaptive thinking and broad multimodal capabilities but has faced user-reported quality regressions in the stable release.
-
-- **Gemini 2.5 Flash** (`gemini-2.5-flash` and `gemini-2.5-flash-preview-09-2025`) is the price-performance optimized model released mid to late 2025, supporting extremely large context windows and multimodal inputs, suitable for large-scale, low-latency applications.
-
-These details reflect the latest official releases and user feedback as of October 2025.
+In summary, the **Gemini 2.5 Pro** (model ID `gemini-2.5-pro-preview-06-05`) is the flagship model released in 2025 with advanced reasoning and multimodal capabilities but has faced some quality regressions in mid-2025. The **Gemini 2.5 Flash** (`gemini-2.5-flash` and its preview versions) offers a large context window and is optimized for cost-effective, high-throughput multimodal tasks.
 
 ---
 
