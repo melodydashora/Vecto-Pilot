@@ -130,7 +130,7 @@ function startSDK() {
   const childEnv = {
     ...process.env,
     PORT: String(SDK_PORT),
-    HOST: "127.0.0.1",
+    HOST: "0.0.0.0",
     EIDOLON_DISABLE_STATIC: "1", // gateway serves UI
     EIDOLON_APP_DIST: ""         // no SDK static path
   };

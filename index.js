@@ -218,7 +218,7 @@ function getPortConfig() {
   return { mainPort, agentPort };
 }
 const { mainPort: PORT, agentPort: AGENT_PORT } = getPortConfig();
-const HOST = process.env.HOST || "127.0.0.1";
+const HOST = process.env.HOST || "0.0.0.0";
 const AGENT_BASE_URL =
   process.env.AGENT_BASE_URL || `http://127.0.0.1:${AGENT_PORT}`;
 const AGENT_TOKEN = process.env.AGENT_TOKEN;

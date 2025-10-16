@@ -42,7 +42,7 @@ const execFileAsync = promisify(execFile);
 // ─────────────────────────────────────────────────────────────────────────────
 const BASE_DIR = process.env.BASE_DIR || "/home/runner/workspace";
 const PORT = Number(process.env.AGENT_PORT || process.env.DEFAULT_AGENT_PORT || 43717);
-const HOST = process.env.AGENT_HOST || "127.0.0.1"; // loopback by default
+const HOST = process.env.AGENT_HOST || "0.0.0.0"; // bind to all interfaces for Replit
 const TOKEN = process.env.AGENT_TOKEN || null;
 const IS_REPLIT = process.env.REPL_ID !== undefined;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
