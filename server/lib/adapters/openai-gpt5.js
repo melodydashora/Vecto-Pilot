@@ -27,12 +27,12 @@ export async function callGPT5({
     messageArray.push({ role: "user", content: user });
   }
   
-  // Effort fallback: param > env > "medium"
-  const effort = reasoning_effort || process.env.OPENAI_REASONING_EFFORT || "medium";
+  // Effort fallback: param > env > "minimal" (changed for faster responses)
+  const effort = reasoning_effort || process.env.OPENAI_REASONING_EFFORT || "minimal";
   
-  // Token floor: ensure minimum 16 tokens
-  const envMax = Number(process.env.OPENAI_MAX_COMPLETION_TOKENS || 0);
-  const requested = Number(max_completion_tokens || envMax || 512);
+  // Token floor: ensure minimum 16 tokens, increased default to 64000
+  const envMax = Number(process.env.OPENAI_MAX_COMPLETION_TOKENS || 64000);
+  const requested = Number(max_completion_tokens || envMax || 64000);
   const tokens = Math.max(16, requested);
   
   const body = {
