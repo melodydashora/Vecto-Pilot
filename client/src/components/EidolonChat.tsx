@@ -3,8 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
-import { MessageSquare, Send, Loader2, Info } from 'lucide-react';
+import { MessageSquare, Send, Loader2 } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -22,11 +21,6 @@ export function EidolonChat({ snapshotId, city, isVisible = true }: EidolonChatP
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [contextInfo, setContextInfo] = useState<{
-    hasStrategy: boolean;
-    venueCount: number;
-    researchCount: number;
-  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,10 +69,6 @@ export function EidolonChat({ snapshotId, city, isVisible = true }: EidolonChatP
           timestamp: Date.now()
         };
         setMessages(prev => [...prev, assistantMessage]);
-
-        if (data.contextProvided) {
-          setContextInfo(data.contextProvided);
-        }
       }
     } catch (error) {
       console.error('[Eidolon Chat] Error:', error);
@@ -110,12 +100,6 @@ export function EidolonChat({ snapshotId, city, isVisible = true }: EidolonChatP
             <MessageSquare className="h-5 w-5 text-primary" />
             <CardTitle>Eidolon Assistant</CardTitle>
           </div>
-          {contextInfo && (
-            <Badge variant="outline" className="text-xs" data-testid="chat-context-badge">
-              <Info className="h-3 w-3 mr-1" />
-              {contextInfo.venueCount} venues • {contextInfo.researchCount} intel reports
-            </Badge>
-          )}
         </div>
         <CardDescription>
           Ask me anything about your current location, venue recommendations, road conditions, or where to go next
