@@ -351,52 +351,50 @@ router.get('/weather', async (req, res) => {
       });
     }
 
-    const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_API_KEY}`;
-    const requestBody = {
-      location: {
-        latitude: lat,
-        longitude: lng
-      },
-      languageCode: 'en-US',
-      unitSystem: 'US'
-    };
+    // Use hourly forecast endpoint with hours=1 to get current conditions
+    const url = `https://weather.googleapis.com/v1/forecast/hours:lookup?key=${GOOGLE_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&hours=1`;
 
     const data = await googleWeatherCircuit(async (signal) => {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-        signal
-      });
+      const response = await fetch(url, { signal });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `API error: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`API error: ${response.status} - ${errorText}`);
       }
 
       return await response.json();
     });
 
-    // Extract weather data from Google Weather API response
-    const conditions = data.condition;
-    const temperature = data.temperature?.value || 0;
-    const feelsLike = data.apparentTemperature?.value || temperature;
-    const humidity = data.humidity?.value || 0;
-    const windSpeed = data.windSpeed?.value || 0;
-    const weatherDesc = conditions?.weatherText || 'Unknown';
+    // Extract current hour's weather data
+    const currentHour = data.forecastHours?.[0];
+    if (!currentHour) {
+      throw new Error('No weather data returned');
+    }
+
+    // Convert from Celsius to Fahrenheit (API returns Celsius by default)
+    const tempC = currentHour.temperature?.degrees || 0;
+    const feelsLikeC = currentHour.feelsLikeTemperature?.degrees || tempC;
+    const tempF = Math.round((tempC * 9/5) + 32);
+    const feelsLikeF = Math.round((feelsLikeC * 9/5) + 32);
+
+    // Extract wind speed (convert km/h to mph)
+    const windKmh = currentHour.wind?.speed?.value || 0;
+    const windMph = Math.round(windKmh * 0.621371);
+
+    // Extract precipitation
+    const precipMm = currentHour.precipitation?.qpf?.quantity || 0;
+    const precipIn = precipMm * 0.0393701;
 
     const weatherData = {
       available: true,
-      temperature: Math.round(temperature),
-      feelsLike: Math.round(feelsLike),
-      conditions: weatherDesc,
-      description: weatherDesc.toLowerCase(),
-      humidity: Math.round(humidity),
-      windSpeed: Math.round(windSpeed),
-      precipitation: 0, // Google API may provide this differently
-      icon: '', // Google uses different icon system
+      temperature: tempF,
+      feelsLike: feelsLikeF,
+      conditions: currentHour.weatherCondition?.description?.text || 'Unknown',
+      description: currentHour.weatherCondition?.description?.text?.toLowerCase() || '',
+      humidity: currentHour.relativeHumidity || 0,
+      windSpeed: windMph,
+      precipitation: Math.round(precipIn * 100) / 100,
+      icon: currentHour.weatherCondition?.iconBaseUri || '',
     };
     
     console.log(`[Location API] 🌤️ Weather fetched:`, {
