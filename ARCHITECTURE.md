@@ -424,147 +424,172 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 
 ---
 
-## 🤖 **AI/ML PIPELINE: TRIAD ARCHITECTURE**
+## 🤖 **AI/ML PIPELINE: MODEL-AGNOSTIC ARCHITECTURE**
 
 ### Design Philosophy (LOCKED - DO NOT CHANGE)
 
-1. **Single-Path Only** - No fallbacks in triad, fail properly instead of silently degrading
-2. **Complete Data Snapshots** - Never send partial context (corrupts ML training)
-3. **Zero Pre-Computed Flags** - Models infer patterns from raw data
-4. **Idempotent Processing** - Same input = same output (critical for ML)
+1. **Role-Based, Not Model-Specific** - Pipeline works with any model in any role
+2. **Single-Path Only** - No fallbacks in pipeline, fail properly instead of silently degrading
+3. **Complete Data Snapshots** - Never send partial context (corrupts ML training)
+4. **Server Orchestrates Data Flow** - Models don't communicate directly; server manages all data
 5. **Observable at Every Stage** - Full logging for counterfactual learning
 
 **Why This Matters:**
-- **ML Training Integrity** - We're building a dataset for future model fine-tuning
-- **Trust-First Stack** - Curated venue catalog + deterministic scoring prevents hallucinations
+- **Model Flexibility** - Can swap GPT-5 ↔ Claude ↔ Gemini without changing workflow
+- **ML Training Integrity** - Building dataset for future model fine-tuning
 - **Quality > Availability** - Better to fail visibly than succeed with wrong answer
 
 ---
 
-### Stage 1: GPT-5 (Strategist)
-**Model:** `gpt-5-2025-08-07` ✅ Verified Working  
+### 🔄 **PIPELINE DATA FLOW**
+
+```
+Model 1 (Strategy) → Server → Model 2 (Tactical) → Server → Google APIs → PostgreSQL → Model 3 (Refinement) → Server → User
+```
+
+**Server Responsibilities:**
+- Orchestrates all model calls
+- Manages Google API integration (Geocoding, Places, Routes)
+- Persists all data to PostgreSQL
+- Assembles final response
+
+**Model Responsibilities:**
+- Process inputs provided by server
+- Return structured outputs
+- NO direct model-to-model communication
+- NO direct API calls
+
+---
+
+### Stage 1: Strategy Generation
+**Current Model:** `gpt-5-2025-08-07` ✅ (replaceable with any model)  
 **Role:** High-level strategic analysis and narrative generation  
 **Timeout:** 12 seconds (STRATEGIST_TIMEOUT_MS)
-**Reasoning Effort:** `low` (hardcoded for speed)
 
-**Input Sent to GPT-5:**
+**Server Sends to Model:**
 - ✅ Exact address and GPS coordinates
 - ✅ Day of week, date, time (formatted: "Thursday, 10/16/2025 at 10:14 PM")
 - ✅ Daypart (evening, late_evening, etc.)
 - ✅ Weather (75°F Cloudy, humidity, wind)
 - ✅ Air quality (AQI 68, category)
 - ✅ Airport context (DFW 18.6 miles, 0 min delays)
-- ❌ **NO business hours** (no venues exist yet)
-- ❌ **NO venue catalog** (generates strategy first)
+- ❌ NO business hours (no venues exist yet)
 
-**Output:** Strategic overview text (3-5 sentences)
-**Token Usage:** 150-200 tokens average  
-**Success Rate:** 98.7% (production data)
+**Model Returns to Server:** Strategic overview text (3-5 sentences)
 
-**Critical Guard:** If GPT-5 fails to generate strategy, entire triad pipeline aborts (single-path only principle)
+**Server Action:** Store strategy in PostgreSQL, pass to Stage 2
 
 ---
 
-### Stage 2: GPT-5 (Tactical Planner)
-**Model:** `gpt-5-2025-08-07` ✅ Verified Working  
-**Role:** Deep reasoning for venue selection and timing  
+### Stage 2: Tactical Planning
+**Current Model:** `gpt-5-2025-08-07` ✅ (replaceable with any model)  
+**Role:** Generate venue recommendations with coordinates  
 **Timeout:** 120 seconds (PLANNER_DEADLINE_MS)
-**Reasoning Effort:** `low` (hardcoded for speed)
 
-**Input Sent to GPT-5:**
+**Server Sends to Model:**
 - ✅ Strategy text from Stage 1
 - ✅ Snapshot context (location, time, weather, airport)
-- ❌ **NO business hours** (venues don't exist yet)
+- ❌ NO business hours (not fetched yet)
 
-**Output:** 4-6 venue recommendations with coordinates, pro tips, staging location
-**Token Usage:** 1000-1500 prompt + 3000-4000 reasoning + 1000-1500 completion
+**Model Returns to Server:** 
+- 4-6 venue names + GPS coordinates
+- Pro tips per venue
+- Recommended staging location
 
-**Staging Area Constraint:**
-- MUST be centrally positioned within 2 minutes drive of ALL recommended venues
-- Priority: Free parking lots, gas stations, safe pull-off areas
-
-**Constraint:** Only runs if Stage 1 provides valid strategy (dependency enforced)
+**Server Action:** Pass coordinates to Stage 3 (Google APIs)
 
 ---
 
-### Stage 3: Google API Enrichment
-**Services:** Geocoding API, Places API (Business Hours)  
-**Role:** Fetch real-world data for GPT-5 recommendations  
+### Stage 3: Google API Enrichment (Server-Side)
+**Services:** Geocoding API, Places API, Routes API  
+**Role:** Fetch real-world data for model recommendations  
 **Timeout:** 30 seconds total
 
-**Processing:**
-1. **Reverse Geocoding** - Convert GPT-5 coordinates → place_id + verified address
-2. **Business Hours Fetch** - Get current hours, open/closed status for each venue
-3. **Cache to PostgreSQL** - Store in `places` and `places_cache` tables
+**Server Processing:**
+1. **Reverse Geocoding** - Convert model coordinates → place_id + verified address
+2. **Business Hours** - Fetch current hours, open/closed status for each venue
+3. **Distance Calculation** - Routes API for drive time + miles
+4. **PostgreSQL Persistence** - Save to `places`, `places_cache`, `rankings`, `ranking_candidates` tables
 
-**Output:** Enriched venues with verified coordinates, addresses, and business hours
-
-**Critical Data Fetched:**
+**Server Output:** Enriched venues with:
 - ✅ place_id (Google's unique identifier)
-- ✅ Verified lat/lng (may differ from GPT-5 estimates)
+- ✅ Verified lat/lng (may differ from model estimates)
 - ✅ Formatted address
-- ✅ Business hours (open/closed status, formatted hours text)
-- ✅ Current status (open now? closed?)
+- ✅ **Business hours** (formatted text like "Mon-Fri: 11am-10pm")
+- ✅ **Open/closed status** (boolean + reasoning)
+- ✅ Drive time + distance from origin
 
 ---
 
-### Stage 4: GPT-5 Refinement (PROPOSED - NOT IMPLEMENTED)
-**Model:** `gpt-5-2025-08-07`  
-**Role:** Filter closed venues and suggest alternatives  
+### Stage 4: Refinement & Filtering
+**Current Model:** `gpt-5-2025-08-07` ✅ (replaceable with any model)  
+**Role:** Filter closed venues, suggest open alternatives  
 **Timeout:** 60 seconds (REFINEMENT_DEADLINE_MS)
-**Reasoning Effort:** `low`
 
-**⚠️ ARCHITECTURAL GAP IDENTIFIED:**
-Current system sends venues to user even if closed. GPT-5 recommends "Stonebriar Centre" at 10:14 PM without knowing it closes at 9 PM.
-
-**Proposed Fix:**
-After Stage 3 enrichment, send venues WITH business hours back to GPT-5:
-
-**Input to GPT-5 Refinement:**
+**Server Sends to Model:**
 - ✅ Original strategy text
-- ✅ Original 4-6 venue recommendations
-- ✅ **NEW: Business hours for each venue** ("Open until 11pm", "Closed at 9pm", etc.)
-- ✅ **NEW: Current open/closed status** per venue
-- ✅ Snapshot context (for alternative suggestions)
+- ✅ Original venue recommendations from Stage 2
+- ✅ **Enriched Google data** (place_id, address, business hours, open/closed status, distance)
+- ✅ Snapshot context (for suggesting alternatives)
 
-**GPT-5 Refinement Logic:**
+**Model Processing:**
 1. Review each venue's hours against current time
-2. Filter out venues that are closed OR closing within 30 minutes
-3. For removed venues, suggest alternatives that are OPEN
-4. Preserve staging area constraint (all venues within 2 min)
-5. Return refined list with only viable venues
+2. Filter out closed venues OR venues closing within 30 minutes
+3. For removed venues, suggest open alternatives in same area
+4. Preserve staging area constraint (all within 2 min drive)
+5. Return refined list with only viable venues + reasoning
 
-**Output:** Refined 4-6 venues (all open/verified) with explanations for any changes
+**Model Returns to Server:** 
+- Refined 4-6 venue list (all open/verified)
+- Explanations for any venue changes
+- Updated staging location if needed
 
-**Example Refinement:**
+**Example:**
 ```
-Input: "Stonebriar Centre (Closed at 9pm)" at 10:14 PM
-GPT-5: "Removed Stonebriar Centre (closed 1hr ago). 
+Input: "Stonebriar Centre (Closed at 9pm, currently 10:14 PM)"
+Model: "Removed Stonebriar Centre (closed 1hr ago). 
         Suggested: Union Bear Brewing (open until 12am) - 
         same area, captures late bar traffic instead."
 ```
 
-**Benefit:** Prevents recommending closed venues, maintains earnings focus, transparent reasoning
+**Server Action:** Pass refined venues to Stage 5
 
-**Implementation Status:** 🔴 NOT IMPLEMENTED (architectural improvement needed)
+**Implementation Status:** 🔴 NOT IMPLEMENTED (all models currently GPT-5, refinement loop needed)
 
 ---
 
-### Stage 5: Gemini 2.5 Pro (Validator)
-**Model:** `gemini-2.5-pro-latest` ✅ Verified Working  
-**Role:** Final JSON validation and earnings projections  
+### Stage 5: Final Validation & Rankings
+**Current Model:** `gpt-5-2025-08-07` ✅ (replaceable with any model)  
+**Role:** Validate JSON structure, calculate value-per-minute rankings  
 **Timeout:** 60 seconds (VALIDATOR_DEADLINE_MS)
 
-**Processing:**
-- Validates refined venue JSON structure
-- Calculates traffic-aware distances (Routes API)
-- Generates earnings projections per venue
-- Ranks by value-per-minute
+**Server Sends to Model:**
+- ✅ Refined venues from Stage 4
+- ✅ All enriched data (hours, distance, coordinates)
 
-**Output:** Final validated strategy with distances, earnings, rankings
-**Token Usage:** 500-800 tokens average
+**Model Returns to Server:**
+- JSON-validated venue structure
+- Earnings projections per venue
+- Value-per-minute rankings
+- Final recommendations
 
-**Constraint:** Must return minimum 4 venues or pipeline fails (quality threshold)
+**Server Action:** Return to user, log to PostgreSQL for ML training
+
+---
+
+### 🔧 **CURRENT IMPLEMENTATION STATUS**
+
+**All Stages Currently Use:** `gpt-5-2025-08-07` with `reasoning_effort='low'`
+
+**Why All GPT-5 Now:**
+- Single model simplifies initial deployment
+- Consistent reasoning patterns across pipeline
+- Can be replaced with Claude/Gemini/other models without workflow changes
+
+**Model-Agnostic Design Allows:**
+- Stage 1: GPT-5 strategy → Stage 2: Claude tactical → Stage 3: Google → Stage 4: Gemini refinement
+- Or any other combination
+- Workflow stays identical, only model configs change
 
 ---
 
