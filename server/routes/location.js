@@ -31,8 +31,8 @@ const googleMapsCircuit = makeCircuit({
   timeoutMs: 5000 
 });
 
-const openWeatherCircuit = makeCircuit({ 
-  name: 'openweather', 
+const googleWeatherCircuit = makeCircuit({ 
+  name: 'google-weather', 
   failureThreshold: 3, 
   resetAfterMs: 30000, 
   timeoutMs: 3000 
@@ -51,7 +51,7 @@ function httpError(res, status, code, message, reqId, extra = {}) {
 }
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
-const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;
 
 // Production gate: Disallow manual city overrides (test-only feature)
@@ -343,46 +343,60 @@ router.get('/weather', async (req, res) => {
       return res.status(400).json({ error: 'lat/lng required' });
     }
 
-    if (!OPENWEATHER_API_KEY) {
-      console.warn('[location] No OpenWeather API key configured');
+    if (!GOOGLE_API_KEY) {
+      console.warn('[location] No Google API key configured');
       return res.json({ 
         available: false,
         error: 'API key not configured' 
       });
     }
 
-    const url = new URL('https://api.openweathermap.org/data/2.5/weather');
-    url.searchParams.set('lat', String(lat));
-    url.searchParams.set('lon', String(lng));
-    url.searchParams.set('appid', OPENWEATHER_API_KEY);
-    url.searchParams.set('units', 'imperial'); // Fahrenheit, mph
+    const url = `https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_API_KEY}`;
+    const requestBody = {
+      location: {
+        latitude: lat,
+        longitude: lng
+      },
+      languageCode: 'en-US',
+      unitSystem: 'US'
+    };
 
-    const data = await openWeatherCircuit(async (signal) => {
-      const response = await fetch(url.toString(), { signal });
+    const data = await googleWeatherCircuit(async (signal) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal
+      });
+
       if (!response.ok) {
-        throw new Error(`OpenWeather API error: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `API error: ${response.status}`);
       }
+
       return await response.json();
     });
 
-    if (data.cod !== 200) {
-      console.error('[location] Weather API error:', data.message);
-      return res.status(500).json({ 
-        available: false,
-        error: data.message 
-      });
-    }
+    // Extract weather data from Google Weather API response
+    const conditions = data.condition;
+    const temperature = data.temperature?.value || 0;
+    const feelsLike = data.apparentTemperature?.value || temperature;
+    const humidity = data.humidity?.value || 0;
+    const windSpeed = data.windSpeed?.value || 0;
+    const weatherDesc = conditions?.weatherText || 'Unknown';
 
     const weatherData = {
       available: true,
-      temperature: Math.round(data.main?.temp || 0),
-      feelsLike: Math.round(data.main?.feels_like || 0),
-      conditions: data.weather?.[0]?.main || 'Unknown',
-      description: data.weather?.[0]?.description || '',
-      humidity: data.main?.humidity || 0,
-      windSpeed: Math.round(data.wind?.speed || 0),
-      precipitation: data.rain?.['1h'] || data.snow?.['1h'] || 0,
-      icon: data.weather?.[0]?.icon || '',
+      temperature: Math.round(temperature),
+      feelsLike: Math.round(feelsLike),
+      conditions: weatherDesc,
+      description: weatherDesc.toLowerCase(),
+      humidity: Math.round(humidity),
+      windSpeed: Math.round(windSpeed),
+      precipitation: 0, // Google API may provide this differently
+      icon: '', // Google uses different icon system
     };
     
     console.log(`[Location API] 🌤️ Weather fetched:`, {
