@@ -245,9 +245,9 @@ const CoPilot: React.FC = () => {
     queryFn: async () => {
       if (!coords) throw new Error('No GPS coordinates');
       
-      // Client-side idempotency gate: Only call once per snapshot
+      // Client-side idempotency gate: Only call once per snapshot (concurrent guard)
       if (lastSnapshotId && didStartBySnapshot.current[lastSnapshotId]) {
-        console.log(`🔒 [Client Gate] Blocked duplicate call for snapshot: ${lastSnapshotId}`);
+        console.log(`🔒 [Client Gate] Blocked concurrent call for snapshot: ${lastSnapshotId}`);
         throw new Error('DUPLICATE_CALL_BLOCKED');
       }
       
@@ -366,6 +366,11 @@ const CoPilot: React.FC = () => {
         }
       } catch (err: any) {
         clearTimeout(timeoutId);
+        // Reset gate on error to allow retry
+        if (lastSnapshotId && didStartBySnapshot.current[lastSnapshotId]) {
+          delete didStartBySnapshot.current[lastSnapshotId];
+          console.log(`♻️ [Client Gate] Reset gate for snapshot ${lastSnapshotId} due to error`);
+        }
         if (err.name === 'AbortError') {
           throw new Error('Request timed out - AI processing is taking longer than expected');
         }
