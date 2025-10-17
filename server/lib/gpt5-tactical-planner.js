@@ -1,10 +1,8 @@
 // server/lib/gpt5-tactical-planner.js
-// Fast Tactical Planner: Takes Claude's strategy → tactical venue recommendations
-// Uses GPT-4o with temperature for 10x faster responses (3-10s vs 30-120s)
-// Falls back to GPT-5 reasoning if FAST_PLANNER=false
+// GPT-5 Tactical Planner: Takes Claude's strategy → tactical venue recommendations
+// Uses GPT-5 reasoning mode for deep tactical analysis
 
 import { callGPT5 } from "./adapters/openai-gpt5.js";
-import { callGPT4 } from "./adapters/openai-gpt4.js";
 import { z } from "zod";
 
 // Zod schema for GPT-5 response validation (address removed - will be resolved via Google Places)
@@ -174,50 +172,31 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "Return JSON only."
   ].join("\n");
 
-  // Fast mode: Use GPT-4o with temperature (10x faster: 3-10s vs 30-120s)
-  // Default to fast mode unless explicitly disabled
-  const useFastMode = process.env.FAST_PLANNER !== 'false';
-  const temperature = parseFloat(process.env.PLANNER_TEMPERATURE || '0.7');
-  
-  console.log(`[Tactical Planner] Mode: ${useFastMode ? 'FAST (GPT-4o)' : 'REASONING (GPT-5)'}, Temperature: ${useFastMode ? temperature : 'N/A'}`);
+  // GPT-5 reasoning effort - configurable via env (low/medium/high)
+  // Lower effort = faster response but less deep reasoning
+  const reasoningEffort = process.env.OPENAI_REASONING_EFFORT || process.env.GPT5_REASONING_EFFORT || 'low';
+  console.log(`[GPT-5 Tactical Planner] Calling GPT-5 with reasoning_effort=${reasoningEffort}...`);
 
+  // Call GPT-5 with configurable reasoning effort
   const abortCtrl = new AbortController();
   const timeoutMs = parseInt(process.env.GPT5_TIMEOUT_MS || process.env.PLANNER_DEADLINE_MS, 10) || 300000;
   const timeout = setTimeout(() => {
-    console.error(`[Tactical Planner] ⏱️ Request timed out after ${timeoutMs}ms`);
+    console.error(`[GPT-5 Tactical Planner] ⏱️ Request timed out after ${timeoutMs}ms`);
     abortCtrl.abort();
   }, timeoutMs);
   
   try {
-    let rawResponse;
-    
-    if (useFastMode) {
-      // Fast mode: GPT-4o with temperature (3-10 seconds)
-      rawResponse = await callGPT4({
-        system: developer,
-        user,
-        model: process.env.FAST_PLANNER_MODEL || 'gpt-4o',
-        temperature,
-        max_tokens: 4000,
-        response_format: { type: "json_object" },
-        abortSignal: abortCtrl.signal
-      });
-    } else {
-      // Reasoning mode: GPT-5 with low reasoning (30-120 seconds)
-      const reasoningEffort = 'low';
-      const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.GPT5_MAX_TOKENS, 10);
-      rawResponse = await callGPT5({
-        developer,
-        user,
-        reasoning_effort: reasoningEffort,
-        max_completion_tokens: maxTokens,
-        abortSignal: abortCtrl.signal
-      });
-    }
+    const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.GPT5_MAX_TOKENS, 10);
+    const rawResponse = await callGPT5({
+      developer,
+      user,
+      reasoning_effort: reasoningEffort,
+      max_completion_tokens: maxTokens,
+      abortSignal: abortCtrl.signal
+    });
 
     const duration = Date.now() - startTime;
-    const modelUsed = useFastMode ? (process.env.FAST_PLANNER_MODEL || 'gpt-4o') : 'gpt-5';
-    console.log(`✅ [Tactical Planner] Generated plan in ${duration}ms using ${modelUsed}`);
+    console.log(`✅ [GPT-5 Tactical Planner] Generated plan in ${duration}ms`);
 
     // Parse JSON response
     const parsed = safeJsonParse(rawResponse);
