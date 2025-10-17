@@ -880,7 +880,9 @@ const CoPilot: React.FC = () => {
                           <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
                           <div className="flex-1">
                             <h3 className="font-semibold text-gray-900 text-base">
-                              {block.name}{block.isOpen === false && ' (Closed)'}
+                              {block.name}
+                              {block.isOpen === true && <span className="text-green-600"> (Open)</span>}
+                              {block.isOpen === false && <span className="text-red-600"> (Closed)</span>}
                             </h3>
                             {block.address && (
                               <p className="text-sm text-gray-500 mt-0.5">{block.address}</p>
@@ -943,19 +945,13 @@ const CoPilot: React.FC = () => {
 
                       {/* Business Hours */}
                       {block.businessHours && (
-                        <div className="flex items-center gap-2 mb-3 text-sm">
-                          <Clock className="w-4 h-4 text-blue-600" />
-                          <span className={block.isOpen ? "text-gray-700" : "text-red-600 font-medium"}>
-                            {block.isOpen ? (
-                              <>
-                                <span className="font-medium text-green-600">Open</span> · {block.businessHours}
-                              </>
-                            ) : (
-                              <>
-                                <span className="font-medium">CLOSED</span> · {block.businessHours}
-                              </>
-                            )}
-                          </span>
+                        <div className="flex items-start gap-2 mb-3 text-sm">
+                          <Clock className="w-4 h-4 text-blue-600 mt-0.5" />
+                          <div className="text-gray-700">
+                            {block.businessHours.split(',').map((hours, idx) => (
+                              <div key={idx}>{hours.trim()}</div>
+                            ))}
+                          </div>
                         </div>
                       )}
 
