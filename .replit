@@ -66,7 +66,7 @@ localPort = 43717
 externalPort = 5173
 
 [deployment]
-run = ["npm", "start"]
+run = ["node", "gateway-server.js"]
 
 onBoot = "bash server/scripts/workspace-startup.sh"
 deploymentTarget = "autoscale"
