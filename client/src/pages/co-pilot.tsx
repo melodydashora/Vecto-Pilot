@@ -757,7 +757,7 @@ const CoPilot: React.FC = () => {
               <Badge className="bg-purple-100 text-purple-700 border-0">
                 Smart Blocks
               </Badge>
-              {metadata && (
+              {metadata && metadata.totalBlocks > 0 && (
                 <>
                   <span className="text-sm text-gray-500">
                     {metadata.totalBlocks} location{metadata.totalBlocks !== 1 ? 's' : ''}
