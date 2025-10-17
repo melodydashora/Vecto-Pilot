@@ -52,7 +52,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
 
   const startTime = Date.now();
   console.log(`[TRIAD 2/3 - GPT-5 Planner] ========== INPUT DATA ==========`);
-  console.log(`[TRIAD 2/3 - GPT-5 Planner] Claude Strategy: "${strategy}"`);
+  console.log(`[TRIAD 2/3 - GPT-5 Planner] GPT-5 Strategy: "${strategy}"`);
   console.log(`[TRIAD 2/3 - GPT-5 Planner] Snapshot Context:`, {
     city: snapshot?.city,
     state: snapshot?.state,
@@ -172,14 +172,15 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "Return JSON only."
   ].join("\n");
 
-  // GPT-5 reasoning effort - configurable via env (low/medium/high)
-  // Lower effort = faster response but less deep reasoning
-  const reasoningEffort = process.env.OPENAI_REASONING_EFFORT || process.env.GPT5_REASONING_EFFORT || 'low';
-  console.log(`[GPT-5 Tactical Planner] Calling GPT-5 with reasoning_effort=${reasoningEffort}...`);
+  // GPT-5 for blocks: NO thinking mode for speed (10-30s vs 2-4min)
+  // Structured prompts + validation ensure accuracy without extended reasoning
+  console.log(`[GPT-5 Tactical Planner] Calling GPT-5 WITHOUT thinking mode for faster blocks...`);
 
-  // Call GPT-5 with configurable reasoning effort
+  // Call GPT-5 with NO reasoning effort (much faster for structured tasks)
   const abortCtrl = new AbortController();
-  const timeoutMs = parseInt(process.env.GPT5_TIMEOUT_MS || process.env.PLANNER_DEADLINE_MS, 10) || 300000;
+  // Longer timeout for production: 3 minutes minimum (non-thinking mode should complete in 10-30s)
+  const envTimeout = parseInt(process.env.GPT5_TIMEOUT_MS || process.env.PLANNER_DEADLINE_MS, 10) || 180000;
+  const timeoutMs = Math.max(envTimeout, 180000); // Force minimum 3 minutes
   const timeout = setTimeout(() => {
     console.error(`[GPT-5 Tactical Planner] ⏱️ Request timed out after ${timeoutMs}ms`);
     abortCtrl.abort();
@@ -190,7 +191,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     const rawResponse = await callGPT5({
       developer,
       user,
-      reasoning_effort: reasoningEffort,
+      reasoning_effort: undefined, // NO thinking mode - faster structured output
       max_completion_tokens: maxTokens,
       abortSignal: abortCtrl.signal
     });
