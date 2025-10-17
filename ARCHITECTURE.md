@@ -441,72 +441,130 @@ GEMINI_TIMEOUT_MS=15000   # Validator
 
 ---
 
-### Stage 1: Claude Sonnet 4.5 (Strategist)
-**Model:** `claude-sonnet-4-5-20250929` ✅ Verified Working  
+### Stage 1: GPT-5 (Strategist)
+**Model:** `gpt-5-2025-08-07` ✅ Verified Working  
 **Role:** High-level strategic analysis and narrative generation  
-**Timeout:** 12 seconds (CLAUDE_TIMEOUT_MS)
+**Timeout:** 12 seconds (STRATEGIST_TIMEOUT_MS)
+**Reasoning Effort:** `low` (hardcoded for speed)
 
-**Critical Guard:** If Claude fails to generate `strategy_for_now`, the entire triad pipeline aborts. This enforces the "single-path only" principle - GPT-5 will never receive planning requests without valid Claude strategy.
+**Input Sent to GPT-5:**
+- ✅ Exact address and GPS coordinates
+- ✅ Day of week, date, time (formatted: "Thursday, 10/16/2025 at 10:14 PM")
+- ✅ Daypart (evening, late_evening, etc.)
+- ✅ Weather (75°F Cloudy, humidity, wind)
+- ✅ Air quality (AQI 68, category)
+- ✅ Airport context (DFW 18.6 miles, 0 min delays)
+- ❌ **NO business hours** (no venues exist yet)
+- ❌ **NO venue catalog** (generates strategy first)
 
-**Input:** Complete snapshot (location, weather, AQI, airport delays, time context, H3 geospatial)  
-**Output:** Strategic overview, pro tips, earnings estimate  
+**Output:** Strategic overview text (3-5 sentences)
 **Token Usage:** 150-200 tokens average  
 **Success Rate:** 98.7% (production data)
 
-**Constraint:** Must return text with strategic insights or pipeline aborts (no silent failures)
+**Critical Guard:** If GPT-5 fails to generate strategy, entire triad pipeline aborts (single-path only principle)
 
 ---
 
 ### Stage 2: GPT-5 (Tactical Planner)
-**Model:** `gpt-5-pro` ✅ Verified Working  
+**Model:** `gpt-5-2025-08-07` ✅ Verified Working  
 **Role:** Deep reasoning for venue selection and timing  
-**Timeout:** 45 seconds (GPT5_TIMEOUT_MS)
+**Timeout:** 120 seconds (PLANNER_DEADLINE_MS)
+**Reasoning Effort:** `low` (hardcoded for speed)
 
-**Processing:**
-- **Reasoning Effort:** `high` (GPT5_REASONING_EFFORT=high)
-- **Max Completion Tokens:** 32000
-- **Uses:** `reasoning_effort` (NOT temperature/top_p - those are deprecated in GPT-5)
+**Input Sent to GPT-5:**
+- ✅ Strategy text from Stage 1
+- ✅ Snapshot context (location, time, weather, airport)
+- ❌ **NO business hours** (venues don't exist yet)
 
-**Critical Constraint:** GPT-5 does NOT support:
-- ❌ `temperature`
-- ❌ `top_p`
-- ❌ `frequency_penalty`
-- ❌ `presence_penalty`
+**Output:** 4-6 venue recommendations with coordinates, pro tips, staging location
+**Token Usage:** 1000-1500 prompt + 3000-4000 reasoning + 1000-1500 completion
 
-**Only Supports:**
-- ✅ `reasoning_effort` (values: minimal, low, medium, high)
-- ✅ `max_completion_tokens`
+**Staging Area Constraint:**
+- MUST be centrally positioned within 2 minutes drive of ALL recommended venues
+- Priority: Free parking lots, gas stations, safe pull-off areas
 
-**Output:** 6 venue recommendations with coordinates, pro tips, best staging location, tactical summary  
-**Validation:** Zod schema ensures minimum 6 venues with required fields  
-**Token Usage:** 800-1200 prompt + 1500-2000 reasoning + 600-800 completion
-
-**Staging Area Optimization (Oct 9, 2025):**
-- **Constraint:** Staging location MUST be centrally positioned within 2 minutes drive of ALL recommended venues
-- **Priority:** Free parking lots, gas stations, or safe pull-off areas with good visibility
-- **Goal:** Driver can reach ANY venue within 1-2 minutes for quick ride capture
-- **Purpose:** Minimize deadhead time and maximize response speed
-- **Implementation:** Enforced via GPT-5 system prompt with explicit CRITICAL constraint
-
-**Constraint:** Only runs if Claude provides valid strategy (dependency enforced)
+**Constraint:** Only runs if Stage 1 provides valid strategy (dependency enforced)
 
 ---
 
-### Stage 3: Gemini 2.5 Pro (Validator)
-**Model:** `gemini-2.5-pro-latest` ✅ Verified Working  
-**Role:** JSON validation, business hours enrichment, earnings projections  
-**Timeout:** 15 seconds (GEMINI_TIMEOUT_MS)
+### Stage 3: Google API Enrichment
+**Services:** Geocoding API, Places API (Business Hours)  
+**Role:** Fetch real-world data for GPT-5 recommendations  
+**Timeout:** 30 seconds total
 
 **Processing:**
-- Validates GPT-5 JSON structure
-- Enriches with Google Places business hours
-- Calculates traffic-aware distances
-- Generates earnings projections per venue
+1. **Reverse Geocoding** - Convert GPT-5 coordinates → place_id + verified address
+2. **Business Hours Fetch** - Get current hours, open/closed status for each venue
+3. **Cache to PostgreSQL** - Store in `places` and `places_cache` tables
 
-**Output:** Final validated strategy with open/closed status, distances, earnings per venue  
+**Output:** Enriched venues with verified coordinates, addresses, and business hours
+
+**Critical Data Fetched:**
+- ✅ place_id (Google's unique identifier)
+- ✅ Verified lat/lng (may differ from GPT-5 estimates)
+- ✅ Formatted address
+- ✅ Business hours (open/closed status, formatted hours text)
+- ✅ Current status (open now? closed?)
+
+---
+
+### Stage 4: GPT-5 Refinement (PROPOSED - NOT IMPLEMENTED)
+**Model:** `gpt-5-2025-08-07`  
+**Role:** Filter closed venues and suggest alternatives  
+**Timeout:** 60 seconds (REFINEMENT_DEADLINE_MS)
+**Reasoning Effort:** `low`
+
+**⚠️ ARCHITECTURAL GAP IDENTIFIED:**
+Current system sends venues to user even if closed. GPT-5 recommends "Stonebriar Centre" at 10:14 PM without knowing it closes at 9 PM.
+
+**Proposed Fix:**
+After Stage 3 enrichment, send venues WITH business hours back to GPT-5:
+
+**Input to GPT-5 Refinement:**
+- ✅ Original strategy text
+- ✅ Original 4-6 venue recommendations
+- ✅ **NEW: Business hours for each venue** ("Open until 11pm", "Closed at 9pm", etc.)
+- ✅ **NEW: Current open/closed status** per venue
+- ✅ Snapshot context (for alternative suggestions)
+
+**GPT-5 Refinement Logic:**
+1. Review each venue's hours against current time
+2. Filter out venues that are closed OR closing within 30 minutes
+3. For removed venues, suggest alternatives that are OPEN
+4. Preserve staging area constraint (all venues within 2 min)
+5. Return refined list with only viable venues
+
+**Output:** Refined 4-6 venues (all open/verified) with explanations for any changes
+
+**Example Refinement:**
+```
+Input: "Stonebriar Centre (Closed at 9pm)" at 10:14 PM
+GPT-5: "Removed Stonebriar Centre (closed 1hr ago). 
+        Suggested: Union Bear Brewing (open until 12am) - 
+        same area, captures late bar traffic instead."
+```
+
+**Benefit:** Prevents recommending closed venues, maintains earnings focus, transparent reasoning
+
+**Implementation Status:** 🔴 NOT IMPLEMENTED (architectural improvement needed)
+
+---
+
+### Stage 5: Gemini 2.5 Pro (Validator)
+**Model:** `gemini-2.5-pro-latest` ✅ Verified Working  
+**Role:** Final JSON validation and earnings projections  
+**Timeout:** 60 seconds (VALIDATOR_DEADLINE_MS)
+
+**Processing:**
+- Validates refined venue JSON structure
+- Calculates traffic-aware distances (Routes API)
+- Generates earnings projections per venue
+- Ranks by value-per-minute
+
+**Output:** Final validated strategy with distances, earnings, rankings
 **Token Usage:** 500-800 tokens average
 
-**Constraint:** Must return at least 6 venues or pipeline fails (minimum quality threshold)
+**Constraint:** Must return minimum 4 venues or pipeline fails (quality threshold)
 
 ---
 
