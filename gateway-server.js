@@ -71,11 +71,11 @@ app.use(helmet({
   }
 }));
 
-// CORS middleware with origin validation
+// CORS middleware with origin validation (echoes actual origin, not wildcard)
 app.use(cors({
-  origin: (origin, cb) => originOk(origin) ? cb(null, true) : cb(new Error("CORS")),
+  origin: (origin, cb) => originOk(origin) ? cb(null, origin || true) : cb(new Error("CORS")),
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization",
     "X-Idempotency-Key", "X-Request-ID", "X-Assistant-Override", "X-GW-Key"
@@ -83,6 +83,12 @@ app.use(cors({
   exposedHeaders: ["X-Request-ID"],
   maxAge: 600
 }));
+
+// Ensure Vary: Origin is set for proper caching
+app.use((req, res, next) => {
+  res.setHeader("Vary", "Origin");
+  next();
+});
 
 // Fast-path OPTIONS so preflights never hit app logic
 app.options("*", cors());
@@ -310,10 +316,6 @@ const proxyLog = (label) => ({
 app.use((req, res, next) => {
   if (req.path !== "/health") {
     console.log("[trace]", req.method, req.originalUrl);
-  }
-  if (process.env.NODE_ENV !== "production") {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
   }
   next();
 });
