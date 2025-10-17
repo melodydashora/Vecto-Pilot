@@ -174,7 +174,8 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
 
   // GPT-5 for blocks: NO thinking mode for speed (10-30s vs 2-4min)
   // Structured prompts + validation ensure accuracy without extended reasoning
-  console.log(`[GPT-5 Tactical Planner] Calling GPT-5 WITHOUT thinking mode for faster blocks...`);
+  const disableReasoning = 'none'; // 'none' explicitly disables thinking mode
+  console.log(`[GPT-5 Tactical Planner] Calling GPT-5 with reasoning_effort=${disableReasoning} for faster blocks...`);
 
   // Call GPT-5 with NO reasoning effort (much faster for structured tasks)
   const abortCtrl = new AbortController();
@@ -191,7 +192,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     const rawResponse = await callGPT5({
       developer,
       user,
-      reasoning_effort: undefined, // NO thinking mode - faster structured output
+      reasoning_effort: disableReasoning, // 'none' = no thinking, much faster
       max_completion_tokens: maxTokens,
       abortSignal: abortCtrl.signal
     });
@@ -240,7 +241,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
       suggested_db_fields: validated.suggested_db_fields || null,
       metadata: {
         model: "gpt-5",
-        reasoning_effort: reasoningEffort,
+        reasoning_effort: disableReasoning,
         duration_ms: duration,
         venues_recommended: validated.recommended_venues.length,
         validation_passed: true

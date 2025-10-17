@@ -28,23 +28,25 @@ export async function callGPT5({
   }
   
   // Effort from params or environment only - no hardcoded defaults
-  const effort = reasoning_effort || process.env.OPENAI_REASONING_EFFORT || process.env.GPT5_REASONING_EFFORT;
+  // If reasoning_effort is explicitly 'none', disable thinking by omitting the parameter
+  const effort = reasoning_effort === 'none' ? null : (reasoning_effort || process.env.OPENAI_REASONING_EFFORT || process.env.GPT5_REASONING_EFFORT);
   
   // Token allocation from environment only - no hardcoded defaults
   const envMax = Number(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.OPENAI_MAX_TOKENS || 0);
   const requested = Number(max_completion_tokens || envMax);
   const tokens = Math.max(16, requested || 512); // Minimum 16 tokens for safety
   
+  // Build request body - conditionally include reasoning_effort only if specified
   const body = {
     model,
     messages: messageArray,
     max_completion_tokens: tokens,
-    reasoning_effort: effort
+    ...(effort ? { reasoning_effort: effort } : {}) // Only include if not null/undefined
     // Note: GPT-5 reasoning models do NOT support: temperature, top_p, response_format, 
     // presence_penalty, frequency_penalty, logprobs, logit_bias
   };
   
-  console.log(`[GPT-5] Calling ${model} with reasoning_effort=${effort}, max_completion_tokens=${tokens}`);
+  console.log(`[GPT-5] Calling ${model} with reasoning_effort=${effort || 'DISABLED'}, max_completion_tokens=${tokens}`);
   
   const res = await fetch(url, {
     method: "POST",
