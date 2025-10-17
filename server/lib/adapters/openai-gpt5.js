@@ -1,7 +1,9 @@
 // server/lib/adapters/openai-gpt5.js
-// OpenAI GPT-5 — Chat Completions API with reasoning effort
+// OpenAI GPT-5 — Chat Completions API using official SDK
 // Model from env: OPENAI_MODEL (default: gpt-5)
 // Reasoning effort from env: GPT5_REASONING_EFFORT (default: high)
+import OpenAI from 'openai';
+
 export async function callGPT5({ 
   apiKey = process.env.OPENAI_API_KEY, 
   model = process.env.OPENAI_MODEL || "gpt-5", 
@@ -13,7 +15,8 @@ export async function callGPT5({
   max_completion_tokens,
   abortSignal 
 }) {
-  const url = "https://api.openai.com/v1/chat/completions";
+  // Initialize OpenAI client
+  const openai = new OpenAI({ apiKey });
   
   // Build messages array if not provided
   let messageArray = messages;
@@ -36,34 +39,24 @@ export async function callGPT5({
   const requested = Number(max_completion_tokens || envMax);
   const tokens = Math.max(16, requested || 512); // Minimum 16 tokens for safety
   
-  // Build request body - conditionally include reasoning_effort only if specified
-  const body = {
+  // Build request options - conditionally include reasoning_effort only if specified
+  const options = {
     model,
     messages: messageArray,
     max_completion_tokens: tokens,
-    ...(effort ? { reasoning_effort: effort } : {}) // Only include if not null/undefined
+    ...(effort ? { reasoning_effort: effort } : {}), // Only include if not null/undefined
     // Note: GPT-5 reasoning models do NOT support: temperature, top_p, response_format, 
     // presence_penalty, frequency_penalty, logprobs, logit_bias
   };
   
-  console.log(`[GPT-5] Calling ${model} with reasoning_effort=${effort || 'DISABLED'}, max_completion_tokens=${tokens}`);
+  console.log(`[GPT-5] Calling ${model} via SDK with reasoning_effort=${effort || 'DISABLED'}, max_completion_tokens=${tokens}`);
   
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "authorization": `Bearer ${apiKey}`,
-      "content-type": "application/json"
-    },
-    body: JSON.stringify(body),
+  // Call OpenAI API using SDK
+  const completion = await openai.chat.completions.create(options, {
     signal: abortSignal
   });
   
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    throw new Error(`OpenAI ${res.status}: ${err}`);
-  }
-  
-  const j = await res.json();
+  const j = completion;
   
   // Model family check: ensure response model starts with requested family
   if (!j?.model || !String(j.model).startsWith(model)) {
