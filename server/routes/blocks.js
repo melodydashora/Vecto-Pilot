@@ -650,7 +650,7 @@ router.post('/', async (req, res) => {
         earnings_per_mile: epm,
         ranking_score: g.rank || 0,
         validation_status: g.vs || 'unknown',
-        closed_venue_reasoning: g.cr || null,
+        closed_venue_reasoning: (v.isOpen === false && g.cr) ? g.cr : null,
         // Value per minute fields
         value_per_min: valuePerMin,
         value_grade: valueGrade,
