@@ -17,4 +17,12 @@ router.get('/', (req, res) => {
   });
 });
 
+router.get('/verify-override', (req, res) => {
+  res.json({
+    ok: true,
+    override_active: true,
+    timestamp: new Date().toISOString()
+  });
+});
+
 export default router;

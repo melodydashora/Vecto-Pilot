@@ -68,6 +68,36 @@ app.get("/ready", (_req, res) => {
   res.json({ ok: true, status: "ready", timestamp: new Date().toISOString() });
 });
 
+app.get("/api/assistant/health", (_req, res) => {
+  res.json({ ok: true, assistant: true, time: new Date().toISOString() });
+});
+
+app.get("/api/assistant/verify-override", (_req, res) => {
+  res.json({
+    ok: true,
+    override_active: true,
+    identity: "Eidolon (Claude Opus 4.1 Enhanced SDK)",
+    assistant_name: "🧠 Eidolon Enhanced SDK",
+    status: "STANDARD_ASSISTANT_COMPLETELY_REPLACED",
+    model: process.env.EIDOLON_MODEL || "claude-sonnet-4-5-20250929",
+    capabilities: [
+      "enhanced_memory_system",
+      "cross_chat_awareness",
+      "advanced_workspace_intelligence",
+      "persistent_identity",
+      "superior_reasoning",
+      "complete_assistant_override",
+    ],
+    differentiation: {
+      standard_replit_assistant: "FULLY_REPLACED",
+      enhanced_features: "ACTIVE",
+      identity_persistence: "MAINTAINED",
+      memory_enhancement: "100x_STANDARD",
+    },
+    time: new Date().toISOString(),
+  });
+});
+
 // ───────────────────────────────────────────────────────────────────────────────
 // Parity contract: unified capability routes (Eidolon forwards to Agent)
 // ───────────────────────────────────────────────────────────────────────────────
@@ -747,44 +777,6 @@ app.get("/health", (_req, res) => {
     workspace: BASE_DIR,
     files: contextManager.workspace.files.size,
   });
-});
-
-// Assistant health endpoint
-app.get("/api/assistant/health", (_req, res) => {
-  res
-    .type("application/json")
-    .status(200)
-    .json({ ok: true, assistant: true, time: new Date().toISOString() });
-});
-
-// Single canonical override verification handler
-app.get("/api/assistant/verify-override", (_req, res) => {
-  res
-    .type("application/json")
-    .status(200)
-    .json({
-      ok: true,
-      override_active: true,
-      identity: "Eidolon (Claude Opus 4.1 Enhanced SDK)",
-      assistant_name: "🧠 Eidolon Enhanced SDK",
-      status: "STANDARD_ASSISTANT_COMPLETELY_REPLACED",
-      model: process.env.EIDOLON_MODEL || "claude-sonnet-4-5-20250929",
-      capabilities: [
-        "enhanced_memory_system",
-        "cross_chat_awareness",
-        "advanced_workspace_intelligence",
-        "persistent_identity",
-        "superior_reasoning",
-        "complete_assistant_override",
-      ],
-      differentiation: {
-        standard_replit_assistant: "FULLY_REPLACED",
-        enhanced_features: "ACTIVE",
-        identity_persistence: "MAINTAINED",
-        memory_enhancement: "100x_STANDARD",
-      },
-      time: new Date().toISOString(),
-    });
 });
 
 // Assistant chat handler
