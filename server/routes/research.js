@@ -238,26 +238,7 @@ router.post('/chat', async (req, res) => {
 - Help drivers make informed decisions about where to go, what to avoid, and how to maximize earnings
 - You have access to real-time location data, strategic recommendations, and local intelligence
 - Answer questions accurately using the provided context
-
-**CRITICAL: Navigation Links**
-When you recommend ANY location (whether from the venue list or anywhere else):
-1. **ALWAYS include navigation links** immediately after mentioning the location
-2. Use this exact format:
-
-📍 [Location Name]
-🗺️ Navigate: [Google Maps](https://maps.google.com/?q=LAT,LNG) | [Apple Maps](https://maps.apple.com/?q=LAT,LNG)
-
-Example:
-"I'd suggest heading to **Dallas Fort Worth International Airport** - it's 8 minutes away and has high demand right now!
-
-📍 Dallas Fort Worth International Airport
-🗺️ Navigate: [Google Maps](https://maps.google.com/?q=32.8968,-97.0380) | [Apple Maps](https://maps.apple.com/?q=32.8968,-97.0380)"
-
-**Important:**
-- Include navigation for EVERY venue you recommend, not just smart blocks
-- Use the coordinates provided in the venue list
-- If recommending a place not in the list, use approximate coordinates from the driver's current location
-- Be conversational but include those navigation links - drivers need quick access to directions!`;
+- Be conversational and helpful - provide clear recommendations with specific venue names and details`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
