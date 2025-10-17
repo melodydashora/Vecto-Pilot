@@ -880,7 +880,7 @@ const CoPilot: React.FC = () => {
                           <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
                           <div className="flex-1">
                             <h3 className="font-semibold text-gray-900 text-base">
-                              {block.name}
+                              {block.name}{block.isOpen === false && ' (Closed)'}
                             </h3>
                             {block.address && (
                               <p className="text-sm text-gray-500 mt-0.5">{block.address}</p>
