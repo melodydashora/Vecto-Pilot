@@ -18,11 +18,21 @@ export async function enrichVenues({ venues, driverLocation, snapshot }) {
   
   console.log(`[Enricher] Using provider: ${provider}`);
   
-  // Strip Google API data - models only get isOpen status (not full hours)
-  const venuesForModel = venues.map(({ businessHours, businessStatus, hasSpecialHours, calculated_distance_miles, ...rest }) => ({
-    ...rest,
-    // Send distance for ranking calculations only (model cannot override)
-    distance_for_ranking: calculated_distance_miles
+  // Pass all resolved data to model for intelligent reasoning
+  const venuesForModel = venues.map(v => ({
+    placeId: v.placeId,
+    name: v.name,
+    category: v.category,
+    lat: v.lat,
+    lng: v.lng,
+    address: v.address,
+    // Real data from Google APIs - model uses for context, cannot override
+    distance_miles: v.calculated_distance_miles,
+    drive_time_minutes: v.driveTimeMinutes,
+    business_hours: v.businessHours,
+    is_open: v.isOpen,
+    // Keep description from tactical planner
+    description: v.description
   }));
 
   const prompt = buildPrompt(venuesForModel, driverLocation, snapshot);
@@ -45,45 +55,47 @@ export async function enrichVenues({ venues, driverLocation, snapshot }) {
 }
 
 function buildPrompt(venues, driverLocation, snapshot) {
-  return `You are a rideshare earnings calculator and venue validator for ${snapshot?.city || 'the area'}.
+  return `You are a rideshare earnings calculator for ${snapshot?.city || 'the area'}.
 
 DRIVER LOCATION: ${driverLocation.lat}, ${driverLocation.lng}
 DAY/TIME: ${snapshot?.day_part || 'unknown'} | WEATHER: ${snapshot?.weather || 'unknown'}
 
-VENUES TO ANALYZE:
+VENUES (with full Google API data - distance, hours, open status):
 ${JSON.stringify(venues, null, 2)}
 
-TASK - Calculate probable earnings per ride for each venue based on:
+TASK - Calculate earnings and validate using the provided data:
 
-1. **DISTANCE** - Use distance_for_ranking from venue data (DO NOT modify this value)
-2. **VENUE TYPE** - Different categories have different earning potential:
-   - Airports: $15-30/ride (high-value passengers)
-   - Entertainment/Sports: $12-25/ride (events, nightlife)
-   - Shopping Centers: $8-18/ride (consistent but lower)
-   - Dining/Hotels: $10-20/ride (varies by time)
-   
-3. **TIME OF DAY** - ${snapshot?.day_part || 'current time'} affects demand and pricing
+1. **DISTANCE** - Use distance_miles (Routes API - traffic-aware, DO NOT recalculate)
+2. **DRIVE TIME** - Use drive_time_minutes (Routes API - DO NOT recalculate)
+3. **BUSINESS HOURS** - Already provided from Google Places API
+4. **OPEN STATUS** - Use is_open field (true/false from Google Places API)
 
-4. **OPEN/CLOSED** - If venue is CLOSED (isOpen=false), explain strategic value of positioning nearby WITHOUT including any time references
+EARNINGS ESTIMATION (based on category + distance + time):
+- Airports: $15-30/ride (high-value passengers)
+- Entertainment/Sports: $12-25/ride (events, nightlife)
+- Shopping Centers: $8-18/ride (consistent but lower)
+- Dining/Hotels: $10-20/ride (varies by time)
+
+CLOSED VENUE REASONING (CRITICAL):
+- ONLY provide "closed_venue_reasoning" if is_open === false
+- Explain why positioning near this closed venue is still strategic
+- Examples: nearby restaurants, foot traffic spillover, upcoming events, late-night crowds
+- NEVER include time references (hours, AM/PM, opening times)
 
 VALIDATION:
-- "valid" = coordinates accurate, venue exists
-- "invalid" = suspicious coordinates or non-existent venue
+- "valid" = real venue with accurate coordinates
+- "invalid" = suspicious or non-existent venue
 
-RANKING:
-- Calculate ranking_score (1-10) based on earnings potential vs distance
-- Higher score = better earnings per mile ratio
-
-OUTPUT (JSON array; MUST preserve input order and echo "placeId" unchanged for each item):
+OUTPUT (JSON array; preserve input order and placeId):
 [
   {
-    "placeId": "PLACE_ID_HERE",
+    "placeId": "ChIJ...",
     "name": "venue name",
     "estimated_earnings_per_ride": 18.50,
     "earnings_per_mile": 3.56,
     "validation_status": "valid",
     "ranking_score": 8.5,
-    "closed_venue_reasoning": "Strategic positioning explanation - NO TIMES" (only if closed)
+    "closed_venue_reasoning": "..." (ONLY if is_open === false)
   }
 ]
 
