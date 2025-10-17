@@ -245,8 +245,7 @@ Be concise, practical, and action-oriented. Drivers are working and need quick, 
       model: 'gpt-5',
       messages,
       max_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '64000'),
-      temperature: 0.1,
-      reasoning_effort: 'medium'
+      temperature: 0.1
     });
 
     const reply = completion.choices[0].message.content;
