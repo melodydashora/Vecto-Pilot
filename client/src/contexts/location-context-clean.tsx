@@ -437,17 +437,28 @@ export function LocationProvider({ children }: LocationProviderProps) {
               const snapshotData = await snapshotResponse.json();
               const snapshotId = snapshotData.snapshot_id || snapshotV1.snapshot_id;
               
-              // Dispatch event to notify UI that snapshot is complete and ready
-              window.dispatchEvent(
-                new CustomEvent("vecto-snapshot-saved", {
-                  detail: {
-                    snapshotId,
-                    lat: coords.latitude,
-                    lng: coords.longitude,
-                  },
-                })
-              );
-              console.log("✅ Snapshot complete and ready! ID:", snapshotId);
+              // CRITICAL: Only dispatch if we have COMPLETE enrichment data
+              const hasCompleteData = locationData.city && weatherData?.available && airQualityData?.available;
+              
+              if (hasCompleteData) {
+                // Dispatch event to notify UI that snapshot is complete and ready
+                window.dispatchEvent(
+                  new CustomEvent("vecto-snapshot-saved", {
+                    detail: {
+                      snapshotId,
+                      lat: coords.latitude,
+                      lng: coords.longitude,
+                    },
+                  })
+                );
+                console.log("✅ Snapshot complete and ready! ID:", snapshotId);
+              } else {
+                console.warn("⚠️ Snapshot saved but incomplete data - NOT triggering strategy", {
+                  hasCity: !!locationData.city,
+                  hasWeather: !!weatherData?.available,
+                  hasAirQuality: !!airQualityData?.available
+                });
+              }
             }
             
             // Broadcast snapshot event for other components

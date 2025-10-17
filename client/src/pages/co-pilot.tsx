@@ -358,8 +358,9 @@ const CoPilot: React.FC = () => {
         throw err;
       }
     },
-    // AUTO-RUN when GPS + snapshot ready + strategy ready - keep spinning until success
-    enabled: !!coords && !!lastSnapshotId && !!persistentStrategy, // Auto-start when coordinates, snapshot, and strategy are available
+    // AUTO-RUN ONLY when GPS + snapshot ready + CURRENT strategy complete
+    // CRITICAL: Wait for strategyData.status === 'ok' to prevent premature polling
+    enabled: !!coords && !!lastSnapshotId && strategyData?.status === 'ok',
     refetchInterval: false, // No periodic auto-refresh (only on demand)
     retry: (failureCount, error: any) => {
       // Stop retrying if we got a timeout (504)
