@@ -34,9 +34,13 @@ app.get("/health", (_req, res) => {
 // ---------- Bookmarklet verification endpoint ----------
 // Returns a 1x1 transparent GIF so <img> tag verification works
 app.get("/api/assistant/verify-override", (_req, res) => {
-  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  // CORS headers to allow vectopilot.com to verify connection
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
   res.set('Content-Type', 'image/gif');
   res.set('Cache-Control', 'no-cache');
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
   res.send(gif);
 });
 
