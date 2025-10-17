@@ -701,6 +701,27 @@ router.post('/snapshot', async (req, res) => {
     
     console.log('[Snapshot DB] ✅ Snapshot successfully written to database');
 
+    // Trigger Perplexity location research (non-blocking, parallel)
+    setImmediate(async () => {
+      try {
+        const researchUrl = `${process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`}/api/research/location`;
+        await fetch(researchUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            snapshotId: snapshotV1.snapshot_id,
+            lat: snapshotV1.coord.lat,
+            lng: snapshotV1.coord.lng,
+            city: snapshotV1.resolved?.city,
+            state: snapshotV1.resolved?.state
+          })
+        });
+        console.log(`[Perplexity] 🔍 Background research triggered for snapshot ${snapshotV1.snapshot_id}`);
+      } catch (err) {
+        console.warn('[Perplexity] Research trigger failed (non-blocking):', err.message);
+      }
+    });
+
     // Log travel disruptions for airports with delays (non-blocking)
     if (airportContext && airportContext.airport_code && (airportContext.delay_minutes || airportContext.closure_status !== 'open')) {
       try {

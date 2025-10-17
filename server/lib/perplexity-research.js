@@ -212,6 +212,18 @@ export class PerplexityResearch {
         query: `Weather-related disruptions affecting rideshare operations near ${locationStr} today (flooding, severe weather, road conditions).`,
         systemPrompt: 'Focus on weather impacts to rideshare operations. If weather is normal, say "no weather disruptions".',
         maxTokens: 250
+      },
+      {
+        type: 'government_tsa',
+        query: `Government shutdowns, TSA delays, or airport security issues affecting ${locationStr} today. Include impacts to rideshare airport operations.`,
+        systemPrompt: 'Report government-related impacts to airports and TSA operations. If no issues exist, say "no government disruptions".',
+        maxTokens: 250
+      },
+      {
+        type: 'areas_to_avoid',
+        query: `Dangerous areas, crime alerts, or zones rideshare drivers should avoid near ${locationStr} today.`,
+        systemPrompt: 'Identify safety concerns for rideshare drivers. If no alerts exist, say "no safety alerts".',
+        maxTokens: 250
       }
     ];
 
