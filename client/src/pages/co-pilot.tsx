@@ -955,6 +955,25 @@ const CoPilot: React.FC = () => {
                         </div>
                       )}
 
+                      {/* Fallback Hours (for complexes/districts) */}
+                      {!block.businessHours && (block as any).fallbackHours && (
+                        <div className="mb-3">
+                          <div className="flex items-start gap-2 text-sm text-amber-700 mb-1">
+                            <AlertCircle className="w-4 h-4 mt-0.5" />
+                            <p className="text-xs">Hours not available (Complex with multiple businesses)</p>
+                          </div>
+                          <div className="flex items-start gap-2 text-sm ml-6">
+                            <Clock className="w-4 h-4 text-blue-600 mt-0.5" />
+                            <div className="text-gray-700">
+                              <p className="text-xs italic text-gray-500 mb-1">Latest from: {(block as any).fallbackBusinessName}</p>
+                              {(block as any).fallbackHours.split(',').map((hours: string, idx: number) => (
+                                <div key={idx} className="italic">{hours.trim()}</div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Closed Venue Strategic Reasoning - Highlighted */}
                       {!block.isOpen && block.closed_venue_reasoning && (
                         <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-3">

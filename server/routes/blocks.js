@@ -494,6 +494,40 @@ router.post('/', async (req, res) => {
             });
           }
 
+          // If no hours found (complex/district), find hours from a business within it
+          let fallbackHours = null;
+          let fallbackBusinessName = null;
+          
+          if (!hoursData.hours) {
+            try {
+              console.log(`🔍 [${correlationId}] No hours for ${v.name} - searching for businesses within complex...`);
+              
+              // Search for nearby bars/restaurants
+              const nearbyUrl = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
+              nearbyUrl.searchParams.set('location', `${lat},${lng}`);
+              nearbyUrl.searchParams.set('radius', '100'); // 100 meters
+              nearbyUrl.searchParams.set('type', 'restaurant|bar');
+              nearbyUrl.searchParams.set('key', process.env.GOOGLE_MAPS_API_KEY);
+
+              const nearbyResponse = await fetch(nearbyUrl.toString());
+              const nearbyData = await nearbyResponse.json();
+
+              if (nearbyData.results && nearbyData.results.length > 0) {
+                const firstBusiness = nearbyData.results[0];
+                fallbackBusinessName = firstBusiness.name;
+                
+                // Get hours for this business
+                const businessHoursData = await getBusinessHoursOnly(firstBusiness.place_id);
+                if (businessHoursData.hours) {
+                  fallbackHours = businessHoursData.hours;
+                  console.log(`✅ [${correlationId}] Found fallback hours from: ${fallbackBusinessName}`);
+                }
+              }
+            } catch (err) {
+              console.warn(`⚠️ [${correlationId}] Fallback hours search failed: ${err.message}`);
+            }
+          }
+
           console.log(`✅ [${correlationId}] Enriched ${v.name}: ${hoursData.status}, ${hoursData.hours?.length || 0} hours, address: ${address}`);
 
           return {
@@ -505,7 +539,9 @@ router.post('/', async (req, res) => {
             businessHours: hoursData.hours,
             isOpen: hoursData.status === 'open',
             businessStatus: hoursData.status,
-            hasSpecialHours: hoursData.hasSpecialHours
+            hasSpecialHours: hoursData.hasSpecialHours,
+            fallbackHours,
+            fallbackBusinessName
           };
         } catch (error) {
           console.warn(`⚠️ [${correlationId}] Failed to enrich ${v.name}: ${error.message} - SKIPPING`);
@@ -803,7 +839,9 @@ router.post('/', async (req, res) => {
         validation_status: v.validation_status,
         closed_venue_reasoning: v.closed_venue_reasoning,
         eventInfo: v.eventInfo,
-        hasEvents: v.hasEvents
+        hasEvents: v.hasEvents,
+        fallbackHours: v.fallbackHours,
+        fallbackBusinessName: v.fallbackBusinessName
       })),
       best_staging_location: enrichedStagingLocation,
       staging: [], // Legacy field
