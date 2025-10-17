@@ -1,17 +1,12 @@
 // server/lib/validator-gemini.js
-const GEMINI_URL = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+// Validator using GPT-5 (renamed file for compatibility, now uses OpenAI)
+import { runOpenAI } from './adapters/openai-unified.js';
 
 export async function validateWithGemini({
   plannerDraft, shortlistNames, schema,
-  model = "gemini-2.5-pro",
+  model = null, // Ignored - uses TRIAD_VALIDATOR_MODEL from env
   timeoutMs = Number(process.env.VALIDATOR_DEADLINE_MS || 1800)
 }) {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error("Missing GEMINI_API_KEY");
-
-  const controller = new AbortController();
-  const killer = setTimeout(() => controller.abort(), timeoutMs);
-
   const systemInstruction = [
     "You are a strict JSON normalizer and schema enforcer.",
     "Compare the planner draft against the provided shortlist and the JSON Schema.",
@@ -24,52 +19,38 @@ export async function validateWithGemini({
     `Schema: ${JSON.stringify(schema)}\n` +
     `Planner draft (untrusted): ${plannerDraft}`;
 
-  const body = {
-    systemInstruction: { role: "system", parts: [{ text: systemInstruction }] },
-    contents: [{ role: "user", parts: [{ text: userText }]}],
-    generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 4096
-    },
-    safetySettings: [
-      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_HARASSMENT",        threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_HATE_SPEECH",       threshold: "BLOCK_NONE" },
-      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" }
-    ]
-  };
+  const input = `${systemInstruction}\n\n${userText}`;
 
   try {
-    const res = await fetch(`${GEMINI_URL(model)}?key=${key}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-    if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text().catch(()=> "")}`);
-    const j = await res.json();
+    const txt = await runOpenAI('TRIAD_VALIDATOR', input, { timeoutMs });
     
-    console.log(`🔍 [validator-gemini] Full Gemini response:`, JSON.stringify(j).slice(0, 500));
-
-    let txt = "";
-    const cand = j.candidates?.[0];
-    console.log(`🔍 [validator-gemini] Candidate:`, cand ? 'exists' : 'missing', `finishReason:`, cand?.finishReason);
-    if (cand?.content?.parts?.length) {
-      txt = cand.content.parts.map(p => p?.text || "").join("");
-    }
-    if (!txt && cand?.groundingMetadata?.webSearchQueries?.length) {
-      txt = "";
-    }
-    txt = (txt || "").trim();
-    console.log(`🔍 [validator-gemini] Extracted text length:`, txt.length, `first 100 chars:`, txt.slice(0, 100));
+    console.log(`🔍 [validator-gpt5] Response length:`, txt?.length || 0, `first 100 chars:`, txt?.slice(0, 100) || '');
+    
     if (!txt) return { raw: "", parsed: undefined, status: "empty", issues: ["validator_empty"] };
 
     const raw = txt.replace(/```json\s*([\s\S]*?)```/gi, "$1").trim();
-    let parsed; try { parsed = JSON.parse(firstBalanced(raw)); } catch {}
-    return { raw, parsed, status: parsed ? "ok" : "nonjson", issues: parsed ? [] : ["validator_nonjson"] };
+    let parsed; 
+    try { 
+      parsed = JSON.parse(firstBalanced(raw)); 
+    } catch (e) {
+      console.error(`🔍 [validator-gpt5] JSON parse error:`, e.message);
+    }
+    
+    return { 
+      raw, 
+      parsed, 
+      status: parsed ? "ok" : "nonjson", 
+      issues: parsed ? [] : ["validator_nonjson"] 
+    };
 
-  } finally {
-    clearTimeout(killer);
+  } catch (err) {
+    console.error(`🔍 [validator-gpt5] Error:`, err.message);
+    return { 
+      raw: "", 
+      parsed: undefined, 
+      status: "error", 
+      issues: [`validator_error: ${err.message}`] 
+    };
   }
 }
 

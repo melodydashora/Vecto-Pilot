@@ -3,7 +3,7 @@
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import OpenAI from 'openai';
+import { runOpenAI } from './adapters/openai-unified.js';
 
 export async function generateStrategyForSnapshot(snapshot_id) {
   const startTime = Date.now();
@@ -138,23 +138,13 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
       airport: airportStr || 'none'
     });
     
-    // Call GPT-5 for strategy generation
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // Call GPT-5 strategist using unified adapter
+    const input = `${systemPrompt}\n\n${userPrompt}`;
+    const strategyText = await runOpenAI('TRIAD_STRATEGIST', input);
     
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-5-2025-08-07',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      reasoning_effort: 'low', // Force low reasoning for speed
-      max_completion_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '8000', 10)
-    });
-    
-    const strategyText = completion.choices[0]?.message?.content?.trim();
     const gpt5Elapsed = Date.now() - gpt5Start;
     const totalDuration = Date.now() - startTime;
-    const tokens = completion.usage?.total_tokens || 0;
+    const tokens = 0; // Tokens not exposed in new Responses API
     
     if (!strategyText) {
       await db.update(strategies)
