@@ -184,6 +184,76 @@ export class PerplexityResearch {
       error: result.status === 'rejected' ? result.reason.message : null
     }));
   }
+
+  async researchLocationConditions(lat, lng, city, state) {
+    const locationStr = city && state ? `${city}, ${state}` : `coordinates ${lat}, ${lng}`;
+    
+    const queries = [
+      {
+        type: 'travel_advisories',
+        query: `Current travel advisories, road closures, or traffic alerts near ${locationStr}. Focus on actionable information for rideshare drivers today.`,
+        systemPrompt: 'Provide concise travel and road condition updates for rideshare drivers. If no issues exist, say "no advisories".',
+        maxTokens: 300
+      },
+      {
+        type: 'accidents_incidents',
+        query: `Recent traffic accidents or incidents affecting rideshare operations near ${locationStr} today.`,
+        systemPrompt: 'Summarize traffic incidents that may impact rideshare drivers. If none exist, say "no incidents reported".',
+        maxTokens: 250
+      },
+      {
+        type: 'special_events',
+        query: `Special events, concerts, sports games, or large gatherings happening today or tonight near ${locationStr} that rideshare drivers should know about.`,
+        systemPrompt: 'List events that create rideshare demand or traffic. Include venue names and estimated crowd sizes when available.',
+        maxTokens: 350
+      },
+      {
+        type: 'weather_disruptions',
+        query: `Weather-related disruptions affecting rideshare operations near ${locationStr} today (flooding, severe weather, road conditions).`,
+        systemPrompt: 'Focus on weather impacts to rideshare operations. If weather is normal, say "no weather disruptions".',
+        maxTokens: 250
+      }
+    ];
+
+    const results = await Promise.allSettled(
+      queries.map(async ({ type, query, systemPrompt, maxTokens }) => {
+        const startTime = Date.now();
+        const result = await this.search(query, {
+          systemPrompt,
+          maxTokens,
+          temperature: 0.2,
+          searchRecencyFilter: 'day'
+        });
+        
+        return {
+          type,
+          query,
+          answer: result.answer,
+          citations: result.citations,
+          impact_level: this.assessImpactLevel(result.answer),
+          latency_ms: Date.now() - startTime,
+          model: result.model,
+          timestamp: result.timestamp
+        };
+      })
+    );
+
+    return {
+      lat,
+      lng,
+      city,
+      state,
+      queries: results.map((result, idx) => ({
+        type: queries[idx].type,
+        success: result.status === 'fulfilled',
+        data: result.status === 'fulfilled' ? result.value : null,
+        error: result.status === 'rejected' ? result.reason?.message : null
+      })),
+      totalQueries: queries.length,
+      successfulQueries: results.filter(r => r.status === 'fulfilled').length,
+      timestamp: Date.now()
+    };
+  }
 }
 
 export default PerplexityResearch;
