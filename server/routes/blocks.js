@@ -495,12 +495,13 @@ router.post('/', async (req, res) => {
           }
 
           // If no hours found (complex/district), find hours from a business within it
+          // PRIORITY: Business that closed in last 15-20 min (high ride demand)
           let fallbackHours = null;
           let fallbackBusinessName = null;
           
           if (!hoursData.hours) {
             try {
-              console.log(`🔍 [${correlationId}] No hours for ${v.name} - searching for businesses within complex...`);
+              console.log(`🔍 [${correlationId}] No hours for ${v.name} - searching for recently closed businesses...`);
               
               // Search for nearby bars/restaurants
               const nearbyUrl = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
@@ -513,14 +514,69 @@ router.post('/', async (req, res) => {
               const nearbyData = await nearbyResponse.json();
 
               if (nearbyData.results && nearbyData.results.length > 0) {
-                const firstBusiness = nearbyData.results[0];
-                fallbackBusinessName = firstBusiness.name;
+                const now = new Date();
+                const currentDay = now.getDay(); // 0=Sunday, 1=Monday, etc.
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
                 
-                // Get hours for this business
-                const businessHoursData = await getBusinessHoursOnly(firstBusiness.place_id);
-                if (businessHoursData.hours) {
-                  fallbackHours = businessHoursData.hours;
-                  console.log(`✅ [${correlationId}] Found fallback hours from: ${fallbackBusinessName}`);
+                let bestBusiness = null;
+                let closestToNow = Infinity;
+                
+                // Find business that closed most recently (within last 15-20 min)
+                for (const business of nearbyData.results.slice(0, 5)) { // Check top 5
+                  try {
+                    const { getPlaceHours } = await import('../lib/places-hours.js');
+                    const bizHours = await getPlaceHours(business.place_id);
+                    
+                    if (bizHours.periods && bizHours.periods.length > 0) {
+                      // Find today's closing time
+                      const todayPeriod = bizHours.periods.find(p => p.close?.day === currentDay);
+                      
+                      if (todayPeriod?.close) {
+                        const closeHour = todayPeriod.close.hours || 0;
+                        const closeMinute = todayPeriod.close.minutes || 0;
+                        const closeTimeMinutes = closeHour * 60 + closeMinute;
+                        
+                        // Minutes since closing (negative = not closed yet)
+                        const minutesSinceClosed = currentMinutes - closeTimeMinutes;
+                        
+                        // Prioritize: closed 0-20 min ago OR closing in next 15 min
+                        if (minutesSinceClosed >= 0 && minutesSinceClosed <= 20) {
+                          // Just closed! Perfect timing
+                          if (minutesSinceClosed < closestToNow) {
+                            closestToNow = minutesSinceClosed;
+                            bestBusiness = business;
+                            console.log(`🎯 [${correlationId}] ${business.name} closed ${minutesSinceClosed} min ago (recent demand!)`);
+                          }
+                        } else if (minutesSinceClosed < 0 && minutesSinceClosed >= -15) {
+                          // Closing soon (within 15 min)
+                          const minsUntilClose = Math.abs(minutesSinceClosed);
+                          if (minsUntilClose < closestToNow) {
+                            closestToNow = minsUntilClose;
+                            bestBusiness = business;
+                            console.log(`⏰ [${correlationId}] ${business.name} closes in ${minsUntilClose} min (upcoming demand)`);
+                          }
+                        }
+                      }
+                    }
+                  } catch (err) {
+                    // Skip this business if hours check fails
+                    continue;
+                  }
+                }
+                
+                // If no recently closed business, fall back to first open one
+                if (!bestBusiness) {
+                  bestBusiness = nearbyData.results.find(b => b.opening_hours?.open_now) || nearbyData.results[0];
+                  console.log(`📍 [${correlationId}] No recent closures, using: ${bestBusiness.name}`);
+                }
+                
+                if (bestBusiness) {
+                  fallbackBusinessName = bestBusiness.name;
+                  const businessHoursData = await getBusinessHoursOnly(bestBusiness.place_id);
+                  if (businessHoursData.hours) {
+                    fallbackHours = businessHoursData.hours;
+                    console.log(`✅ [${correlationId}] Fallback hours from: ${fallbackBusinessName}`);
+                  }
                 }
               }
             } catch (err) {
