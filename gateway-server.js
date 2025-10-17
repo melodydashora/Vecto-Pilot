@@ -1,6 +1,7 @@
 // gateway-server.js (ESM, single SDK watchdog, sane build guard)
 
 import express from "express";
+import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { createProxyMiddleware } from "http-proxy-middleware";
@@ -26,6 +27,14 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 console.log(`🚀 [gateway] Starting in ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
 console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}, Agent=${AGENT_PORT}`);
 
+// ---------- CORS: Allow all cross-origin requests ----------
+app.use(cors({
+  origin: '*',
+  credentials: false,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
 // ---------- CRITICAL: health check first (must respond instantly) ----------
 app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, gateway: true, timestamp: new Date().toISOString() });
@@ -34,10 +43,6 @@ app.get("/health", (_req, res) => {
 // ---------- Bookmarklet verification endpoint ----------
 // Returns a 1x1 transparent GIF so <img> tag verification works
 app.get("/api/assistant/verify-override", (_req, res) => {
-  // CORS headers to allow vectopilot.com to verify connection
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
   res.set('Content-Type', 'image/gif');
   res.set('Cache-Control', 'no-cache');
   const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
