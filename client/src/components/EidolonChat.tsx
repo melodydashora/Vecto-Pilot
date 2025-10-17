@@ -6,6 +6,31 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { MessageSquare, Send, Loader2, Info } from 'lucide-react';
 
+// Helper function to render message content with clickable links
+function renderMessageContent(content: string) {
+  // Convert markdown links [text](url) to clickable HTML links
+  const parts = content.split(/(\[.*?\]\(.*?\))/g);
+  
+  return parts.map((part, idx) => {
+    const linkMatch = part.match(/\[(.*?)\]\((.*?)\)/);
+    if (linkMatch) {
+      const [, text, url] = linkMatch;
+      return (
+        <a
+          key={idx}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-500 hover:text-blue-600 underline font-medium"
+        >
+          {text}
+        </a>
+      );
+    }
+    return <span key={idx}>{part}</span>;
+  });
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -146,7 +171,9 @@ export function EidolonChat({ snapshotId, city, isVisible = true }: EidolonChatP
                         : 'bg-muted'
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <div className="text-sm whitespace-pre-wrap">
+                      {renderMessageContent(message.content)}
+                    </div>
                     <p className="text-xs opacity-60 mt-1">
                       {new Date(message.timestamp).toLocaleTimeString()}
                     </p>
