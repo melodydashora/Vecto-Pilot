@@ -815,27 +815,47 @@ const CoPilot: React.FC = () => {
             </div>
           )}
 
-          {/* Error State */}
+          {/* Error State with Eidolon Fallback */}
           {error && !isLoading && (
-            <Card className="p-8 border-red-200" data-testid="error-state">
-              <div className="flex flex-col items-center justify-center text-center">
-                <AlertCircle className="w-8 h-8 text-red-600 mb-4" />
-                <p className="text-gray-800 font-semibold mb-2">
-                  {error instanceof Error && error.message.includes('timeout') 
-                    ? 'Strategy Generation Timed Out' 
-                    : 'Failed to Load Blocks'}
-                </p>
-                <p className="text-gray-600 text-sm mb-4">
-                  {error instanceof Error && error.message.includes('timeout')
-                    ? 'The AI took longer than 60 seconds to generate blocks. This usually means high API load. Please try again in a moment.'
-                    : (error instanceof Error ? error.message : 'Unable to connect to AI engine')}
-                </p>
-                <Button onClick={() => refetch()} variant="outline">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Try Again
-                </Button>
-              </div>
-            </Card>
+            <div className="space-y-4">
+              <Card className="p-6 border-amber-200 bg-amber-50" data-testid="error-state">
+                <div className="flex flex-col text-center">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <AlertCircle className="w-6 h-6 text-amber-600" />
+                    <p className="text-gray-800 font-semibold">
+                      {error instanceof Error && error.message.includes('timeout') 
+                        ? 'Smart Blocks Took Too Long' 
+                        : 'Smart Blocks Unavailable'}
+                    </p>
+                  </div>
+                  <p className="text-gray-600 text-sm mb-4">
+                    {error instanceof Error && error.message.includes('timeout')
+                      ? 'The AI is taking longer than expected. Try asking Eidolon for quick go-to spots below, or retry in a moment.'
+                      : 'Unable to generate blocks right now. Use Eidolon chat below for instant recommendations.'}
+                  </p>
+                  <Button onClick={() => refetch()} variant="outline" size="sm" className="mx-auto">
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry Smart Blocks
+                  </Button>
+                </div>
+              </Card>
+              
+              {/* Eidolon Chat - Prominently displayed as fallback */}
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-blue-600" />
+                    <CardTitle className="text-lg">Ask Eidolon for Quick Spots</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Get instant recommendations while blocks load
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <EidolonChat />
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {/* No GPS State */}
