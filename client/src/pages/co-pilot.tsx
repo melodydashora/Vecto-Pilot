@@ -35,6 +35,7 @@ import {
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
+import { EidolonChat } from '@/components/EidolonChat';
 
 interface SmartBlock {
   name: string;
@@ -1100,6 +1101,17 @@ const CoPilot: React.FC = () => {
                   </Card>
                 );
               })}
+            </div>
+          )}
+
+          {/* Eidolon Chat Assistant - Loads after blocks */}
+          {blocksData && blocks.length > 0 && lastSnapshotId && (
+            <div className="mt-6">
+              <EidolonChat
+                snapshotId={lastSnapshotId}
+                city={locationContext.city || undefined}
+                isVisible={true}
+              />
             </div>
           )}
         </div>
