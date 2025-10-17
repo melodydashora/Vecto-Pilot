@@ -639,7 +639,6 @@ router.post('/', async (req, res) => {
     const toNum = (v) => Number(String(v ?? '').replace(/[^0-9.]/g, ''));
     const gmap = new Map(
       geminiEnriched.map(g => [keyOf(g), {
-        dist: Number(g.estimated_distance_miles),
         earn: toNum(g.estimated_earnings_per_ride ?? g.estimated_earnings),
         epm: Number(g.earnings_per_mile),
         rank: Number(g.ranking_score),
@@ -649,7 +648,8 @@ router.post('/', async (req, res) => {
     );
     const fullyEnrichedVenues = venuesWithDistance.map(v => {
       const g = gmap.get(keyOf(v)) || {};
-      const dist = Number.isFinite(g.dist) ? g.dist : v.calculated_distance_miles;
+      // NEVER override Routes API distance - it's the source of truth
+      const dist = v.calculated_distance_miles;
       const earn = Number.isFinite(g.earn) ? g.earn : (v?.data?.potential ?? 0);
       const epm = Number.isFinite(g.epm) ? g.epm : (dist > 0 && earn > 0 ? Number((earn / dist).toFixed(2)) : 0);
       
