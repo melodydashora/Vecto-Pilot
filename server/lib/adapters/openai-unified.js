@@ -20,7 +20,6 @@ const effort = (mode) => {
 export async function runOpenAI(rolePrefix, input, options = {}) {
   const prefix = rolePrefix.toUpperCase(); // TRIAD_STRATEGIST / PLANNER / VALIDATOR / EIDOLON / AGENT / ASSISTANT
   const model = process.env[`${prefix}_MODEL`] || process.env.EIDOLON_MODEL || "gpt-5";
-  const temperature = Number(process.env[`${prefix}_TEMPERATURE`] ?? process.env.EIDOLON_TEMPERATURE ?? 1.0);
   const max_output_tokens = Number(process.env[`${prefix}_MAX_OUTPUT_TOKENS`] ?? process.env.EIDOLON_MAX_OUTPUT_TOKENS ?? 2048);
   const reasoning = { effort: effort(process.env[`${prefix}_REASONING_MODE`] || process.env.EIDOLON_REASONING_MODE) };
 
@@ -33,7 +32,6 @@ export async function runOpenAI(rolePrefix, input, options = {}) {
     const resp = await openai.responses.create({
       model,
       input,
-      temperature,
       max_output_tokens,
       reasoning,
     }, {
@@ -49,7 +47,6 @@ export async function runOpenAI(rolePrefix, input, options = {}) {
       const fallbackResp = await openai.responses.create({
         model: fallbackModel,
         input,
-        temperature,
         max_output_tokens,
         reasoning,
       });
