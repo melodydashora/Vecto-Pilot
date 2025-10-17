@@ -98,6 +98,36 @@ app.get("/health", (_req, res) => {
   });
 });
 
+// ---------- Public agent health endpoint (no auth required) ----------
+app.get("/agent/health", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache");
+  try {
+    // Probe agent server health
+    const agentHealthUrl = `http://127.0.0.1:${AGENT_PORT}/agent/health`;
+    const response = await fetch(agentHealthUrl, { 
+      signal: AbortSignal.timeout(2000) 
+    });
+    const data = await response.json();
+    res.status(response.status).json({
+      status: "ok",
+      ok: true,
+      agent: true,
+      agent_port: AGENT_PORT,
+      ...data,
+      time: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "error",
+      ok: false,
+      agent: false,
+      error: "agent_unreachable",
+      detail: err.message,
+      time: new Date().toISOString()
+    });
+  }
+});
+
 // ---------- Bookmarklet verification endpoint ----------
 // Returns a 1x1 transparent GIF so <img> tag verification works
 app.get("/api/assistant/verify-override", (_req, res) => {
