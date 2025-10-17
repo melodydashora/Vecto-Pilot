@@ -31,8 +31,8 @@ const googleMapsCircuit = makeCircuit({
   timeoutMs: 5000 
 });
 
-const googleWeatherCircuit = makeCircuit({ 
-  name: 'google-weather', 
+const openWeatherCircuit = makeCircuit({ 
+  name: 'openweather', 
   failureThreshold: 3, 
   resetAfterMs: 30000, 
   timeoutMs: 3000 
@@ -51,7 +51,7 @@ function httpError(res, status, code, message, reqId, extra = {}) {
 }
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;
 
 // Production gate: Disallow manual city overrides (test-only feature)
@@ -343,58 +343,46 @@ router.get('/weather', async (req, res) => {
       return res.status(400).json({ error: 'lat/lng required' });
     }
 
-    if (!GOOGLE_API_KEY) {
-      console.warn('[location] No Google API key configured');
+    if (!OPENWEATHER_API_KEY) {
+      console.warn('[location] No OpenWeather API key configured');
       return res.json({ 
         available: false,
         error: 'API key not configured' 
       });
     }
 
-    // Use hourly forecast endpoint with hours=1 to get current conditions
-    const url = `https://weather.googleapis.com/v1/forecast/hours:lookup?key=${GOOGLE_API_KEY}&location.latitude=${lat}&location.longitude=${lng}&hours=1`;
+    const url = new URL('https://api.openweathermap.org/data/2.5/weather');
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lon', String(lng));
+    url.searchParams.set('appid', OPENWEATHER_API_KEY);
+    url.searchParams.set('units', 'imperial');
 
-    const data = await googleWeatherCircuit(async (signal) => {
-      const response = await fetch(url, { signal });
-
+    const data = await openWeatherCircuit(async (signal) => {
+      const response = await fetch(url.toString(), { signal });
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API error: ${response.status} - ${errorText}`);
+        throw new Error(`OpenWeather API error: ${response.status}`);
       }
-
       return await response.json();
     });
 
-    // Extract current hour's weather data
-    const currentHour = data.forecastHours?.[0];
-    if (!currentHour) {
-      throw new Error('No weather data returned');
+    if (data.cod !== 200) {
+      console.error('[location] Weather API error:', data.message);
+      return res.status(500).json({ 
+        available: false,
+        error: data.message 
+      });
     }
-
-    // Convert from Celsius to Fahrenheit (API returns Celsius by default)
-    const tempC = currentHour.temperature?.degrees || 0;
-    const feelsLikeC = currentHour.feelsLikeTemperature?.degrees || tempC;
-    const tempF = Math.round((tempC * 9/5) + 32);
-    const feelsLikeF = Math.round((feelsLikeC * 9/5) + 32);
-
-    // Extract wind speed (convert km/h to mph)
-    const windKmh = currentHour.wind?.speed?.value || 0;
-    const windMph = Math.round(windKmh * 0.621371);
-
-    // Extract precipitation
-    const precipMm = currentHour.precipitation?.qpf?.quantity || 0;
-    const precipIn = precipMm * 0.0393701;
 
     const weatherData = {
       available: true,
-      temperature: tempF,
-      feelsLike: feelsLikeF,
-      conditions: currentHour.weatherCondition?.description?.text || 'Unknown',
-      description: currentHour.weatherCondition?.description?.text?.toLowerCase() || '',
-      humidity: currentHour.relativeHumidity || 0,
-      windSpeed: windMph,
-      precipitation: Math.round(precipIn * 100) / 100,
-      icon: currentHour.weatherCondition?.iconBaseUri || '',
+      temperature: Math.round(data.main?.temp || 0),
+      feelsLike: Math.round(data.main?.feels_like || 0),
+      conditions: data.weather?.[0]?.main || 'Unknown',
+      description: data.weather?.[0]?.description || '',
+      humidity: data.main?.humidity || 0,
+      windSpeed: Math.round(data.wind?.speed || 0),
+      precipitation: data.rain?.['1h'] || data.snow?.['1h'] || 0,
+      icon: data.weather?.[0]?.icon || '',
     };
     
     console.log(`[Location API] 🌤️ Weather fetched:`, {
