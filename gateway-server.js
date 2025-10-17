@@ -32,8 +32,12 @@ app.get("/health", (_req, res) => {
 });
 
 // ---------- Bookmarklet verification endpoint ----------
+// Returns a 1x1 transparent GIF so <img> tag verification works
 app.get("/api/assistant/verify-override", (_req, res) => {
-  res.status(200).json({ ok: true, verified: true });
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  res.set('Content-Type', 'image/gif');
+  res.set('Cache-Control', 'no-cache');
+  res.send(gif);
 });
 
 // ---------- Bot/Scanner Protection (Rate Limiting) ----------
