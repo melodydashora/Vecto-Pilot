@@ -701,7 +701,7 @@ const CoPilot: React.FC = () => {
                   <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-gray-700 mb-1">GPS Required for Strategy</p>
-                    <p className="text-xs text-gray-600">Enable location to receive Claude's strategic analysis</p>
+                    <p className="text-xs text-gray-600">Enable location to receive strategic analysis</p>
                   </div>
                 </div>
               </CardContent>
@@ -715,7 +715,7 @@ const CoPilot: React.FC = () => {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-purple-900">Claude's Strategic Overview</p>
+                      <p className="text-sm font-semibold text-purple-900">Strategic Overview</p>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
                           Auto-Generated
