@@ -31,6 +31,7 @@ export async function upsertPlace({ place_id, name, formatted_address, lat, lng 
 
 /**
  * Upsert business hours into places_cache table
+ * IMMUTABLE: Once hours are cached from Google Places API, they are NEVER overridden
  */
 export async function upsertPlaceHours({ place_id, formatted_hours }) {
   if (!place_id || !formatted_hours) return;
@@ -40,9 +41,8 @@ export async function upsertPlaceHours({ place_id, formatted_hours }) {
       `INSERT INTO places_cache (place_id, formatted_hours, cached_at, access_count)
        VALUES ($1, $2, now(), 1)
        ON CONFLICT (place_id) DO UPDATE SET
-         formatted_hours = EXCLUDED.formatted_hours,
-         cached_at = now(),
-         access_count = places_cache.access_count + 1`,
+         access_count = places_cache.access_count + 1
+       -- NEVER update formatted_hours or cached_at - Google Places API data is immutable`,
       [place_id, JSON.stringify(formatted_hours)]
     );
     console.log(`[Places Cache] ✅ Upserted hours for place_id: ${place_id}`);
