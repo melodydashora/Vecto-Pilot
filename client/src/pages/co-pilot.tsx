@@ -367,7 +367,7 @@ const CoPilot: React.FC = () => {
       } catch (err: any) {
         clearTimeout(timeoutId);
         if (err.name === 'AbortError') {
-          throw new Error('Request timed out - Claude is taking longer than expected');
+          throw new Error('Request timed out - AI processing is taking longer than expected');
         }
         throw err;
       }
@@ -780,7 +780,7 @@ const CoPilot: React.FC = () => {
                       }`}
                       data-testid="model-route-badge"
                     >
-                      🧠 Triad: {metadata.modelRoute.replace('claude-sonnet-4-5', 'Claude').replace('gpt-5', 'GPT-5').replace('gemini-2.5-pro', 'Gemini')}
+                      🧠 AI Pipeline
                     </Badge>
                   )}
                   {metadata.processingTimeMs && (
