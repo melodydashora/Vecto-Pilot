@@ -1,6 +1,6 @@
 # AI Model Reference - Production Configuration
-**Last Updated**: October 8, 2025  
-**Research Source**: Perplexity AI via `tools/research/model-discovery.mjs`
+**Last Updated**: October 17, 2025  
+**Research Source**: Perplexity AI (sonar-pro) via web search
 
 ---
 
@@ -15,8 +15,9 @@ OPENAI_MODEL=gpt-5-pro
 
 **API Details**:
 - **Endpoint**: `POST https://api.openai.com/v1/chat/completions`
-- **Model ID**: `gpt-5-pro` (flagship reasoning model)
-- **Context Window**: 256K tokens (256,000 tokens/request)
+- **Model ID**: `gpt-5` or `gpt-5-pro` (flagship reasoning model)
+- **Context Window**: 400K tokens (400,000 tokens total: input + output)
+- **Max Output**: 128,000 tokens per response
 - **Headers**:
   - `Authorization: Bearer <API_KEY>`
   - `Content-Type: application/json`
@@ -24,31 +25,42 @@ OPENAI_MODEL=gpt-5-pro
 **Supported Parameters** (⚠️ BREAKING CHANGES):
 ```javascript
 {
-  "model": "gpt-5-pro",
+  "model": "gpt-5",
   "messages": [...],
-  "reasoning_effort": "minimal" | "low" | "medium" | "high",  // ✅ USE THIS
-  "max_completion_tokens": 32000,
+  "reasoning_effort": "minimal" | "medium" | "high",  // ✅ USE THIS (controls reasoning depth)
+  "max_completion_tokens": 128000,  // ✅ Max: 128K tokens
   "stream": true,
   "stop": [...],
   "tools": [...]  // For function calling
 }
 ```
 
+**reasoning_effort Behavior**:
+- `"minimal"` (or `"low"`): Fastest, basic reasoning, suitable for simple tasks
+- `"medium"`: Balanced speed/quality, **recommended default** for most use cases
+- `"high"`: Most thorough, slower, best for complex/critical reasoning tasks
+
 **❌ DEPRECATED PARAMETERS** (GPT-5 does NOT support):
 - `temperature` → Use `reasoning_effort` instead
 - `top_p` → Use `reasoning_effort` instead
 - `frequency_penalty` → Not supported
 - `presence_penalty` → Not supported
+- `response_format` → Not supported
 
 **Token Usage** (special for GPT-5):
 - Input tokens: Standard
-- Reasoning tokens: Internal chain-of-thought (counted separately)
+- Reasoning tokens: Internal chain-of-thought (counted separately, not exposed)
 - Output tokens: Final response
+
+**Memory & Continuity**:
+- ⚠️ GPT-5 is **stateless** - no built-in memory between requests
+- Vecto Pilot provides continuity via snapshot context (user_id, GPS, feedback history)
+- Each request includes full context to simulate personalization
 
 ---
 
 ### Anthropic Claude Sonnet 4.5
-**Status**: ✅ Verified Working (October 8, 2025)
+**Status**: ✅ Verified Working (October 17, 2025)
 
 ```env
 CLAUDE_MODEL=claude-sonnet-4-5-20250929
@@ -58,7 +70,8 @@ ANTHROPIC_API_VERSION=2023-06-01
 **API Details**:
 - **Endpoint**: `POST https://api.anthropic.com/v1/messages`
 - **Model ID**: `claude-sonnet-4-5-20250929`
-- **Context Window**: 200K tokens (200,000 tokens standard, 1M with beta header)
+- **Context Window**: 200,000 tokens (200K standard)
+- **Max Output**: 64,000 tokens per response
 - **Headers**:
   - `x-api-key: <API_KEY>`
   - `anthropic-version: 2023-06-01` (or `2025-10-01` for latest)
@@ -69,13 +82,23 @@ ANTHROPIC_API_VERSION=2023-06-01
 {
   "model": "claude-sonnet-4-5-20250929",
   "messages": [...],
-  "max_tokens": 64000,
-  "temperature": 0.7,     // ✅ Standard parameter
-  "top_p": 0.95,          // ✅ Supported
-  "system": "...",        // ✅ System prompt
-  "stop_sequences": [...] // ✅ Supported
+  "max_tokens": 64000,               // ✅ Max: 64K output tokens
+  "temperature": 0.7,                // ✅ Range: 0-2 (0.1-0.5 = factual, 1.0 = creative)
+  "top_p": 0.95,                     // ✅ Nucleus sampling for diversity
+  "system": "...",                   // ✅ System prompt
+  "stop_sequences": [...],           // ✅ Custom stop tokens
+  "frequency_penalty": 0.0,          // ✅ Discourage repetition
+  "presence_penalty": 0.0,           // ✅ Encourage novelty
+  "seed": 12345,                     // ✅ For reproducible outputs
+  "tools": [...],                    // ✅ For agentic workflows
+  "tool_choice": "auto",             // ✅ Tool selection control
+  "parallel_tool_calls": true        // ✅ Multiple tools simultaneously
 }
 ```
+
+**Parameter Best Practices**:
+- **temperature**: Use 0.1-0.5 for analytical/factual tasks, 1.0+ for creative writing
+- **max_tokens**: Set based on use case (lower = faster, higher = comprehensive)
 
 **✅ VERIFICATION COMPLETE** (October 8, 2025):
 ```bash
@@ -101,7 +124,7 @@ curl https://api.anthropic.com/v1/messages -d '{"model":"claude-sonnet-4-5-20250
 ---
 
 ### Google Gemini 2.5 Pro
-**Status**: ✅ Production (October 2025)
+**Status**: ✅ Production (October 17, 2025)
 
 ```env
 GEMINI_MODEL=gemini-2.5-pro-latest
@@ -110,7 +133,8 @@ GEMINI_MODEL=gemini-2.5-pro-latest
 **API Details**:
 - **Endpoint**: `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
 - **Model ID**: `gemini-2.5-pro-latest` (or `gemini-2.5-flash-latest` for speed)
-- **Context Window**: 1M tokens (1,000,000 tokens)
+- **Context Window**: Large (exact limit varies by version)
+- **Max Output**: 65,536 tokens (65K max per response)
 - **Headers**:
   - `Authorization: Bearer <API_KEY>`
   - `Content-Type: application/json`
@@ -119,19 +143,25 @@ GEMINI_MODEL=gemini-2.5-pro-latest
 ```javascript
 {
   "model": "gemini-2.5-pro-latest",
-  "contents": [...],          // Gemini uses "contents" not "messages"
+  "contents": [...],          // ⚠️ Gemini uses "contents" not "messages"
   "generationConfig": {
-    "temperature": 0.7,       // ✅ Standard 0.0-2.0
-    "topP": 0.95,             // ✅ Supported
-    "maxOutputTokens": 2048,  // ✅ Token limit
-    "stopSequences": [...]    // ✅ Supported
+    "temperature": 0.2,       // ✅ Range: 0.0-1.0 (default: 0.2)
+    "topP": 0.95,             // ✅ Nucleus sampling
+    "topK": 40,               // ✅ Top-K sampling
+    "maxOutputTokens": 65536, // ✅ Max: 65K tokens (API default)
+    "stopSequences": [...]    // ✅ Custom stop sequences
   }
 }
 ```
 
+**Parameter Best Practices**:
+- **temperature**: Use 0.2 for factual/concise outputs, increase for creative tasks
+- **maxOutputTokens**: Default is 65,536; use 8,192 for summaries to control cost/latency
+- **topK**: Controls sampling diversity (40 is standard)
+
 **Model Variants**:
-- `gemini-2.5-pro-latest`: General-purpose reasoning
-- `gemini-2.5-flash-latest`: High-speed, lower latency
+- `gemini-2.5-pro-latest`: General-purpose reasoning, deep analysis
+- `gemini-2.5-flash-latest`: High-speed, lower latency for fast responses
 - `gemini-2.5-computer-use-latest`: UI/agent control (preview)
 
 ---
