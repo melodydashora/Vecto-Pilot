@@ -1,9 +1,9 @@
 // server/lib/strategy-generator.js
-// Auto-generates strategic overview using Claude with transient retry
+// Auto-generates strategic overview using GPT-5
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { callClaudeWithBudget } from './transient-retry.js';
+import OpenAI from 'openai';
 
 export async function generateStrategyForSnapshot(snapshot_id) {
   const startTime = Date.now();
@@ -122,21 +122,10 @@ START YOUR RESPONSE WITH: "Today is ${dayOfWeek}, ${formattedDate} at ${exactTim
 
 Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. Think about what's happening at this exact location, at this specific time, on this particular day of the week.`;
 
-    // Build Anthropic Messages API payload
-    const payload = {
-      model: process.env.CLAUDE_MODEL || "claude-opus-4-20250514",
-      max_tokens: 8000,
-      temperature: 1.0,
-      system: systemPrompt,
-      messages: [
-        { role: "user", content: userPrompt }
-      ]
-    };
-
-    const claudeStart = Date.now();
+    const gpt5Start = Date.now();
     
-    // Log the complete snapshot data being sent to Claude
-    console.log(`[TRIAD 1/3 - Claude] Snapshot data being sent:`, {
+    // Log the complete snapshot data being sent to GPT-5
+    console.log(`[GPT-5 Strategy] Snapshot data being sent:`, {
       address: snap.formatted_address,
       city: snap.city,
       state: snap.state,
@@ -149,60 +138,63 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
       airport: airportStr || 'none'
     });
     
-    // Call Claude with transient retry and hard budget (45s with 6 retries)
-    const result = await callClaudeWithBudget(payload, { 
-      timeoutMs: 45000, 
-      maxRetries: 6 
+    // Call GPT-5 for strategy generation
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-5-2025-08-07',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      reasoning_effort: process.env.GPT5_STRATEGY_REASONING_EFFORT || 'low',
+      max_completion_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '8000', 10)
     });
     
+    const strategyText = completion.choices[0]?.message?.content?.trim();
+    const gpt5Elapsed = Date.now() - gpt5Start;
     const totalDuration = Date.now() - startTime;
+    const tokens = completion.usage?.total_tokens || 0;
     
-    if (result.ok) {
-      const strategyText = result.text.trim();
-      
+    if (!strategyText) {
       await db.update(strategies)
         .set({
-          status: 'ok',
-          strategy: strategyText,
-          latency_ms: result.ms,
-          tokens: result.tokens,
-          attempt: result.attempt,
+          status: 'failed',
+          error_code: 500,
+          error_message: 'GPT-5 returned empty strategy',
+          latency_ms: gpt5Elapsed,
+          attempt: 1,
           updated_at: new Date()
         })
         .where(eq(strategies.snapshot_id, snapshot_id));
       
-      console.log(`[TRIAD 1/3 - Claude] ✅ Strategy generated successfully`);
-      console.log(`[TRIAD 1/3 - Claude] Strategy text: "${strategyText}"`);
-      console.log(`[TRIAD 1/3 - Claude] 💾 DB Write to 'strategies' table:`, {
-        snapshot_id,
-        status: 'ok',
-        strategy_length: strategyText.length,
-        latency_ms: result.ms,
-        tokens: result.tokens,
-        attempt: result.attempt
-      });
-      console.log(`[triad] strategist.ok id=${snapshot_id} ms=${totalDuration} claude_ms=${result.ms} tokens=${result.tokens} attempts=${result.attempt}`);
-      return strategyText;
+      console.error(`[triad] strategist.err id=${snapshot_id} reason=empty_response ms=${totalDuration}`);
+      return null;
     }
-    
-    // Handle failure - check if transient for retry scheduling
-    const isTransient = result.code === 529 || result.code === 429 || result.code === 502 || result.code === 503 || result.code === 504;
-    const nextRetryAt = isTransient ? new Date(Date.now() + 5000) : null;
     
     await db.update(strategies)
       .set({
-        status: 'failed',
-        error_code: result.code,
-        error_message: result.reason,
-        latency_ms: result.ms,
-        attempt: result.attempt,
-        next_retry_at: nextRetryAt,
+        status: 'ok',
+        strategy: strategyText,
+        latency_ms: gpt5Elapsed,
+        tokens,
+        attempt: 1,
         updated_at: new Date()
       })
       .where(eq(strategies.snapshot_id, snapshot_id));
     
-    console.error(`[triad] strategist.err id=${snapshot_id} reason=${result.reason} code=${result.code} ms=${totalDuration} attempts=${result.attempt}`);
-    return null;
+    console.log(`[GPT-5 Strategy] ✅ Strategy generated successfully`);
+    console.log(`[GPT-5 Strategy] Strategy text: "${strategyText}"`);
+    console.log(`[GPT-5 Strategy] 💾 DB Write to 'strategies' table:`, {
+      snapshot_id,
+      status: 'ok',
+      strategy_length: strategyText.length,
+      latency_ms: gpt5Elapsed,
+      tokens,
+      attempt: 1
+    });
+    console.log(`[triad] strategist.ok id=${snapshot_id} ms=${totalDuration} gpt5_ms=${gpt5Elapsed} tokens=${tokens} attempts=1`);
+    return strategyText;
   } catch (err) {
     const duration = Date.now() - startTime;
     

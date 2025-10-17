@@ -321,7 +321,7 @@ router.post('/', async (req, res) => {
       if (existing && existing.status === 'ok') {
         // Strategy already generated successfully
         claudeStrategy = existing.strategy;
-        console.log(`✅ [${correlationId}] TRIAD Step 1/3: Using existing Claude Sonnet 4.5 strategy from DB`);
+        console.log(`✅ [${correlationId}] Using existing GPT-5 strategy from DB`);
       } else if (existing && existing.status === 'pending') {
         // Strategy generation in progress from snapshot background task
         const job = existing; // Alias for clarity
@@ -353,29 +353,29 @@ router.post('/', async (req, res) => {
         }
       } else if (!existing || existing.status === 'failed') {
         // No strategy or failed - generate new one
-        console.log(`🧠 [${correlationId}] TRIAD Step 1/3: Generating Claude Sonnet 4.5 strategy for snapshot ${snapshotId}...`);
+        console.log(`🧠 [${correlationId}] Step 1: Generating GPT-5 strategy for snapshot ${snapshotId}...`);
 
-        const claudeStart = Date.now();
+        const strategyStart = Date.now();
         const { generateStrategyForSnapshot } = await import('../lib/strategy-generator.js');
 
         try {
           claudeStrategy = await generateStrategyForSnapshot(snapshotId);
-          const claudeElapsed = Date.now() - claudeStart;
+          const strategyElapsed = Date.now() - strategyStart;
 
           if (!claudeStrategy) {
-            console.error(`❌ [${correlationId}] Claude returned null/empty strategy`);
+            console.error(`❌ [${correlationId}] GPT-5 returned null/empty strategy`);
             return sendOnce(500, { 
-              error: 'Claude strategy generation failed', 
+              error: 'GPT-5 strategy generation failed', 
               details: 'Strategy generator returned no content',
               correlationId 
             });
           }
 
-          console.log(`✅ [${correlationId}] TRIAD Step 1/3 Complete: Claude Sonnet 4.5 strategy generated in ${claudeElapsed}ms: "${claudeStrategy.slice(0, 80)}..."`);
+          console.log(`✅ [${correlationId}] Step 1 Complete: GPT-5 strategy generated in ${strategyElapsed}ms: "${claudeStrategy.slice(0, 80)}..."`);
         } catch (err) {
-          console.error(`❌ [${correlationId}] Claude strategy generation failed: ${err.message}`);
+          console.error(`❌ [${correlationId}] GPT-5 strategy generation failed: ${err.message}`);
           return sendOnce(500, { 
-            error: 'Claude strategy generation failed', 
+            error: 'GPT-5 strategy generation failed', 
             details: err.message,
             correlationId 
           });
@@ -398,9 +398,9 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
-    // STEP 3: Run GPT-5 Tactical Planner with Claude's Strategy
+    // STEP 3: Run GPT-5 Tactical Planner with Strategy
     // ============================================
-    console.log(`🎯 [${correlationId}] TRIAD Step 2/3: Starting GPT-5 tactical planner (requires Claude strategy)...`);
+    console.log(`🎯 [${correlationId}] Step 2: Starting GPT-5 tactical planner (requires strategy)...`);
     
     const plannerStart = Date.now();
     let tacticalPlan = null;

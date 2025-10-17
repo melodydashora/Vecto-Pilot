@@ -748,7 +748,7 @@ const CoPilot: React.FC = () => {
                   <RefreshCw className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-purple-900 mb-1">Generating Strategic Overview...</p>
-                    <p className="text-xs text-gray-600">Claude is analyzing your area and current conditions</p>
+                    <p className="text-xs text-gray-600">Analyzing your area and current conditions</p>
                   </div>
                 </div>
               </CardContent>
