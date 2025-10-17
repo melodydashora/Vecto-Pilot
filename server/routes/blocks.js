@@ -498,6 +498,7 @@ router.post('/', async (req, res) => {
           // PRIORITY: Business that closed in last 15-20 min (high ride demand)
           let fallbackHours = null;
           let fallbackBusinessName = null;
+          let fallbackTiming = null; // e.g., "closed 12 min ago" or "closes in 5 min"
           
           if (!hoursData.hours) {
             try {
@@ -545,6 +546,7 @@ router.post('/', async (req, res) => {
                           if (minutesSinceClosed < closestToNow) {
                             closestToNow = minutesSinceClosed;
                             bestBusiness = business;
+                            fallbackTiming = `closed ${minutesSinceClosed} min ago`;
                             console.log(`🎯 [${correlationId}] ${business.name} closed ${minutesSinceClosed} min ago (recent demand!)`);
                           }
                         } else if (minutesSinceClosed < 0 && minutesSinceClosed >= -15) {
@@ -553,6 +555,7 @@ router.post('/', async (req, res) => {
                           if (minsUntilClose < closestToNow) {
                             closestToNow = minsUntilClose;
                             bestBusiness = business;
+                            fallbackTiming = `closes in ${minsUntilClose} min`;
                             console.log(`⏰ [${correlationId}] ${business.name} closes in ${minsUntilClose} min (upcoming demand)`);
                           }
                         }
@@ -597,7 +600,8 @@ router.post('/', async (req, res) => {
             businessStatus: hoursData.status,
             hasSpecialHours: hoursData.hasSpecialHours,
             fallbackHours,
-            fallbackBusinessName
+            fallbackBusinessName,
+            fallbackTiming
           };
         } catch (error) {
           console.warn(`⚠️ [${correlationId}] Failed to enrich ${v.name}: ${error.message} - SKIPPING`);
@@ -897,7 +901,8 @@ router.post('/', async (req, res) => {
         eventInfo: v.eventInfo,
         hasEvents: v.hasEvents,
         fallbackHours: v.fallbackHours,
-        fallbackBusinessName: v.fallbackBusinessName
+        fallbackBusinessName: v.fallbackBusinessName,
+        fallbackTiming: v.fallbackTiming
       })),
       best_staging_location: enrichedStagingLocation,
       staging: [], // Legacy field

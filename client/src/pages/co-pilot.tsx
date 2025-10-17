@@ -965,7 +965,14 @@ const CoPilot: React.FC = () => {
                           <div className="flex items-start gap-2 text-sm ml-6">
                             <Clock className="w-4 h-4 text-blue-600 mt-0.5" />
                             <div className="text-gray-700">
-                              <p className="text-xs italic text-gray-500 mb-1">Latest from: {(block as any).fallbackBusinessName}</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-xs italic text-gray-500">Latest from: {(block as any).fallbackBusinessName}</p>
+                                {(block as any).fallbackTiming && (
+                                  <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
+                                    {(block as any).fallbackTiming}
+                                  </span>
+                                )}
+                              </div>
                               {(block as any).fallbackHours.split(',').map((hours: string, idx: number) => (
                                 <div key={idx} className="italic">{hours.trim()}</div>
                               ))}
