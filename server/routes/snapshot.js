@@ -34,10 +34,13 @@ router.post("/", async (req, res) => {
   const started = Date.now();
 
   try {
-    const { lat, lng, context, meta } = req.body || {};
+    const body = req.body || {};
+    
+    // SnapshotV1 format: coord, resolved, time_context, weather, air at root level
+    const { coord, resolved, time_context, weather, air, device, permissions } = body;
     
     // Validate snapshot data completeness using dedicated validator
-    const { ok, errors, warnings } = validateIncomingSnapshot(req.body ?? {});
+    const { ok, errors, warnings } = validateIncomingSnapshot(body);
     
     if (!ok) {
       console.warn("[snapshot] INCOMPLETE_DATA - possible web crawler or incomplete client", { 
@@ -58,45 +61,45 @@ router.post("/", async (req, res) => {
     }
     
     // Get userId from header or body - must be valid UUID or null
-    const userIdRaw = req.headers["x-user-id"] || req.body?.user_id || null;
+    const userIdRaw = req.headers["x-user-id"] || body.user_id || null;
     const userId = uuidOrNull(userIdRaw);
     
     if (userIdRaw && !userId) {
       console.warn("[snapshot] Invalid user_id format (not UUID), setting to null", { userId: userIdRaw });
     }
     
-    const deviceId = req.body?.device_id || uuid();
-    const sessionId = req.body?.session_id || uuid();
+    const deviceId = body.device_id || uuid();
+    const sessionId = body.session_id || uuid();
 
     const snapshot_id = uuid();
 
-    // Build DB record
+    // Build DB record from SnapshotV1 format
     const dbSnapshot = {
       snapshot_id,
       created_at: new Date(),
       user_id: userId,
       device_id: deviceId,
       session_id: sessionId,
-      lat,
-      lng,
-      accuracy_m: context?.accuracy || null,
-      coord_source: context?.source || 'api',
-      city: context?.city || null,
-      state: context?.state || null,
-      country: context?.country || null,
-      formatted_address: context?.formattedAddress || null,
-      timezone: context?.timezone || null,
-      local_iso: context?.local_iso ? new Date(context.local_iso) : null,
-      dow: context?.dow !== undefined ? context.dow : null,
-      hour: context?.hour !== undefined ? context.hour : null,
-      day_part_key: context?.day_part_key || null,
-      h3_r8: context?.h3_r8 || null,
-      weather: context?.weather || null,
-      air: context?.air || null,
-      airport_context: context?.airport_context || null,
-      device: meta?.device || null,
-      permissions: meta?.permissions || null,
-      extras: meta?.extras || null,
+      lat: coord?.lat || null,
+      lng: coord?.lng || null,
+      accuracy_m: coord?.accuracyMeters || null,
+      coord_source: coord?.source || 'gps',
+      city: resolved?.city || null,
+      state: resolved?.state || null,
+      country: resolved?.country || null,
+      formatted_address: resolved?.formattedAddress || null,
+      timezone: resolved?.timezone || null,
+      local_iso: time_context?.local_iso ? new Date(time_context.local_iso) : null,
+      dow: time_context?.dow !== undefined ? time_context.dow : null,
+      hour: time_context?.hour !== undefined ? time_context.hour : null,
+      day_part_key: time_context?.day_part_key || null,
+      h3_r8: body.h3_r8 || null,
+      weather: weather || null,  // { tempF, conditions, description }
+      air: air || null,           // { aqi, category }
+      airport_context: body.airport_context || null,
+      device: device || null,
+      permissions: permissions || null,
+      extras: body.extras || null,
     };
 
     // Persist to DB

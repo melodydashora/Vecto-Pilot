@@ -592,6 +592,47 @@ router.post('/snapshot', async (req, res) => {
     // Calculate H3 geohash at resolution 8 (~0.46 km² hexagons)
     const h3_r8 = latLngToCell(snapshotV1.coord.lat, snapshotV1.coord.lng, 8);
 
+    // SERVER-SIDE: Fetch weather (GPS coordinates as single source of truth)
+    console.log('[snapshot] Fetching weather from server...');
+    let weatherData = null;
+    try {
+      const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+      const weatherRes = await fetch(`${baseUrl}/api/location/weather?lat=${snapshotV1.coord.lat}&lng=${snapshotV1.coord.lng}`);
+      if (weatherRes.ok) {
+        const w = await weatherRes.json();
+        if (w.available) {
+          weatherData = {
+            tempF: w.temperature,
+            conditions: w.conditions,
+            description: w.description
+          };
+          console.log('[snapshot] ✅ Weather fetched:', weatherData);
+        }
+      }
+    } catch (weatherErr) {
+      console.warn('[snapshot] Weather fetch failed:', weatherErr.message);
+    }
+
+    // SERVER-SIDE: Fetch air quality (GPS coordinates as single source of truth)
+    console.log('[snapshot] Fetching air quality from server...');
+    let airData = null;
+    try {
+      const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+      const airRes = await fetch(`${baseUrl}/api/location/airquality?lat=${snapshotV1.coord.lat}&lng=${snapshotV1.coord.lng}`);
+      if (airRes.ok) {
+        const a = await airRes.json();
+        if (a.available) {
+          airData = {
+            aqi: a.aqi,
+            category: a.category
+          };
+          console.log('[snapshot] ✅ Air quality fetched:', airData);
+        }
+      }
+    } catch (airErr) {
+      console.warn('[snapshot] Air quality fetch failed:', airErr.message);
+    }
+
     // Check for nearby airport disruptions
     console.log('[snapshot] Fetching airport context...');
     const { getNearestMajorAirport, fetchFAADelayData } = await import('../lib/faa-asws.js');
@@ -671,15 +712,8 @@ router.post('/snapshot', async (req, res) => {
       hour: snapshotV1.time_context?.hour !== undefined ? snapshotV1.time_context.hour : null,
       day_part_key: snapshotV1.time_context?.day_part_key || null,
       h3_r8,
-      weather: snapshotV1.weather ? {
-        tempF: snapshotV1.weather.tempF,
-        conditions: snapshotV1.weather.conditions,
-        description: snapshotV1.weather.description
-      } : null,
-      air: snapshotV1.air ? {
-        aqi: snapshotV1.air.aqi,
-        category: snapshotV1.air.category
-      } : null,
+      weather: weatherData,  // SERVER-FETCHED: Always use server-fetched weather data
+      air: airData,          // SERVER-FETCHED: Always use server-fetched air quality data
       airport_context: airportContext,
       device: snapshotV1.device || null,
       permissions: snapshotV1.permissions || null,
