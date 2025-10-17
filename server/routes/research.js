@@ -242,10 +242,11 @@ Be concise, practical, and action-oriented. Drivers are working and need quick, 
     ];
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-5',
       messages,
-      max_tokens: 800,
-      temperature: 0.7
+      max_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '64000'),
+      temperature: 0.1,
+      reasoning_effort: 'medium'
     });
 
     const reply = completion.choices[0].message.content;
