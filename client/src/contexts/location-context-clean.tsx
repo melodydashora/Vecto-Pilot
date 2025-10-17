@@ -320,8 +320,6 @@ export function LocationProvider({ children }: LocationProviderProps) {
         ...prev,
         coords: coords, // Store the raw coords
         accuracy: coords.accuracy, // Store accuracy
-        isLoading: false, // Set loading to false
-        isUpdating: false, // Set updating to false
         error: null, // Clear any previous GPS errors
       }));
 
@@ -482,6 +480,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
             country: locationData.country,
             timeZone: locationData.timeZone,
             dayPart: timeContext.dayPartLabel,
+            isLoading: false, // Set loading to false AFTER location is resolved
+            isUpdating: false, // Set updating to false AFTER location is resolved
           }));
         })
         .catch((err) => {
@@ -499,6 +499,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
             longitude: coords.longitude,
             currentLocation: `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`,
             lastUpdated: new Date(),
+            isLoading: false, // Set loading to false even on error
+            isUpdating: false, // Set updating to false even on error
           }));
         });
     } else if (gpsError) {
