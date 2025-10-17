@@ -172,8 +172,8 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "Return JSON only."
   ].join("\n");
 
-  const reasoningEffort = process.env.GPT5_REASONING_EFFORT || process.env.OPENAI_REASONING_EFFORT;
-  console.log(`[TRIAD 2/3 - GPT-5 Planner] Calling GPT-5 with reasoning_effort=${reasoningEffort} (requires valid Claude strategy)...`);
+  const reasoningEffort = 'low'; // Force low reasoning for speed
+  console.log(`[GPT-5 Tactical Planner] Calling GPT-5 with reasoning_effort=${reasoningEffort}...`);
 
   // Call GPT-5 with configurable reasoning effort
   const abortCtrl = new AbortController();

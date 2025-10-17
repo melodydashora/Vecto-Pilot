@@ -245,16 +245,8 @@ const CoPilot: React.FC = () => {
     queryFn: async () => {
       if (!coords) throw new Error('No GPS coordinates');
       
-      // Client-side idempotency gate: Only call once per snapshot (concurrent guard)
-      if (lastSnapshotId && didStartBySnapshot.current[lastSnapshotId]) {
-        console.log(`🔒 [Client Gate] Blocked concurrent call for snapshot: ${lastSnapshotId}`);
-        throw new Error('DUPLICATE_CALL_BLOCKED');
-      }
-      
-      if (lastSnapshotId) {
-        didStartBySnapshot.current[lastSnapshotId] = true;
-        console.log(`✅ [Client Gate] First call for snapshot: ${lastSnapshotId}`);
-      }
+      // NO CLIENT GATE - Server handles idempotency via x-idempotency-key
+      // Client retry is necessary for pending strategy completion
       
       // 3 minute timeout for Triad orchestrator (Claude 15s + GPT-5 120s + Gemini 20s + buffer)
       const controller = new AbortController();
@@ -366,11 +358,6 @@ const CoPilot: React.FC = () => {
         }
       } catch (err: any) {
         clearTimeout(timeoutId);
-        // Reset gate on error to allow retry
-        if (lastSnapshotId && didStartBySnapshot.current[lastSnapshotId]) {
-          delete didStartBySnapshot.current[lastSnapshotId];
-          console.log(`♻️ [Client Gate] Reset gate for snapshot ${lastSnapshotId} due to error`);
-        }
         if (err.name === 'AbortError') {
           throw new Error('Request timed out - AI processing is taking longer than expected');
         }

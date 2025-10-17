@@ -147,7 +147,7 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      reasoning_effort: process.env.GPT5_STRATEGY_REASONING_EFFORT || 'low',
+      reasoning_effort: 'low', // Force low reasoning for speed
       max_completion_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '8000', 10)
     });
     
