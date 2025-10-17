@@ -133,9 +133,8 @@ async function callGPT(prompt) {
       { role: 'system', content: 'You are a rideshare earnings calculator. Return only JSON.' },
       { role: 'user', content: prompt }
     ],
-    temperature: 0.0,
-    max_tokens: 8000,
-    response_format: { type: 'json_object' }
+    max_completion_tokens: 8000
+    // Note: GPT-5 does NOT support temperature or response_format
   });
 
   const text = response.choices[0].message.content;
