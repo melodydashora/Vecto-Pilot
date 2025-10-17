@@ -244,7 +244,7 @@ Be concise, practical, and action-oriented. Drivers are working and need quick, 
     const completion = await openai.chat.completions.create({
       model: 'gpt-5',
       messages,
-      max_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '64000'),
+      max_completion_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '64000'),
       temperature: 0.1
     });
 
