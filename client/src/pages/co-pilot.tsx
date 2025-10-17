@@ -724,11 +724,35 @@ const CoPilot: React.FC = () => {
                         </Button>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
+                    <div className="max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-purple-50">
+                      <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
+                    </div>
                     <div className="mt-3 flex items-center gap-2 text-xs text-purple-600">
                       <CheckCircle2 className="w-3 h-3" />
                       <span>Strategy persists until next refresh</span>
                     </div>
+                    {coords && (
+                      <div className="mt-3 pt-3 border-t border-purple-200 flex items-center gap-2">
+                        <span className="text-xs text-gray-600">Quick Navigate:</span>
+                        <a
+                          href={`comgooglemaps://?daddr=${coords.latitude},${coords.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                        >
+                          Google Maps
+                        </a>
+                        <span className="text-xs text-gray-400">|</span>
+                        <a
+                          href={`https://maps.apple.com/?daddr=${coords.latitude},${coords.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-gray-600 hover:text-gray-700 hover:underline"
+                        >
+                          Apple Maps
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -974,12 +998,23 @@ const CoPilot: React.FC = () => {
                                 )}
                               </div>
                               {(block as any).fallbackHours.split(',').map((hours: string, idx: number) => (
-                                <div key={idx} className="italic">{hours.trim()}</div>
+                                <div key={idx} className="italic text-xs">{hours.trim()}</div>
                               ))}
                             </div>
                           </div>
                         </div>
                       )}
+                      
+                      {/* Debug: Log fallback data */}
+                      {!block.businessHours && (() => {
+                        console.log('🔍 Block fallback data:', {
+                          name: block.name,
+                          fallbackHours: (block as any).fallbackHours,
+                          fallbackBusinessName: (block as any).fallbackBusinessName,
+                          fallbackTiming: (block as any).fallbackTiming
+                        });
+                        return null;
+                      })()}
 
                       {/* Closed Venue Strategic Reasoning - Highlighted */}
                       {!block.isOpen && block.closed_venue_reasoning && (

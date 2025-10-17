@@ -32,7 +32,11 @@ export async function enrichVenues({ venues, driverLocation, snapshot }) {
     business_hours: v.businessHours,
     is_open: v.isOpen,
     // Keep description from tactical planner
-    description: v.description
+    description: v.description,
+    // Preserve fallback hours data (for complexes/districts)
+    fallbackHours: v.fallbackHours,
+    fallbackBusinessName: v.fallbackBusinessName,
+    fallbackTiming: v.fallbackTiming
   }));
 
   const prompt = buildPrompt(venuesForModel, driverLocation, snapshot);
