@@ -2,7 +2,7 @@
 
 ---
 
-**Last Updated:** 2025-10-09 05:30 CST
+**Last Updated:** 2025-10-17 22:40 UTC
 
 ---
 
@@ -114,9 +114,59 @@ Single source of truth for:
 
 ---
 
-## 🔄 **CRITICAL ARCHITECTURE EVOLUTION (Oct 8, 2025)**
+## 🔄 **CRITICAL ARCHITECTURE EVOLUTION**
 
-### ✅ VERIFIED: Anthropic Claude Sonnet 4.5 Model
+### October 17, 2025 - Production-Ready CORS & Middleware Hardening ✅
+
+**Issue Resolved:** CORS preflight failures and middleware order inconsistencies across repo instances
+
+**What Changed:**
+- ✅ **Enhanced CORS with Origin Whitelisting**: Replaced `origin: '*'` with intelligent validation
+  - Whitelisted: `https://dev.melodydashora.dev`, `https://vectopilot.com`, `https://replit.com`, `*.replit.dev`, `*.repl.co`
+  - Added `credentials: true` for Authorization headers
+  - Added `X-Assistant-Override` and `X-GW-Key` to allowed headers
+  - Fast-path OPTIONS handler prevents preflights from hitting app logic
+- ✅ **Locked Middleware Order**: Bulletproof execution sequence
+  - Helmet (security) → CORS → OPTIONS → Health → Body parsers → Rate limiting → Routes → 404 → Error handler
+  - Centralized error handler with 4-param signature for Express recognition
+  - CORS error handling returns 403 with clear `cors_blocked` message
+- ✅ **Trustworthy Health Checks**: All health endpoints return `Cache-Control: no-cache`
+  - Gateway `/health`: Returns consistent JSON with `status: "ok"`
+  - SDK `/healthz`, `/ready`: Same pattern
+  - Public `/agent/health`: No auth required, proxies to agent server
+- ✅ **Tampermonkey GPT-5 Override**: Browser script to switch Eidolon assistant from Claude to GPT-5
+  - File: `tampermonkey-gpt-override.user.js`
+  - Intercepts `/api/assistant/chat` requests
+  - Adds `X-Assistant-Override: gpt-5` header
+  - Visual indicator badge shows override is active
+
+**Files Modified:**
+- `gateway-server.js` - Enhanced CORS, middleware order, public agent health endpoint
+- `index.js` (SDK server) - Same CORS enhancements, health check improvements
+- `server/routes/health.js` - Cache-Control headers
+
+**Verification:**
+```bash
+# CORS preflight test
+curl -i -X OPTIONS https://dev.melodydashora.dev/api/blocks \
+  -H "Origin: https://dev.melodydashora.dev" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: Content-Type, Authorization"
+# Result: 204 No Content with correct CORS headers ✅
+
+# Health check test
+curl -i https://dev.melodydashora.dev/health
+# Result: 200 OK with Cache-Control: no-cache ✅
+
+# Agent health test
+curl -i https://dev.melodydashora.dev/agent/health
+# Result: 200 OK with agent status ✅
+```
+
+---
+
+### October 8, 2025 - Anthropic Claude Sonnet 4.5 Model Verification ✅
+
 **Issue Resolved:** Model ID `claude-sonnet-4-5-20250929` confirmed working via direct API tests
 
 **What Changed:**
