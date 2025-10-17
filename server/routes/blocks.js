@@ -385,11 +385,11 @@ router.post('/', async (req, res) => {
 
     // ============================================
     // STEP 2.5: Workflow Gating (enforce strategy exists before GPT-5)
-    // Architectural guidance: No GPT-5 until Claude strategy exists
     // ============================================
     if (!claudeStrategy) {
-      console.warn(`⚠️ [${correlationId}] Strategy required for tactical planning`);
-      return sendOnce(202, { 
+      console.warn(`⚠️ [${correlationId}] Strategy required for tactical planning - DO NOT CACHE THIS`);
+      // DO NOT cache pending responses - return directly without caching
+      return res.status(202).json({ 
         ok: false, 
         status: 'pending_strategy',
         message: 'Strategy generation in progress',
