@@ -505,7 +505,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
       console.error("[Global App] GPS error:", gpsError);
       setLocationState((prev: any) => ({
         ...prev,
-        currentLocation: "GPS unavailable - use Edit button",
+        currentLocation: "Location unavailable",
         isUpdating: false,
         isLoading: false,
         error: gpsError, // Store the GPS error
