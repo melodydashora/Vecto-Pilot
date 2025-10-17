@@ -238,9 +238,8 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
       tactical_summary: validated.tactical_summary,
       suggested_db_fields: validated.suggested_db_fields || null,
       metadata: {
-        model: modelUsed,
-        mode: useFastMode ? 'fast' : 'reasoning',
-        temperature: useFastMode ? temperature : null,
+        model: "gpt-5",
+        reasoning_effort: reasoningEffort,
         duration_ms: duration,
         venues_recommended: validated.recommended_venues.length,
         validation_passed: true
