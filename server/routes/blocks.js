@@ -624,21 +624,21 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Use Gemini to calculate earnings and validate (with closed venue reasoning)
-    const { enrichVenuesWithGemini } = await import('../lib/gemini-enricher.js');
-    const geminiEnriched = await enrichVenuesWithGemini({
+    // Use configured model provider to calculate earnings and validate (with closed venue reasoning)
+    const { enrichVenues } = await import('../lib/enricher-unified.js');
+    const modelEnriched = await enrichVenues({
       venues: venuesWithDistance,
       driverLocation: { lat: fullSnapshot.lat, lng: fullSnapshot.lng },
       snapshot: fullSnapshot
     });
 
-    console.log(`🔍 [${correlationId}] Gemini raw response (first venue):`, JSON.stringify(geminiEnriched[0], null, 2));
+    console.log(`🔍 [${correlationId}] Enricher raw response (first venue):`, JSON.stringify(modelEnriched[0], null, 2));
 
     // Key-based merge (Invariant 7: merge by key never index)
     const keyOf = (x) => (x.placeId || x.name || '').toLowerCase();
     const toNum = (v) => Number(String(v ?? '').replace(/[^0-9.]/g, ''));
     const gmap = new Map(
-      geminiEnriched.map(g => [keyOf(g), {
+      modelEnriched.map(g => [keyOf(g), {
         earn: toNum(g.estimated_earnings_per_ride ?? g.estimated_earnings),
         epm: Number(g.earnings_per_mile),
         rank: Number(g.ranking_score),
@@ -690,7 +690,8 @@ router.post('/', async (req, res) => {
       return b.value_per_min - a.value_per_min;
     });
 
-    console.log(`✅ [${correlationId}] TRIAD Step 3/3 Complete: Gemini 2.5 Pro validation with value-per-minute ranking`);
+    const enricherProvider = process.env.TRIAD_VALIDATOR_PROVIDER || 'google';
+    console.log(`✅ [${correlationId}] TRIAD Step 3/3 Complete: ${enricherProvider} enrichment with value-per-minute ranking`);
     console.log(`💰 [${correlationId}] Sample enriched venue:`, {
       name: fullyEnrichedVenues[0]?.name,
       distance: fullyEnrichedVenues[0]?.estimated_distance_miles,
