@@ -852,7 +852,7 @@ const CoPilot: React.FC = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <EidolonChat />
+                  <EidolonChat snapshotId={lastSnapshotId || undefined} />
                 </CardContent>
               </Card>
             </div>
