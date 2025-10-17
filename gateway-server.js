@@ -29,6 +29,7 @@ console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}
 const ALLOW_ORIGINS = [
   "https://dev.melodydashora.dev",
   "https://vectopilot.com",
+  "https://replit.com",       // Replit editor platform
   /\.replit\.dev$/, // allow Replit preview domains
   /\.repl\.co$/    // allow Replit legacy domains
 ];

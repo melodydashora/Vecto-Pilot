@@ -41,6 +41,7 @@ const app = express();
 const ALLOW_ORIGINS = [
   "https://dev.melodydashora.dev",
   "https://vectopilot.com",
+  "https://replit.com",       // Replit editor platform
   /\.replit\.dev$/, // allow Replit preview domains
   /\.repl\.co$/    // allow Replit legacy domains
 ];
