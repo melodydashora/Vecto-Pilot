@@ -34,9 +34,43 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// ───────────────────────────────────────────────────────────────────────────────
+// PATCH 1: Enhanced CORS with origin whitelisting (same as Gateway)
+// ───────────────────────────────────────────────────────────────────────────────
+const ALLOW_ORIGINS = [
+  "https://dev.melodydashora.dev",
+  "https://vectopilot.com",
+  /\.replit\.dev$/, // allow Replit preview domains
+  /\.repl\.co$/    // allow Replit legacy domains
+];
+
+function originOk(origin) {
+  if (!origin) return true; // curl or server-to-server
+  if (ALLOW_ORIGINS.includes(origin)) return true;
+  if (ALLOW_ORIGINS.some(p => p instanceof RegExp && p.test(origin))) return true;
+  return false;
+}
+
 // Trust exactly 1 proxy (Replit platform) - prevents IP spoofing in rate limiting
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 process.noDeprecation = true;
+
+// CORS middleware with origin validation
+app.use(cors({
+  origin: (origin, cb) => originOk(origin) ? cb(null, true) : cb(new Error("CORS")),
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization",
+    "X-Idempotency-Key", "X-Request-ID", "X-Assistant-Override", "X-GW-Key"
+  ],
+  exposedHeaders: ["X-Request-ID"],
+  maxAge: 600
+}));
+
+// Fast-path OPTIONS so preflights never hit app logic
+app.options("*", cors());
 
 // ───────────────────────────────────────────────────────────────────────────────
 // DIAGNOSTIC: Global request logger BEFORE all middleware
@@ -49,7 +83,6 @@ app.use((req, res, next) => {
 // ───────────────────────────────────────────────────────────────────────────────
 // Core middleware
 // ───────────────────────────────────────────────────────────────────────────────
-app.use(cors());
 // No global JSON parsing to avoid client abort errors - mount per-route instead
 app.use(loggingMiddleware);
 app.use(securityMiddleware);
@@ -58,22 +91,26 @@ app.use(securityMiddleware);
 const parseJson = express.json({ limit: "1mb", strict: true });
 
 // ───────────────────────────────────────────────────────────────────────────────
-// Health endpoints (before everything else for pilot monitoring)
+// PATCH 3: Health endpoints with Cache-Control (before everything else for pilot monitoring)
 // ───────────────────────────────────────────────────────────────────────────────
 app.get("/healthz", (_req, res) => {
-  res.json({ ok: true, status: "healthy", timestamp: new Date().toISOString() });
+  res.setHeader("Cache-Control", "no-cache");
+  res.status(200).json({ status: "ok", ok: true, healthy: true, time: new Date().toISOString() });
 });
 
 app.get("/ready", (_req, res) => {
-  res.json({ ok: true, status: "ready", timestamp: new Date().toISOString() });
+  res.setHeader("Cache-Control", "no-cache");
+  res.status(200).json({ status: "ok", ok: true, ready: true, time: new Date().toISOString() });
 });
 
 app.get("/api/assistant/health", (_req, res) => {
-  res.json({ ok: true, assistant: true, time: new Date().toISOString() });
+  res.setHeader("Cache-Control", "no-cache");
+  res.status(200).json({ ok: true, assistant: true, time: new Date().toISOString() });
 });
 
 app.get("/api/assistant/verify-override", (_req, res) => {
-  res.json({
+  res.setHeader("Cache-Control", "no-cache");
+  res.status(200).json({
     ok: true,
     override_active: true,
     identity: "Eidolon (Claude Opus 4.1 Enhanced SDK)",

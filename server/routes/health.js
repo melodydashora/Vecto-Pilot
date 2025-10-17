@@ -5,11 +5,13 @@ import { routerDiagnosticsV2 } from '../lib/llm-router-v2.js';
 const router = Router();
 
 router.get('/', (req, res) => {
+  res.setHeader("Cache-Control", "no-cache");
   const diag = routerDiagnosticsV2();
-  res.json({
+  res.status(200).json({
+    status: "ok",
     ok: true,
     service: 'Vecto Co-Pilot API',
-    timestamp: new Date().toISOString(),
+    time: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
     pid: process.pid,
@@ -18,10 +20,11 @@ router.get('/', (req, res) => {
 });
 
 router.get('/verify-override', (req, res) => {
-  res.json({
+  res.setHeader("Cache-Control", "no-cache");
+  res.status(200).json({
     ok: true,
     override_active: true,
-    timestamp: new Date().toISOString()
+    time: new Date().toISOString()
   });
 });
 

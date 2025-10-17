@@ -15,8 +15,6 @@ import { startMemoryCompactor } from "./server/eidolon/memory/compactor.js";
 
 // ---------- config ----------
 const app = express();
-// Trust exactly 1 proxy (Replit platform) - prevents IP spoofing in rate limiting
-app.set('trust proxy', 1);
 
 // AUTOSCALE: Use Replit-provided PORT or fallback to 5000 for dev
 const PORT = Number(process.env.PORT) || 5000;
@@ -27,17 +25,77 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 console.log(`🚀 [gateway] Starting in ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
 console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}, Agent=${AGENT_PORT}`);
 
-// ---------- CORS: Allow all cross-origin requests ----------
-app.use(cors({
-  origin: '*',
-  credentials: false,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+// ---------- PATCH 1: Enhanced CORS with origin whitelisting ----------
+const ALLOW_ORIGINS = [
+  "https://dev.melodydashora.dev",
+  "https://vectopilot.com",
+  /\.replit\.dev$/, // allow Replit preview domains
+  /\.repl\.co$/    // allow Replit legacy domains
+];
+
+function originOk(origin) {
+  if (!origin) return true; // curl or server-to-server
+  if (ALLOW_ORIGINS.includes(origin)) return true;
+  if (ALLOW_ORIGINS.some(p => p instanceof RegExp && p.test(origin))) return true;
+  return false;
+}
+
+// Trust exactly 1 proxy (Replit platform) - prevents IP spoofing in rate limiting
+app.set("trust proxy", true);
+
+// Security headers with Helmet (configured before CORS)
+app.use(helmet({ 
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: [
+        "'self'",
+        "https://replit.com", "wss://replit.com",
+        "https://*.replit.dev", "wss://*.replit.dev",
+        "https://*.repl.co", "wss://*.repl.co",
+        "https://app.launchdarkly.com", "https://events.launchdarkly.com",
+        "https://www.google-analytics.com", "https://stats.g.doubleclick.net"
+      ],
+      scriptSrc: [
+        "'self'", "'unsafe-inline'", "'unsafe-eval'",
+        "https://js.stripe.com", "https://www.googletagmanager.com",
+        "https://www.google-analytics.com", "https://www.google.com", "https://www.gstatic.com"
+      ],
+      imgSrc: ["'self'", "data:", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ["'self'", "https://js.stripe.com", "https://www.google.com", "https://recaptcha.net"]
+    }
+  }
 }));
 
-// ---------- CRITICAL: health check first (must respond instantly) ----------
+// CORS middleware with origin validation
+app.use(cors({
+  origin: (origin, cb) => originOk(origin) ? cb(null, true) : cb(new Error("CORS")),
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization",
+    "X-Idempotency-Key", "X-Request-ID", "X-Assistant-Override", "X-GW-Key"
+  ],
+  exposedHeaders: ["X-Request-ID"],
+  maxAge: 600
+}));
+
+// Fast-path OPTIONS so preflights never hit app logic
+app.options("*", cors());
+
+// ---------- PATCH 3: Health check with Cache-Control (must respond instantly) ----------
 app.get("/health", (_req, res) => {
-  res.status(200).json({ ok: true, gateway: true, timestamp: new Date().toISOString() });
+  res.setHeader("Cache-Control", "no-cache");
+  res.status(200).json({ 
+    status: "ok",
+    ok: true, 
+    gateway: true, 
+    time: new Date().toISOString(),
+    service: "gateway"
+  });
 });
 
 // ---------- Bookmarklet verification endpoint ----------
@@ -48,6 +106,11 @@ app.get("/api/assistant/verify-override", (_req, res) => {
   const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
   res.send(gif);
 });
+
+// ---------- PATCH 2: Core middleware in correct order ----------
+// Body parsers (before any routes)
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false }));
 
 // ---------- Bot/Scanner Protection (Rate Limiting) ----------
 // Aggressive rate limiting to block scanners and bots
@@ -63,31 +126,6 @@ const generalLimiter = rateLimit({
 
 // Apply rate limiting to all routes (except health check)
 app.use(generalLimiter);
-
-// ---------- Security headers with Helmet ----------
-app.use(helmet({
-  contentSecurityPolicy: {
-    useDefaults: true,
-    directives: {
-      defaultSrc: ["'self'"],
-      connectSrc: [
-        "'self'",
-        "https://replit.com", "wss://replit.com",
-        "https://*.replit.dev", "wss://*.replit.dev",
-        "https://app.launchdarkly.com", "https://events.launchdarkly.com",
-        "https://www.google-analytics.com", "https://stats.g.doubleclick.net"
-      ],
-      scriptSrc: [
-        "'self'", "'unsafe-inline'", "'unsafe-eval'",
-        "https://js.stripe.com", "https://www.googletagmanager.com",
-        "https://www.google-analytics.com", "https://www.google.com", "https://www.gstatic.com"
-      ],
-      imgSrc: ["'self'", "data:", "https:"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      frameSrc: ["'self'", "https://js.stripe.com", "https://www.google.com", "https://recaptcha.net"]
-    }
-  }
-}));
 
 // Load assistant policy and start memory compactor (deferred to avoid blocking startup)
 setImmediate(() => {
@@ -507,7 +545,14 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// Error gate for client aborts and oversized payloads
+// ---------- PATCH 2: 404 and centralized error handler (last) ----------
+// 404 forwarder
+app.use((req, res, next) => {
+  res.status(404).json({ error: "not_found", path: req.path });
+});
+
+// Centralized error handler (must be last, must have 4 params for Express to recognize it)
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   // Client closed connection mid-read
   if (err?.type === "request.aborted" || err?.code === "ECONNRESET") {
@@ -516,14 +561,19 @@ app.use((err, req, res, next) => {
   }
   // Payload too large
   if (err?.type === "entity.too.large") {
-    return res.status(413).json({ ok: false, error: "payload too large" });
+    return res.status(413).json({ ok: false, error: "payload_too_large" });
   }
-  // Pass other errors to default handler
-  next(err);
+  // CORS errors
+  if (err.message === "CORS") {
+    return res.status(403).json({ error: "cors_blocked", message: "Origin not allowed" });
+  }
+  // Generic error handler
+  const code = err.status || 500;
+  res.status(code).json({
+    error: err.code || "internal_error",
+    message: err.message || "Internal Server Error"
+  });
 });
-
-// last resort 404 as JSON so jq never chokes on HTML
-app.use((req, res) => res.status(404).json({ ok: false, error: "route_not_found", path: req.path }));
 
 // ---------- server + startup ----------
 // Clean up any existing processes on our ports
