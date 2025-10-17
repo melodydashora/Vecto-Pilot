@@ -65,10 +65,6 @@ externalPort = 3002
 localPort = 43717
 externalPort = 5173
 
-[[ports]]
-localPort = 46749
-externalPort = 6000
-
 [deployment]
 run = ["npm", "start"]
 
