@@ -266,25 +266,41 @@ Example:
       { role: 'user', content: message }
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-5',
-      messages,
-      max_completion_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '64000')
-    });
+    // Create AbortController for timeout handling
+    const abortController = new AbortController();
+    const timeoutMs = 180000; // 3 minutes for chat responses
+    const timeout = setTimeout(() => abortController.abort(), timeoutMs);
+    
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-5',
+        messages,
+        max_completion_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '64000')
+      }, {
+        signal: abortController.signal
+      });
+      clearTimeout(timeout);
+    
+      const reply = completion.choices[0].message.content;
 
-    const reply = completion.choices[0].message.content;
-
-    res.json({
-      ok: true,
-      reply,
-      snapshotId,
-      contextProvided: {
-        hasStrategy: !!strategyResult.rows[0]?.strategy,
-        venueCount: venuesResult.rows.length,
-        researchCount: researchResult.rows.length
-      },
-      usage: completion.usage
-    });
+      res.json({
+        ok: true,
+        reply,
+        snapshotId,
+        contextProvided: {
+          hasStrategy: !!strategyResult.rows[0]?.strategy,
+          venueCount: venuesResult.rows.length,
+          researchCount: researchResult.rows.length
+        },
+        usage: completion.usage
+      });
+    } catch (err) {
+      clearTimeout(timeout);
+      if (err.name === 'AbortError') {
+        throw new Error('Chat request timed out - please try again');
+      }
+      throw err;
+    }
   } catch (error) {
     console.error('[Research API] Chat error:', error);
     res.status(500).json({
