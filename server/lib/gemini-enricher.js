@@ -14,13 +14,16 @@ export async function enrichVenuesWithGemini({ venues, driverLocation, snapshot 
     }
   });
 
+  // Strip businessHours - only send isOpen status to model (Google provides hours, not AI)
+  const venuesForModel = venues.map(({ businessHours, businessStatus, hasSpecialHours, ...rest }) => rest);
+
   const prompt = `You are a rideshare earnings calculator and venue validator for ${snapshot?.city || 'the area'}.
 
 DRIVER LOCATION: ${driverLocation.lat}, ${driverLocation.lng}
 DAY/TIME: ${snapshot?.day_part || 'unknown'} | WEATHER: ${snapshot?.weather || 'unknown'}
 
 VENUES TO ANALYZE:
-${JSON.stringify(venues, null, 2)}
+${JSON.stringify(venuesForModel, null, 2)}
 
 TASK - Calculate probable earnings per ride for each venue based on:
 
