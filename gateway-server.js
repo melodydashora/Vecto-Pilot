@@ -31,6 +31,11 @@ app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true, gateway: true, timestamp: new Date().toISOString() });
 });
 
+// ---------- Bookmarklet verification endpoint ----------
+app.get("/api/assistant/verify-override", (_req, res) => {
+  res.status(200).json({ ok: true, verified: true });
+});
+
 // ---------- Bot/Scanner Protection (Rate Limiting) ----------
 // Aggressive rate limiting to block scanners and bots
 const generalLimiter = rateLimit({
