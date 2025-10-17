@@ -5,26 +5,41 @@ modules = ["nodejs-22", "nodejs-20", "nodejs-18", "postgresql-16", "python-3.11"
 runButton = "Project"
 
 [[workflows.workflow]]
-name = "Eidolon Main"
-mode = "parallel"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "NODE_ENV=development VITE_PORT=3003 PLANNER_DEADLINE_MS=120000 VALIDATOR_DEADLINE_MS=60000 node gateway-server.js"
-waitForPort = 5000
-
-[[workflows.workflow]]
 name = "Project"
 mode = "parallel"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Eidolon Main"
+args = "Gateway"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Vite Dev Server"
+
+[[workflows.workflow]]
+name = "Gateway"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "NODE_ENV=development node gateway-server.js"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow]]
+name = "Vite Dev Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev:vite"
+waitForPort = 5173
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [nix]
 packages = ["fontconfig", "ghostscript", "glib", "harfbuzz", "jiq", "jq", "jq-lsp", "jql", "lsof", "nodejs-18", "nodejs-20", "nodejs-22", "openssl", "pandoc", "pango", "python312Packages.jq", "python312Packages.xstatic-jquery-ui", "python313Packages.django-jquery-js", "python313Packages.jq", "python313Packages.xstatic-jquery", "tree", "undollar", "wkhtmltopdf"]
@@ -50,6 +65,10 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
+localPort = 5173
+externalPort = 6800
+
+[[ports]]
 localPort = 24678
 externalPort = 3000
 
@@ -60,10 +79,6 @@ externalPort = 5000
 [[ports]]
 localPort = 38681
 externalPort = 3002
-
-[[ports]]
-localPort = 42389
-externalPort = 5173
 
 [[ports]]
 localPort = 43717

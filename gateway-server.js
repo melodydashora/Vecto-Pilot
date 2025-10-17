@@ -509,55 +509,47 @@ if (IS_PRODUCTION) {
 }
 
 if (process.env.NODE_ENV !== "production") {
-  console.log("[gateway] Setting up Vite dev middleware...");
-  try {
-    const { createServer } = await import("vite");
-    const vite = await createServer({ 
-      root: clientDir, 
-      server: { 
-        middlewareMode: true,
-        host: "0.0.0.0",
-        hmr: false // Disable HMR WebSocket server - not needed in middleware mode behind proxy
-      }, 
-      appType: "spa",
-      configFile: path.resolve(process.cwd(), "vite.config.js")
-    });
+  // Vite runs on its own port (5173), proxy to it for frontend requests
+  const VITE_PORT = Number(process.env.VITE_PORT) || 5173;
+  console.log(`[gateway] Proxying frontend requests to Vite dev server on port ${VITE_PORT}`);
+  
+  // Proxy all frontend requests to Vite (exclude API/service routes)
+  app.use((req, res, next) => {
+    // Skip proxy for all API/service routes - they're handled by SDK/Agent
+    if (
+      req.path.startsWith("/eidolon") ||
+      req.path.startsWith("/assistant") ||
+      req.path.startsWith("/agent") ||
+      req.path.startsWith("/api") ||
+      req.path.startsWith("/health") ||
+      req.path.startsWith("/metrics")
+    ) {
+      return next();
+    }
     
-    // Register Vite middleware ONLY for root and static assets (exclude all /api, /eidolon, /assistant, etc.)
-    app.use((req, res, next) => {
-      // Explicitly skip Vite for all API/service routes
-      if (
-        req.path.startsWith("/eidolon") ||
-        req.path.startsWith("/assistant") ||
-        req.path.startsWith("/agent") ||
-        req.path.startsWith("/api") ||
-        req.path.startsWith("/health") ||
-        req.path.startsWith("/metrics")
-      ) {
-        console.log(`[gateway] Skipping Vite for: ${req.method} ${req.path}`);
-        return next();
+    // Proxy everything else to Vite
+    createProxyMiddleware({
+      target: `http://127.0.0.1:${VITE_PORT}`,
+      changeOrigin: true,
+      ws: true, // WebSocket support for HMR
+      logLevel: "silent",
+      onError: (err, req, res) => {
+        console.error(`[gateway] Vite proxy error: ${err.message}`);
+        res.status(502).send(`
+          <html>
+            <body>
+              <h1>Vite Dev Server Not Running</h1>
+              <p>Start Vite on port ${VITE_PORT} with: <code>npm run dev:vite</code></p>
+              <p>Error: ${err.message}</p>
+            </body>
+          </html>
+        `);
       }
-      // Let Vite handle everything else (/, /assets/*, etc.)
-      return vite.middlewares(req, res, next);
-    });
-    console.log("[gateway] Vite dev middleware active - React app served from memory");
-  } catch (err) {
-    console.error("[gateway] Failed to setup Vite middleware:", err.message);
-    // Fallback to serving static files
-    app.use(express.static(clientDir));
-    app.get("*", (req, res, next) => {
-      if (
-        req.path === "/" ||
-        req.path.startsWith("/eidolon") ||
-        req.path.startsWith("/assistant") ||
-        req.path.startsWith("/agent") ||
-        req.path.startsWith("/api") ||
-        req.path.startsWith("/health") ||
-        req.path.startsWith("/metrics")
-      ) return next();
-      res.sendFile(path.join(clientDir, "index.html"));
-    });
-  }
+    })(req, res, next);
+  });
+  
+  console.log(`[gateway] Frontend proxy configured - requests forwarded to Vite on port ${VITE_PORT}`);
+  console.log(`[gateway] Start Vite separately with: npm run dev:vite`)
 } else {
   console.log("[gateway] Production mode - serving built SPA");
   ensureClientBuild();
