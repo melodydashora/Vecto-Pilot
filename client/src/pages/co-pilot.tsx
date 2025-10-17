@@ -968,6 +968,19 @@ const CoPilot: React.FC = () => {
                         </div>
                       )}
 
+                      {/* Real-time Event Information (Perplexity) */}
+                      {(block as any).hasEvents && (block as any).eventInfo && (
+                        <div className="bg-purple-50 border border-purple-300 rounded-lg p-3 mb-3">
+                          <div className="flex items-start gap-2">
+                            <span className="text-lg mt-0.5">🎉</span>
+                            <div>
+                              <h4 className="text-sm font-semibold text-purple-900 mb-1">Event Tonight</h4>
+                              <p className="text-sm text-purple-800">{(block as any).eventInfo}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Staging Area */}
                       {block.stagingArea && (
                         <div className="bg-gray-50 rounded-lg p-3 mb-3">

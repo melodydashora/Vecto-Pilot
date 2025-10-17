@@ -702,12 +702,83 @@ router.post('/', async (req, res) => {
       validation: fullyEnrichedVenues[0]?.validation_status
     });
 
+    // ============================================
+    // STEP 3.5: Real-time Event Check (Perplexity - Non-blocking)
+    // Check each venue for events/games tonight
+    // ============================================
+    console.log(`🎪 [${correlationId}] Checking for events at ${fullyEnrichedVenues.length} venues (Perplexity)...`);
+    
+    const venueEventChecks = fullyEnrichedVenues.map(async (venue) => {
+      try {
+        const query = `What events are happening at ${venue.name} (${venue.address}) tonight? Include event name, time, and expected crowd size. If no events, say "No events scheduled."`;
+        
+        const response = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'sonar-pro',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a helpful assistant that finds current events at venues. Return concise information about events including name, time, and crowd expectations. If no events, say "No events scheduled."'
+              },
+              {
+                role: 'user',
+                content: query
+              }
+            ],
+            temperature: 0.0,
+            max_tokens: 300
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Perplexity API failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const eventInfo = data.choices[0]?.message?.content || 'No events scheduled.';
+        
+        const hasEvents = !eventInfo.toLowerCase().includes('no events') && 
+                         !eventInfo.toLowerCase().includes('no scheduled');
+
+        console.log(`${hasEvents ? '🎉' : '📍'} [${correlationId}] ${venue.name}: ${hasEvents ? eventInfo.slice(0, 80) + '...' : 'No events tonight'}`);
+
+        return {
+          ...venue,
+          eventInfo: hasEvents ? eventInfo : null,
+          hasEvents
+        };
+      } catch (error) {
+        console.warn(`⚠️ [${correlationId}] Event check failed for ${venue.name}: ${error.message}`);
+        return {
+          ...venue,
+          eventInfo: null,
+          hasEvents: false
+        };
+      }
+    });
+
+    // Wait for all event checks (with 3s timeout to prevent blocking)
+    const venuesWithEvents = await Promise.race([
+      Promise.all(venueEventChecks),
+      new Promise(resolve => setTimeout(() => {
+        console.log(`⏱️ [${correlationId}] Event checks timed out after 3s, proceeding without event data`);
+        resolve(fullyEnrichedVenues.map(v => ({ ...v, eventInfo: null, hasEvents: false })));
+      }, 3000))
+    ]);
+
+    console.log(`✅ [${correlationId}] Event checks complete: ${venuesWithEvents.filter(v => v.hasEvents).length}/${venuesWithEvents.length} venues with events tonight`);
+
     // Convert to compatible format for existing ML pipeline
     const triadPlan = {
       version: "2.0",
       generatedAt: new Date().toISOString(),
       strategy_for_now: claudeStrategy,
-      per_venue: fullyEnrichedVenues.map(v => ({
+      per_venue: venuesWithEvents.map(v => ({
         name: v.name,
         description: v.description,
         address: v.address,
@@ -730,7 +801,9 @@ router.post('/', async (req, res) => {
         businessStatus: v.businessStatus,
         hasSpecialHours: v.hasSpecialHours,
         validation_status: v.validation_status,
-        closed_venue_reasoning: v.closed_venue_reasoning
+        closed_venue_reasoning: v.closed_venue_reasoning,
+        eventInfo: v.eventInfo,
+        hasEvents: v.hasEvents
       })),
       best_staging_location: enrichedStagingLocation,
       staging: [], // Legacy field
@@ -756,9 +829,9 @@ router.post('/', async (req, res) => {
     // Persist ranking and candidates atomically - FAIL HARD if this fails
     let ranking_id;
     try {
-      console.log(`💾 [${correlationId}] Preparing database persistence for ${fullyEnrichedVenues.length} venues...`);
+      console.log(`💾 [${correlationId}] Preparing database persistence for ${venuesWithEvents.length} venues...`);
       
-      const venues = fullyEnrichedVenues.map((venue, i) => {
+      const venues = venuesWithEvents.map((venue, i) => {
         console.log(`📊 [${correlationId}] Venue ${i + 1}: ${venue.name} - lat: ${venue.lat}, lng: ${venue.lng}, dist: ${venue.estimated_distance_miles} mi, time: ${venue.driveTimeMinutes} min, place_id: ${venue.placeId}, value_per_min: ${venue.value_per_min}, grade: ${venue.value_grade}`);
         
         return {
