@@ -323,13 +323,13 @@ export function LocationProvider({ children }: LocationProviderProps) {
         error: null, // Clear any previous GPS errors
       }));
 
-      // Resolve ALL context data in parallel: location, weather, and air quality
-      Promise.all([
-        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()),
-        fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()).catch(() => null),
-        fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()).catch(() => null),
-      ])
-        .then(async ([locationData, weatherData, airQualityData]) => {
+      // Resolve location only - server will fetch weather/air quality in snapshot pipeline
+      fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}`, { signal })
+        .then(r => r.json())
+        .then(async (locationData) => {
+          // Placeholder values - server will populate in snapshot pipeline
+          const weatherData = null;
+          const airQualityData = null;
           // Format as "City, ST" if we have both city and state
           let locationName;
           if (locationData.city && locationData.state) {
@@ -340,8 +340,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
             locationName = `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
           }
           console.log("[Global App] Location resolved to:", locationName);
-          console.log("[Global App] Weather:", weatherData?.available ? `${weatherData.temperature}°F` : 'unavailable');
-          console.log("[Global App] Air Quality:", airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'unavailable');
+          console.log("[Global App] Weather: Server will fetch in snapshot pipeline");
+          console.log("[Global App] Air Quality: Server will fetch in snapshot pipeline");
 
           // Build time context with timezone
           const timeContext = buildTimeContext(locationData.timeZone);
@@ -437,8 +437,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
               const snapshotData = await snapshotResponse.json();
               const snapshotId = snapshotData.snapshot_id || snapshotV1.snapshot_id;
               
-              // CRITICAL: Only dispatch if we have COMPLETE enrichment data
-              const hasCompleteData = locationData.city && weatherData?.available && airQualityData?.available;
+              // CRITICAL: Only dispatch if we have location data (server will fetch weather/air)
+              const hasCompleteData = locationData.city;
               
               if (hasCompleteData) {
                 // Dispatch event to notify UI that snapshot is complete and ready
@@ -453,10 +453,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
                 );
                 console.log("✅ Snapshot complete and ready! ID:", snapshotId);
               } else {
-                console.warn("⚠️ Snapshot saved but incomplete data - NOT triggering strategy", {
-                  hasCity: !!locationData.city,
-                  hasWeather: !!weatherData?.available,
-                  hasAirQuality: !!airQualityData?.available
+                console.warn("⚠️ Snapshot saved but missing city data - NOT triggering strategy", {
+                  hasCity: !!locationData.city
                 });
               }
             }
@@ -472,8 +470,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
               city: locationData.city,
               dayPart: timeContext.dayPartLabel,
               isWeekend: timeContext.isWeekend,
-              weather: weatherData?.available ? `${weatherData.temperature}°F` : 'none',
-              airQuality: airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'none',
+              weather: 'Server will fetch',
+              airQuality: 'Server will fetch',
             });
           } catch (err) {
             console.warn("Failed to save context snapshot:", err);

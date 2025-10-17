@@ -5,7 +5,7 @@
  * Integrates with smart-blocks-enhanced API for time-aware zone suggestions.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -234,6 +234,9 @@ const CoPilot: React.FC = () => {
     max: distanceFilter === 'near' ? 15 : distanceFilter === 'far' ? 30 : 30
   };
 
+  // Client-side gating: Prevent duplicate calls per snapshot
+  const didStartBySnapshot = useRef<Record<string, boolean>>({});
+
   // Fetch smart blocks - server returns Top6 based on staging coordinate
   // GATED on snapshot ready to prevent "Unknown city" race condition
   const { data: blocksData, isLoading, error, refetch } = useQuery<BlocksResponse>({
@@ -241,6 +244,17 @@ const CoPilot: React.FC = () => {
     queryKey: ['/api/blocks', coords?.latitude, coords?.longitude, distanceFilter, locationContext.locationSessionId, lastSnapshotId],
     queryFn: async () => {
       if (!coords) throw new Error('No GPS coordinates');
+      
+      // Client-side idempotency gate: Only call once per snapshot
+      if (lastSnapshotId && didStartBySnapshot.current[lastSnapshotId]) {
+        console.log(`🔒 [Client Gate] Blocked duplicate call for snapshot: ${lastSnapshotId}`);
+        throw new Error('DUPLICATE_CALL_BLOCKED');
+      }
+      
+      if (lastSnapshotId) {
+        didStartBySnapshot.current[lastSnapshotId] = true;
+        console.log(`✅ [Client Gate] First call for snapshot: ${lastSnapshotId}`);
+      }
       
       // 3 minute timeout for Triad orchestrator (Claude 15s + GPT-5 120s + Gemini 20s + buffer)
       const controller = new AbortController();

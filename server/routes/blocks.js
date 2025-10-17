@@ -16,6 +16,21 @@ import { persistRankingTx } from '../lib/persist-ranking.js';
 
 const router = Router();
 
+// Idempotency cache: snapshot_id -> { response, timestamp }
+// TTL: 2 minutes to collapse duplicate requests during Triad processing
+const idempotencyCache = new Map();
+const IDEMPOTENCY_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+// Clean up expired idempotency entries every 30 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of idempotencyCache.entries()) {
+    if (now - value.timestamp > IDEMPOTENCY_TTL_MS) {
+      idempotencyCache.delete(key);
+    }
+  }
+}, 30000);
+
 // GET /api/blocks/strategy/:snapshotId - Fetch strategy for a specific snapshot
 router.get('/strategy/:snapshotId', async (req, res) => {
   try {
@@ -160,6 +175,14 @@ router.post('/', async (req, res) => {
         error: 'snapshot_required',
         message: 'snapshot_id is required'
       });
+    }
+
+    // IDEMPOTENCY: Check if we've already processed this snapshot_id
+    const idemKey = req.header('x-idempotency-key') || snapshotId;
+    const cached = idempotencyCache.get(idemKey);
+    if (cached && (Date.now() - cached.timestamp) < IDEMPOTENCY_TTL_MS) {
+      console.log(`✅ [${correlationId}] Idempotency hit for key: ${idemKey}`);
+      return sendOnce(200, cached.response);
     }
 
     // Load snapshot - this is the ONLY source of origin coordinates
@@ -883,6 +906,14 @@ router.post('/', async (req, res) => {
     };
 
     console.log(`✅ [${correlationId}] Complete in ${response.elapsed_ms}ms: ${response.blocks.length} venues with business hours`);
+    
+    // Cache successful response for idempotency
+    idempotencyCache.set(idemKey, {
+      response,
+      timestamp: Date.now()
+    });
+    console.log(`💾 [${correlationId}] Cached response for idempotency key: ${idemKey}`);
+    
     sendOnce(200, response);
 
   } catch (error) {
