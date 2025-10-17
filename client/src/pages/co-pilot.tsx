@@ -731,28 +731,6 @@ const CoPilot: React.FC = () => {
                       <CheckCircle2 className="w-3 h-3" />
                       <span>Strategy persists until next refresh</span>
                     </div>
-                    {coords && (
-                      <div className="mt-3 pt-3 border-t border-purple-200 flex items-center gap-2">
-                        <span className="text-xs text-gray-600">Quick Navigate:</span>
-                        <a
-                          href={`comgooglemaps://?daddr=${coords.latitude},${coords.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
-                        >
-                          Google Maps
-                        </a>
-                        <span className="text-xs text-gray-400">|</span>
-                        <a
-                          href={`https://maps.apple.com/?daddr=${coords.latitude},${coords.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-gray-600 hover:text-gray-700 hover:underline"
-                        >
-                          Apple Maps
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </div>
               </CardContent>
