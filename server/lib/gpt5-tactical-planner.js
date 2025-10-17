@@ -1,8 +1,10 @@
 // server/lib/gpt5-tactical-planner.js
-// GPT-5 Tactical Planner: Takes Claude's strategy → tactical venue recommendations
-// Uses GPT-5 reasoning mode for deep tactical analysis
+// Fast Tactical Planner: Takes Claude's strategy → tactical venue recommendations
+// Uses GPT-4o with temperature for 10x faster responses (3-10s vs 30-120s)
+// Falls back to GPT-5 reasoning if FAST_PLANNER=false
 
 import { callGPT5 } from "./adapters/openai-gpt5.js";
+import { callGPT4 } from "./adapters/openai-gpt4.js";
 import { z } from "zod";
 
 // Zod schema for GPT-5 response validation (address removed - will be resolved via Google Places)
@@ -172,29 +174,50 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "Return JSON only."
   ].join("\n");
 
-  const reasoningEffort = 'low'; // Force low reasoning for speed
-  console.log(`[GPT-5 Tactical Planner] Calling GPT-5 with reasoning_effort=${reasoningEffort}...`);
+  // Fast mode: Use GPT-4o with temperature (10x faster: 3-10s vs 30-120s)
+  // Default to fast mode unless explicitly disabled
+  const useFastMode = process.env.FAST_PLANNER !== 'false';
+  const temperature = parseFloat(process.env.PLANNER_TEMPERATURE || '0.7');
+  
+  console.log(`[Tactical Planner] Mode: ${useFastMode ? 'FAST (GPT-4o)' : 'REASONING (GPT-5)'}, Temperature: ${useFastMode ? temperature : 'N/A'}`);
 
-  // Call GPT-5 with configurable reasoning effort
   const abortCtrl = new AbortController();
   const timeoutMs = parseInt(process.env.GPT5_TIMEOUT_MS || process.env.PLANNER_DEADLINE_MS, 10) || 300000;
   const timeout = setTimeout(() => {
-    console.error(`[GPT-5 Tactical Planner] ⏱️ Request timed out after ${timeoutMs}ms`);
+    console.error(`[Tactical Planner] ⏱️ Request timed out after ${timeoutMs}ms`);
     abortCtrl.abort();
   }, timeoutMs);
   
   try {
-    const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.GPT5_MAX_TOKENS, 10);
-    const rawResponse = await callGPT5({
-      developer,
-      user,
-      reasoning_effort: reasoningEffort,
-      max_completion_tokens: maxTokens,
-      abortSignal: abortCtrl.signal
-    });
+    let rawResponse;
+    
+    if (useFastMode) {
+      // Fast mode: GPT-4o with temperature (3-10 seconds)
+      rawResponse = await callGPT4({
+        system: developer,
+        user,
+        model: process.env.FAST_PLANNER_MODEL || 'gpt-4o',
+        temperature,
+        max_tokens: 4000,
+        response_format: { type: "json_object" },
+        abortSignal: abortCtrl.signal
+      });
+    } else {
+      // Reasoning mode: GPT-5 with low reasoning (30-120 seconds)
+      const reasoningEffort = 'low';
+      const maxTokens = parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || process.env.GPT5_MAX_TOKENS, 10);
+      rawResponse = await callGPT5({
+        developer,
+        user,
+        reasoning_effort: reasoningEffort,
+        max_completion_tokens: maxTokens,
+        abortSignal: abortCtrl.signal
+      });
+    }
 
     const duration = Date.now() - startTime;
-    console.log(`✅ [GPT-5 Tactical Planner] Generated plan in ${duration}ms`);
+    const modelUsed = useFastMode ? (process.env.FAST_PLANNER_MODEL || 'gpt-4o') : 'gpt-5';
+    console.log(`✅ [Tactical Planner] Generated plan in ${duration}ms using ${modelUsed}`);
 
     // Parse JSON response
     const parsed = safeJsonParse(rawResponse);
@@ -214,17 +237,17 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     }
 
     const validated = validation.data;
-    console.log(`[TRIAD 2/3 - GPT-5 Planner] ========== OUTPUT DATA ==========`);
-    console.log(`[TRIAD 2/3 - GPT-5 Planner] ✅ Validation passed: ${validated.recommended_venues.length} venues`);
-    console.log(`[TRIAD 2/3 - GPT-5 Planner] Tactical Summary: "${validated.tactical_summary}"`);
-    console.log(`[TRIAD 2/3 - GPT-5 Planner] Venues:`, validated.recommended_venues.map(v => ({
+    console.log(`[TRIAD 2/3 - Tactical Planner] ========== OUTPUT DATA ==========`);
+    console.log(`[TRIAD 2/3 - Tactical Planner] ✅ Validation passed: ${validated.recommended_venues.length} venues`);
+    console.log(`[TRIAD 2/3 - Tactical Planner] Tactical Summary: "${validated.tactical_summary}"`);
+    console.log(`[TRIAD 2/3 - Tactical Planner] Venues:`, validated.recommended_venues.map(v => ({
       name: v.name,
       category: v.category,
       lat: v.lat,
       lng: v.lng,
       description: v.description.slice(0, 100) + '...'
     })));
-    console.log(`[TRIAD 2/3 - GPT-5 Planner] 📊 Suggested DB fields:`, JSON.stringify(validated.suggested_db_fields || {}));
+    console.log(`[TRIAD 2/3 - Tactical Planner] 📊 Suggested DB fields:`, JSON.stringify(validated.suggested_db_fields || {}));
 
     // Add rank to each venue and prepare final response
     const normalized = {
@@ -236,8 +259,9 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
       tactical_summary: validated.tactical_summary,
       suggested_db_fields: validated.suggested_db_fields || null,
       metadata: {
-        model: "gpt-5",
-        reasoning_effort: reasoningEffort, // Use actual reasoning effort from config
+        model: modelUsed,
+        mode: useFastMode ? 'fast' : 'reasoning',
+        temperature: useFastMode ? temperature : null,
         duration_ms: duration,
         venues_recommended: validated.recommended_venues.length,
         validation_passed: true
