@@ -7,11 +7,11 @@
   "scripts": {
     "start": "NODE_ENV=production node gateway-server.js",
     "dev": "NODE_ENV=development node gateway-server.js",
-    "dev:vite": "vite dev --port 43717 --host 0.0.0.0",
+    "dev:vite": "vite dev --port 3002 --host 0.0.0.0",
     "eidolon-direct": "node index.js",
     "build": "vite build",
     "build:client": "vite build",
-    "dev:client": "vite dev --port 43717 --host 0.0.0.0",
+    "dev:client": "vite dev --port 3002 --host 0.0.0.0",
     "lint": "eslint client/src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",

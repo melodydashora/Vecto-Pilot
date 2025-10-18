@@ -20,7 +20,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3101;
 const AGENT_PORT = 3102; // Agent runs internally on 3102 (spawned by Gateway)
-const VITE_PORT = 43717; // Vite dev server runs separately on 43717
+const VITE_PORT = 3002; // Vite dev server runs separately on 3002
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 console.log(`🚀 [gateway] Starting in ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
@@ -54,7 +54,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       connectSrc: [
         "'self'",
-        "ws://localhost:43717", "ws://127.0.0.1:43717", // Vite HMR WebSocket
+        "ws://localhost:3002", "ws://127.0.0.1:3002", // Vite HMR WebSocket
         "https://replit.com", "wss://replit.com",
         "https://*.replit.dev", "wss://*.replit.dev",
         "https://*.repl.co", "wss://*.repl.co",

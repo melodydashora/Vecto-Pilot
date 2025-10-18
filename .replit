@@ -33,13 +33,13 @@ outputType = "webview"
 name = "Vite Dev Server"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev:vite"
-waitForPort = 5173
-
-[workflows.workflow.metadata]
-outputType = "console"
+waitForPort = 3002
 
 [nix]
 packages = ["fontconfig", "ghostscript", "glib", "harfbuzz", "jiq", "jq", "jq-lsp", "jql", "lsof", "nodejs-18", "nodejs-20", "nodejs-22", "openssl", "pandoc", "pango", "python312Packages.jq", "python312Packages.xstatic-jquery-ui", "python313Packages.django-jquery-js", "python313Packages.jq", "python313Packages.xstatic-jquery", "tree", "undollar", "wkhtmltopdf"]
@@ -49,40 +49,37 @@ channel = "stable-25_05"
 expertMode = true
 
 [[ports]]
-localPort = 80
-externalPort = 3001
-
-[[ports]]
-localPort = 3000
-externalPort = 4200
+localPort = 3002
+externalPort = 3002
 
 [[ports]]
 localPort = 3101
 externalPort = 3003
 
 [[ports]]
+localPort = 3102
+externalPort = 3001
+
+[[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 5173
-externalPort = 6800
-
-[[ports]]
 localPort = 24678
-externalPort = 3000
 
 [[ports]]
 localPort = 34127
-externalPort = 5000
 
 [[ports]]
 localPort = 38681
-externalPort = 3002
 
 [[ports]]
 localPort = 43717
-externalPort = 6000
+externalPort = 4200
+
+[[ports]]
+localPort = 44515
+externalPort = 3000
 
 [deployment]
 run = ["node", "gateway-server.js"]
