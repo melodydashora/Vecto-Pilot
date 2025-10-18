@@ -48,8 +48,8 @@ app = FastAPI(
     description="Rideshare driver assistance platform with AI-powered recommendations",
     version="4.1.0",
     lifespan=lifespan,
-    docs_url=None if settings.is_production else "/docs",
-    redoc_url=None if settings.is_production else "/redoc",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 
@@ -225,25 +225,9 @@ async def diagnostics():
 
 @app.get("/")
 async def root():
-    """Landing page"""
-    if settings.is_replit:
-        preview_url = f"https://{settings.REPL_SLUG}.{settings.REPL_OWNER}.repl.co"
-    else:
-        preview_url = f"http://{settings.HOST}:{settings.PORT}"
-    
-    return {
-        "name": "Vecto Pilot API",
-        "version": "4.1.0",
-        "description": "Rideshare driver assistance platform",
-        "status": "running",
-        "environment": settings.NODE_ENV,
-        "endpoints": {
-            "health": "/health",
-            "diagnostics": "/api/diagnostics",
-            "docs": "/docs" if not settings.is_production else None,
-        },
-        "preview": preview_url
-    }
+    """Landing page - redirects to docs"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/docs")
 
 
 # ============================================================================
