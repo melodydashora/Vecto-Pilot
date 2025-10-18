@@ -33,10 +33,6 @@ channel = "stable-25_05"
 expertMode = true
 
 [[ports]]
-localPort = 3002
-externalPort = 3002
-
-[[ports]]
 localPort = 3101
 externalPort = 3003
 exposeLocalhost = true
@@ -49,14 +45,6 @@ exposeLocalhost = true
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 5173
-externalPort = 5173
-
-[[ports]]
-localPort = 34399
-externalPort = 3000
 
 [deployment]
 run = ["node", "gateway-server.js"]

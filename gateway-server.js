@@ -128,6 +128,7 @@ const generalLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false }, // We've already set trust proxy correctly
   // Skip rate limiting for health checks
   skip: (req) => req.path === '/health'
 });
