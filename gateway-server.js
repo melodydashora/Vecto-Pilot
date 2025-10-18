@@ -294,7 +294,8 @@ function startAgent() {
     ...process.env,
     AGENT_PORT: String(AGENT_PORT),
     PORT: String(AGENT_PORT),
-    HOST: "127.0.0.1" // Bind Agent to loopback only (not externally accessible)
+    AGENT_HOST: "127.0.0.1", // Bind Agent to loopback only (not externally accessible)
+    HOST: "127.0.0.1"
   };
 
   agentProc = spawn("node", [AGENT_SCRIPT], { cwd: process.cwd(), stdio: "inherit", env: agentEnv });
