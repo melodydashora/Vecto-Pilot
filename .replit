@@ -22,7 +22,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "export PYTHONPATH=/home/runner/workspace:/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages:/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages:$PYTHONPATH && cd /home/runner/workspace && python3 -m app.main"
+args = "python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload"
 waitForPort = 5000
 
 [nix]

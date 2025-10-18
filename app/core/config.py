@@ -40,6 +40,29 @@ class Settings(BaseSettings):
     OPENAI_MAX_COMPLETION_TOKENS: Optional[int] = int(os.getenv("OPENAI_MAX_COMPLETION_TOKENS", "16000")) if os.getenv("OPENAI_MAX_COMPLETION_TOKENS") else None
     OPENAI_REASONING_EFFORT: str = os.getenv("OPENAI_REASONING_EFFORT", "high")
     GPT5_REASONING_EFFORT: str = os.getenv("GPT5_REASONING_EFFORT", "high")
+    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    
+    # Triad Pipeline Configuration
+    TRIAD_STRATEGIST_PROVIDER: str = "anthropic"
+    TRIAD_STRATEGIST_MODEL: str = os.getenv("TRIAD_STRATEGIST_MODEL", "claude-sonnet-4-20250514")
+    TRIAD_STRATEGIST_TEMPERATURE: float = float(os.getenv("TRIAD_STRATEGIST_TEMPERATURE", "0.7"))
+    TRIAD_STRATEGIST_MAX_OUTPUT_TOKENS: int = int(os.getenv("TRIAD_STRATEGIST_MAX_OUTPUT_TOKENS", "32000"))
+    TRIAD_STRATEGIST_TIMEOUT_MS: int = int(os.getenv("TRIAD_STRATEGIST_TIMEOUT_MS", "90000"))
+    
+    TRIAD_PLANNER_PROVIDER: str = "openai"
+    TRIAD_PLANNER_MODEL: str = os.getenv("TRIAD_PLANNER_MODEL", "gpt-5")
+    TRIAD_PLANNER_TEMPERATURE: float = float(os.getenv("TRIAD_PLANNER_TEMPERATURE", "0.6"))
+    TRIAD_PLANNER_MAX_OUTPUT_TOKENS: int = int(os.getenv("TRIAD_PLANNER_MAX_OUTPUT_TOKENS", "64000"))
+    TRIAD_PLANNER_TIMEOUT_MS: int = int(os.getenv("TRIAD_PLANNER_TIMEOUT_MS", "60000"))
+    
+    TRIAD_VALIDATOR_PROVIDER: str = "google"
+    TRIAD_VALIDATOR_MODEL: str = os.getenv("TRIAD_VALIDATOR_MODEL", "gemini-2.0-flash-001")
+    TRIAD_VALIDATOR_TEMPERATURE: float = float(os.getenv("TRIAD_VALIDATOR_TEMPERATURE", "0.2"))
+    TRIAD_VALIDATOR_MAX_OUTPUT_TOKENS: int = int(os.getenv("TRIAD_VALIDATOR_MAX_OUTPUT_TOKENS", "8192"))
+    TRIAD_VALIDATOR_TIMEOUT_MS: int = int(os.getenv("TRIAD_VALIDATOR_TIMEOUT_MS", "20000"))
+    
+    TRIAD_FAIL_ON_INVALID: bool = os.getenv("TRIAD_FAIL_ON_INVALID", "true").lower() == "true"
+    TRIAD_INVARIANT_WORD_CAPS: bool = os.getenv("TRIAD_INVARIANT_WORD_CAPS", "true").lower() == "true"
     
     # Environment
     NODE_ENV: str = os.getenv("NODE_ENV", "development")

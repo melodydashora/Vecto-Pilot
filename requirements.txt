@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+httpx
+jinja2
+python-multipart
+pydantic
+pydantic-settings
+sqlalchemy
+asyncpg
+anthropic
+openai
+h3
+aiohttp
