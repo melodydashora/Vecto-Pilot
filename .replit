@@ -13,10 +13,6 @@ author = "agent"
 task = "workflow.run"
 args = "Gateway"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Vite Dev Server"
-
 [[workflows.workflow]]
 name = "Gateway"
 author = "agent"
@@ -28,17 +24,6 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
-
-[[workflows.workflow]]
-name = "Vite Dev Server"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bash start-vite.sh"
 
 [nix]
 packages = ["fontconfig", "ghostscript", "glib", "harfbuzz", "jiq", "jq", "jq-lsp", "jql", "lsof", "nodejs-18", "nodejs-20", "nodejs-22", "openssl", "pandoc", "pango", "python312Packages.jq", "python312Packages.xstatic-jquery-ui", "python313Packages.django-jquery-js", "python313Packages.jq", "python313Packages.xstatic-jquery", "tree", "undollar", "wkhtmltopdf"]
