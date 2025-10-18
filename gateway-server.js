@@ -19,11 +19,12 @@ const app = express();
 // AUTOSCALE: Use Replit-provided PORT or fallback to 5000 for dev
 const PORT = Number(process.env.PORT) || 5000;
 const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3101;
-const AGENT_PORT = Number(process.env.AGENT_PORT) || 43717;
+const AGENT_PORT = 3102; // Agent runs internally on 3102 (spawned by Gateway)
+const VITE_PORT = 43717; // Vite dev server runs separately on 43717
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 console.log(`🚀 [gateway] Starting in ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
-console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}, Agent=${AGENT_PORT}`);
+console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}, Agent=${AGENT_PORT}, Vite=${VITE_PORT}`);
 
 // ---------- PATCH 1: Enhanced CORS with origin whitelisting ----------
 const ALLOW_ORIGINS = [
@@ -53,6 +54,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       connectSrc: [
         "'self'",
+        "ws://localhost:43717", "ws://127.0.0.1:43717", // Vite HMR WebSocket
         "https://replit.com", "wss://replit.com",
         "https://*.replit.dev", "wss://*.replit.dev",
         "https://*.repl.co", "wss://*.repl.co",
@@ -304,6 +306,104 @@ function probeHealth() {
   });
 }
 
+// ---------- Agent watchdog ----------
+let agentProc = null;
+let agentHealthTimer = null;
+let agentMisses = 0;
+let agentRestartAttempts = 0;
+let agentReady = false;
+
+function startAgent() {
+  if (stopping || agentProc) return;
+
+  const AGENT_SCRIPT = "agent-server.js";
+  if (!fs.existsSync(path.join(process.cwd(), AGENT_SCRIPT))) {
+    console.log("[gateway] Agent server not found, skipping...");
+    return;
+  }
+
+  console.log("[gateway] Starting Agent server on port", AGENT_PORT);
+  const agentEnv = {
+    ...process.env,
+    AGENT_PORT: String(AGENT_PORT),
+    PORT: String(AGENT_PORT),
+    HOST: "0.0.0.0"
+  };
+
+  agentProc = spawn("node", [AGENT_SCRIPT], { cwd: process.cwd(), stdio: "inherit", env: agentEnv });
+
+  agentProc.on("exit", (code, signal) => {
+    console.log(`[gateway] Agent exited code=${code} signal=${signal}`);
+    clearAgentHealth();
+    agentProc = null;
+    agentReady = false;
+    if (!stopping) scheduleAgentRestart();
+  });
+
+  agentProc.on("error", (err) => {
+    console.log("[gateway] Agent spawn error:", err.message);
+    clearAgentHealth();
+    agentProc = null;
+    agentReady = false;
+    if (!stopping) scheduleAgentRestart();
+  });
+
+  setTimeout(startAgentHealth, 500);
+}
+
+function stopAgent(signal = "SIGTERM") {
+  clearAgentHealth();
+  if (agentProc && !agentProc.killed) {
+    console.log("[gateway] Stopping Agent...", signal);
+    try { agentProc.kill(signal); } catch {}
+  }
+  agentProc = null;
+}
+
+function scheduleAgentRestart() {
+  agentRestartAttempts += 1;
+  const delay = Math.min(RESTART_BASE_MS * 2 ** (agentRestartAttempts - 1), RESTART_CAP_MS);
+  console.log(`[gateway] Restarting Agent in ${Math.round(delay / 1000)}s (attempt ${agentRestartAttempts})`);
+  setTimeout(() => { if (!stopping) startAgent(); }, delay);
+}
+
+function clearAgentHealth() {
+  if (agentHealthTimer) clearInterval(agentHealthTimer);
+  agentHealthTimer = null;
+  agentMisses = 0;
+}
+
+function startAgentHealth() {
+  clearAgentHealth();
+  agentRestartAttempts = 0;
+  agentHealthTimer = setInterval(async () => {
+    const ok = await probeAgentHealth();
+    if (ok) {
+      if (!agentReady) console.log("[gateway] Agent is healthy and ready");
+      agentReady = true;
+      agentMisses = 0;
+      return;
+    }
+    agentMisses += 1;
+    console.log(`[gateway] Agent health miss ${agentMisses}/${MAX_MISSES}`);
+    if (agentMisses >= MAX_MISSES) {
+      console.log("[gateway] Agent unhealthy: restarting");
+      try { agentProc?.kill("SIGTERM"); } catch {}
+    }
+  }, HEALTH_INTERVAL_MS);
+}
+
+function probeAgentHealth() {
+  return new Promise((resolve) => {
+    const req = http.get(
+      { host: "127.0.0.1", port: AGENT_PORT, path: "/agent/health", timeout: HEALTH_TIMEOUT_MS },
+      (res) => { res.resume(); resolve(Boolean(res.statusCode && res.statusCode < 500)); }
+    );
+    req.on("timeout", () => { req.destroy(new Error("timeout")); });
+    req.on("error", () => resolve(false));
+  });
+}
+
 // ---------- metrics & tracing ----------
 const counts = { assistant: 0, eidolon: 0, ide_assistant: 0 };
 const count  = (key) => (req, _res, next) => { if (req.method !== "OPTIONS") counts[key]++; next(); };
@@ -509,28 +609,12 @@ if (IS_PRODUCTION) {
 }
 
 if (process.env.NODE_ENV !== "production") {
-  // Integrate Vite dev server with HMR directly into Gateway
-  console.log(`[gateway] Initializing Vite dev server with HMR...`);
+  // Proxy frontend requests to standalone Vite dev server on port 43717
+  console.log(`[gateway] Proxying frontend requests to Vite dev server on port ${VITE_PORT}`);
   
-  // Dynamic import of Vite (only in dev mode)
-  const { createServer: createViteServer } = await import('vite');
-  const vite = await createViteServer({
-    server: { 
-      middlewareMode: true,
-      hmr: {
-        // Use same port for WebSocket HMR
-        protocol: 'ws',
-        host: '0.0.0.0',
-        port: PORT,
-        path: '/__vite_hmr'
-      }
-    },
-    appType: 'spa'
-  });
-  
-  // Use Vite's middleware for all non-API requests
+  // Proxy all frontend requests to Vite (exclude API/service routes)
   app.use((req, res, next) => {
-    // Skip Vite for all API/service routes - they're handled by SDK/Agent
+    // Skip proxy for all API/service routes - they're handled by SDK/Agent
     if (
       req.path.startsWith("/eidolon") ||
       req.path.startsWith("/assistant") ||
@@ -542,11 +626,29 @@ if (process.env.NODE_ENV !== "production") {
       return next();
     }
     
-    // Pass everything else to Vite middleware
-    vite.middlewares(req, res, next);
+    // Proxy everything else to Vite
+    createProxyMiddleware({
+      target: `http://127.0.0.1:${VITE_PORT}`,
+      changeOrigin: true,
+      ws: true, // WebSocket support for HMR
+      logLevel: "silent",
+      onError: (err, req, res) => {
+        console.error(`[gateway] Vite proxy error: ${err.message}`);
+        res.status(502).send(`
+          <html>
+            <body>
+              <h1>Vite Dev Server Not Running</h1>
+              <p>Start Vite on port ${VITE_PORT} with: <code>npm run dev:vite</code></p>
+              <p>Error: ${err.message}</p>
+            </body>
+          </html>
+        `);
+      }
+    })(req, res, next);
   });
   
-  console.log(`[gateway] Vite HMR integrated on port ${PORT} (WebSocket: ws://0.0.0.0:${PORT}/__vite_hmr)`)
+  console.log(`[gateway] Frontend proxy configured - requests forwarded to Vite on port ${VITE_PORT}`);
+  console.log(`[gateway] Start Vite separately with: npm run dev:vite`)
 } else {
   console.log("[gateway] Production mode - serving built SPA");
   ensureClientBuild();
@@ -624,11 +726,18 @@ try {
       console.log("🐕 Starting Eidolon SDK watchdog…");
       startSDK();
       
-      // Warm up SDK in background
+      console.log("🤖 Starting Agent server watchdog…");
+      startAgent();
+      
+      // Warm up SDK and Agent in background
       (async () => {
         console.log(`[gateway] Waiting for SDK to become healthy on port ${SDK_PORT}…`);
         const ok = await probeHealth();
         if (ok) { sdkReady = true; console.log("[gateway] SDK is healthy and ready"); }
+        
+        console.log(`[gateway] Waiting for Agent to become healthy on port ${AGENT_PORT}…`);
+        const agentOk = await probeAgentHealth();
+        if (agentOk) { agentReady = true; console.log("[gateway] Agent is healthy and ready"); }
       })();
     }
   });
@@ -649,9 +758,8 @@ try {
 function shutdown() {
   console.log("[gateway] shutdown…");
   stopSDK();
+  stopAgent();
   server.close(() => process.exit(0));
 }
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
 
 export default app;
