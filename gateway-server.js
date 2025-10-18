@@ -20,25 +20,19 @@ const app = express();
 const PORT = 5000;
 const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3101;
 const AGENT_PORT = 3102; // Agent runs internally on 3102 (spawned by Gateway)
-const VITE_PORT = Number(process.env.VITE_PORT) || 43717; // Vite dev server runs separately
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 console.log(`🚀 [gateway] Starting in ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
-console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}, Agent=${AGENT_PORT}, Vite=${VITE_PORT}`);
+console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT} (loopback), Agent=${AGENT_PORT} (loopback)`);
 
-// ---------- PATCH 1: Enhanced CORS with origin whitelisting ----------
-const ALLOW_ORIGINS = [
-  "https://dev.melodydashora.dev",
-  "https://vectopilot.com",
-  "https://replit.com",       // Replit editor platform
-  /\.replit\.dev$/, // allow Replit preview domains
-  /\.repl\.co$/    // allow Replit legacy domains
-];
+// ---------- CORS: Python UI origin only ----------
+const UI_ORIGIN = process.env.UI_ORIGIN; // Python FastAPI UI origin
 
 function originOk(origin) {
   if (!origin) return true; // curl or server-to-server
-  if (ALLOW_ORIGINS.includes(origin)) return true;
-  if (ALLOW_ORIGINS.some(p => p instanceof RegExp && p.test(origin))) return true;
+  if (UI_ORIGIN && origin === UI_ORIGIN) return true;
+  // Allow Replit domains during development
+  if (/\.replit\.dev$/.test(origin) || /\.repl\.co$/.test(origin)) return true;
   return false;
 }
 
@@ -48,41 +42,15 @@ app.set("trust proxy", true);
 // Security headers with Helmet (configured before CORS)
 app.use(helmet({ 
   crossOriginOpenerPolicy: { policy: "same-origin" },
-  contentSecurityPolicy: {
-    useDefaults: true,
-    directives: {
-      defaultSrc: ["'self'"],
-      connectSrc: [
-        "'self'",
-        `ws://localhost:${VITE_PORT}`, `ws://127.0.0.1:${VITE_PORT}`, // Vite HMR WebSocket
-        "ws://localhost:5173", "ws://127.0.0.1:5173", // Alternative Vite port
-        "https://replit.com", "wss://replit.com",
-        "https://*.replit.dev", "wss://*.replit.dev",
-        "https://*.repl.co", "wss://*.repl.co",
-        "https://app.launchdarkly.com", "https://events.launchdarkly.com",
-        "https://www.google-analytics.com", "https://stats.g.doubleclick.net"
-      ],
-      scriptSrc: [
-        "'self'", "'unsafe-inline'", "'unsafe-eval'",
-        "https://js.stripe.com", "https://www.googletagmanager.com",
-        "https://www.google-analytics.com", "https://www.google.com", "https://www.gstatic.com"
-      ],
-      imgSrc: ["'self'", "data:", "https:"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      frameSrc: ["'self'", "https://js.stripe.com", "https://www.google.com", "https://recaptcha.net"]
-    }
-  }
+  contentSecurityPolicy: false // No frontend - Python UI handles its own CSP
 }));
 
-// CORS middleware with origin validation (echoes actual origin, not wildcard)
+// CORS middleware - Python UI origin only
 app.use(cors({
   origin: (origin, cb) => originOk(origin) ? cb(null, origin || true) : cb(new Error("CORS")),
   credentials: true,
-  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization",
-    "X-Idempotency-Key", "X-Request-ID", "X-Assistant-Override", "X-GW-Key"
-  ],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   exposedHeaders: ["X-Request-ID"],
   maxAge: 600
 }));
@@ -200,10 +168,6 @@ const RESTART_CAP_MS     = 30_000;
 // paths
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
-const clientDir  = path.resolve(process.cwd(), "client");
-// Vite builds to root dist/ directory (configured in vite.config.js)
-const distDir    = path.resolve(process.cwd(), "dist");
-const indexHtml  = path.join(distDir, "index.html");
 
 // ---------- sdk watchdog ----------
 let sdkProc = null;
@@ -226,9 +190,9 @@ function startSDK() {
   const childEnv = {
     ...process.env,
     PORT: String(SDK_PORT),
-    HOST: "0.0.0.0",
-    EIDOLON_DISABLE_STATIC: "1", // gateway serves UI
-    EIDOLON_APP_DIST: "",         // no SDK static path
+    HOST: "127.0.0.1", // Bind SDK to loopback only (not externally accessible)
+    EIDOLON_DISABLE_STATIC: "1",
+    EIDOLON_APP_DIST: "",
     EIDOLON_DISABLE_AGENT_SPAWN: "1", // Gateway manages Agent spawn
     AGENT_BASE_URL: `http://127.0.0.1:${AGENT_PORT}` // Point SDK to Gateway-managed Agent
   };
@@ -330,7 +294,7 @@ function startAgent() {
     ...process.env,
     AGENT_PORT: String(AGENT_PORT),
     PORT: String(AGENT_PORT),
-    HOST: "0.0.0.0"
+    HOST: "127.0.0.1" // Bind Agent to loopback only (not externally accessible)
   };
 
   agentProc = spawn("node", [AGENT_SCRIPT], { cwd: process.cwd(), stdio: "inherit", env: agentEnv });
@@ -556,29 +520,7 @@ app.use(
 }
 // End of development-only proxies
 
-// ---------- build / serve app ----------
-function ensureClientBuild() {
-  if (fs.existsSync(indexHtml)) {
-    console.log("[gateway] client build already exists");
-    return;
-  }
-  console.log("[gateway] client build missing — building...");
-  try {
-    execSync("npm run build", { stdio: "inherit", env: { ...process.env, NODE_ENV: "production" } });
-    console.log("[gateway] client build completed successfully");
-  } catch (e) {
-    console.error("[gateway] build failed:", e.message);
-    console.error("[gateway] This is a real build error that needs to be fixed");
-    process.exit(1);
-  }
-}
-
-// ---------- Serve static files from public directory (both dev and production) ----------
-const publicDir = path.resolve(process.cwd(), "public");
-if (fs.existsSync(publicDir)) {
-  app.use(express.static(publicDir));
-  console.log(`📂 [gateway] Serving static files from: ${publicDir}`);
-}
+// ---------- No static file serving - Python UI handles frontend ----------
 
 // ---------- production: setup middleware and routes BEFORE server starts ----------
 if (IS_PRODUCTION) {
@@ -611,90 +553,7 @@ if (IS_PRODUCTION) {
   console.log(`✅ [vecto] Routes available: /api/health, /api/blocks, /api/location, /api/actions, /api/feedback, /api/diagnostics, /api/metrics/jobs`);
 }
 
-if (process.env.NODE_ENV !== "production") {
-  // Proxy /vite/* specifically to Vite dev server on port 43717
-  console.log(`[gateway] Configuring /vite/* proxy to Vite dev server on port ${VITE_PORT}`);
-  
-  app.use(
-    "/vite",
-    createProxyMiddleware({
-      target: `http://localhost:${VITE_PORT}`,
-      changeOrigin: true,
-      ws: true, // WebSocket support for HMR
-      pathRewrite: { '^/vite': '' }, // Remove /vite prefix when forwarding
-      logLevel: "silent",
-      onError: (err, req, res) => {
-        console.error(`[gateway] Vite proxy error: ${err.message}`);
-        res.status(502).send(`
-          <html>
-            <body>
-              <h1>Vite Dev Server Not Running</h1>
-              <p>Start Vite on port ${VITE_PORT} with: <code>npm run dev:vite</code></p>
-              <p>Error: ${err.message}</p>
-            </body>
-          </html>
-        `);
-      }
-    })
-  );
-  
-  // Also proxy root and other frontend requests to Vite (exclude API/service routes)
-  app.use((req, res, next) => {
-    // Skip proxy for all API/service routes - they're handled by SDK/Agent
-    if (
-      req.path.startsWith("/eidolon") ||
-      req.path.startsWith("/assistant") ||
-      req.path.startsWith("/agent") ||
-      req.path.startsWith("/api") ||
-      req.path.startsWith("/health") ||
-      req.path.startsWith("/metrics")
-    ) {
-      return next();
-    }
-    
-    // Proxy everything else to Vite
-    createProxyMiddleware({
-      target: `http://localhost:${VITE_PORT}`,
-      changeOrigin: true,
-      ws: true, // WebSocket support for HMR
-      logLevel: "silent",
-      onError: (err, req, res) => {
-        console.error(`[gateway] Vite proxy error: ${err.message}`);
-        res.status(502).send(`
-          <html>
-            <body>
-              <h1>Vite Dev Server Not Running</h1>
-              <p>Start Vite on port ${VITE_PORT} with: <code>npm run dev:vite</code></p>
-              <p>Error: ${err.message}</p>
-            </body>
-          </html>
-        `);
-      }
-    })(req, res, next);
-  });
-  
-  console.log(`[gateway] ✅ /vite/* proxy configured -> localhost:${VITE_PORT}`);
-  console.log(`[gateway] ✅ Frontend proxy configured -> localhost:${VITE_PORT}`);
-  console.log(`[gateway] Start Vite separately with: npm run dev:vite`)
-} else {
-  console.log("[gateway] Production mode - serving built SPA");
-  ensureClientBuild();
-  // Serve static assets from dist/ (but not auto-serve index.html for root)
-  app.use(express.static(distDir, { index: false }));
-  app.get("*", (req, res, next) => {
-    // Don't serve SPA for API/proxy routes
-    if (
-      req.path.startsWith("/eidolon") ||
-      req.path.startsWith("/assistant") ||
-      req.path.startsWith("/agent") ||
-      req.path.startsWith("/api") ||
-      req.path.startsWith("/health") ||
-      req.path.startsWith("/metrics")
-    ) return next();
-    // Serve SPA for root and all client routes
-    res.sendFile(indexHtml);
-  });
-}
+// No frontend serving - Python UI is a separate service
 
 // ---------- PATCH 2: 404 and centralized error handler (last) ----------
 // 404 forwarder
