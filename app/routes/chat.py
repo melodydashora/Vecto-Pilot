@@ -55,13 +55,13 @@ Help the user by:
 Be concise and provide code examples when relevant. Format code with triple backticks."""
 
         response = await client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": request.message}
             ],
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=2000
         )
         
         return ChatResponse(response=response.choices[0].message.content)
