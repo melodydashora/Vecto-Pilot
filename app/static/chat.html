@@ -51,6 +51,9 @@
         .tree-item:hover {
             background: #334155;
         }
+        .tree-item.active {
+            background: #667eea;
+        }
         .tree-folder {
             color: #fbbf24;
             font-weight: 600;
@@ -224,6 +227,11 @@
 
         <div class="sidebar">
             <h3>📁 Repository Files</h3>
+            <div style="margin-bottom: 15px;">
+                <button onclick="testChat()" style="width: 100%; padding: 10px; font-size: 0.9em;">
+                    🧪 Test GPT-5 Connection
+                </button>
+            </div>
             <div class="file-tree" id="fileTree">
                 <div style="color: #64748b; font-style: italic;">Loading file tree...</div>
             </div>
@@ -313,7 +321,9 @@
                 const icon = item.type === 'directory' ? '📁' : '📄';
                 const className = item.type === 'directory' ? 'tree-folder' : 'tree-file';
                 
-                html += `<div class="tree-item ${className}" title="${item.path}">`;
+                const onClick = item.type === 'file' ? `onclick="readFileFromTree('${item.path}')"` : '';
+                
+                html += `<div class="tree-item ${className}" ${onClick} title="${item.path}">`;
                 html += `${indent}${icon} ${item.name}`;
                 html += `</div>`;
                 
@@ -325,6 +335,17 @@
             });
             
             return html;
+        }
+
+        function readFileFromTree(filePath) {
+            messageInput.value = `Read the file: ${filePath}`;
+            sendMessage();
+        }
+
+        // Test GPT-5 connection
+        async function testChat() {
+            messageInput.value = 'Hello! Are you working? Please confirm.';
+            sendMessage();
         }
 
         // Load file tree on page load
