@@ -782,7 +782,11 @@ async function ensureAgentUp() {
     if (!AGENT_TOKEN) throw new Error("AGENT_TOKEN missing");
     console.log("[main] starting agent:", agentPath);
     agentChild = spawn(process.execPath, [agentPath], {
-      env: process.env,
+      env: {
+        ...process.env,
+        AGENT_HOST: "127.0.0.1", // Bind Agent to loopback only (not externally accessible)
+        HOST: "127.0.0.1"
+      },
       stdio: "inherit",
       cwd: __dirname,
     });
