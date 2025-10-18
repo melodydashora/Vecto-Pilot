@@ -509,13 +509,28 @@ if (IS_PRODUCTION) {
 }
 
 if (process.env.NODE_ENV !== "production") {
-  // Vite runs on its own port (5173), proxy to it for frontend requests
-  const VITE_PORT = Number(process.env.VITE_PORT) || 5173;
-  console.log(`[gateway] Proxying frontend requests to Vite dev server on port ${VITE_PORT}`);
+  // Integrate Vite dev server with HMR directly into Gateway
+  console.log(`[gateway] Initializing Vite dev server with HMR...`);
   
-  // Proxy all frontend requests to Vite (exclude API/service routes)
+  // Dynamic import of Vite (only in dev mode)
+  const { createServer: createViteServer } = await import('vite');
+  const vite = await createViteServer({
+    server: { 
+      middlewareMode: true,
+      hmr: {
+        // Use same port for WebSocket HMR
+        protocol: 'ws',
+        host: '0.0.0.0',
+        port: PORT,
+        path: '/__vite_hmr'
+      }
+    },
+    appType: 'spa'
+  });
+  
+  // Use Vite's middleware for all non-API requests
   app.use((req, res, next) => {
-    // Skip proxy for all API/service routes - they're handled by SDK/Agent
+    // Skip Vite for all API/service routes - they're handled by SDK/Agent
     if (
       req.path.startsWith("/eidolon") ||
       req.path.startsWith("/assistant") ||
@@ -527,29 +542,11 @@ if (process.env.NODE_ENV !== "production") {
       return next();
     }
     
-    // Proxy everything else to Vite
-    createProxyMiddleware({
-      target: `http://127.0.0.1:${VITE_PORT}`,
-      changeOrigin: true,
-      ws: true, // WebSocket support for HMR
-      logLevel: "silent",
-      onError: (err, req, res) => {
-        console.error(`[gateway] Vite proxy error: ${err.message}`);
-        res.status(502).send(`
-          <html>
-            <body>
-              <h1>Vite Dev Server Not Running</h1>
-              <p>Start Vite on port ${VITE_PORT} with: <code>npm run dev:vite</code></p>
-              <p>Error: ${err.message}</p>
-            </body>
-          </html>
-        `);
-      }
-    })(req, res, next);
+    // Pass everything else to Vite middleware
+    vite.middlewares(req, res, next);
   });
   
-  console.log(`[gateway] Frontend proxy configured - requests forwarded to Vite on port ${VITE_PORT}`);
-  console.log(`[gateway] Start Vite separately with: npm run dev:vite`)
+  console.log(`[gateway] Vite HMR integrated on port ${PORT} (WebSocket: ws://0.0.0.0:${PORT}/__vite_hmr)`)
 } else {
   console.log("[gateway] Production mode - serving built SPA");
   ensureClientBuild();
