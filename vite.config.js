@@ -24,8 +24,9 @@ export default defineConfig({
         emptyOutDir: true,
     },
     server: {
-        port: 5173,
+        port: 43717,
         host: "0.0.0.0",
+        strictPort: true,
         allowedHosts: true,
         fs: {
             strict: false,
