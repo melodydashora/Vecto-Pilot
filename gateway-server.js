@@ -16,8 +16,8 @@ import { startMemoryCompactor } from "./server/eidolon/memory/compactor.js";
 // ---------- config ----------
 const app = express();
 
-// AUTOSCALE: Use environment-configured ports
-const PORT = Number(process.env.PORT) || Number(process.env.GATEWAY_PORT) || 5000;
+// AUTOSCALE: Gateway always on 5000
+const PORT = 5000;
 const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3101;
 const AGENT_PORT = 3102; // Agent runs internally on 3102 (spawned by Gateway)
 const VITE_PORT = Number(process.env.VITE_PORT) || 43717; // Vite dev server runs separately
@@ -55,6 +55,7 @@ app.use(helmet({
       connectSrc: [
         "'self'",
         `ws://localhost:${VITE_PORT}`, `ws://127.0.0.1:${VITE_PORT}`, // Vite HMR WebSocket
+        "ws://localhost:5173", "ws://127.0.0.1:5173", // Alternative Vite port
         "https://replit.com", "wss://replit.com",
         "https://*.replit.dev", "wss://*.replit.dev",
         "https://*.repl.co", "wss://*.repl.co",
@@ -227,7 +228,9 @@ function startSDK() {
     PORT: String(SDK_PORT),
     HOST: "0.0.0.0",
     EIDOLON_DISABLE_STATIC: "1", // gateway serves UI
-    EIDOLON_APP_DIST: ""         // no SDK static path
+    EIDOLON_APP_DIST: "",         // no SDK static path
+    EIDOLON_DISABLE_AGENT_SPAWN: "1", // Gateway manages Agent spawn
+    AGENT_BASE_URL: `http://127.0.0.1:${AGENT_PORT}` // Point SDK to Gateway-managed Agent
   };
 
   sdkProc = spawn(SDK_CMD, SDK_ARGS, { cwd: SDK_CWD, stdio: "inherit", env: childEnv });
@@ -609,10 +612,33 @@ if (IS_PRODUCTION) {
 }
 
 if (process.env.NODE_ENV !== "production") {
-  // Proxy frontend requests to standalone Vite dev server on port 43717
-  console.log(`[gateway] Proxying frontend requests to Vite dev server on port ${VITE_PORT}`);
+  // Proxy /vite/* specifically to Vite dev server on port 43717
+  console.log(`[gateway] Configuring /vite/* proxy to Vite dev server on port ${VITE_PORT}`);
   
-  // Proxy all frontend requests to Vite (exclude API/service routes)
+  app.use(
+    "/vite",
+    createProxyMiddleware({
+      target: `http://localhost:${VITE_PORT}`,
+      changeOrigin: true,
+      ws: true, // WebSocket support for HMR
+      pathRewrite: { '^/vite': '' }, // Remove /vite prefix when forwarding
+      logLevel: "silent",
+      onError: (err, req, res) => {
+        console.error(`[gateway] Vite proxy error: ${err.message}`);
+        res.status(502).send(`
+          <html>
+            <body>
+              <h1>Vite Dev Server Not Running</h1>
+              <p>Start Vite on port ${VITE_PORT} with: <code>npm run dev:vite</code></p>
+              <p>Error: ${err.message}</p>
+            </body>
+          </html>
+        `);
+      }
+    })
+  );
+  
+  // Also proxy root and other frontend requests to Vite (exclude API/service routes)
   app.use((req, res, next) => {
     // Skip proxy for all API/service routes - they're handled by SDK/Agent
     if (
@@ -628,7 +654,7 @@ if (process.env.NODE_ENV !== "production") {
     
     // Proxy everything else to Vite
     createProxyMiddleware({
-      target: `http://127.0.0.1:${VITE_PORT}`,
+      target: `http://localhost:${VITE_PORT}`,
       changeOrigin: true,
       ws: true, // WebSocket support for HMR
       logLevel: "silent",
@@ -647,7 +673,8 @@ if (process.env.NODE_ENV !== "production") {
     })(req, res, next);
   });
   
-  console.log(`[gateway] Frontend proxy configured - requests forwarded to Vite on port ${VITE_PORT}`);
+  console.log(`[gateway] ✅ /vite/* proxy configured -> localhost:${VITE_PORT}`);
+  console.log(`[gateway] ✅ Frontend proxy configured -> localhost:${VITE_PORT}`);
   console.log(`[gateway] Start Vite separately with: npm run dev:vite`)
 } else {
   console.log("[gateway] Production mode - serving built SPA");

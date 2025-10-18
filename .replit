@@ -38,8 +38,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node vite-server.js"
-waitForPort = 5173
+args = "bash start-vite.sh"
 
 [nix]
 packages = ["fontconfig", "ghostscript", "glib", "harfbuzz", "jiq", "jq", "jq-lsp", "jql", "lsof", "nodejs-18", "nodejs-20", "nodejs-22", "openssl", "pandoc", "pango", "python312Packages.jq", "python312Packages.xstatic-jquery-ui", "python313Packages.django-jquery-js", "python313Packages.jq", "python313Packages.xstatic-jquery", "tree", "undollar", "wkhtmltopdf"]
@@ -69,12 +68,8 @@ localPort = 5173
 externalPort = 5173
 
 [[ports]]
-localPort = 33915
-externalPort = 3000
-
-[[ports]]
 localPort = 43717
-externalPort = 4200
+externalPort = 3000
 
 [deployment]
 run = ["node", "gateway-server.js"]

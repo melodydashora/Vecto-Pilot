@@ -773,14 +773,20 @@ async function ensureAgentUp() {
     const ok = await fetch(`${AGENT_BASE_URL}/agent/health`, { method: "GET" });
     if (ok.ok) return true;
   } catch {}
-  const agentPath = path.resolve(__dirname, "agent-server.js");
-  if (!AGENT_TOKEN) throw new Error("AGENT_TOKEN missing");
-  console.log("[main] starting agent:", agentPath);
-  agentChild = spawn(process.execPath, [agentPath], {
-    env: process.env,
-    stdio: "inherit",
-    cwd: __dirname,
-  });
+  
+  // Skip agent spawn if Gateway is managing it
+  if (process.env.EIDOLON_DISABLE_AGENT_SPAWN === "1") {
+    console.log("[main] Agent spawn disabled - managed by Gateway");
+  } else {
+    const agentPath = path.resolve(__dirname, "agent-server.js");
+    if (!AGENT_TOKEN) throw new Error("AGENT_TOKEN missing");
+    console.log("[main] starting agent:", agentPath);
+    agentChild = spawn(process.execPath, [agentPath], {
+      env: process.env,
+      stdio: "inherit",
+      cwd: __dirname,
+    });
+  }
   for (let i = 0; i < 30; i++) {
     try {
       const res = await fetch(`${AGENT_BASE_URL}/agent/health`);
