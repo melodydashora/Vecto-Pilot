@@ -46,6 +46,10 @@ exposeLocalhost = true
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 37699
+externalPort = 3000
+
 [deployment]
 run = ["node", "gateway-server.js"]
 
