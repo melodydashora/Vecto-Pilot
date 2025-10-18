@@ -16,11 +16,11 @@ import { startMemoryCompactor } from "./server/eidolon/memory/compactor.js";
 // ---------- config ----------
 const app = express();
 
-// AUTOSCALE: Use Replit-provided PORT or fallback to 5000 for dev
-const PORT = Number(process.env.PORT) || 5000;
+// AUTOSCALE: Use environment-configured ports
+const PORT = Number(process.env.PORT) || Number(process.env.GATEWAY_PORT) || 5000;
 const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3101;
 const AGENT_PORT = 3102; // Agent runs internally on 3102 (spawned by Gateway)
-const VITE_PORT = 3002; // Vite dev server runs separately on 3002
+const VITE_PORT = Number(process.env.VITE_PORT) || 43717; // Vite dev server runs separately
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 console.log(`🚀 [gateway] Starting in ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
@@ -54,7 +54,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       connectSrc: [
         "'self'",
-        "ws://localhost:3002", "ws://127.0.0.1:3002", // Vite HMR WebSocket
+        `ws://localhost:${VITE_PORT}`, `ws://127.0.0.1:${VITE_PORT}`, // Vite HMR WebSocket
         "https://replit.com", "wss://replit.com",
         "https://*.replit.dev", "wss://*.replit.dev",
         "https://*.repl.co", "wss://*.repl.co",

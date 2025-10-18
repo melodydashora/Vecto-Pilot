@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = Number(process.env.VITE_PORT) || 3002;
+const PORT = Number(process.env.VITE_PORT) || 43717;
 const HOST = '0.0.0.0';
 
 let viteServer = null;

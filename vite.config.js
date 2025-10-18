@@ -32,7 +32,7 @@ export default defineConfig({
         },
     },
     server: {
-        port: 3002,
+        port: Number(process.env.VITE_PORT) || 43717,
         host: "0.0.0.0",
         strictPort: true,
         cors: {
@@ -42,8 +42,8 @@ export default defineConfig({
         hmr: {
             protocol: 'ws',
             host: '0.0.0.0',
-            port: 3002,
-            clientPort: 3002,
+            port: Number(process.env.VITE_PORT) || 43717,
+            clientPort: Number(process.env.VITE_PORT) || 43717,
             overlay: true,
         },
         watch: {
