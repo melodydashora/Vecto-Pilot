@@ -26,7 +26,7 @@ args = "export PYTHONPATH=/home/runner/workspace:/home/runner/workspace/.pythonl
 waitForPort = 5000
 
 [nix]
-packages = ["fontconfig", "ghostscript", "glib", "harfbuzz", "jiq", "jq", "jq-lsp", "jql", "libxcrypt", "lsof", "nodejs-18", "nodejs-20", "nodejs-22", "openssl", "pandoc", "pango", "postgresql", "python312Packages.jq", "python312Packages.xstatic-jquery-ui", "python313Packages.django-jquery-js", "python313Packages.jq", "python313Packages.xstatic-jquery", "tree", "undollar", "wkhtmltopdf"]
+packages = ["c-ares", "fontconfig", "ghostscript", "glib", "grpc", "harfbuzz", "jiq", "jq", "jq-lsp", "jql", "libxcrypt", "lsof", "nodejs-18", "nodejs-20", "nodejs-22", "openssl", "pandoc", "pango", "pkg-config", "postgresql", "python312Packages.jq", "python312Packages.xstatic-jquery-ui", "python313Packages.django-jquery-js", "python313Packages.jq", "python313Packages.xstatic-jquery", "tree", "undollar", "wkhtmltopdf", "zlib"]
 channel = "stable-25_05"
 
 [agent]

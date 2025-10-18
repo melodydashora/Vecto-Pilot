@@ -15,6 +15,7 @@ import uvicorn
 
 from app.core.config import settings, engine
 from app.models.database import Base
+from app.routes import strategy, mlops
 
 
 # Lifespan context manager for startup/shutdown
@@ -246,15 +247,12 @@ async def root():
 
 
 # ============================================================================
-# API ROUTES (to be added)
+# API ROUTES
 # ============================================================================
 
-# NOTE: Import and include routers here after creating route modules
-# from app.routes import snapshot, strategy, venue, feedback
-# app.include_router(snapshot.router, prefix="/api", tags=["snapshots"])
-# app.include_router(strategy.router, prefix="/api", tags=["strategy"])
-# app.include_router(venue.router, prefix="/api", tags=["venues"])
-# app.include_router(feedback.router, prefix="/api", tags=["feedback"])
+# Register API routers
+app.include_router(strategy.router)
+app.include_router(mlops.router)
 
 
 # ============================================================================
