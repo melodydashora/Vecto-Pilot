@@ -325,8 +325,7 @@ Always use your tools to explore and modify the repository. Be thorough and prec
             messages=messages,
             tools=TOOLS,
             tool_choice="auto",
-            temperature=0.7,
-            max_tokens=4000
+            max_completion_tokens=4000
         )
         
         response_message = response.choices[0].message
@@ -360,8 +359,7 @@ Always use your tools to explore and modify the repository. Be thorough and prec
             final_response = await client.chat.completions.create(
                 model="gpt-5",
                 messages=messages,
-                temperature=0.7,
-                max_tokens=4000
+                max_completion_tokens=4000
             )
             
             final_content = final_response.choices[0].message.content
