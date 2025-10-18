@@ -10,8 +10,58 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: #0f172a;
             color: #e2e8f0;
+            overflow: hidden;
         }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .layout {
+            display: flex;
+            height: 100vh;
+        }
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .sidebar {
+            width: 350px;
+            background: #1e293b;
+            border-left: 1px solid #334155;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .sidebar h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .file-tree {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+        }
+        .tree-item {
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 2px 0;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .tree-item:hover {
+            background: #334155;
+        }
+        .tree-folder {
+            color: #fbbf24;
+            font-weight: 600;
+        }
+        .tree-file {
+            color: #94a3b8;
+        }
+        .tree-children {
+            margin-left: 16px;
+        }
+        .container { max-width: 100%; margin: 0; padding: 0; }
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 30px;
@@ -134,8 +184,9 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
+    <div class="layout">
+        <div class="main-content">
+            <div class="header">
             <h1>🤖 Vecto Pilot AI Assistant</h1>
             <p>GPT-5 with FULL repo access - read files, write code, search, execute commands</p>
         </div>
@@ -168,6 +219,14 @@
             <a href="/docs">📚 API Documentation</a>
             <a href="/api/diagnostics">🔍 System Diagnostics</a>
             <a href="/api/mlops/observability/metrics">📊 MLOps Metrics</a>
+        </div>
+        </div>
+
+        <div class="sidebar">
+            <h3>📁 Repository Files</h3>
+            <div class="file-tree" id="fileTree">
+                <div style="color: #64748b; font-style: italic;">Loading file tree...</div>
+            </div>
         </div>
     </div>
 
@@ -232,6 +291,44 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // Load file tree
+        async function loadFileTree() {
+            try {
+                const response = await fetch('/api/files/tree');
+                const tree = await response.json();
+                const fileTreeDiv = document.getElementById('fileTree');
+                fileTreeDiv.innerHTML = renderTree(tree);
+            } catch (error) {
+                console.error('Error loading file tree:', error);
+            }
+        }
+
+        function renderTree(items, level = 0) {
+            if (!items || items.length === 0) return '';
+            
+            let html = '';
+            items.forEach(item => {
+                const indent = '  '.repeat(level);
+                const icon = item.type === 'directory' ? '📁' : '📄';
+                const className = item.type === 'directory' ? 'tree-folder' : 'tree-file';
+                
+                html += `<div class="tree-item ${className}" title="${item.path}">`;
+                html += `${indent}${icon} ${item.name}`;
+                html += `</div>`;
+                
+                if (item.children && item.children.length > 0) {
+                    html += `<div class="tree-children">`;
+                    html += renderTree(item.children, level + 1);
+                    html += `</div>`;
+                }
+            });
+            
+            return html;
+        }
+
+        // Load file tree on page load
+        window.addEventListener('load', loadFileTree);
     </script>
 </body>
 </html>

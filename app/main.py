@@ -15,7 +15,7 @@ import uvicorn
 
 from app.core.config import settings, engine
 from app.models.database import Base
-from app.routes import strategy, mlops, chat
+from app.routes import strategy, mlops, chat, files
 
 
 # Lifespan context manager for startup/shutdown
@@ -242,6 +242,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(strategy.router)
 app.include_router(mlops.router)
 app.include_router(chat.router)
+app.include_router(files.router)
 
 
 # ============================================================================
