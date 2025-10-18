@@ -37,6 +37,18 @@
             border-radius: 8px;
             animation: slideIn 0.3s ease;
         }
+        .tool-calls {
+            background: #0f172a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border-left: 3px solid #10b981;
+            font-size: 0.9em;
+        }
+        .tool-call {
+            margin: 5px 0;
+            font-family: monospace;
+        }
         @keyframes slideIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -125,7 +137,7 @@
     <div class="container">
         <div class="header">
             <h1>🤖 Vecto Pilot AI Assistant</h1>
-            <p>Chat with GPT to edit your repository, analyze code, and manage your MLOps infrastructure</p>
+            <p>GPT-5 with FULL repo access - read files, write code, search, execute commands</p>
         </div>
 
         <div class="chat-container" id="chatContainer">
@@ -183,8 +195,8 @@
 
                 const data = await response.json();
                 
-                // Add assistant response
-                addMessage(data.response || 'Sorry, I encountered an error.', 'assistant');
+                // Add assistant response with tool calls
+                addMessage(data.response || 'Sorry, I encountered an error.', 'assistant', data.tool_calls);
             } catch (error) {
                 addMessage('Error: Unable to connect to AI assistant. Make sure OPENAI_API_KEY is configured.', 'assistant');
             }
@@ -193,7 +205,7 @@
             messageInput.focus();
         }
 
-        function addMessage(text, role) {
+        function addMessage(text, role, toolCalls = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role}-message`;
             
@@ -201,7 +213,16 @@
                 return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
             });
             
-            messageDiv.innerHTML = `<strong>${role === 'user' ? 'You' : 'AI Assistant'}:</strong><br>${formattedText}`;
+            let toolCallsHtml = '';
+            if (toolCalls && toolCalls.length > 0) {
+                toolCallsHtml = '<div class="tool-calls">🛠️ Tools used:<br>';
+                toolCalls.forEach(tc => {
+                    toolCallsHtml += `<div class="tool-call">• ${tc.function}(${JSON.stringify(tc.args).slice(0, 100)}...)</div>`;
+                });
+                toolCallsHtml += '</div>';
+            }
+            
+            messageDiv.innerHTML = `<strong>${role === 'user' ? 'You' : 'AI Assistant'}:</strong><br>${toolCallsHtml}${formattedText}`;
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
