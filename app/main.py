@@ -15,7 +15,7 @@ import uvicorn
 
 from app.core.config import settings, engine
 from app.models.database import Base
-from app.routes import strategy, mlops
+from app.routes import strategy, mlops, chat
 
 
 # Lifespan context manager for startup/shutdown
@@ -225,18 +225,23 @@ async def diagnostics():
 
 @app.get("/")
 async def root():
-    """Landing page - redirects to docs"""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/docs")
+    """Landing page - AI Chat Assistant"""
+    from fastapi.responses import FileResponse
+    return FileResponse("app/static/chat.html")
 
 
 # ============================================================================
 # API ROUTES
 # ============================================================================
 
+# Mount static files
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
 # Register API routers
 app.include_router(strategy.router)
 app.include_router(mlops.router)
+app.include_router(chat.router)
 
 
 # ============================================================================
