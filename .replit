@@ -11,22 +11,22 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Eidolon SDK"
+args = "Vecto API"
 
 [[workflows.workflow]]
-name = "Eidolon SDK"
+name = "Vecto API"
 author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=5000 AGENT_PORT=3102 node index.js"
-waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
 
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "export PYTHONPATH=/home/runner/workspace:/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages:/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages:$PYTHONPATH && cd /home/runner/workspace && python3 -m app.main"
+waitForPort = 5000
+
 [nix]
-packages = ["fontconfig", "ghostscript", "glib", "harfbuzz", "jiq", "jq", "jq-lsp", "jql", "lsof", "nodejs-18", "nodejs-20", "nodejs-22", "openssl", "pandoc", "pango", "python312Packages.jq", "python312Packages.xstatic-jquery-ui", "python313Packages.django-jquery-js", "python313Packages.jq", "python313Packages.xstatic-jquery", "tree", "undollar", "wkhtmltopdf"]
+packages = ["fontconfig", "ghostscript", "glib", "harfbuzz", "jiq", "jq", "jq-lsp", "jql", "libxcrypt", "lsof", "nodejs-18", "nodejs-20", "nodejs-22", "openssl", "pandoc", "pango", "postgresql", "python312Packages.jq", "python312Packages.xstatic-jquery-ui", "python313Packages.django-jquery-js", "python313Packages.jq", "python313Packages.xstatic-jquery", "tree", "undollar", "wkhtmltopdf"]
 channel = "stable-25_05"
 
 [agent]
@@ -45,6 +45,10 @@ exposeLocalhost = true
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 41809
+externalPort = 3000
 
 [deployment]
 run = ["node", "gateway-server.js"]
