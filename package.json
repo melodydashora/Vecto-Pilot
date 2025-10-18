@@ -7,7 +7,7 @@
   "scripts": {
     "start": "NODE_ENV=production node gateway-server.js",
     "dev": "NODE_ENV=development node gateway-server.js",
-    "dev:vite": "vite dev --port 3002 --host 0.0.0.0",
+    "dev:vite": "node vite-server.js",
     "eidolon-direct": "node index.js",
     "build": "vite build",
     "build:client": "vite build",

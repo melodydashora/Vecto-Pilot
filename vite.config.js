@@ -22,16 +22,48 @@ export default defineConfig({
     build: {
         outDir: path.resolve(projectRoot, "dist"),
         emptyOutDir: true,
+        sourcemap: true,
+        rollupOptions: {
+            onwarn(warning, warn) {
+                // Suppress certain warnings
+                if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
+                warn(warning);
+            },
+        },
     },
     server: {
         port: 3002,
         host: "0.0.0.0",
         strictPort: true,
-        allowedHosts: true,
+        cors: {
+            origin: '*',
+            credentials: true,
+        },
+        hmr: {
+            protocol: 'ws',
+            host: '0.0.0.0',
+            port: 3002,
+            clientPort: 3002,
+            overlay: true,
+        },
+        watch: {
+            usePolling: false,
+            interval: 100,
+        },
         fs: {
             strict: false,
             allow: [".."],
             deny: [],
         },
     },
+    optimizeDeps: {
+        exclude: [],
+        include: [
+            'react',
+            'react-dom',
+            'react-dom/client',
+        ],
+    },
+    clearScreen: false,
+    logLevel: 'info',
 });
