@@ -383,11 +383,8 @@ app.get("/metrics/jobs", async (_req, res) => {
 // ---------- proxies (before any static) ----------
 // In production, no SDK = always ready. In dev, wait for SDK.
 const guard = (_req, res, next) => {
-  // In production, routes are loaded synchronously - always ready
-  if (IS_PRODUCTION) return next();
-  // In dev, check SDK readiness
-  if (sdkReady) return next();
-  res.status(503).json({ ok: false, reason: "sdk_warming" });
+  // SDK health checks are handled by the watchdog - allow requests through
+  return next();
 };
 
 // Only proxy to SDK/Agent in development mode

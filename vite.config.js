@@ -26,10 +26,7 @@ export default defineConfig({
     server: {
         port: 5173,
         host: "0.0.0.0",
-        hmr: {
-            host: "127.0.0.1",
-            port: 24700  // Fix HMR WS port to avoid clashes
-        },
+        hmr: false,  // Disable HMR in middleware mode to prevent WebSocket port conflicts
         allowedHosts: true,
         fs: {
             strict: false,
