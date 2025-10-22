@@ -44,20 +44,22 @@ function spawnChild(name, command, args, env) {
   return child;
 }
 
-// Only spawn children in development or if not already running
-if (isDev && PORT !== SDK_PORT && PORT !== AGENT_PORT) {
-  // Spawn SDK
-  spawnChild('sdk', 'node', ['index.js'], { PORT: SDK_PORT });
+// Async main function to handle child spawning and server startup
+(async function main() {
+  // Only spawn children in development or if not already running
+  if (isDev && PORT !== SDK_PORT && PORT !== AGENT_PORT) {
+    // Spawn SDK
+    spawnChild('sdk', 'node', ['index.js'], { PORT: SDK_PORT });
 
-  // Spawn Agent
-  spawnChild('agent', 'node', ['agent-server.js'], { AGENT_PORT });
+    // Spawn Agent
+    spawnChild('agent', 'node', ['agent-server.js'], { AGENT_PORT });
 
-  // Spawn Vite dev server for client
-  spawnChild('vite', 'npm', ['run', 'dev:client'], {});
+    // Spawn Vite dev server for client
+    spawnChild('vite', 'npm', ['run', 'dev:client'], {});
 
-  // Wait a bit for children to start
-  await new Promise(resolve => setTimeout(resolve, 3000));
-}
+    // Wait a bit for children to start
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  }
 
 const app = express();
 app.set('trust proxy', 1);
@@ -202,4 +204,9 @@ process.on('SIGTERM', () => {
   console.log('🛑 [gateway] Shutting down...');
   children.forEach((child) => child.kill());
   server.close(() => process.exit(0));
+});
+
+})().catch((err) => {
+  console.error('[gateway] Fatal error:', err);
+  process.exit(1);
 });

@@ -129,17 +129,17 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-app.use("/api/health", healthRoutes);
-app.use("/api/blocks", parseJson, strictLimiter, blocksRoutes); // 🚀 Production: Claude → GPT-5 → Gemini Triad
-app.use("/api/blocks-discovery", parseJson, strictLimiter, blocksDiscoveryRoutes); // 🔬 Hybrid discovery testing
-app.use("/api/location", parseJson, apiLimiter, locationRoutes); // parseJson for POST /snapshot
-app.use("/api/actions", parseJson, apiLimiter, actionsRoutes);
-app.use("/api/research", parseJson, apiLimiter, researchRoutes); // Internet research via Perplexity
-app.use("/api/feedback", parseJson, apiLimiter, feedbackRoutes); // Venue feedback and reliability scoring
-app.use("/api/diagnostics", apiLimiter, diagnosticsRoutes); // System health checks
-app.use("/api/venue", parseJson, apiLimiter, venueEventsRoutes); // Event checking via Perplexity
-app.use("/api/snapshot", parseJson, apiLimiter, snapshotRoutes); // Context snapshot storage
-app.use("/api/ml", apiLimiter, mlHealthRoutes); // ML health dashboard and semantic search
+app.use("/health", healthRoutes);
+app.use("/blocks", parseJson, strictLimiter, blocksRoutes); // 🚀 Production: Claude → GPT-5 → Gemini Triad
+app.use("/blocks-discovery", parseJson, strictLimiter, blocksDiscoveryRoutes); // 🔬 Hybrid discovery testing
+app.use("/location", parseJson, apiLimiter, locationRoutes); // parseJson for POST /snapshot
+app.use("/actions", parseJson, apiLimiter, actionsRoutes);
+app.use("/research", parseJson, apiLimiter, researchRoutes); // Internet research via Perplexity
+app.use("/feedback", parseJson, apiLimiter, feedbackRoutes); // Venue feedback and reliability scoring
+app.use("/diagnostics", apiLimiter, diagnosticsRoutes); // System health checks
+app.use("/venue", parseJson, apiLimiter, venueEventsRoutes); // Event checking via Perplexity
+app.use("/snapshot", parseJson, apiLimiter, snapshotRoutes); // Context snapshot storage
+app.use("/ml", apiLimiter, mlHealthRoutes); // ML health dashboard and semantic search
 app.use(jobMetricsRoutes); // Job queue metrics and monitoring
 
 // Quick status endpoint
@@ -156,76 +156,6 @@ app.get("/api/copilot", (_req, res) => {
     ],
     timestamp: new Date().toISOString(),
   });
-});
-
-// ───────────────────────────────────────────────────────────────────────────────
-// Static + SPA
-// ───────────────────────────────────────────────────────────────────────────────
-const clientDist = path.join(__dirname, "client/dist");
-
-app.use(
-  express.static(clientDist, {
-    maxAge: "1h",
-    etag: false,
-  }),
-);
-
-app.get("/app", (_req, res) => {
-  res.redirect("/dashboard");
-});
-
-// SPA catch-all (after API routes).
-// IMPORTANT: exclude /api, /agent, /health, and /assistant so later routes still run.
-app.get("*", async (req, res, next) => {
-  if (
-    req.path.startsWith("/api/") ||
-    req.path.startsWith("/agent/") ||
-    req.path.startsWith("/health") ||
-    req.path.startsWith("/ready") ||
-    req.path.startsWith("/assistant")
-  ) {
-    return next();
-  }
-
-  const indexPath = path.join(clientDist, "index.html");
-  try {
-    await fs.access(indexPath);
-    res.sendFile(indexPath);
-  } catch {
-    // Fallback landing page when no build exists
-    const PORT = Number(process.env.EIDOLON_PORT || process.env.PORT || 3002);
-    res.setHeader("Content-Type", "text/html");
-    res.setHeader("Cache-Control", "no-cache");
-    res.send(`<!DOCTYPE html>
-      <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-      <title>Vecto Co-Pilot - Enhanced by Eidolon SDK</title>
-      <style>
-        *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
-        .card{max-width:800px;padding:2rem;text-align:center;background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border-radius:20px;border:1px solid rgba(255,255,255,.2)}
-        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin:1.5rem 0}
-        .chip{display:inline-block;background:linear-gradient(45deg,#10b981,#059669);padding:.5rem 1rem;border-radius:25px;font-weight:700;font-size:.9rem;margin:.25rem}
-        a.btn{display:inline-block;margin:.25rem 0;padding:.75rem 1.25rem;border-radius:24px;text-decoration:none;color:#fff;background:rgba(255,255,255,.2)}
-        a.btn:hover{background:rgba(255,255,255,.3)}
-      </style>
-      </head>
-      <body>
-        <div class="card">
-          <div style="font-size:3rem">🧠</div>
-          <h1>Vecto Co-Pilot</h1>
-          <p style="opacity:.9">Enhanced by Eidolon SDK</p>
-          <div class="chip">PID ${process.pid}</div>
-          <div class="chip">Assistant Override: ACTIVE</div>
-          <div class="grid">
-            <div><h3>🚗 Smart Driving</h3><p>AI route optimization</p></div>
-            <div><h3>📍 Location</h3><p>GPS-aware insights</p></div>
-            <div><h3>📊 Analytics</h3><p>Earnings & performance</p></div>
-            <div><h3>🤖 Co-Pilot</h3><p>Intelligent assistance</p></div>
-          </div>
-          <p><a class="btn" href="/co-pilot">Launch Co-Pilot</a> &nbsp; <a class="btn" href="/dashboard">Dashboard</a></p>
-          <p style="opacity:.8;margin-top:1rem">Internal Port: ${PORT}</p>
-        </div>
-      </body></html>`);
-  }
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -1361,6 +1291,65 @@ app.use((err, req, res, next) => {
 // 404 for unknown API endpoints (avoids a second "*" catch-all)
 app.all("/api/*", (_req, res) => {
   res.status(404).json({ ok: false, error: "API endpoint not found" });
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Static + SPA (MUST BE AFTER ALL API ROUTES)
+// ───────────────────────────────────────────────────────────────────────────────
+const clientDist = path.join(__dirname, "client/dist");
+
+app.use(
+  express.static(clientDist, {
+    maxAge: "1h",
+    etag: false,
+  }),
+);
+
+app.get("/app", (_req, res) => {
+  res.redirect("/dashboard");
+});
+
+// SPA catch-all (last resort for non-API requests)
+app.get("*", async (req, res) => {
+  const indexPath = path.join(clientDist, "index.html");
+  try {
+    await fs.access(indexPath);
+    res.sendFile(indexPath);
+  } catch {
+    // Fallback landing page when no build exists
+    const PORT = Number(process.env.EIDOLON_PORT || process.env.PORT || 3002);
+    res.setHeader("Content-Type", "text/html");
+    res.setHeader("Cache-Control", "no-cache");
+    res.send(`<!DOCTYPE html>
+      <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+      <title>Vecto Co-Pilot - Enhanced by Eidolon SDK</title>
+      <style>
+        *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
+        .card{max-width:800px;padding:2rem;text-align:center;background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border-radius:20px;border:1px solid rgba(255,255,255,.2)}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin:1.5rem 0}
+        .chip{display:inline-block;background:linear-gradient(45deg,#10b981,#059669);padding:.5rem 1rem;border-radius:25px;font-weight:700;font-size:.9rem;margin:.25rem}
+        a.btn{display:inline-block;margin:.25rem 0;padding:.75rem 1.25rem;border-radius:24px;text-decoration:none;color:#fff;background:rgba(255,255,255,.2)}
+        a.btn:hover{background:rgba(255,255,255,.3)}
+      </style>
+      </head>
+      <body>
+        <div class="card">
+          <div style="font-size:3rem">🧠</div>
+          <h1>Vecto Co-Pilot</h1>
+          <p style="opacity:.9">Enhanced by Eidolon SDK</p>
+          <div class="chip">PID ${process.pid}</div>
+          <div class="chip">Assistant Override: ACTIVE</div>
+          <div class="grid">
+            <div><h3>🚗 Smart Driving</h3><p>AI route optimization</p></div>
+            <div><h3>📍 Location</h3><p>GPS-aware insights</p></div>
+            <div><h3>📊 Analytics</h3><p>Earnings & performance</p></div>
+            <div><h3>🤖 Co-Pilot</h3><p>Intelligent assistance</p></div>
+          </div>
+          <p><a class="btn" href="/co-pilot">Launch Co-Pilot</a> &nbsp; <a class="btn" href="/dashboard">Dashboard</a></p>
+          <p style="opacity:.8;margin-top:1rem">Internal Port: ${PORT}</p>
+        </div>
+      </body></html>`);
+  }
 });
 
 // JSON error handler (must be last middleware)
