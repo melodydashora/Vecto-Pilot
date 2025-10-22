@@ -90,8 +90,13 @@ app.use(['/assistant', '/api', '/socket.io'], (req, res) => {
   proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
 });
 
-// Static files for production
-if (!isDev) {
+// Proxy to Vite dev server in development, serve static in production
+if (isDev) {
+  const viteTarget = 'http://127.0.0.1:5173';
+  app.use('/', (req, res) => {
+    proxy.web(req, res, { target: viteTarget, changeOrigin: true });
+  });
+} else {
   const path = await import('path');
   const { fileURLToPath } = await import('url');
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -120,6 +125,13 @@ server.on('upgrade', (req, socket, head) => {
       return;
     }
 
+    // Proxy Vite HMR WebSocket in development
+    if (isDev) {
+      const viteTarget = 'http://127.0.0.1:5173';
+      proxy.ws(req, socket, head, { target: viteTarget, changeOrigin: true, ws: true });
+      return;
+    }
+
     socket.destroy();
   } catch {
     try { socket.destroy(); } catch {}
@@ -130,7 +142,9 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 [gateway] listening on ${PORT}`);
   console.log(`   proxy -> agent ws/http @ http://127.0.0.1:${AGENT_PORT}`);
   console.log(`   proxy -> sdk   ws/http @ http://127.0.0.1:${SDK_PORT}`);
-  console.log(`   proxy -> vite  ws/http @ http://127.0.0.1:24700`);
+  if (isDev) {
+    console.log(`   proxy -> vite  ws/http @ http://127.0.0.1:5173`);
+  }
   console.log(`   supervisor managing 3 child processes`);
 });
 
