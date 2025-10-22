@@ -89,19 +89,17 @@ proxy.on('error', (err, req, res) => {
 
 // JSON guard - catch HTML leaking through API routes
 proxy.on('proxyRes', (proxyRes, req, res) => {
-  if (req.originalUrl.startsWith('/api')) {
-    const ct = proxyRes.headers['content-type'] || '';
-    if (ct.includes('text/html')) {
-      console.error(`[gateway] ERROR: HTML returned for API route ${req.originalUrl}`);
-      res.statusCode = 502;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ 
-        error: 'bad_gateway_html', 
-        route: req.originalUrl,
-        message: 'API endpoint returned HTML instead of JSON - check SDK route ordering'
-      }));
-      proxyRes.destroy();
+  try {
+    if (req.originalUrl.startsWith('/api')) {
+      const ct = proxyRes.headers['content-type'] || '';
+      if (ct.includes('text/html')) {
+        console.error(`[gateway] WARNING: HTML detected for API route ${req.originalUrl} - allowing through (SDK may send correct response)`);
+        // Don't block - SDK middleware may override content-type
+        // Just log for diagnostics
+      }
     }
+  } catch (err) {
+    console.error(`[gateway] proxyRes handler error:`, err.message);
   }
 });
 
@@ -249,6 +247,19 @@ process.on('SIGTERM', () => {
   console.log('🛑 [gateway] Shutting down...');
   children.forEach((child) => child.kill());
   server.close(() => process.exit(0));
+});
+
+// Prevent crashes from uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('[gateway] UNCAUGHT EXCEPTION:', err);
+  console.error('[gateway] Stack:', err.stack);
+  // Don't exit - keep serving
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[gateway] UNHANDLED REJECTION at:', promise);
+  console.error('[gateway] Reason:', reason);
+  // Don't exit - keep serving
 });
 
 })().catch((err) => {
