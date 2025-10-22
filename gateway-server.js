@@ -115,6 +115,51 @@ app.get('/agent/healthz', (_req, res) => {
   proxy.web(_req, res, { target: agentTarget, changeOrigin: true });
 });
 
+// Aggregate status endpoint for drivers
+app.get('/status', async (_req, res) => {
+  const status = {
+    timestamp: new Date().toISOString(),
+    gateway: { ok: true, port: PORT },
+    sdk: { ok: false, port: SDK_PORT, error: null },
+    agent: { ok: false, port: AGENT_PORT, error: null },
+    vite: { ok: false, port: 5173, error: null }
+  };
+
+  // Check SDK
+  try {
+    const sdkRes = await fetch(`http://127.0.0.1:${SDK_PORT}/healthz`, { signal: AbortSignal.timeout(2000) });
+    status.sdk.ok = sdkRes.ok;
+    if (!sdkRes.ok) status.sdk.error = `HTTP ${sdkRes.status}`;
+  } catch (err) {
+    status.sdk.error = err.message || 'unreachable';
+  }
+
+  // Check Agent
+  try {
+    const agentRes = await fetch(`http://127.0.0.1:${AGENT_PORT}/healthz`, { signal: AbortSignal.timeout(2000) });
+    status.agent.ok = agentRes.ok || agentRes.status === 401; // 401 is OK, just needs auth
+    if (!agentRes.ok && agentRes.status !== 401) status.agent.error = `HTTP ${agentRes.status}`;
+  } catch (err) {
+    status.agent.error = err.message || 'unreachable';
+  }
+
+  // Check Vite (dev only)
+  if (isDev) {
+    try {
+      const viteRes = await fetch('http://127.0.0.1:5173/', { signal: AbortSignal.timeout(2000) });
+      status.vite.ok = viteRes.ok;
+      if (!viteRes.ok) status.vite.error = `HTTP ${viteRes.status}`;
+    } catch (err) {
+      status.vite.error = err.message || 'unreachable';
+    }
+  } else {
+    status.vite = { ok: true, note: 'production mode - using static build' };
+  }
+
+  const allOk = status.gateway.ok && status.sdk.ok && status.agent.ok && status.vite.ok;
+  res.status(allOk ? 200 : 503).json({ ...status, overall: allOk ? 'healthy' : 'degraded' });
+});
+
 // HTTP forwarding - ORDER MATTERS!
 // 1. Agent routes
 app.use('/agent', (req, res) => {
