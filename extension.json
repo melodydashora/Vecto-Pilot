@@ -5,6 +5,12 @@
   "version": "1.0.0",
   "entry": "src/index.ts",
   "permissions": ["fs", "terminal", "process", "repldb", "net"],
+  "tools": [
+    {
+      "handler": "src/panel.html",
+      "name": "GPT-5 Agent"
+    }
+  ],
   "settings": {
     "serverMode": {
       "type": "enum",
