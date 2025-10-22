@@ -90,6 +90,15 @@ app.use(['/assistant', '/api', '/socket.io'], (req, res) => {
   proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
 });
 
+// Proxy API routes to SDK before catch-all
+app.use('/api', (req, res) => {
+  proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
+});
+
+app.use('/location', (req, res) => {
+  proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
+});
+
 // Proxy to Vite dev server in development, serve static in production
 if (isDev) {
   const viteTarget = 'http://127.0.0.1:5173';
