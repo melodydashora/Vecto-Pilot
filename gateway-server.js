@@ -16,6 +16,19 @@ import pg from 'pg';
 // Import after env is loaded
 import { loadAssistantPolicy } from './server/eidolon/policy-loader.js';
 import { startMemoryCompactor } from './server/eidolon/memory/compactor.js';
+import { memoryPut } from './server/eidolon/memory/pg.js';
+
+// Export rememberContext for learning-capture middleware
+export async function rememberContext(scope, key, content, userId = null) {
+  return memoryPut({
+    table: 'assistant_memory',
+    scope,
+    key,
+    userId,
+    content,
+    ttlDays: 30
+  });
+}
 
 // ---------- Ports (1 public, rest private) ----------
 const GATEWAY_PORT = Number(process.env.PORT || 8080); // Replit assigns this (only public)
@@ -161,12 +174,26 @@ app.use(helmet({
   }
 }));
 
-app.use(rateLimit({ 
+// Rate limiting - configured for Replit environment
+const limiter = rateLimit({ 
   windowMs: 60_000, 
   max: 300, 
   standardHeaders: true, 
-  legacyHeaders: false 
-}));
+  legacyHeaders: false,
+  // Replit requires trust proxy, but we'll validate IP correctly
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/health' || req.path === '/api/health';
+  },
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For in Replit environment
+    return req.headers['x-forwarded-for']?.split(',')[0].trim() || 
+           req.connection.remoteAddress || 
+           'unknown';
+  }
+});
+
+app.use(limiter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
