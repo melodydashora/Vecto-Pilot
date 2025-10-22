@@ -1,4 +1,4 @@
-import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const snapshots = pgTable("snapshots", {
@@ -49,6 +49,7 @@ export const strategies = pgTable("strategies", {
   model_name: text("model_name"), // e.g., 'claude-sonnet-4-5-20250929'
   model_params: jsonb("model_params"), // { temperature, max_tokens, etc. }
   prompt_version: text("prompt_version"), // Track prompt template iterations
+  strategy_for_now: text('strategy_for_now'), // Unlimited text length
 });
 
 export const rankings = pgTable("rankings", {
@@ -125,8 +126,8 @@ export const actions = pgTable("actions", {
 export const venue_catalog = pgTable("venue_catalog", {
   venue_id: uuid("venue_id").primaryKey().defaultRandom(),
   place_id: text("place_id").unique(),
-  name: text("name").notNull(),
-  address: text("address").notNull(),
+  venue_name: varchar('venue_name', { length: 500 }).notNull(), // Max 500 chars
+  address: varchar('address', { length: 500 }).notNull(), // Max 500 chars (full address)
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   category: text("category").notNull(),
@@ -230,16 +231,16 @@ export const travel_disruptions = pgTable("travel_disruptions", {
   country_code: text("country_code").notNull().default('US'),
   airport_code: text("airport_code").notNull(),
   airport_name: text("airport_name"),
-  
+
   delay_minutes: integer("delay_minutes").default(0),
   ground_stops: jsonb("ground_stops").default([]),
   ground_delay_programs: jsonb("ground_delay_programs").default([]),
   closure_status: text("closure_status").default('open'),
   delay_reason: text("delay_reason"),
-  
+
   ai_summary: text("ai_summary"),
   impact_level: text("impact_level").default('none'),
-  
+
   data_source: text("data_source").notNull().default('FAA'),
   last_updated: timestamp("last_updated", { withTimezone: true }).notNull().defaultNow(),
   next_update_at: timestamp("next_update_at", { withTimezone: true }),
@@ -258,6 +259,9 @@ export const llm_venue_suggestions = pgTable("llm_venue_suggestions", {
   venue_id_created: uuid("venue_id_created").references(() => venue_catalog.venue_id),
   validated_at: timestamp("validated_at", { withTimezone: true }),
   rejection_reason: text("rejection_reason"),
+  // Full LLM analysis payload (detailed breakdown, rationale, etc.)
+  // JSONB allows unlimited nested object size
+  llm_analysis: jsonb('llm_analysis'),
 });
 
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files

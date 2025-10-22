@@ -180,12 +180,12 @@ function resolveSafe(p) {
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express();
 
-// CRITICAL: Trust proxy MUST be set FIRST, before ANY middleware
+// CRITICAL: Trust proxy MUST be set FIRST before creating any middleware
 app.set('trust proxy', 1);
 process.noDeprecation = true;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Middleware (order matters!)
+// Middleware
 // ─────────────────────────────────────────────────────────────────────────────
 // CORS: internal use via gateway; permissive for dev
 app.use(cors({ origin: true, credentials: false }));
@@ -194,19 +194,20 @@ app.use(cors({ origin: true, credentials: false }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
-// Rate limiting LAST - after trust proxy is set and body parsers are loaded
-// Skip for localhost to prevent internal gateway traffic from being rate limited
-const limiter = rateLimit({
+// Rate limiting (60 requests per minute for security)
+// Create limiter AFTER trust proxy is set
+app.use(rateLimit({
   windowMs: 60_000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip rate limiting for internal gateway requests (localhost)
   skip: (req) => {
-    const isLocal = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+    const ip = req.ip || req.connection.remoteAddress;
+    const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
     return isLocal;
   }
-});
-app.use(limiter);
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Health Endpoint (Public - No Auth Required)
