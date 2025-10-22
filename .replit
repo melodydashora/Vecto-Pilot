@@ -1,51 +1,28 @@
-run = "npm run dev"
 entrypoint = "gateway-server.js"
-modules = ["nodejs-20"]
-
-[nix]
-channel = "stable-25_05"
-packages = ["lsof"]
-
-[env]
-NODE_ENV = "development"
-
-[[ports]]
-localPort = 3101
-externalPort = 3000
-exposeLocalhost = true
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 33223
-externalPort = 3001
-
-[[ports]]
-localPort = 40013
-externalPort = 3002
-
-[[ports]]
-localPort = 40669
-externalPort = 3003
-
-[deployment]
-build = "npm run build"
-run = ["sh", "-c", "npm start"]
+modules = ["nodejs-22"]
 
 [workflows]
-runButton = "Vecto Pilot"
+runButton = "Project"
 
 [[workflows.workflow]]
-name = "Vecto Pilot"
+name = "Project"
+mode = "parallel"
 author = "agent"
 
+# Single task: run the gateway. It will bind to Replit's $PORT automatically.
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm start"
-waitForPort = 5000
+# Internal services stay on localhost; only the gateway listens on $PORT.
+args = "NODE_ENV=development EIDOLON_PORT=3101 AGENT_PORT=43717 node gateway-server.js"
 
-[workflows.workflow.metadata]
-outputType = "webview"
+[nix]
+packages = ["nodejs-22"]
+channel = "stable-25_05"
+
+[deployment]
+run = ["sh", "-c", "npm run build && npm run start"]
+
+# Optional (kept from your config if you need it)
+onBoot = "bash server/scripts/workspace-startup.sh"
+
 
