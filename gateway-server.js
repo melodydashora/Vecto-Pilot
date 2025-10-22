@@ -65,11 +65,16 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 
-// Basic healthz
-app.get('/healthz', (_req, res) => res.json({ ok: true, gateway: true, t: new Date().toISOString() }));
-app.get('/ready', (_req, res) => res.json({ ok: true }));
+// Request logger - see what's hitting the gateway
+app.use((req, res, next) => {
+  const t = Date.now();
+  res.on('finish', () => {
+    console.log(`[gateway] ${req.method} ${req.originalUrl} -> ${res.statusCode} ${Date.now() - t}ms`);
+  });
+  next();
+});
 
-// One proxy instance (HTTP + WS)
+// One proxy instance (HTTP + WS) with HTML guard for APIs
 const proxy = createProxyServer({});
 proxy.on('error', (err, req, res) => {
   const r = res;
@@ -80,6 +85,34 @@ proxy.on('error', (err, req, res) => {
   }
 });
 
+// JSON guard - catch HTML leaking through API routes
+proxy.on('proxyRes', (proxyRes, req, res) => {
+  if (req.originalUrl.startsWith('/api')) {
+    const ct = proxyRes.headers['content-type'] || '';
+    if (ct.includes('text/html')) {
+      console.error(`[gateway] ERROR: HTML returned for API route ${req.originalUrl}`);
+      res.statusCode = 502;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ 
+        error: 'bad_gateway_html', 
+        route: req.originalUrl,
+        message: 'API endpoint returned HTML instead of JSON - check SDK route ordering'
+      }));
+      proxyRes.destroy();
+    }
+  }
+});
+
+// Health check endpoints
+app.get('/healthz', (_req, res) => res.json({ ok: true, gateway: true, t: new Date().toISOString() }));
+app.get('/ready', (_req, res) => res.json({ ok: true }));
+app.get('/sdk/healthz', (_req, res) => {
+  proxy.web(_req, res, { target: sdkTarget, changeOrigin: true });
+});
+app.get('/agent/healthz', (_req, res) => {
+  proxy.web(_req, res, { target: agentTarget, changeOrigin: true });
+});
+
 // HTTP forwarding - ORDER MATTERS!
 // 1. Agent routes
 app.use('/agent', (req, res) => {
@@ -87,9 +120,14 @@ app.use('/agent', (req, res) => {
   proxy.web(req, res, { target: agentTarget, changeOrigin: true });
 });
 
-// 2. SDK routes (API, assistant, websockets)
+// 2. SDK routes (API, assistant, websockets) - MUST BE BEFORE VITE
 app.use(['/assistant', '/api', '/socket.io'], (req, res) => {
   proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
+});
+
+// API 404 guard - ensure no routes fall through to Vite
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'not_found', path: req.path });
 });
 
 // 3. Frontend - Vite dev server or static files (MUST BE LAST)
