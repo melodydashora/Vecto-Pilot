@@ -32,10 +32,13 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 console.log(`🚀 [gateway] Starting in ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
 console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}, Agent=${AGENT_PORT}`);
 
-// ---------- Vector DB setup ----------
-const pool = process.env.DATABASE_URL 
-  ? new pg.Pool({ connectionString: process.env.DATABASE_URL })
-  : null;
+// ---------- Vector DB setup (REQUIRED - hard-fail if missing) ----------
+if (!process.env.DATABASE_URL) {
+  console.error("❌ [FATAL] DATABASE_URL is required. This system cannot run without a database.");
+  process.exit(1);
+}
+
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
 const INIT_SQL = `
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -52,23 +55,19 @@ CREATE INDEX IF NOT EXISTS documents_embedding_idx
 let dbReady = false;
 
 async function prepareDb() {
-  if (!pool) {
-    console.log("[db] DATABASE_URL not set, skipping vector DB setup");
-    return;
-  }
   try {
     await pool.query(INIT_SQL);
     await pool.query("ANALYZE documents;");
     dbReady = true;
     console.log("[db] Vector DB ready ✅");
   } catch (err) {
-    console.error("[db] Failed to prepare vector DB:", err.message);
-    dbReady = false;
+    console.error("❌ [FATAL] Failed to prepare vector DB:", err.message);
+    console.error("Stack:", err.stack);
+    process.exit(1);
   }
 }
 
 export async function upsertDoc({ id, content, metadata = {}, embedding }) {
-  if (!pool) throw new Error("DATABASE_URL not configured");
   if (!Array.isArray(embedding)) throw new Error("embedding must be number[]");
   await pool.query(
     `INSERT INTO documents (id, content, metadata, embedding)
@@ -80,7 +79,6 @@ export async function upsertDoc({ id, content, metadata = {}, embedding }) {
 }
 
 export async function knnSearch({ queryEmbedding, k = 5, minScore = 0.0 }) {
-  if (!pool) throw new Error("DATABASE_URL not configured");
   const { rows } = await pool.query(
     `SELECT id, content, metadata, 1 - (embedding <=> $1::vector) AS score
      FROM documents
@@ -113,20 +111,16 @@ app.get("/healthz", (_req, res) => {
 });
 
 app.get("/readyz", async (_req, res) => {
-  // Check if DB is ready (if DATABASE_URL is set)
-  if (pool) {
-    if (!dbReady) {
-      return res.status(503).send('db-not-ready');
-    }
-    try {
-      await pool.query("SELECT 1");
-      res.status(200).send('ready');
-    } catch {
-      res.status(503).send('db-check-failed');
-    }
-  } else {
-    // No DB configured, just report ready
+  // REQUIRED: DB must be ready - no graceful degradation
+  if (!dbReady) {
+    return res.status(503).send('db-not-ready');
+  }
+  try {
+    await pool.query("SELECT 1");
     res.status(200).send('ready');
+  } catch (err) {
+    console.error("[readyz] DB check failed:", err.message);
+    res.status(503).send('db-check-failed');
   }
 });
 
