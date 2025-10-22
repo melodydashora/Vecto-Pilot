@@ -621,11 +621,22 @@ app.use((err, _req, res, _next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Server Startup
 // ─────────────────────────────────────────────────────────────────────────────
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`[agent] Listening on ${HOST}:${PORT}`);
   console.log(`[agent] Base directory: ${BASE_DIR}`);
   console.log(`[agent] Environment: ${IS_REPLIT ? "REPLIT" : "LOCAL"} ${IS_PRODUCTION ? "PROD" : "DEV"}`);
   if (TOKEN) console.log(`[agent] Token auth: enabled`);
+});
+
+// Handle port conflicts gracefully
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[agent] ERROR: Port ${PORT} is already in use!`);
+    console.error(`[agent] Another process is using port ${PORT}. Exiting to prevent loop...`);
+    process.exit(1);
+  } else {
+    throw err;
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

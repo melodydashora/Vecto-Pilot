@@ -1453,12 +1453,18 @@ function startEidolonServer() {
   });
 
   serverInstance.on("error", (err) => {
-    console.error("[eidolon] Server error:", err.message);
-    if (!isShuttingDown) {
-      console.log("[eidolon] Attempting server restart in 3 seconds...");
-      setTimeout(() => {
-        if (!isShuttingDown) startEidolonServer();
-      }, 3000);
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[SDK] ERROR: Port ${PORT} is already in use!`);
+      console.error(`[SDK] Another process is using port ${PORT}. Exiting to prevent loop...`);
+      process.exit(1);
+    } else {
+      console.error("[eidolon] Server error:", err.message);
+      if (!isShuttingDown) {
+        console.log("[eidolon] Attempting server restart in 3 seconds...");
+        setTimeout(() => {
+          if (!isShuttingDown) startEidolonServer();
+        }, 3000);
+      }
     }
   });
 
