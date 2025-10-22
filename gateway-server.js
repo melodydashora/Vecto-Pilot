@@ -140,7 +140,7 @@ app.get('/status', async (_req, res) => {
 
   // Check Agent
   try {
-    const agentRes = await fetch(`http://127.0.0.1:${AGENT_PORT}/healthz`, { signal: AbortSignal.timeout(2000) });
+    const agentRes = await fetch(`http://127.0.0.1:${AGENT_PORT}/agent/health`, { signal: AbortSignal.timeout(2000) });
     status.agent.ok = agentRes.ok || agentRes.status === 401; // 401 is OK, just needs auth
     if (!agentRes.ok && agentRes.status !== 401) status.agent.error = `HTTP ${agentRes.status}`;
   } catch (err) {
@@ -186,8 +186,8 @@ app.use('/agent', (req, res) => {
   proxy.web(req, res, { target: agentTarget, changeOrigin: true });
 });
 
-// 2. SDK routes (API, assistant, websockets) - MUST BE BEFORE VITE
-app.use(['/assistant', '/api', '/socket.io'], (req, res) => {
+// 2. SDK routes (API, assistant, diagnostics, websockets) - MUST BE BEFORE VITE
+app.use(['/assistant', '/api', '/diagnostics', '/socket.io'], (req, res) => {
   proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
 });
 
