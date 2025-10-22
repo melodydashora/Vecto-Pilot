@@ -19,12 +19,7 @@ channel = "stable-25_05"
 
 [deployment]
 build = ["bash", "-lc", "if [ -f package.json ]; then npm ci --omit=dev || npm ci; fi; if npm run | grep -q ' build'; then npm run build; else echo 'no build script'; fi"]
-run   = ["bash", "-lc", "PORT=${PORT} npm start"]
+run = ["bash", "-lc", "PORT=${PORT} npm start"]
 
 [env]
 NODE_ENV = "development"
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
