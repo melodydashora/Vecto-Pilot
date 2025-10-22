@@ -145,13 +145,21 @@ function waitForPort(port, host = '127.0.0.1', timeoutMs = 20_000) {
 }
 
 // ---------- Child process supervisor ----------
-const children = [];
+const children = new Map(); // Track children by label for proper cleanup
 
 function spawnSupervised(label, cmd, args, { cwd, port }) {
   let restarting = false;
   let backoff = 750;
+  let currentChild = null;
   
   const start = () => {
+    // Kill any existing child for this label
+    if (currentChild && !currentChild.killed) {
+      log(`[${label}] Killing existing process before restart`);
+      currentChild.kill('SIGTERM');
+      currentChild = null;
+    }
+    
     const env = {
       ...process.env,
       HOST: '127.0.0.1',
@@ -159,12 +167,18 @@ function spawnSupervised(label, cmd, args, { cwd, port }) {
       REPLIT_PUBLIC_PORT: String(GATEWAY_PORT), // optional: for logging
     };
     
-    const child = spawn(cmd, args, { cwd, env, stdio: 'inherit' });
-    children.push(child);
+    const child = spawn(cmd, args, { cwd, env, stdio: 'inherit', detached: false });
+    currentChild = child;
+    children.set(label, child);
     
     child.on('exit', (code, signal) => {
       warn(`[${label}] exited (code=${code}, signal=${signal})`);
+      children.delete(label);
+      
+      // Don't restart if we're shutting down
+      if (process.exitCode !== undefined) return;
       if (restarting) return;
+      
       restarting = true;
       const delay = Math.min(backoff, 5000);
       warn(`[${label}] restarting in ${delay}ms...`);
@@ -177,6 +191,7 @@ function spawnSupervised(label, cmd, args, { cwd, port }) {
     
     child.on('error', (error) => {
       err(`[${label}] spawn error:`, error.message);
+      children.delete(label);
     });
   };
   
@@ -453,20 +468,47 @@ server.listen(GATEWAY_PORT, '0.0.0.0', async () => {
 });
 
 // ---------- Graceful shutdown ----------
+let shuttingDown = false;
+
 function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  
   log('[gateway] Shutting down...');
   
   // Kill all child processes
-  children.forEach(child => {
+  children.forEach((child, label) => {
     if (child && !child.killed) {
+      log(`[gateway] Killing ${label}...`);
       child.kill('SIGTERM');
+      
+      // Force kill after 2 seconds if still alive
+      setTimeout(() => {
+        if (!child.killed) {
+          child.kill('SIGKILL');
+        }
+      }, 2000);
     }
   });
   
-  server.close(() => process.exit(0));
+  // Give children time to exit before closing server
+  setTimeout(() => {
+    server.close(() => {
+      log('[gateway] Shutdown complete');
+      process.exit(0);
+    });
+  }, 500);
 }
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+process.on('exit', () => {
+  // Final cleanup - kill any remaining children
+  children.forEach((child) => {
+    if (child && !child.killed) {
+      child.kill('SIGKILL');
+    }
+  });
+});
 
 export default app;
