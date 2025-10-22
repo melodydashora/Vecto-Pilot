@@ -73,6 +73,56 @@ app.use(loggingMiddleware);
 app.use(securityMiddleware);
 
 // ───────────────────────────────────────────────────────────────────────────────
+// ENHANCED MEMORY: Thread manager and context tracking
+// ───────────────────────────────────────────────────────────────────────────────
+const threadManager = getThreadManager();
+
+// Attach enhanced context to every request
+app.use(async (req, res, next) => {
+  try {
+    // Get enhanced context with request metadata
+    const ctx = await getEnhancedProjectContext({
+      method: req.method,
+      path: req.originalUrl,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      includeThreadContext: true
+    });
+
+    // Store recent paths for agent reasoning
+    await storeCrossThreadMemory('recentPaths', { 
+      path: req.originalUrl, 
+      method: req.method,
+      t: Date.now(),
+      ip: req.ip
+    }, 'system', 7); // 7 days retention for recent paths
+
+    // Per-request counter for monitoring
+    const reqKey = 'sdk.requests';
+    const prev = threadManager.get(reqKey) || 0;
+    const curr = prev + 1;
+    threadManager.set(reqKey, curr);
+    await storeAgentMemory('requestCount', curr, 'sdk', 7); // Fixed signature: key, content, userId
+
+    // Per-route counter
+    const routeKey = `sdk.routes.${req.method}.${req.originalUrl}`;
+    const routePrev = threadManager.get(routeKey) || 0;
+    threadManager.set(routeKey, routePrev + 1);
+
+    // Attach context for downstream handlers
+    req.extendedContext = ctx;
+    req.threadManager = threadManager;
+    
+    next();
+  } catch (err) {
+    console.error('[memory] Context enrichment failed:', err.message);
+    // Non-fatal: continue without enhanced context
+    req.extendedContext = { error: err.message };
+    next();
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 // DIAGNOSTIC: Global request logger AFTER middleware setup
 // ───────────────────────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -92,6 +142,99 @@ app.get("/healthz", (_req, res) => {
 
 app.get("/ready", (_req, res) => {
   res.json({ ok: true, status: "ready", timestamp: new Date().toISOString() });
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+// MEMORY DIAGNOSTICS: Agent-facing endpoints for context inspection
+// ───────────────────────────────────────────────────────────────────────────────
+app.get('/diagnostics/memory', async (req, res) => {
+  try {
+    const recent = await getCrossThreadMemory('system', 50); // userId, limit
+    const agentMem = await getAgentMemory('sdk', 50); // userId, limit
+    const summary = await getProjectSummary();
+    const threadContext = req.threadManager ? {
+      totalRequests: req.threadManager.get('sdk.requests') || 0,
+      recentRoutes: Array.from(req.threadManager.entries())
+        .filter(([k]) => k.startsWith('sdk.routes.'))
+        .slice(0, 10)
+        .map(([k, v]) => ({ route: k, count: v }))
+    } : null;
+
+    res.json({ 
+      ok: true, 
+      timestamp: new Date().toISOString(),
+      recent: recent || [], 
+      agentMem: agentMem || {},
+      summary: summary || {},
+      threadContext
+    });
+  } catch (err) {
+    console.error('[diagnostics/memory] Error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/diagnostics/prefs', parseJson, async (req, res) => {
+  try {
+    const { key, value } = req.body || {};
+    if (!key) {
+      return res.status(400).json({ ok: false, error: 'key required' });
+    }
+    
+    await saveUserPreference(key, value, 'system');
+    res.json({ ok: true, key, value, timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('[diagnostics/prefs] Error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/diagnostics/session', parseJson, async (req, res) => {
+  try {
+    const sessionData = {
+      timestamp: Date.now(),
+      lastPath: req.headers['referer'] || req.originalUrl,
+      userAgent: req.headers['user-agent'],
+      ...req.body
+    };
+    
+    await saveSessionState('sdk-session', sessionData, 'system');
+    await saveProjectState({ 
+      lastDiagnosticCheck: Date.now(),
+      requestCount: req.threadManager?.get('sdk.requests') || 0
+    });
+    
+    res.json({ ok: true, session: sessionData, timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('[diagnostics/session] Error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/diagnostics/conversations', async (_req, res) => {
+  try {
+    const conversations = await getRecentConversations(20);
+    res.json({ ok: true, conversations, count: conversations.length });
+  } catch (err) {
+    console.error('[diagnostics/conversations] Error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/diagnostics/remember', parseJson, async (req, res) => {
+  try {
+    const { path, result, metadata } = req.body || {};
+    await rememberConversation({ 
+      path: path || req.originalUrl, 
+      result, 
+      metadata,
+      timestamp: Date.now() 
+    });
+    res.json({ ok: true, timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('[diagnostics/remember] Error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
