@@ -192,7 +192,7 @@ app.get("*", async (req, res, next) => {
     res.sendFile(indexPath);
   } catch {
     // Fallback landing page when no build exists
-    const PORT = Number(process.env.PORT || 3001);
+    const PORT = Number(process.env.EIDOLON_PORT || process.env.PORT || 3002);
     res.setHeader("Content-Type", "text/html");
     res.setHeader("Cache-Control", "no-cache");
     res.send(`<!DOCTYPE html>
@@ -231,7 +231,9 @@ app.get("*", async (req, res, next) => {
 // Ports & env
 // ───────────────────────────────────────────────────────────────────────────────
 function getPortConfig() {
-  const mainPort = Number(process.env.PORT || 3001);
+  // SDK should use EIDOLON_PORT first, then PORT (set by gateway spawn), then default 3002
+  // This prevents conflict with gateway's PORT
+  const mainPort = Number(process.env.EIDOLON_PORT || process.env.PORT || 3002);
   const agentPort = Number(
     process.env.AGENT_PORT || process.env.DEFAULT_AGENT_PORT || 43717,
   );
