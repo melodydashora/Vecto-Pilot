@@ -1,46 +1,38 @@
-// gateway-server.js - Single public server with supervised child processes
-import dotenv from "dotenv";
-dotenv.config();
+// gateway-server.js — ESM gateway: single public port, supervised children, Vite in middleware mode with pinned HMR
 
-import express from "express";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
-import { createProxyMiddleware } from "http-proxy-middleware";
-import { spawn } from "node:child_process";
-import net from "node:net";
-import path from "node:path";
-import fs from "node:fs";
-import { fileURLToPath } from "node:url";
-import { loadAssistantPolicy } from "./server/eidolon/policy-loader.js";
-import { startMemoryCompactor } from "./server/eidolon/memory/compactor.js";
-import pg from "pg";
+import 'dotenv/config';
+import express from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { createProxyMiddleware as proxy } from 'http-proxy-middleware';
+import http from 'node:http';
+import { spawn } from 'node:child_process';
+import net from 'node:net';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 
-// ---------- config ----------
-const app = express();
-app.disable("x-powered-by");
-app.set("trust proxy", 1);
+// Import after env is loaded
+import { loadAssistantPolicy } from './server/eidolon/policy-loader.js';
+import { startMemoryCompactor } from './server/eidolon/memory/compactor.js';
 
-// CRITICAL: Gateway is the ONLY public server on PORT
-const GATEWAY_PORT = Number(process.env.PORT || 8080);
-const IS_PRODUCTION = process.env.NODE_ENV === "production";
+// ---------- Ports (1 public, rest private) ----------
+const GATEWAY_PORT = Number(process.env.PORT || 8080); // Replit assigns this (only public)
+const SDK_PORT     = 3101;      // internal
+const AGENT_PORT   = 43717;     // internal
+const HMR_PORT     = 24700;     // internal HMR WS server
+const HMR_PATH     = '/hmr';    // public WS path clients connect to
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// Private ports - MUST bind to 127.0.0.1
-const SDK_PORT = 3101;
-const AGENT_PORT = 43717;
-const VITE_PORT = 5173;
-const VITE_HMR_PORT = 24700; // Pin HMR to avoid collisions
-
-console.log("🚀 [gateway] Starting in", IS_PRODUCTION ? "PRODUCTION" : "DEVELOPMENT", "mode");
-console.log("🚀 [gateway] Port configuration:", { 
-  Gateway: GATEWAY_PORT + " (public)", 
-  SDK: SDK_PORT + " (private)",
-  Agent: AGENT_PORT + " (private)",
-  Vite: VITE_PORT + " (private)"
-});
+// ---------- Helpers ----------
+const log  = (...a) => console.log(...a);
+const warn = (...a) => console.warn(...a);
+const err  = (...a) => console.error(...a);
 
 // ---------- Vector DB setup (REQUIRED) ----------
 if (!process.env.DATABASE_URL) {
-  console.error("❌ [FATAL] DATABASE_URL is required. This system cannot run without a database.");
+  err('❌ [FATAL] DATABASE_URL is required. This system cannot run without a database.');
   process.exit(1);
 }
 
@@ -58,145 +50,101 @@ CREATE INDEX IF NOT EXISTS documents_embedding_idx
   ON documents USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 `;
 
-let dbReady = false;
-
 async function prepareDb() {
   try {
     await pool.query(INIT_SQL);
     await pool.query("ANALYZE documents;");
-    dbReady = true;
-    console.log("[db] Vector DB ready ✅");
-  } catch (err) {
-    console.error("❌ [FATAL] Failed to prepare vector DB:", err.message);
+    log('[db] Vector DB ready ✅');
+  } catch (error) {
+    err('❌ [FATAL] Failed to prepare vector DB:', error.message);
     process.exit(1);
   }
 }
 
-// ---------- child process supervisor ----------
-const children = [];
-
-function spawnSvc(label, cmd, args, opts) {
-  let child = null;
-  let restarting = false;
-  let backoff = 500; // ms min backoff
-  
-  function start() {
-    if (restarting) return;
-    
-    console.log(`[${label}] Starting on port ${opts.port}...`);
-    
-    child = spawn(cmd, args, {
-      stdio: "inherit",
-      env: { 
-        ...process.env, 
-        HOST: "127.0.0.1",  // CRITICAL: Force localhost
-        PORT: String(opts.port),
-        NODE_ENV: process.env.NODE_ENV
-      },
-      cwd: opts.cwd || process.cwd(),
-    });
-    
-    children.push(child);
-    
-    child.on("exit", (code, signal) => {
-      if (restarting) return;
-      restarting = true;
-      
-      const delay = Math.min(backoff, 5000);
-      console.error(`[${label}] exited (code=${code}, sig=${signal}) — restarting in ${delay}ms`);
-      
-      setTimeout(() => {
-        restarting = false;
-        backoff = Math.min(backoff * 2, 5000);
-        start();
-      }, delay);
-    });
-    
-    child.on("error", (err) => {
-      console.error(`[${label}] spawn error:`, err.message);
-    });
-    
-    return child;
-  }
-  
-  return start();
-}
-
-// ---------- Start children BEFORE HTTP routing ----------
-if (!IS_PRODUCTION) {
-  console.log("🐕 Starting supervised child processes...");
-  
-  // Start SDK
-  spawnSvc("eidolon-sdk", "node", ["index.js"], { 
-    port: SDK_PORT, 
-    cwd: process.cwd() 
-  });
-  
-  // Start Agent
-  const agentPath = path.join(process.cwd(), "agent-server.js");
-  if (fs.existsSync(agentPath)) {
-    spawnSvc("agent", "node", ["agent-server.js"], { 
-      port: AGENT_PORT, 
-      cwd: process.cwd() 
-    });
-  } else {
-    console.warn("[gateway] agent-server.js not found, skipping agent spawn");
-  }
-}
-
-// ---------- Vite dev middleware (single instance, pinned HMR) ----------
-let viteReady = false;
-
-async function setupVite(app) {
-  if (IS_PRODUCTION) return;
-  
-  try {
-    const { createServer } = await import("vite");
-    const vite = await createServer({
-      server: {
-        middlewareMode: true,
-        host: "127.0.0.1",  // CRITICAL: localhost only
-        port: VITE_PORT,
-        hmr: { 
-          host: "127.0.0.1", 
-          port: VITE_HMR_PORT  // Pin HMR to avoid collisions
-        },
-      },
-      appType: "custom",
-    });
-    
-    app.use(vite.middlewares);
-    viteReady = true;
-    console.log("[gateway] Vite dev middleware active - React app served from memory");
-    console.log("[gateway] Vite HMR pinned to port", VITE_HMR_PORT);
-  } catch (err) {
-    console.error("[gateway] Vite setup failed:", err);
-  }
-}
-
-// ---------- helper to wait for ports ----------
-function waitForPort(port, host = "127.0.0.1", timeoutMs = 15000) {
+// ---------- Port wait helper ----------
+function waitForPort(port, host = '127.0.0.1', timeoutMs = 20_000) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
-    
-    (function tryConnect() {
-      const socket = net.connect({ port, host }, () => { 
-        socket.destroy(); 
-        resolve(true); 
-      });
-      
-      socket.on("error", () => {
-        socket.destroy();
-        if (Date.now() - start > timeoutMs) {
-          return reject(new Error(`Timeout waiting for ${host}:${port}`));
-        }
-        setTimeout(tryConnect, 250);
+    (function retry() {
+      const s = net.connect({ port, host }, () => { s.destroy(); resolve(true); });
+      s.on('error', () => {
+        s.destroy();
+        if (Date.now() - start > timeoutMs) return reject(new Error(`Timeout waiting for ${host}:${port}`));
+        setTimeout(retry, 250);
       });
     })();
   });
 }
 
-// ---------- security middleware ----------
+// ---------- Child process supervisor ----------
+const children = [];
+
+function spawnSupervised(label, cmd, args, { cwd, port }) {
+  let restarting = false;
+  let backoff = 750;
+  
+  const start = () => {
+    const env = {
+      ...process.env,
+      HOST: '127.0.0.1',
+      PORT: String(port),                  // child binds privately
+      REPLIT_PUBLIC_PORT: String(GATEWAY_PORT), // optional: for logging
+    };
+    
+    const child = spawn(cmd, args, { cwd, env, stdio: 'inherit' });
+    children.push(child);
+    
+    child.on('exit', (code, signal) => {
+      warn(`[${label}] exited (code=${code}, signal=${signal})`);
+      if (restarting) return;
+      restarting = true;
+      const delay = Math.min(backoff, 5000);
+      warn(`[${label}] restarting in ${delay}ms...`);
+      setTimeout(() => { 
+        restarting = false; 
+        backoff = Math.min(backoff * 2, 5000); 
+        start(); 
+      }, delay);
+    });
+    
+    child.on('error', (error) => {
+      err(`[${label}] spawn error:`, error.message);
+    });
+  };
+  
+  start();
+}
+
+// ---------- Boot ----------
+log('🚀 [gateway] Starting in', IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT', 'mode');
+log('🚀 [gateway] Port configuration:', { 
+  Gateway: GATEWAY_PORT + ' (public)', 
+  SDK: SDK_PORT, 
+  Agent: AGENT_PORT, 
+  HMR: HMR_PORT 
+});
+
+// Start internal services BEFORE routes
+if (!IS_PRODUCTION) {
+  // Check if files exist and spawn with correct names
+  const workspace = '/home/runner/workspace';
+  
+  if (fs.existsSync(path.join(workspace, 'index.js'))) {
+    spawnSupervised('sdk', 'node', ['index.js'], { cwd: workspace, port: SDK_PORT });
+  } else {
+    warn('[gateway] index.js not found, SDK spawn skipped');
+  }
+  
+  if (fs.existsSync(path.join(workspace, 'agent-server.js'))) {
+    spawnSupervised('agent', 'node', ['agent-server.js'], { cwd: workspace, port: AGENT_PORT });
+  } else {
+    warn('[gateway] agent-server.js not found, Agent spawn skipped');
+  }
+}
+
+// ---------- App ----------
+const app = express();
+app.set('trust proxy', true);
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -213,25 +161,23 @@ app.use(helmet({
   }
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use("/api/", limiter);
+app.use(rateLimit({ 
+  windowMs: 60_000, 
+  max: 300, 
+  standardHeaders: true, 
+  legacyHeaders: false 
+}));
 
-// Health check (gateway itself)
-app.get("/health", (req, res) => {
-  res.json({ ok: true, gateway: "healthy", port: GATEWAY_PORT });
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ ok: true, gateway: 'healthy', port: GATEWAY_PORT });
 });
 
-// ---------- Load production routes if needed ----------
+// ---------- Production routes ----------
 if (IS_PRODUCTION) {
-  console.log("✅ [gateway] Production mode - loading API routes synchronously");
+  log('✅ [gateway] Production mode - loading API routes');
   
-  const parseJson = express.json({ limit: "1mb", strict: true });
+  const parseJson = express.json({ limit: '1mb', strict: true });
   
   // Load all production routes
   Promise.all([
@@ -270,71 +216,117 @@ if (IS_PRODUCTION) {
     app.use('/api/memory', modules[14].default);
     app.use('/api/assistant', modules[15].default);
     
-    console.log("✅ [gateway] All production routes loaded");
-  }).catch(err => {
-    console.error("❌ [gateway] Failed to load production routes:", err);
+    log('✅ [gateway] All production routes loaded');
+  }).catch(error => {
+    err('❌ [gateway] Failed to load production routes:', error);
   });
   
   // Serve static build
-  const distDir = path.resolve(process.cwd(), "dist");
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const distDir = path.resolve(process.cwd(), 'dist');
+  
   app.use(express.static(distDir));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(distDir, "index.html"));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distDir, 'index.html'));
   });
 }
 
-// ---------- Proxies (all to localhost) ----------
+// ---------- Vite middleware (no HTTP port), HMR tunneled via /hmr ----------
+let viteReady = false;
 if (!IS_PRODUCTION) {
-  const createProxy = (target, extra = {}) => 
-    createProxyMiddleware({
-      target,
-      changeOrigin: true,
-      ws: true,
-      logLevel: "warn",
-      ...extra
-    });
-  
-  // SDK proxies
-  app.use("/assistant", createProxy(`http://127.0.0.1:${SDK_PORT}/api/assistant`));
-  app.use("/eidolon", createProxy(`http://127.0.0.1:${SDK_PORT}`));
-  app.use("/api", createProxy(`http://127.0.0.1:${SDK_PORT}/api`));
-  
-  // Agent proxy
-  app.use("/agent", createProxy(`http://127.0.0.1:${AGENT_PORT}/agent`));
-  
-  // Setup Vite after proxies
-  setupVite(app).then(() => {
-    if (!IS_PRODUCTION) {
-      // Wait for backend services
-      Promise.allSettled([
-        waitForPort(SDK_PORT).then(() => console.log(`✅ [gateway] SDK ready on port ${SDK_PORT}`)),
-        waitForPort(AGENT_PORT).then(() => console.log(`✅ [gateway] Agent ready on port ${AGENT_PORT}`))
-      ]).then(() => console.log("✅ [gateway] All backends ready"));
+  (async () => {
+    try {
+      const { createServer } = await import('vite');
+      const react = (await import('@vitejs/plugin-react')).default;
+      
+      const vite = await createServer({
+        plugins: [react()],
+        appType: 'custom',
+        server: {
+          middlewareMode: true,     // serve assets through Express
+          hmr: {
+            host: '127.0.0.1',      // internal WS host
+            port: HMR_PORT,         // internal WS port
+            clientPort: GATEWAY_PORT, // what the browser uses externally
+            path: HMR_PATH,         // WS path on the public gateway
+          },
+        },
+        root: path.resolve(process.cwd(), 'client'),
+        resolve: {
+          alias: {
+            '@': path.resolve(process.cwd(), 'client', 'src'),
+            '@shared': path.resolve(process.cwd(), 'shared'),
+            '@assets': path.resolve(process.cwd(), 'attached_assets'),
+          },
+        },
+      });
+      
+      app.use(vite.middlewares);
+      viteReady = true;
+      log(`[gateway] Vite middleware active — HMR ws ${HMR_PATH} -> 127.0.0.1:${HMR_PORT}`);
+    } catch (e) {
+      err('[gateway] Vite setup failed:', e);
     }
-  });
+  })();
+}
+
+// ---------- Proxies (HTTP) ----------
+if (!IS_PRODUCTION) {
+  const p = (target) => proxy({ target, changeOrigin: true, ws: true, logLevel: 'warn' });
+  
+  app.use('/assistant', p(`http://127.0.0.1:${SDK_PORT}/api/assistant`));
+  app.use('/eidolon',   p(`http://127.0.0.1:${SDK_PORT}`));
+  app.use('/agent',     p(`http://127.0.0.1:${AGENT_PORT}/agent`));
+  app.use('/api',       p(`http://127.0.0.1:${SDK_PORT}/api`));
+  
+  // NOTE: no catch-all needed; Vite middleware serves the app.
 }
 
 // Error handling
-app.use((err, req, res, next) => {
-  if (err?.code === "ECONNABORTED") {
+app.use((error, req, res, next) => {
+  if (error?.code === 'ECONNABORTED') {
     if (!res.headersSent) res.status(499).end();
     return;
   }
-  if (err?.type === "entity.too.large") {
-    return res.status(413).json({ ok: false, error: "payload too large" });
+  if (error?.type === 'entity.too.large') {
+    return res.status(413).json({ ok: false, error: 'payload too large' });
   }
-  console.error("[gateway] Error:", err);
-  res.status(500).json({ ok: false, error: "internal_error" });
+  err('[gateway] Error:', error);
+  res.status(500).json({ ok: false, error: 'internal_error' });
 });
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ ok: false, error: "route_not_found", path: req.path });
+  res.status(404).json({ ok: false, error: 'route_not_found', path: req.path });
 });
 
-// ---------- Start server ----------
-const server = app.listen(GATEWAY_PORT, "0.0.0.0", async () => {
-  console.log(`🌐 [gateway] Server listening on 0.0.0.0:${GATEWAY_PORT} (public)`);
+// ---------- HTTP server + WS upgrades ----------
+const server = http.createServer(app);
+
+server.on('upgrade', (req, socket, head) => {
+  const url = req.url || '/';
+  
+  // Vite HMR WS (public /hmr -> internal HMR_PORT)
+  if (url.startsWith(HMR_PATH)) {
+    return proxy({ target: `ws://127.0.0.1:${HMR_PORT}`, changeOrigin: true, ws: true }).upgrade(req, socket, head);
+  }
+  
+  // Agent websockets
+  if (url.startsWith('/agent')) {
+    return proxy({ target: `ws://127.0.0.1:${AGENT_PORT}`, changeOrigin: true, ws: true }).upgrade(req, socket, head);
+  }
+  
+  // SDK websockets
+  if (url.startsWith('/assistant') || url.startsWith('/api') || url.startsWith('/socket.io')) {
+    return proxy({ target: `ws://127.0.0.1:${SDK_PORT}`, changeOrigin: true, ws: true }).upgrade(req, socket, head);
+  }
+  
+  socket.destroy(); // unknown upgrade path
+});
+
+server.listen(GATEWAY_PORT, '0.0.0.0', async () => {
+  log(`🌐 [gateway] Server listening on 0.0.0.0:${GATEWAY_PORT}`);
   
   // Prepare vector DB
   await prepareDb();
@@ -342,63 +334,55 @@ const server = app.listen(GATEWAY_PORT, "0.0.0.0", async () => {
   // Load assistant policy
   setImmediate(() => {
     try {
-      console.log("[gateway] Loading assistant policy...");
-      const policy = loadAssistantPolicy(process.env.ASSISTANT_POLICY_PATH || "config/assistant-policy.json");
-      app.set("assistantPolicy", policy);
-      console.log("[gateway] Starting memory compactor...");
+      log('[gateway] Loading assistant policy...');
+      const policy = loadAssistantPolicy(process.env.ASSISTANT_POLICY_PATH || 'config/assistant-policy.json');
+      app.set('assistantPolicy', policy);
+      log('[gateway] Starting memory compactor...');
       startMemoryCompactor(policy);
-      console.log("[gateway] Policy and memory compactor initialized");
-    } catch (err) {
-      console.warn("[gateway] Policy loading failed (non-critical):", err.message);
+      log('[gateway] Policy and memory compactor initialized');
+    } catch (error) {
+      warn('[gateway] Policy loading failed (non-critical):', error.message);
     }
   });
   
+  if (!IS_PRODUCTION) {
+    try {
+      await Promise.allSettled([
+        waitForPort(SDK_PORT).then(() => log(`✅ [gateway] SDK ready on ${SDK_PORT}`)),
+        waitForPort(AGENT_PORT).then(() => log(`✅ [gateway] Agent ready on ${AGENT_PORT}`)),
+        waitForPort(HMR_PORT).then(() => log(`✅ [gateway] HMR WS on ${HMR_PORT} (public at ${HMR_PATH})`)),
+      ]);
+      log('🌐 [gateway] Proxy map:');
+      log(`  /assistant/*  -> http://127.0.0.1:${SDK_PORT}/api/assistant/*`);
+      log(`  /eidolon/*    -> http://127.0.0.1:${SDK_PORT}/*`);
+      log(`  /agent/*      -> http://127.0.0.1:${AGENT_PORT}/agent/*`);
+      log(`  /api/*        -> http://127.0.0.1:${SDK_PORT}/api/*`);
+      log(`  HMR WS        -> ws://127.0.0.1:${HMR_PORT} via ${HMR_PATH}`);
+    } catch (e) {
+      warn('⚠️  [gateway] Some backends not ready yet:', e?.message || e);
+    }
+  }
+  
   if (process.env.REPL_ID) {
-    console.log(`🌐 [gateway] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
-  }
-});
-
-// Handle WebSocket upgrades
-server.on("upgrade", (req, socket, head) => {
-  const url = req.url || "";
-  
-  const createProxy = (target) => 
-    createProxyMiddleware({
-      target,
-      changeOrigin: true,
-      ws: true,
-    });
-  
-  // Route WebSocket connections
-  if (url.startsWith("/agent")) {
-    return createProxy(`http://127.0.0.1:${AGENT_PORT}`).upgrade(req, socket, head);
-  }
-  
-  if (url.startsWith("/assistant") || url.startsWith("/api") || url.startsWith("/socket.io")) {
-    return createProxy(`http://127.0.0.1:${SDK_PORT}`).upgrade(req, socket, head);
-  }
-  
-  // Default: Vite HMR
-  if (viteReady) {
-    return createProxy(`http://127.0.0.1:${VITE_PORT}`).upgrade(req, socket, head);
+    log(`🌐 [gateway] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
   }
 });
 
 // ---------- Graceful shutdown ----------
 function shutdown() {
-  console.log("[gateway] Shutting down...");
+  log('[gateway] Shutting down...');
   
   // Kill all child processes
   children.forEach(child => {
     if (child && !child.killed) {
-      child.kill("SIGTERM");
+      child.kill('SIGTERM');
     }
   });
   
   server.close(() => process.exit(0));
 }
 
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 export default app;
