@@ -158,21 +158,23 @@ if (!IS_PRODUCTION) {
 // ---------- App ----------
 const app = express();
 app.set('trust proxy', true);
+// Security headers via helmet
 app.use(helmet({
-  contentSecurityPolicy: {
+  contentSecurityPolicy: IS_PRODUCTION ? {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:", "http:", "blob:"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https:", "http:"],
-      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
-      connectSrc: ["'self'", "https:", "http:", "ws:", "wss:"],
-      fontSrc: ["'self'", "https:", "http:", "data:"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:", "blob:"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "https:", "wss:", "ws:"],
+      fontSrc: ["'self'", "https:", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'self'", "https://js.stripe.com", "https://www.google.com", "https://recaptcha.net"]
     }
-  }
+  } : false // Disable CSP in development for easier debugging
 }));
+app.disable('x-powered-by');
 
 // Rate limiting - configured for Replit environment
 const limiter = rateLimit({ 
