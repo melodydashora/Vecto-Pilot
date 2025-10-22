@@ -9,7 +9,7 @@ channel = "stable-25_05"
 
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
-run = ["sh", "-c", "PORT=${PORT} npm start"]
+run = ["sh", "-c", "npm start"]
 
 [[ports]]
 localPort = 80
