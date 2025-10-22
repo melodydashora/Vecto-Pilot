@@ -1,29 +1,9 @@
 entrypoint = "gateway-server.js"
 modules = ["nodejs-22"]
 
-[workflows]
-runButton = "Vecto Pilot"
-
-[[workflows.workflow]]
-name = "Vecto Pilot"
-mode = "parallel"
-author = "assistant"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bash -lc 'PORT=${PORT} npm start'"
-
 [nix]
-packages = ["nodejs-22", "lsof"]
+packages = ["nodejs-22"]
 channel = "stable-25_05"
 
 [deployment]
-build = ["bash", "-lc", "if [ -f package.json ]; then npm ci --omit=dev || npm ci; fi; if npm run | grep -q ' build'; then npm run build; else echo 'no build script'; fi"]
-run = ["bash", "-lc", "PORT=${PORT} npm start"]
-
-[env]
-NODE_ENV = "development"
-
-[[ports]]
-localPort = 5000
-externalPort = 80
+run = ["node", "gateway-server.js"]
