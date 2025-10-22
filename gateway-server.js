@@ -6,11 +6,15 @@ import cors from 'cors';
 import helmet from 'helmet';
 import httpProxy from 'http-proxy';
 const { createProxyServer } = httpProxy;
+import { GATEWAY_CONFIG } from './agent-ai-config.js';
 
 const isDev = process.env.NODE_ENV !== 'production';
 const PORT = Number(process.env.PORT || 80);
 const AGENT_PORT = Number(process.env.AGENT_PORT || 43717);
 const SDK_PORT = Number(process.env.EIDOLON_PORT || 3101);
+
+// Log AI config on boot
+console.log('[gateway] AI Config:', GATEWAY_CONFIG);
 
 const agentTarget = `http://127.0.0.1:${AGENT_PORT}`;
 const sdkTarget = `http://127.0.0.1:${SDK_PORT}`;
@@ -113,14 +117,16 @@ app.get('/agent/healthz', (_req, res) => {
   proxy.web(_req, res, { target: agentTarget, changeOrigin: true });
 });
 
-// Aggregate status endpoint for drivers
+// Aggregate status endpoint for drivers and agent introspection
 app.get('/status', async (_req, res) => {
   const status = {
     timestamp: new Date().toISOString(),
-    gateway: { ok: true, port: PORT },
+    uptime: process.uptime(),
+    gateway: { ok: true, port: PORT, config: GATEWAY_CONFIG },
     sdk: { ok: false, port: SDK_PORT, error: null },
     agent: { ok: false, port: AGENT_PORT, error: null },
-    vite: { ok: false, port: 5173, error: null }
+    vite: { ok: false, port: 5173, error: null },
+    memory: { diagnosticsAvailable: false }
   };
 
   // Check SDK
@@ -152,6 +158,21 @@ app.get('/status', async (_req, res) => {
     }
   } else {
     status.vite = { ok: true, note: 'production mode - using static build' };
+  }
+
+  // Check memory diagnostics availability
+  try {
+    const memRes = await fetch(`http://127.0.0.1:${SDK_PORT}/diagnostics/memory`, { signal: AbortSignal.timeout(1000) });
+    if (memRes.ok) {
+      const memData = await memRes.json();
+      status.memory = { 
+        diagnosticsAvailable: true, 
+        recentPathsCount: memData.recent?.length || 0,
+        service: 'sdk'
+      };
+    }
+  } catch {
+    status.memory = { diagnosticsAvailable: false, note: 'SDK memory endpoint unavailable' };
   }
 
   const allOk = status.gateway.ok && status.sdk.ok && status.agent.ok && status.vite.ok;

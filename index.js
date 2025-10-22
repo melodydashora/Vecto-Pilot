@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import cors from "cors";
 import MCPDiagnostics from "./server/eidolon/tools/mcp-diagnostics.js";
 import WorkspaceRepairTools from "./tools/debug/vecto-repair-tools.js";
+import { EIDOLON_CONFIG } from "./agent-ai-config.js";
 
 // API route modules
 import healthRoutes from "./server/routes/health.js";
@@ -57,6 +58,9 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Log AI config on boot
+console.log('[SDK/Eidolon] AI Config:', EIDOLON_CONFIG);
 
 const app = express();
 
