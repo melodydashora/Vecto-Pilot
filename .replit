@@ -6,4 +6,5 @@ packages = ["nodejs-22"]
 channel = "stable-25_05"
 
 [deployment]
-run = ["node", "gateway-server.js"]
+build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
+run = ["sh", "-c", "PORT=${PORT} npm start"]
