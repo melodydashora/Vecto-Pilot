@@ -3,6 +3,8 @@ import { db } from '../db/drizzle.js';
 import { venue_feedback, strategy_feedback, app_feedback, ranking_candidates, actions } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import crypto from 'crypto';
+import { capturelearning, LEARNING_EVENTS } from '../middleware/learning-capture.js';
+import { indexFeedback } from '../lib/semantic-search.js';
 
 const router = express.Router();
 
@@ -86,7 +88,7 @@ router.post('/venue', async (req, res) => {
     }
     
     // Upsert feedback (update if exists, insert if new)
-    await db
+    const [feedbackRow] = await db
       .insert(venue_feedback)
       .values({
         user_id: userId || null,
@@ -104,7 +106,8 @@ router.post('/venue', async (req, res) => {
           comment: sanitizedComment,
           created_at: sql`now()`,
         },
-      });
+      })
+      .returning();
     
     // Log to actions table (optional instrumentation)
     try {
@@ -128,6 +131,24 @@ router.post('/venue', async (req, res) => {
       place: place_id || 'null',
       sent: sentiment,
     });
+    
+    // LEARNING CAPTURE: Index feedback for semantic search (async, non-blocking)
+    if (feedbackRow?.id) {
+      setImmediate(() => {
+        indexFeedback(feedbackRow.id).catch(err => {
+          console.error('[feedback] Semantic indexing failed:', err.message);
+        });
+        capturelearning(LEARNING_EVENTS.VENUE_FEEDBACK, {
+          feedback_id: feedbackRow.id,
+          venue_name,
+          sentiment,
+          has_comment: !!sanitizedComment,
+          ranking_id
+        }, userId).catch(err => {
+          console.error('[feedback] Learning capture failed:', err.message);
+        });
+      });
+    }
     
     res.json({ ok: true });
     
