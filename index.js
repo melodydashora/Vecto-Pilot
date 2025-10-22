@@ -1434,9 +1434,13 @@ function startEidolonServer() {
     }
     // Agent server is optional - only needed for advanced file operations
     // Don't spawn agent if we're being run by the gateway (it spawns agent separately)
+    // Check if we're a child process spawned by gateway
+    const isGatewayChild = process.env.EIDOLON_PORT !== undefined || 
+                          process.ppid !== 1; // Not PID 1 = we have a parent process
     const skipAgent = process.env.SKIP_AGENT === "true" || 
                      process.env.NODE_ENV === "production" || 
-                     process.env.REPLIT_PUBLIC_PORT !== undefined;  // Gateway sets this for children
+                     isGatewayChild;
+    
     if (!skipAgent) {
       try {
         await ensureAgentUp();
@@ -1445,7 +1449,7 @@ function startEidolonServer() {
         console.log("[eidolon] agent unavailable (optional):", e?.message || e);
       }
     } else {
-      console.log("[eidolon] agent disabled (production mode)");
+      console.log("[eidolon] agent spawn skipped (gateway manages it)");
     }
     try {
       await contextManager.analyzeWorkspace();
