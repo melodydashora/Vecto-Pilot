@@ -89,6 +89,46 @@ export async function knnSearch({ queryEmbedding, k = 5, minScore = 0.0 }) {
   return rows.filter(r => r.score >= minScore);
 }
 
+// ---------- Assistant Memory Functions (Learning & Context) ----------
+export async function rememberContext(scope, key, content, userId = null) {
+  const { rows } = await pool.query(
+    `INSERT INTO assistant_memory (id, scope, key, user_id, content, created_at, updated_at)
+     VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW(), NOW())
+     ON CONFLICT (scope, key) DO UPDATE 
+     SET content = EXCLUDED.content, updated_at = NOW()
+     RETURNING *`,
+    [scope, key, userId, content]
+  );
+  return rows[0];
+}
+
+export async function recallContext(scope, key = null) {
+  if (key) {
+    const { rows } = await pool.query(
+      `SELECT * FROM assistant_memory WHERE scope = $1 AND key = $2 ORDER BY updated_at DESC LIMIT 1`,
+      [scope, key]
+    );
+    return rows[0] || null;
+  }
+  const { rows } = await pool.query(
+    `SELECT * FROM assistant_memory WHERE scope = $1 ORDER BY updated_at DESC`,
+    [scope]
+  );
+  return rows;
+}
+
+export async function searchMemory(searchTerm) {
+  const { rows } = await pool.query(
+    `SELECT scope, key, content, created_at, updated_at 
+     FROM assistant_memory 
+     WHERE scope ILIKE $1 OR key ILIKE $1 OR content::text ILIKE $1
+     ORDER BY updated_at DESC
+     LIMIT 20`,
+    [`%${searchTerm}%`]
+  );
+  return rows;
+}
+
 // ---------- CRITICAL: health checks MUST be FIRST (before any middleware) ----------
 // Deployment health checks hit "/" - respond immediately with 200 for ALL requests
 app.head("/", (_req, res) => {
