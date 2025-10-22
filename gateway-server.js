@@ -6,9 +6,9 @@ import helmet from 'helmet';
 import httpProxy from 'http-proxy';
 const { createProxyServer } = httpProxy;
 
-const PORT       = Number(process.env.PORT || 3101);
+const PORT       = Number(process.env.PORT || process.env.GATEWAY_PORT || 80);
 const AGENT_PORT = Number(process.env.AGENT_PORT || 43717);
-const SDK_PORT   = Number(process.env.SDK_PORT || 3101);
+const SDK_PORT   = Number(process.env.EIDOLON_PORT || 3101);
 
 const agentTarget = `http://127.0.0.1:${AGENT_PORT}`;
 const sdkTarget   = `http://127.0.0.1:${SDK_PORT}`;
