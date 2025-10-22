@@ -337,6 +337,35 @@ if (IS_PRODUCTION) {
   });
 }
 
+// ---------- Serve React build in development too ----------
+// Check if dist exists and serve it even in dev mode
+if (!IS_PRODUCTION) {
+  const distDir = path.resolve(process.cwd(), 'dist');
+  if (fs.existsSync(distDir)) {
+    log('✅ [gateway] Dev mode: Serving React build from', distDir);
+    app.use(express.static(distDir));
+    
+    // SPA fallback for routes not handled by proxies
+    app.get('*', (req, res, next) => {
+      // Skip API and proxy routes
+      if (req.path.startsWith('/api') || 
+          req.path.startsWith('/assistant') || 
+          req.path.startsWith('/agent') || 
+          req.path.startsWith('/eidolon') ||
+          req.path.startsWith('/health') ||
+          req.path.startsWith('/ready')) {
+        return next();
+      }
+      const indexPath = path.join(distDir, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        next();
+      }
+    });
+  }
+}
+
 // ---------- Vite middleware (no HTTP port), HMR tunneled via /hmr ----------
 let viteReady = false;
 if (!IS_PRODUCTION) {
