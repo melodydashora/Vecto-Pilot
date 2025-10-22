@@ -264,4 +264,19 @@ export const llm_venue_suggestions = pgTable("llm_venue_suggestions", {
   llm_analysis: jsonb('llm_analysis'),
 });
 
+export const agent_memory = pgTable("agent_memory", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  session_id: text("session_id").notNull(),
+  entry_type: text("entry_type").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  status: text("status").default('active'),
+  metadata: jsonb("metadata"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+}, (table) => ({
+  idxSession: sql`create index if not exists idx_agent_memory_session on ${table} (session_id)`,
+  idxType: sql`create index if not exists idx_agent_memory_type on ${table} (entry_type)`,
+}));
+
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
