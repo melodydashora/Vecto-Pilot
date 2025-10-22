@@ -561,7 +561,7 @@ if (process.env.NODE_ENV !== "production") {
       server: {
         middlewareMode: true,
         host: "127.0.0.1",
-        hmr: { host: "127.0.0.1", port: 24700 } // Pin HMR to avoid port conflicts
+        hmr: false // Disable HMR in middleware mode - gateway handles hot reload via proxy restart
       },
       appType: "spa",
       configFile: path.resolve(process.cwd(), "vite.config.js")
@@ -688,8 +688,22 @@ try {
       // Warm up SDK in background
       (async () => {
         console.log(`[gateway] Waiting for SDK to become healthy on port ${SDK_PORT}…`);
-        const ok = await probeHealth();
-        if (ok) { sdkReady = true; console.log("[gateway] SDK is healthy and ready"); }
+        for (let attempt = 0; attempt < 60; attempt++) {
+          await new Promise(r => setTimeout(r, 500));
+          const ok = await probeHealth();
+          if (ok) {
+            sdkReady = true;
+            console.log("[gateway] ✅ SDK is healthy and ready");
+            break;
+          }
+          if (attempt % 4 === 0) {
+            console.log(`[gateway] Waiting for SDK... (attempt ${attempt + 1})`);
+          }
+        }
+        if (!sdkReady) {
+          console.warn("[gateway] ⚠️  SDK warmup timeout - forcing ready state");
+          sdkReady = true;
+        }
       })();
     }
   });

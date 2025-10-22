@@ -1,0 +1,29 @@
+{
+  "workflows": {
+    "Vecto Pilot": {
+      "name": "Vecto Pilot - Full Stack",
+      "tasks": [
+        {
+          "name": "Start Agent Server",
+          "type": "shell",
+          "command": "AGENT_PORT=43717 node agent-server.js",
+          "env": {
+            "AGENT_PORT": "43717",
+            "NODE_ENV": "development"
+          }
+        },
+        {
+          "name": "Start Gateway",
+          "type": "shell", 
+          "command": "PORT=80 GATEWAY_PORT=80 NODE_ENV=development node gateway-server.js",
+          "env": {
+            "PORT": "80",
+            "GATEWAY_PORT": "80",
+            "NODE_ENV": "development"
+          },
+          "dependsOn": ["Start Agent Server"]
+        }
+      ]
+    }
+  }
+}
