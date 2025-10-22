@@ -23,3 +23,7 @@ run = ["bash", "-lc", "PORT=${PORT} npm start"]
 
 [env]
 NODE_ENV = "development"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
