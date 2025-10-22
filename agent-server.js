@@ -179,8 +179,13 @@ function resolveSafe(p) {
 // Express App Setup
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express();
-app.disable("x-powered-by");
+// Trust exactly 1 proxy (gateway) - prevents rate limit errors
+app.set('trust proxy', 1);
+process.noDeprecation = true;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Middleware
+// ─────────────────────────────────────────────────────────────────────────────
 // CORS: internal use via gateway; permissive for dev
 app.use(cors({ origin: true, credentials: false }));
 
@@ -250,7 +255,7 @@ app.post("/agent/fs/read", async (req, res, next) => {
     const { path: p } = schemas.path.parse(req.body || {});
     const abs = resolveSafe(p);
     const stat = await fs.stat(abs);
-    
+
     if (!stat.isFile()) {
       const e = new Error("not-a-file");
       e.code = "NOT_A_FILE";
@@ -261,7 +266,7 @@ app.post("/agent/fs/read", async (req, res, next) => {
       e.code = "FILE_TOO_LARGE";
       throw e;
     }
-    
+
     const content = await fs.readFile(abs, "utf8");
     await writeLog("fs.read", { id, p, abs, size: stat.size });
     res.json({ path: p, content, size: stat.size, modified: stat.mtime });
@@ -281,13 +286,13 @@ app.post("/agent/fs/write", async (req, res, next) => {
     const { path: p, content } = schemas.write.parse(req.body || {});
     const abs = resolveSafe(p);
     const size = Buffer.byteLength(content, "utf8");
-    
+
     if (size > MAX_FILE_SIZE) {
       const e = new Error("file-too-large");
       e.code = "FILE_TOO_LARGE";
       throw e;
     }
-    
+
     await fs.mkdir(path.dirname(abs), { recursive: true });
     await fs.writeFile(abs, content, "utf8");
     await writeLog("fs.write", { id, p, abs, size });
@@ -311,14 +316,14 @@ app.post("/agent/shell", async (req, res, next) => {
   try {
     const { cmd, args = [] } = schemas.shell.parse(req.body || {});
     const shellWhitelist = process.env.AGENT_SHELL_WHITELIST || "";
-    
+
     // Check command whitelist
     if (shellWhitelist !== "*" && !ALLOWED_COMMANDS.has(cmd)) {
       const e = new Error("command-not-allowed");
       e.code = "CMD_DENY";
       throw e;
     }
-    
+
     // Additional npm subcommand validation
     if (cmd === "npm" && shellWhitelist !== "*") {
       const sub = args[0] || "";
@@ -328,7 +333,7 @@ app.post("/agent/shell", async (req, res, next) => {
         throw e;
       }
     }
-    
+
     const options = {
       cwd: BASE_DIR,
       timeout: COMMAND_TIMEOUT,
@@ -338,7 +343,7 @@ app.post("/agent/shell", async (req, res, next) => {
 
     const started = Date.now();
     let stdout = "", stderr = "", exitCode = 0;
-    
+
     try {
       const out = await execFileAsync(cmd, args, options);
       stdout = out.stdout ?? "";
@@ -349,7 +354,7 @@ app.post("/agent/shell", async (req, res, next) => {
       stderr = err.stderr ?? String(err.message || "");
       exitCode = typeof err.code === "number" ? err.code : 1;
     }
-    
+
     const elapsedMs = Date.now() - started;
     await writeLog("shell.exec", { 
       id, cmd, args, exitCode, elapsedMs, 
@@ -380,7 +385,7 @@ app.post("/agent/sql/query", async (req, res, next) => {
       e.code = "DB_CONFIG";
       throw e;
     }
-    
+
     const { sql, params } = schemas.sql.parse(req.body || {});
     const result = await pool.query(sql, params);
     await writeLog("sql.query", { id, rows: result.rowCount });
@@ -404,7 +409,7 @@ app.post("/agent/sql/execute", async (req, res, next) => {
       e.code = "DB_CONFIG";
       throw e;
     }
-    
+
     const { sql, params } = schemas.sql.parse(req.body || {});
     const result = await pool.query(sql, params);
     await writeLog("sql.execute", { id, rowCount: result.rowCount });
@@ -602,7 +607,7 @@ app.use((err, _req, res, _next) => {
   if (err instanceof z.ZodError) {
     return res.status(400).json({ error: "validation-error", details: err.issues });
   }
-  
+
   const code = err.code || "INTERNAL";
   const status =
     code === "PATH_OUTSIDE_BASE" ? 400 :
@@ -611,7 +616,7 @@ app.use((err, _req, res, _next) => {
     code === "NPM_DENY" ? 403 :
     code === "DB_CONFIG" ? 503 :
     500;
-  
+
   res.status(status).json({ 
     error: String(code).toLowerCase(), 
     message: err.message || "internal-error" 
