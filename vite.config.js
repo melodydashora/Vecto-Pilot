@@ -26,6 +26,10 @@ export default defineConfig({
     server: {
         port: 5173,
         host: "0.0.0.0",
+        hmr: {
+            host: "127.0.0.1",
+            port: 24700  // Fix HMR WS port to avoid clashes
+        },
         allowedHosts: true,
         fs: {
             strict: false,

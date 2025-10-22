@@ -560,8 +560,8 @@ if (process.env.NODE_ENV !== "production") {
       root: clientDir,
       server: {
         middlewareMode: true,
-        host: "0.0.0.0",
-        hmr: false // Disable HMR WebSocket server - not needed in middleware mode behind proxy
+        host: "127.0.0.1",
+        hmr: { host: "127.0.0.1", port: 24700 } // Pin HMR to avoid port conflicts
       },
       appType: "spa",
       configFile: path.resolve(process.cwd(), "vite.config.js")
