@@ -2,12 +2,20 @@ entrypoint = "gateway-server.js"
 modules = ["nodejs-22", "postgresql-16"]
 
 [nix]
-packages = ["nodejs-22"]
+packages = ["nodejs-22", "lsof"]
 channel = "stable-25_05"
 
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
 run = ["sh", "-c", "PORT=${PORT} npm start"]
+
+[[ports]]
+localPort = 3101
+externalPort = 3000
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
 
 [[ports]]
 localPort = 24678
