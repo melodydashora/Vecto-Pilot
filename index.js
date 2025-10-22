@@ -60,25 +60,25 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// CRITICAL: Trust proxy MUST be set FIRST, before any middleware
+// CRITICAL: Trust proxy MUST be set FIRST, before ANY middleware
 app.set('trust proxy', 1);
 process.noDeprecation = true;
 
 // ───────────────────────────────────────────────────────────────────────────────
-// DIAGNOSTIC: Global request logger BEFORE all middleware
-// ───────────────────────────────────────────────────────────────────────────────
-app.use((req, res, next) => {
-  process.stdout.write(`[SDK] ${req.method} ${req.originalUrl}\n`);
-  next();
-});
-
-// ───────────────────────────────────────────────────────────────────────────────
-// Core middleware
+// Core middleware (order matters!)
 // ───────────────────────────────────────────────────────────────────────────────
 app.use(cors());
 // No global JSON parsing to avoid client abort errors - mount per-route instead
 app.use(loggingMiddleware);
 app.use(securityMiddleware);
+
+// ───────────────────────────────────────────────────────────────────────────────
+// DIAGNOSTIC: Global request logger AFTER middleware setup
+// ───────────────────────────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  process.stdout.write(`[SDK] ${req.method} ${req.originalUrl}\n`);
+  next();
+});
 
 // JSON parser for routes that accept JSON bodies (not mounted globally)
 const parseJson = express.json({ limit: "1mb", strict: true });
