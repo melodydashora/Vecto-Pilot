@@ -179,28 +179,35 @@ function resolveSafe(p) {
 // Express App Setup
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express();
-// Trust exactly 1 proxy (gateway) - prevents rate limit errors
+
+// CRITICAL: Trust proxy MUST be set before any middleware that uses req.ip
 app.set('trust proxy', 1);
 process.noDeprecation = true;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Middleware
 // ─────────────────────────────────────────────────────────────────────────────
+// Rate limiting (60 requests per minute for security)
+// MUST come after trust proxy setting
+const limiter = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for internal gateway requests
+  skip: (req) => {
+    const isLocal = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+    return isLocal;
+  }
+});
+app.use(limiter);
+
 // CORS: internal use via gateway; permissive for dev
 app.use(cors({ origin: true, credentials: false }));
 
 // Body parsers
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
-
-// Rate limiting (60 requests per minute for security)
-const limiter = rateLimit({
-  windowMs: 60_000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false
-});
-app.use(limiter);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Health Endpoint (Public - No Auth Required)

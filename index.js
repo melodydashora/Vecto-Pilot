@@ -59,7 +59,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-// Trust exactly 1 proxy (Replit platform) - prevents IP spoofing in rate limiting
+
+// CRITICAL: Trust proxy MUST be set FIRST, before any middleware
 app.set('trust proxy', 1);
 process.noDeprecation = true;
 
