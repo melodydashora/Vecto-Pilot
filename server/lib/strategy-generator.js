@@ -4,6 +4,8 @@ import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { callGPT5WithBudget } from './gpt5-retry.js';
+import { capturelearning, LEARNING_EVENTS } from '../middleware/learning-capture.js';
+import { indexStrategy } from './semantic-search.js';
 
 export async function generateStrategyForSnapshot(snapshot_id) {
   const startTime = Date.now();
@@ -183,6 +185,27 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
         attempt: result.attempt
       });
       console.log(`[triad] strategist.ok id=${snapshot_id} ms=${totalDuration} gpt5_ms=${result.ms} tokens=${result.tokens} attempts=${result.attempt}`);
+      
+      // LEARNING CAPTURE: Index strategy for semantic search and memory (async, non-blocking)
+      const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshot_id)).limit(1);
+      if (strategyRow?.id) {
+        setImmediate(() => {
+          indexStrategy(strategyRow.id, snapshot_id).catch(err => {
+            console.error('[strategy] Semantic indexing failed:', err.message);
+          });
+          capturelearning(LEARNING_EVENTS.STRATEGY_GENERATED, {
+            strategy_id: strategyRow.id,
+            snapshot_id,
+            latency_ms: result.ms,
+            tokens: result.tokens,
+            attempt: result.attempt,
+            strategy_length: strategyText.length
+          }, null).catch(err => {
+            console.error('[strategy] Learning capture failed:', err.message);
+          });
+        });
+      }
+      
       return strategyText;
     }
     
