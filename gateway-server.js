@@ -14,6 +14,7 @@ import { spawn, execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { loadAssistantPolicy } from "./server/eidolon/policy-loader.js";
 import { startMemoryCompactor } from "./server/eidolon/memory/compactor.js";
+import pg from "pg";
 
 // ---------- config ----------
 const app = express();
@@ -30,6 +31,65 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 console.log(`🚀 [gateway] Starting in ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
 console.log(`🚀 [gateway] Port configuration: Gateway=${PORT}, SDK=${SDK_PORT}, Agent=${AGENT_PORT}`);
+
+// ---------- Vector DB setup ----------
+const pool = process.env.DATABASE_URL 
+  ? new pg.Pool({ connectionString: process.env.DATABASE_URL })
+  : null;
+
+const INIT_SQL = `
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE IF NOT EXISTS documents (
+  id TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  embedding vector(1536)
+);
+CREATE INDEX IF NOT EXISTS documents_embedding_idx
+  ON documents USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+`;
+
+let dbReady = false;
+
+async function prepareDb() {
+  if (!pool) {
+    console.log("[db] DATABASE_URL not set, skipping vector DB setup");
+    return;
+  }
+  try {
+    await pool.query(INIT_SQL);
+    await pool.query("ANALYZE documents;");
+    dbReady = true;
+    console.log("[db] Vector DB ready ✅");
+  } catch (err) {
+    console.error("[db] Failed to prepare vector DB:", err.message);
+    dbReady = false;
+  }
+}
+
+export async function upsertDoc({ id, content, metadata = {}, embedding }) {
+  if (!pool) throw new Error("DATABASE_URL not configured");
+  if (!Array.isArray(embedding)) throw new Error("embedding must be number[]");
+  await pool.query(
+    `INSERT INTO documents (id, content, metadata, embedding)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (id) DO UPDATE
+     SET content=EXCLUDED.content, metadata=EXCLUDED.metadata, embedding=EXCLUDED.embedding`,
+    [id, content, metadata, embedding]
+  );
+}
+
+export async function knnSearch({ queryEmbedding, k = 5, minScore = 0.0 }) {
+  if (!pool) throw new Error("DATABASE_URL not configured");
+  const { rows } = await pool.query(
+    `SELECT id, content, metadata, 1 - (embedding <=> $1::vector) AS score
+     FROM documents
+     ORDER BY embedding <=> $1::vector
+     LIMIT $2`,
+    [queryEmbedding, k]
+  );
+  return rows.filter(r => r.score >= minScore);
+}
 
 // ---------- CRITICAL: health checks MUST be FIRST (before any middleware) ----------
 // Deployment health checks hit "/" - respond immediately with 200 for ALL requests
@@ -52,8 +112,22 @@ app.get("/healthz", (_req, res) => {
   res.status(200).send('ok');
 });
 
-app.get("/readyz", (_req, res) => {
-  res.status(200).send('ready');
+app.get("/readyz", async (_req, res) => {
+  // Check if DB is ready (if DATABASE_URL is set)
+  if (pool) {
+    if (!dbReady) {
+      return res.status(503).send('db-not-ready');
+    }
+    try {
+      await pool.query("SELECT 1");
+      res.status(200).send('ready');
+    } catch {
+      res.status(503).send('db-check-failed');
+    }
+  } else {
+    // No DB configured, just report ready
+    res.status(200).send('ready');
+  }
 });
 
 // ---------- Bot/Scanner Protection (Rate Limiting) ----------
@@ -539,6 +613,9 @@ let server;
 try {
   server = app.listen(PORT, HOST, async () => {
     console.log(`🌐 [${IS_PRODUCTION ? 'vecto' : 'gateway'}] Server listening on ${HOST}:${PORT}`);
+
+    // Prepare vector DB FIRST (critical for ML features)
+    await prepareDb();
 
     // Load assistant policy and start memory compactor AFTER server is listening
     setImmediate(() => {
