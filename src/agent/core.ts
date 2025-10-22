@@ -17,7 +17,7 @@ export async function runAgent(prompt: string, ctx: any, mode: string) {
         { role: "system", content: `You are GPT-5 acting as an autonomous Replit Agent. 
 Server mode: ${mode}. You can plan, execute, and verify actions.
 Return JSON when acting.` },
-        ...memory.map(m => ({ role: "system", content: m })),
+        ...memory.map((m: string) => ({ role: "system", content: m })),
         { role: "assistant", content: thoughts },
         { role: "user", content: prompt }
       ]
