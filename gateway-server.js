@@ -1,4 +1,3 @@
-
 // gateway-server.js
 import http from 'node:http';
 import { spawn } from 'node:child_process';
@@ -21,7 +20,7 @@ const children = new Map();
 
 function spawnChild(name, command, args, env) {
   console.log(`🐕 [gateway] Starting ${name}...`);
-  
+
   const child = spawn(command, args, {
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -49,10 +48,14 @@ function spawnChild(name, command, args, env) {
 if (isDev && PORT !== SDK_PORT && PORT !== AGENT_PORT) {
   // Spawn SDK
   spawnChild('sdk', 'node', ['index.js'], { PORT: SDK_PORT });
-  
+
   // Spawn Agent
   spawnChild('agent', 'node', ['agent-server.js'], { AGENT_PORT });
-  
+
+  // Spawn Vite dev server for client
+  console.log("🐕 [gateway] Starting vite dev server...");
+  spawnChild("npm", ["run", "dev:client"], "vite");
+
   // Wait a bit for children to start
   await new Promise(resolve => setTimeout(resolve, 3000));
 }
@@ -126,11 +129,10 @@ server.on('upgrade', (req, socket, head) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 [gateway] listening on ${PORT}`);
-  console.log(`   proxy -> agent ws/http @ ${agentTarget}`);
-  console.log(`   proxy -> sdk   ws/http @ ${sdkTarget}`);
-  if (isDev && children.size > 0) {
-    console.log(`   supervisor managing ${children.size} child processes`);
-  }
+  console.log(`   proxy -> agent ws/http @ http://127.0.0.1:${AGENT_PORT}`);
+  console.log(`   proxy -> sdk   ws/http @ http://127.0.0.1:${SDK_PORT}`);
+  console.log(`   proxy -> vite  ws/http @ http://127.0.0.1:24700`);
+  console.log(`   supervisor managing 3 child processes`);
 });
 
 server.on('error', (err) => {
