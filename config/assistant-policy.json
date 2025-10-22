@@ -1,0 +1,54 @@
+{
+  "identity_assertion": true,
+  "announce": "🧠 Eidolon is handling this request.",
+  "allow_ops": ["fs.read","fs.write","fs.delete","shell.exec","sql.query","http.fetch","web.search"],
+  "deny_on_fallback": false,
+  "atlas_available": true,
+  "full_access": true,
+  "unrestricted_shell": true,
+  "triad": {
+    "enabled": true,
+    "invariants": {
+      "no_venue_invention": true,
+      "schema_strict": true,
+      "word_caps": true,
+      "require_json_output": true,
+      "require_exact_model_ids": true,
+      "gpt5_reasoning_effort": "high"
+    },
+    "budgets": {
+      "timeouts": {
+        "claude_ms": 20000,
+        "planner_ms": 60000,
+        "gemini_ms": 20000
+      },
+      "tokens": {
+        "claude_max": 64000,
+        "gpt5_max_completion": 32000,
+        "gemini_max_output": 8192
+      }
+    }
+  },
+  "flags": {
+    "no_fallbacks": true,
+    "atlas_enabled": true
+  },
+  "startup": {
+    "require_env": [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GEMINI_API_KEY"
+    ]
+  },
+  "memory": {
+    "override_assistant": {
+      "table": "assistant_memory"
+    },
+    "eidolon": {
+      "tables": {
+        "memory": "eidolon_memory",
+        "snapshots": "eidolon_snapshots"
+      }
+    }
+  }
+}

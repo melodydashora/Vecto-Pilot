@@ -1,0 +1,51 @@
+run = "npm run dev"
+entrypoint = "gateway-server.js"
+modules = ["nodejs-20"]
+
+[nix]
+channel = "stable-25_05"
+packages = ["lsof"]
+
+[env]
+NODE_ENV = "development"
+
+[[ports]]
+localPort = 3101
+externalPort = 3000
+exposeLocalhost = true
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 33223
+externalPort = 3001
+
+[[ports]]
+localPort = 40013
+externalPort = 3002
+
+[[ports]]
+localPort = 40669
+externalPort = 3003
+
+[deployment]
+build = "npm run build"
+run = ["sh", "-c", "npm start"]
+
+[workflows]
+runButton = "Vecto Pilot"
+
+[[workflows.workflow]]
+name = "Vecto Pilot"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm start"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+

@@ -1,0 +1,23 @@
+{
+  "assistant": {
+    "override": "active",
+    "requireSnapshotBeforeBlocks": true
+  },
+  "research": {
+    "enabled": false,
+    "provider": "perplexity"
+  },
+  "limits": {
+    "LLM_TOTAL_BUDGET_MS": 360000,
+    "CLAUDE_TIMEOUT_MS": 45000,
+    "PLANNER_DEADLINE_MS": 300000,
+    "GEMINI_TIMEOUT_MS": 60000
+  },
+  "security": {
+    "agentMode": "development",
+    "allowShellExec": true
+  },
+  "ui": {
+    "showResearchBanner": false
+  }
+}

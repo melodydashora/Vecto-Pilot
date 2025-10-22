@@ -1,0 +1,296 @@
+{
+  "meta": {
+    "version": "2.1.0",
+    "last_updated": "2025-10-13",
+    "description": "Comprehensive model configuration dictionary for Vecto Pilot™",
+    "verification_frequency": "monthly",
+    "verification_script": "tools/research/model-discovery.mjs"
+  },
+  
+  "triad_pipeline": {
+    "description": "Single-path AI pipeline: Claude (Strategist) → GPT-5 (Planner) → Gemini (Validator)",
+    "mode": "single_path",
+    "fallbacks_enabled": false,
+    
+    "strategist": {
+      "role": "Strategic analysis and pro tips generation",
+      "provider": "anthropic",
+      "model_id": "claude-sonnet-4-5-20250929",
+      "env_var": "CLAUDE_MODEL",
+      "api_key_var": "ANTHROPIC_API_KEY",
+      "base_url": "https://api.anthropic.com/v1",
+      "api_version": "2023-06-01",
+      "parameters": {
+        "max_tokens": 64000,
+        "temperature": 1.0,
+        "thinking_mode": "extended",
+        "timeout_ms": 20000
+      },
+      "capabilities": [
+        "Strategic analysis",
+        "Contextual insights",
+        "Pro tips generation",
+        "Earnings estimates"
+      ],
+      "output": "Strategic overview (2-3 sentences)",
+      "cost_per_1m_tokens": {
+        "input": 3.0,
+        "output": 15.0
+      }
+    },
+    
+    "planner": {
+      "role": "Deep reasoning for venue selection and tactical planning",
+      "provider": "openai",
+      "model_id": "gpt-5",
+      "env_var": "OPENAI_MODEL",
+      "api_key_var": "OPENAI_API_KEY",
+      "base_url": "https://api.openai.com/v1",
+      "api_version": "v1",
+      "parameters": {
+        "reasoning_effort": "high",
+        "max_completion_tokens": 32000,
+        "timeout_ms": 60000,
+        "deprecated_params": ["temperature", "top_p"]
+      },
+      "capabilities": [
+        "Deep reasoning",
+        "Venue generation (worldwide)",
+        "Central staging area selection",
+        "Spatial optimization",
+        "Extended thinking"
+      ],
+      "output": "6 venue recommendations with reasoning",
+      "cost_per_1m_tokens": {
+        "input": 10.0,
+        "output": 30.0,
+        "reasoning_multiplier": 5
+      },
+      "notes": "GPT-5 uses ~5x tokens due to reasoning overhead"
+    },
+    
+    "validator": {
+      "role": "JSON validation and venue enrichment",
+      "provider": "google",
+      "model_id": "gemini-2.5-pro",
+      "env_var": "GEMINI_MODEL",
+      "api_key_var": "GEMINI_API_KEY",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta",
+      "api_version": "v1beta",
+      "parameters": {
+        "max_output_tokens": 8192,
+        "temperature": 0.2,
+        "response_mime_type": "application/json",
+        "safety_block_none": true,
+        "timeout_ms": 20000
+      },
+      "capabilities": [
+        "JSON schema validation",
+        "Venue enrichment",
+        "Data normalization",
+        "Minimum recommendation enforcement"
+      ],
+      "output": "Validated JSON with 6 venues minimum",
+      "cost_per_1m_tokens": {
+        "input": 1.25,
+        "output": 5.0
+      }
+    },
+    
+    "total_budget_ms": 120000,
+    "invariants": {
+      "no_venue_invention": true,
+      "schema_strict": true,
+      "word_caps": true,
+      "fail_on_invalid": true
+    }
+  },
+  
+  "atlas_agent_override": {
+    "description": "Workspace intelligence layer with fallback chain for operational resilience",
+    "mode": "fallback_chain",
+    "enabled": true,
+    
+    "primary": {
+      "provider": "anthropic",
+      "model_id": "claude-sonnet-4-5-20250929",
+      "env_var": "AGENT_OVERRIDE_CLAUDE_MODEL",
+      "api_key_var": "AGENT_OVERRIDE_API_KEYC",
+      "parameters": {
+        "max_tokens": 64000,
+        "temperature": 1.0,
+        "context_window": 200000,
+        "thinking_mode": "extended"
+      },
+      "capabilities": [
+        "File system operations (read/write/delete)",
+        "Shell command execution (unrestricted)",
+        "SQL queries (DDL/DML)",
+        "HTTP requests",
+        "Web search integration"
+      ]
+    },
+    
+    "fallback_1": {
+      "provider": "openai",
+      "model_id": "gpt-5",
+      "env_var": "AGENT_OVERRIDE_GPT5_MODEL",
+      "api_key_var": "AGENT_OVERRIDE_API_KEY5",
+      "parameters": {
+        "reasoning_effort": "high",
+        "max_completion_tokens": 32000
+      }
+    },
+    
+    "fallback_2": {
+      "provider": "google",
+      "model_id": "gemini-2.5-pro",
+      "env_var": "AGENT_OVERRIDE_GEMINI_MODEL",
+      "api_key_var": "AGENT_OVERRIDE_API_KEYG",
+      "parameters": {
+        "max_output_tokens": 8192,
+        "temperature": 0.2
+      }
+    },
+    
+    "fallback_order": ["anthropic", "openai", "google"],
+    "capabilities": {
+      "fs_read": true,
+      "fs_write": true,
+      "fs_delete": true,
+      "shell_exec": true,
+      "shell_whitelist": "*",
+      "sql_read": true,
+      "sql_write": true,
+      "sql_ddl": true,
+      "http": true,
+      "web_search": true
+    }
+  },
+  
+  "eidolon_assistant": {
+    "description": "Enhanced SDK assistant with full workspace intelligence",
+    "provider": "anthropic",
+    "model_id": "claude-sonnet-4-5-20250929",
+    "env_var": "EIDOLON_MODEL",
+    "api_key_var": "ANTHROPIC_API_KEY",
+    "parameters": {
+      "max_tokens": 64000,
+      "temperature": 1.0,
+      "context_window": 200000,
+      "thinking_mode": "extended"
+    },
+    "memory": {
+      "backend": "postgres",
+      "table": "eidolon_memory",
+      "snapshots_table": "eidolon_snapshots",
+      "retention_days": 730,
+      "semantic_search": true,
+      "workspace_awareness": true,
+      "deep_reasoning": true
+    },
+    "override_config": {
+      "enabled": true,
+      "full_access": true,
+      "unrestricted_shell": true,
+      "atlas_available": true,
+      "routes": [
+        {
+          "match": "/assistant/*",
+          "proxy_to": "http://127.0.0.1:5000/assistant",
+          "allow_ops": ["fs.read", "fs.write", "fs.delete", "shell.exec", "sql.query", "http.fetch", "web.search"]
+        }
+      ]
+    }
+  },
+  
+  "perplexity_research": {
+    "description": "Web research and real-time information access",
+    "provider": "perplexity",
+    "model_id": "sonar-pro",
+    "env_var": "PERPLEXITY_MODEL",
+    "api_key_var": "PERPLEXITY_API_KEY",
+    "base_url": "https://api.perplexity.ai",
+    "parameters": {
+      "max_tokens": 4096,
+      "temperature": 0.2
+    },
+    "use_cases": [
+      "Latest documentation lookup",
+      "Model availability verification",
+      "Best practices research",
+      "Error resolution",
+      "Real-time information access"
+    ],
+    "enabled": true
+  },
+  
+  "model_verification": {
+    "schedule": "monthly",
+    "script_path": "tools/research/model-discovery.mjs",
+    "checks": [
+      "Model ID availability (Anthropic, OpenAI, Google)",
+      "Parameter compatibility (deprecated params check)",
+      "API version updates",
+      "Cost changes",
+      "Rate limit changes"
+    ],
+    "update_targets": [
+      "models-dictionary.json (this file)",
+      "MODEL.md (documentation)",
+      ".env.example (environment template)",
+      "ARCHITECTUREV2.md (architecture docs)"
+    ]
+  },
+  
+  "rate_limits": {
+    "anthropic": {
+      "tier_1": { "requests_per_min": 50, "tokens_per_min": 40000 },
+      "tier_2": { "requests_per_min": 1000, "tokens_per_min": 100000 },
+      "tier_3": { "requests_per_min": 2000, "tokens_per_min": 400000 }
+    },
+    "openai": {
+      "tier_1": { "requests_per_min": 500, "tokens_per_min": 30000 },
+      "tier_2": { "requests_per_min": 5000, "tokens_per_min": 450000 }
+    },
+    "google": {
+      "free": { "requests_per_min": 15, "tokens_per_min": 1000000 },
+      "paid": { "requests_per_min": 360, "tokens_per_min": 4000000 }
+    },
+    "perplexity": {
+      "standard": { "requests_per_min": 50, "tokens_per_min": 200000 }
+    }
+  },
+  
+  "cost_estimates": {
+    "per_recommendation": {
+      "claude_strategist": 0.002,
+      "gpt5_planner": 0.030,
+      "gemini_validator": 0.003,
+      "google_maps_apis": 0.040,
+      "total": 0.075
+    },
+    "monthly_subscription": {
+      "price": 9.99,
+      "break_even_recommendations": 133,
+      "target_recommendations": 200,
+      "target_margin_percent": 40
+    }
+  },
+  
+  "deployment_configs": {
+    "gateway_port": 5000,
+    "eidolon_port": 3101,
+    "agent_port": 43717,
+    "environment": {
+      "development": {
+        "node_env": "development",
+        "log_level": "debug"
+      },
+      "production": {
+        "node_env": "production",
+        "log_level": "info"
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "identity": "🧠 Eidolon (Claude Sonnet 4.5 Enhanced SDK)",
+  "mode": "single_path",
+  "invariants": {
+    "no_venue_invention": true,
+    "schema_strict": true,
+    "word_caps": true
+  },
+  "budgets_ms": {
+    "total": 120000,
+    "claude": 20000,
+    "gpt5": 60000,
+    "gemini": 20000
+  },
+  "memory": {
+    "backend": "postgres",
+    "tables": {
+      "state": "eidolon_memory",
+      "snapshots": "eidolon_snapshots"
+    },
+    "ttl_days": 730
+  },
+  "capabilities": {
+    "fs_read": true,
+    "fs_write": true,
+    "fs_delete": true,
+    "shell_exec": true,
+    "sql_query": true,
+    "web_search": true,
+    "atlas_fallback": true
+  }
+}
