@@ -86,7 +86,7 @@ Data is stored in PostgreSQL for ML data. Security measures include token-based 
 - **dotenv**
 - **PostgreSQL** (with Drizzle ORM and `pg` client)
 
-## Recent Improvements (October 2025)
+## Recent Improvements (October-December 2025)
 
 ### ML Learning Infrastructure (October 22, 2025)
 **Complete Learning Pipeline:** Implemented end-to-end ML learning infrastructure for counterfactual analysis and continuous improvement:
@@ -129,3 +129,29 @@ Data is stored in PostgreSQL for ML data. Security measures include token-based 
 **Issue #34 - Model Version Tracking:** Added provenance tracking to strategies table (`model_name`, `model_params`, `prompt_version`) enabling A/B testing and rollback capability for AI model upgrades.
 
 **Overall Impact:** Database health improved from 70% to 87% schema completeness, with significant gains in query performance, data quality, and ML training capabilities. All fixes documented with comprehensive WHAT/WHY/WHEN/HOW analysis in ISSUES.md.
+
+### Critical Infrastructure Fixes (December 27, 2024)
+**Logging Loop Resolution:** Fixed infinite logging loop that was causing system instability:
+
+1. **Duplicate Gateway Prevention** (`gateway-server.js`)
+   - Added `isMainModule` guard to prevent server code execution when imported
+   - Gateway now only runs when directly executed, not when imported for ML exports
+   - Prevents duplicate instances binding to same ports
+
+2. **Enhanced Process Supervision** (`gateway-server.js`)
+   - Implemented proper child process tracking using Map by label
+   - Kill existing processes before spawning new ones
+   - SIGTERM with SIGKILL fallback after 2 seconds
+   - Exponential backoff for respawn attempts (750ms → 5000ms max)
+
+3. **Port Conflict Resolution** (`index.js`, `agent-server.js`)
+   - Added EADDRINUSE error detection with clean exit instead of restart loop
+   - SDK detects gateway parent via REPLIT_PUBLIC_PORT and skips agent spawning
+   - Each server properly handles port conflicts with informative error messages
+
+4. **Configuration Modernization**
+   - Removed node-fetch dependency (using native fetch in Node 18+)
+   - Split TypeScript configs: client (Bundler) vs server (NodeNext)
+   - Updated Tailwind content paths to include shared directory
+
+**Impact:** System now runs stably with single gateway instance, proper child process management, and no restart loops. Port conflicts are handled gracefully with clear error messages.
