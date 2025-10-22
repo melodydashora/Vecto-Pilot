@@ -532,6 +532,7 @@ if (IS_PRODUCTION) {
   const { default: diagnosticsRoutes } = await import('./server/routes/diagnostics.js');
   const { chatRouter } = await import('./server/agent/chat.js');
   const { default: closedVenueReasoningRoutes } = await import('./server/routes/closed-venue-reasoning.js');
+  const { default: mlHealthRoutes } = await import('./server/routes/ml-health.js');
 
   app.use("/api/health", healthRoutes);
   app.use("/api/blocks", parseJson, blocksRoutes);
@@ -544,10 +545,11 @@ if (IS_PRODUCTION) {
   app.use(jobMetricsRoutes); // Job queue metrics endpoint
   app.use(parseJson, chatRouter); // Mount chat at /api/chat
   app.use("/api/closed-venue-reasoning", parseJson, closedVenueReasoningRoutes); // Parallel enrichment
+  app.use("/api/ml", mlHealthRoutes); // ML health dashboard and semantic search
 
   sdkReady = true;
   console.log(`✅ [vecto] API routes loaded and mounted synchronously`);
-  console.log(`✅ [vecto] Routes available: /api/health, /api/blocks, /api/blocks/fast, /api/location, /api/actions, /api/feedback, /api/diagnostics, /api/metrics/jobs, /api/chat, /api/closed-venue-reasoning`);
+  console.log(`✅ [vecto] Routes available: /api/health, /api/blocks, /api/blocks/fast, /api/location, /api/actions, /api/feedback, /api/diagnostics, /api/metrics/jobs, /api/chat, /api/closed-venue-reasoning, /api/ml`);
 }
 
 if (process.env.NODE_ENV !== "production") {

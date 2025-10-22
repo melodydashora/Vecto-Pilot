@@ -88,6 +88,35 @@ Data is stored in PostgreSQL for ML data. Security measures include token-based 
 
 ## Recent Improvements (October 2025)
 
+### ML Learning Infrastructure (October 22, 2025)
+**Complete Learning Pipeline:** Implemented end-to-end ML learning infrastructure for counterfactual analysis and continuous improvement:
+
+1. **Learning Capture Middleware** (`server/middleware/learning-capture.js`)
+   - Auto-captures all ML events: strategies, feedback, actions, errors
+   - Stores events in assistant_memory with vector embeddings
+   - Non-blocking async capture - zero impact on response time
+   - Event types: SNAPSHOT_CREATED, STRATEGY_GENERATED, RANKING_CREATED, VENUE_FEEDBACK, STRATEGY_FEEDBACK, USER_ACTION, ERROR_ENCOUNTERED
+
+2. **Semantic Search Engine** (`server/lib/semantic-search.js`)
+   - Vector embeddings for strategies and feedback (1536 dimensions)
+   - KNN search for finding similar strategies and patterns
+   - Auto-indexes all strategies and feedback
+   - Ready for OpenAI text-embedding-3-small upgrade (currently using deterministic features)
+
+3. **ML Health Dashboard** (`/api/ml/health`, `server/routes/ml-health.js`)
+   - Comprehensive metrics across all 23 production tables
+   - Overall health score (0-100) with weighted components
+   - Real-time monitoring: snapshots, strategies, rankings, feedback, actions, vectors, memory
+   - Additional endpoints: `/api/ml/memory/:scope`, `/api/ml/search?q=term`
+
+4. **Complete Integration**
+   - Feedback routes: Every venue feedback indexed for semantic search
+   - Strategy generation: All strategies indexed with metadata capture
+   - Async, fail-soft architecture: Learning failures don't break requests
+   - Full observability: Production-grade logging at every stage
+
+**Impact:** Enables counterfactual learning ("Given context X, model suggested Y, user chose Z"), A/B testing for model upgrades, and semantic similarity for recommendation reranking. Infrastructure ready for ML training jobs.
+
 ### Database Performance & Quality Optimizations
 **Issue #28 - Foreign Key Indexes:** Added missing indexes on foreign key columns (`ranking_candidates`, `actions`, `venue_feedback`), achieving 100x query performance improvement (500ms → 5ms for ranking lookups).
 
