@@ -20,6 +20,11 @@ externalPort = 3003
 [[ports]]
 localPort = 5173
 
+[[ports]]
+localPort = 5174
+externalPort = 80
+exposeLocalhost = true
+
 [workflows]
 
 [[workflows.workflow]]
