@@ -31,8 +31,3 @@ externalPort = 3000
 localPort = 24700
 externalPort = 80
 exposeLocalhost = true
-
-[[ports]]
-localPort = 43717
-externalPort = 3001
-exposeLocalhost = true
