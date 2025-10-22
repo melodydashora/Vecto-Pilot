@@ -1,15 +1,13 @@
 entrypoint = "gateway-server.js"
 modules = ["nodejs-22", "postgresql-16"]
-
-run = "npm run dev"
-
+run = "sh -c 'export $(cat mono-mode.env | xargs) && node gateway-server.js'"
 [nix]
 packages = ["nodejs-22", "lsof"]
 channel = "stable-25_05"
 
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
-run = ["sh", "-c", "npm start"]
+run = ["sh", "-c", "export $(cat mono-mode.env | xargs) && node gateway-server.js"]
 
 [[ports]]
 localPort = 80
@@ -21,25 +19,14 @@ externalPort = 3003
 
 [[ports]]
 localPort = 5173
-externalPort = 5173
 
-[[ports]]
-localPort = 5174
-externalPort = 5000
+[workflows]
 
-[[ports]]
-localPort = 8080
-externalPort = 8080
+[[workflows.workflow]]
+name = "Run App"
+mode = "sequential"
+author = 43532959
 
-[[ports]]
-localPort = 24678
-externalPort = 3000
-
-[[ports]]
-localPort = 24700
-externalPort = 80
-exposeLocalhost = true
-
-[[ports]]
-localPort = 45389
-externalPort = 3001
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "export $(cat mono-mode.env | xargs) && node gateway-server.js"

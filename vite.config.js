@@ -1,37 +1,29 @@
-
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const projectRoot = process.cwd();
+export default defineConfig(async () => {
+  let runtimeErrorOverlay;
+  try {
+    const mod = await import("@replit/vite-plugin-runtime-error-modal");
+    runtimeErrorOverlay = mod.default || mod;
+  } catch (error) {
+    runtimeErrorOverlay = null;
+  }
 
-export default defineConfig({
+  const projectRoot = process.cwd();
+
+  return {
     plugins: [
-        react(),
-        runtimeErrorOverlay(),
+      react(),
+      ...(runtimeErrorOverlay ? [runtimeErrorOverlay()] : []),
     ],
     resolve: {
-        alias: {
-            "@": path.resolve(projectRoot, "client", "src"),
-            "@shared": path.resolve(projectRoot, "shared"),
-            "@assets": path.resolve(projectRoot, "attached_assets"),
-        },
+      alias: {
+        "@": path.resolve(projectRoot, "client", "src"),
+        "@shared": path.resolve(projectRoot, "shared"),
+        "@assets": path.resolve(projectRoot, "client", "src", "assets"),
+      },
     },
-    root: path.resolve(projectRoot, "client"),
-    build: {
-        outDir: path.resolve(projectRoot, "dist"),
-        emptyOutDir: true,
-    },
-    server: {
-        port: 5173,
-        host: "0.0.0.0",
-        hmr: false,  // Disable HMR in middleware mode to prevent WebSocket port conflicts
-        allowedHosts: true,
-        fs: {
-            strict: false,
-            allow: [".."],
-            deny: [],
-        },
-    },
+  };
 });

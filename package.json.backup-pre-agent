@@ -38,10 +38,7 @@
     "build:deploy": "npm run guard && npm run build:client",
     "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true",
     "model:research": "node tools/research/model-discovery.mjs",
-    "model:verify": "node tools/research/model-discovery.mjs >/dev/null && echo '✅ Model verification passed'",
-    "agent:build": "tsc -p tsconfig.agent.json",
-    "agent:start": "node dist/index.js",
-    "agent:dev": "ts-node src/index.ts"
+    "model:verify": "node tools/research/model-discovery.mjs >/dev/null && echo '✅ Model verification passed'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
