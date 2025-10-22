@@ -20,6 +20,7 @@ import diagnosticsRoutes from "./server/routes/diagnostics.js";
 import venueEventsRoutes from "./server/routes/venue-events.js";
 import snapshotRoutes from "./server/routes/snapshot.js";
 import jobMetricsRoutes from "./server/routes/job-metrics.js";
+import mlHealthRoutes from "./server/routes/ml-health.js";
 
 // Middleware
 import { loggingMiddleware } from "./server/middleware/logging.js";
@@ -137,6 +138,7 @@ app.use("/api/feedback", parseJson, apiLimiter, feedbackRoutes); // Venue feedba
 app.use("/api/diagnostics", apiLimiter, diagnosticsRoutes); // System health checks
 app.use("/api/venue", parseJson, apiLimiter, venueEventsRoutes); // Event checking via Perplexity
 app.use("/api/snapshot", parseJson, apiLimiter, snapshotRoutes); // Context snapshot storage
+app.use("/api/ml", apiLimiter, mlHealthRoutes); // ML health dashboard and semantic search
 app.use(jobMetricsRoutes); // Job queue metrics and monitoring
 
 // Quick status endpoint
