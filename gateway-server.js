@@ -80,22 +80,19 @@ proxy.on('error', (err, req, res) => {
   }
 });
 
-// HTTP forwarding
+// HTTP forwarding - ORDER MATTERS!
+// 1. Agent routes
 app.use('/agent', (req, res) => {
   req.url = req.originalUrl.replace(/^\/agent/, '') || '/';
   proxy.web(req, res, { target: agentTarget, changeOrigin: true });
 });
 
+// 2. SDK routes (API, assistant, websockets)
 app.use(['/assistant', '/api', '/socket.io'], (req, res) => {
   proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
 });
 
-// Proxy ALL API routes to SDK before Vite catch-all (includes /api/* and /location/*)
-app.use(['/api', '/location'], (req, res) => {
-  proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
-});
-
-// Proxy to Vite dev server in development, serve static in production
+// 3. Frontend - Vite dev server or static files (MUST BE LAST)
 if (isDev) {
   const viteTarget = 'http://127.0.0.1:5173';
   app.use('/', (req, res) => {
