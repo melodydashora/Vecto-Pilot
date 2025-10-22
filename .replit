@@ -1,42 +1,29 @@
-# Single-port Replit config
-# - No [[ports]] blocks (Replit will expose exactly one dynamic $PORT)
-# - No hardcoded waitForPort
-# - Runs your app binding to 0.0.0.0:$PORT
-
-
-# If your entry file is different, change entrypoint + command accordingly
-entrypoint = "server.js"
-modules = ["nodejs-22"]
-
+entrypoint = "gateway-server.js"
+modules = ["nodejs-20"]
 
 [workflows]
-runButton = "App"
-
+runButton = "Vecto Pilot"
 
 [[workflows.workflow]]
-name = "App"
-mode = "parallel"
-author = "assistant"
-
+name = "Vecto Pilot"
+author = "agent"
 
 [[workflows.workflow.tasks]]
-# Start your web server. It MUST listen on 0.0.0.0 and use $PORT.
-# Example for Node/Express; swap the command if you use Python/etc.
 task = "shell.exec"
-args = "bash -lc 'PORT=${PORT} NODE_ENV=production node server.js'"
-
+args = "npm start"
 
 [nix]
-packages = ["nodejs-22"]
+packages = ["nodejs-22", "lsof"]
 channel = "stable-25_05"
 
+[[ports]]
+localPort = 5000
+externalPort = 80
 
 [deployment]
-# Used by Replit Deploys; same single-port command
-run = ["bash", "-lc", "PORT=${PORT} NODE_ENV=production node server.js"]
+build = "npm run build"
+run = ["sh", "-c", "npm start"]
 
-
-args = "bash -lc 'PORT=${PORT} npm start'"
 [env]
-NODE_OPTIONS = "--max-old-space-size=1024"
+NODE_ENV = "development"
 
