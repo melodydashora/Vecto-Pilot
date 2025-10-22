@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// Using Node.js built-in fetch (available in Node 18+)
 import { parseStringPromise } from 'xml2js';
 
 const PUBLIC_API_URL = 'https://nasstatus.faa.gov/api/airport-status-information';

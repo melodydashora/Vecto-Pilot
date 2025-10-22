@@ -1,5 +1,5 @@
 // Perplexity API integration for real-time internet research
-import fetch from 'node-fetch';
+// Using Node.js built-in fetch (available in Node 18+)
 
 export class PerplexityResearch {
   constructor(apiKey = process.env.PERPLEXITY_API_KEY) {

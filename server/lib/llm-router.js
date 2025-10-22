@@ -1,5 +1,5 @@
 // Multi-model LLM router with hedging, circuit breakers, and fallback
-import fetch from 'node-fetch';
+// Using Node.js built-in fetch (available in Node 18+)
 
 // Provider configurations
 const PROVIDERS = {

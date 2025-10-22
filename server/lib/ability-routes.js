@@ -1,7 +1,7 @@
 // server/lib/ability-routes.js
 // Centralized parity routes for all three lanes
 
-import fetch from "node-fetch";
+// Using Node.js built-in fetch (available in Node 18+)
 import fs from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

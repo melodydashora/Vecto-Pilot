@@ -1,5 +1,5 @@
 import express from "express";
-import fetch from "node-fetch";
+// Using Node.js built-in fetch (available in Node 18+)
 import type { Request, Response } from "express";
 
 const app = express();

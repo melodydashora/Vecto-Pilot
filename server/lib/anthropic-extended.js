@@ -1,5 +1,5 @@
 
-import fetch from 'node-fetch';
+// Using Node.js built-in fetch (available in Node 18+)
 
 /**
  * Eidolon Enhanced SDK - Anthropic Extended Client
