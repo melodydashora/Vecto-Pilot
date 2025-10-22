@@ -1,6 +1,8 @@
 entrypoint = "gateway-server.js"
 modules = ["nodejs-22", "postgresql-16"]
 
+run = "npm run dev"
+
 [nix]
 packages = ["nodejs-22", "lsof"]
 channel = "stable-25_05"
