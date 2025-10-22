@@ -88,6 +88,7 @@
     "express-rate-limit": "^7.5.1",
     "h3-js": "^4.3.0",
     "helmet": "^8.1.0",
+    "http-proxy": "^1.18.1",
     "http-proxy-middleware": "^3.0.5",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.544.0",
@@ -106,6 +107,7 @@
     "vaul": "^1.1.2",
     "vite": "^7.1.11",
     "wouter": "^3.7.1",
+    "ws": "^8.18.3",
     "xml2js": "^0.6.2",
     "zod": "^3.25.76"
   },

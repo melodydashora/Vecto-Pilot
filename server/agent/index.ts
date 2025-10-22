@@ -1,52 +1,75 @@
-import express from "express";
-import { execFile } from "child_process";
-import fs from "fs/promises";
-import { Client } from "pg";
-const app = express(); app.use(express.json());
+// server/agent/index.ts
+import http from 'node:http';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import { WebSocketServer } from 'ws';
 
-const allowShell = new Set(String(process.env.AGENT_SHELL_WHITELIST || "")
-  .split(",").map(s => s.trim()).filter(Boolean));
+const PORT  = Number(process.env.AGENT_PORT || 43717);
+const TOKEN = process.env.AGENT_TOKEN || 'dev-token';
 
-const auth = (req: any, res: any, next: any) =>
-  req.headers.authorization === `Bearer ${process.env.AGENT_TOKEN}`
-    ? next() : res.status(401).json({ ok:false, error:"UNAUTHORIZED" });
+const app = express();
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
 
-app.post("/op/fs.read", auth, async (req, res) => {
-  const { path, enc = "utf8" } = req.body || {};
-  const data = await fs.readFile(path, enc);
-  res.json({ ok: true, data });
+// Basic bearer auth for non-public routes
+app.use((req, res, next) => {
+  if (req.path.startsWith('/public')) return next();
+  const ok = (req.headers.authorization || '') === `Bearer ${TOKEN}`;
+  if (!ok) return res.status(401).json({ ok: false, error: 'UNAUTHORIZED' });
+  next();
 });
 
-app.post("/op/fs.write", auth, async (req, res) => {
-  const { path, data, enc = "utf8" } = req.body || {};
-  await fs.mkdir(require("path").dirname(path), { recursive: true });
-  await fs.writeFile(path, data, enc);
-  res.json({ ok: true });
+// Health + simple echo route
+app.get('/healthz', (_req, res) => res.json({ ok: true, agent: true, t: new Date().toISOString() }));
+app.post('/op/echo', (req, res) => res.json({ ok: true, data: req.body ?? null }));
+
+// One HTTP server that also owns WS
+const server = http.createServer(app);
+
+// WS lives at /ws (gateway will forward /agent/ws → /ws)
+const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
+
+server.on('upgrade', (req, socket, head) => {
+  const url = req.url || '/';
+  if (!url.startsWith('/ws')) {
+    socket.destroy();
+    return;
+  }
+  // (Optional) enforce auth/cookies at handshake here
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit('connection', ws, req);
+  });
 });
 
-app.post("/op/shell.exec", auth, async (req, res) => {
-  const { cmd, args = [] } = req.body || {};
-  
-  // Check if wildcard is enabled
-  if (allowShell.has("*") || allowShell.has(cmd)) {
-    execFile(cmd, args, { timeout: 8000 }, (err, stdout, stderr) => {
-      if (err) return res.status(400).json({ ok:false, error:String(err), stderr });
-      res.json({ ok:true, stdout, stderr });
-    });
+// Echo + keepalive pings
+wss.on('connection', (ws) => {
+  const pinger = setInterval(() => {
+    if (ws.readyState === ws.OPEN) {
+      try { ws.ping(); } catch {}
+    }
+  }, 15000);
+
+  ws.on('message', (buf) => {
+    let msg: any;
+    try { msg = JSON.parse(String(buf)); } catch { msg = { raw: String(buf) }; }
+    ws.send(JSON.stringify({ type: 'echo', received: msg }));
+  });
+
+  ws.on('close', () => clearInterval(pinger));
+  ws.on('error', () => clearInterval(pinger));
+});
+
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`🤖 [agent] listening on ${PORT} (HTTP + WS @ /ws)`);
+});
+
+server.on('error', (err: any) => {
+  if (err?.code === 'EADDRINUSE') {
+    console.error(`[agent] EADDRINUSE on ${PORT}. Stop the other process or set AGENT_PORT.`);
+    process.exit(1);
   } else {
-    return res.status(403).json({ ok:false, error:"CMD_NOT_ALLOWED" });
+    throw err;
   }
 });
-
-app.post("/op/sql.query", auth, async (req, res) => {
-  const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }});
-  await client.connect();
-  try {
-    const { text, values } = req.body || {};
-    const r = await client.query(text, values);
-    res.json({ ok:true, rows: r.rows, count: r.rowCount });
-  } finally { await client.end(); }
-});
-
-const port = Number(process.env.AGENT_PORT || 43717);
-app.listen(port, () => console.log(`[agent] :${port} ready`));
