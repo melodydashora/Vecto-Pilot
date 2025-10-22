@@ -10,13 +10,17 @@ build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
 run = ["sh", "-c", "PORT=${PORT} npm start"]
 
 [[ports]]
-localPort = 3101
+localPort = 80
+externalPort = 3002
+
+[[ports]]
+localPort = 3000
 externalPort = 3000
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
+externalPort = 80
 
 [[ports]]
 localPort = 24678
-externalPort = 80
+externalPort = 3001

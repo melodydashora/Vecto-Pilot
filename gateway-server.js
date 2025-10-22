@@ -21,11 +21,11 @@ const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1); // Trust exactly 1 proxy (Replit platform)
 
-// AUTOSCALE: Use Replit-provided PORT or fallback to 5000 for development
+// AUTOSCALE: Use Replit-provided PORT or fallback to 80 for development
 // For deployment, Replit sets PORT automatically
-const PORT = Number(process.env.PORT) || 5000;
+const PORT = Number(process.env.PORT) || 80;
 const HOST = '0.0.0.0';
-const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3101;
+const SDK_PORT = Number(process.env.EIDOLON_PORT) || 3002;
 const AGENT_PORT = Number(process.env.AGENT_PORT) || 43717;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
