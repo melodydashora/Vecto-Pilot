@@ -53,8 +53,7 @@ if (isDev && PORT !== SDK_PORT && PORT !== AGENT_PORT) {
   spawnChild('agent', 'node', ['agent-server.js'], { AGENT_PORT });
 
   // Spawn Vite dev server for client
-  console.log("🐕 [gateway] Starting vite dev server...");
-  spawnChild("npm", ["run", "dev:client"], "vite");
+  spawnChild('vite', 'npm', ['run', 'dev:client'], {});
 
   // Wait a bit for children to start
   await new Promise(resolve => setTimeout(resolve, 3000));
