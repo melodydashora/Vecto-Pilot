@@ -199,29 +199,35 @@ function spawnSupervised(label, cmd, args, { cwd, port }) {
 }
 
 // ---------- Boot ----------
-log('🚀 [gateway] Starting in', IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT', 'mode');
-log('🚀 [gateway] Port configuration:', { 
-  Gateway: GATEWAY_PORT + ' (public)', 
-  SDK: SDK_PORT, 
-  Agent: AGENT_PORT, 
-  HMR: HMR_PORT 
-});
+// Only run server code if this is the main module (not imported)
+const __filename = fileURLToPath(import.meta.url);
+const isMainModule = process.argv[1] === __filename;
 
-// Start internal services BEFORE routes
-if (!IS_PRODUCTION) {
-  // Check if files exist and spawn with correct names
-  const workspace = '/home/runner/workspace';
-  
-  if (fs.existsSync(path.join(workspace, 'index.js'))) {
-    spawnSupervised('sdk', 'node', ['index.js'], { cwd: workspace, port: SDK_PORT });
-  } else {
-    warn('[gateway] index.js not found, SDK spawn skipped');
-  }
-  
-  if (fs.existsSync(path.join(workspace, 'agent-server.js'))) {
-    spawnSupervised('agent', 'node', ['agent-server.js'], { cwd: workspace, port: AGENT_PORT });
-  } else {
-    warn('[gateway] agent-server.js not found, Agent spawn skipped');
+if (isMainModule) {
+  log('🚀 [gateway] Starting in', IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT', 'mode');
+  log('🚀 [gateway] Port configuration:', { 
+    Gateway: GATEWAY_PORT + ' (public)', 
+    SDK: SDK_PORT, 
+    Agent: AGENT_PORT, 
+    HMR: HMR_PORT 
+  });
+
+  // Start internal services BEFORE routes
+  if (!IS_PRODUCTION) {
+    // Check if files exist and spawn with correct names
+    const workspace = '/home/runner/workspace';
+    
+    if (fs.existsSync(path.join(workspace, 'index.js'))) {
+      spawnSupervised('sdk', 'node', ['index.js'], { cwd: workspace, port: SDK_PORT });
+    } else {
+      warn('[gateway] index.js not found, SDK spawn skipped');
+    }
+    
+    if (fs.existsSync(path.join(workspace, 'agent-server.js'))) {
+      spawnSupervised('agent', 'node', ['agent-server.js'], { cwd: workspace, port: AGENT_PORT });
+    } else {
+      warn('[gateway] agent-server.js not found, Agent spawn skipped');
+    }
   }
 }
 
@@ -401,9 +407,12 @@ app.use((req, res) => {
 });
 
 // ---------- HTTP server + WS upgrades ----------
-const server = http.createServer(app);
+// Only create and start the server if this is the main module
+let server;
+if (isMainModule) {
+  server = http.createServer(app);
 
-server.on('upgrade', (req, socket, head) => {
+  server.on('upgrade', (req, socket, head) => {
   const url = req.url || '/';
   
   // Vite HMR WS (public /hmr -> internal HMR_PORT)
@@ -465,50 +474,55 @@ server.listen(GATEWAY_PORT, '0.0.0.0', async () => {
   if (process.env.REPL_ID) {
     log(`🌐 [gateway] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
   }
-});
-
-// ---------- Graceful shutdown ----------
-let shuttingDown = false;
-
-function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  
-  log('[gateway] Shutting down...');
-  
-  // Kill all child processes
-  children.forEach((child, label) => {
-    if (child && !child.killed) {
-      log(`[gateway] Killing ${label}...`);
-      child.kill('SIGTERM');
-      
-      // Force kill after 2 seconds if still alive
-      setTimeout(() => {
-        if (!child.killed) {
-          child.kill('SIGKILL');
-        }
-      }, 2000);
-    }
   });
-  
-  // Give children time to exit before closing server
-  setTimeout(() => {
-    server.close(() => {
-      log('[gateway] Shutdown complete');
-      process.exit(0);
+
+  // ---------- Graceful shutdown ----------
+  let shuttingDown = false;
+
+  function shutdown() {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    
+    log('[gateway] Shutting down...');
+    
+    // Kill all child processes
+    children.forEach((child, label) => {
+      if (child && !child.killed) {
+        log(`[gateway] Killing ${label}...`);
+        child.kill('SIGTERM');
+        
+        // Force kill after 2 seconds if still alive
+        setTimeout(() => {
+          if (!child.killed) {
+            child.kill('SIGKILL');
+          }
+        }, 2000);
+      }
     });
-  }, 500);
-}
+    
+    // Give children time to exit before closing server
+    setTimeout(() => {
+      if (server) {
+        server.close(() => {
+          log('[gateway] Shutdown complete');
+          process.exit(0);
+        });
+      } else {
+        process.exit(0);
+      }
+    }, 500);
+  }
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
-process.on('exit', () => {
-  // Final cleanup - kill any remaining children
-  children.forEach((child) => {
-    if (child && !child.killed) {
-      child.kill('SIGKILL');
-    }
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+  process.on('exit', () => {
+    // Final cleanup - kill any remaining children
+    children.forEach((child) => {
+      if (child && !child.killed) {
+        child.kill('SIGKILL');
+      }
+    });
   });
-});
+} // Close isMainModule block
 
 export default app;
