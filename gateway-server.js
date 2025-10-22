@@ -234,13 +234,37 @@ const clientDir  = path.resolve(process.cwd(), "client");
 const distDir    = path.resolve(process.cwd(), "dist");
 const indexHtml  = path.join(distDir, "index.html");
 
-// ---------- sdk watchdog ----------
+// ---------- agent + sdk watchdog ----------
+let agentProc = null;
 let sdkProc = null;
 let healthTimer = null;
 let misses = 0;
 let restartAttempts = 0;
 let stopping = false;
 let sdkReady = false;
+
+// Start agent server first (gateway depends on it)
+function startAgent() {
+  if (agentProc) return;
+  
+  const agentPath = path.join(process.cwd(), 'agent-server.js');
+  if (!fs.existsSync(agentPath)) {
+    log('Agent server not found, skipping...');
+    return;
+  }
+  
+  log('Starting Agent Server on port', AGENT_PORT);
+  agentProc = spawn('node', [agentPath], {
+    cwd: process.cwd(),
+    stdio: 'inherit',
+    env: { ...process.env, AGENT_PORT: String(AGENT_PORT) }
+  });
+  
+  agentProc.on('exit', (code) => {
+    log('Agent exited with code', code);
+    agentProc = null;
+  });
+}
 
 function startSDK() {
   if (stopping || sdkProc) return;
@@ -679,8 +703,13 @@ try {
       if (process.env.REPL_ID) {
         console.log(`🌐 [gateway] Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
       }
-      console.log("🐕 Starting Eidolon SDK watchdog…");
-      startSDK();
+      console.log("🚀 Starting Agent Server...");
+      startAgent();
+      
+      setTimeout(() => {
+        console.log("🐕 Starting Eidolon SDK watchdog…");
+        startSDK();
+      }, 2000);
 
       // Warm up SDK in background
       (async () => {
