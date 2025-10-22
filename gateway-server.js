@@ -16,9 +16,9 @@ import pg from 'pg';
 // Import after env is loaded
 import { loadAssistantPolicy } from './server/eidolon/policy-loader.js';
 import { startMemoryCompactor } from './server/eidolon/memory/compactor.js';
-import { memoryPut } from './server/eidolon/memory/pg.js';
+import { memoryPut, memoryGet, memoryQuery } from './server/eidolon/memory/pg.js';
 
-// Export rememberContext for learning-capture middleware
+// Export functions for ML learning infrastructure
 export async function rememberContext(scope, key, content, userId = null) {
   return memoryPut({
     table: 'assistant_memory',
@@ -27,6 +27,61 @@ export async function rememberContext(scope, key, content, userId = null) {
     userId,
     content,
     ttlDays: 30
+  });
+}
+
+// Export vector search functions for semantic-search.js
+export async function upsertDoc({ id, content, metadata, embedding }) {
+  try {
+    const embeddingStr = `[${embedding.join(',')}]`;
+    await pool.query(
+      `INSERT INTO documents (id, content, metadata, embedding) 
+       VALUES ($1, $2, $3, $4::vector)
+       ON CONFLICT (id) 
+       DO UPDATE SET content = $2, metadata = $3, embedding = $4::vector`,
+      [id, content, metadata, embeddingStr]
+    );
+    return { success: true };
+  } catch (error) {
+    console.error('[vector] Upsert failed:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function knnSearch(embedding, k = 10) {
+  try {
+    const embeddingStr = `[${embedding.join(',')}]`;
+    const result = await pool.query(
+      `SELECT id, content, metadata, 
+              embedding <=> $1::vector AS distance
+       FROM documents
+       ORDER BY distance
+       LIMIT $2`,
+      [embeddingStr, k]
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('[vector] KNN search failed:', error.message);
+    return [];
+  }
+}
+
+// Export memory recall functions for ml-health.js
+export async function recallContext(scope, key, userId = null) {
+  return memoryGet({
+    table: 'assistant_memory',
+    scope,
+    key,
+    userId
+  });
+}
+
+export async function searchMemory(scope, userId = null, limit = 50) {
+  return memoryQuery({
+    table: 'assistant_memory',
+    scope,
+    userId,
+    limit
   });
 }
 
