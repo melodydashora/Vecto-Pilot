@@ -34,7 +34,14 @@ router.post("/", async (req, res) => {
   const started = Date.now();
 
   try {
-    const { lat, lng, context, meta } = req.body || {};
+    // Accept lat/lng from query params OR body
+    const latFromQuery = req.query.lat ? Number(req.query.lat) : null;
+    const lngFromQuery = req.query.lng ? Number(req.query.lng) : null;
+    
+    const { lat: latFromBody, lng: lngFromBody, context, meta } = req.body || {};
+    
+    const lat = latFromQuery ?? latFromBody;
+    const lng = lngFromQuery ?? lngFromBody;
     
     // Validate snapshot data completeness using dedicated validator
     const { ok, errors, warnings } = validateIncomingSnapshot(req.body ?? {});
@@ -124,7 +131,24 @@ router.post("/", async (req, res) => {
     });
 
     console.log("[snapshot] OK", { snapshot_id, ms: Date.now() - started });
-    return res.status(200).json({ ok: true, snapshot_id, received_at: started, req_id: reqId });
+    
+    // Return 201 with artifact metadata for parity
+    return res.status(201).json({ 
+      ok: true, 
+      artifactId: snapshot_id,
+      artifactPath: `database://snapshots/${snapshot_id}`,
+      snapshot: {
+        snapshot_id,
+        lat,
+        lng,
+        city: dbSnapshot.city,
+        state: dbSnapshot.state,
+        timezone: dbSnapshot.timezone,
+        created_at: dbSnapshot.created_at.toISOString()
+      },
+      received_at: started, 
+      req_id: reqId 
+    });
   } catch (err) {
     const msg = String(err && err.message || err);
     const code = msg.startsWith("missing:") || msg.startsWith("invalid:") ? 400 : 500;

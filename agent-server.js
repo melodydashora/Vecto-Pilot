@@ -210,7 +210,7 @@ app.use(rateLimit({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Health Endpoint (Public - No Auth Required)
+// Health Endpoints (Public - No Auth Required)
 // ─────────────────────────────────────────────────────────────────────────────
 app.get("/agent/health", (_req, res) => {
   res.json({
@@ -220,6 +220,17 @@ app.get("/agent/health", (_req, res) => {
     port: PORT,
     baseDir: BASE_DIR,
     replit: IS_REPLIT
+  });
+});
+
+// Gateway-compatible healthz endpoint
+app.get("/healthz", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "agent",
+    status: "healthy",
+    port: PORT,
+    t: new Date().toISOString()
   });
 });
 
