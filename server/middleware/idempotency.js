@@ -1,4 +1,4 @@
-import { db } from '../db/index.js';
+import { db } from '../db/drizzle.js';
 import { http_idem } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 
