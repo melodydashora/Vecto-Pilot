@@ -6,6 +6,7 @@ export default {
   content: [
     "./client/index.html",
     "./client/src/**/*.{ts,tsx,js,jsx}",
+    "./shared/**/*.{ts,tsx,js,jsx}",
   ],
   darkMode: "class",
   theme: {

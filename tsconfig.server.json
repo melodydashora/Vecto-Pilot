@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": ["server/**/*", "shared/**/*", "*.js"],
+  "exclude": ["node_modules", "build", "dist", "client"],
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node"]
+  }
+}
