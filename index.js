@@ -129,6 +129,7 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+// Gateway strips /api prefix when proxying, so mount without /api
 app.use("/health", healthRoutes);
 app.use("/blocks", parseJson, strictLimiter, blocksRoutes); // 🚀 Production: Claude → GPT-5 → Gemini Triad
 app.use("/blocks-discovery", parseJson, strictLimiter, blocksDiscoveryRoutes); // 🔬 Hybrid discovery testing
