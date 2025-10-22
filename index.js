@@ -1433,7 +1433,10 @@ function startEidolonServer() {
       );
     }
     // Agent server is optional - only needed for advanced file operations
-    const skipAgent = process.env.SKIP_AGENT === "true" || process.env.NODE_ENV === "production";
+    // Don't spawn agent if we're being run by the gateway (it spawns agent separately)
+    const skipAgent = process.env.SKIP_AGENT === "true" || 
+                     process.env.NODE_ENV === "production" || 
+                     process.env.REPLIT_PUBLIC_PORT !== undefined;  // Gateway sets this for children
     if (!skipAgent) {
       try {
         await ensureAgentUp();
