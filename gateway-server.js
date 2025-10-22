@@ -90,12 +90,8 @@ app.use(['/assistant', '/api', '/socket.io'], (req, res) => {
   proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
 });
 
-// Proxy API routes to SDK before catch-all
-app.use('/api', (req, res) => {
-  proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
-});
-
-app.use('/location', (req, res) => {
+// Proxy ALL API routes to SDK before Vite catch-all (includes /api/* and /location/*)
+app.use(['/api', '/location'], (req, res) => {
   proxy.web(req, res, { target: sdkTarget, changeOrigin: true });
 });
 
