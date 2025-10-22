@@ -73,6 +73,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-query": "^5.90.2",
     "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^5.0.4",
     "ajv": "^8.17.1",
     "build": "^0.1.4",
     "chart.js": "^4.5.0",
@@ -103,6 +104,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^13.0.0",
     "vaul": "^1.1.2",
+    "vite": "^7.1.11",
     "wouter": "^3.7.1",
     "xml2js": "^0.6.2",
     "zod": "^3.25.76"
@@ -129,7 +131,6 @@
     "@types/pg": "^8.15.5",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
-    "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
     "depcheck": "^1.4.7",
     "drizzle-kit": "^0.18.1",
@@ -142,7 +143,6 @@
     "sass": "^1.75.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.2",
-    "vite": "^7.1.11"
+    "typescript": "^5.9.2"
   }
 }
