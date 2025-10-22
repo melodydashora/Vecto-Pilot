@@ -1,6 +1,5 @@
 // server/middleware/learning-capture.js
 // Middleware to capture ML training data for every significant interaction
-import { rememberContext } from '../../gateway-server.js';
 import crypto from 'crypto';
 
 // Learning event types
@@ -34,14 +33,8 @@ export async function capturelearning(eventType, data, userId = null) {
   };
 
   try {
-    // Store in assistant_memory for immediate recall
-    await rememberContext(
-      'learning_events',
-      `${eventType}_${Date.now()}`,
-      learningEvent,
-      userId
-    );
-    
+    // TODO: Store in assistant_memory when rememberContext is available
+    // For now, just log the event
     console.log(`[learning] Captured: ${eventType}`, {
       event_id: eventId,
       user_id: userId || 'anonymous',

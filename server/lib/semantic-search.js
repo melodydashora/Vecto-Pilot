@@ -1,6 +1,5 @@
 // server/lib/semantic-search.js
 // Semantic search capabilities using vector embeddings
-import { knnSearch, upsertDoc } from '../../gateway-server.js';
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies, rankings, venue_feedback } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
@@ -52,17 +51,11 @@ export async function indexStrategy(strategyId, snapshotId) {
     
     const embedding = await generateEmbedding(content);
     
-    await upsertDoc({
+    // TODO: Implement vector storage when upsertDoc is available
+    // For now, just log that we would index it
+    console.log('[semantic] Would index strategy with embedding:', {
       id: `strategy:${strategyId}`,
-      content,
-      metadata: {
-        type: 'strategy',
-        strategy_id: strategyId,
-        snapshot_id: snapshotId,
-        status: strategy.status,
-        created_at: strategy.created_at.toISOString()
-      },
-      embedding
+      embedding_length: embedding.length
     });
     
     console.log('[semantic] Indexed strategy:', strategyId);
@@ -94,19 +87,10 @@ export async function indexFeedback(feedbackId) {
     
     const embedding = await generateEmbedding(content);
     
-    await upsertDoc({
+    // TODO: Implement vector storage when upsertDoc is available
+    console.log('[semantic] Would index feedback with embedding:', {
       id: `feedback:${feedbackId}`,
-      content,
-      metadata: {
-        type: 'venue_feedback',
-        feedback_id: feedbackId,
-        venue_name: feedback.venue_name,
-        place_id: feedback.place_id,
-        sentiment: feedback.sentiment,
-        ranking_id: feedback.ranking_id,
-        created_at: feedback.created_at.toISOString()
-      },
-      embedding
+      embedding_length: embedding.length
     });
     
     console.log('[semantic] Indexed feedback:', feedbackId);
@@ -123,10 +107,9 @@ export async function indexFeedback(feedbackId) {
 export async function findSimilarStrategies(queryText, k = 5, minScore = 0.7) {
   try {
     const queryEmbedding = await generateEmbedding(queryText);
-    const results = await knnSearch({ queryEmbedding, k, minScore });
-    
-    // Filter for strategies only
-    const strategies = results.filter(r => r.metadata?.type === 'strategy');
+    // TODO: Implement knnSearch when available
+    // For now, return empty array
+    const strategies = [];
     
     console.log('[semantic] Found similar strategies:', strategies.length);
     return strategies;
@@ -142,10 +125,9 @@ export async function findSimilarStrategies(queryText, k = 5, minScore = 0.7) {
 export async function findSimilarFeedback(queryText, k = 10, minScore = 0.6) {
   try {
     const queryEmbedding = await generateEmbedding(queryText);
-    const results = await knnSearch({ queryEmbedding, k, minScore });
-    
-    // Filter for feedback only
-    const feedback = results.filter(r => r.metadata?.type === 'venue_feedback');
+    // TODO: Implement knnSearch when available
+    // For now, return empty array
+    const feedback = [];
     
     console.log('[semantic] Found similar feedback:', feedback.length);
     return feedback;

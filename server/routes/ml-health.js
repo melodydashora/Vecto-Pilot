@@ -3,7 +3,7 @@
 import express from 'express';
 import { db } from '../db/drizzle.js';
 import { sql } from 'drizzle-orm';
-import { recallContext, searchMemory } from '../../gateway-server.js';
+// TODO: Import recallContext and searchMemory when available
 
 const router = express.Router();
 
@@ -140,9 +140,9 @@ router.get('/health', async (req, res) => {
       (vectorIndexCoverage * 0.2)
     );
     
-    // Get architecture and deployment memories
-    const archMemories = await recallContext('architecture');
-    const deployMemories = await recallContext('deployment');
+    // TODO: Get architecture and deployment memories when recallContext is available
+    const archMemories = [];
+    const deployMemories = [];
     
     const responseTime = Date.now() - startTime;
     
@@ -229,7 +229,8 @@ router.get('/health', async (req, res) => {
 router.get('/memory/:scope', async (req, res) => {
   try {
     const { scope } = req.params;
-    const memories = await recallContext(scope);
+    // TODO: Implement recallContext when available
+    const memories = [];
     
     res.json({
       ok: true,
@@ -259,7 +260,8 @@ router.get('/search', async (req, res) => {
       });
     }
     
-    const results = await searchMemory(q);
+    // TODO: Implement searchMemory when available
+    const results = [];
     
     res.json({
       ok: true,
