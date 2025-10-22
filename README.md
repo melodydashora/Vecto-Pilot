@@ -23,6 +23,29 @@ This prevents costly rework and maintains system integrity.
 
 ---
 
+## 🤖 Agent Behavior Contract
+
+This project operates under a single control plane. Only **Extended Thinking GPT** may respond and act. All agents must follow the evidence-bound Definition of Done and Exit Criteria in `REPLIT.md`.
+
+### What "Done" Means
+- Ports (80/3101/43717/5173) stable ≥ 2 minutes.
+- `/healthz` OK twice.
+- `/api/location/resolve` returns JSON via gateway and direct SDK.
+- Gateway logs prove routing for `/healthz`, `/api/location/resolve`, `/agent/healthz`, `/`.
+- UI loads via gateway; `/api` calls succeed.
+- Snapshot artifact exists and is retrievable.
+- Failure drills: `/api/*` unknown → 404 JSON; HTML leakage → 502 `bad_gateway_html`.
+- No publish/deploy used to mask dev failures.
+
+### How Agents Must Work
+- Evidence first, hype never. Stop at first critical failure and propose the smallest fix.
+- Emergency-aware: non-critical tasks may be deferred with a clear note, timestamp, and next smallest move.
+- Respect file integrity and routing order: APIs before static/Vite; explicit JSON content types.
+
+For the full checklist, exit criteria, and reporting format, see `REPLIT.md`.
+
+---
+
 ## 🤖 AI Models - CURRENT PRODUCTION CONFIG
 
 > **📋 See [MODEL.md](./MODEL.md)** for complete model specifications, API details, parameter constraints, and deprecation notices.
