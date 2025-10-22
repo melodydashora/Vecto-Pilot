@@ -25,4 +25,8 @@ run = ["sh", "-c", "npm run build && npm run start"]
 # Optional (kept from your config if you need it)
 onBoot = "bash server/scripts/workspace-startup.sh"
 
+[[ports]]
+localPort = 5000
+externalPort = 80
+
 
