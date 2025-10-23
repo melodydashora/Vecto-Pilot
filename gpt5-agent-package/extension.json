@@ -1,0 +1,22 @@
+{
+  "manifestVersion": 1,
+  "name": "GPT-5 Replit Agent",
+  "description": "Autonomous GPT-5 agent with reasoning, memory, and workspace control.",
+  "version": "1.0.0",
+  "entry": "src/index.ts",
+  "permissions": ["fs", "terminal", "process", "repldb", "net"],
+  "tools": [
+    {
+      "handler": "src/panel.html",
+      "name": "GPT-5 Agent"
+    }
+  ],
+  "settings": {
+    "serverMode": {
+      "type": "enum",
+      "enum": ["dev", "sim", "live"],
+      "default": "dev",
+      "description": "Select server mode."
+    }
+  }
+}
