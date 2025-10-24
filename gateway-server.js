@@ -154,10 +154,11 @@ function spawnChild(name, command, args, env) {
     }
 
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🟢 [mono] Listening on ${PORT} (HTTP+WS)`);
+      console.log(`🟢 [mono] Listening on 0.0.0.0:${PORT} (HTTP+WS)`);
       console.log(`   ${API_PREFIX} -> SDK (embedded)`);
       console.log(`   ${AGENT_PREFIX} -> Agent (embedded)`);
       console.log(`   ${WS_PUBLIC_PATH} -> Agent WebSocket`);
+      console.log(`   Access via: http://localhost:${PORT}`);
     });
   }
 

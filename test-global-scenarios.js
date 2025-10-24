@@ -8,8 +8,9 @@
 
 import http from 'http';
 import fs from 'fs';
+import { BASE_URL, PORTS } from './shared/ports.js';
 
-const BASE_URL = 'http://localhost:5000';
+const TEST_BASE_URL = process.env.BASE_URL || BASE_URL;
 
 // Global test locations - accurate GPS coordinates
 const TEST_LOCATIONS = [
@@ -100,7 +101,7 @@ async function createSnapshot(location) {
 
   const options = {
     hostname: 'localhost',
-    port: 5000,
+    port: PORTS.GATEWAY,
     path: '/api/location/snapshot',
     method: 'POST',
     headers: {
@@ -120,7 +121,7 @@ async function getBlocks(snapshotId) {
 
   const options = {
     hostname: 'localhost',
-    port: 5000,
+    port: PORTS.GATEWAY,
     path: '/api/blocks',
     method: 'POST',
     headers: {
