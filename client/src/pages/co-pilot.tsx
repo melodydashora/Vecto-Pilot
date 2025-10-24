@@ -888,16 +888,16 @@ const CoPilot: React.FC = () => {
           )}
         </div>
 
-        {/* Strategy Coach - Sticky Framed Component */}
-        {persistentStrategy && coords && (
+        {/* AI Coach - Sticky Framed Component */}
+        {persistentStrategy && (
           <div className="mb-6">
             <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-purple-600" />
-                <h2 className="text-lg font-semibold text-gray-800">Strategy Coach</h2>
+                <h2 className="text-lg font-semibold text-gray-800">AI Coach</h2>
               </div>
               <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
-                AI Assistant
+                Coach
               </Badge>
             </div>
             <div className="mt-4">
