@@ -27,10 +27,10 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
           try {
             // 1) Upsert to venue_catalog
             await client.query(`
-              INSERT INTO venue_catalog (place_id, name, address, lat, lng, category, city, metro, discovery_source, created_at)
+              INSERT INTO venue_catalog (place_id, venue_name, address, lat, lng, category, city, metro, discovery_source, created_at)
               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'llm', NOW())
               ON CONFLICT (place_id) DO UPDATE
-              SET name = EXCLUDED.name,
+              SET venue_name = EXCLUDED.venue_name,
                   address = EXCLUDED.address,
                   lat = EXCLUDED.lat,
                   lng = EXCLUDED.lng,
