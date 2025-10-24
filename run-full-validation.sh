@@ -69,6 +69,7 @@ files=(
   "server/middleware/timeout.js"
   "gateway-server.js"
 )
+
 for file in "${files[@]}"; do
   if [ -f "$file" ]; then
     echo "✅ $file"
@@ -76,8 +77,8 @@ for file in "${files[@]}"; do
     echo "❌ $file MISSING"
   fi
 done
-echo ""
 
+echo ""
 echo "========================================="
 echo "VALIDATION COMPLETE"
 echo "========================================="
