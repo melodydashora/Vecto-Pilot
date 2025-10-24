@@ -14,6 +14,7 @@ export default defineConfig(async () => {
   const projectRoot = process.cwd();
 
   return {
+    root: path.resolve(projectRoot, "client"),
     plugins: [
       react(),
       ...(runtimeErrorOverlay ? [runtimeErrorOverlay()] : []),
@@ -24,6 +25,11 @@ export default defineConfig(async () => {
         "@shared": path.resolve(projectRoot, "shared"),
         "@assets": path.resolve(projectRoot, "client", "src", "assets"),
       },
+    },
+    server: {
+      port: 5173,
+      strictPort: true,
+      host: '0.0.0.0',
     },
   };
 });
