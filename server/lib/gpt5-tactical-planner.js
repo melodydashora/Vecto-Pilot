@@ -15,7 +15,8 @@ const VenueRecommendationSchema = z.object({
   staging_lng: z.number().min(-180).max(180).optional(),
   staging_name: z.string().max(200).optional(),          // Name of staging location
   category: z.enum(['airport', 'entertainment', 'shopping', 'dining', 'sports_venue', 'transit_hub', 'hotel', 'nightlife', 'event_venue', 'other']).or(z.string()),
-  pro_tips: z.array(z.string().max(250)).min(1).max(3)
+  pro_tips: z.array(z.string().max(250)).min(1).max(3),
+  strategic_timing: z.string().max(200).optional()       // Strategic reason to go (even if Google says closed): "Opens in 30 min", "Event at 7 PM"
 });
 
 const StagingLocationSchema = z.object({
@@ -110,6 +111,11 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "- PLUS one central staging point (best_staging_location) within 2 min drive of ALL venues",
     "- Prioritize free parking lots, gas stations, safe pull-offs, hotel front drives",
     "",
+    "STRATEGIC TIMING:",
+    "- If recommending a venue that might be closed now, provide strategic timing reason",
+    "- Examples: 'Opens in 30 min', 'Event starts at 7 PM', 'Late night demand picks up at midnight'",
+    "- Google APIs will check actual business hours - you provide the strategic WHY",
+    "",
     "OUTPUT FORMAT (JSON only):",
     "{",
     '  "recommended_venues": [',
@@ -121,7 +127,8 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     '      "staging_lng": -96.xxxx,',
     '      "staging_name": "Nearby parking lot/safe spot name",',
     '      "category": "airport|entertainment|shopping|dining|sports_venue|transit_hub|hotel|nightlife|event_venue|other",',
-    '      "pro_tips": ["Pickup zone strategy", "Where to position", "Timing/demand insight"]',
+    '      "pro_tips": ["Pickup zone strategy", "Where to position", "Timing/demand insight"],',
+    '      "strategic_timing": "Opens in 30 min - position early"  // Strategic reason (if venue might be closed)',
     '    }',
     '  ],',
     '  "best_staging_location": {',
@@ -134,15 +141,18 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "}"
   ].join("\n");
 
-  // Build user prompt - MINIMAL: just address + strategy
+  // Build user prompt - include current date/time for business hours
   const user = [
+    "CURRENT DATE/TIME:",
+    `${dayName}, ${dateStr} at ${timeStr}`,
+    "",
     "STRATEGIC OVERVIEW:",
     strategy,
     "",
     "DRIVER ADDRESS:",
     snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown',
     "",
-    "What venues should the driver target right now? Return JSON with coords + category + tips."
+    "What venues should the driver target right now? Return JSON with coords + category + tips + strategic timing."
   ].join("\n");
 
   console.log(`[TRIAD 2/3 - GPT-5 Planner] Calling GPT-5 (using default temperature - GPT-5 doesn't support custom temperature)...`);
