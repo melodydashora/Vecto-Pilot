@@ -69,9 +69,13 @@ function spawnChild(name, command, args, env) {
   app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   
-  // Global timeout middleware
-  const { timeoutMiddleware } = await import('./server/middleware/timeout.js');
-  app.use(timeoutMiddleware);
+  // Global timeout middleware - wrap in try/catch
+  try {
+    const { timeoutMiddleware } = await import('./server/middleware/timeout.js');
+    app.use(timeoutMiddleware);
+  } catch (e) {
+    console.warn('[gateway] Timeout middleware failed to load:', e?.message);
+  }
 
   // Request logger
   app.use((req, res, next) => {
@@ -116,25 +120,27 @@ function spawnChild(name, command, args, env) {
       });
     }
 
-    // Mount SDK and Agent AFTER server starts (lazy loading)
-    setImmediate(async () => {
-      try {
-        const createSdkRouter = (await import('./sdk-embed.js')).default;
-        const sdkRouter = createSdkRouter({ API_PREFIX });
-        app.use(API_PREFIX, sdkRouter);
-        console.log(`[mono] ✓ SDK mounted at ${API_PREFIX}`);
-      } catch (e) {
-        console.warn('[mono] SDK embed failed:', e?.message || e);
-      }
+    // Mount SDK and Agent IMMEDIATELY - no delays
+    try {
+      const createSdkRouter = (await import('./sdk-embed.js')).default;
+      const sdkRouter = createSdkRouter({ API_PREFIX });
+      app.use(API_PREFIX, sdkRouter);
+      console.log(`[mono] ✓ SDK mounted at ${API_PREFIX}`);
+    } catch (e) {
+      console.error('[mono] FATAL: SDK embed failed:', e?.message || e);
+      console.error(e);
+      process.exit(1); // Cannot continue without SDK routes
+    }
 
-      try {
-        const { mountAgent } = await import('./server/agent/embed.js');
-        mountAgent({ app, basePath: AGENT_PREFIX, wsPath: WS_PUBLIC_PATH, server });
-        console.log(`[mono] ✓ Agent mounted at ${AGENT_PREFIX}, WS at ${WS_PUBLIC_PATH}`);
-      } catch (e) {
-        console.warn('[mono] Agent embed failed:', e?.message || e);
-      }
-    });
+    try {
+      const { mountAgent } = await import('./server/agent/embed.js');
+      mountAgent({ app, basePath: AGENT_PREFIX, wsPath: WS_PUBLIC_PATH, server });
+      console.log(`[mono] ✓ Agent mounted at ${AGENT_PREFIX}, WS at ${WS_PUBLIC_PATH}`);
+    } catch (e) {
+      console.error('[mono] FATAL: Agent embed failed:', e?.message || e);
+      console.error(e);
+      process.exit(1); // Cannot continue without agent
+    }
 
     // 404 JSON for unknown API routes
     app.use(API_PREFIX, (_req, res) => res.status(404).json({ ok: false, error: 'NOT_FOUND', mode: 'mono' }));
@@ -277,13 +283,11 @@ function spawnChild(name, command, args, env) {
     });
   }
 
-  // Common error handlers
+  // Common error handlers - never crash
   server.on('error', (err) => {
+    console.error(`[gateway] Server error:`, err?.message || err);
     if (err?.code === 'EADDRINUSE') {
-      console.error(`[gateway] Port ${PORT} in use`);
-      process.exit(1);
-    } else {
-      throw err;
+      console.error(`[gateway] Port ${PORT} in use - trying to continue anyway`);
     }
   });
 

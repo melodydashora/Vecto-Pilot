@@ -61,10 +61,12 @@ async function performHealthCheck() {
   }
 }
 
-// Run health check in background - don't block server startup
-performHealthCheck().catch(err => {
-  console.error('[db] Health check failed, but continuing startup:', err.message);
-  // Don't exit - let queries fail gracefully if DB is unavailable
+// Run health check in background immediately - but don't block server startup
+setImmediate(() => {
+  performHealthCheck().catch(err => {
+    console.error('[db] Background health check failed:', err.message);
+    console.error('[db] CRITICAL: Database not available - app may not work properly');
+  });
 });
 
 // Export enhanced pool with query wrapper for better error logging

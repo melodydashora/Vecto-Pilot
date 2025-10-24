@@ -516,6 +516,10 @@ router.post('/snapshot', async (req, res) => {
       if (!lat || !lng) {
         return httpError(res, 400, 'missing_lat_lng', 'Coordinates required', reqId);
       }
+      
+      // Validate userId is a valid UUID or null/undefined
+      const isValidUUID = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+      const validatedUserId = isValidUUID ? userId : null;
 
       // Call internal resolver to get city/timezone
       const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
@@ -539,7 +543,7 @@ router.post('/snapshot', async (req, res) => {
       snapshotV1.created_at = now.toISOString();
       snapshotV1.device_id = snapshotV1.device_id || crypto.randomUUID();
       snapshotV1.session_id = snapshotV1.session_id || crypto.randomUUID();
-      snapshotV1.user_id = userId || null;
+      snapshotV1.user_id = validatedUserId;
       snapshotV1.coord = { lat, lng, source: 'manual' };
       snapshotV1.resolved = {
         city: resolved.city,
