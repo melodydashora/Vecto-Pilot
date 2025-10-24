@@ -925,6 +925,22 @@ const CoPilot: React.FC = () => {
             </div>
           </div>
 
+          {/* Strategy Coach Chat - appears after strategy loads, stays visible during and after blocks loading */}
+          {persistentStrategy && coords && (
+            <div className="mb-6 mt-6">
+              <div className="mb-4 text-center">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-2">
+                  <MessageSquare className="w-7 h-7 text-purple-600" />
+                  Ask Your Strategy Coach
+                </h2>
+                <p className="text-gray-600 text-sm">
+                  Have questions about your strategy? Ask the AI coach for personalized advice.
+                </p>
+              </div>
+              <CoachChat userId={localStorage.getItem('vecto_user_id') || 'default'} />
+            </div>
+          )}
+
           {/* Loading State with Skeleton Cards */}
           {persistentStrategy && (isLoading || (!error && coords && blocks.length === 0)) && (
             <div className="space-y-4" data-testid="loading-state">
@@ -1268,21 +1284,6 @@ const CoPilot: React.FC = () => {
           )}
         </div>
 
-        {/* Strategy Coach Chat - appears after blocks */}
-        {persistentStrategy && coords && blocks.length > 0 && (
-          <div className="mb-6 mt-8">
-            <div className="mb-4 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-2">
-                <MessageSquare className="w-7 h-7 text-purple-600" />
-                Ask Your Strategy Coach
-              </h2>
-              <p className="text-gray-600 text-sm">
-                Have questions about these recommendations? Ask the AI coach for personalized advice.
-              </p>
-            </div>
-            <CoachChat userId={localStorage.getItem('vecto_user_id') || 'default'} />
-          </div>
-        )}
       </div>
       
       {/* Venue Feedback Modal */}
