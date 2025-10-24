@@ -862,7 +862,201 @@ npx eslint --init
 
 ---
 
+## 🧪 TEST RESULTS & VALIDATION FINDINGS (2025-10-24)
+
+### Test Execution Summary
+
+**Test Date:** 2025-10-24T02:20:00Z  
+**Test Runner:** Comprehensive validation suite  
+**Total Tests Run:** 7 test suites  
+
+### Detailed Results
+
+#### 1️⃣ TypeScript Compilation Check
+**Status:** ⚠️ PARTIAL PASS  
+**Findings:**
+- Multiple TypeScript errors detected in compilation
+- Type conflicts between client and server code
+- Missing type definitions for shared modules
+- Action Required: Review and fix TypeScript errors before production
+
+#### 2️⃣ Schema Validation
+**Status:** ✅ PASS  
+**Findings:**
+- All 16 tables exist in database
+- All tables queryable
+- No schema drift detected
+- Drizzle ORM schema matches database structure
+
+#### 3️⃣ Global Location Tests
+**Status:** ❌ FAIL  
+**Findings:**
+- All 7 global location tests failed with `ECONNREFUSED 127.0.0.1:5000`
+- Root Cause: Gateway not listening on port 5000
+- Application running on port 3101 instead of expected 5000
+- Test script hardcoded to port 5000
+- Action Required: Fix port configuration mismatch
+
+**Failed Locations:**
+- Paris, France (CDG Airport)
+- Tokyo, Japan (Shibuya)
+- Sydney, Australia (CBD)
+- São Paulo, Brazil (Paulista Ave)
+- Dubai, UAE (Downtown)
+- Mumbai, India (Airport)
+- London, UK (Heathrow)
+
+#### 4️⃣ System Validation
+**Status:** ⚠️ PARTIAL PASS  
+**Findings:**
+- Database connectivity: ✅ PASS
+- Port status issues detected:
+  - Port 80 (Gateway): ❌ NOT LISTENING
+  - Port 3101 (Eidolon SDK): ✅ LISTENING
+  - Port 43717 (Agent): ❌ NOT LISTENING
+- Process count mismatch: Found 1 node process (expected 3)
+- Health endpoints failing due to port issues
+
+#### 5️⃣ Environment Configuration
+**Status:** ✅ PASS  
+**Findings:**
+- Configuration validation passed
+- All required environment variables present
+- Port configuration loaded successfully
+- Database URL validated
+
+#### 6️⃣ Validation Middleware
+**Status:** ✅ PASS  
+**Findings:**
+- 5 validation schemas loaded successfully
+- Schemas: uuid, action, feedback, location, snapshot
+- Zod validation working correctly
+
+#### 7️⃣ Critical Files Check
+**Status:** ✅ PASS  
+**Findings:**
+- All critical files present
+- shared/config.js: ✅
+- server/db/client.js: ✅
+- server/middleware/validation.js: ✅
+- server/middleware/timeout.js: ✅
+- gateway-server.js: ✅
+
+### 🔴 NEW CRITICAL ISSUES DISCOVERED
+
+#### ISSUE #61: Port Configuration Mismatch (CRITICAL)
+**Severity:** P0 - CRITICAL  
+**Impact:** Application inaccessible, all API tests failing  
+**Root Cause:** Application running on port 3101 but tests expect port 5000
+
+**Evidence:**
+```bash
+# Application log
+🟢 [mono] Listening on 3101 (HTTP+WS)
+
+# Test failure
+node test-global-scenarios.js
+❌ Error: connect ECONNREFUSED 127.0.0.1:5000
+```
+
+**Problem:**
+- `mono-mode.env` sets PORT=3101
+- Test scripts hardcoded to port 5000
+- No PORT environment variable override in workflow
+- Gateway defaults to 3101 instead of 5000
+
+**Fix Required:**
+1. Update `mono-mode.env` to use PORT=5000
+2. OR update all test scripts to use PORT from environment
+3. OR add PORT=5000 to workflow environment
+
+#### ISSUE #62: Missing Process Management (HIGH)
+**Severity:** P1 - HIGH  
+**Impact:** Single point of failure, no agent process running  
+**Root Cause:** MONO mode only starts gateway, not separate agent/SDK processes
+
+**Evidence:**
+```bash
+# Expected: 3 node processes (gateway, SDK, agent)
+# Actual: 1 node process (gateway only)
+ps aux | grep node
+runner 755 gateway-server.js
+runner 799 vite dev
+```
+
+**Problem:**
+- Agent should run on port 43717 but process not started
+- SDK embedded in gateway (expected behavior in MONO mode)
+- But port 43717 still expected by some services
+
+**Fix Required:**
+1. Document MONO vs SPLIT mode port expectations
+2. Update health checks to skip agent port in MONO mode
+3. OR start agent process separately even in MONO mode
+
+#### ISSUE #63: Test Suite Port Hardcoding (MEDIUM)
+**Severity:** P2 - MEDIUM  
+**Impact:** Tests fail in different environments  
+**Root Cause:** Test files hardcode localhost:5000
+
+**Evidence:**
+```javascript
+// test-global-scenarios.js:9
+const BASE = process.env.BASE_URL || 'http://localhost:5000';
+
+// Multiple test files
+hostname: 'localhost',
+port: 5000,
+```
+
+**Problem:**
+- All test files assume port 5000
+- No environment variable support
+- Will fail in production (different ports)
+
+**Fix Required:**
+```javascript
+// Use shared config
+const { PORTS } = require('./shared/config.js');
+const BASE = process.env.BASE_URL || `http://localhost:${PORTS.GATEWAY}`;
+```
+
+### 📋 VALIDATION SUMMARY
+
+**Total Issues:** 63 (including 3 new)  
+**Critical (P0):** 5 (including 1 new)  
+**High (P1):** 10 (including 1 new)  
+**Medium (P2):** 8 (including 1 new)  
+**Low (P3):** 6  
+
+**Test Pass Rate:** 3/7 (42.9%)  
+**Critical Systems:** ⚠️ Partially functional  
+**Production Ready:** ❌ NO - Critical port issues must be resolved  
+
+### 🎯 IMMEDIATE ACTION REQUIRED
+
+**Priority 1 - Fix Port Configuration:**
+1. Standardize on port 5000 for gateway in all environments
+2. Update `mono-mode.env` to PORT=5000
+3. Ensure all tests use shared config for ports
+4. Verify gateway binds to 0.0.0.0:5000
+
+**Priority 2 - Fix Test Suite:**
+1. Update test-global-scenarios.js to use shared config
+2. Add port configuration to all test files
+3. Create environment-aware test runner
+4. Add retry logic for transient failures
+
+**Priority 3 - Documentation:**
+1. Document MONO vs SPLIT mode differences
+2. Update test documentation with port requirements
+3. Create troubleshooting guide for port conflicts
+4. Add validation checklist to deployment docs
+
+---
+
 **Report Generated:** 2025-01-23  
+**Updated:** 2025-10-24T02:20:00Z  
 **Analyst:** AI Code Review System  
 **Repository Version:** Current main branch  
 **Lines of Code Analyzed:** ~15,000+
