@@ -104,8 +104,8 @@ export default function CoachChat({ userId }: CoachChatProps) {
 
   const suggestedQuestions = [
     "Where should I stage right now?",
-    "Why no pings?",
-    "What's the strategy for this hour?",
+    "How's my strategy looking?",
+    "Just want to chat - how are you?",
   ];
 
   return (
@@ -113,8 +113,8 @@ export default function CoachChat({ userId }: CoachChatProps) {
       {/* Header */}
       <div className="flex items-center gap-2 p-4 border-b bg-muted/50">
         <MessageSquare className="h-5 w-5 text-primary" />
-        <h3 className="font-semibold">Strategy Coach</h3>
-        <span className="text-xs text-muted-foreground ml-auto">AI-powered</span>
+        <h3 className="font-semibold">AI Companion</h3>
+        <span className="text-xs text-muted-foreground ml-auto">Always here to help</span>
       </div>
 
       {/* Messages */}
@@ -122,7 +122,7 @@ export default function CoachChat({ userId }: CoachChatProps) {
         {msgs.length === 0 && (
           <div className="text-center py-8 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Ask me about your current strategy, venue recommendations, or staging locations.
+              Ask me about strategy, venues, or just chat. I'm here for you! 💬
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
               {suggestedQuestions.map((q, i) => (
