@@ -104,6 +104,18 @@ function spawnChild(name, command, args, env) {
       console.log(`   Health checks ready at /health and /healthz`);
     });
 
+    // WORKAROUND: Also listen on port 80 for deployment health checks
+    if (!isDev && PORT !== 80) {
+      const http80 = http.createServer(app);
+      http80.listen(80, '0.0.0.0', () => {
+        console.log(`🟢 [mono] Also listening on 0.0.0.0:80 for health checks`);
+      }).on('error', (err) => {
+        if (err.code !== 'EADDRINUSE' && err.code !== 'EACCES') {
+          console.warn('[mono] Port 80 not available:', err.message);
+        }
+      });
+    }
+
     // Mount SDK and Agent AFTER server starts (lazy loading)
     setImmediate(async () => {
       try {
