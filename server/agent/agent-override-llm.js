@@ -15,13 +15,12 @@ const GPT5_MODEL = process.env.AGENT_OVERRIDE_GPT5_MODEL || "gpt-5";
 const GEMINI_MODEL = process.env.AGENT_OVERRIDE_GEMINI_MODEL || "gemini-2.5-pro";
 
 // ULTRA-ENHANCED parameters - Maximum performance for all providers
-const CLAUDE_MAX_TOKENS = parseInt(process.env.AGENT_MAX_TOKENS || "200000"); // MAXIMUM
-const CLAUDE_TEMPERATURE = parseFloat(process.env.AGENT_TEMPERATURE || "1.0");
-const CLAUDE_TOP_P = parseFloat(process.env.AGENT_TOP_P || "0.95");
-const GPT5_REASONING_EFFORT = process.env.GPT5_REASONING_EFFORT || "high"; // Maximum reasoning
-const GPT5_MAX_TOKENS = parseInt(process.env.GPT5_MAX_TOKENS || "128000"); // Maximum output
-const GEMINI_TEMPERATURE = parseFloat(process.env.GEMINI_TEMPERATURE || "1.0"); // Increased for better reasoning
-const GEMINI_MAX_TOKENS = parseInt(process.env.GEMINI_MAX_TOKENS || "32768"); // Maximum Gemini output
+const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS || process.env.AGENT_MAX_TOKENS || "128000", 10);
+const CLAUDE_TEMPERATURE = parseFloat(process.env.CLAUDE_TEMPERATURE || process.env.AGENT_TEMPERATURE || "1.0");
+const GPT5_REASONING_EFFORT = process.env.GPT5_REASONING_EFFORT || "high";
+const GPT5_MAX_TOKENS = parseInt(process.env.GPT5_MAX_TOKENS || "128000", 10);
+const GEMINI_TEMPERATURE = parseFloat(process.env.GEMINI_TEMPERATURE || "1.0");
+const GEMINI_MAX_TOKENS = parseInt(process.env.GEMINI_MAX_TOKENS || "32768", 10);
 
 async function callClaude({ system, user, json }) {
   if (!CLAUDE_KEY) throw new Error("AGENT_OVERRIDE_API_KEY_C or ANTHROPIC_API_KEY not configured");
