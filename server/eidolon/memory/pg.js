@@ -2,10 +2,19 @@
 // Postgres-backed persistent memory for assistant override and Eidolon.
 
 import { Pool } from "pg";
+import { getSharedPool } from "../db/pool.js";
 
 const dsn = process.env.DATABASE_URL;
 if (!dsn) throw new Error("DATABASE_URL not set");
-const pool = new Pool({ connectionString: dsn });
+
+// Try to use shared pool first (feature-flagged), fall back to local pool
+let pool = getSharedPool();
+
+if (!pool) {
+  // Fallback: Create local pool with minimal settings
+  console.log('[memory] Using local pool (shared pool disabled)');
+  pool = new Pool({ connectionString: dsn });
+}
 
 export async function memoryPut({ table, scope, key, userId, content, ttlDays = 365 }) {
   const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000);

@@ -29,6 +29,7 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import pkg from "pg";
 const { Pool } = pkg;
+import { getSharedPool } from "./server/db/pool.js";
 import { capsFromEnv } from "./server/lib/capabilities.js";
 import { bearer } from "./server/lib/auth.js";
 import { makeLocalExecutor, mountAbilityRoutes } from "./server/lib/ability-routes.js";
@@ -57,14 +58,22 @@ let dbPool = null;
 
 /**
  * Get or create PostgreSQL connection pool
+ * Tries to use shared pool first (feature-flagged), falls back to local pool
  * @returns {Pool|null} PostgreSQL pool or null if DATABASE_URL not configured
  */
 function getDBPool() {
   if (!dbPool && process.env.DATABASE_URL) {
-    dbPool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: IS_PRODUCTION ? { rejectUnauthorized: false } : false
-    });
+    // Try shared pool first
+    dbPool = getSharedPool();
+    
+    // Fallback: Create local pool if shared pool disabled
+    if (!dbPool) {
+      console.log('[agent] Using local pool (shared pool disabled)');
+      dbPool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: IS_PRODUCTION ? { rejectUnauthorized: false } : false
+      });
+    }
   }
   return dbPool;
 }

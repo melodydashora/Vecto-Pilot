@@ -1,36 +1,43 @@
-
 import pkg from 'pg';
 const { Pool } = pkg;
+import { getSharedPool } from './pool.js';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  // Retry connection on failure
-  connectionTimeoutMillis: 10000
-});
+// Try to use shared pool first (feature-flagged), fall back to local pool
+let pool = getSharedPool();
 
-// Error event handler
-pool.on('error', (err, client) => {
-  console.error('[db] ❌ Unexpected pool error:', err.message);
-  console.error('[db] Stack:', err.stack);
+if (!pool) {
+  // Fallback: Create local pool with OLD settings for backward compatibility
+  // This path is active when PG_USE_SHARED_POOL=false
+  console.log('[db] Using local pool (shared pool disabled)');
   
-  // Don't exit process, let connection retry logic handle it
-  if (err.code === 'ECONNREFUSED') {
-    console.error('[db] Database connection refused - will retry on next query');
-  }
-});
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000
+  });
 
-// Connection event handler
-pool.on('connect', (client) => {
-  console.log('[db] ✅ New client connected to database');
-});
+  // Error event handler
+  pool.on('error', (err, client) => {
+    console.error('[db] ❌ Unexpected pool error:', err.message);
+    console.error('[db] Stack:', err.stack);
+    
+    // Don't exit process, let connection retry logic handle it
+    if (err.code === 'ECONNREFUSED') {
+      console.error('[db] Database connection refused - will retry on next query');
+    }
+  });
 
-// Remove event handler
-pool.on('remove', (client) => {
-  console.log('[db] 🔌 Client disconnected from pool');
-});
+  // Connection event handler
+  pool.on('connect', (client) => {
+    console.log('[db] ✅ New client connected to database');
+  });
+
+  // Remove event handler
+  pool.on('remove', (client) => {
+    console.log('[db] 🔌 Client disconnected from pool');
+  });
+}
 
 // Startup health check with retry logic
 let healthCheckAttempts = 0;
