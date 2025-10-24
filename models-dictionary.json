@@ -115,7 +115,7 @@
       "provider": "anthropic",
       "model_id": "claude-sonnet-4-5-20250929",
       "env_var": "AGENT_OVERRIDE_CLAUDE_MODEL",
-      "api_key_var": "AGENT_OVERRIDE_API_KEYC",
+      "api_key_var": "AGENT_OVERRIDE_API_KEY_C",
       "parameters": {
         "max_tokens": 64000,
         "temperature": 1.0,
@@ -135,7 +135,7 @@
       "provider": "openai",
       "model_id": "gpt-5",
       "env_var": "AGENT_OVERRIDE_GPT5_MODEL",
-      "api_key_var": "AGENT_OVERRIDE_API_KEY5",
+      "api_key_var": "AGENT_OVERRIDE_API_KEY_5",
       "parameters": {
         "reasoning_effort": "high",
         "max_completion_tokens": 32000
@@ -146,7 +146,7 @@
       "provider": "google",
       "model_id": "gemini-2.5-pro",
       "env_var": "AGENT_OVERRIDE_GEMINI_MODEL",
-      "api_key_var": "AGENT_OVERRIDE_API_KEYG",
+      "api_key_var": "AGENT_OVERRIDE_API_KEY_G",
       "parameters": {
         "max_output_tokens": 8192,
         "temperature": 0.2

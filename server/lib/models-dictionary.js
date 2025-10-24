@@ -155,7 +155,7 @@ export const MODELS_DICTIONARY = {
       currency: 'USD'
     },
     env_vars: {
-      api_key: 'AGENT_OVERRIDE_API_KEYC',
+      api_key: 'AGENT_OVERRIDE_API_KEY_C',
       model: 'AGENT_OVERRIDE_CLAUDE_MODEL'
     }
   },
@@ -179,7 +179,7 @@ export const MODELS_DICTIONARY = {
       currency: 'USD'
     },
     env_vars: {
-      api_key: 'AGENT_OVERRIDE_API_KEY5',
+      api_key: 'AGENT_OVERRIDE_API_KEY_5',
       model: 'AGENT_OVERRIDE_GPT5_MODEL'
     }
   },
@@ -203,7 +203,7 @@ export const MODELS_DICTIONARY = {
       currency: 'USD'
     },
     env_vars: {
-      api_key: 'AGENT_OVERRIDE_API_KEYG',
+      api_key: 'AGENT_OVERRIDE_API_KEY_G',
       model: 'AGENT_OVERRIDE_GEMINI_MODEL'
     }
   },

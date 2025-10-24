@@ -4,9 +4,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const AGENT_OVERRIDE_ORDER = (process.env.AGENT_OVERRIDE_ORDER || "anthropic,openai,google").split(",");
 
-const CLAUDE_KEY = process.env.AGENT_OVERRIDE_API_KEYC || process.env.ANTHROPIC_API_KEY;
-const GPT5_KEY = process.env.AGENT_OVERRIDE_API_KEY5 || process.env.OPENAI_API_KEY;
-const GEMINI_KEY = process.env.AGENT_OVERRIDE_API_KEYG || process.env.GOOGLEAQ_API_KEY;
+const CLAUDE_KEY = process.env.AGENT_OVERRIDE_API_KEY_C || process.env.ANTHROPIC_API_KEY;
+const GPT5_KEY = process.env.AGENT_OVERRIDE_API_KEY_5 || process.env.OPENAI_API_KEY;
+const GEMINI_KEY = process.env.AGENT_OVERRIDE_API_KEY_G || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
 
 // MAXIMUM CONTEXT MODELS - Claude Sonnet 4.5 Focused Mode
 // Updated to match Replit Agent's Claude version (20250514)
@@ -24,7 +24,7 @@ const GEMINI_TEMPERATURE = parseFloat(process.env.GEMINI_TEMPERATURE || "1.0"); 
 const GEMINI_MAX_TOKENS = parseInt(process.env.GEMINI_MAX_TOKENS || "32768"); // Maximum Gemini output
 
 async function callClaude({ system, user, json }) {
-  if (!CLAUDE_KEY) throw new Error("AGENT_OVERRIDE_API_KEYC not configured");
+  if (!CLAUDE_KEY) throw new Error("AGENT_OVERRIDE_API_KEY_C or ANTHROPIC_API_KEY not configured");
   
   const anthropic = new Anthropic({ apiKey: CLAUDE_KEY });
   const start = Date.now();
@@ -32,7 +32,7 @@ async function callClaude({ system, user, json }) {
   const params = {
     model: CLAUDE_MODEL,
     max_tokens: CLAUDE_MAX_TOKENS,
-    temperature: CLAUDE_TEMPERATURE, // Use temperature only (Claude doesn't allow both temp & top_p)
+    temperature: CLAUDE_TEMPERATURE,
     system,
     messages: [{ role: "user", content: user }],
   };
@@ -51,7 +51,7 @@ async function callClaude({ system, user, json }) {
 }
 
 async function callGPT5({ system, user, json }) {
-  if (!GPT5_KEY) throw new Error("AGENT_OVERRIDE_API_KEY5 not configured");
+  if (!GPT5_KEY) throw new Error("AGENT_OVERRIDE_API_KEY_5 or OPENAI_API_KEY not configured");
   
   const openai = new OpenAI({ apiKey: GPT5_KEY });
   const start = Date.now();
@@ -62,15 +62,24 @@ async function callGPT5({ system, user, json }) {
       { role: "system", content: system },
       { role: "user", content: user }
     ],
-    reasoning_effort: GPT5_REASONING_EFFORT,
-    max_completion_tokens: GPT5_MAX_TOKENS,
   };
+
+  // reasoning_effort and max_completion_tokens only valid for reasoning models
+  const reasoningModels = ["gpt-5", "gpt-4.1-turbo", "o1", "o1-mini", "o1-preview", "o3-mini"];
+  const isReasoningModel = reasoningModels.some(m => GPT5_MODEL.includes(m));
+  
+  if (isReasoningModel) {
+    params.reasoning_effort = GPT5_REASONING_EFFORT;
+    params.max_completion_tokens = GPT5_MAX_TOKENS;
+    console.log(`[Atlas/GPT-5] Using ${GPT5_MODEL} with reasoning_effort=${GPT5_REASONING_EFFORT}`);
+  } else {
+    params.max_tokens = GPT5_MAX_TOKENS;
+    console.log(`[Atlas/GPT-5] Using ${GPT5_MODEL} with max_tokens=${GPT5_MAX_TOKENS}`);
+  }
 
   if (json) {
     params.response_format = { type: "json_object" };
   }
-
-  console.log(`[Atlas/GPT-5] Using ${GPT5_MODEL} with reasoning_effort=${GPT5_REASONING_EFFORT}`);
   
   const completion = await openai.chat.completions.create(params);
   
@@ -84,7 +93,7 @@ async function callGPT5({ system, user, json }) {
 }
 
 async function callGemini({ system, user, json }) {
-  if (!GEMINI_KEY) throw new Error("AGENT_OVERRIDE_API_KEYG not configured");
+  if (!GEMINI_KEY) throw new Error("AGENT_OVERRIDE_API_KEY_G, GOOGLE_API_KEY, or GEMINI_API_KEY not configured");
   
   const genAI = new GoogleGenerativeAI(GEMINI_KEY);
   const model = genAI.getGenerativeModel({ 
