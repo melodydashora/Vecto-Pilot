@@ -1,19 +1,22 @@
+
 {
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "gpt5-agent-package/src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "client",
+    "server"
+  ],
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "node",
-    "outDir": "dist",
-    "rootDir": "src",
-    "esModuleInterop": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
+    "outDir": "gpt5-agent-package/dist",
+    "rootDir": "gpt5-agent-package/src",
     "isolatedModules": true,
-    "forceConsistentCasingInFileNames": true,
     "types": ["node"]
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "client", "server"]
+  }
 }
