@@ -1,9 +1,11 @@
-import { Router } from 'express';
+import express from 'express';
+import { validate, schemas } from '../middleware/validation.js';
 import { db } from '../db/drizzle.js';
 import { actions, snapshots, rankings, venue_catalog, venue_metrics } from '../../shared/schema.js';
 import { desc, eq, sql } from 'drizzle-orm';
+import crypto from 'crypto'; // Ensure crypto is imported
 
-const router = Router();
+const router = express.Router();
 
 // In-memory idempotency cache (5-minute TTL)
 const idempotencyCache = new Map();
@@ -23,7 +25,7 @@ setInterval(cleanExpiredKeys, 60000);
 
 // POST /api/actions
 // Log user actions (clicks, dwells, views) for ML training
-router.post('/', async (req, res) => {
+router.post('/', validate(schemas.action), async (req, res) => {
   try {
     const {
       ranking_id,
@@ -33,7 +35,7 @@ router.post('/', async (req, res) => {
       from_rank,
       user_id = 'default',
       raw,
-    } = req.body;
+    } = req.validatedBody; // Use validatedBody
 
     // Check idempotency key to prevent duplicate actions
     const idempotencyKey = req.header('X-Idempotency-Key');
@@ -45,14 +47,14 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Validate required fields
-    if (!action) {
-      return res.status(400).json({ error: 'action is required' });
-    }
+    // Validate required fields - this is now handled by the validation middleware
+    // if (!action) {
+    //   return res.status(400).json({ error: 'action is required' });
+    // }
 
     // Anchor to exact snapshot via ranking lookup (ensures action ↔ ranking ↔ snapshot integrity)
     let snapshot_id = null;
-    
+
     if (ranking_id) {
       // Lookup ranking to get its snapshot_id
       const ranking = await db
@@ -60,14 +62,14 @@ router.post('/', async (req, res) => {
         .from(rankings)
         .where(eq(rankings.ranking_id, ranking_id))
         .limit(1);
-      
+
       snapshot_id = ranking[0]?.snapshot_id || null;
-      
+
       if (snapshot_id) {
         console.log(`📸 Action anchored to ranking's snapshot: ${snapshot_id}`);
       }
     }
-    
+
     // Fallback to latest snapshot if no ranking_id provided (backward compatibility)
     if (!snapshot_id) {
       const latestSnapshot = await db
@@ -109,7 +111,7 @@ router.post('/', async (req, res) => {
       try {
         await db.insert(actions).values(actionData);
         console.log(`📊 Action logged: ${action}${block_id ? ` on ${block_id}` : ''}${dwell_ms ? ` (${dwell_ms}ms)` : ''}${attempt > 1 ? ` (retry ${attempt})` : ''}`);
-        
+
         // Bump venue_metrics.times_chosen for clicks (best-effort, non-blocking)
         if (action === 'click' && block_id) {
           try {
@@ -127,7 +129,7 @@ router.post('/', async (req, res) => {
             console.warn(`⚠️ Metrics bump skipped for ${block_id}:`, metricsErr.message);
           }
         }
-        
+
         const response = { 
           success: true, 
           action_id,
@@ -144,11 +146,11 @@ router.post('/', async (req, res) => {
         return res.json(response);
       } catch (err) {
         lastError = err;
-        
+
         // Check if it's a foreign key constraint error (replication lag for ranking_id or snapshot_id)
         const isRankingFKError = err.code === '23503' && err.constraint === 'actions_ranking_id_rankings_ranking_id_fk';
         const isSnapshotFKError = err.code === '23503' && err.constraint === 'actions_snapshot_id_snapshots_snapshot_id_fk';
-        
+
         if (isRankingFKError || isSnapshotFKError) {
           if (attempt < maxRetries) {
             // Exponential backoff with jitter: 150ms, 300ms, 600ms, 1200ms, 2400ms, 4800ms, 9600ms
@@ -158,7 +160,7 @@ router.post('/', async (req, res) => {
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
-          
+
           // If all retries exhausted
           if (isRankingFKError) {
             // For ranking_id, log action without it
@@ -167,7 +169,7 @@ router.post('/', async (req, res) => {
             try {
               await db.insert(actions).values(actionData);
               console.log(`📊 Action logged (no ranking): ${action}${block_id ? ` on ${block_id}` : ''}`);
-              
+
               const response = { 
                 success: true, 
                 action_id,

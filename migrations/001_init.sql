@@ -1,3 +1,11 @@
+-- ⚠️ DEPRECATED - DO NOT EDIT
+-- This file is kept for historical reference only
+-- Current schema source of truth: shared/schema.js (Drizzle ORM)
+-- To generate migrations: npm run db:generate
+-- To apply migrations: npm run db:migrate
+
+-- Vecto Pilot - Initial Schema Migration (DEPRECATED)
+
 -- Enable pgvector (run once per database)
 CREATE EXTENSION IF NOT EXISTS vector;
 

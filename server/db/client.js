@@ -1,88 +1,95 @@
+
 import pkg from 'pg';
 const { Pool } = pkg;
 
-// Lazy pool initialization - deferred until first query
-// This prevents database connections during module load (blocks health checks)
-function getPool() {
-  if (!globalThis.__pgPool__) {
-    const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
-    console.info('[db] Connecting to:', connectionString?.slice(0, 32), '…');
-    
-    globalThis.__pgPool__ = new Pool({
-      connectionString,
-      ssl: { rejectUnauthorized: false }, // Neon requires SSL
-      keepAlive: true,                     // Detect dropped connections fast
-      max: 10,                             // Reasonable pool size for Neon
-      idleTimeoutMillis: 30_000,          // 30s - don't let dead clients linger
-      connectionTimeoutMillis: 5_000,     // 5s - fail fast to enter retry path
-    });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+  // Retry connection on failure
+  connectionTimeoutMillis: 10000
+});
 
-    // Log pool errors (connection terminated, etc.) but don't crash
-    globalThis.__pgPool__.on('error', (err) => {
-      console.error('[pg-pool] Unexpected pool error (connection may have been terminated):', err.message);
-    });
-  }
-  return globalThis.__pgPool__;
-}
-
-// Create a Proxy that lazily initializes the pool on first access
-const pool = new Proxy({}, {
-  get(target, prop) {
-    const actualPool = getPool();
-    const value = actualPool[prop];
-    return typeof value === 'function' ? value.bind(actualPool) : value;
+// Error event handler
+pool.on('error', (err, client) => {
+  console.error('[db] ❌ Unexpected pool error:', err.message);
+  console.error('[db] Stack:', err.stack);
+  
+  // Don't exit process, let connection retry logic handle it
+  if (err.code === 'ECONNREFUSED') {
+    console.error('[db] Database connection refused - will retry on next query');
   }
 });
 
-/**
- * Retry wrapper for transient Postgres errors
- * Handles Neon autosuspend, compute restarts, and connection terminations
- * 
- * @param {Function} fn - Async function that performs the database operation
- * @param {number} attempts - Number of retry attempts (default: 3)
- * @returns {Promise<T>} Result of the database operation
- */
-export async function withPgRetry(fn, attempts = 3) {
-  let lastErr;
-  
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      const code = err?.code;
-      const message = String(err?.message ?? '');
-      
-      // Detect transient errors that should be retried
-      const transient =
-        code === '57P01' || // terminating connection due to administrator command
-        code === '57P03' || // cannot connect now
-        code === '53300' || // too many connections
-        message.includes('ECONNRESET') ||
-        message.includes('reset by peer') ||
-        message.includes('Client has encountered a connection error');
+// Connection event handler
+pool.on('connect', (client) => {
+  console.log('[db] ✅ New client connected to database');
+});
 
-      // If not transient or final attempt, throw
-      if (!transient || i === attempts - 1) {
-        throw err;
-      }
+// Remove event handler
+pool.on('remove', (client) => {
+  console.log('[db] 🔌 Client disconnected from pool');
+});
 
-      // Simple exponential backoff: 250ms, 500ms, 750ms
-      const backoffMs = 250 * (i + 1);
-      console.log(`[pg-pool] Transient error (${code || 'network'}), retrying in ${backoffMs}ms... (attempt ${i + 1}/${attempts})`);
-      await new Promise(resolve => setTimeout(resolve, backoffMs));
-      lastErr = err;
+// Startup health check with retry logic
+let healthCheckAttempts = 0;
+const MAX_HEALTH_CHECK_ATTEMPTS = 5;
+const HEALTH_CHECK_RETRY_DELAY = 2000;
+
+async function performHealthCheck() {
+  try {
+    const result = await pool.query('SELECT NOW() as current_time, version() as pg_version');
+    console.log('[db] ✅ Database connection established');
+    console.log('[db] PostgreSQL version:', result.rows[0].pg_version.split(',')[0]);
+    console.log('[db] Current time:', result.rows[0].current_time);
+    return true;
+  } catch (err) {
+    healthCheckAttempts++;
+    console.error(`[db] ❌ Health check failed (attempt ${healthCheckAttempts}/${MAX_HEALTH_CHECK_ATTEMPTS}):`, err.message);
+    
+    if (healthCheckAttempts >= MAX_HEALTH_CHECK_ATTEMPTS) {
+      console.error('[db] ❌ Database connection failed after maximum retry attempts');
+      console.error('[db] Please check DATABASE_URL and ensure PostgreSQL is running');
+      process.exit(1);
     }
+    
+    // Retry after delay
+    console.log(`[db] Retrying health check in ${HEALTH_CHECK_RETRY_DELAY}ms...`);
+    await new Promise(resolve => setTimeout(resolve, HEALTH_CHECK_RETRY_DELAY));
+    return performHealthCheck();
   }
-  
-  throw lastErr;
 }
 
-// Example usage:
-// import pool, { withPgRetry } from './db/client.js';
-// 
-// const rows = await withPgRetry(async () => {
-//   const result = await pool.query('SELECT * FROM snapshots WHERE id = $1', [id]);
-//   return result.rows;
-// });
+// Run health check on module load
+performHealthCheck().catch(err => {
+  console.error('[db] Fatal error during health check:', err);
+  process.exit(1);
+});
 
-export default pool;
+// Export enhanced pool with query wrapper for better error logging
+const enhancedPool = {
+  ...pool,
+  
+  async query(...args) {
+    try {
+      return await pool.query(...args);
+    } catch (err) {
+      console.error('[db] Query error:', err.message);
+      console.error('[db] Query:', args[0]?.substring?.(0, 100) || args[0]);
+      throw err;
+    }
+  },
+  
+  // Health check method for monitoring
+  async healthCheck() {
+    try {
+      await pool.query('SELECT 1');
+      return { ok: true, timestamp: new Date().toISOString() };
+    } catch (err) {
+      return { ok: false, error: err.message, timestamp: new Date().toISOString() };
+    }
+  }
+};
+
+export default enhancedPool;

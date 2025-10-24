@@ -68,6 +68,10 @@ function spawnChild(name, command, args, env) {
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
+  
+  // Global timeout middleware
+  const { timeoutMiddleware } = await import('./server/middleware/timeout.js');
+  app.use(timeoutMiddleware);
 
   // Request logger
   app.use((req, res, next) => {

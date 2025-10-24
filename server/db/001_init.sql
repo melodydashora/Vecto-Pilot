@@ -1,3 +1,9 @@
+-- ⚠️ DEPRECATED - DO NOT EDIT
+-- This file is kept for historical reference only
+-- Current schema source of truth: shared/schema.js (Drizzle ORM)
+
+-- Initial database schema (DEPRECATED)
+
 -- Enable pgcrypto for UUID generation
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
