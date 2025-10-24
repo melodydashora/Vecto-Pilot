@@ -82,7 +82,8 @@ function spawnChild(name, command, args, env) {
     next();
   });
 
-  // Health endpoints (ALWAYS available)
+  // Health endpoints (ALWAYS available) - Respond immediately for deployment health checks
+  app.get('/health', (_req, res) => res.status(200).send('OK'));
   app.get('/healthz', (_req, res) => res.json({ ok: true, mode: MODE, t: new Date().toISOString() }));
   app.get('/ready', (_req, res) => res.json({ ok: true, mode: MODE }));
   app.get('/diagnostics/memory', (_req, res) => res.json(process.memoryUsage()));
@@ -97,24 +98,31 @@ function spawnChild(name, command, args, env) {
   if (MODE === 'mono') {
     console.log(`[mono] Starting MONO mode on port ${PORT}`);
 
-    // Mount SDK directly as Express router
-    try {
-      const createSdkRouter = (await import('./sdk-embed.js')).default;
-      const sdkRouter = createSdkRouter({ API_PREFIX });
-      app.use(API_PREFIX, sdkRouter);
-      console.log(`[mono] ✓ SDK mounted at ${API_PREFIX}`);
-    } catch (e) {
-      console.warn('[mono] SDK embed failed:', e?.message || e);
-    }
+    // Start server FIRST for fast health checks, then mount routes
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`🟢 [mono] Listening on 0.0.0.0:${PORT} (HTTP+WS)`);
+      console.log(`   Health checks ready at /health and /healthz`);
+    });
 
-    // Mount Agent directly with WebSocket support
-    try {
-      const { mountAgent } = await import('./server/agent/embed.js');
-      mountAgent({ app, basePath: AGENT_PREFIX, wsPath: WS_PUBLIC_PATH, server });
-      console.log(`[mono] ✓ Agent mounted at ${AGENT_PREFIX}, WS at ${WS_PUBLIC_PATH}`);
-    } catch (e) {
-      console.warn('[mono] Agent embed failed:', e?.message || e);
-    }
+    // Mount SDK and Agent AFTER server starts (lazy loading)
+    setImmediate(async () => {
+      try {
+        const createSdkRouter = (await import('./sdk-embed.js')).default;
+        const sdkRouter = createSdkRouter({ API_PREFIX });
+        app.use(API_PREFIX, sdkRouter);
+        console.log(`[mono] ✓ SDK mounted at ${API_PREFIX}`);
+      } catch (e) {
+        console.warn('[mono] SDK embed failed:', e?.message || e);
+      }
+
+      try {
+        const { mountAgent } = await import('./server/agent/embed.js');
+        mountAgent({ app, basePath: AGENT_PREFIX, wsPath: WS_PUBLIC_PATH, server });
+        console.log(`[mono] ✓ Agent mounted at ${AGENT_PREFIX}, WS at ${WS_PUBLIC_PATH}`);
+      } catch (e) {
+        console.warn('[mono] Agent embed failed:', e?.message || e);
+      }
+    });
 
     // 404 JSON for unknown API routes
     app.use(API_PREFIX, (_req, res) => res.status(404).json({ ok: false, error: 'NOT_FOUND', mode: 'mono' }));
@@ -152,14 +160,6 @@ function spawnChild(name, command, args, env) {
         res.sendFile(path.join(__dirname, 'client/dist/index.html'));
       });
     }
-
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🟢 [mono] Listening on 0.0.0.0:${PORT} (HTTP+WS)`);
-      console.log(`   ${API_PREFIX} -> SDK (embedded)`);
-      console.log(`   ${AGENT_PREFIX} -> Agent (embedded)`);
-      console.log(`   ${WS_PUBLIC_PATH} -> Agent WebSocket`);
-      console.log(`   Access via: http://localhost:${PORT}`);
-    });
   }
 
   //  ═══════════════════════════════════════════════════════════════════

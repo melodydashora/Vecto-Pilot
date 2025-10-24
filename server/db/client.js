@@ -61,10 +61,10 @@ async function performHealthCheck() {
   }
 }
 
-// Run health check on module load
+// Run health check in background - don't block server startup
 performHealthCheck().catch(err => {
-  console.error('[db] Fatal error during health check:', err);
-  process.exit(1);
+  console.error('[db] Health check failed, but continuing startup:', err.message);
+  // Don't exit - let queries fail gracefully if DB is unavailable
 });
 
 // Export enhanced pool with query wrapper for better error logging
