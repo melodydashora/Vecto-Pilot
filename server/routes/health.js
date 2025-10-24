@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { routerDiagnosticsV2 } from '../lib/llm-router-v2.js';
+import { getPoolStats } from '../db/pool.js';
 
 const router = Router();
 
@@ -13,6 +14,16 @@ router.get('/', (req, res) => {
     memory: process.memoryUsage(),
     pid: process.pid,
     llm: diag
+  });
+});
+
+// PostgreSQL pool statistics endpoint
+router.get('/pool-stats', (req, res) => {
+  const stats = getPoolStats();
+  res.json({
+    ok: true,
+    timestamp: new Date().toISOString(),
+    pool: stats
   });
 });
 
