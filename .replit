@@ -26,6 +26,7 @@ externalPort = 80
 exposeLocalhost = true
 
 [workflows]
+runButton = "Run App"
 
 [[workflows.workflow]]
 name = "Run App"
@@ -34,4 +35,4 @@ author = 43532959
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "export $(cat mono-mode.env | xargs) && node gateway-server.js"
+args = "set -a && source mono-mode.env && set +a && node gateway-server.js"
