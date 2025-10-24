@@ -925,19 +925,24 @@ const CoPilot: React.FC = () => {
             </div>
           </div>
 
-          {/* Strategy Coach Chat - appears after strategy loads, stays visible during and after blocks loading */}
+          {/* Strategy Coach - Sticky Framed Component */}
           {persistentStrategy && coords && (
-            <div className="mb-6 mt-6">
-              <div className="mb-4 text-center">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-2">
-                  <MessageSquare className="w-7 h-7 text-purple-600" />
-                  Ask Your Strategy Coach
-                </h2>
-                <p className="text-gray-600 text-sm">
-                  Have questions about your strategy? Ask the AI coach for personalized advice.
-                </p>
+            <div className="mb-6">
+              <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-purple-600" />
+                  <h2 className="text-lg font-semibold text-gray-800">Strategy Coach</h2>
+                </div>
+                <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
+                  AI Assistant
+                </Badge>
               </div>
-              <CoachChat userId={localStorage.getItem('vecto_user_id') || 'default'} />
+              <div className="mt-4">
+                <p className="text-gray-600 text-sm mb-4 text-center">
+                  Ask questions about your strategy, venues, or get real-time advice
+                </p>
+                <CoachChat userId={localStorage.getItem('vecto_user_id') || 'default'} />
+              </div>
             </div>
           )}
 
