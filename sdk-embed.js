@@ -11,6 +11,7 @@ import venueEventsRoutes from "./server/routes/venue-events.js";
 import snapshotRoutes from "./server/routes/snapshot.js";
 import jobMetricsRoutes from "./server/routes/job-metrics.js";
 import mlHealthRoutes from "./server/routes/ml-health.js";
+import chatRoutes from "./server/routes/chat.js";
 import { loggingMiddleware } from "./server/middleware/logging.js";
 import { securityMiddleware } from "./server/middleware/security.js";
 import { 
@@ -83,6 +84,7 @@ export default function createSdkRouter(opts = {}) {
   r.use('/snapshot', snapshotRoutes);
   r.use('/metrics/jobs', jobMetricsRoutes);
   r.use('/ml', mlHealthRoutes);
+  r.use('/chat', chatRoutes); // AI Strategy Coach
   
   // Strategy and ranking stubs (from attached doc requirements)
   r.post('/strategy', express.json(), (req, res) => {

@@ -22,6 +22,7 @@ import venueEventsRoutes from "./server/routes/venue-events.js";
 import snapshotRoutes from "./server/routes/snapshot.js";
 import jobMetricsRoutes from "./server/routes/job-metrics.js";
 import mlHealthRoutes from "./server/routes/ml-health.js";
+import chatRoutes from "./server/routes/chat.js";
 
 // Middleware
 import { loggingMiddleware } from "./server/middleware/logging.js";
@@ -282,7 +283,8 @@ app.use("/blocks", parseJson, strictLimiter, blocksRoutes); // 🚀 Production: 
 app.use("/blocks-discovery", parseJson, strictLimiter, blocksDiscoveryRoutes); // 🔬 Hybrid discovery testing
 app.use("/location", parseJson, apiLimiter, locationRoutes); // parseJson for POST /snapshot
 app.use("/actions", parseJson, apiLimiter, actionsRoutes);
-app.use("/research", parseJson, apiLimiter, researchRoutes); // Internet research via Perplexity
+app.use("/research", parseJson, apiLimiter, researchRoutes);
+app.use("/chat", parseJson, apiLimiter, chatRoutes); // 💬 AI Strategy Coach // Internet research via Perplexity
 app.use("/feedback", parseJson, apiLimiter, feedbackRoutes); // Venue feedback and reliability scoring
 app.use("/diagnostics", apiLimiter, diagnosticsRoutes); // System health checks
 app.use("/venue", parseJson, apiLimiter, venueEventsRoutes); // Event checking via Perplexity
