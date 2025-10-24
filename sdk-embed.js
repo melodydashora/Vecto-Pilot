@@ -46,13 +46,13 @@ export default function createSdkRouter(opts = {}) {
         method: req.method,
         t: Date.now(),
         ip: req.ip
-      }, 'system', 7);
+      }, null, 7); // Use null for system-level data (UUID field)
 
       const reqKey = 'sdk.requests';
       const prev = threadManager.get(reqKey) || 0;
       const curr = prev + 1;
       threadManager.set(reqKey, curr);
-      await storeAgentMemory('requestCount', curr, 'sdk', 7);
+      await storeAgentMemory('requestCount', curr, null, 7); // Use null for system-level data (UUID field)
 
       req.extendedContext = ctx;
       req.threadManager = threadManager;

@@ -2,7 +2,7 @@
 // Postgres-backed persistent memory for assistant override and Eidolon.
 
 import { Pool } from "pg";
-import { getSharedPool } from "../db/pool.js";
+import { getSharedPool } from "../../db/pool.js";
 
 const dsn = process.env.DATABASE_URL;
 if (!dsn) throw new Error("DATABASE_URL not set");

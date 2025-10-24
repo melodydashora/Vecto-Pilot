@@ -63,7 +63,9 @@ export async function getEnhancedProjectContext(options = {}) {
       weather: s.weather_condition,
       temperature: s.temperature_f,
     }));
-  } catch {}
+  } catch (err) {
+    console.warn('[Enhanced Context] Failed to load recent snapshots:', err.message);
+  }
 
   try {
     const strats = await db.select().from(strategies).orderBy(desc(strategies.created_at)).limit(5);
@@ -73,7 +75,9 @@ export async function getEnhancedProjectContext(options = {}) {
       preview: s.strategy?.substring(0, 150),
       created: s.created_at,
     }));
-  } catch {}
+  } catch (err) {
+    console.warn('[Enhanced Context] Failed to load recent strategies:', err.message);
+  }
 
   try {
     const acts = await db.select().from(actions).orderBy(desc(actions.created_at)).limit(20);
@@ -83,54 +87,64 @@ export async function getEnhancedProjectContext(options = {}) {
       blockId: a.block_id,
       created: a.created_at,
     }));
-  } catch {}
+  } catch (err) {
+    console.warn('[Enhanced Context] Failed to load recent actions:', err.message);
+  }
 
   // Gather memory context
   try {
     const prefs = await memoryQuery({ 
       table: ASSISTANT_TABLE, 
       scope: "user_preferences", 
-      userId: "system", 
+      userId: null, // Use null for system-level data (UUID field)
       limit: 50 
     });
     context.userPreferences = Object.fromEntries(
       prefs.map(p => [p.key, p.content])
     );
-  } catch {}
+  } catch (err) {
+    console.warn('[Enhanced Context] Failed to load user preferences:', err.message);
+  }
 
   try {
     const session = await memoryQuery({ 
       table: EIDOLON_TABLE, 
       scope: "session_state", 
-      userId: "system", 
+      userId: null, // Use null for system-level data (UUID field)
       limit: 20 
     });
     context.sessionHistory = Object.fromEntries(
       session.map(s => [s.key, s.content])
     );
-  } catch {}
+  } catch (err) {
+    console.warn('[Enhanced Context] Failed to load session history:', err.message);
+  }
 
   try {
     const state = await memoryQuery({ 
       table: EIDOLON_TABLE, 
       scope: "project_state", 
-      userId: "system", 
+      userId: null, // Use null for system-level data (UUID field)
       limit: 20 
     });
     context.projectState = Object.fromEntries(
       state.map(s => [s.key, s.content])
     );
-  } catch {}
+  } catch (err) {
+    console.warn('[Enhanced Context] Failed to load project state:', err.message);
+  }
 
   try {
     const convs = await memoryQuery({
       table: ASSISTANT_TABLE,
       scope: "conversations",
-      userId: "system",
+      userId: null, // Use null for system-level data (UUID field)
       limit: 30,
     });
     context.conversationHistory = convs.map(c => c.content);
-  } catch {}
+  } catch (err) {
+    console.warn('[Enhanced Context] Failed to load conversation history:', err.message);
+  }
 
   // Thread awareness with cross-thread memory (ENHANCED)
   if (includeThreadContext) {
@@ -142,7 +156,7 @@ export async function getEnhancedProjectContext(options = {}) {
       const crossThreadMemory = await memoryQuery({
         table: CROSS_THREAD_TABLE,
         scope: "cross_thread_context",
-        userId: "system",
+        userId: null, // Use null for system-level data (UUID field)
         limit: 50
       });
       context.threadContext.crossThreadMemory = crossThreadMemory.map(m => m.content);
@@ -151,7 +165,7 @@ export async function getEnhancedProjectContext(options = {}) {
       const agentMemory = await memoryQuery({
         table: AGENT_MEMORY_TABLE,
         scope: "agent_context",
-        userId: "system",
+        userId: null, // Use null for system-level data (UUID field)
         limit: 50
       });
       context.threadContext.agentMemory = agentMemory.map(m => m.content);
@@ -195,7 +209,7 @@ export async function getEnhancedProjectContext(options = {}) {
 }
 
 // Internet search capabilities
-export async function performInternetSearch(query, userId = "system") {
+export async function performInternetSearch(query, userId = null) {
   const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 
   if (!PERPLEXITY_API_KEY) {
@@ -325,7 +339,7 @@ export async function analyzeWorkspaceDeep() {
 }
 
 // Store cross-thread memory
-export async function storeCrossThreadMemory(key, content, userId = "system", ttlDays = 730) {
+export async function storeCrossThreadMemory(key, content, userId = null, ttlDays = 730) {
   return await memoryPut({
     table: CROSS_THREAD_TABLE,
     scope: "cross_thread_context",
@@ -337,7 +351,7 @@ export async function storeCrossThreadMemory(key, content, userId = "system", tt
 }
 
 // Store agent-specific memory
-export async function storeAgentMemory(key, content, userId = "system", ttlDays = 730) {
+export async function storeAgentMemory(key, content, userId = null, ttlDays = 730) {
   return await memoryPut({
     table: AGENT_MEMORY_TABLE,
     scope: "agent_context",
@@ -349,7 +363,7 @@ export async function storeAgentMemory(key, content, userId = "system", ttlDays 
 }
 
 // Get cross-thread memory
-export async function getCrossThreadMemory(userId = "system", limit = 50) {
+export async function getCrossThreadMemory(userId = null, limit = 50) {
   const memory = await memoryQuery({
     table: CROSS_THREAD_TABLE,
     scope: "cross_thread_context",
@@ -360,7 +374,7 @@ export async function getCrossThreadMemory(userId = "system", limit = 50) {
 }
 
 // Get agent memory
-export async function getAgentMemory(userId = "system", limit = 50) {
+export async function getAgentMemory(userId = null, limit = 50) {
   const memory = await memoryQuery({
     table: AGENT_MEMORY_TABLE,
     scope: "agent_context",

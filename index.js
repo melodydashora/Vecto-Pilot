@@ -100,14 +100,14 @@ app.use(async (req, res, next) => {
       method: req.method,
       t: Date.now(),
       ip: req.ip
-    }, 'system', 7); // 7 days retention for recent paths
+    }, null, 7); // Use null for system-level data (UUID field)
 
     // Per-request counter for monitoring
     const reqKey = 'sdk.requests';
     const prev = threadManager.get(reqKey) || 0;
     const curr = prev + 1;
     threadManager.set(reqKey, curr);
-    await storeAgentMemory('requestCount', curr, 'sdk', 7); // Fixed signature: key, content, userId
+    await storeAgentMemory('requestCount', curr, null, 7); // Use null for system-level data (UUID field)
 
     // Per-route counter
     const routeKey = `sdk.routes.${req.method}.${req.originalUrl}`;
@@ -154,8 +154,8 @@ app.get("/ready", (_req, res) => {
 // ───────────────────────────────────────────────────────────────────────────────
 app.get('/diagnostics/memory', async (req, res) => {
   try {
-    const recent = await getCrossThreadMemory('system', 50); // userId, limit
-    const agentMem = await getAgentMemory('sdk', 50); // userId, limit
+    const recent = await getCrossThreadMemory(null, 50); // Use null for system-level data (UUID field)
+    const agentMem = await getAgentMemory(null, 50); // Use null for system-level data (UUID field)
     const summary = await getProjectSummary();
     const threadContext = req.threadManager ? {
       totalRequests: req.threadManager.get('sdk.requests') || 0,
