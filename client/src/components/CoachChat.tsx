@@ -11,9 +11,12 @@ interface Message {
 
 interface CoachChatProps {
   userId: string;
+  snapshotId?: string;
+  strategy?: string;
+  blocks?: any[];
 }
 
-export default function CoachChat({ userId }: CoachChatProps) {
+export default function CoachChat({ userId, snapshotId, strategy, blocks = [] }: CoachChatProps) {
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -39,7 +42,13 @@ export default function CoachChat({ userId }: CoachChatProps) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userId, message: my }),
+        body: JSON.stringify({ 
+          userId, 
+          message: my,
+          snapshotId,
+          strategy,
+          blocks: blocks.map(b => ({ name: b.name, category: b.category, address: b.address }))
+        }),
         signal: controllerRef.current.signal,
       });
 
