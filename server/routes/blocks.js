@@ -804,7 +804,6 @@ router.post('/', async (req, res) => {
     // ============================================
     let eventsMap = new Map();
     try {
-      const { ranking_candidates } = await import('../shared/schema.js');
       const eventData = await db
         .select({
           place_id: ranking_candidates.place_id,
@@ -813,14 +812,17 @@ router.post('/', async (req, res) => {
         .from(ranking_candidates)
         .where(eq(ranking_candidates.ranking_id, ranking_id));
       
+      console.log(`🎪 [${correlationId}] Event query returned ${eventData.length} rows`);
+      
       for (const row of eventData) {
         if (row.venue_events && typeof row.venue_events === 'object') {
           eventsMap.set(row.place_id || '', row.venue_events);
+          console.log(`🎪 [${correlationId}] Added event for place_id "${row.place_id}": ${row.venue_events.badge}`);
         }
       }
-      console.log(`🎪 [${correlationId}] Event enrichment: ${eventsMap.size} venues with event data`);
+      console.log(`🎪 [${correlationId}] Event enrichment complete: ${eventsMap.size} venues with event data`);
     } catch (eventsErr) {
-      console.warn(`⚠️ [${correlationId}] Event enrichment failed (non-blocking):`, eventsErr.message);
+      console.error(`❌ [${correlationId}] Event enrichment failed:`, eventsErr);
     }
 
     // ============================================
@@ -829,6 +831,12 @@ router.post('/', async (req, res) => {
     const blocks = triadPlan.per_venue.map((v, index) => {
       const feedback = feedbackMap.get(v.placeId || '') || { up: 0, down: 0 };
       const eventData = eventsMap.get(v.placeId || '') || null;
+      
+      if (eventData) {
+        console.log(`🎪 [${correlationId}] Venue "${v.name}" (placeId: "${v.placeId}"): Event badge = "${eventData.badge}"`);
+      } else if (v.placeId) {
+        console.log(`⚠️ [${correlationId}] Venue "${v.name}" (placeId: "${v.placeId}"): NO event data found in map`);
+      }
       
       return {
       name: v.name,
