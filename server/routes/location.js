@@ -674,6 +674,8 @@ router.post('/snapshot', async (req, res) => {
       
       const query = `What local events, road closures, traffic incidents, or major news in ${location} today would significantly affect rideshare driver demand or routes? Focus on actionable information for drivers working today.`;
       
+      console.log(`🔍 [PERPLEXITY] Local News Query: "${query}"`);
+      
       const newsData = await perplexity.search(query, {
         systemPrompt: 'Provide concise, factual local news relevant to rideshare drivers. Focus on events, closures, and traffic that affect demand.',
         maxTokens: 300,
@@ -688,7 +690,11 @@ router.post('/snapshot', async (req, res) => {
           fetched_at: new Date().toISOString(),
           query: query
         };
-        console.log('[Perplexity API] 📰 Local news fetched:', newsData.answer.slice(0, 150) + '...');
+        console.log('📰 [PERPLEXITY] Local News Response:', {
+          location: location,
+          answer: newsData.answer,
+          citations: newsData.citations?.length || 0
+        });
       }
     } catch (newsErr) {
       console.warn('[snapshot] Perplexity local news fetch failed (non-blocking):', newsErr.message);
