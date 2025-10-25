@@ -723,10 +723,10 @@ router.post('/', async (req, res) => {
           
           const eventResults = await researchMultipleVenueEvents(venueList);
           
-          // Update each ranking_candidate with event data
+          // Update each ranking_candidate with event data and badge
           for (const eventData of eventResults) {
             const venue = venues.find(v => v.name === eventData.venue_name);
-            if (venue?.place_id) {
+            if (venue?.place_id && eventData.has_events) {
               try {
                 await db.execute(sql`
                   UPDATE ranking_candidates
@@ -734,6 +734,7 @@ router.post('/', async (req, res) => {
                   WHERE ranking_id = ${ranking_id}
                   AND place_id = ${venue.place_id}
                 `);
+                console.log(`🎪 [${correlationId}] ${venue.name}: ${eventData.badge || 'Event detected'}`);
               } catch (updateErr) {
                 console.warn(`⚠️ [${correlationId}] Event update failed for ${venue.name}:`, updateErr.message);
               }
@@ -836,7 +837,10 @@ router.post('/', async (req, res) => {
       closed_venue_reasoning: v.closed_venue_reasoning,
       // Feedback counts
       up_count: feedback.up,
-      down_count: feedback.down
+      down_count: feedback.down,
+      // Event indicator (populated by background research)
+      hasEvent: false, // Will be updated when event research completes
+      eventBadge: null  // Simple text like "Concert tonight" or "Game at 7:30 PM"
     };
     });
 

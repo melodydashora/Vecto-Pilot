@@ -27,11 +27,14 @@ export async function researchVenueEvents(venueName, city, date = null) {
       searchRecencyFilter: 'day' // Only search today's news
     });
 
+    const hasEvents = !result.answer.toLowerCase().includes('no scheduled events') && 
+                      !result.answer.toLowerCase().includes('no events');
+    
     return {
       venue_name: venueName,
-      has_events: !result.answer.toLowerCase().includes('no scheduled events') && 
-                  !result.answer.toLowerCase().includes('no events'),
+      has_events: hasEvents,
       summary: result.answer,
+      badge: hasEvents ? generateSimpleBadge(result.answer) : null,
       citations: result.citations || [],
       impact_level: assessEventImpact(result.answer),
       researched_at: new Date().toISOString(),
@@ -130,8 +133,42 @@ export async function researchMultipleVenueEvents(venues, date = null) {
   return processed;
 }
 
+/**
+ * Generate a simple badge text from event summary for UI display
+ * @param {string} summary - Full event summary from Perplexity
+ * @returns {string} Short badge text (e.g., "Concert tonight", "Game at 7:30 PM")
+ */
+function generateSimpleBadge(summary) {
+  const lower = summary.toLowerCase();
+  
+  // Extract event type
+  let eventType = '';
+  if (lower.includes('concert')) eventType = '🎸 Concert';
+  else if (lower.includes('game') || lower.includes('match')) eventType = '🏀 Game';
+  else if (lower.includes('festival')) eventType = '🎪 Festival';
+  else if (lower.includes('show')) eventType = '🎭 Show';
+  else if (lower.includes('conference')) eventType = '📊 Conference';
+  else if (lower.includes('exhibition')) eventType = '🖼️ Exhibition';
+  else eventType = '🎉 Event';
+  
+  // Extract timing
+  let timing = '';
+  if (lower.includes('tonight')) timing = ' tonight';
+  else if (lower.includes('today')) timing = ' today';
+  else if (lower.includes('this evening')) timing = ' tonight';
+  
+  // Try to extract specific time (e.g., "7:30 PM", "7PM")
+  const timeMatch = summary.match(/\b(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)|\d{1,2}\s*(?:AM|PM|am|pm))\b/);
+  if (timeMatch && !timing) {
+    timing = ` at ${timeMatch[1]}`;
+  }
+  
+  return `${eventType}${timing}`;
+}
+
 export default {
   researchVenueEvents,
   researchMultipleVenueEvents,
-  assessEventImpact
+  assessEventImpact,
+  generateSimpleBadge
 };
