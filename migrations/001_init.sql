@@ -6,22 +6,28 @@
 
 -- Vecto Pilot - Initial Schema Migration (DEPRECATED)
 
--- Enable pgvector (run once per database)
+-- Enable pgvector extension (compatible with 0.8.0)
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Documents with 1536-dim embedding (OpenAI text-embedding-3-small)
+-- Create documents table with vector embeddings
 CREATE TABLE IF NOT EXISTS documents (
-  id        TEXT PRIMARY KEY,
-  content   TEXT NOT NULL,
-  metadata  JSONB DEFAULT '{}'::jsonb,
-  embedding vector(1536)
+  id TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  embedding vector(1536) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ANN index (fast KNN using IVFFlat with cosine distance)
+-- Create index for vector similarity search (0.8.0 compatible)
+-- Note: IVFFlat may not be available in older versions, using basic index
 CREATE INDEX IF NOT EXISTS documents_embedding_idx
   ON documents
   USING ivfflat (embedding vector_cosine_ops)
   WITH (lists = 100);
+
+-- If above fails, fallback to basic index (uncomment if needed):
+-- CREATE INDEX IF NOT EXISTS documents_embedding_idx ON documents (embedding);
 
 -- Analyze table for query optimization
 ANALYZE documents;

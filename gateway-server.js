@@ -68,7 +68,7 @@ function spawnChild(name, command, args, env) {
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
-  
+
   // Global timeout middleware - wrap in try/catch
   try {
     const { timeoutMiddleware } = await import('./server/middleware/timeout.js');
@@ -150,7 +150,7 @@ function spawnChild(name, command, args, env) {
       const viteTarget = 'http://127.0.0.1:5173';
       const proxy = createProxyServer({});
       proxy.on('error', (err) => console.error('[mono] Vite proxy error:', err.message));
-      
+
       // Spawn Vite (unless disabled)
       if (!process.env.DISABLE_SPAWN_VITE) {
         spawnChild('vite', 'npm', ['run', 'dev:client'], {});
@@ -313,3 +313,23 @@ function spawnChild(name, command, args, env) {
   console.error('[gateway] Fatal error:', err);
   process.exit(1);
 });
+
+// Helper to initialize DB - currently only for vector extension
+// TODO: Make this more generic or move to a dedicated DB service
+async function prepareDb() {
+  if (!db || !pool) {
+    console.log('[gateway] Skipping DB prep (no pool)');
+    return;
+  }
+  try {
+    await pool.query(INIT_SQL);
+    console.log('[gateway] ✅ Vector DB ready');
+  } catch (err) {
+    if (err.message.includes('vector') || err.message.includes('extension')) {
+      console.warn('[gateway] ⚠️ Vector extension unavailable - semantic search disabled');
+      console.warn('[gateway] Upgrade Neon plan or pgvector version to enable');
+    } else {
+      console.error('[gateway] DB prep failed:', err.message);
+    }
+  }
+}
