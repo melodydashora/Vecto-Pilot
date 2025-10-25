@@ -20,14 +20,16 @@ const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
  * Enrich GPT-5 venue recommendations with Google API data
  * @param {Array} venues - GPT-5 output: [{name, lat, lng, category, pro_tips}]
  * @param {Object} driverLocation - {lat, lng}
+ * @param {Object} snapshot - Full snapshot with timezone for accurate hours calculation
  * @returns {Promise<Array>} Enriched venues with addresses, distances, drive times
  */
-export async function enrichVenues(venues, driverLocation) {
+export async function enrichVenues(venues, driverLocation, snapshot = null) {
   if (!venues || venues.length === 0) {
     return [];
   }
 
-  console.log(`[Venue Enrichment] Enriching ${venues.length} venues from GPT-5...`);
+  const timezone = snapshot?.timezone || 'America/Chicago'; // Fallback to CDT
+  console.log(`[Venue Enrichment] Enriching ${venues.length} venues (timezone: ${timezone})...`);
 
   // Parallelize all enrichments for speed
   const enriched = await Promise.all(
@@ -42,8 +44,8 @@ export async function enrichVenues(venues, driverLocation) {
           { lat: venue.lat, lng: venue.lng }
         );
 
-        // 3. Get place details from Google Places API (New)
-        const placeDetails = await getPlaceDetails(venue.lat, venue.lng, venue.name);
+        // 3. Get place details from Google Places API (New) with timezone
+        const placeDetails = await getPlaceDetails(venue.lat, venue.lng, venue.name, timezone);
 
         // 4. Cache stable data in database
         if (placeDetails?.place_id) {
@@ -188,13 +190,89 @@ function condenseWeeklyHours(weekdayTexts) {
 }
 
 /**
+ * Calculate if venue is currently open based on Google hours and snapshot timezone
+ * @param {Array<string>} weekdayTexts - e.g., ["Monday: 6:00 AM – 11:00 PM", ...]
+ * @param {string} timezone - IANA timezone (e.g., "America/Chicago")
+ * @returns {boolean|null} - true if open, false if closed, null if hours unavailable
+ */
+function calculateIsOpen(weekdayTexts, timezone) {
+  if (!weekdayTexts || weekdayTexts.length === 0) {
+    return null; // No hours data available
+  }
+
+  try {
+    // Get current time in the venue's timezone
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      weekday: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const dayName = parts.find(p => p.type === 'weekday')?.value;
+    const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const currentMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+    const currentTimeMinutes = currentHour * 60 + currentMinute;
+
+    // Find today's hours (e.g., "Monday: 6:00 AM – 11:00 PM" or "Monday: Closed")
+    const todayHours = weekdayTexts.find(text => text.startsWith(dayName));
+    if (!todayHours) {
+      return null; // Can't find today's hours
+    }
+
+    // Check if closed for the day
+    if (todayHours.includes('Closed') || todayHours.includes('Open 24 hours')) {
+      return todayHours.includes('Open 24 hours');
+    }
+
+    // Parse hours (e.g., "Monday: 6:00 AM – 11:00 PM")
+    const hoursMatch = todayHours.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*[–-]\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!hoursMatch) {
+      return null; // Can't parse hours format
+    }
+
+    const [_, openHour, openMin, openPeriod, closeHour, closeMin, closePeriod] = hoursMatch;
+
+    // Convert to 24-hour format
+    let openHour24 = parseInt(openHour);
+    if (openPeriod.toUpperCase() === 'PM' && openHour24 !== 12) openHour24 += 12;
+    if (openPeriod.toUpperCase() === 'AM' && openHour24 === 12) openHour24 = 0;
+    
+    let closeHour24 = parseInt(closeHour);
+    if (closePeriod.toUpperCase() === 'PM' && closeHour24 !== 12) closeHour24 += 12;
+    if (closePeriod.toUpperCase() === 'AM' && closeHour24 === 12) closeHour24 = 0;
+
+    const openTimeMinutes = openHour24 * 60 + parseInt(openMin);
+    let closeTimeMinutes = closeHour24 * 60 + parseInt(closeMin);
+
+    // Handle overnight hours (e.g., 11:00 PM - 2:00 AM)
+    if (closeTimeMinutes < openTimeMinutes) {
+      closeTimeMinutes += 24 * 60; // Add 24 hours
+      if (currentTimeMinutes < openTimeMinutes) {
+        // If current time is AM, add 24 hours to compare with overnight closing
+        return currentTimeMinutes + (24 * 60) < closeTimeMinutes;
+      }
+    }
+
+    return currentTimeMinutes >= openTimeMinutes && currentTimeMinutes < closeTimeMinutes;
+  } catch (error) {
+    console.error(`[calculateIsOpen] Error parsing hours:`, error.message);
+    return null; // Parsing error - can't determine
+  }
+}
+
+/**
  * Get place details from Google Places API (New)
  * @param {number} lat
  * @param {number} lng
  * @param {string} name - Venue name for verification
+ * @param {string} timezone - IANA timezone for accurate hours calculation
  * @returns {Promise<Object>} {place_id, business_status, ...}
  */
-async function getPlaceDetails(lat, lng, name) {
+async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
   try {
     // Use Places API (New) - Search Nearby
     const response = await fetch(PLACES_NEW_URL, {
@@ -229,20 +307,16 @@ async function getPlaceDetails(lat, lng, name) {
 
       // Extract business hours
       const hours = place.currentOpeningHours || place.regularOpeningHours;
-      const isOpen = hours?.openNow ?? null;
       const weekdayTexts = hours?.weekdayDescriptions || [];
 
-      // DEBUG: Log raw hours and openNow status from Google
+      // CRITICAL: Calculate isOpen ourselves using snapshot timezone (don't trust Google's openNow)
+      const isOpen = calculateIsOpen(weekdayTexts, timezone);
+      
+      // DEBUG: Log raw hours and calculated status
       if (weekdayTexts.length > 0) {
-        console.log(`[Places API] Raw hours for "${name}":`, weekdayTexts);
-        console.log(`[Places API] openNow for "${name}":`, {
-          openNow: isOpen,
-          utcOffsetMinutes: place.utcOffsetMinutes,
-          currentServerTime: new Date().toISOString(),
-          source: place.currentOpeningHours ? 'currentOpeningHours' : 'regularOpeningHours',
-          hasCurrentHours: !!place.currentOpeningHours,
-          hasRegularHours: !!place.regularOpeningHours
-        });
+        console.log(`[Places API] "${name}" - Calculated isOpen: ${isOpen} (timezone: ${timezone})`);
+        console.log(`[Places API] Raw hours:`, weekdayTexts);
+        console.log(`[Places API] Google's openNow was: ${hours?.openNow} (we calculate our own)`);
       }
 
       // Condense weekly hours into readable format
