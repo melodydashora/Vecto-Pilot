@@ -61,6 +61,16 @@ Data is stored in PostgreSQL 17.5 (Neon) for ML data. Security measures include 
 - **Thread Context**: Fixed "column 'key' does not exist" error by updating agent_memory queries
 - **Documentation**: Created `RLS_SECURITY_IMPLEMENTATION.md` with complete security architecture
 
+### JWT/JWKS Authentication Infrastructure (October 25, 2025)
+- **RS256 Keypair**: Generated asymmetric RSA-2048 keypair (`keys/private.pem`, `keys/public.pem`)
+- **JWKS Endpoint**: Created public JWKS at `public/.well-known/jwks.json` for token verification
+- **Token Signing**: Built `scripts/sign-token.mjs` for generating test JWTs with user/tenant claims
+- **SQL Helpers**: Created `migrations/004_jwt_helpers.sql` with `app.jwt_sub()`, `app.jwt_tenant()`, `app.jwt_role()`, `app.is_authenticated()` functions
+- **Security**: Private key protected in `.gitignore`, rotation strategy documented
+- **Production Ready**: Complete setup guide in `docs/JWKS_SETUP_GUIDE.md` and quick start in `docs/JWKS_QUICK_START.md`
+- **Claims Structure**: Supports `sub` (user_id), `tenant_id` (multi-tenant), `role` (RBAC), 15-minute expiry
+- **Next Steps**: Register JWKS URL in Neon Console, enable RLS for production deployment
+
 ### Database Status
 - **Provider**: Neon PostgreSQL 17.5 (AWS us-west-2)
 - **Connection**: Pooled connection with TCP keepalive and safe idle timeouts
