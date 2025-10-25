@@ -335,6 +335,12 @@ async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
     if (data.places && data.places.length > 0) {
       const place = data.places[0];
 
+      console.log(`🔍 [GOOGLE PLACES] Lookup for "${name}" at ${lat},${lng}:`, {
+        found_name: place.displayName?.text || place.name,
+        place_id: place.id,
+        address: place.formattedAddress
+      });
+
       // Extract business hours
       const hours = place.currentOpeningHours || place.regularOpeningHours;
       const weekdayTexts = hours?.weekdayDescriptions || [];
@@ -361,6 +367,8 @@ async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
         allHours: weekdayTexts
       };
     }
+
+    console.warn(`⚠️ [GOOGLE PLACES] No results found for "${name}" at ${lat},${lng}`);
 
     return null;
   } catch (error) {
