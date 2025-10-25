@@ -202,7 +202,7 @@ async function getPlaceDetails(lat, lng, name) {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.businessStatus,places.formattedAddress,places.currentOpeningHours,places.regularOpeningHours'
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.businessStatus,places.formattedAddress,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes'
       },
       body: JSON.stringify({
         locationRestriction: {
@@ -232,9 +232,17 @@ async function getPlaceDetails(lat, lng, name) {
       const isOpen = hours?.openNow ?? null;
       const weekdayTexts = hours?.weekdayDescriptions || [];
 
-      // DEBUG: Log raw hours from Google
+      // DEBUG: Log raw hours and openNow status from Google
       if (weekdayTexts.length > 0) {
         console.log(`[Places API] Raw hours for "${name}":`, weekdayTexts);
+        console.log(`[Places API] openNow for "${name}":`, {
+          openNow: isOpen,
+          utcOffsetMinutes: place.utcOffsetMinutes,
+          currentServerTime: new Date().toISOString(),
+          source: place.currentOpeningHours ? 'currentOpeningHours' : 'regularOpeningHours',
+          hasCurrentHours: !!place.currentOpeningHours,
+          hasRegularHours: !!place.regularOpeningHours
+        });
       }
 
       // Condense weekly hours into readable format
