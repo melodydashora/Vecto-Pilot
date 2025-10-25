@@ -9,12 +9,31 @@
  */
 
 import { Pool } from 'pg';
-import { config } from 'dotenv';
+import { readFileSync } from 'fs';
 
-config({ path: 'mono-mode.env' });
+// Load DATABASE_URL from mono-mode.env or environment
+let DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+  try {
+    const envContent = readFileSync('mono-mode.env', 'utf8');
+    const match = envContent.match(/^DATABASE_URL=(.+)$/m);
+    if (match) {
+      DATABASE_URL = match[1].trim();
+    }
+  } catch (err) {
+    console.error('❌ Could not read mono-mode.env:', err.message);
+    process.exit(1);
+  }
+}
+
+if (!DATABASE_URL) {
+  console.error('❌ DATABASE_URL not found in environment or mono-mode.env');
+  process.exit(1);
+}
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: DATABASE_URL
 });
 
 const TABLES = [
