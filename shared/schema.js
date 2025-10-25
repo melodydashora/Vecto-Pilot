@@ -24,6 +24,7 @@ export const snapshots = pgTable("snapshots", {
   weather: jsonb("weather"),
   air: jsonb("air"),
   airport_context: jsonb("airport_context"),
+  local_news: jsonb("local_news"), // Perplexity daily local news affecting rideshare (events, road closures, traffic)
   device: jsonb("device"),
   permissions: jsonb("permissions"),
   extras: jsonb("extras"),
@@ -50,6 +51,10 @@ export const strategies = pgTable("strategies", {
   model_params: jsonb("model_params"), // { temperature, max_tokens, etc. }
   prompt_version: text("prompt_version"), // Track prompt template iterations
   strategy_for_now: text('strategy_for_now'), // Unlimited text length
+  // Location context where strategy was created (from snapshot)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  city: text("city"),
 });
 
 export const rankings = pgTable("rankings", {
@@ -101,6 +106,10 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   estimated_distance_miles: doublePrecision("estimated_distance_miles"),
   drive_time_minutes: integer("drive_time_minutes"),
   distance_source: text("distance_source"),
+  // GPT-5 Planner outputs (tactical recommendations)
+  pro_tips: text("pro_tips").array(), // Array of tactical tips from planner
+  closed_reasoning: text("closed_reasoning"), // Why recommend if closed (strategic timing)
+  staging_tips: text("staging_tips"), // Where to park/stage for this venue
 }, (table) => ({
   // Foreign key indexes for performance optimization (Issue #28)
   idxRankingId: sql`create index if not exists idx_ranking_candidates_ranking_id on ${table} (ranking_id)`,
