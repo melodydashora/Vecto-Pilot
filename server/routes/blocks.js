@@ -800,10 +800,36 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
+    // STEP 3.6: Pull event data from database (non-blocking)
+    // ============================================
+    let eventsMap = new Map();
+    try {
+      const { ranking_candidates } = await import('../shared/schema.js');
+      const eventData = await db
+        .select({
+          place_id: ranking_candidates.place_id,
+          venue_events: ranking_candidates.venue_events,
+        })
+        .from(ranking_candidates)
+        .where(eq(ranking_candidates.ranking_id, ranking_id));
+      
+      for (const row of eventData) {
+        if (row.venue_events && typeof row.venue_events === 'object') {
+          eventsMap.set(row.place_id || '', row.venue_events);
+        }
+      }
+      console.log(`🎪 [${correlationId}] Event enrichment: ${eventsMap.size} venues with event data`);
+    } catch (eventsErr) {
+      console.warn(`⚠️ [${correlationId}] Event enrichment failed (non-blocking):`, eventsErr.message);
+    }
+
+    // ============================================
     // STEP 4: Return normalized result
     // ============================================
     const blocks = triadPlan.per_venue.map((v, index) => {
       const feedback = feedbackMap.get(v.placeId || '') || { up: 0, down: 0 };
+      const eventData = eventsMap.get(v.placeId || '') || null;
+      
       return {
       name: v.name,
       address: v.address,
@@ -839,9 +865,11 @@ router.post('/', async (req, res) => {
       // Feedback counts
       up_count: feedback.up,
       down_count: feedback.down,
-      // Event indicator (populated by background research)
-      hasEvent: false, // Will be updated when event research completes
-      eventBadge: null  // Simple text like "Concert tonight" or "Game at 7:30 PM"
+      // Event data from database
+      hasEvent: eventData?.has_events || false,
+      eventBadge: eventData?.badge || null,
+      eventSummary: eventData?.summary || null,
+      eventImpact: eventData?.impact || null
     };
     });
 
