@@ -9,6 +9,7 @@
  */
 
 import { getRouteWithTraffic } from './routes-api.js';
+import { getPlaceHours, findPlaceIdByText } from './places-hours.js';
 import { upsertPlace } from './places-cache.js';
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -27,23 +28,23 @@ export async function enrichVenues(venues, driverLocation) {
   }
 
   console.log(`[Venue Enrichment] Enriching ${venues.length} venues from GPT-5...`);
-  
+
   // Parallelize all enrichments for speed
   const enriched = await Promise.all(
     venues.map(async (venue, index) => {
       try {
         // 1. Reverse geocode coords → address
         const address = await reverseGeocode(venue.lat, venue.lng);
-        
+
         // 2. Calculate distance + drive time with traffic
         const route = await getRouteWithTraffic(
           driverLocation,
           { lat: venue.lat, lng: venue.lng }
         );
-        
+
         // 3. Get place details from Google Places API (New)
         const placeDetails = await getPlaceDetails(venue.lat, venue.lng, venue.name);
-        
+
         // 4. Cache stable data in database
         if (placeDetails?.place_id) {
           await upsertPlace({
@@ -72,12 +73,12 @@ export async function enrichVenues(venues, driverLocation) {
           trafficDelayMinutes: Math.ceil(route.trafficDelaySeconds / 60),
           distanceSource: 'google_routes_api' // For ML training
         };
-        
+
         console.log(`[Venue Enrichment] ✅ "${venue.name}": placeId=${enrichedVenue.placeId ? 'YES' : 'NO'}, coords=${enrichedVenue.lat},${enrichedVenue.lng}`);
         return enrichedVenue;
       } catch (error) {
         console.error(`[Venue Enrichment] Failed to enrich venue "${venue.name}":`, error.message);
-        
+
         // CRITICAL: Always preserve GPT-5 coords even if enrichment fails
         return {
           ...venue,
@@ -123,7 +124,7 @@ async function reverseGeocode(lat, lng) {
       // Fallback to first result if no street address found
       return data.results[0].formatted_address;
     }
-    
+
     throw new Error(`Geocoding failed: ${data.status}`);
   } catch (error) {
     console.error(`[Reverse Geocode] Failed for ${lat},${lng}:`, error.message);
@@ -139,32 +140,32 @@ async function reverseGeocode(lat, lng) {
  */
 function condenseWeeklyHours(weekdayTexts) {
   if (!weekdayTexts || weekdayTexts.length === 0) return null;
-  
+
   // Parse each day and filter out "Closed" days
   const days = weekdayTexts.map(text => {
     const match = text.match(/^(\w+):\s*(.+)$/);
     if (!match) return null;
-    
+
     const [, day, hours] = match;
-    
+
     // Skip closed days
     if (/closed/i.test(hours)) return null;
-    
+
     // Simplify hours format: "6:00 AM – 10:00 PM" → "6AM-10PM"
     const simplified = hours
       .replace(/(\d+):00\s*/g, '$1')  // Remove :00
       .replace(/\s*–\s*/g, '-')        // Replace – with -
       .replace(/\s+/g, '');            // Remove spaces
-    
+
     return { day, hours: simplified };
   }).filter(Boolean);
-  
+
   if (days.length === 0) return null;
-  
+
   // Group consecutive days with same hours
   const groups = [];
   let currentGroup = [days[0]];
-  
+
   for (let i = 1; i < days.length; i++) {
     if (days[i].hours === currentGroup[0].hours) {
       currentGroup.push(days[i]);
@@ -174,7 +175,7 @@ function condenseWeeklyHours(weekdayTexts) {
     }
   }
   groups.push(currentGroup);
-  
+
   // Format groups
   const formatted = groups.map(group => {
     const startDay = group[0].day.slice(0, 3); // Mon, Tue, etc.
@@ -182,7 +183,7 @@ function condenseWeeklyHours(weekdayTexts) {
     const dayRange = group.length === 1 ? startDay : `${startDay}-${endDay}`;
     return `${dayRange}: ${group[0].hours}`;
   });
-  
+
   return formatted.join(', ');
 }
 
@@ -222,23 +223,23 @@ async function getPlaceDetails(lat, lng, name) {
     }
 
     const data = await response.json();
-    
+
     if (data.places && data.places.length > 0) {
       const place = data.places[0];
-      
+
       // Extract business hours
       const hours = place.currentOpeningHours || place.regularOpeningHours;
       const isOpen = hours?.openNow ?? null;
       const weekdayTexts = hours?.weekdayDescriptions || [];
-      
+
       // DEBUG: Log raw hours from Google
       if (weekdayTexts.length > 0) {
         console.log(`[Places API] Raw hours for "${name}":`, weekdayTexts);
       }
-      
+
       // Condense weekly hours into readable format
       const condensedHours = condenseWeeklyHours(weekdayTexts);
-      
+
       return {
         place_id: place.id,
         business_status: place.businessStatus || 'OPERATIONAL',
