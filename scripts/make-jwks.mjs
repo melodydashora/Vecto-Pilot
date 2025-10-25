@@ -19,7 +19,7 @@ console.log('🔑 Generating JWKS from public key...\n');
 
 try {
   // Read existing PEM files
-  const spki = readFileSync('public.pem', 'utf8');
+  const spki = readFileSync('keys/public.pem', 'utf8');
   
   // Convert to JWK
   const publicKey = await importSPKI(spki, alg);

@@ -185,3 +185,10 @@ data/context-snapshots/
 data/triad-history/
 data/ml-rankings/
 
+
+# JWT/JWKS Security - NEVER commit private keys!
+private.pem
+*.pem
+!public.pem
+keys/
+!keys/.gitkeep
