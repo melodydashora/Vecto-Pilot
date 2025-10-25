@@ -41,7 +41,10 @@
     "model:verify": "node tools/research/model-discovery.mjs >/dev/null && echo '✅ Model verification passed'",
     "agent:build": "tsc -p tsconfig.agent.json",
     "agent:start": "node dist/index.js",
-    "agent:dev": "ts-node src/index.ts"
+    "agent:dev": "ts-node src/index.ts",
+    "rls:enable": "node scripts/toggle-rls.js enable",
+    "rls:disable": "node scripts/toggle-rls.js disable",
+    "rls:status": "node scripts/toggle-rls.js status"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
