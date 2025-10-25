@@ -65,6 +65,11 @@ export async function generateStrategyForSnapshot(snapshot_id) {
       ? `${snap.airport_context.airport_code} airport ${snap.airport_context.distance_miles.toFixed(1)} miles away - ${snap.airport_context.delay_minutes || 0} min delays`
       : null;
     
+    // Extract local news/traffic intelligence from Perplexity
+    const localNewsStr = snap.local_news && snap.local_news.summary
+      ? snap.local_news.summary
+      : null;
+    
     const systemPrompt = `You are a rideshare strategy advisor and economist. Your job is to analyze the driver's COMPLETE snapshot context and provide hyper-specific, actionable strategic guidance in 3-5 sentences.
 
 ANALYZE THE COMPLETE CONTEXT:
@@ -74,8 +79,9 @@ ANALYZE THE COMPLETE CONTEXT:
 - Current weather impact on rider behavior
 - Air quality considerations
 - Airport proximity and flight activity (if relevant)
+- Local news, traffic alerts, and events affecting rideshare demand
 
-Think deeply about what's happening RIGHT NOW at this exact location, on this specific day, at this precise time. What venues are nearby? What events? What rider patterns exist for this daypart on this day of week?
+Think deeply about what's happening RIGHT NOW at this exact location, on this specific day, at this precise time. What venues are nearby? What events? What rider patterns exist for this daypart on this day of week? Are there any traffic disruptions, local events, or news that would impact demand or routing?
 
 DO NOT recommend specific venue addresses - provide strategic guidance about types of areas, opportunities, or timing strategies.
 
@@ -118,7 +124,7 @@ Daypart: ${snap.day_part_key || 'unknown'}
 
 CURRENT CONDITIONS:
 Weather: ${weatherStr}
-Air Quality: ${airStr}${airportStr ? `\nAirport: ${airportStr}` : ''}
+Air Quality: ${airStr}${airportStr ? `\nAirport: ${airportStr}` : ''}${localNewsStr ? `\n\nLOCAL INTELLIGENCE:\n${localNewsStr}` : ''}
 
 START YOUR RESPONSE WITH: "Today is ${dayOfWeek}, ${formattedDate} at ${exactTime}"
 
@@ -146,7 +152,8 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
       daypart: snap.day_part_key,
       weather: weatherStr,
       airQuality: airStr,
-      airport: airportStr || 'none'
+      airport: airportStr || 'none',
+      localNews: localNewsStr ? `${localNewsStr.substring(0, 100)}...` : 'none'
     });
     
     // Call GPT-5 with transient retry and hard budget (120s with 6 retries)
