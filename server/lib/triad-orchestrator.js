@@ -73,12 +73,13 @@ export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
   const gptTimer = setTimeout(() => gptCtrl.abort(), Math.min(plannerDeadline, left()));
   let planner = {};
   try {
-    const raw = await callGPT5({
+    const response = await callGPT5({
       developer: dev,
       user: usr,
       abortSignal: gptCtrl.signal
     });
-    planner = safeJson(raw) || {};
+    console.log(`[triad] GPT-5 planner tokens: ${response.total_tokens} (${response.reasoning_tokens} reasoning)`);
+    planner = safeJson(response.text) || {};
   } finally { clearTimeout(gptTimer); }
 
   // 3) Gemini — validate planner and add seed additions strictly from catalog not in shortlist

@@ -53,14 +53,15 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
 
       const cols = [
         "id","ranking_id","block_id","name","lat","lng","place_id","rank","exploration_policy",
-        "distance_miles","drive_time_minutes","value_per_min","value_grade","not_worth","distance_source"
+        "distance_miles","drive_time_minutes","value_per_min","value_grade","not_worth","distance_source",
+        "pro_tips","closed_reasoning","staging_tips","snapshot_id"
       ];
       const rows = [];
       const args = [];
       let p = 1;
       for (const v of venues) {
         console.log(`📊 [${correlation_id}] Candidate ${v.rank}: ${v.name} - place_id: ${v.place_id}, dist: ${v.distance_miles} mi, time: ${v.drive_time_minutes} min, value_per_min: ${v.value_per_min}, grade: ${v.value_grade}, source: ${v.distanceSource || v.distance_source || 'unknown'}`);
-        rows.push(`(gen_random_uuid(),$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+        rows.push(`(gen_random_uuid(),$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
         args.push(
           ranking_id,
           v.place_id || `block_${v.rank}`,  // Use place_id as block_id (unique identifier)
@@ -75,7 +76,11 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
           v.value_per_min ?? null,
           v.value_grade ?? null,
           v.not_worth ?? false,
-          v.distanceSource || v.distance_source || 'unknown' // Issue #30 Fix: Track distance source
+          v.distanceSource || v.distance_source || 'unknown', // Issue #30 Fix: Track distance source
+          v.pro_tips ? JSON.stringify(v.pro_tips) : null,  // GPT-5 planner tactical tips
+          v.closed_reasoning || null,  // Why recommend if closed
+          v.staging_tips || null,  // Where to park/stage
+          snapshot_id  // Link to snapshot for event research
         );
       }
       console.log(`📝 [${correlation_id}] INSERT ranking_candidates: ${venues.length} rows`);

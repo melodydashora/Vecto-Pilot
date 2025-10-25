@@ -29,7 +29,7 @@ export async function callGPT5WithBudget(payload, { timeoutMs = 45000, maxRetrie
     const timeoutId = setTimeout(() => abortController.abort(), budgetRemaining);
 
     try {
-      const text = await callGPT5({
+      const response = await callGPT5({
         ...payload,
         abortSignal: abortController.signal
       });
@@ -37,13 +37,16 @@ export async function callGPT5WithBudget(payload, { timeoutMs = 45000, maxRetrie
       clearTimeout(timeoutId);
       const ms = Date.now() - attemptStart;
       
-      console.log(`[retry] attempt=${attempt} result=success ms=${ms}`);
+      console.log(`[retry] attempt=${attempt} result=success ms=${ms} tokens=${response.total_tokens}`);
       
       return {
         ok: true,
-        text,
+        text: response.text,
         ms,
-        tokens: 0, // GPT-5 adapter logs tokens separately
+        tokens: response.total_tokens || 0,
+        reasoning_tokens: response.reasoning_tokens || 0,
+        prompt_tokens: response.prompt_tokens || 0,
+        completion_tokens: response.completion_tokens || 0,
         attempt
       };
     } catch (err) {
