@@ -32,38 +32,54 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
     ? JSON.stringify(content)
     : content;
 
-  const q = `
-    INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
-    VALUES ($1, $2, $3, $4, now(), now(), $5)
-    ON CONFLICT (scope, key, user_id)
-    DO UPDATE SET content = $4, updated_at = now(), expires_at = $5
-    RETURNING id
-  `;
-  const v = [scope, key, user_id_val, contentVal, expiresAt];
+  const client = await pool.connect();
+  try {
+    // Set RLS context (NULL for system access)
+    await client.query('SET LOCAL app.user_id = $1', [user_id_val]);
+    
+    const q = `
+      INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
+      VALUES ($1, $2, $3, $4, now(), now(), $5)
+      ON CONFLICT (scope, key, user_id)
+      DO UPDATE SET content = $4, updated_at = now(), expires_at = $5
+      RETURNING id
+    `;
+    const v = [scope, key, user_id_val, contentVal, expiresAt];
 
-  const { rows } = await pool.query(q, v);
-  return rows[0]?.id || null;
+    const { rows } = await client.query(q, v);
+    return rows[0]?.id || null;
+  } finally {
+    client.release();
+  }
 }
 
 export async function memoryGet({ table, scope, key, userId }) {
   const user_id_val = normalizeUserId(userId);
 
-  const q = `
-    SELECT content FROM ${table}
-    WHERE scope = $1
-      AND key = $2
-      AND (user_id IS NOT DISTINCT FROM $3)
-      AND (expires_at IS NULL OR expires_at > now())
-    ORDER BY updated_at DESC
-    LIMIT 1
-  `;
-  const v = [scope, key, user_id_val];
-  const { rows } = await pool.query(q, v);
-  if (!rows[0]) return null;
+  const client = await pool.connect();
   try {
-    return JSON.parse(rows[0].content);
-  } catch {
-    return rows[0].content;
+    // Set RLS context (NULL for system access)
+    await client.query('SET LOCAL app.user_id = $1', [user_id_val]);
+    
+    const q = `
+      SELECT content FROM ${table}
+      WHERE scope = $1
+        AND key = $2
+        AND (user_id IS NOT DISTINCT FROM $3)
+        AND (expires_at IS NULL OR expires_at > now())
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `;
+    const v = [scope, key, user_id_val];
+    const { rows } = await client.query(q, v);
+    if (!rows[0]) return null;
+    try {
+      return JSON.parse(rows[0].content);
+    } catch {
+      return rows[0].content;
+    }
+  } finally {
+    client.release();
   }
 }
 
@@ -71,23 +87,31 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
   const user_id_val = normalizeUserId(userId);
   const lim = Math.max(1, Math.min(200, limit));
 
-  const q = `
-    SELECT key, content, updated_at
-    FROM ${table}
-    WHERE scope = $1
-      AND (user_id IS NOT DISTINCT FROM $2)
-      AND (expires_at IS NULL OR expires_at > now())
-    ORDER BY updated_at DESC
-    LIMIT $3
-  `;
-  const v = [scope, user_id_val, lim];
-  const { rows } = await pool.query(q, v);
+  const client = await pool.connect();
+  try {
+    // Set RLS context (NULL for system access)
+    await client.query('SET LOCAL app.user_id = $1', [user_id_val]);
+    
+    const q = `
+      SELECT key, content, updated_at
+      FROM ${table}
+      WHERE scope = $1
+        AND (user_id IS NOT DISTINCT FROM $2)
+        AND (expires_at IS NULL OR expires_at > now())
+      ORDER BY updated_at DESC
+      LIMIT $3
+    `;
+    const v = [scope, user_id_val, lim];
+    const { rows } = await client.query(q, v);
 
-  return rows.map(r => {
-    let c = r.content;
-    try { c = JSON.parse(c); } catch {}
-    return { key: r.key, content: c, updated_at: r.updated_at };
-  });
+    return rows.map(r => {
+      let c = r.content;
+      try { c = JSON.parse(c); } catch {}
+      return { key: r.key, content: c, updated_at: r.updated_at };
+    });
+  } finally {
+    client.release();
+  }
 }
 
 export async function memoryCompact({ table }) {
