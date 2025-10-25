@@ -104,10 +104,16 @@ export async function callGPT5({
   } catch {}
 
   // Enhanced token logging including reasoning tokens
+  const tokenMetadata = {
+    total_tokens: j.usage?.total_tokens || 0,
+    prompt_tokens: j.usage?.prompt_tokens || 0,
+    completion_tokens: j.usage?.completion_tokens || 0,
+    reasoning_tokens: j.usage?.completion_tokens_details?.reasoning_tokens || 0
+  };
+  
   if (j.usage) {
-    const reasoningTokens = j.usage.completion_tokens_details?.reasoning_tokens || 0;
-    const outputTokens = (j.usage.completion_tokens || 0) - reasoningTokens;
-    console.log(`[GPT-5] Model: ${j.model} | Tokens: ${j.usage.prompt_tokens} input + ${reasoningTokens} reasoning + ${outputTokens} output = ${j.usage.total_tokens} total`);
+    const outputTokens = tokenMetadata.completion_tokens - tokenMetadata.reasoning_tokens;
+    console.log(`[GPT-5] Model: ${j.model} | Tokens: ${tokenMetadata.prompt_tokens} input + ${tokenMetadata.reasoning_tokens} reasoning + ${outputTokens} output = ${tokenMetadata.total_tokens} total`);
   }
 
   const msg = j.choices?.[0]?.message || {};
@@ -115,19 +121,28 @@ export async function callGPT5({
   // Extract content from response
   // 1) Standard content field (string)
   if (typeof msg.content === "string" && msg.content.trim()) {
-    return msg.content;
+    return {
+      text: msg.content,
+      ...tokenMetadata
+    };
   }
 
   // 2) Structured output path (if using beta.chat.completions.parse)
   if (msg.parsed) {
-    return JSON.stringify(msg.parsed);
+    return {
+      text: JSON.stringify(msg.parsed),
+      ...tokenMetadata
+    };
   }
 
   // 3) Array content (some responses)
   if (Array.isArray(msg.content)) {
     const text = msg.content.map(p => p?.text || "").join("");
     if (text.trim()) {
-      return text;
+      return {
+        text,
+        ...tokenMetadata
+      };
     }
   }
 

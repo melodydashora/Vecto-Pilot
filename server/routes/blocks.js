@@ -14,6 +14,7 @@ import { generateTacticalPlan } from '../lib/gpt5-tactical-planner.js';
 import { getRouteWithTraffic } from '../lib/routes-api.js';
 import { persistRankingTx } from '../lib/persist-ranking.js';
 import { enrichVenues } from '../lib/venue-enrichment.js';
+import { researchMultipleVenueEvents } from '../lib/venue-event-research.js';
 
 const router = Router();
 
@@ -706,6 +707,46 @@ router.post('/', async (req, res) => {
       });
 
       console.info(`✅ [${correlationId}] TRANSACTION COMMITTED: ranking ${ranking_id} with ${venues.length} candidates persisted successfully`);
+      
+      // ============================================
+      // BACKGROUND: Research events at each venue (non-blocking)
+      // ============================================
+      setImmediate(async () => {
+        try {
+          console.log(`🎪 [${correlationId}] Researching events for ${venues.length} venues...`);
+          
+          const venueList = venues.map(v => ({
+            name: v.name,
+            city: fullSnapshot?.city || 'unknown',
+            place_id: v.place_id
+          }));
+          
+          const eventResults = await researchMultipleVenueEvents(venueList);
+          
+          // Update each ranking_candidate with event data
+          for (const eventData of eventResults) {
+            const venue = venues.find(v => v.name === eventData.venue_name);
+            if (venue?.place_id) {
+              try {
+                await db.execute(sql`
+                  UPDATE ranking_candidates
+                  SET venue_events = ${JSON.stringify(eventData)}
+                  WHERE ranking_id = ${ranking_id}
+                  AND place_id = ${venue.place_id}
+                `);
+              } catch (updateErr) {
+                console.warn(`⚠️ [${correlationId}] Event update failed for ${venue.name}:`, updateErr.message);
+              }
+            }
+          }
+          
+          const withEvents = eventResults.filter(e => e.has_events).length;
+          console.log(`✅ [${correlationId}] Event research complete: ${withEvents}/${venues.length} venues have events today`);
+        } catch (eventErr) {
+          console.warn(`⚠️ [${correlationId}] Event research failed (non-blocking):`, eventErr.message);
+        }
+      });
+      
     } catch (e) {
       console.error(`❌ [${correlationId}] TRANSACTION FAILED - Database persistence error:`, e);
       return res.status(502).json({ ok:false, error:"persist_failed", correlationId });

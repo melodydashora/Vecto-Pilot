@@ -180,10 +180,10 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     });
 
     const duration = Date.now() - startTime;
-    console.log(`✅ [GPT-5 Tactical Planner] Generated plan in ${duration}ms`);
+    console.log(`✅ [GPT-5 Tactical Planner] Generated plan in ${duration}ms (${rawResponse.total_tokens} tokens)`);
 
     // Parse JSON response
-    const parsed = safeJsonParse(rawResponse);
+    const parsed = safeJsonParse(rawResponse.text);
     
     if (!parsed) {
       console.error('[GPT-5 Tactical Planner] Failed to parse JSON response');
