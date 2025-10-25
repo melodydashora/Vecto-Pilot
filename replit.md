@@ -16,7 +16,7 @@ The backend uses Node.js v22.17.0 with Express.js, operating on a multi-server a
 - **Gateway Server**: Public-facing, proxies requests, serves React build.
 - **Eidolon SDK Server**: Main backend API, business logic, AI assistant.
 - **Agent Server**: File system operations, workspace intelligence.
-Data is stored in PostgreSQL for ML data. Security measures include token-based authentication, rate limiting, command whitelisting, and Zod validation.
+Data is stored in PostgreSQL 17.5 (Neon) for ML data. Security measures include Row Level Security (RLS) with 30+ policies protecting all 19 tables, session-variable based access control, token-based authentication, rate limiting, command whitelisting, and Zod validation. RLS provides defense-in-depth with user-scoped, system-scoped, and public-read policies.
 
 ### Feature Specifications
 - **Location Services**: Integrates Browser Geolocation API, Google Maps JavaScript API, and H3 geospatial indexing for context snapshots (GPS, geocoded location, timezone, weather, air quality, airport context).
@@ -48,6 +48,25 @@ Data is stored in PostgreSQL for ML data. Security measures include token-based 
 - **No Venue Polling Until Planning Completes**: Catalog endpoints are gated; venues only fetched after triad finishes.
 - **Event-Driven Status Polling**: Light polling (5s) for job status, not aggressive venue catalog requests.
 - **Capability-Based UX**: Tooltips and labels describe capabilities ("high-context strategist"), not brands.
+
+## Recent Updates (October 25, 2025)
+
+### Database Security Hardening
+- **RLS Implementation**: All 19 database tables now protected with Row Level Security (RLS)
+- **Policy Coverage**: 30+ policies enforce user-scoped, system-scoped, and public-read access patterns
+- **Session Variables**: Database queries set `app.user_id` for automatic row filtering
+- **Defense-in-Depth**: Multi-layered security (application + database + network)
+- **Migration**: `003_rls_security.sql` implements complete RLS framework
+- **Memory Tables Fixed**: Resolved schema mismatches in assistant_memory, eidolon_memory, cross_thread_memory, and agent_memory
+- **Thread Context**: Fixed "column 'key' does not exist" error by updating agent_memory queries
+- **Documentation**: Created `RLS_SECURITY_IMPLEMENTATION.md` with complete security architecture
+
+### Database Status
+- **Provider**: Neon PostgreSQL 17.5 (AWS us-west-2)
+- **Connection**: Pooled connection with TCP keepalive and safe idle timeouts
+- **Tables**: 19 tables with 200+ columns covering GPS, AI strategies, venues, feedback, and memory
+- **Security**: Full RLS protection on all tables, ready for multi-tenant authentication
+- **Performance**: Shared connection pool (max 10, min 2) with automatic recycling
 
 ## External Dependencies
 

@@ -116,21 +116,28 @@ export class ThreadContextManager {
       ttlDays: 90
     });
 
-    // Store agent memory if role is 'agent'
+    // Store agent memory if role is 'agent' (using correct schema)
     if (role === "agent") {
-      await memoryPut({
-        table: "agent_memory",
-        scope: "agent_actions",
-        key: `agent_${message.id}`,
-        userId: this.threadMetadata.userId,
-        content: {
-          action: content,
-          threadId: this.currentThreadId,
-          timestamp: message.timestamp,
-          metadata
-        },
-        ttlDays: 365
-      });
+      try {
+        const { getSharedPool } = await import("../db/pool.js");
+        const pool = getSharedPool();
+        if (pool) {
+          await pool.query(
+            `INSERT INTO agent_memory (session_id, entry_type, title, content, metadata, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              this.currentThreadId || 'default',
+              'agent_action',
+              `Agent action ${message.id}`,
+              content,
+              JSON.stringify({ ...metadata, threadId: this.currentThreadId, timestamp: message.timestamp }),
+              new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+            ]
+          );
+        }
+      } catch (err) {
+        console.warn('[Thread Context] Failed to store agent memory:', err.message);
+      }
     }
 
     // Update thread metadata
@@ -369,13 +376,35 @@ export async function getThreadAwareContext(threadId = null) {
     limit: 100
   });
 
-  // Get agent memory
-  const agentActions = await memoryQuery({
-    table: "agent_memory",
-    scope: "agent_actions",
-    userId: "system",
-    limit: 50
-  });
+  // Get agent memory (different schema, query directly)
+  let agentActions = [];
+  try {
+    const { getSharedPool } = await import("../db/pool.js");
+    const pool = getSharedPool();
+    if (pool) {
+      const result = await pool.query(
+        `SELECT id, entry_type, title, content, metadata, created_at 
+         FROM agent_memory 
+         WHERE entry_type = 'agent_action'
+         ORDER BY created_at DESC 
+         LIMIT 50`
+      );
+      agentActions = result.rows.map(r => ({
+        key: r.id,
+        content: {
+          id: r.id,
+          type: r.entry_type,
+          title: r.title,
+          content: r.content,
+          metadata: r.metadata,
+          timestamp: r.created_at
+        },
+        updated_at: r.created_at
+      }));
+    }
+  } catch (err) {
+    console.warn('[Thread Context] Failed to load agent memory:', err.message);
+  }
 
   // Get Eidolon-specific memory
   const eidolonMemory = await memoryQuery({
