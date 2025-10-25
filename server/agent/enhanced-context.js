@@ -161,14 +161,8 @@ export async function getEnhancedProjectContext(options = {}) {
       });
       context.threadContext.crossThreadMemory = crossThreadMemory.map(m => m.content);
 
-      // Add agent-specific memory
-      const agentMemory = await memoryQuery({
-        table: AGENT_MEMORY_TABLE,
-        scope: "agent_context",
-        userId: null, // Use null for system-level data (UUID field)
-        limit: 50
-      });
-      context.threadContext.agentMemory = agentMemory.map(m => m.content);
+      // Agent memory already included in threadAwareContext
+      // (agent_memory has different schema, queried directly in getThreadAwareContext)
 
     } catch (err) {
       console.warn('[Enhanced Context] Thread context unavailable:', err.message);
@@ -350,16 +344,30 @@ export async function storeCrossThreadMemory(key, content, userId = null, ttlDay
   });
 }
 
-// Store agent-specific memory
-export async function storeAgentMemory(key, content, userId = null, ttlDays = 730) {
-  return await memoryPut({
-    table: AGENT_MEMORY_TABLE,
-    scope: "agent_context",
-    key,
-    userId,
-    content,
-    ttlDays,
-  });
+// Store agent-specific memory - agent_memory has different schema, insert directly
+export async function storeAgentMemory(title, content, metadata = {}, ttlDays = 730) {
+  try {
+    const { getSharedPool } = await import("../db/pool.js");
+    const pool = getSharedPool();
+    if (!pool) return false;
+    
+    await pool.query(
+      `INSERT INTO agent_memory (session_id, entry_type, title, content, metadata, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        'system',
+        'context',
+        title,
+        content,
+        JSON.stringify(metadata),
+        new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000)
+      ]
+    );
+    return true;
+  } catch (err) {
+    console.warn('[Enhanced Context] Failed to store agent memory:', err.message);
+    return false;
+  }
 }
 
 // Get cross-thread memory
@@ -373,13 +381,31 @@ export async function getCrossThreadMemory(userId = null, limit = 50) {
   return memory.map(m => m.content);
 }
 
-// Get agent memory
+// Get agent memory - agent_memory has different schema, query directly via pool
 export async function getAgentMemory(userId = null, limit = 50) {
-  const memory = await memoryQuery({
-    table: AGENT_MEMORY_TABLE,
-    scope: "agent_context",
-    userId,
-    limit
-  });
-  return memory.map(m => m.content);
+  try {
+    const { getSharedPool } = await import("../db/pool.js");
+    const pool = getSharedPool();
+    if (!pool) return [];
+    
+    const result = await pool.query(
+      `SELECT id, entry_type, title, content, metadata, created_at 
+       FROM agent_memory 
+       ORDER BY created_at DESC 
+       LIMIT $1`,
+      [limit]
+    );
+    
+    return result.rows.map(r => ({
+      id: r.id,
+      type: r.entry_type,
+      title: r.title,
+      content: r.content,
+      metadata: r.metadata,
+      timestamp: r.created_at
+    }));
+  } catch (err) {
+    console.warn('[Enhanced Context] Failed to load agent memory:', err.message);
+    return [];
+  }
 }

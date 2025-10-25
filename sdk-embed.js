@@ -48,12 +48,6 @@ export default function createSdkRouter(opts = {}) {
         ip: req.ip
       }, null, 7); // Use null for system-level data (UUID field)
 
-      const reqKey = 'sdk.requests';
-      const prev = threadManager.get(reqKey) || 0;
-      const curr = prev + 1;
-      threadManager.set(reqKey, curr);
-      await storeAgentMemory('requestCount', curr, null, 7); // Use null for system-level data (UUID field)
-
       req.extendedContext = ctx;
       req.threadManager = threadManager;
       
@@ -85,6 +79,15 @@ export default function createSdkRouter(opts = {}) {
   r.use('/metrics/jobs', jobMetricsRoutes);
   r.use('/ml', mlHealthRoutes);
   r.use('/chat', chatRoutes); // AI Strategy Coach
+  
+  // Assistant override verification route
+  r.get('/assistant/verify-override', (req, res) => {
+    res.json({ 
+      ok: true, 
+      mode: process.env.APP_MODE || 'mono',
+      timestamp: new Date().toISOString() 
+    });
+  });
   
   // Strategy and ranking stubs (from attached doc requirements)
   r.post('/strategy', express.json(), (req, res) => {

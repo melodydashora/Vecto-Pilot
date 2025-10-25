@@ -1,0 +1,18 @@
+========================================
+MANUAL PACKAGE.JSON UPDATE REQUIRED
+========================================
+
+Add these lines to package.json scripts section:
+
+Find this line (around line 44):
+    "agent:dev": "ts-node src/index.ts"
+
+Replace with:
+    "agent:dev": "ts-node src/index.ts",
+    "rls:enable": "node tests/scripts/toggle-rls.js enable",
+    "rls:disable": "node tests/scripts/toggle-rls.js disable",
+    "rls:status": "node tests/scripts/toggle-rls.js status",
+    "preflight": "node tests/scripts/preflight-check.js"
+
+(Add comma after agent:dev, then add 4 new lines for RLS + preflight)
+========================================
