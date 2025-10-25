@@ -223,41 +223,71 @@ function calculateIsOpen(weekdayTexts, timezone) {
       return null; // Can't find today's hours
     }
 
-    // Check if closed for the day
-    if (todayHours.includes('Closed') || todayHours.includes('Open 24 hours')) {
-      return todayHours.includes('Open 24 hours');
+    // Check if closed for the day or open 24 hours
+    if (todayHours.includes('Closed')) return false;
+    if (todayHours.includes('Open 24 hours')) return true;
+
+    // Try 12-hour format first (e.g., "Monday: 6:00 AM – 11:00 PM")
+    let hoursMatch = todayHours.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*[–-]\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    let openHour24, closeHour24, openMin, closeMin;
+
+    if (hoursMatch) {
+      // Parse 12-hour AM/PM format
+      const [_, openHour, oMin, openPeriod, closeHour, cMin, closePeriod] = hoursMatch;
+      openMin = parseInt(oMin);
+      closeMin = parseInt(cMin);
+      
+      openHour24 = parseInt(openHour);
+      if (openPeriod.toUpperCase() === 'PM' && openHour24 !== 12) openHour24 += 12;
+      if (openPeriod.toUpperCase() === 'AM' && openHour24 === 12) openHour24 = 0;
+      
+      closeHour24 = parseInt(closeHour);
+      if (closePeriod.toUpperCase() === 'PM' && closeHour24 !== 12) closeHour24 += 12;
+      if (closePeriod.toUpperCase() === 'AM' && closeHour24 === 12) closeHour24 = 0;
+    } else {
+      // Try 24-hour format (e.g., "Monday: 06:00–23:00" or "Monday: 6:00–24:00")
+      hoursMatch = todayHours.match(/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/);
+      if (!hoursMatch) {
+        console.warn(`[calculateIsOpen] Can't parse hours format: "${todayHours}"`);
+        return null; // Can't parse hours format
+      }
+      
+      const [_, openHour, oMin, closeHour, cMin] = hoursMatch;
+      openHour24 = parseInt(openHour);
+      closeHour24 = parseInt(closeHour);
+      openMin = parseInt(oMin);
+      closeMin = parseInt(cMin);
+      
+      // Google API allows "24:00" for midnight closing
+      if (closeHour24 === 24) {
+        closeHour24 = 0; // Convert 24:00 to 00:00 (next day)
+      }
     }
 
-    // Parse hours (e.g., "Monday: 6:00 AM – 11:00 PM")
-    const hoursMatch = todayHours.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*[–-]\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-    if (!hoursMatch) {
-      return null; // Can't parse hours format
+    const openTimeMinutes = openHour24 * 60 + openMin;
+    let closeTimeMinutes = closeHour24 * 60 + closeMin;
+
+    // Handle overnight hours (e.g., 23:00–02:00 or 11:00 PM - 2:00 AM)
+    // Special case: If closing is 24:00 (midnight), treat as end of day
+    if (closeHour24 === 0 && closeMin === 0 && openTimeMinutes > 0) {
+      closeTimeMinutes = 24 * 60; // Midnight closing
     }
-
-    const [_, openHour, openMin, openPeriod, closeHour, closeMin, closePeriod] = hoursMatch;
-
-    // Convert to 24-hour format
-    let openHour24 = parseInt(openHour);
-    if (openPeriod.toUpperCase() === 'PM' && openHour24 !== 12) openHour24 += 12;
-    if (openPeriod.toUpperCase() === 'AM' && openHour24 === 12) openHour24 = 0;
     
-    let closeHour24 = parseInt(closeHour);
-    if (closePeriod.toUpperCase() === 'PM' && closeHour24 !== 12) closeHour24 += 12;
-    if (closePeriod.toUpperCase() === 'AM' && closeHour24 === 12) closeHour24 = 0;
-
-    const openTimeMinutes = openHour24 * 60 + parseInt(openMin);
-    let closeTimeMinutes = closeHour24 * 60 + parseInt(closeMin);
-
-    // Handle overnight hours (e.g., 11:00 PM - 2:00 AM)
     if (closeTimeMinutes < openTimeMinutes) {
+      // Overnight hours (closes after midnight)
       closeTimeMinutes += 24 * 60; // Add 24 hours
       if (currentTimeMinutes < openTimeMinutes) {
-        // If current time is AM, add 24 hours to compare with overnight closing
+        // Current time is in the early AM (after midnight)
         return currentTimeMinutes + (24 * 60) < closeTimeMinutes;
       }
     }
 
-    return currentTimeMinutes >= openTimeMinutes && currentTimeMinutes < closeTimeMinutes;
+    const isCurrentlyOpen = currentTimeMinutes >= openTimeMinutes && currentTimeMinutes < closeTimeMinutes;
+    
+    // Debug log
+    console.log(`[calculateIsOpen] ${todayHours} → open: ${openHour24}:${openMin.toString().padStart(2,'0')} (${openTimeMinutes}min), close: ${closeHour24}:${closeMin.toString().padStart(2,'0')} (${closeTimeMinutes}min), now: ${currentHour}:${currentMinute.toString().padStart(2,'0')} (${currentTimeMinutes}min) → ${isCurrentlyOpen ? 'OPEN' : 'CLOSED'}`);
+    
+    return isCurrentlyOpen;
   } catch (error) {
     console.error(`[calculateIsOpen] Error parsing hours:`, error.message);
     return null; // Parsing error - can't determine
