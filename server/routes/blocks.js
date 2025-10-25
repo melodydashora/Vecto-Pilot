@@ -421,7 +421,8 @@ router.post('/', async (req, res) => {
     try {
       enrichedVenues = await enrichVenues(
         tacticalPlan.recommended_venues,
-        { lat: fullSnapshot.lat, lng: fullSnapshot.lng }
+        { lat: fullSnapshot.lat, lng: fullSnapshot.lng },
+        fullSnapshot  // Pass full snapshot for timezone-aware hours calculation
       );
       
       const enrichmentElapsed = Date.now() - enrichmentStart;
