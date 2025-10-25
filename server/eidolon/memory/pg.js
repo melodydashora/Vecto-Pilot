@@ -34,8 +34,12 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
 
   const client = await pool.connect();
   try {
-    // Set RLS context (NULL for system access)
-    await client.query('SET LOCAL app.user_id = $1', [user_id_val]);
+    // Set RLS context (NULL for system access) - use format() not parameters
+    if (user_id_val) {
+      await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
+    } else {
+      await client.query('SET LOCAL app.user_id = NULL');
+    }
     
     const q = `
       INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
@@ -58,8 +62,12 @@ export async function memoryGet({ table, scope, key, userId }) {
 
   const client = await pool.connect();
   try {
-    // Set RLS context (NULL for system access)
-    await client.query('SET LOCAL app.user_id = $1', [user_id_val]);
+    // Set RLS context (NULL for system access) - use format() not parameters
+    if (user_id_val) {
+      await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
+    } else {
+      await client.query('SET LOCAL app.user_id = NULL');
+    }
     
     const q = `
       SELECT content FROM ${table}
@@ -89,8 +97,12 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
 
   const client = await pool.connect();
   try {
-    // Set RLS context (NULL for system access)
-    await client.query('SET LOCAL app.user_id = $1', [user_id_val]);
+    // Set RLS context (NULL for system access) - use format() not parameters
+    if (user_id_val) {
+      await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
+    } else {
+      await client.query('SET LOCAL app.user_id = NULL');
+    }
     
     const q = `
       SELECT key, content, updated_at
