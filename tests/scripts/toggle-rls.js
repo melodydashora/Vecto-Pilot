@@ -6,6 +6,8 @@
  *   npm run rls:enable   - Enable RLS (production)
  *   npm run rls:disable  - Disable RLS (development)
  *   npm run rls:status   - Check RLS status
+ * 
+ * Location: tests/scripts/toggle-rls.js
  */
 
 import { Pool } from 'pg';
