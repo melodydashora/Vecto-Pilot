@@ -45,9 +45,26 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         );
 
         // 3. Get place details from Google Places API (New) with timezone
-        const placeDetails = await getPlaceDetails(venue.lat, venue.lng, venue.name, timezone);
+        let placeDetails = await getPlaceDetails(venue.lat, venue.lng, venue.name, timezone);
 
-        // 4. Cache stable data in database
+        // 3a. VALIDATE: Check if Google's place name matches GPT-5's venue name
+        if (placeDetails?.google_name && placeDetails.google_name !== venue.name) {
+          const similarity = calculateNameSimilarity(venue.name, placeDetails.google_name);
+          
+          // REJECT place_id if names don't match (similarity < 40%)
+          if (similarity < 0.4) {
+            console.warn(`❌ [NAME MISMATCH REJECTED] GPT-5 said "${venue.name}" but Google found "${placeDetails.google_name}" at ${venue.lat},${venue.lng} (similarity: ${(similarity * 100).toFixed(0)}%) - Rejecting place_id`);
+            // Keep address and hours but reject place_id
+            placeDetails = {
+              ...placeDetails,
+              place_id: null  // REJECT mismatched place_id
+            };
+          } else {
+            console.log(`✅ [NAME MATCH OK] "${venue.name}" ≈ "${placeDetails.google_name}" (similarity: ${(similarity * 100).toFixed(0)}%)`);
+          }
+        }
+
+        // 4. Cache stable data in database (only if place_id is valid)
         if (placeDetails?.place_id) {
           await upsertPlace({
             place_id: placeDetails.place_id,
@@ -57,7 +74,7 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
             lng: venue.lng
           });
         } else {
-          console.warn(`[Venue Enrichment] ⚠️ No place_id found for "${venue.name}" - coords will be preserved`);
+          console.warn(`[Venue Enrichment] ⚠️ No place_id for "${venue.name}" - coords will be preserved`);
         }
 
         const enrichedVenue = {
@@ -304,13 +321,13 @@ function calculateIsOpen(weekdayTexts, timezone) {
  */
 async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
   try {
-    // Use Places API (New) - Search Nearby
+    // Use Places API (New) - Search Nearby with PRECISE location
     const response = await fetch(PLACES_NEW_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.businessStatus,places.formattedAddress,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes'
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.businessStatus,places.formattedAddress,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.location'
       },
       body: JSON.stringify({
         locationRestriction: {
@@ -319,10 +336,11 @@ async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
               latitude: lat,
               longitude: lng
             },
-            radius: 100.0 // 100 meter radius for better venue matching
+            radius: 20.0 // PRECISE: 20 meter radius to find exact venue at these coords
           }
         },
-        maxResultCount: 1
+        maxResultCount: 1,
+        rankPreference: 'DISTANCE' // Prioritize closest venue to exact coords
       })
     });
 
@@ -335,8 +353,19 @@ async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
     if (data.places && data.places.length > 0) {
       const place = data.places[0];
 
-      console.log(`🔍 [GOOGLE PLACES] Lookup for "${name}" at ${lat},${lng}:`, {
-        found_name: place.displayName?.text || place.name,
+      const googleName = place.displayName?.text || place.name;
+      const googleLat = place.location?.latitude;
+      const googleLng = place.location?.longitude;
+      
+      // Calculate distance between requested coords and Google's returned coords
+      const distance = googleLat && googleLng 
+        ? Math.sqrt(Math.pow((lat - googleLat) * 111000, 2) + Math.pow((lng - googleLng) * 111000, 2))
+        : null;
+      
+      console.log(`🔍 [GOOGLE PLACES] Lookup for "${name}" at ${lat.toFixed(6)},${lng.toFixed(6)}:`, {
+        found_name: googleName,
+        found_coords: googleLat && googleLng ? `${googleLat.toFixed(6)},${googleLng.toFixed(6)}` : 'unknown',
+        distance_meters: distance ? distance.toFixed(1) : 'unknown',
         place_id: place.id,
         address: place.formattedAddress
       });
@@ -360,6 +389,7 @@ async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
 
       return {
         place_id: place.id,
+        google_name: googleName, // Return Google's name for validation
         business_status: place.businessStatus || 'OPERATIONAL',
         formatted_address: place.formattedAddress,
         isOpen: isOpen,
@@ -375,4 +405,32 @@ async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
     console.error(`[Places API] Failed for ${name}:`, error.message);
     return null;
   }
+}
+
+/**
+ * Calculate similarity between two venue names (0-1 scale)
+ * Uses simple word overlap - accounts for variations like "Frisco Square" vs "Cinemark Frisco Square"
+ * @param {string} name1 - GPT-5 venue name
+ * @param {string} name2 - Google venue name
+ * @returns {number} Similarity score 0-1 (0=no match, 1=perfect match)
+ */
+function calculateNameSimilarity(name1, name2) {
+  if (!name1 || !name2) return 0;
+  
+  // Normalize: lowercase, remove special chars, split into words
+  const normalize = (str) => str.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 2); // Ignore short words like "at", "by", "of"
+  
+  const words1 = normalize(name1);
+  const words2 = normalize(name2);
+  
+  if (words1.length === 0 || words2.length === 0) return 0;
+  
+  // Count matching words
+  const matches = words1.filter(w => words2.includes(w)).length;
+  
+  // Similarity = (2 × matches) / (total words in both)
+  return (2 * matches) / (words1.length + words2.length);
 }
