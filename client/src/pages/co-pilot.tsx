@@ -65,6 +65,10 @@ interface SmartBlock {
   placeId?: string;
   closedButStillGood?: string;
   closed_venue_reasoning?: string;
+  hasEvent?: boolean;
+  eventBadge?: string;
+  eventSummary?: string;
+  eventImpact?: string;
   stagingArea?: {
     type: string;
     name: string;
@@ -75,8 +79,6 @@ interface SmartBlock {
   proTips?: string[];
   up_count?: number;
   down_count?: number;
-  hasEvent?: boolean;
-  eventBadge?: string | null;
 }
 
 interface BlocksResponse {
@@ -1133,6 +1135,21 @@ const CoPilot: React.FC = () => {
                         <span className="text-xs text-gray-500">Live recommendation</span>
                       </div>
 
+                      {/* Event Badge - High Priority Display */}
+                      {block.hasEvent && block.eventBadge && (
+                        <div className="bg-indigo-50 border-2 border-indigo-400 rounded-lg px-3 py-2 mb-3" data-testid={`event-badge-${index}`}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{block.eventBadge.split(' ')[0]}</span>
+                            <p className="text-sm font-bold text-indigo-900">
+                              {block.eventBadge.split(' ').slice(1).join(' ')}
+                            </p>
+                          </div>
+                          {block.eventSummary && (
+                            <p className="text-xs text-indigo-700 mt-1">{block.eventSummary}</p>
+                          )}
+                        </div>
+                      )}
+
                       {/* Business Hours */}
                       {block.businessHours && (
                         <div className="flex items-center gap-2 mb-3 text-sm">
@@ -1151,6 +1168,21 @@ const CoPilot: React.FC = () => {
                             <div>
                               <h4 className="text-sm font-semibold text-amber-900 mb-1">Why Go When Closed?</h4>
                               <p className="text-sm text-amber-800">{block.closed_venue_reasoning}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Closed Venue Without Event or Reasoning - Show Fallback */}
+                      {!block.isOpen && !block.hasEvent && !block.closed_venue_reasoning && (
+                        <div className="bg-gray-50 border border-gray-300 rounded-lg p-3 mb-3">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-700 mb-1">Closed Now</h4>
+                              <p className="text-sm text-gray-600">
+                                This venue is currently closed. Recommended as a strategic staging location near other active destinations or due to high traffic patterns in the area.
+                              </p>
                             </div>
                           </div>
                         </div>
