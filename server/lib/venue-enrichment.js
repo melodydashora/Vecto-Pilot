@@ -45,22 +45,16 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         );
 
         // 3. Get place details from Google Places API (New) with timezone
-        let placeDetails = await getPlaceDetails(venue.lat, venue.lng, venue.name, timezone);
+        const placeDetails = await getPlaceDetails(venue.lat, venue.lng, venue.name, timezone);
 
-        // 3a. VALIDATE: Check if Google's place name matches GPT-5's venue name
+        // 3a. LOG name differences (but ACCEPT nearby venues - they share event context)
         if (placeDetails?.google_name && placeDetails.google_name !== venue.name) {
           const similarity = calculateNameSimilarity(venue.name, placeDetails.google_name);
           
-          // REJECT place_id if names don't match (similarity < 40%)
           if (similarity < 0.4) {
-            console.warn(`❌ [NAME MISMATCH REJECTED] GPT-5 said "${venue.name}" but Google found "${placeDetails.google_name}" at ${venue.lat},${venue.lng} (similarity: ${(similarity * 100).toFixed(0)}%) - Rejecting place_id`);
-            // Keep address and hours but reject place_id
-            placeDetails = {
-              ...placeDetails,
-              place_id: null  // REJECT mismatched place_id
-            };
+            console.log(`📍 [NEARBY VENUE] GPT-5 said "${venue.name}" but Google found "${placeDetails.google_name}" (similarity: ${(similarity * 100).toFixed(0)}%) - Accepting place_id (same area, shared event context)`);
           } else {
-            console.log(`✅ [NAME MATCH OK] "${venue.name}" ≈ "${placeDetails.google_name}" (similarity: ${(similarity * 100).toFixed(0)}%)`);
+            console.log(`✅ [NAME MATCH] "${venue.name}" ≈ "${placeDetails.google_name}" (similarity: ${(similarity * 100).toFixed(0)}%)`);
           }
         }
 
