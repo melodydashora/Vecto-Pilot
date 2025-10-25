@@ -23,7 +23,7 @@ console.log('🔐 Signing JWT token...\n');
 
 try {
   // Read private key
-  const pkcs8 = readFileSync('private.pem', 'utf8');
+  const pkcs8 = readFileSync('keys/private.pem', 'utf8');
   const privateKey = await importPKCS8(pkcs8, 'RS256');
   
   // Build claims
