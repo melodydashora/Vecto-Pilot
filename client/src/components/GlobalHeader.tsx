@@ -49,6 +49,15 @@ const GlobalHeader: React.FC = () => {
 
   const currentLocationString =
     overrideCoords?.city ?? loc?.currentLocationString ?? loc?.location?.currentLocationString ?? "";
+
+  // Header is "resolved" as soon as we have coords + city (don't wait for weather/AQ/events)
+  const isLocationResolved = Boolean(
+    coords?.latitude && 
+    coords?.longitude && 
+    currentLocationString && 
+    currentLocationString !== "Getting location..." && 
+    currentLocationString !== "Detecting..."
+  );
   const refreshGPS: undefined | (() => Promise<void>) =
     loc?.refreshGPS ?? loc?.location?.refreshGPS;
 
@@ -511,8 +520,8 @@ const GlobalHeader: React.FC = () => {
               </span>
             </div>
             <div className="flex items-center gap-3">
-              {/* Location Resolution Indicator */}
-              {!snapshotReady ? (
+              {/* Location Resolution Indicator - shows "complete" as soon as coords + city are available */}
+              {!isLocationResolved ? (
                 <div className="flex items-center gap-1.5 text-xs text-white/70">
                   <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
                   <span>resolving location info...</span>
