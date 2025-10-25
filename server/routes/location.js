@@ -660,6 +660,40 @@ router.post('/snapshot', async (req, res) => {
       console.warn('[snapshot] Airport context fetch failed:', airportErr.message);
     }
 
+    // Fetch local news affecting rideshare using Perplexity (non-blocking)
+    console.log('[snapshot] Fetching local news from Perplexity...');
+    let localNews = null;
+    
+    try {
+      const { PerplexityResearch } = await import('../lib/perplexity-research.js');
+      const perplexity = new PerplexityResearch();
+      
+      const city = snapshotV1.resolved?.city || 'the area';
+      const state = snapshotV1.resolved?.state || '';
+      const location = state ? `${city}, ${state}` : city;
+      
+      const query = `What local events, road closures, traffic incidents, or major news in ${location} today would significantly affect rideshare driver demand or routes? Focus on actionable information for drivers working today.`;
+      
+      const newsData = await perplexity.search(query, {
+        systemPrompt: 'Provide concise, factual local news relevant to rideshare drivers. Focus on events, closures, and traffic that affect demand.',
+        maxTokens: 300,
+        searchRecencyFilter: 'day', // Last 24 hours only
+        temperature: 0.2
+      });
+      
+      if (newsData?.answer) {
+        localNews = {
+          summary: newsData.answer,
+          citations: newsData.citations || [],
+          fetched_at: new Date().toISOString(),
+          query: query
+        };
+        console.log('[Perplexity API] 📰 Local news fetched:', newsData.answer.slice(0, 150) + '...');
+      }
+    } catch (newsErr) {
+      console.warn('[snapshot] Perplexity local news fetch failed (non-blocking):', newsErr.message);
+    }
+
     // Transform SnapshotV1 to Postgres schema
     const dbSnapshot = {
       snapshot_id: snapshotV1.snapshot_id,
@@ -691,6 +725,7 @@ router.post('/snapshot', async (req, res) => {
         category: snapshotV1.air.category
       } : null,
       airport_context: airportContext,
+      local_news: localNews,
       device: snapshotV1.device || null,
       permissions: snapshotV1.permissions || null,
       extras: snapshotV1.extras || null,
@@ -713,6 +748,7 @@ router.post('/snapshot', async (req, res) => {
     console.log('  → weather:', dbSnapshot.weather);
     console.log('  → air:', dbSnapshot.air);
     console.log('  → airport_context:', dbSnapshot.airport_context);
+    console.log('  → local_news:', dbSnapshot.local_news ? dbSnapshot.local_news.summary?.slice(0, 100) + '...' : 'none');
     
     await db.insert(snapshots).values(dbSnapshot);
     
