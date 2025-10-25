@@ -34,12 +34,11 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
 
   const client = await pool.connect();
   try {
-    // Set RLS context (NULL for system access) - use format() not parameters
+    // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
     if (user_id_val) {
       await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
-    } else {
-      await client.query('SET LOCAL app.user_id = NULL');
     }
+    // Skip SET for NULL - not needed when RLS is disabled
     
     const q = `
       INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
@@ -62,12 +61,11 @@ export async function memoryGet({ table, scope, key, userId }) {
 
   const client = await pool.connect();
   try {
-    // Set RLS context (NULL for system access) - use format() not parameters
+    // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
     if (user_id_val) {
       await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
-    } else {
-      await client.query('SET LOCAL app.user_id = NULL');
     }
+    // Skip SET for NULL - not needed when RLS is disabled
     
     const q = `
       SELECT content FROM ${table}
@@ -97,12 +95,11 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
 
   const client = await pool.connect();
   try {
-    // Set RLS context (NULL for system access) - use format() not parameters
+    // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
     if (user_id_val) {
       await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
-    } else {
-      await client.query('SET LOCAL app.user_id = NULL');
     }
+    // Skip SET for NULL - not needed when RLS is disabled
     
     const q = `
       SELECT key, content, updated_at
