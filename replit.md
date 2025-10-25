@@ -25,6 +25,7 @@ Data is stored in PostgreSQL 17.5 (Neon) for ML data. Security measures include 
 - **Atomic Database Persistence**: Production-grade ML training data capture with ACID guarantees using PostgreSQL transactions, fail-hard error handling, and database constraints. Includes critical foreign key indexes for query performance, model version tracking, and venue status tracking.
 - **Agent Override (Atlas) with Fallback Resilience**: A workspace intelligence layer with a fallback chain (Claude → GPT-5 → Gemini) for operational continuity, accessible via `/agent/llm` on the Agent Server, with full root access for file operations, shell commands, and SQL.
 - **Per-Ranking Feedback System**: Continuous learning loop via user feedback on venues, strategies, and the app itself.
+- **Event Intelligence**: Perplexity-powered real-time event research for all recommended venues (concerts, games, festivals, shows, etc.) with simple UI badges and full AI coach integration.
 - **Configuration Management**: Safe file editing capabilities with backup and validation for allowed config files with whitelisted file access, size limits, and path validation.
 - **Trust-First Stack**: Employs a curated venue catalog and a deterministic scoring engine to prevent hallucinations, ranking venues based on proximity, reliability, event intensity, and personalization.
 - **ML Instrumentation**: Full logging of rankings, candidates, and user actions for counterfactual learning.
@@ -48,6 +49,18 @@ Data is stored in PostgreSQL 17.5 (Neon) for ML data. Security measures include 
 - **No Venue Polling Until Planning Completes**: Catalog endpoints are gated; venues only fetched after triad finishes.
 - **Event-Driven Status Polling**: Light polling (5s) for job status, not aggressive venue catalog requests.
 - **Capability-Based UX**: Tooltips and labels describe capabilities ("high-context strategist"), not brands.
+
+## Recent Updates (October 25, 2025)
+
+### Event Intelligence Feature (October 25, 2025)
+- **Perplexity Event Research**: Background task researches events at ALL recommended venues (parks, stadiums, shops, restaurants, etc.)
+- **Simple UI Badges**: Event indicators shown in blocks ("🎪 Concert tonight!", "🏀 Game at 7:30 PM", "🎉 Event today")
+- **AI Coach Integration**: Coach has access to full event details for strategic context when drivers ask questions
+- **Event Types Detected**: Concerts, sports games, festivals, shows, conferences, exhibitions, live music, special events
+- **Impact Levels**: High (concerts, games, festivals), Medium (shows, conferences), Low (other events)
+- **Database Field**: `ranking_candidates.venue_events` (JSONB) stores full event data with summary, citations, badge text
+- **Non-Blocking**: Event research happens in background after venues are saved, doesn't slow initial response
+- **Worldwide Coverage**: Works for any venue type in any location using real-time internet research
 
 ## Recent Updates (October 25, 2025)
 

@@ -75,6 +75,8 @@ interface SmartBlock {
   proTips?: string[];
   up_count?: number;
   down_count?: number;
+  hasEvent?: boolean;
+  eventBadge?: string | null;
 }
 
 interface BlocksResponse {
@@ -1064,6 +1066,11 @@ const CoPilot: React.FC = () => {
                               {block.isOpen === false && (
                                 <Badge className="bg-red-100 text-red-700 border-red-300 text-xs">
                                   Closed
+                                </Badge>
+                              )}
+                              {block.hasEvent && block.eventBadge && (
+                                <Badge className="bg-purple-100 text-purple-700 border-purple-300 text-xs">
+                                  {block.eventBadge}
                                 </Badge>
                               )}
                             </div>
