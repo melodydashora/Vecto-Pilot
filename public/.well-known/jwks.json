@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "n": "tiYstL_s8kL5rGyqwBuDfCerGvA07yPRyf5oFZzKhx0XmQkTRQBnVGJlkObm5h8eYwJCdxZjRRJ47SqTSKSvWFuzSzg1mDfQuitDWo3NXABLpHS5w20mWploq3e21hLjg57tekZTWVo6aO0e53nTbUo1xGbQaC4lfTogOgSd_QJQAMLtabvizUycr1SsvHSwXV_NOQ842J640KebWteB7Ar--37jzAT3QDPTywAekOJ5TZEz00RSEbQXJhizXBtCn2QzRA-cHWMfFA8mtBTZsuyL4uymLaT_5mSGaJnPhOpdnyrLicafnrkVVOx20Z-Xlk05Lg6V4V---JxOkjM6OQ",
+      "e": "AQAB",
+      "kid": "vectopilot-rs256-k1",
+      "alg": "RS256",
+      "use": "sig"
+    }
+  ]
+}
