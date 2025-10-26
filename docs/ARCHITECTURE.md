@@ -9,423 +9,525 @@
 
 ---
 
-## 📋 **CURRENT SYSTEM STATE (2025-10-26)**
+## 🗄️ **DATABASE SCHEMA & COMPLETE DATA FLOW**
 
-### Critical Issue: Missing Database Tables
+### Complete UI-to-Backend-to-Database Mapping
 
-**Problem:** Application attempting to write to `snapshots` table that does not exist in database.
-
-**Error:**
-```
-error: relation "snapshots" does not exist
-at server/routes/location.js:759
-```
-
-**Impact:**
-- ❌ Cannot create location snapshots
-- ❌ Cannot trigger AI strategy generation
-- ❌ Cannot save recommendations
-- ❌ Complete data pipeline blocked
-
-**Root Cause:** Database schema drift - Drizzle ORM schema defines tables that were never created in PostgreSQL.
+This section provides a comprehensive view of how data flows from the user interface through the backend to the database tables, with explicit field mappings at each stage.
 
 ---
 
-## 🗄️ **DATABASE SCHEMA - CURRENT STATE**
+### **1. Location Snapshot Creation Flow**
 
-### Schema Definition vs Reality
+**UI Action:** User opens app or refreshes GPS location
 
-**Schema Defined (shared/schema.js):** 20 tables  
-**Schema Created (PostgreSQL):** ❓ UNKNOWN - needs verification
-
-### Expected Tables (from shared/schema.js)
-
-| Table | Status | Primary Key | Purpose |
-|-------|--------|-------------|---------|
-| `snapshots` | ❌ **MISSING** | `snapshot_id` UUID | GPS + context snapshots |
-| `strategies` | ❓ Unknown | `id` UUID | Claude strategic analysis |
-| `rankings` | ❓ Unknown | `ranking_id` UUID | GPT-5 recommendations |
-| `ranking_candidates` | ❓ Unknown | `id` UUID | Individual venue scores |
-| `actions` | ❓ Unknown | `action_id` UUID | User interactions |
-| `venue_catalog` | ❓ Unknown | `venue_id` UUID | Venue master data |
-| `venue_metrics` | ❓ Unknown | `venue_id` UUID | Performance tracking |
-| `triad_jobs` | ❓ Unknown | `id` UUID | Job queue |
-| `http_idem` | ❓ Unknown | `key` TEXT | Idempotency cache |
-| `places_cache` | ❓ Unknown | `place_id` TEXT | Google Places cache |
-| `venue_feedback` | ❓ Unknown | `id` UUID | Per-venue thumbs |
-| `strategy_feedback` | ❓ Unknown | `id` UUID | Strategy thumbs |
-| `app_feedback` | ❓ Unknown | `id` UUID | General feedback |
-| `travel_disruptions` | ❓ Unknown | `id` UUID | Airport delays |
-| `llm_venue_suggestions` | ❓ Unknown | `suggestion_id` UUID | AI discoveries |
-| `agent_memory` | ❓ Unknown | `id` UUID | Agent session data |
-| `assistant_memory` | ❓ Unknown | `id` UUID | User preferences |
-| `eidolon_memory` | ❓ Unknown | `id` UUID | Project state |
-| `cross_thread_memory` | ✅ Created | `id` SERIAL | Thread context |
-
----
-
-## 📊 **SNAPSHOTS TABLE - COMPLETE FIELD MAPPING**
-
-### Table: `snapshots` (❌ MISSING IN DB)
-
-**Purpose:** Capture complete environmental context for ML training and AI decision-making.
-
-**Schema Definition:** `shared/schema.js` lines 3-37
-
-| Field | Type | Nullable | Source | Purpose |
-|-------|------|----------|--------|---------|
-| `snapshot_id` | UUID | NOT NULL | `crypto.randomUUID()` | Primary key, correlation ID |
-| `created_at` | TIMESTAMP | NOT NULL | `new Date()` | Snapshot creation time (UTC) |
-| `user_id` | UUID | NULL | Client `userId` or NULL | Driver identity (if authenticated) |
-| `device_id` | UUID | NOT NULL | Client `deviceId` | Unique device identifier |
-| `session_id` | UUID | NOT NULL | Client `sessionId` | App session identifier |
-| `lat` | DOUBLE | NOT NULL | Browser Geolocation API | GPS latitude |
-| `lng` | DOUBLE | NOT NULL | Browser Geolocation API | GPS longitude |
-| `accuracy_m` | DOUBLE | NULL | Browser Geolocation API | GPS accuracy in meters |
-| `coord_source` | TEXT | NOT NULL | `'gps'` or `'manual'` | How coordinates obtained |
-| `city` | TEXT | NULL | Google Geocoding API | Reverse geocoded city |
-| `state` | TEXT | NULL | Google Geocoding API | Reverse geocoded state |
-| `country` | TEXT | NULL | Google Geocoding API | Reverse geocoded country |
-| `formatted_address` | TEXT | NULL | Google Geocoding API | Full address string |
-| `timezone` | TEXT | NULL | Google Timezone API | IANA timezone (e.g., `America/Chicago`) |
-| `local_iso` | TIMESTAMP | NULL | Calculated from timezone | Local time (no TZ) |
-| `dow` | INTEGER | NULL | `localTime.getDay()` | Day of week (0=Sunday) |
-| `hour` | INTEGER | NULL | `localTime.getHours()` | Hour (0-23) |
-| `day_part_key` | TEXT | NULL | `getDayPartKey(hour)` | Time segment (e.g., `overnight`) |
-| `h3_r8` | TEXT | NULL | `latLngToCell(lat, lng, 8)` | H3 geohash resolution 8 |
-| `weather` | JSONB | NULL | OpenWeather API | `{tempF, conditions, description}` |
-| `air` | JSONB | NULL | Google Air Quality API | `{aqi, category}` |
-| `airport_context` | JSONB | NULL | FAA ASWS + airport proximity | Delay data, distance to airport |
-| `local_news` | JSONB | NULL | Perplexity API | Local events affecting rideshare |
-| `device` | JSONB | NULL | Client metadata | `{ua, platform}` |
-| `permissions` | JSONB | NULL | Client permissions | `{geolocation: 'granted'}` |
-| `extras` | JSONB | NULL | Reserved | Future extensions |
-| `last_strategy_day_part` | TEXT | NULL | Previous strategy context | Deduplication tracking |
-| `trigger_reason` | TEXT | NULL | Why snapshot created | `location_change`, `time_shift` |
-
-### Data Flow: Browser → Server → Database
-
-```
-1. Browser (client/src/contexts/location-context-clean.tsx)
-   ├─ navigator.geolocation.getCurrentPosition() → {lat, lng, accuracy}
-   ├─ Fallback: Google Geolocation API → {lat, lng, accuracy}
-   └─ Build SnapshotV1 object with coord, device, permissions
-
-2. POST /api/location/snapshot (server/routes/location.js:559)
-   ├─ Validate SnapshotV1 schema (server/util/validate-snapshot.js)
-   ├─ Calculate H3 geohash: latLngToCell(lat, lng, 8)
-   ├─ Enrich context:
-   │  ├─ Google Geocoding API → city, state, country, formatted_address
-   │  ├─ Google Timezone API → timezone
-   │  ├─ Calculate local_iso, dow, hour, day_part_key
-   │  ├─ OpenWeather API → weather JSON
-   │  ├─ Google Air Quality API → air JSON
-   │  ├─ FAA ASWS API → airport_context JSON
-   │  └─ Perplexity API → local_news JSON
-   └─ Transform to dbSnapshot object (lines 653-688)
-
-3. Database Insert (line 759)
-   ❌ FAILS: db.insert(snapshots).values(dbSnapshot)
-   Error: relation "snapshots" does not exist
+**Frontend → Backend:**
+```typescript
+// client/src/lib/snapshot.ts
+POST /api/location/snapshot
+{
+  snapshot_id: UUID,
+  user_id: UUID,
+  device_id: UUID,
+  session_id: UUID,
+  coord: { lat, lng, accuracyMeters, source },
+  resolved: { city, state, country, formattedAddress, timezone },
+  time_context: { local_iso, dow, hour, day_part_key },
+  weather: { tempF, conditions, description },
+  air: { aqi, category },
+  device: { ua, platform },
+  permissions: { geolocation }
+}
 ```
 
----
-
-## 🔄 **COMPLETE WORKFLOW MAPPING**
-
-### Workflow: Snapshot Creation & Strategy Generation
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ PHASE 1: GPS ACQUISITION                                        │
-└─────────────────────────────────────────────────────────────────┘
-CLIENT: useGeoPosition.ts (client/src/hooks/useGeoPosition.ts)
-├─ navigator.geolocation.getCurrentPosition()
-│  ├─ Success → {lat, lng, accuracy}
-│  └─ Fail → Google Geolocation API (fallback)
-└─ Emit 'gps-update' event
-
-CLIENT: location-context-clean.tsx
-├─ Listen for 'gps-update'
-├─ Call /api/location/resolve?lat=X&lng=Y
-│  └─ Returns: {city, state, country, timeZone, formattedAddress}
-├─ Call /api/location/weather?lat=X&lng=Y
-│  └─ Returns: {temperature, conditions, ...}
-├─ Call /api/location/airquality?lat=X&lng=Y
-│  └─ Returns: {aqi, category, ...}
-└─ Build SnapshotV1 object
-
-┌─────────────────────────────────────────────────────────────────┐
-│ PHASE 2: SNAPSHOT PERSISTENCE                                   │
-└─────────────────────────────────────────────────────────────────┘
-CLIENT: POST /api/location/snapshot
-├─ Body: SnapshotV1 (all fields populated)
-
-SERVER: location.js:559 (POST /api/location/snapshot handler)
-├─ Validate SnapshotV1 schema
-├─ Calculate H3 geohash
-├─ Fetch airport context (FAA ASWS)
-├─ Fetch local news (Perplexity)
-├─ Transform to dbSnapshot
-└─ ❌ db.insert(snapshots).values(dbSnapshot) → FAILS
-
-┌─────────────────────────────────────────────────────────────────┐
-│ PHASE 3: STRATEGY GENERATION (BLOCKED)                          │
-└─────────────────────────────────────────────────────────────────┘
-SERVER: location.js:764-785 (never reached due to failure)
-├─ Insert into strategies table (status: 'pending')
-├─ Claim job with FOR UPDATE SKIP LOCKED
-└─ Enqueue strategy generation job
-
-JOB QUEUE: job-queue.js
-└─ Calls generateStrategyForSnapshot(snapshot_id)
-
-STRATEGY GENERATOR: strategy-generator.js
-├─ Load snapshot from database
-├─ Call Claude Sonnet 4.5 (Strategist)
-├─ Update strategies table (status: 'ok', strategy text)
-└─ Trigger client poll
-
-┌─────────────────────────────────────────────────────────────────┐
-│ PHASE 4: BLOCKS GENERATION (BLOCKED)                            │
-└─────────────────────────────────────────────────────────────────┘
-CLIENT: Poll GET /api/strategies/:snapshot_id
-├─ Wait for status: 'ok'
-└─ Enable blocks query
-
-CLIENT: GET /api/blocks?snapshot_id=X
-└─ Triggers Triad AI pipeline
-
-SERVER: blocks.js or blocks-triad-strict.js
-├─ Load snapshot + strategy from database
-├─ Call GPT-5 Tactical Planner
-├─ Call Gemini Validator
-├─ Persist to rankings + ranking_candidates
-└─ Return blocks to client
+**Backend Processing:**
+```javascript
+// server/routes/location.js
+- Validates snapshot completeness
+- Calculates H3 geospatial index (resolution 8)
+- Fetches nearby airport delays (FAA API)
+- Fetches local news (Perplexity API)
 ```
 
----
-
-## 🗂️ **FILE-TO-TABLE MAPPING**
-
-### Client Files → Database Tables
-
-| File | Table(s) Written | Operation |
-|------|------------------|-----------|
-| `client/src/contexts/location-context-clean.tsx` | `snapshots` | Creates via POST /api/location/snapshot |
-| `client/src/pages/co-pilot.tsx` | `actions` | Logs user interactions |
-| `client/src/pages/co-pilot.tsx` | `venue_feedback` | Thumbs up/down per venue |
-| `client/src/pages/co-pilot.tsx` | `strategy_feedback` | Thumbs up/down for strategy |
-
-### Server Files → Database Tables
-
-| File | Table(s) Written | Table(s) Read |
-|------|------------------|---------------|
-| `server/routes/location.js` | `snapshots`, `strategies` | None |
-| `server/lib/strategy-generator.js` | `strategies` (UPDATE) | `snapshots` |
-| `server/routes/blocks.js` | `rankings`, `ranking_candidates` | `snapshots`, `strategies` |
-| `server/routes/actions.js` | `actions` | `rankings` |
-| `server/routes/feedback.js` | `venue_feedback`, `strategy_feedback`, `app_feedback` | `rankings` |
-| `server/lib/persist-ranking.js` | `venue_catalog`, `venue_metrics` | `venue_catalog` |
-| `server/lib/gpt5-tactical-planner.js` | None | `snapshots`, `strategies` |
-| `server/lib/gemini-enricher.js` | None | None |
-| `server/lib/faa-asws.js` | `travel_disruptions` | None |
-
----
-
-## 🔌 **API ENDPOINT COMPLETE REFERENCE**
-
-### Location Endpoints (server/routes/location.js)
-
-| Endpoint | Method | Request | Response | Database Impact |
-|----------|--------|---------|----------|-----------------|
-| `/api/location/geocode/reverse` | GET | `?lat=X&lng=Y` | `{city, state, country, formattedAddress}` | None |
-| `/api/location/geocode/forward` | GET | `?city=Dallas,TX` | `{coordinates: {lat, lng}, city, state}` | None |
-| `/api/location/timezone` | GET | `?lat=X&lng=Y` | `{timeZone, timeZoneName}` | None |
-| `/api/location/resolve` | GET | `?lat=X&lng=Y` | Combined geocode + timezone | None |
-| `/api/location/weather` | GET | `?lat=X&lng=Y` | `{temperature, conditions, ...}` | None |
-| `/api/location/airquality` | GET | `?lat=X&lng=Y` | `{aqi, category, ...}` | None |
-| `/api/location/snapshot` | POST | SnapshotV1 JSON | `{snapshot_id, h3_r8, status}` | ❌ INSERT `snapshots` (FAILS) |
-
-### Blocks Endpoints
-
-| Endpoint | Method | Request | Response | Database Impact |
-|----------|--------|---------|----------|-----------------|
-| `/api/blocks` | GET | `?snapshot_id=X` | Array of venue blocks | INSERT `rankings`, `ranking_candidates` |
-| `/api/strategies/:snapshot_id` | GET | None | `{strategy, status}` | READ `strategies` |
-
-### Feedback Endpoints (server/routes/feedback.js)
-
-| Endpoint | Method | Request | Response | Database Impact |
-|----------|--------|---------|----------|-----------------|
-| `/api/feedback/venue` | POST | `{sentiment, place_id, ranking_id}` | `{ok: true}` | INSERT `venue_feedback` |
-| `/api/feedback/strategy` | POST | `{sentiment, ranking_id}` | `{ok: true}` | INSERT `strategy_feedback` |
-| `/api/feedback/app` | POST | `{sentiment, comment}` | `{ok: true}` | INSERT `app_feedback` |
-
-### Action Endpoints (server/routes/actions.js)
-
-| Endpoint | Method | Request | Response | Database Impact |
-|----------|--------|---------|----------|-----------------|
-| `/api/actions` | POST | `{action, snapshot_id, ranking_id}` | `{ok: true}` | INSERT `actions` |
-
----
-
-## 🚨 **CRITICAL ISSUES - PRIORITY ORDER**
-
-### Issue #1: Missing Database Tables (BLOCKER)
-
-**Status:** 🔴 CRITICAL  
-**Impact:** Complete data pipeline failure  
-**Root Cause:** Schema defined in `shared/schema.js` never applied to PostgreSQL
-
-**Evidence:**
+**Database Table:** `snapshots`
 ```sql
--- Error from console:
-error: relation "snapshots" does not exist
-at server/routes/location.js:759
+INSERT INTO snapshots (
+  snapshot_id,           -- UUID from client
+  created_at,           -- Server timestamp
+  user_id,              -- UUID or NULL
+  device_id,            -- UUID (device fingerprint)
+  session_id,           -- UUID (browser session)
+  lat,                  -- coord.lat
+  lng,                  -- coord.lng
+  accuracy_m,           -- coord.accuracyMeters
+  coord_source,         -- coord.source ('gps' | 'wifi' | 'cell')
+  city,                 -- resolved.city
+  state,                -- resolved.state
+  country,              -- resolved.country
+  formatted_address,    -- resolved.formattedAddress
+  timezone,             -- resolved.timezone
+  local_iso,            -- time_context.local_iso
+  dow,                  -- time_context.dow (0=Sunday, 6=Saturday)
+  hour,                 -- time_context.hour (0-23)
+  day_part_key,         -- time_context.day_part_key
+  h3_r8,                -- Calculated H3 cell ID
+  weather,              -- JSONB: weather object
+  air,                  -- JSONB: air quality object
+  airport_context,      -- JSONB: FAA delay data
+  local_news,           -- JSONB: Perplexity news summary
+  device,               -- JSONB: device info
+  permissions,          -- JSONB: permissions status
+  last_strategy_day_part, -- NULL initially
+  trigger_reason        -- NULL initially
+)
 ```
 
-**Fix Required:**
-1. Run Drizzle migrations: `npm run db:push`
-2. Verify all 20 tables created
-3. Test snapshot creation endpoint
-
-**Files Involved:**
-- `shared/schema.js` - Schema definition
-- `drizzle.config.ts` - Drizzle configuration
-- `server/db/drizzle.js` - ORM client
-- `server/db/client.js` - PostgreSQL pool
+**Data Resolution:** All location data shown in UI comes from this table
+- City name: `snapshots.city`
+- Weather: `snapshots.weather.tempF + snapshots.weather.conditions`
+- Air Quality: `snapshots.air.aqi + snapshots.air.category`
+- Airport delays: `snapshots.airport_context.delay_minutes`
 
 ---
 
-### Issue #2: PostgreSQL Connection Pool Errors
+### **2. Strategy Generation Flow**
 
-**Status:** 🟡 HIGH  
-**Impact:** Connection drops, query failures
+**Backend Trigger:** Snapshot creation with complete data
 
-**Evidence:**
+**Background Job:**
+```javascript
+// server/lib/strategy-generator.js
+- Enqueued via job-queue.js
+- Calls Claude Sonnet 4.5 API
+- 120-word strategic overview
 ```
-[pool] Unexpected pool error: Error: Connection terminated unexpectedly
-[pool] Client removed from pool
+
+**Database Table:** `strategies`
+```sql
+INSERT INTO strategies (
+  id,                   -- UUID (auto-generated)
+  snapshot_id,          -- FK to snapshots.snapshot_id (UNIQUE)
+  correlation_id,       -- UUID for request tracing
+  strategy,             -- Claude's strategic text
+  strategy_for_now,     -- Tactical summary (unlimited length)
+  status,               -- 'pending' → 'ok' | 'failed'
+  error_code,           -- HTTP status if failed
+  error_message,        -- Error details if failed
+  attempt,              -- Retry counter
+  next_retry_at,        -- Timestamp for next retry
+  latency_ms,           -- Claude API response time
+  tokens,               -- Token count for billing
+  model_name,           -- 'claude-sonnet-4-5-20250929'
+  model_params,         -- JSONB: { temperature, max_tokens }
+  prompt_version,       -- 'v2.3' for A/B testing
+  lat,                  -- Location context (from snapshot)
+  lng,                  -- Location context (from snapshot)
+  city,                 -- Location context (from snapshot)
+  created_at,           -- Server timestamp
+  updated_at            -- Last update timestamp
+)
 ```
 
-**Root Cause:** Neon free tier auto-sleep (5 min idle timeout)
+**UI Polling:**
+```typescript
+// client/src/pages/co-pilot.tsx
+GET /api/blocks/strategy/:snapshotId
+- Polls every 2s while status='pending'
+- Displays strategy when status='ok'
+```
 
-**Fix Applied (Partial):**
-- Shared pool with 120s idle timeout (`server/db/pool.js`)
-- TCP keepalive enabled (30s intervals)
-- Connection recycling (maxUses: 7500)
-
-**Still Needed:**
-- Verify `PG_USE_SHARED_POOL=true` in `mono-mode.env`
-- Test pool under sustained load
+**Data Resolution:** Strategy shown in UI
+- Strategy text: `strategies.strategy`
+- Tactical summary: `strategies.strategy_for_now`
+- Status: `strategies.status`
 
 ---
 
-### Issue #3: Workflow Configuration
+### **3. Smart Blocks (Recommendations) Flow**
 
-**Status:** ✅ WORKING  
-**Current:** Running on port 5000 (mono-mode)
+**UI Action:** User clicks "Get Smart Blocks" or auto-triggers after strategy ready
 
-**Workflow:** "Run App"
-```bash
-set -a && source mono-mode.env && set +a && node gateway-server.js
+**Frontend → Backend:**
+```typescript
+POST /api/blocks
+Headers: { X-Snapshot-Id: <uuid> }
+Body: { userId: <uuid> }
 ```
 
-**Process:**
-- Gateway: ✅ Listening on 0.0.0.0:5000
-- Eidolon SDK: ✅ Embedded in gateway
-- Agent: ✅ Embedded in gateway
+**Backend Processing (Triad Pipeline):**
+```javascript
+// server/routes/blocks.js
+1. Load snapshot + strategy from database
+2. Call GPT-5 planner (server/lib/gpt5-tactical-planner.js)
+   - Generates 6 venue recommendations with coordinates
+3. Enrich with Google APIs (server/lib/venue-enrichment.js)
+   - Routes API: drive times, distances
+   - Places API: place_ids, business hours
+4. Calculate value per minute (deterministic scoring)
+5. Call Gemini validator (server/lib/validator-gemini.js)
+   - Validates JSON structure
+   - Reranks venues by quality
+6. Persist to database (atomic transaction)
+```
 
-**Port Mapping:**
-- 5000 → Gateway (HTTP + WebSocket)
-- No separate processes (mono-mode)
+**Database Table 1:** `rankings`
+```sql
+INSERT INTO rankings (
+  ranking_id,           -- UUID from client
+  created_at,           -- Server timestamp
+  snapshot_id,          -- FK to snapshots.snapshot_id
+  correlation_id,       -- UUID for tracing
+  user_id,              -- UUID or NULL
+  city,                 -- Context city
+  ui,                   -- JSONB: Frontend state snapshot
+  model_name,           -- 'gpt-5'
+  scoring_ms,           -- Deterministic scoring time
+  planner_ms,           -- GPT-5 API time
+  total_ms,             -- End-to-end latency
+  timed_out,            -- Boolean: hit deadline?
+  path_taken            -- 'triad_full' | 'fast' | 'catalog_only'
+)
+```
+
+**Database Table 2:** `ranking_candidates` (6 rows per ranking)
+```sql
+INSERT INTO ranking_candidates (
+  id,                   -- UUID (auto-generated)
+  ranking_id,           -- FK to rankings.ranking_id (CASCADE DELETE)
+  block_id,             -- Unique ID for this venue
+  name,                 -- Venue name from GPT-5
+  lat,                  -- Venue latitude
+  lng,                  -- Venue longitude
+  place_id,             -- Google Place ID (if matched)
+  drive_time_min,       -- Google Routes API result
+  straight_line_km,     -- Haversine distance
+  distance_miles,       -- Actual route distance
+  drive_minutes,        -- Same as drive_time_min
+  est_earnings_per_ride, -- ML model output
+  model_score,          -- ML confidence score
+  rank,                 -- Display order (1-6)
+  exploration_policy,   -- 'epsilon_greedy' | 'thompson_sampling'
+  epsilon,              -- Exploration rate (0.0-1.0)
+  was_forced,           -- Boolean: exploration pick?
+  propensity,           -- P(show|context) for IPS weighting
+  value_per_min,        -- $/min efficiency score
+  value_grade,          -- 'excellent' | 'good' | 'fair' | 'poor'
+  not_worth,            -- Boolean: below threshold?
+  rate_per_min_used,    -- Rate used in calculation
+  trip_minutes_used,    -- Avg trip duration
+  wait_minutes_used,    -- Avg wait time
+  features,             -- JSONB: ML feature vector
+  h3_r8,                -- Venue H3 cell
+  snapshot_id,          -- FK to snapshots.snapshot_id
+  estimated_distance_miles, -- Initial estimate
+  drive_time_minutes,   -- Final actual
+  distance_source,      -- 'google_routes' | 'haversine'
+  pro_tips,             -- TEXT[]: GPT-5 tactical tips
+  closed_reasoning,     -- TEXT: Why recommend if closed
+  staging_tips,         -- TEXT: Where to park/stage
+  venue_events          -- JSONB: Perplexity event data
+)
+```
+
+**Database Table 3:** `venue_catalog` (persistent venue data)
+```sql
+-- Upserted during enrichment if new venue discovered
+INSERT INTO venue_catalog (
+  venue_id,             -- UUID (auto-generated)
+  place_id,             -- Google Place ID (UNIQUE)
+  venue_name,           -- Name (max 500 chars)
+  address,              -- Full address (max 500 chars)
+  lat,                  -- Coordinates
+  lng,
+  category,             -- 'airport' | 'stadium' | 'nightlife' | etc.
+  dayparts,             -- TEXT[]: ['morning', 'evening']
+  staging_notes,        -- JSONB: { pickup_zone, tips, warnings }
+  city,
+  metro,
+  ai_estimated_hours,   -- Legacy field (deprecated)
+  business_hours,       -- JSONB: Google Places hours
+  discovery_source,     -- 'seed' | 'ai_generated' | 'driver_submission'
+  validated_at,         -- Timestamp of last verification
+  suggestion_metadata,  -- JSONB: LLM reasoning if AI-generated
+  last_known_status,    -- 'open' | 'closed' | 'permanently_closed' | 'unknown'
+  status_checked_at,    -- Last Google Places check
+  consecutive_closed_checks, -- Auto-suppress after 3
+  auto_suppressed,      -- Boolean: removed from recommendations?
+  suppression_reason,   -- Why suppressed
+  created_at
+) ON CONFLICT (place_id) DO UPDATE SET
+  business_hours = EXCLUDED.business_hours,
+  last_known_status = EXCLUDED.last_known_status,
+  status_checked_at = EXCLUDED.status_checked_at
+```
+
+**UI Display:** Smart Blocks cards
+```typescript
+// client/src/pages/co-pilot.tsx
+blocks.map(block => (
+  <BlockCard
+    name={block.name}              // ranking_candidates.name
+    address={block.address}        // from venue_catalog via place_id
+    distance={block.distance}      // ranking_candidates.distance_miles
+    driveTime={block.driveTime}    // ranking_candidates.drive_time_min
+    valuePerMin={block.value_per_min} // ranking_candidates.value_per_min
+    valueGrade={block.value_grade} // ranking_candidates.value_grade
+    rank={block.rank}              // ranking_candidates.rank
+    category={block.category}      // from venue_catalog
+    hours={block.hours}            // from venue_catalog.business_hours
+    proTips={block.pro_tips}       // ranking_candidates.pro_tips[]
+    stagingTips={block.staging_tips} // ranking_candidates.staging_tips
+  />
+))
+```
 
 ---
 
-## 📋 **ENVIRONMENT VARIABLES - COMPLETE REFERENCE**
+### **4. User Actions Flow**
 
-### Required for Database
+**UI Action:** User interacts with venue card
 
-| Variable | Source | Purpose |
-|----------|--------|---------|
-| `DATABASE_URL` | Replit Secrets | PostgreSQL connection string (Neon) |
-| `PG_USE_SHARED_POOL` | `mono-mode.env` | Enable shared pool (`true`) |
-| `PG_MAX` | `mono-mode.env` | Max connections (10) |
-| `PG_IDLE_TIMEOUT_MS` | `mono-mode.env` | Idle timeout (120000 = 2 min) |
+**Frontend → Backend:**
+```typescript
+// client/src/pages/co-pilot.tsx
+POST /api/actions
+Headers: { X-Idempotency-Key: <uuid> }
+Body: {
+  action: 'block_clicked' | 'view' | 'dwell' | 'dismiss',
+  snapshot_id: <uuid>,
+  ranking_id: <uuid>,
+  block_id: <string>,
+  from_rank: <number>,
+  dwell_ms: <number>
+}
+```
 
-### Required for AI Models
+**Database Table:** `actions`
+```sql
+INSERT INTO actions (
+  action_id,            -- UUID from Idempotency-Key
+  created_at,           -- Server timestamp
+  ranking_id,           -- FK to rankings.ranking_id (CASCADE DELETE)
+  snapshot_id,          -- FK to snapshots.snapshot_id (CASCADE DELETE)
+  user_id,              -- UUID or NULL
+  action,               -- 'view' | 'click' | 'dwell' | 'dismiss'
+  block_id,             -- Which venue (matches ranking_candidates.block_id)
+  dwell_ms,             -- Time spent viewing (milliseconds)
+  from_rank,            -- Position in list (1-6)
+  raw                   -- JSONB: Full frontend event
+)
+```
 
-| Variable | Source | Purpose |
-|----------|--------|---------|
-| `ANTHROPIC_API_KEY` | Replit Secrets | Claude Sonnet 4.5 |
-| `OPENAI_API_KEY` | Replit Secrets | GPT-5 |
-| `GOOGLE_API_KEY` or `GEMINI_API_KEY` | Replit Secrets | Gemini 2.5 Pro |
-| `PERPLEXITY_API_KEY` | Replit Secrets | Local news research |
-
-### Required for Location APIs
-
-| Variable | Source | Purpose |
-|----------|--------|---------|
-| `GOOGLE_MAPS_API_KEY` | Replit Secrets | Geocoding, Timezone |
-| `OPENWEATHER_API_KEY` | Replit Secrets | Weather data |
-| `GOOGLEAQ_API_KEY` | Replit Secrets | Air quality data |
-| `FAA_ASWS_CLIENT_ID` | Replit Secrets | Airport delays |
-| `FAA_ASWS_CLIENT_SECRET` | Replit Secrets | Airport delays |
+**ML Training Data:** Used for counterfactual learning
+- Query: `SELECT * FROM actions JOIN ranking_candidates ON actions.block_id = ranking_candidates.block_id`
+- Analysis: "Given context X (snapshot), model suggested Y (ranking), user chose Z (action)"
 
 ---
 
-## 🔍 **NEXT STEPS - REPAIR PLAN**
+### **5. Feedback Flow**
 
-### Step 1: Verify Database Schema
+**UI Action:** User clicks thumbs up/down on venue
 
-```bash
-# Check if tables exist
-psql $DATABASE_URL -c "\dt"
-
-# Expected output: 20 tables
-# snapshots, strategies, rankings, ranking_candidates, actions, ...
+**Frontend → Backend:**
+```typescript
+POST /api/feedback/venue
+Body: {
+  snapshot_id: <uuid>,
+  ranking_id: <uuid>,
+  place_id: <string>,
+  sentiment: 'up' | 'down',
+  comment: <string>
+}
 ```
 
-### Step 2: Apply Drizzle Migrations
-
-```bash
-npm run db:push
+**Database Table:** `venue_feedback`
+```sql
+INSERT INTO venue_feedback (
+  id,                   -- UUID (auto-generated)
+  user_id,              -- UUID or NULL
+  snapshot_id,          -- FK to snapshots.snapshot_id (CASCADE DELETE)
+  ranking_id,           -- FK to rankings.ranking_id (CASCADE DELETE)
+  place_id,             -- Google Place ID
+  venue_name,           -- Venue name
+  sentiment,            -- 'up' | 'down'
+  comment,              -- Optional driver feedback
+  created_at
+) ON CONFLICT (user_id, ranking_id, place_id) DO UPDATE SET
+  sentiment = EXCLUDED.sentiment,
+  comment = EXCLUDED.comment
 ```
 
-This will:
-1. Read `shared/schema.js`
-2. Compare to PostgreSQL schema
-3. Generate and apply ALTER/CREATE TABLE statements
-4. Report any conflicts
-
-### Step 3: Test Snapshot Creation
-
-```bash
-curl -X POST http://localhost:5000/api/location/snapshot \
-  -H "Content-Type: application/json" \
-  -d '{
-    "snapshot_id": "test-123",
-    "created_at": "2025-10-26T18:00:00Z",
-    "device_id": "test-device",
-    "session_id": "test-session",
-    "lat": 32.7767,
-    "lng": -96.7970
-  }'
+**Database Table Update:** `venue_metrics`
+```sql
+-- Triggered by feedback submission
+UPDATE venue_metrics SET
+  positive_feedback = positive_feedback + 1  -- if sentiment='up'
+  -- OR negative_feedback = negative_feedback + 1 if sentiment='down'
+WHERE venue_id = (
+  SELECT venue_id FROM venue_catalog WHERE place_id = <place_id>
+)
 ```
 
-Expected: `{"success": true, "snapshot_id": "test-123"}`  
-Actual (before fix): `500 error: relation "snapshots" does not exist`
-
-### Step 4: Update ISSUES.md
-
-Document:
-1. All database schema drift issues
-2. Connection pool configuration
-3. Workflow status
-4. API endpoint failures
+**UI Display:** Feedback affects future recommendations
+- Reliability score: `venue_metrics.reliability_score` (Bayesian average)
+- Downweight venues with high negative feedback
 
 ---
 
-**End of ARCHITECTURE.md Update**  
-**Status:** Ready for ISSUES.md update after database schema verification
+### **6. Strategy Feedback Flow**
+
+**UI Action:** User votes on strategy quality
+
+**Frontend → Backend:**
+```typescript
+POST /api/feedback/strategy
+Body: {
+  snapshot_id: <uuid>,
+  ranking_id: <uuid>,
+  sentiment: 'up' | 'down',
+  comment: <string>
+}
+```
+
+**Database Table:** `strategy_feedback`
+```sql
+INSERT INTO strategy_feedback (
+  id,                   -- UUID (auto-generated)
+  user_id,              -- UUID or NULL
+  snapshot_id,          -- FK to snapshots.snapshot_id (CASCADE DELETE)
+  ranking_id,           -- FK to rankings.ranking_id (CASCADE DELETE)
+  sentiment,            -- 'up' | 'down'
+  comment,              -- Why good/bad
+  created_at
+) ON CONFLICT (user_id, ranking_id) DO UPDATE SET
+  sentiment = EXCLUDED.sentiment,
+  comment = EXCLUDED.comment
+```
+
+**ML Training:** Strategy effectiveness analysis
+- Correlate strategy feedback with venue selection success
+- Compare Claude vs. GPT-5 vs. Gemini strategy quality
+
+---
+
+### **Complete Table Relationship Diagram**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         USER INTERACTIONS                        │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ snapshots (Context Capture)                                     │
+│ ├─ snapshot_id (PK)                                             │
+│ ├─ lat, lng, accuracy_m                                         │
+│ ├─ city, state, country, timezone                               │
+│ ├─ dow, hour, day_part_key                                      │
+│ ├─ weather, air, airport_context (JSONB)                        │
+│ └─ h3_r8 (geospatial index)                                     │
+└─────────────────────────────────────────────────────────────────┘
+            │                           │
+            │ 1:1                       │ 1:N
+            ▼                           ▼
+┌───────────────────────┐    ┌──────────────────────┐
+│ strategies            │    │ rankings             │
+│ ├─ id (PK)            │    │ ├─ ranking_id (PK)   │
+│ ├─ snapshot_id (FK)   │    │ ├─ snapshot_id (FK)  │
+│ ├─ strategy           │    │ ├─ model_name        │
+│ ├─ strategy_for_now   │    │ └─ total_ms          │
+│ ├─ status             │    └──────────────────────┘
+│ ├─ model_name         │              │
+│ └─ latency_ms         │              │ 1:N
+└───────────────────────┘              ▼
+            │ 1:N         ┌──────────────────────────┐
+            ▼             │ ranking_candidates       │
+┌───────────────────────┐ │ ├─ id (PK)               │
+│ strategy_feedback     │ │ ├─ ranking_id (FK)       │
+│ ├─ snapshot_id (FK)   │ │ ├─ block_id              │
+│ ├─ ranking_id (FK)    │ │ ├─ name, lat, lng        │
+│ └─ sentiment          │ │ ├─ place_id              │
+└───────────────────────┘ │ ├─ value_per_min         │
+                          │ ├─ rank                  │
+                          │ └─ pro_tips[]            │
+                          └──────────────────────────┘
+                                    │
+                                    │ N:1
+                                    ▼
+                          ┌──────────────────────────┐
+                          │ venue_catalog            │
+                          │ ├─ venue_id (PK)         │
+                          │ ├─ place_id (UNIQUE)     │
+                          │ ├─ venue_name            │
+                          │ ├─ category              │
+                          │ ├─ business_hours        │
+                          │ └─ last_known_status     │
+                          └──────────────────────────┘
+                                    │ 1:1
+                                    ▼
+                          ┌──────────────────────────┐
+                          │ venue_metrics            │
+                          │ ├─ venue_id (FK, PK)     │
+                          │ ├─ times_recommended     │
+                          │ ├─ times_chosen          │
+                          │ ├─ positive_feedback     │
+                          │ ├─ negative_feedback     │
+                          │ └─ reliability_score     │
+                          └──────────────────────────┘
+                                    ▲
+                                    │ Updates from
+                          ┌──────────────────────────┐
+                          │ venue_feedback           │
+                          │ ├─ snapshot_id (FK)      │
+                          │ ├─ ranking_id (FK)       │
+                          │ ├─ place_id              │
+                          │ └─ sentiment             │
+                          └──────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│ actions (Behavior Tracking)                                      │
+│ ├─ snapshot_id (FK)                                              │
+│ ├─ ranking_id (FK)                                               │
+│ ├─ block_id                                                      │
+│ ├─ action ('view' | 'click' | 'dwell' | 'dismiss')               │
+│ └─ from_rank                                                     │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+**Data Retention & Cascade Policies**
+
+**30-Day Rolling Window:**
+- `snapshots` - Oldest records deleted after 30 days
+- `strategies` - CASCADE DELETE with snapshots
+- `rankings` - Orphaned after snapshots deleted (manual cleanup)
+- `ranking_candidates` - CASCADE DELETE with rankings
+- `actions` - CASCADE DELETE with snapshots
+- `venue_feedback` - CASCADE DELETE with snapshots
+- `strategy_feedback` - CASCADE DELETE with snapshots
+
+**Permanent Tables:**
+- `venue_catalog` - Never deleted (historical venue database)
+- `venue_metrics` - Accumulates over time (never deleted)
+- `places_cache` - 90-day TTL, then refresh
+
+---
+
+### **Deprecated Architecture Patterns**
+
+~~**Old Approach (Pre-Oct 2025):**~~
+- ~~Hard-coded model names in code~~ → Now uses environment variables
+- ~~Global JSON body parsing~~ → Now per-route parsing
+- ~~8-second total budget~~ → Now 90 seconds (CLAUDE_TIMEOUT_MS + GPT5_TIMEOUT_MS + GEMINI_TIMEOUT_MS)
+- ~~Router V2 with fallback chain~~ → Now single-path Triad only
+- ~~React.StrictMode in production~~ → Disabled to prevent duplicate API calls
+- ~~Manual city overrides in production~~ → Blocked via production gate
+- ~~"Cheap-first" hours strategy~~ → Risk-gated validation for closure-sensitive venues
+- ~~Temperature-based GPT-5 config~~ → Now uses `reasoning_effort` parameter
+
+---
+
+## 📋 **PURPOSE OF THIS DOCUMENT**
+
+Single source of truth for:
