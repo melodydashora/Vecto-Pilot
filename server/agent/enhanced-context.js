@@ -352,7 +352,7 @@ export async function storeAgentMemory(title, content, metadata = {}, ttlDays = 
     if (!pool) return false;
     
     await pool.query(
-      `INSERT INTO agent_memory (session_id, entry_type, title, content, metadata, expires_at)
+      `INSERT INTO ${AGENT_MEMORY_TABLE} (session_id, entry_type, title, content, metadata, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         'system',
@@ -390,7 +390,7 @@ export async function getAgentMemory(userId = null, limit = 50) {
     
     const result = await pool.query(
       `SELECT id, entry_type, title, content, metadata, created_at 
-       FROM agent_memory 
+       FROM ${AGENT_MEMORY_TABLE} 
        ORDER BY created_at DESC 
        LIMIT $1`,
       [limit]
