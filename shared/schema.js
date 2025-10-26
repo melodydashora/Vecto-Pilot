@@ -290,4 +290,53 @@ export const agent_memory = pgTable("agent_memory", {
   idxType: sql`create index if not exists idx_agent_memory_type on ${table} (entry_type)`,
 }));
 
+// Enhanced memory tables for thread-aware context tracking
+export const assistant_memory = pgTable("assistant_memory", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  scope: text("scope").notNull(),
+  key: text("key").notNull(),
+  user_id: uuid("user_id"),
+  content: text("content").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+}, (table) => ({
+  uniqueScopeKey: sql`unique(scope, key, user_id)`,
+  idxScope: sql`create index if not exists idx_assistant_memory_scope on ${table} (scope)`,
+  idxUser: sql`create index if not exists idx_assistant_memory_user on ${table} (user_id)`,
+  idxExpires: sql`create index if not exists idx_assistant_memory_expires on ${table} (expires_at)`,
+}));
+
+export const eidolon_memory = pgTable("eidolon_memory", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  scope: text("scope").notNull(),
+  key: text("key").notNull(),
+  user_id: uuid("user_id"),
+  content: text("content").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+}, (table) => ({
+  uniqueScopeKey: sql`unique(scope, key, user_id)`,
+  idxScope: sql`create index if not exists idx_eidolon_memory_scope on ${table} (scope)`,
+  idxUser: sql`create index if not exists idx_eidolon_memory_user on ${table} (user_id)`,
+  idxExpires: sql`create index if not exists idx_eidolon_memory_expires on ${table} (expires_at)`,
+}));
+
+export const cross_thread_memory = pgTable("cross_thread_memory", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  scope: text("scope").notNull(),
+  key: text("key").notNull(),
+  user_id: uuid("user_id"),
+  content: text("content").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+}, (table) => ({
+  uniqueScopeKey: sql`unique(scope, key, user_id)`,
+  idxScope: sql`create index if not exists idx_cross_thread_memory_scope on ${table} (scope)`,
+  idxUser: sql`create index if not exists idx_cross_thread_memory_user on ${table} (user_id)`,
+  idxExpires: sql`create index if not exists idx_cross_thread_memory_expires on ${table} (expires_at)`,
+}));
+
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
