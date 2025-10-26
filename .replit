@@ -10,18 +10,6 @@ build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
 run = ["sh", "-c", "./start-mono.sh"]
 
 [[ports]]
-localPort = 80
-externalPort = 3000
-
-[[ports]]
-localPort = 5000
-externalPort = 5000
-
-[[ports]]
-localPort = 5173
-externalPort = 5173
-
-[[ports]]
 localPort = 5174
 externalPort = 80
 
