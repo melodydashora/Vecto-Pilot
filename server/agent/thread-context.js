@@ -122,6 +122,7 @@ export class ThreadContextManager {
         const { getSharedPool } = await import("../db/pool.js");
         const pool = getSharedPool();
         if (pool) {
+          // Note: agent_memory has different schema than other memory tables
           await pool.query(
             `INSERT INTO agent_memory (session_id, entry_type, title, content, metadata, expires_at)
              VALUES ($1, $2, $3, $4, $5, $6)`,
