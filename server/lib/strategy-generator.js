@@ -65,10 +65,44 @@ export async function generateStrategyForSnapshot(snapshot_id) {
       ? `${snap.airport_context.airport_code} airport ${snap.airport_context.distance_miles.toFixed(1)} miles away - ${snap.airport_context.delay_minutes || 0} min delays`
       : null;
     
-    // Extract local news/traffic intelligence from Perplexity
-    const localNewsStr = snap.local_news && snap.local_news.summary
-      ? snap.local_news.summary
-      : null;
+    // Extract news briefing intelligence (Gemini structured or legacy format)
+    let localNewsStr = null;
+    
+    if (snap.local_news) {
+      if (snap.local_news.type === 'gemini_structured' && snap.local_news.briefing) {
+        // New Gemini structured briefing - format for readability
+        const b = snap.local_news.briefing;
+        const sections = [];
+        
+        if (b.airports && b.airports.length > 0) {
+          sections.push(`AIRPORTS (next 60 min):\n${b.airports.map(a => `• ${a}`).join('\n')}`);
+        }
+        
+        if (b.traffic_construction && b.traffic_construction.length > 0) {
+          sections.push(`TRAFFIC & CONSTRUCTION:\n${b.traffic_construction.map(t => `• ${t}`).join('\n')}`);
+        }
+        
+        if (b.major_events && b.major_events.length > 0) {
+          sections.push(`MAJOR EVENTS:\n${b.major_events.map(e => `• ${e}`).join('\n')}`);
+        }
+        
+        if (b.policy_safety && b.policy_safety.length > 0) {
+          sections.push(`POLICY & SAFETY:\n${b.policy_safety.map(p => `• ${p}`).join('\n')}`);
+        }
+        
+        if (b.driver_takeaway && b.driver_takeaway.length > 0) {
+          sections.push(`KEY TAKEAWAYS:\n${b.driver_takeaway.map(t => `• ${t}`).join('\n')}`);
+        }
+        
+        localNewsStr = sections.length > 0 ? sections.join('\n\n') : null;
+      } else if (snap.local_news.briefing) {
+        // Legacy format (GPT-5 prose)
+        localNewsStr = snap.local_news.briefing;
+      } else if (snap.local_news.summary) {
+        // Old Perplexity format
+        localNewsStr = snap.local_news.summary;
+      }
+    }
     
     const systemPrompt = `You are a rideshare strategy advisor and economist. Your job is to analyze the driver's COMPLETE snapshot context and provide hyper-specific, actionable strategic guidance in 3-5 sentences.
 
