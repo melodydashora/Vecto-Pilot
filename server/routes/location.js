@@ -660,13 +660,13 @@ router.post('/snapshot', async (req, res) => {
       console.warn('[snapshot] Airport context fetch failed:', airportErr.message);
     }
 
-    // Fetch local news affecting rideshare using Perplexity (non-blocking)
-    console.log('[snapshot] Fetching local news from Perplexity...');
+    // Fetch rideshare briefing using GPT with web search (non-blocking)
+    console.log('[snapshot] Fetching rideshare briefing from GPT...');
     let localNews = null;
     
     try {
-      const { PerplexityResearch } = await import('../lib/perplexity-research.js');
-      const perplexity = new PerplexityResearch();
+      const OpenAI = (await import('openai')).default;
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       
       const city = snapshotV1.resolved?.city || 'the area';
       const state = snapshotV1.resolved?.state || '';
@@ -684,9 +684,9 @@ router.post('/snapshot', async (req, res) => {
         ? `${airportContext.airport_name} (${airportContext.airport_code}), ${airportContext.distance_miles} miles away`
         : 'major airports in the area';
       
-      const query = `Generate a rideshare driver briefing for ${location} (coordinates: ${lat}, ${lng}) within a 30-mile radius as of ${dateStr} at ${timeStr}.
+      const prompt = `Generate a rideshare driver briefing for ${location} (coordinates: ${lat}, ${lng}) within a 15-mile radius as of ${dateStr} at ${timeStr}.
 
-Structure the response EXACTLY like this:
+Search for TODAY's actual events, traffic, and conditions. Structure the response EXACTLY like this:
 
 WEATHER ALERTS: Fog, rain, ice, wind, flooding - specific highway impacts (I-35, I-635, etc.) and visibility issues at ${airportInfo}
 
@@ -698,33 +698,47 @@ MAJOR EVENTS: Concerts, sports games, festivals - include venue names, addresses
 
 POLICY UPDATES: Any new rideshare regulations, staging fees, or safety requirements
 
-Focus on: Exact locations, specific times, actionable intel, surge opportunities, safety hazards within 30 miles of the driver.
+Focus on: Exact locations, specific times, actionable intel, surge opportunities, safety hazards within 15 miles of coordinates ${lat}, ${lng}.
 Skip: Generic advice, historical context, citations, background information.`;
       
-      console.log(`🔍 [PERPLEXITY] Rideshare Briefing Query for ${location}`);
+      console.log(`🔍 [GPT] Rideshare Briefing Query for ${location} (15-mile radius)`);
       
-      const newsData = await perplexity.search(query, {
-        systemPrompt: 'You are a rideshare operations assistant. Provide ONLY factual, time-specific, location-specific briefing data. Use exact venue names, highway numbers, times, and distances. Format clearly with headers. Skip generic advice.',
-        maxTokens: 600,
-        searchRecencyFilter: 'day', // Last 24 hours only
-        temperature: 0.2
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-5',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a rideshare operations assistant with real-time web search. Provide ONLY factual, time-specific, location-specific briefing data. Search for today\'s actual events, concerts, sports games, road closures, and weather. Use exact venue names, highway numbers, times, and distances. Format clearly with headers. Skip generic advice.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        reasoning_effort: 'high',
+        max_completion_tokens: 1000
       });
       
-      if (newsData?.answer) {
+      const briefing = completion.choices?.[0]?.message?.content;
+      
+      if (briefing) {
         localNews = {
-          briefing: newsData.answer,
+          briefing: briefing,
           fetched_at: new Date().toISOString(),
-          radius_miles: 30,
-          query_location: `${lat}, ${lng}`
+          radius_miles: 15,
+          query_location: `${lat}, ${lng}`,
+          model: 'gpt-5'
         };
-        console.log('📰 [PERPLEXITY] Rideshare Briefing Response:', {
+        console.log('📰 [GPT-5] Rideshare Briefing Response:', {
           location: location,
-          briefing_length: newsData.answer?.length || 0,
-          radius: '30 miles'
+          briefing_length: briefing.length,
+          radius: '15 miles',
+          model: 'gpt-5',
+          reasoning_effort: 'high'
         });
       }
     } catch (newsErr) {
-      console.warn('[snapshot] Perplexity briefing fetch failed (non-blocking):', newsErr.message);
+      console.warn('[snapshot] GPT briefing fetch failed (non-blocking):', newsErr.message);
     }
 
     // Transform SnapshotV1 to Postgres schema
