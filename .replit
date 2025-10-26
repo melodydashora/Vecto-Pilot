@@ -10,20 +10,8 @@ build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
 run = ["sh", "-c", "export $(cat mono-mode.env | xargs) && node gateway-server.js"]
 
 [[ports]]
-localPort = 80
-externalPort = 3002
-
-[[ports]]
-localPort = 3101
-externalPort = 3003
-exposeLocalhost = true
-
-[[ports]]
 localPort = 5000
 externalPort = 5000
-
-[[ports]]
-localPort = 5173
 
 [[ports]]
 localPort = 5174
