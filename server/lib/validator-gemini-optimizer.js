@@ -8,7 +8,7 @@ export async function validateAndOptimize({
   shortlist, // Full enriched shortlist with all candidates
   claudeStrategy, // Strategic context from Claude
   schema,
-  model = "gemini-2.5-pro",
+  model = process.env.GEMINI_MODEL || "gemini-2.5-pro",
   timeoutMs = Number(process.env.VALIDATOR_DEADLINE_MS || 60000)
 }) {
   const key = process.env.GEMINI_API_KEY;

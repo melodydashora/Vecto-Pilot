@@ -1,5 +1,5 @@
 // server/lib/adapters/google-gemini.js
-export async function callGemini({ apiKey = process.env.GEMINI_API_KEY, model = "gemini-2.5-pro", systemInstruction, user, max_output_tokens = 1024, temperature = 0.1, abortSignal }) {
+export async function callGemini({ apiKey = process.env.GEMINI_API_KEY, model = process.env.GEMINI_MODEL || "gemini-2.5-pro", systemInstruction, user, max_output_tokens = 1024, temperature = 0.1, abortSignal }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const body = {
     systemInstruction: { role: "system", parts: [{ text: systemInstruction }] },

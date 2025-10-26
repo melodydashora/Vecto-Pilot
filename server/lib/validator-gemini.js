@@ -3,7 +3,7 @@ const GEMINI_URL = (model) => `https://generativelanguage.googleapis.com/v1beta/
 
 export async function validateWithGemini({
   plannerDraft, shortlistNames, schema,
-  model = "gemini-2.5-pro",
+  model = process.env.GEMINI_MODEL || "gemini-2.5-pro",
   timeoutMs = Number(process.env.VALIDATOR_DEADLINE_MS || 1800)
 }) {
   const key = process.env.GEMINI_API_KEY;
