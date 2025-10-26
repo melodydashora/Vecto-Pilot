@@ -31,7 +31,7 @@ export async function runPlannerGPT5Strict({ shortlist, clock, goals, timeoutMs 
   };
 
   const body = {
-    model: "gpt-5",
+    model: process.env.OPENAI_MODEL || "gpt-5",
     reasoning_effort: "medium",
     response_format: { type: "json_schema", json_schema: { name: "Plan", strict: true, schema } },
     input: [
