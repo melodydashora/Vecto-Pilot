@@ -7,11 +7,7 @@ channel = "stable-25_05"
 
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
-run = ["sh", "-c", "export $(cat mono-mode.env | xargs) && node gateway-server.js"]
-
-[[ports]]
-localPort = 80
-externalPort = 3000
+run = ["sh", "-c", "./start-mono.sh"]
 
 [[ports]]
 localPort = 5174
