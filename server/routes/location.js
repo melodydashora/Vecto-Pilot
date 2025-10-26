@@ -671,33 +671,60 @@ router.post('/snapshot', async (req, res) => {
       const city = snapshotV1.resolved?.city || 'the area';
       const state = snapshotV1.resolved?.state || '';
       const location = state ? `${city}, ${state}` : city;
+      const lat = snapshotV1.coord?.lat;
+      const lng = snapshotV1.coord?.lng;
       
-      const query = `What local events, road closures, traffic incidents, or major news in ${location} today would significantly affect rideshare driver demand or routes? Focus on actionable information for drivers working today.`;
+      // Get current date/time for precise context
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
       
-      console.log(`🔍 [PERPLEXITY] Local News Query: "${query}"`);
+      // Build airport context for query
+      const airportInfo = airportContext 
+        ? `${airportContext.airport_name} (${airportContext.airport_code}), ${airportContext.distance_miles} miles away`
+        : 'major airports in the area';
+      
+      const query = `Generate a rideshare driver briefing for ${location} (coordinates: ${lat}, ${lng}) within a 30-mile radius as of ${dateStr} at ${timeStr}.
+
+Structure the response EXACTLY like this:
+
+WEATHER ALERTS: Fog, rain, ice, wind, flooding - specific highway impacts (I-35, I-635, etc.) and visibility issues at ${airportInfo}
+
+AIRPORT DETAILS: Terminal construction, curbside changes, detours, typical surge times for ${airportInfo}
+
+TRAFFIC & CONSTRUCTION: Specific highway/interstate closures with exact times, exits affected, and alternate routes
+
+MAJOR EVENTS: Concerts, sports games, festivals - include venue names, addresses, start times, and expected surge windows (before/after)
+
+POLICY UPDATES: Any new rideshare regulations, staging fees, or safety requirements
+
+Focus on: Exact locations, specific times, actionable intel, surge opportunities, safety hazards within 30 miles of the driver.
+Skip: Generic advice, historical context, citations, background information.`;
+      
+      console.log(`🔍 [PERPLEXITY] Rideshare Briefing Query for ${location}`);
       
       const newsData = await perplexity.search(query, {
-        systemPrompt: 'Provide concise, factual local news relevant to rideshare drivers. Focus on events, closures, and traffic that affect demand.',
-        maxTokens: 300,
+        systemPrompt: 'You are a rideshare operations assistant. Provide ONLY factual, time-specific, location-specific briefing data. Use exact venue names, highway numbers, times, and distances. Format clearly with headers. Skip generic advice.',
+        maxTokens: 600,
         searchRecencyFilter: 'day', // Last 24 hours only
         temperature: 0.2
       });
       
       if (newsData?.answer) {
         localNews = {
-          summary: newsData.answer,
-          citations: newsData.citations || [],
+          briefing: newsData.answer,
           fetched_at: new Date().toISOString(),
-          query: query
+          radius_miles: 30,
+          query_location: `${lat}, ${lng}`
         };
-        console.log('📰 [PERPLEXITY] Local News Response:', {
+        console.log('📰 [PERPLEXITY] Rideshare Briefing Response:', {
           location: location,
-          answer: newsData.answer,
-          citations: newsData.citations?.length || 0
+          briefing_length: newsData.answer?.length || 0,
+          radius: '30 miles'
         });
       }
     } catch (newsErr) {
-      console.warn('[snapshot] Perplexity local news fetch failed (non-blocking):', newsErr.message);
+      console.warn('[snapshot] Perplexity briefing fetch failed (non-blocking):', newsErr.message);
     }
 
     // Transform SnapshotV1 to Postgres schema
