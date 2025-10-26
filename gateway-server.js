@@ -90,6 +90,30 @@ function spawnChild(name, command, args, env) {
   app.get('/health', (_req, res) => res.status(200).send('OK'));
   app.get('/healthz', (_req, res) => res.json({ ok: true, mode: MODE, t: new Date().toISOString() }));
   app.get('/ready', (_req, res) => res.json({ ok: true, mode: MODE }));
+  
+  // Root endpoint - Fast health check for deployments (bypasses static file serving)
+  app.get('/', (req, res, next) => {
+    // Detect health check requests via multiple signals
+    const acceptHeader = req.headers.accept || '';
+    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+    
+    // Health check patterns
+    const prefersJson = acceptHeader.includes('application/json') && !acceptHeader.includes('text/html');
+    const isHealthBot = userAgent.includes('health') || 
+                        userAgent.includes('googlehc') || 
+                        userAgent.includes('kube-probe') ||
+                        userAgent.includes('elb-healthchecker');
+    const hasHealthQuery = req.query.health === '1';
+    
+    // Return fast JSON response for health checks
+    if (prefersJson || isHealthBot || hasHealthQuery) {
+      return res.status(200).json({ ok: true, mode: MODE, app: 'Vecto Pilot' });
+    }
+    
+    // Otherwise, let it fall through to static file serving for browsers
+    next();
+  });
+  
   app.get('/diagnostics/memory', (_req, res) => res.json(process.memoryUsage()));
   app.post('/diagnostics/prefs', express.json(), (req, res) => res.json({ ok: true, set: req.body || {} }));
   app.post('/diagnostics/session', express.json(), (req, res) => res.json({ ok: true, phase: req.body?.phase ?? 'unknown' }));
