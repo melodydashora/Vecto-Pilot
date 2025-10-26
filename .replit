@@ -6,7 +6,7 @@ packages = ["nodejs-22", "lsof"]
 channel = "stable-25_05"
 
 [deployment]
-build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
+build = ["sh", "-c", "npm ci --omit=dev"]
 run = ["sh", "-c", "./start-mono.sh"]
 
 [[ports]]
