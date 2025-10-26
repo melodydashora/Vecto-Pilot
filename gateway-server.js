@@ -21,6 +21,9 @@ const PORT = Number(process.env.PORT || 5000);
 const AGENT_PORT = Number(process.env.AGENT_PORT || 43717);
 const SDK_PORT = Number(process.env.EIDOLON_PORT || process.env.SDK_PORT || 3102);
 
+// Log PID for preview tracking
+console.log(`[gateway] Process ID (PID): ${process.pid}`);
+
 // Paths
 const API_PREFIX = process.env.API_PREFIX || '/api';
 const AGENT_PREFIX = process.env.AGENT_PREFIX || '/agent';
@@ -130,6 +133,8 @@ function spawnChild(name, command, args, env) {
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🟢 [mono] Listening on 0.0.0.0:${PORT} (HTTP+WS)`);
       console.log(`   Health checks ready at /health and /healthz`);
+      console.log(`   Preview PID: ${process.pid}`);
+      console.log(`   Dev server: http://0.0.0.0:${PORT} -> external :80`);
     });
 
     // WORKAROUND: Also listen on port 80 for deployment health checks
