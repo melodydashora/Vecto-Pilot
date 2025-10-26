@@ -10,6 +10,7 @@ import { validateSnapshotV1 } from '../util/validate-snapshot.js';
 import { uuidOrNull } from '../util/uuid.js';
 import { makeCircuit } from '../util/circuit.js';
 import { jobQueue } from '../lib/job-queue.js';
+import { generateNewsBriefing } from '../lib/gemini-news-briefing.js';
 
 const router = Router();
 
@@ -660,85 +661,53 @@ router.post('/snapshot', async (req, res) => {
       console.warn('[snapshot] Airport context fetch failed:', airportErr.message);
     }
 
-    // Fetch rideshare briefing using GPT with web search (non-blocking)
-    console.log('[snapshot] Fetching rideshare briefing from GPT...');
+    // Fetch rideshare news briefing using Gemini (60-minute actionable intel)
+    console.log('[snapshot] Generating news briefing with Gemini...');
     let localNews = null;
     
     try {
-      const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      // Build temporary snapshot object for briefing (needs formatted_address, city, state, timezone, created_at, airport_context)
+      const tempSnapshot = {
+        snapshot_id: snapshotV1.snapshot_id,
+        formatted_address: snapshotV1.resolved?.formattedAddress || null,
+        city: snapshotV1.resolved?.city || null,
+        state: snapshotV1.resolved?.state || null,
+        timezone: snapshotV1.resolved?.timezone || null,
+        created_at: snapshotV1.created_at,
+        airport_context: airportContext
+      };
       
-      const city = snapshotV1.resolved?.city || 'the area';
-      const state = snapshotV1.resolved?.state || '';
-      const location = state ? `${city}, ${state}` : city;
-      const lat = snapshotV1.coord?.lat;
-      const lng = snapshotV1.coord?.lng;
+      const briefingResult = await generateNewsBriefing(tempSnapshot);
       
-      // Get current date/time for precise context
-      const now = new Date();
-      const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-      const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      
-      // Build airport context for query
-      const airportInfo = airportContext 
-        ? `${airportContext.airport_name} (${airportContext.airport_code}), ${airportContext.distance_miles} miles away`
-        : 'major airports in the area';
-      
-      const prompt = `Generate a rideshare driver briefing for ${location} (coordinates: ${lat}, ${lng}) within a 15-mile radius as of ${dateStr} at ${timeStr}.
-
-Search for TODAY's actual events, traffic, and conditions. Structure the response EXACTLY like this:
-
-WEATHER ALERTS: Fog, rain, ice, wind, flooding - specific highway impacts (I-35, I-635, etc.) and visibility issues at ${airportInfo}
-
-AIRPORT DETAILS: Terminal construction, curbside changes, detours, typical surge times for ${airportInfo}
-
-TRAFFIC & CONSTRUCTION: Specific highway/interstate closures with exact times, exits affected, and alternate routes
-
-MAJOR EVENTS: Concerts, sports games, festivals - include venue names, addresses, start times, and expected surge windows (before/after)
-
-POLICY UPDATES: Any new rideshare regulations, staging fees, or safety requirements
-
-Focus on: Exact locations, specific times, actionable intel, surge opportunities, safety hazards within 15 miles of coordinates ${lat}, ${lng}.
-Skip: Generic advice, historical context, citations, background information.`;
-      
-      console.log(`🔍 [GPT] Rideshare Briefing Query for ${location} (15-mile radius)`);
-      
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-5',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a rideshare operations assistant with real-time web search. Provide ONLY factual, time-specific, location-specific briefing data. Search for today\'s actual events, concerts, sports games, road closures, and weather. Use exact venue names, highway numbers, times, and distances. Format clearly with headers. Skip generic advice.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        reasoning_effort: 'high',
-        max_completion_tokens: 1000
-      });
-      
-      const briefing = completion.choices?.[0]?.message?.content;
-      
-      if (briefing) {
+      if (briefingResult.ok) {
         localNews = {
-          briefing: briefing,
+          briefing: briefingResult.briefing,
           fetched_at: new Date().toISOString(),
-          radius_miles: 15,
-          query_location: `${lat}, ${lng}`,
-          model: 'gpt-5'
+          latency_ms: briefingResult.latency_ms,
+          model: briefingResult.model,
+          type: 'gemini_structured'
         };
-        console.log('📰 [GPT-5] Rideshare Briefing Response:', {
-          location: location,
-          briefing_length: briefing.length,
-          radius: '15 miles',
-          model: 'gpt-5',
-          reasoning_effort: 'high'
+        console.log('📰 [GEMINI] News Briefing Generated:', {
+          airports: briefingResult.briefing.airports.length,
+          traffic: briefingResult.briefing.traffic_construction.length,
+          events: briefingResult.briefing.major_events.length,
+          policy: briefingResult.briefing.policy_safety.length,
+          takeaways: briefingResult.briefing.driver_takeaway.length,
+          latency_ms: briefingResult.latency_ms
         });
+      } else {
+        // Store fallback briefing
+        localNews = {
+          briefing: briefingResult.briefing,
+          fetched_at: new Date().toISOString(),
+          error: briefingResult.error,
+          model: 'gemini_fallback',
+          type: 'gemini_structured'
+        };
+        console.warn('[snapshot] Gemini briefing failed (non-blocking), using fallback:', briefingResult.error);
       }
     } catch (newsErr) {
-      console.warn('[snapshot] GPT briefing fetch failed (non-blocking):', newsErr.message);
+      console.warn('[snapshot] News briefing generation failed (non-blocking):', newsErr.message);
     }
 
     // Transform SnapshotV1 to Postgres schema
