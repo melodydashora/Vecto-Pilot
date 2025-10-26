@@ -7,7 +7,7 @@
   "scripts": {
     "start": "NODE_ENV=production node gateway-server.js",
     "dev": "NODE_ENV=development node gateway-server.js",
-    "db:push": "drizzle-kit generate:pg && drizzle-kit up:pg",
+    "db:push": "drizzle-kit generate && drizzle-kit push",
     "build": "vite build",
     "eidolon-direct": "node index.js",
     "gateway:proxy": "tsx server/gateway/assistant-proxy.ts",
