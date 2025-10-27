@@ -8,6 +8,13 @@
       "when": 1761535150810,
       "tag": "0000_overjoyed_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1761536298542,
+      "tag": "0001_crazy_warstar",
+      "breakpoints": true
     }
   ]
 }

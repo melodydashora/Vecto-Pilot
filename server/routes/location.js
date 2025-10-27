@@ -555,12 +555,28 @@ router.post('/snapshot', async (req, res) => {
       };
       
       // Add time context
-      const localTime = new Date(now.toLocaleString('en-US', { timeZone: resolved.timeZone }));
+      // Use proper timezone conversion instead of locale string parsing
+      const localTimeStr = now.toLocaleString('en-US', { 
+        timeZone: resolved.timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      
+      // Extract the hour directly from the locale string
+      const [datePart, timePart] = localTimeStr.split(', ');
+      const [hour] = timePart.split(':').map(Number);
+      const localDow = new Date(now.toLocaleString('en-US', { timeZone: resolved.timeZone })).getDay() || now.getDay();
+      
       snapshotV1.time_context = {
-        local_iso: localTime.toISOString(),
-        dow: localTime.getDay(),
-        hour: localTime.getHours(),
-        day_part_key: getDayPartKey(localTime.getHours())
+        local_iso: now.toISOString(), // Use the actual ISO timestamp
+        dow: localDow,
+        hour: hour,
+        day_part_key: getDayPartKey(hour)
       };
       
       console.log('[snapshot] Minimal mode enriched with:', { 
@@ -899,6 +915,60 @@ router.get('/snapshot/latest', async (req, res) => {
     }
     console.error('[location] snapshot fetch error', err);
     res.status(500).json({ error: 'snapshot-fetch-failed' });
+  }
+});
+
+// POST /api/location/news-briefing
+// Generate local news briefing for rideshare drivers
+router.post('/news-briefing', async (req, res) => {
+  try {
+    const { latitude, longitude, address, city, state, radius = 10 } = req.body;
+    
+    if (!latitude || !longitude || !address) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'missing_params',
+        message: 'latitude, longitude, and address are required'
+      });
+    }
+
+    // Create snapshot-like object for Gemini briefing
+    const snapshot = {
+      snapshot_id: `briefing-${Date.now()}`,
+      latitude,
+      longitude,
+      formatted_address: address,
+      city: city || address.split(',')[0]?.trim() || 'Unknown',
+      state: state || address.split(',')[1]?.trim() || 'TX',
+      timezone: 'America/Chicago', // Default to Central Time for Texas
+      created_at: new Date().toISOString(),
+      airport_context: null // Will be determined by Gemini
+    };
+
+    // Generate news briefing using Gemini
+    const briefing = await generateNewsBriefing(snapshot);
+
+    res.json({
+      ok: true,
+      briefing,
+      generated_at: new Date().toISOString(),
+      location: { 
+        latitude, 
+        longitude, 
+        address, 
+        city: snapshot.city,
+        state: snapshot.state,
+        radius 
+      }
+    });
+
+  } catch (err) {
+    console.error('[location] news-briefing error:', err);
+    res.status(500).json({ 
+      ok: false, 
+      error: 'briefing_failed',
+      message: String(err?.message || err)
+    });
   }
 });
 

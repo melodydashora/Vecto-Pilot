@@ -1,0 +1,1 @@
+ALTER TABLE "snapshots" ADD COLUMN "news_briefing" jsonb;
