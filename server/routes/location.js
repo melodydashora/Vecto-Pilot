@@ -758,6 +758,7 @@ router.post('/snapshot', async (req, res) => {
       } : null,
       airport_context: airportContext,
       local_news: localNews,
+      news_briefing: newsBriefing, // Add the Gemini-generated news briefing
       device: snapshotV1.device || null,
       permissions: snapshotV1.permissions || null,
       extras: snapshotV1.extras || null,
@@ -781,6 +782,7 @@ router.post('/snapshot', async (req, res) => {
     console.log('  → air:', dbSnapshot.air);
     console.log('  → airport_context:', dbSnapshot.airport_context);
     console.log('  → local_news:', dbSnapshot.local_news ? dbSnapshot.local_news.summary?.slice(0, 100) + '...' : 'none');
+    console.log('  → news_briefing:', dbSnapshot.news_briefing ? JSON.stringify(dbSnapshot.news_briefing.briefing?.driver_takeaway || dbSnapshot.news_briefing.briefing).slice(0, 150) + '...' : 'none');
     
     await db.insert(snapshots).values(dbSnapshot);
     
