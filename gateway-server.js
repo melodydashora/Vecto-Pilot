@@ -175,41 +175,41 @@ function spawnChild(name, command, args, env) {
       
       // Database pool is handled lazily by server/db/client.js
       // No need for duplicate initialization here
-    });
+      
+      // Vite or static files (LAST - AFTER API routes are mounted)
+      if (isDev) {
+        const viteTarget = 'http://127.0.0.1:5173';
+        const proxy = createProxyServer({});
+        proxy.on('error', (err) => console.error('[mono] Vite proxy error:', err.message));
 
-    // Vite or static files (LAST)
-    if (isDev) {
-      const viteTarget = 'http://127.0.0.1:5173';
-      const proxy = createProxyServer({});
-      proxy.on('error', (err) => console.error('[mono] Vite proxy error:', err.message));
-
-      // Spawn Vite (unless disabled)
-      if (!process.env.DISABLE_SPAWN_VITE) {
-        spawnChild('vite', 'npm', ['run', 'dev:client'], {});
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
-
-      app.use('/', (req, res) => {
-        proxy.web(req, res, { target: viteTarget, changeOrigin: true });
-      });
-
-      // Vite HMR WebSocket
-      server.on('upgrade', (req, socket, head) => {
-        const url = req.url || '/';
-        if (!url.startsWith(WS_PUBLIC_PATH) && !url.startsWith(SOCKET_IO_PATH)) {
-          // Probably Vite HMR
-          proxy.ws(req, socket, head, { target: viteTarget, changeOrigin: true, ws: true });
+        // Spawn Vite (unless disabled)
+        if (!process.env.DISABLE_SPAWN_VITE) {
+          spawnChild('vite', 'npm', ['run', 'dev:client'], {});
+          await new Promise(resolve => setTimeout(resolve, 3000));
         }
-      });
-    } else {
-      const path = await import('path');
-      const { fileURLToPath } = await import('url');
-      const __dirname = path.dirname(fileURLToPath(import.meta.url));
-      app.use(express.static(path.join(__dirname, 'client/dist')));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(__dirname, 'client/dist/index.html'));
-      });
-    }
+
+        app.use('/', (req, res) => {
+          proxy.web(req, res, { target: viteTarget, changeOrigin: true });
+        });
+
+        // Vite HMR WebSocket
+        server.on('upgrade', (req, socket, head) => {
+          const url = req.url || '/';
+          if (!url.startsWith(WS_PUBLIC_PATH) && !url.startsWith(SOCKET_IO_PATH)) {
+            // Probably Vite HMR
+            proxy.ws(req, socket, head, { target: viteTarget, changeOrigin: true, ws: true });
+          }
+        });
+      } else {
+        const path = await import('path');
+        const { fileURLToPath } = await import('url');
+        const __dirname = path.dirname(fileURLToPath(import.meta.url));
+        app.use(express.static(path.join(__dirname, 'client/dist')));
+        app.get('*', (req, res) => {
+          res.sendFile(path.join(__dirname, 'client/dist/index.html'));
+        });
+      }
+    });
   }
 
   //  ═══════════════════════════════════════════════════════════════════

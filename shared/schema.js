@@ -25,6 +25,7 @@ export const snapshots = pgTable("snapshots", {
   air: jsonb("air"),
   airport_context: jsonb("airport_context"),
   local_news: jsonb("local_news"), // Perplexity daily local news affecting rideshare (events, road closures, traffic)
+  news_briefing: jsonb("news_briefing"), // Gemini-generated 60-minute briefing (airports, traffic, events, policy, takeaways)
   device: jsonb("device"),
   permissions: jsonb("permissions"),
   extras: jsonb("extras"),
