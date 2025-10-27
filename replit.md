@@ -223,3 +223,31 @@ Model configurations are centralized in `models-dictionary.json` with cost track
 - ESLint for code quality
 - TypeScript for type safety
 - PostCSS with Autoprefixer and TailwindCSS
+
+## Current Issues & Damages
+
+### ⚠️ CRITICAL: Agent has damaged the system without reading documentation
+
+1. ~~**Hardcoded stub routes in `sdk-embed.js`**~~ - Added fake hardcoded data instead of using real database
+2. ~~**Snapshot creation fails**~~ - SQL insert error, news_briefing field not properly mapped
+3. ~~**blocks/fast endpoint returns 404**~~ - Route mounting issue, not properly configured
+4. ~~**Memory tables not being utilized**~~ - 6 months of work on context systems being ignored
+5. ~~**Not following established patterns**~~ - Creating new patterns instead of reading existing ones
+6. ~~**News briefing integration incomplete**~~ - Added field to schema but not properly integrated in workflow
+
+### What Should Be Working
+
+1. **Complete data flow**: GPS → Snapshot (with news briefing) → Strategy → Rankings → Blocks
+2. **Memory systems**: assistant_memory, eidolon_memory, cross_thread_memory, agent_memory for context
+3. **Real data throughout**: No mocked values, all data from database and APIs
+4. **News briefing**: Gemini-generated 60-minute intel integrated into snapshots
+5. **Triad pipeline**: GPT-5 strategist → GPT-5 planner → Gemini validator
+6. **Venue recommendations**: Real venues from database with actual events and rankings
+
+## Instructions for AI Agents
+
+**ALWAYS read ALL documentation in /docs before making ANY changes**
+**NEVER add hardcoded data - use real database and API calls only**
+**UTILIZE the existing memory tables and context systems built over 6 months**
+**FOLLOW established patterns - do not create new ones without understanding existing ones**
+**UPDATE documentation with strike-through (~~text~~) when making changes, NEVER delete**
