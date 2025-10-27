@@ -129,39 +129,39 @@ function spawnChild(name, command, args, env) {
   if (MODE === 'mono') {
     console.log(`[mono] Starting MONO mode on port ${PORT}`);
 
-    // CRITICAL: Start server FIRST for fast health checks (Cloud Run requirement)
+    // Start server IMMEDIATELY for Cloud Run health checks
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🟢 [mono] Server listening on 0.0.0.0:${PORT}`);
       console.log(`   Health endpoints ready: /health, /healthz, /`);
-      console.log(`   Cloud Run forwards port ${PORT} -> external :80`);
-      
-      // Initialize routes AFTER server is listening (non-blocking for health checks)
-      setImmediate(async () => {
-        try {
-          const createSdkRouter = (await import('./sdk-embed.js')).default;
-          const sdkRouter = createSdkRouter({ API_PREFIX });
-          app.use(API_PREFIX, sdkRouter);
-          console.log(`[mono] ✓ SDK routes mounted at ${API_PREFIX}`);
-        } catch (e) {
-          console.error('[mono] FATAL: SDK embed failed:', e?.message || e);
-          process.exit(1);
-        }
-
-        try {
-          const { mountAgent } = await import('./server/agent/embed.js');
-          mountAgent({ app, basePath: AGENT_PREFIX, wsPath: WS_PUBLIC_PATH, server });
-          console.log(`[mono] ✓ Agent routes mounted at ${AGENT_PREFIX}, WS at ${WS_PUBLIC_PATH}`);
-        } catch (e) {
-          console.error('[mono] FATAL: Agent embed failed:', e?.message || e);
-          process.exit(1);
-        }
-        
-        console.log(`🎉 [mono] Application fully initialized and ready`);
-      });
+      console.log(`   Cloud Run: port ${PORT} → external :80`);
     });
 
-    // 404 JSON for unknown API routes
-    app.use(API_PREFIX, (_req, res) => res.status(404).json({ ok: false, error: 'NOT_FOUND', mode: 'mono' }));
+    // Mount routes AFTER server starts (non-blocking for health checks)
+    setImmediate(async () => {
+      try {
+        const createSdkRouter = (await import('./sdk-embed.js')).default;
+        const sdkRouter = createSdkRouter({ API_PREFIX });
+        app.use(API_PREFIX, sdkRouter);
+        console.log(`[mono] ✓ SDK routes mounted at ${API_PREFIX}`);
+      } catch (e) {
+        console.error('[mono] FATAL: SDK embed failed:', e?.message || e);
+        process.exit(1);
+      }
+
+      try {
+        const { mountAgent } = await import('./server/agent/embed.js');
+        mountAgent({ app, basePath: AGENT_PREFIX, wsPath: WS_PUBLIC_PATH, server });
+        console.log(`[mono] ✓ Agent routes mounted at ${AGENT_PREFIX}, WS at ${WS_PUBLIC_PATH}`);
+      } catch (e) {
+        console.error('[mono] FATAL: Agent embed failed:', e?.message || e);
+        process.exit(1);
+      }
+
+      // 404 JSON for unknown API routes (AFTER route mounting)
+      app.use(API_PREFIX, (_req, res) => res.status(404).json({ ok: false, error: 'NOT_FOUND', mode: 'mono' }));
+
+      console.log(`🎉 [mono] Application fully initialized`);
+    });
 
     // Vite or static files (LAST)
     if (isDev) {
