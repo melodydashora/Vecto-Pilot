@@ -14,7 +14,7 @@ if (!pool) {
     connectionString: process.env.DATABASE_URL,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000
+    connectionTimeoutMillis: 5000  // Reduced from 10s to 5s for faster startup
   });
 
   // Error event handler
@@ -41,8 +41,8 @@ if (!pool) {
 
 // Startup health check with retry logic
 let healthCheckAttempts = 0;
-const MAX_HEALTH_CHECK_ATTEMPTS = 5;
-const HEALTH_CHECK_RETRY_DELAY = 2000;
+const MAX_HEALTH_CHECK_ATTEMPTS = 3;  // Reduced from 5 to 3 for faster failure
+const HEALTH_CHECK_RETRY_DELAY = 1000;  // Reduced from 2s to 1s
 
 async function performHealthCheck() {
   try {
@@ -57,8 +57,10 @@ async function performHealthCheck() {
     
     if (healthCheckAttempts >= MAX_HEALTH_CHECK_ATTEMPTS) {
       console.error('[db] ❌ Database connection failed after maximum retry attempts');
-      console.error('[db] Please check DATABASE_URL and ensure PostgreSQL is running');
-      process.exit(1);
+      console.error('[db] WARNING: Database not available - app will continue but DB features won\'t work');
+      console.error('[db] Please check DATABASE_URL and ensure PostgreSQL is accessible');
+      // DON'T exit - let server continue running for health checks
+      return false;
     }
     
     // Retry after delay
@@ -68,13 +70,14 @@ async function performHealthCheck() {
   }
 }
 
-// Run health check in background immediately - but don't block server startup
-setImmediate(() => {
+// Run health check in background after a delay - completely non-blocking
+// Use setTimeout instead of setImmediate to ensure server starts first
+setTimeout(() => {
   performHealthCheck().catch(err => {
     console.error('[db] Background health check failed:', err.message);
-    console.error('[db] CRITICAL: Database not available - app may not work properly');
+    console.error('[db] WARNING: Database not available - app will continue but DB features won\'t work');
   });
-});
+}, 2000); // Wait 2 seconds after server starts
 
 // Export enhanced pool with query wrapper for better error logging
 const enhancedPool = {
