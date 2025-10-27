@@ -2,13 +2,18 @@ import pkg from 'pg';
 const { Pool } = pkg;
 import { getSharedPool } from './pool.js';
 
-// Try to use shared pool first (feature-flagged), fall back to local pool
-let pool = getSharedPool();
+// LAZY POOL INITIALIZATION - Only create on first use
+let pool = null;
 
-if (!pool) {
+function getPool() {
+  if (pool) return pool;
+  
+  // Try shared pool first
+  pool = getSharedPool();
+  if (pool) return pool;
+  
   // Fallback: Create local pool with OLD settings for backward compatibility
-  // This path is active when PG_USE_SHARED_POOL=false
-  console.log('[db] Using local pool (shared pool disabled)');
+  console.log('[db] Creating local pool (shared pool disabled)');
   
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -49,6 +54,8 @@ if (!pool) {
   pool.on('remove', (client) => {
     console.log('[db] 🔌 Client disconnected from pool');
   });
+  
+  return pool;
 }
 
 // Startup health check with retry logic
@@ -58,7 +65,7 @@ const HEALTH_CHECK_RETRY_DELAY = 1000;  // Reduced from 2s to 1s
 
 async function performHealthCheck() {
   try {
-    const result = await pool.query('SELECT NOW() as current_time, version() as pg_version');
+    const result = await getPool().query('SELECT NOW() as current_time, version() as pg_version');
     console.log('[db] ✅ Database connection established');
     console.log('[db] PostgreSQL version:', result.rows[0].pg_version.split(',')[0]);
     console.log('[db] Current time:', result.rows[0].current_time);
@@ -91,13 +98,11 @@ setTimeout(() => {
   });
 }, 2000); // Wait 2 seconds after server starts
 
-// Export enhanced pool with query wrapper for better error logging
+// Export enhanced pool with LAZY query wrapper
 const enhancedPool = {
-  ...pool,
-  
   async query(...args) {
     try {
-      return await pool.query(...args);
+      return await getPool().query(...args);
     } catch (err) {
       console.error('[db] Query error:', err.message);
       console.error('[db] Query:', args[0]?.substring?.(0, 100) || args[0]);
@@ -108,12 +113,20 @@ const enhancedPool = {
   // Health check method for monitoring
   async healthCheck() {
     try {
-      await pool.query('SELECT 1');
+      await getPool().query('SELECT 1');
       return { ok: true, timestamp: new Date().toISOString() };
     } catch (err) {
       return { ok: false, error: err.message, timestamp: new Date().toISOString() };
     }
-  }
+  },
+  
+  // Expose pool getter for direct access if needed
+  getPool,
+  
+  // Delegate other pool methods lazily
+  on: (...args) => getPool().on(...args),
+  connect: (...args) => getPool().connect(...args),
+  end: (...args) => getPool().end(...args)
 };
 
 export default enhancedPool;
