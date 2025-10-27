@@ -26,8 +26,8 @@ else
 fi
 
 # Force Neon database (PostgreSQL 17.5, not Replit's 16.9)
-# Using development branch for now (production has passwordless auth enabled)
-export DATABASE_URL="postgresql://neondb_owner:<LEAKED-NEON-PW-PRIOR-2>@ep-patient-rice-afbgoryq-pooler.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+# Using production database
+export DATABASE_URL="postgresql://neondb_owner:<LEAKED-NEON-PW-PRIOR-1>@ep-fancy-snow-ah3jjx69-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 export PG_USE_SHARED_POOL="true"
 
 # Force internal port 5000 (Cloud Run maps to external 80)
