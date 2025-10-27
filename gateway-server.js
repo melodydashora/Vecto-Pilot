@@ -174,9 +174,9 @@ function spawnChild(name, command, args, env) {
       console.log(`🎉 [mono] Application fully initialized`);
       
       // ──────────────────────────────────────────────
-      // Delay DB initialization until after health checks pass
+      // Immediate, non-blocking DB initialization
       // ──────────────────────────────────────────────
-      setTimeout(() => {
+      setImmediate(() => {
         console.log('[mono] Initializing Postgres connection pool in background...');
         import('pg').then(pkg => {
           const { Pool } = pkg;
@@ -193,7 +193,7 @@ function spawnChild(name, command, args, env) {
             console.error('[pool] Unexpected pool error:', err.message)
           );
 
-          // Optional: light test query, won't block startup
+          // Lightweight probe — never blocks startup
           pool
             .query('SELECT NOW()')
             .then(() => console.log('[mono] ✅ DB connection established'))
@@ -201,7 +201,7 @@ function spawnChild(name, command, args, env) {
               console.warn('[mono] ⚠️ DB not ready yet (will retry on demand):', e.message)
             );
         });
-      }, 30000); // wait 30s before connecting to DB
+      });
     });
 
     // Vite or static files (LAST)
