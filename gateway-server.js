@@ -173,35 +173,8 @@ function spawnChild(name, command, args, env) {
 
       console.log(`🎉 [mono] Application fully initialized`);
       
-      // ──────────────────────────────────────────────
-      // Immediate, non-blocking DB initialization
-      // ──────────────────────────────────────────────
-      setImmediate(() => {
-        console.log('[mono] Initializing Postgres connection pool in background...');
-        import('pg').then(pkg => {
-          const { Pool } = pkg;
-          const pool = new Pool({
-            connectionString: process.env.DATABASE_URL,
-            max: 5,
-            connectionTimeoutMillis: 3000,
-            idleTimeoutMillis: 120000,
-            keepAlive: true,
-            keepAliveInitialDelayMillis: 30000,
-          });
-
-          pool.on('error', (err) =>
-            console.error('[pool] Unexpected pool error:', err.message)
-          );
-
-          // Lightweight probe — never blocks startup
-          pool
-            .query('SELECT NOW()')
-            .then(() => console.log('[mono] ✅ DB connection established'))
-            .catch((e) =>
-              console.warn('[mono] ⚠️ DB not ready yet (will retry on demand):', e.message)
-            );
-        });
-      });
+      // Database pool is handled lazily by server/db/client.js
+      // No need for duplicate initialization here
     });
 
     // Vite or static files (LAST)

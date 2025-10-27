@@ -96,7 +96,7 @@ setTimeout(() => {
     console.error('[db] Background health check failed:', err.message);
     console.error('[db] WARNING: Database not available - app will continue but DB features won\'t work');
   });
-}, 2000); // Wait 2 seconds after server starts
+}, 5000); // Wait 5 seconds after server starts (don't interfere with health checks)
 
 // Export enhanced pool with LAZY query wrapper
 const enhancedPool = {
