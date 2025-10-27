@@ -20,7 +20,7 @@ else
   export DISABLE_SPAWN_SDK=1
   export DISABLE_SPAWN_AGENT=1
   export NODE_ENV="${NODE_ENV:-production}"
-  export PORT="${PORT:-5174}"
+  export PORT="${PORT:-80}"  # Cloud Run expects port 80
   export API_PREFIX="${API_PREFIX:-/api}"
   export AGENT_PREFIX="${AGENT_PREFIX:-/agent}"
   export WS_PUBLIC_PATH="${WS_PUBLIC_PATH:-/agent/ws}"
