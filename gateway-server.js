@@ -89,31 +89,42 @@ function spawnChild(name, command, args, env) {
     next();
   });
 
-  // Health endpoints (ALWAYS available) - Respond immediately for deployment health checks
-  app.get('/health', (_req, res) => res.status(200).send('OK'));
-  app.get('/healthz', (_req, res) => res.json({ ok: true, mode: MODE, t: new Date().toISOString() }));
-  app.get('/ready', (_req, res) => res.json({ ok: true, mode: MODE }));
+  // CRITICAL: Health endpoints MUST respond instantly for Cloud Run
+  // These are registered BEFORE any other middleware to ensure immediate response
+  app.get('/health', (_req, res) => {
+    res.status(200).send('OK');
+  });
   
-  // Root endpoint - Fast health check for deployments (bypasses static file serving)
+  app.get('/healthz', (_req, res) => {
+    res.status(200).json({ ok: true, mode: MODE, t: Date.now() });
+  });
+  
+  app.get('/ready', (_req, res) => {
+    res.status(200).json({ ok: true, mode: MODE });
+  });
+  
+  // Root endpoint "/" - Cloud Run health checks hit this
+  // MUST return 200 immediately, no delays
   app.get('/', (req, res, next) => {
-    // Detect health check requests via multiple signals
     const acceptHeader = req.headers.accept || '';
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
     
-    // Health check patterns
-    const prefersJson = acceptHeader.includes('application/json') && !acceptHeader.includes('text/html');
-    const isHealthBot = userAgent.includes('health') || 
-                        userAgent.includes('googlehc') || 
-                        userAgent.includes('kube-probe') ||
-                        userAgent.includes('elb-healthchecker');
-    const hasHealthQuery = req.query.health === '1';
+    // Cloud Run health check detection
+    const isHealthCheck = 
+      !acceptHeader.includes('text/html') ||  // Not a browser
+      userAgent.includes('googlehc') ||       // Google health checker
+      userAgent.includes('cloud') ||          // Cloud Run
+      userAgent.includes('health') ||         // Generic health bot
+      userAgent.includes('kube-probe') ||     // Kubernetes
+      userAgent.includes('elb-health') ||     // AWS ELB
+      req.query.health === '1';               // Manual health check
     
-    // Return fast JSON response for health checks
-    if (prefersJson || isHealthBot || hasHealthQuery) {
-      return res.status(200).json({ ok: true, mode: MODE, app: 'Vecto Pilot' });
+    if (isHealthCheck) {
+      // INSTANT 200 response for health checks
+      return res.status(200).send('OK');
     }
     
-    // Otherwise, let it fall through to static file serving for browsers
+    // Browsers get the actual app (fall through to static files)
     next();
   });
   
