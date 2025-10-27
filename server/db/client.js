@@ -13,8 +13,20 @@ if (!pool) {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000  // Reduced from 10s to 5s for faster startup
+    idleTimeoutMillis: 120000,  // 2 minutes (safe for Cloud Run)
+    connectionTimeoutMillis: 5000,
+    
+    // TCP keepalive - Prevents NAT/LB from dropping idle connections
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 30000,  // 30 seconds
+    
+    // Connection lifetime - Recycle to prevent zombie sockets
+    maxUses: 7500,
+    
+    // SSL for production
+    ssl: process.env.NODE_ENV === 'production' 
+      ? { rejectUnauthorized: false } 
+      : false
   });
 
   // Error event handler
