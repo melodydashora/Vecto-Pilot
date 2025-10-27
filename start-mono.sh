@@ -25,9 +25,14 @@ else
   export SOCKET_IO_PATH="${SOCKET_IO_PATH:-/socket.io}"
 fi
 
+# Force Neon database connection (not Replit's local database)
+export DATABASE_URL="postgresql://neondb_owner:<LEAKED-NEON-PW-PRIOR-2>@ep-patient-rice-afbgoryq-pooler.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+export PG_USE_SHARED_POOL="true"
+
 # Force internal port 5000 (Cloud Run maps to external 80)
 export PORT="${PORT:-5000}"
 echo "[start-mono] Forcing internal port 5000 → external 80"
+echo "[start-mono] Using Neon PostgreSQL 17.5 (not Replit's 16.9)"
 
 # Environment check
 echo "[start-mono] Environment check:"
