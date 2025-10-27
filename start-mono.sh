@@ -25,6 +25,10 @@ else
   export SOCKET_IO_PATH="${SOCKET_IO_PATH:-/socket.io}"
 fi
 
+# Force internal port 5000 (Cloud Run maps to external 80)
+export PORT="${PORT:-5000}"
+echo "[start-mono] Forcing internal port 5000 → external 80"
+
 # Environment check
 echo "[start-mono] Environment check:"
 echo "  APP_MODE=${APP_MODE}"
