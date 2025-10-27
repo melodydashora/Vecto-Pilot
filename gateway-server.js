@@ -16,8 +16,8 @@ const isDev = process.env.NODE_ENV !== 'production';
 const DISABLE_SPAWN_SDK = process.env.DISABLE_SPAWN_SDK === '1';
 const DISABLE_SPAWN_AGENT = process.env.DISABLE_SPAWN_AGENT === '1';
 
-// Ports - Use 80 for Cloud Run deployment, 5000 for local development
-const PORT = Number(process.env.PORT || (process.env.NODE_ENV === 'production' ? 80 : 5000));
+// Ports - Replit maps internal 5000 to external 80
+const PORT = Number(process.env.PORT || 5000);
 const AGENT_PORT = Number(process.env.AGENT_PORT || 43717);
 const SDK_PORT = Number(process.env.EIDOLON_PORT || process.env.SDK_PORT || 3102);
 
@@ -172,6 +172,36 @@ function spawnChild(name, command, args, env) {
       app.use(API_PREFIX, (_req, res) => res.status(404).json({ ok: false, error: 'NOT_FOUND', mode: 'mono' }));
 
       console.log(`🎉 [mono] Application fully initialized`);
+      
+      // ──────────────────────────────────────────────
+      // Lazy DB initialization (non-blocking)
+      // ──────────────────────────────────────────────
+      setTimeout(() => {
+        console.log('[mono] Initializing Postgres connection pool in background...');
+        import('pg').then(pkg => {
+          const { Pool } = pkg;
+          const pool = new Pool({
+            connectionString: process.env.DATABASE_URL,
+            max: 5,
+            connectionTimeoutMillis: 3000,
+            idleTimeoutMillis: 120000,
+            keepAlive: true,
+            keepAliveInitialDelayMillis: 30000,
+          });
+
+          pool.on('error', (err) =>
+            console.error('[pool] Unexpected pool error:', err.message)
+          );
+
+          // Optional: light test query, won't block startup
+          pool
+            .query('SELECT NOW()')
+            .then(() => console.log('[mono] ✅ DB connection established'))
+            .catch((e) =>
+              console.warn('[mono] ⚠️ DB not ready yet (will retry on demand):', e.message)
+            );
+        });
+      }, 5000);
     });
 
     // Vite or static files (LAST)
