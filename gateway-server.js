@@ -174,7 +174,7 @@ function spawnChild(name, command, args, env) {
       console.log(`🎉 [mono] Application fully initialized`);
       
       // ──────────────────────────────────────────────
-      // Lazy DB initialization (non-blocking)
+      // Delay DB initialization until after health checks pass
       // ──────────────────────────────────────────────
       setTimeout(() => {
         console.log('[mono] Initializing Postgres connection pool in background...');
@@ -201,7 +201,7 @@ function spawnChild(name, command, args, env) {
               console.warn('[mono] ⚠️ DB not ready yet (will retry on demand):', e.message)
             );
         });
-      }, 5000);
+      }, 30000); // wait 30s before connecting to DB
     });
 
     // Vite or static files (LAST)
