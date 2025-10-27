@@ -1,126 +1,225 @@
-# Vecto Pilot™ - Strategic Rideshare Assistant
+# Vecto Pilot™ - Rideshare Intelligence Platform
 
 ## Overview
-Vecto Pilot™ is a rideshare driver assistance platform designed to maximize driver earnings and efficiency. It provides intelligent shift planning, automated trip tracking, earnings analytics, and AI-powered strategic recommendations. The platform integrates an advanced AI assistant layer, "Eidolon," for enhanced workspace intelligence. Its primary goal is to equip rideshare drivers with data-driven insights and real-time strategic support to optimize their work and income. The project aims to leverage advanced AI and a robust, trust-first architecture to deliver reliable and actionable recommendations. Vecto Pilot™ is designed to work worldwide, providing recommendations based on real-time context regardless of pre-existing venue catalogs.
+
+Vecto Pilot is an AI-powered rideshare intelligence platform designed for drivers in the Dallas-Fort Worth metropolitan area. The system provides real-time strategic briefings combining location intelligence, venue events, traffic conditions, weather, and air quality data to optimize driver earnings. It uses a multi-AI pipeline (Claude for strategy, GPT-5 for planning, Gemini for validation) to deliver contextual insights through a React-based web interface.
+
+The platform operates as a full-stack Node.js application with three core services: a Gateway server (port 80/5000), an SDK server (port 3101), and an Agent server (port 43717). The architecture supports both monolithic ("mono") and split deployment modes, with the gateway coordinating all traffic routing, WebSocket connections, and static asset serving.
 
 ## User Preferences
+
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### UI/UX
-The frontend is built with React 18, TypeScript, and Vite 7, utilizing a mobile-first design with Radix UI and Tailwind CSS (shadcn/ui). State management uses `@tanstack/react-query`, and routing is handled by Wouter. Form handling employs `react-hook-form` with Zod validation. Key design principles include a global header, location context for GPS, and strict TypeScript. Loading states feature animated skeleton cards and clear messaging during AI processing.
+### Multi-Service Architecture
 
-### Technical Implementations
-The backend uses Node.js v22.17.0 with Express.js, operating on a multi-server architecture:
-- **Gateway Server**: Public-facing, proxies requests, serves React build.
-- **Eidolon SDK Server**: Main backend API, business logic, AI assistant.
-- **Agent Server**: File system operations, workspace intelligence.
-Data is stored in PostgreSQL 17.5 (Neon) for ML data. Security measures include Row Level Security (RLS) with 30+ policies protecting all 19 tables, session-variable based access control, token-based authentication, rate limiting, command whitelisting, and Zod validation. RLS provides defense-in-depth with user-scoped, system-scoped, and public-read policies.
+**Gateway Server** (`gateway-server.js`)
+- Entry point for all client traffic (HTTP and WebSocket)
+- Runs on port 80 (production) or 5000 (development)
+- Routes `/api/*` requests to SDK server on port 3101
+- Routes `/agent/*` requests to Agent server on port 43717
+- Serves React SPA from `dist/` or proxies to Vite dev server on port 5173
+- Implements HTML kill-switch: returns 502 JSON error if API endpoints leak HTML responses
+- Manages child process supervision in split mode
+- Enforces strict route ordering: API proxies before static/Vite middleware
 
-### Feature Specifications
-- **Location Services**: Integrates Browser Geolocation API, Google Maps JavaScript API, and H3 geospatial indexing for context snapshots (GPS, geocoded location, timezone, weather, air quality, airport context).
-- **AI & Machine Learning (Triad Pipeline)**: A three-stage, single-path LLM pipeline (Claude Sonnet 4.5 → GPT-5 → Gemini 2.5 Pro) provides strategic analysis, tactical planning, and JSON validation. GPT-5 performs deep reasoning for venue selection and timing, enabling worldwide venue generation.
-- **Enhanced Memory & Context (Wired)**: Fully integrated middleware-based memory system with ThreadContextManager for per-request context enrichment, cross-thread memory storage (recentPaths, events), agent memory persistence (request counters, route tracking), and diagnostics endpoints (`/diagnostics/memory`, `/diagnostics/prefs`, `/diagnostics/session`, `/diagnostics/conversations`, `/diagnostics/remember`) for agent introspection. Memory persisted to PostgreSQL with 7-730 day retention policies.
-- **Atomic Database Persistence**: Production-grade ML training data capture with ACID guarantees using PostgreSQL transactions, fail-hard error handling, and database constraints. Includes critical foreign key indexes for query performance, model version tracking, and venue status tracking.
-- **Agent Override (Atlas) with Fallback Resilience**: A workspace intelligence layer with a fallback chain (Claude → GPT-5 → Gemini) for operational continuity, accessible via `/agent/llm` on the Agent Server, with full root access for file operations, shell commands, and SQL.
-- **Per-Ranking Feedback System**: Continuous learning loop via user feedback on venues, strategies, and the app itself.
-- **Event Intelligence**: Perplexity-powered real-time event research for all recommended venues (concerts, games, festivals, shows, etc.) with simple UI badges and full AI coach integration.
-- **Configuration Management**: Safe file editing capabilities with backup and validation for allowed config files with whitelisted file access, size limits, and path validation.
-- **Trust-First Stack**: Employs a curated venue catalog and a deterministic scoring engine to prevent hallucinations, ranking venues based on proximity, reliability, event intensity, and personalization.
-- **ML Instrumentation**: Full logging of rankings, candidates, and user actions for counterfactual learning.
-- **Error Handling**: Implements try-catch blocks, circuit breakers for LLM providers, error classification, idempotency, and graceful degradation.
-- **Logging**: Uses console logging, structured logging with `logtap`, file logging, and WebSocket streaming for diagnostics.
-- **Fast Tactical Optimization**: Implements a "Fast Tactical Path" (`/api/blocks/fast`) for sub-7s response times, using Quick Picks (deterministic scoring of catalog candidates) and parallel AI reranking with Gemini 2.5 Pro.
+**SDK Server** (`index.js`, `sdk-embed.js`)
+- Business logic layer on port 3101
+- Provides REST API endpoints for location services, venue intelligence, weather, air quality
+- Handles snapshot creation and ML data pipeline
+- Mounts enhanced memory middleware for context awareness
+- Route prefix stripping: expects `/api` stripped by gateway, mounts routes like `/location/*` directly
+- Embeddable via `sdk-embed.js` for mono mode deployment
 
-### System Design Choices
-- **Zero Pre-Computed Flags**: Models infer patterns directly from raw context.
-- **No Graceful Fallbacks in Triad**: Triad pipeline is single-path only.
-- **Agent Override Has Fallbacks**: Atlas (Agent Override) uses a fallback chain.
-- **Single Source of Truth**: All model configurations are managed via `.env` variables.
-- **100% Variable-Based Data**: All location, time, and weather data are fetched live.
-- **Fail-Safe Design**: System is designed to show clear error messages on API failures, not crash.
-- **Mobile-First GPS Precision**: High-accuracy GPS is enabled by default.
-- **Key-Based Merge Only**: All validator/enricher merges use stable keys (place_id or name).
-- **Server as Coordinate Truth**: Client uses server-returned venue coordinates for all calculations.
-- **Global Location Support**: GPT-5 generates venues from GPS coordinates - works worldwide even without catalog venues.
-- **Single-Model Triad (GPT-5)**: All three stages (strategist, planner, validator) use GPT-5 exclusively.
-- **Model-Agnostic UI**: Frontend never displays provider/model names; uses abstract labels like "AI Strategist".
-- **No Venue Polling Until Planning Completes**: Catalog endpoints are gated; venues only fetched after triad finishes.
-- **Event-Driven Status Polling**: Light polling (5s) for job status, not aggressive venue catalog requests.
-- **Capability-Based UX**: Tooltips and labels describe capabilities ("high-context strategist"), not brands.
+**Agent Server** (`agent-server.js`)
+- Workspace intelligence layer on port 43717
+- Provides file system operations, shell command execution, database access
+- Security-hardened with path traversal protection, command whitelisting, rate limiting
+- Token-based authentication via `AGENT_TOKEN` environment variable
+- Capability-based access control using `capsFromEnv()` and `bearer()` auth
+- WebSocket support at `/agent/ws` for real-time communication
 
-## Recent Updates (October 25, 2025)
+### AI Configuration
 
-### Event Intelligence Feature (October 25, 2025)
-- **Perplexity Event Research**: Background task researches events at ALL recommended venues (parks, stadiums, shops, restaurants, etc.)
-- **Simple UI Badges**: Event indicators shown in blocks ("🎪 Concert tonight!", "🏀 Game at 7:30 PM", "🎉 Event today")
-- **AI Coach Integration**: Coach has access to full event details for strategic context when drivers ask questions
-- **Event Types Detected**: Concerts, sports games, festivals, shows, conferences, exhibitions, live music, special events
-- **Impact Levels**: High (concerts, games, festivals), Medium (shows, conferences), Low (other events)
-- **Database Field**: `ranking_candidates.venue_events` (JSONB) stores full event data with summary, citations, badge text
-- **Non-Blocking**: Event research happens in background after venues are saved, doesn't slow initial response
-- **Worldwide Coverage**: Works for any venue type in any location using real-time internet research
+All AI services (Agent, Eidolon, Assistant, Gateway) use unified parameters defined in `agent-ai-config.js`:
+- **Model**: extended-thinking (GPT-5 equivalent)
+- **Temperature**: 0.0 (deterministic outputs)
+- **Top-p**: 0.9
+- **Max tokens**: 4096
+- **Reasoning depth**: deep
+- **Chain of thought**: structured
+- **Hallucination guard**: strict
+- **Execution mode**: evidence_first
 
-## Recent Updates (October 25, 2025)
+The three-stage AI pipeline for strategic analysis:
+1. **Claude Sonnet 4.5** (Strategist): Strategic analysis and pro tips, 64K token context
+2. **GPT-5** (Planner): Deep reasoning for venue selection and tactical planning
+3. **Gemini** (Validator): Output validation and quality assurance
 
-### Database Security Hardening
-- **RLS Implementation**: All 19 database tables now protected with Row Level Security (RLS)
-- **Policy Coverage**: 30+ policies enforce user-scoped, system-scoped, and public-read access patterns
-- **Session Variables**: Database queries set `app.user_id` for automatic row filtering
-- **Defense-in-Depth**: Multi-layered security (application + database + network)
-- **Migration**: `003_rls_security.sql` implements complete RLS framework
-- **Memory Tables Fixed**: Resolved schema mismatches in assistant_memory, eidolon_memory, cross_thread_memory, and agent_memory
-- **Thread Context**: Fixed "column 'key' does not exist" error by updating agent_memory queries
-- **Documentation**: Created `RLS_SECURITY_IMPLEMENTATION.md` with complete security architecture
+Model configurations are centralized in `models-dictionary.json` with cost tracking and capability definitions.
 
-### JWT/JWKS Authentication Infrastructure (October 25, 2025)
-- **RS256 Keypair**: Generated asymmetric RSA-2048 keypair (`keys/private.pem`, `keys/public.pem`)
-- **JWKS Endpoint**: Created public JWKS at `public/.well-known/jwks.json` for token verification
-- **Token Signing**: Built `scripts/sign-token.mjs` for generating test JWTs with user/tenant claims
-- **SQL Helpers**: Created `migrations/004_jwt_helpers.sql` with `app.jwt_sub()`, `app.jwt_tenant()`, `app.jwt_role()`, `app.is_authenticated()` functions
-- **Security**: Private key protected in `.gitignore`, rotation strategy documented
-- **Production Ready**: Complete setup guide in `docs/JWKS_SETUP_GUIDE.md` and quick start in `docs/JWKS_QUICK_START.md`
-- **Claims Structure**: Supports `sub` (user_id), `tenant_id` (multi-tenant), `role` (RBAC), 15-minute expiry
-- **Next Steps**: Register JWKS URL in Neon Console, enable RLS for production deployment
+### Frontend Architecture
 
-### Database Status
-- **Provider**: Neon PostgreSQL 17.5 (AWS us-west-2)
-- **Connection**: Pooled connection with TCP keepalive and safe idle timeouts
-- **Tables**: 19 tables with 200+ columns covering GPS, AI strategies, venues, feedback, and memory
-- **Security**: Full RLS protection on all tables, ready for multi-tenant authentication
-- **Performance**: Shared connection pool (max 10, min 2) with automatic recycling
+**React + TypeScript SPA**
+- Built with Vite (config: `vite.config.js`)
+- Radix UI component library for accessible UI primitives
+- TailwindCSS for styling (`tailwind.config.js`)
+- React Query (`@tanstack/react-query`) for server state management
+- Client source in `client/src/`, shared types in `shared/`
+- Path aliases: `@/` → client source, `@shared/` → shared types
+- Development server on port 5173, production build served from `dist/`
+
+### Data Storage
+
+**PostgreSQL Database**
+- Connection pooling via `server/db/pool.js` with `getSharedPool()` singleton
+- Schema management with Drizzle ORM (`drizzle.config.js`, `shared/schema.js`)
+- Tables for snapshots, strategies, venue events, ML training data
+- Enhanced memory systems:
+  - `cross_thread_memory`: System-wide state across requests
+  - `eidolon_memory`: Agent-scoped session state
+  - `assistant_memory`: User preferences and conversation history
+- SQL helper functions for JWT claims: `app.jwt_sub()`, `app.jwt_tenant()`, `app.jwt_role()`, `app.is_authenticated()`
+
+**Memory Systems** (`server/agent/`)
+- Thread context manager for request correlation
+- Enhanced project context with method, path, IP, user agent tracking
+- Cross-thread memory storage with TTL (7 days default)
+- Agent-scoped memory for per-service state
+- Conversation history tracking for adaptive behavior
+
+### Authentication & Security
+
+**JWT with RS256 Asymmetric Keys**
+- RSA-2048 keypair in `keys/` directory (private.pem, public.pem)
+- JWKS endpoint at `public/.well-known/jwks.json`
+- Token signing script: `scripts/sign-token.mjs`
+- 15-minute token expiry with 90-day key rotation schedule
+- Claims: sub (user_id), tenant_id, role, iss, aud
+
+**Security Middleware** (`server/middleware/security.js`)
+- Rate limiting: 200 requests per 15 minutes (general), stricter limits for auth endpoints
+- CORS with configurable allowlist
+- Helmet.js for security headers
+- Trust proxy configuration for Replit deployment
+- Path traversal protection in agent server
+- File size limits (10MB) for uploads
+
+### API Structure
+
+**Location Services** (`/api/location/*`)
+- `/resolve`: Geocoding and timezone resolution
+- `/snapshot`: Create location snapshot with ML data pipeline
+- `/geocode/reverse`, `/geocode/forward`: Address resolution
+- `/timezone`, `/weather`, `/airquality`: Environmental data
+
+**Venue Intelligence** (`/api/venue/*`, `/api/blocks/*`)
+- Venue search and discovery
+- Event research with Perplexity API integration
+- Smart blocks strategy generation
+- Venue event summaries with impact levels
+
+**Diagnostics & Health** (`/api/diagnostics/*`, `/healthz`, `/ready`)
+- Memory diagnostics endpoints
+- Service health checks
+- Job metrics tracking
+- ML health dashboard
+
+**Agent Capabilities** (`/agent/*`)
+- File system: `/fs/read`, `/fs/write`, `/fs/list`
+- Shell execution: `/shell/exec`
+- Database queries: `/sql/query`
+- Memory operations: `/memory/get`, `/memory/put`
+- Workspace diagnostics and architectural review
+
+### Deployment Modes
+
+**Mono Mode** (Single Process)
+- Gateway embeds SDK and Agent as Express middleware
+- Single port exposure (5000)
+- Simplified for Replit deployments
+- Configured via `APP_MODE=mono`
+
+**Split Mode** (Multi-Process)
+- Gateway spawns SDK and Agent as child processes
+- Process supervision with health monitoring
+- Separate log streams per service
+- Configured via `APP_MODE=gateway`
+
+### Build & Development
+
+**Scripts** (`package.json`)
+- `npm run dev`: Development mode with hot reload
+- `npm run build`: Production build (Vite compilation)
+- `npm run db:push`: Drizzle migrations
+- `npm test:phases`: Run all test phases
+- `npm run model:verify`: Validate AI model configurations
+
+**TypeScript Configuration**
+- Multi-project setup via `tsconfig.json` with references
+- Client: `tsconfig.client.json` (React, DOM, Vite)
+- Server: `tsconfig.server.json` (Node, CommonJS/ESM)
+- Agent: `tsconfig.agent.json` (Extension SDK)
 
 ## External Dependencies
 
-### AI & Machine Learning
-- **Anthropic Claude API**
-- **OpenAI API**
-- **Google Gemini API**
+### Third-Party APIs
 
-### Maps & Location
-- **Google Maps JavaScript API**
-- **Google Routes API**
-- **Google Places API**
-- **OpenWeather API**
-- **H3 Geospatial**
+**AI & Research Services**
+- **Anthropic API**: Claude Sonnet 4.5 for strategic analysis (`@anthropic-ai/sdk`)
+- **OpenAI API**: GPT-5 for deep reasoning and planning
+- **Google Gemini API**: Validation layer (`@google/generative-ai`)
+- **Perplexity API**: Real-time internet research for venue events, flight disruptions
 
-### UI Component Libraries
-- **Radix UI**
-- **Tailwind CSS**
-- **shadcn/ui**
-- **Lucide React**
-- **Recharts**
+**Location & Mapping**
+- **Google Maps API**: Geocoding, timezone, places (`@googlemaps/js-api-loader`)
+- Weather and air quality data services (API keys via environment variables)
 
-### Form & Data Management
-- **React Hook Form**
-- **Zod**
-- **@tanstack/react-query**
+**Environment Variables Required**
+- `ANTHROPIC_API_KEY`: Claude API access
+- `OPENAI_API_KEY`: GPT-5 API access
+- `GOOGLE_API_KEY` or `GEMINI_API_KEY`: Gemini API access
+- `PERPLEXITY_API_KEY`: Research API access
+- `DATABASE_URL`: PostgreSQL connection string
+- `AGENT_TOKEN`: Agent server authentication (auto-generated if missing)
 
-### Backend Infrastructure
-- **Express**
-- **http-proxy-middleware**
-- **cors**
-- **express-rate-limit**
-- **dotenv**
-- **PostgreSQL** (with Drizzle ORM and `pg` client)
+### Database
+
+**PostgreSQL** (via Replit or external provider)
+- Drizzle ORM for schema management and queries
+- Connection pooling with `pg` library
+- Vector database support for embeddings
+- Row-Level Security (RLS) toggle scripts in `scripts/toggle-rls.js`
+
+### Infrastructure
+
+**Replit Platform**
+- Deployment via Replit deployments (port 80 mapped from internal 5000)
+- Nix environment for dependencies
+- `.replit` workflow configuration for multi-service startup
+- Extension API support (`@replit/extensions`) for workspace integration
+
+**Process Management**
+- Child process spawning via Node.js `child_process`
+- HTTP proxy via `http-proxy` library
+- WebSocket proxying for real-time features
+- Graceful shutdown handling with SIGTERM/SIGINT
+
+### Frontend Libraries
+
+**UI Components**
+- Radix UI primitives (20+ components: Dialog, Popover, Tabs, etc.)
+- Chart.js for data visualization
+- React Hook Form with Zod validation (`@hookform/resolvers`)
+
+**State Management**
+- React Query for server state
+- Context API for client state
+- Local storage for preferences
+
+**Development Tools**
+- Vite for bundling and dev server
+- ESLint for code quality
+- TypeScript for type safety
+- PostCSS with Autoprefixer and TailwindCSS

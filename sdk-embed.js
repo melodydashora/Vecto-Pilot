@@ -1,6 +1,7 @@
 import express from "express";
 import healthRoutes from "./server/routes/health.js";
 import blocksRoutes from "./server/routes/blocks.js";
+import blocksFastRoutes from "./server/routes/blocks-fast.js";
 import blocksDiscoveryRoutes from "./server/routes/blocks-discovery.js";
 import locationRoutes from "./server/routes/location.js";
 import actionsRoutes from "./server/routes/actions.js";
@@ -62,6 +63,7 @@ export default function createSdkRouter(opts = {}) {
   // Mount all SDK routes
   r.use('/health', healthRoutes);
   r.use('/healthz', healthRoutes);
+  r.use('/blocks/fast', blocksFastRoutes); // Fast tactical path (mounted before generic blocks)
   r.use('/blocks', blocksRoutes);
   r.use('/blocks/discovery', blocksDiscoveryRoutes);
   r.use('/location', locationRoutes);
