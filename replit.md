@@ -55,6 +55,67 @@ The user interface is a **React + TypeScript Single Page Application (SPA)** dev
   - Full access to read workflow data and all fields populated throughout entire pipeline
 - **Dynamic Positioning**: Coach component conditionally renders based on `blocks.length` for optimal UX
 
+### Blocks Data Schema & Persistence
+**Critical Field Mapping** (2025-10-30):
+To prevent persistence gaps, all enriched venue data must flow through this exact schema:
+
+**Source: GPT-5 Planner** (`server/lib/gpt5-tactical-planner.js`):
+- `name` → `name`
+- `lat`, `lng` → `lat`, `lng`
+- `category` → `category`
+- `pro_tips` (array) → `pro_tips` (text[])
+- `staging_name`, `staging_lat`, `staging_lng` → `staging_tips` (text)
+- `strategic_timing` → `closed_reasoning` (text)
+
+**Source: Google Places Enrichment** (`server/lib/venue-enrichment.js`):
+- `placeId` → `place_id`
+- `businessHours` (object) → `business_hours` (jsonb)
+- `isOpen` (boolean) → derived from business_hours in UI
+- `address` → not persisted to ranking_candidates (display only)
+
+**Source: Routes API** (`server/lib/routes-api.js`):
+- `estimated_distance_miles` → `distance_miles`
+- `driveTimeMinutes` → `drive_minutes`
+- `distanceSource` → `distance_source`
+
+**Source: Value Calculation** (`server/routes/blocks.js`):
+- `value_per_min` → `value_per_min`
+- `value_grade` → `value_grade`
+- `not_worth` → `not_worth`
+
+**Source: Perplexity Events** (`server/lib/venue-event-research.js` - ASYNC):
+- `eventData` (full object) → `venue_events` (jsonb)
+- Updated AFTER ranking persists via background UPDATE query
+
+**Persistence Flow**:
+```
+fullyEnrichedVenues (blocks.js line 700) 
+  → venues array with exact field names
+  → persistRankingTx() (persist-ranking.js)
+  → INSERT INTO ranking_candidates
+  → GET /api/blocks/fast returns to UI
+```
+
+**Required Fields in venues array** (blocks.js line 703-724):
+```javascript
+{
+  name, place_id, category, rank, lat, lng,
+  distance_miles, drive_time_minutes,
+  value_per_min, value_grade, not_worth,
+  surge, est_earnings,
+  pro_tips,              // NEW: GPT-5 tactical tips
+  closed_reasoning,      // NEW: Why visit if closed
+  staging_tips,          // NEW: Where to park/stage
+  business_hours         // NEW: Google Places hours
+}
+```
+
+**Database Table**: `ranking_candidates`
+- Columns MUST match persist-ranking.js `cols` array (line 54-60)
+- Missing fields result in NULL database values
+- Array fields (pro_tips) inserted directly, NOT stringified
+- JSONB fields (business_hours, venue_events) require JSON.stringify()
+
 ### Data Storage
 A **PostgreSQL Database** serves as the primary data store, with Drizzle ORM managing the schema. It includes tables for snapshots, strategies, venue events, and ML training data. The system uses enhanced memory systems: `cross_thread_memory` for system-wide state, `eidolon_memory` for agent-scoped sessions, and `assistant_memory` for user preferences.
 

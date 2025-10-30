@@ -50,6 +50,8 @@ router.get('/', async (req, res) => {
       proTips: c.pro_tips,
       closed_venue_reasoning: c.closed_reasoning,
       stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
+      businessHours: c.business_hours,
+      isOpen: c.business_hours?.isOpen,
       eventBadge: c.venue_events?.badge,
       eventSummary: c.venue_events?.summary,
     }));
