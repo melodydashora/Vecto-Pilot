@@ -46,7 +46,8 @@ The user interface is a **React + TypeScript Single Page Application (SPA)** dev
     1. Consolidated strategy sent with user's precise address to generate blocks
     2. Perplexity called for venue-specific events using coordinates
     3. APIs resolve venues and match them with business hours from Google Places
-    4. UI displays: business hours, staging info, pro tips, reasoning to visit even if closed
+    4. Events matched to venues using coords matching or within 2 miles of venue coords
+    5. UI displays: business hours, staging info, pro tips, reasoning to visit even if closed
   - Each block persisted to database per snapshot via `persist-ranking.js`
   - GET endpoint retrieves existing blocks: `/api/blocks/fast?snapshotId=<uuid>`
   - Displays: name, distance, drive time, value/min, value grade, pro tips, staging info
