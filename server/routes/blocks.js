@@ -9,7 +9,6 @@ import { eq, desc, sql } from 'drizzle-orm';
 import { venue_catalog, venue_metrics, snapshots, strategies, rankings, ranking_candidates, venue_feedback, llm_venue_suggestions } from '../../shared/schema.js';
 import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
 import { predictDriveMinutes } from '../lib/driveTime.js';
-import { runTriadPlan } from '../lib/triad-orchestrator.js';
 import { generateTacticalPlan } from '../lib/gpt5-tactical-planner.js';
 import { getRouteWithTraffic } from '../lib/routes-api.js';
 import { persistRankingTx } from '../lib/persist-ranking.js';
