@@ -162,6 +162,7 @@ router.get('/db-data', async (req, res) => {
     const snapshots = await db.execute(sql`
       SELECT snapshot_id, city, state, created_at, 
              news_briefing IS NOT NULL as has_news_briefing,
+             news_briefing::text as news_briefing_preview,
              weather IS NOT NULL as has_weather,
              air IS NOT NULL as has_air
       FROM snapshots 
@@ -179,7 +180,12 @@ router.get('/db-data', async (req, res) => {
     const strategies = await db.execute(sql`
       SELECT id, snapshot_id, status, created_at,
              strategy IS NOT NULL as has_strategy,
-             error_message
+             strategy,
+             error_code,
+             error_message,
+             latency_ms,
+             tokens,
+             attempt
       FROM strategies 
       ORDER BY created_at DESC 
       LIMIT 5
