@@ -73,3 +73,80 @@ The driver's precise address must be captured once, normalized to rooftop geocod
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Code Hygiene & Import Management
+
+### Unused Import Policy
+**Rule: Use it, remove it, or annotate it with expiry**
+
+All unused imports must be:
+1. **Removed** if no longer needed, with documentation in this file
+2. **Annotated** with `@reason` and `expiry: YYYY-MM-DD` if intentionally staged
+3. **Documented** with strikethrough history showing when and why removed
+
+### Import History (Strikethrough Record)
+
+#### ~~`getPlaceHours`, `findPlaceIdByText` in venue-enrichment.js~~ (Removed 2025-10-30)
+- **Status**: Removed - were greyed/unused imports
+- **Reason**: Hours normalization moved to `getPlaceDetails()` local function in venue-enrichment.js; these helpers only used in venue-discovery.js
+- **History**: Imported from places-hours.js but never called in venue-enrichment.js
+- **Resolution**: Removed import, added annotation comment documenting removal
+- **CorrelationId**: ENRICH-412
+- **Still Used In**: server/lib/venue-discovery.js (legitimate usage remains)
+
+## Preview Reliability Status
+
+### Current State: ⚠️ Preview Not Resolving
+**Issue**: Workflow configuration not using health-gated entry point
+
+### Root Cause
+The `.replit` workflow runs `node gateway-server.js` directly without health gating. Preview may be waiting for a signal that never comes.
+
+**Current Configuration:**
+```ini
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "set -a && source mono-mode.env && set +a && node gateway-server.js"
+```
+
+**What We Built:**
+- ✅ `scripts/start-replit.js` with health gate polling `/api/health`
+- ✅ `/api/health` endpoint in gateway-server.js
+- ✅ `start-clean.sh` for zombie process cleanup
+- ✅ Strategy provider validation on boot
+
+**What's Missing:**
+- ⚠️ `.replit` workflow not using the health-gated entry point (file is restricted from automated edits)
+- ⚠️ `package.json` scripts need `start:replit` added (file is restricted from automated edits)
+
+### Manual Configuration Required
+
+#### 1. Update `.replit` Workflow
+Change line 31 in `.replit` from:
+```ini
+args = "set -a && source mono-mode.env && set +a && node gateway-server.js"
+```
+
+To use health-gated entry:
+```ini
+args = "set -a && source mono-mode.env && set +a && npm run start:replit"
+```
+
+Or for zombie cleanup:
+```ini
+args = "set -a && source mono-mode.env && set +a && ./start-clean.sh"
+```
+
+#### 2. Add `package.json` Scripts
+Add to the `"scripts"` section:
+```json
+"prestart:replit": "npm run agent:build",
+"start:replit": "node scripts/start-replit.js"
+```
+
+### Testing Preview Resolution
+After manual configuration:
+1. Restart workflow
+2. Wait for `[boot] ✅ Health check passed` in logs
+3. Preview should auto-resolve when health gate succeeds
+4. Verify: `curl http://localhost:5000/api/health` returns `{"ok":true,"port":5000,"mode":"mono"}`
