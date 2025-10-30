@@ -5,6 +5,8 @@
   "main": "gateway-server.js",
   "type": "module",
   "scripts": {
+    "prestart:replit": "npm run agent:build",
+    "start:replit": "node scripts/start-replit.js",
     "start": "NODE_ENV=production node gateway-server.js",
     "dev": "NODE_ENV=development node gateway-server.js",
     "db:push": "npx drizzle-kit generate && npx drizzle-kit push",

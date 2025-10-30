@@ -9,10 +9,7 @@
  */
 
 import { getRouteWithTraffic } from "./routes-api.js";
-// @removed 2025-10-30: getPlaceHours, findPlaceIdByText moved to server-side only
-// Reason: Hours normalization happens via getPlaceDetails() below, not client-side imports
-// History: Previously imported but never called - hours come from Places API (New) via getPlaceDetails()
-// CorrelationId: ENRICH-412
+import { getPlaceHours, findPlaceIdByText } from "./places-hours.js";
 import { upsertPlace } from "./places-cache.js";
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
