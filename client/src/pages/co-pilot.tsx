@@ -811,110 +811,8 @@ const CoPilot: React.FC = () => {
           </Card>
         )}
 
-        {/* Strategy Section - Always visible with sticky header */}
-        <div className="mb-6 space-y-4">
-          <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">Strategy</h2>
-            </div>
-            {/* Static Feedback Button - Always Visible & Clickable */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-8 px-3 text-sm"
-              onClick={() => setStrategyFeedbackOpen(true)}
-              data-testid="button-strategy-feedback-static"
-            >
-              <MessageSquare className="w-4 h-4 mr-1" />
-              Give Feedback
-            </Button>
-          </div>
-          {!coords ? (
-            <Card className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 border-gray-300 shadow-md" data-testid="strategy-needs-gps">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3">
-                  <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700 mb-1">GPS Required for Strategy</p>
-                    <p className="text-xs text-gray-600">Enable location to receive AI-powered strategic analysis</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : persistentStrategy ? (
-            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="persistent-strategy-card">
-              <CardContent className="p-5">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100">
-                    <Sparkles className="w-5 h-5 text-purple-600 flex-shrink-0" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-purple-900">Strategic Overview</p>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
-                          Auto-Generated
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-6 px-2 text-xs"
-                          onClick={() => setStrategyFeedbackOpen(true)}
-                          data-testid="button-strategy-feedback"
-                        >
-                          <MessageSquare className="w-3 h-3 mr-1" />
-                          Give feedback
-                        </Button>
-                      </div>
-                    </div>
-                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
-                    <div className="mt-3 flex items-center gap-2 text-xs text-purple-600">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>Strategy persists until next refresh</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="strategy-loading">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3">
-                  <RefreshCw className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-purple-900 mb-1">Generating Strategic Overview...</p>
-                    <p className="text-xs text-gray-600">AI is analyzing your area and current conditions</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* AI Coach - Sticky Framed Component */}
-        <div className="mb-6" data-testid="ai-coach-section">
-          <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">AI Coach</h2>
-            </div>
-            <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
-              Coach
-            </Badge>
-          </div>
-          <div className="mt-4">
-            <CoachChat 
-              userId={localStorage.getItem('vecto_user_id') || 'default'}
-              snapshotId={lastSnapshotId || undefined}
-              strategy={persistentStrategy}
-              blocks={blocks}
-            />
-          </div>
-        </div>
-
-        {/* AI-Powered Recommendations */}
-        <div className="mb-6">
+        {/* AI-Powered Recommendations - MOVED TO TOP */}
+        <div className="mb-6" id="blocks-section">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 flex-wrap">
               <Sparkles className="w-5 h-5 text-purple-600" />
@@ -1032,8 +930,112 @@ const CoPilot: React.FC = () => {
             setTimeout(() => refetch(), 1000);
             return null; // Don't render anything, keep showing loading spinner below
           })()}
+        </div>
 
-          {/* Blocks List */}
+        {/* Strategy Section - Always visible with sticky header */}
+        <div className="mb-6 space-y-4">
+          <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              <h2 className="text-lg font-semibold text-gray-800">Strategy</h2>
+            </div>
+            {/* Static Feedback Button - Always Visible & Clickable */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-8 px-3 text-sm"
+              onClick={() => setStrategyFeedbackOpen(true)}
+              data-testid="button-strategy-feedback-static"
+            >
+              <MessageSquare className="w-4 h-4 mr-1" />
+              Give Feedback
+            </Button>
+          </div>
+          {!coords ? (
+            <Card className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 border-gray-300 shadow-md" data-testid="strategy-needs-gps">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700 mb-1">GPS Required for Strategy</p>
+                    <p className="text-xs text-gray-600">Enable location to receive AI-powered strategic analysis</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : persistentStrategy ? (
+            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="persistent-strategy-card">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-purple-100">
+                    <Sparkles className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-purple-900">Strategic Overview</p>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
+                          Auto-Generated
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-6 px-2 text-xs"
+                          onClick={() => setStrategyFeedbackOpen(true)}
+                          data-testid="button-strategy-feedback"
+                        >
+                          <MessageSquare className="w-3 h-3 mr-1" />
+                          Give feedback
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
+                    <div className="mt-3 flex items-center gap-2 text-xs text-purple-600">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Strategy persists until next refresh</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="strategy-loading">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-purple-900 mb-1">Generating Strategic Overview...</p>
+                    <p className="text-xs text-gray-600">AI is analyzing your area and current conditions</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* AI Coach - Sticky Framed Component */}
+        <div className="mb-6" data-testid="ai-coach-section">
+          <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-purple-600" />
+              <h2 className="text-lg font-semibold text-gray-800">AI Coach</h2>
+            </div>
+            <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
+              Coach
+            </Badge>
+          </div>
+          <div className="mt-4">
+            <CoachChat 
+              userId={localStorage.getItem('vecto_user_id') || 'default'}
+              snapshotId={lastSnapshotId || undefined}
+              strategy={persistentStrategy}
+              blocks={blocks}
+            />
+          </div>
+        </div>
+        
+        {/* Blocks List */}
+        <div className="mb-6">
           {blocks.length > 0 && (
             <div className="space-y-4" data-testid="blocks-list">
               {blocks.map((block, index) => {
