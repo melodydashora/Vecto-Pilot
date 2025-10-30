@@ -64,16 +64,21 @@ function spawnChild(name, command, args, env) {
 }
 
 //  ═══════════════════════════════════════════════════════════════════
+//  ENVIRONMENT DETECTION
+//  ═══════════════════════════════════════════════════════════════════
+const isAutoscale = !!(process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1');
+const fastBoot = process.env.FAST_BOOT === '1' || isAutoscale;
+
+if (isAutoscale) {
+  console.log('[autoscale] Cloud Run autoscale detected - using fast boot profile');
+}
+
+//  ═══════════════════════════════════════════════════════════════════
 //  MAIN ASYNC BOOTSTRAP
 //  ═══════════════════════════════════════════════════════════════════
 (async function main() {
-  // Startup assertion: Validate all strategy providers are registered
-  try {
-    assertStrategies();
-  } catch (err) {
-    console.error('❌ [gateway] Strategy provider validation failed:', err.message);
-    process.exit(1);
-  }
+  // ❌ REMOVED: assertStrategies() - moved to post-listen yielded ladder
+  // This was blocking the event loop and causing Cloud Run health check failures
   
   const app = express();
   app.set('trust proxy', 1);
@@ -95,13 +100,37 @@ function spawnChild(name, command, args, env) {
   //    Health endpoints active before any route mounting
   // ═══════════════════════════════════════════════════════════════════
   const server = http.createServer(app);
+  
+  // HTTP keepalive tuning for Cloud Run (slightly higher than Cloud Run's 60s timeout)
+  server.keepAliveTimeout = 65000;
+  server.headersTimeout = 66000;
+  
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`[ready] Server listening on 0.0.0.0:${PORT}`);
     console.log(`[ready] Health endpoints: /, /health, /healthz, /ready, /api/health`);
   });
 
   // ═══════════════════════════════════════════════════════════════════
-  // 3) MOUNT MIDDLEWARE AND ROUTES AFTER SERVER IS LISTENING
+  // 3) EVENT LOOP MONITORING - Detect starvation and pause heavy work
+  // ═══════════════════════════════════════════════════════════════════
+  const { monitorEventLoopDelay } = await import('node:perf_hooks');
+  const loopMonitor = monitorEventLoopDelay({ resolution: 20 });
+  loopMonitor.enable();
+  
+  globalThis.__PAUSE_BACKGROUND__ = false;
+  
+  setInterval(() => {
+    const p95 = Math.round(loopMonitor.percentile(95) / 1_000_000); // Convert ns to ms
+    if (p95 > 200) {
+      console.warn(`[perf] ⚠️  Event loop lag p95=${p95}ms — pausing background tasks`);
+      globalThis.__PAUSE_BACKGROUND__ = true;
+    } else {
+      globalThis.__PAUSE_BACKGROUND__ = false;
+    }
+  }, 1000);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 4) MOUNT MIDDLEWARE AND ROUTES AFTER SERVER IS LISTENING
   //    This keeps health checks fast while allowing slow imports
   // ═══════════════════════════════════════════════════════════════════
   setImmediate(async () => {
@@ -168,15 +197,67 @@ function spawnChild(name, command, args, env) {
 
       console.log(`🎉 [mono] Application fully initialized`);
       
-      // Start triad worker for strategy generation
-      import('./server/jobs/triad-worker.js').then(({ processTriadJobs }) => {
-        processTriadJobs().catch(err => {
-          console.error('[triad-worker] Worker crashed:', err.message);
+      // ═══════════════════════════════════════════════════════════════════
+      // POST-LISTEN YIELDED LADDER - Heavy initialization after health is green
+      // Yields between steps to keep health checks responsive
+      // ═══════════════════════════════════════════════════════════════════
+      const initSteps = [
+        {
+          name: 'Strategy validation',
+          fn: async () => {
+            const { safeAssertStrategies } = await import('./server/lib/strategies/assert-safe.js');
+            await safeAssertStrategies({ batchSize: 5, delayMs: 0 });
+          }
+        },
+        {
+          name: 'Cache warmup',
+          fn: async () => {
+            if (!fastBoot) {
+              const { maybeWarmCaches } = await import('./server/lib/strategies/assert-safe.js');
+              await maybeWarmCaches();
+            } else {
+              console.log('[warmup] Skipped (FAST_BOOT enabled)');
+            }
+          }
+        },
+      ];
+      
+      // Execute init steps with yielding
+      for (const step of initSteps) {
+        // Check if event loop is starved
+        if (globalThis.__PAUSE_BACKGROUND__) {
+          console.warn(`[boot] Pausing due to event loop lag before: ${step.name}`);
+          await new Promise(r => setTimeout(r, 250));
+        }
+        
+        try {
+          await step.fn();
+        } catch (e) {
+          console.warn(`[boot] Step '${step.name}' failed:`, e?.message || e);
+        }
+        
+        // Yield to event loop after each step
+        await new Promise(r => setTimeout(r, 0));
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // BACKGROUND WORKER - Disabled on Cloud Run Autoscale
+      // ═══════════════════════════════════════════════════════════════════
+      const enableWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true' && !isAutoscale;
+      
+      if (enableWorker) {
+        import('./server/jobs/triad-worker.js').then(({ processTriadJobs }) => {
+          processTriadJobs().catch(err => {
+            console.error('[triad-worker] Worker crashed:', err.message);
+          });
+          console.log('[triad-worker] ✅ Strategy generation worker started');
+        }).catch(err => {
+          console.error('[triad-worker] Failed to start worker:', err.message);
         });
-        console.log('[triad-worker] ✅ Strategy generation worker started');
-      }).catch(err => {
-        console.error('[triad-worker] Failed to start worker:', err.message);
-      });
+      } else {
+        const reason = isAutoscale ? 'Cloud Run autoscale' : 'ENABLE_BACKGROUND_WORKER not set';
+        console.log(`[triad-worker] ⏸️  Disabled (${reason})`);
+      }
       
       // Vite or static files (LAST - NEVER mount at "/" to avoid shadowing health)
       if (isDev) {
