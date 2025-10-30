@@ -192,6 +192,12 @@ if (isAutoscale) {
         process.exit(1);
       }
 
+      // Legacy redirect for closed-venue-reasoning (was at root, now at /api)
+      app.post('/closed-venue-reasoning', (req, res) => {
+        console.log('[redirect] /closed-venue-reasoning -> /api/closed-venue-reasoning');
+        res.redirect(307, '/api/closed-venue-reasoning');
+      });
+
       // 404 JSON for unknown API routes (AFTER route mounting)
       app.use(API_PREFIX, (_req, res) => res.status(404).json({ ok: false, error: 'NOT_FOUND', mode: 'mono' }));
 
