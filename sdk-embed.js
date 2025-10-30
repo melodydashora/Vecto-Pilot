@@ -14,7 +14,7 @@ import jobMetricsRoutes from "./server/routes/job-metrics.js";
 import mlHealthRoutes from "./server/routes/ml-health.js";
 import chatRoutes from "./server/routes/chat.js";
 import closedVenueReasoningRoutes from "./server/routes/closed-venue-reasoning.js";
-import blocksAsyncRouter from "./server/routes/blocks-async.js";
+import createBlocksAsyncRouter from "./server/routes/blocks-async.js";
 import { loggingMiddleware } from "./server/middleware/logging.js";
 import { securityMiddleware } from "./server/middleware/security.js";
 import { 
@@ -66,7 +66,7 @@ export default function createSdkRouter(opts = {}) {
   r.use('/health', healthRoutes);
   r.use('/healthz', healthRoutes);
   r.use('/blocks/fast', blocksFastRoutes); // Fast tactical path (mounted before generic blocks)
-  r.use('/blocks', blocksAsyncRouter); // Async endpoint (/blocks/async) + job status (/blocks/jobs/:id)
+  r.use('/blocks', createBlocksAsyncRouter()); // Async endpoint (/blocks/async) + job status (/blocks/jobs/:id)
   r.use('/blocks', blocksRoutes); // Original synchronous POST /blocks (unchanged for backward compat)
   r.use('/blocks/discovery', blocksDiscoveryRoutes);
   r.use('/location', locationRoutes);

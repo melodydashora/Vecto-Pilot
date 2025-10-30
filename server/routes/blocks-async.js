@@ -6,7 +6,8 @@ import express from 'express';
 import { newJobId, createJob, startJob, finishJob, failJob, loadJob } from '../lib/blocks-jobs.js';
 import { runBlocksJobImpl } from '../lib/blocks-queue.js';
 
-const router = express.Router();
+export default function createBlocksAsyncRouter() {
+  const router = express.Router();
 
 /**
  * POST /api/blocks/async → 202 { ok: true, jobId }
@@ -88,4 +89,5 @@ router.get('/jobs/:id', async (req, res) => {
   }
 });
 
-export default router;
+  return router;
+}
