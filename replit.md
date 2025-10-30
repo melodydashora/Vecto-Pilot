@@ -15,15 +15,29 @@ Vecto Pilot is a full-stack Node.js application built with a multi-service archi
 -   **Agent Server**: Manages workspace intelligence, offering secure, token-based access to file system operations, shell commands, and database queries.
 
 ### AI Configuration
-A four-stage AI pipeline generates strategic briefings:
+A **four-stage AI pipeline** generates strategic briefings with clear separation of concerns:
+
+**Strategy Generation Pipeline** (Claude → Gemini → GPT-5):
 1.  **Claude Opus 4.5 (Strategist)**: Performs initial strategic analysis based on location context, time, weather, and traffic.
-2.  **Gemini 2.5 Pro (News Briefing)**: Provides local news, traffic updates, and airport intelligence.
-3.  **Perplexity (Events Planner)**: Researches real-time events at specific venues using internet search with citations.
-4.  **GPT-5 (Tactical Consolidator)**: Combines all outputs into final time-windowed actionable intelligence.
-Model configurations are centralized, event data is stored per venue, and consolidated strategies are cached for freshness validation.
+2.  **Gemini 2.5 Pro (News Briefing)**: Provides city-wide local news, traffic updates, airport intelligence, and major regional events for the next 60 minutes.
+3.  **GPT-5 (Tactical Consolidator)**: Combines Claude's strategy and Gemini's briefing into final time-windowed actionable intelligence (≤60 min validity).
+
+**Venue Events Intelligence** (Perplexity - Separate Process):
+-  **Perplexity (Events Planner)**: Researches real-time venue-specific events (concerts, games, shows) using internet search with citations. Runs **non-blocking** after strategy generation, enriching `ranking_candidates.venue_events` for UI display. Events are NOT fed into strategy generation.
+
+**Data Flow**:
+- Gemini briefing stored in `snapshots.news_briefing` → used in strategy
+- Perplexity events stored in `ranking_candidates.venue_events` → displayed as badges
+- Model configurations centralized, strategies cached for freshness validation
 
 ### Frontend Architecture
 The user interface is a **React + TypeScript Single Page Application (SPA)** developed with Vite. It uses Radix UI for accessible components, TailwindCSS for styling, and React Query for server state management.
+
+**UI Layout** (`client/src/pages/co-pilot.tsx`):
+- **Strategy Section**: Displays consolidated strategy with feedback controls
+- **AI Coach**: Positioned below strategy initially, moves to bottom of blocks once loaded
+- **Smart Blocks**: Ranked venue recommendations with event badges, earnings, drive time
+- **Dynamic Positioning**: Coach component conditionally renders based on `blocks.length` for optimal UX
 
 ### Data Storage
 A **PostgreSQL Database** serves as the primary data store, with Drizzle ORM managing the schema. It includes tables for snapshots, strategies, venue events, and ML training data. The system uses enhanced memory systems: `cross_thread_memory` for system-wide state, `eidolon_memory` for agent-scoped sessions, and `assistant_memory` for user preferences.
