@@ -9,7 +9,7 @@ export async function processTriadJobs() {
   while (true) {
     try {
       // Claim one job with SKIP LOCKED (only one worker processes it)
-      const [job] = await db.execute(sql`
+      const job = await db.execute(sql`
         UPDATE ${triad_jobs}
         SET status = 'running'
         WHERE id = (
@@ -22,7 +22,7 @@ export async function processTriadJobs() {
         RETURNING id, snapshot_id, kind
       `);
 
-      if (!job || job.rows.length === 0) {
+      if (!job || !job.rows || job.rows.length === 0) {
         // No jobs available, wait before checking again
         await new Promise(resolve => setTimeout(resolve, 1000));
         continue;
