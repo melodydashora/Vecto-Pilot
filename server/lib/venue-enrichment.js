@@ -339,10 +339,13 @@ async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
     });
 
     if (!response.ok) {
-      throw new Error(`Places API returned ${response.status}`);
+      const errorText = await response.text();
+      console.error(`[Places API (New)] HTTP ${response.status} for "${name}":`, errorText);
+      throw new Error(`Places API returned ${response.status}: ${errorText.substring(0, 200)}`);
     }
 
     const data = await response.json();
+    console.log(`[Places API (New)] Raw response for "${name}":`, JSON.stringify(data).substring(0, 500));
 
     if (data.places && data.places.length > 0) {
       const place = data.places[0];
@@ -396,7 +399,10 @@ async function getPlaceDetails(lat, lng, name, timezone = 'America/Chicago') {
 
     return null;
   } catch (error) {
-    console.error(`[Places API] Failed for ${name}:`, error.message);
+    console.error(`[Places API] CRITICAL ERROR for "${name}" at ${lat},${lng}:`, {
+      message: error.message,
+      stack: error.stack?.substring(0, 200)
+    });
     return null;
   }
 }
