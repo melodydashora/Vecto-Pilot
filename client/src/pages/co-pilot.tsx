@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -298,6 +299,7 @@ const CoPilot: React.FC = () => {
           // Deterministic idempotency key per snapshot to collapse duplicate requests
           const idemKey = lastSnapshotId ? `POST:${endpoint}:${lastSnapshotId}` : undefined;
           
+          // Uses fetch for AbortController timeout + custom headers (x-idempotency-key, X-Snapshot-Id)
           const response = await fetch(endpoint, {
             method: 'POST',
             signal: controller.signal,
@@ -444,6 +446,7 @@ const CoPilot: React.FC = () => {
       const timestamp = new Date().toISOString();
       const idempotencyKey = `${ranking_id}:${action}:${blockId || 'na'}:${timestamp}`;
       
+      // Uses fetch for custom X-Idempotency-Key header
       await fetch('/api/actions', {
         method: 'POST',
         headers: {
