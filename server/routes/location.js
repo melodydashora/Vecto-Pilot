@@ -871,15 +871,14 @@ router.post('/snapshot', async (req, res) => {
       iOwnTheJob = rows?.rows?.length === 1;
 
       if (iOwnTheJob) {
-        // Enqueue strategy generation with monitoring and retry
-        await jobQueue.enqueue(
-          `strategy-${snapshotV1.snapshot_id}`,
-          () => generateStrategyForSnapshot(snapshotV1.snapshot_id),
-          { 
-            maxRetries: 2,
-            context: { snapshot_id: snapshotV1.snapshot_id, city: snapshotV1.city }
-          }
-        );
+        // Enqueue strategy generation via database table (for triad-worker.js)
+        const { triad_jobs } = await import('../../shared/schema.js');
+        await db.insert(triad_jobs).values({
+          snapshot_id: snapshotV1.snapshot_id,
+          kind: 'triad',
+          status: 'queued'
+        }).onConflictDoNothing();
+        console.log(`[location] ✅ Strategy job enqueued in database for snapshot ${snapshotV1.snapshot_id}`);
       }
     }
 
