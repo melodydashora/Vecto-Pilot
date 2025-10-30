@@ -9,7 +9,8 @@
 
 import { haversineKm } from './geo.js';
 
-const COORD_DELTA_THRESHOLD_KM = 3.2; // ~2 miles
+// PRIMARY THRESHOLD: 500 meters (freshness-first spec compliance)
+const COORD_DELTA_THRESHOLD_KM = 0.5; // 500 meters = 0.5km
 
 /**
  * Detect if strategy needs re-assessment
@@ -55,7 +56,7 @@ export function detectStrategyTrigger(currentSnapshot, lastSnapshot) {
         distance_km: distanceKm.toFixed(2),
         distance_miles: (distanceKm * 0.621371).toFixed(2),
         threshold_km: COORD_DELTA_THRESHOLD_KM,
-        message: `Moved ${(distanceKm * 0.621371).toFixed(1)} miles (threshold: 2 miles)`
+        message: `Moved ${(distanceKm * 0.621371).toFixed(1)} miles (threshold: 0.3 miles)`
       }
     };
   }

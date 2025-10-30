@@ -15,6 +15,13 @@
       "when": 1761536298542,
       "tag": "0001_crazy_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1761848551209,
+      "tag": "0002_natural_thunderbolts",
+      "breakpoints": true
     }
   ]
 }

@@ -56,6 +56,10 @@ export const strategies = pgTable("strategies", {
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   city: text("city"),
+  // Time windowing (freshness-first spec compliance)
+  valid_window_start: timestamp("valid_window_start", { withTimezone: true }), // When strategy becomes valid
+  valid_window_end: timestamp("valid_window_end", { withTimezone: true }), // When strategy expires (≤ 60 min from start)
+  strategy_timestamp: timestamp("strategy_timestamp", { withTimezone: true }), // Generation timestamp
 });
 
 export const rankings = pgTable("rankings", {
