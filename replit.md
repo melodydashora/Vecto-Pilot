@@ -101,12 +101,78 @@ All error responses include `error`, `message`, and `correlationId` for traceabi
 
 ## Recent Changes (October 30, 2025)
 
+- ✅ **CRITICAL FIX:** Removed 98 manually-duplicated files from `dist/` (100 → 2 files)
+- ✅ Eliminated `dist/server/`, `dist/shared/`, `dist/tools/` duplication that caused module errors
+- ✅ Verified server starts without "module missing" errors after cleanup
 - ✅ Fixed `claudeStrategy` ReferenceError - now uses `consolidatedStrategy` at blocks.js:611
 - ✅ Added 529 overload handling with graceful 202 retry responses
 - ✅ Created centralized strategy provider registry (`server/lib/strategies/index.js`)
-- ✅ Added startup assertion to validate providers at boot
+- ✅ Added startup assertion to validate providers at boot  
 - ✅ Added `/api/health/strategies` endpoint for monitoring
 - ✅ Added `correlationId` to all error responses for traceability
 - ✅ Enhanced Claude adapter to attach status codes to error objects
 - ✅ Documented port configuration policy and coordinate fallback rules
 - ✅ Added inline comments in co-pilot.tsx explaining fetch vs apiRequest usage
+- ✅ Documented correct build architecture and dist/ policy to prevent future duplication
+
+
+## Build Architecture & dist/ Directory Policy (October 30, 2025)
+
+### Correct Project Structure
+
+**Root-level JavaScript files** are the **actual runtime entry points** (NOT built from TypeScript):
+- `gateway-server.js` - Main gateway server (mono/split mode)
+- `index.js` - SDK server entry point  
+- `agent-server.js` - Agent server entry point
+
+**Source directories:**
+- `server/` - Server logic (106 JavaScript files + 23 TypeScript for type-checking only)
+- `shared/` - Shared schemas and types
+- `client/` - React frontend (built by Vite to `client/dist/`)
+- `src/` - Agent TypeScript code (builds to `dist/` via `tsconfig.agent.json`)
+
+### dist/ Directory - Single Purpose Only
+
+**CRITICAL:** The `dist/` directory is **ONLY** for agent builds from `src/` → `dist/`.
+
+**What belongs in dist/:**
+- ✅ `dist/index.js` - Compiled agent entry point (from `src/index.ts`)
+- ✅ `dist/agent-ai-config.js` - Agent configuration (from `src/`)
+
+**What does NOT belong in dist/:**
+- ❌ `dist/server/` - NEVER copy server files here
+- ❌ `dist/shared/` - NEVER copy shared files here  
+- ❌ `dist/tools/` - NEVER copy tools here
+- **These caused the "100 manually-duplicated files" issue**
+
+### TypeScript Configuration
+
+**tsconfig.server.json:**
+- **Purpose:** Type-checking only (`noEmit: true`)
+- **Does NOT compile:** Server files run as-is (.js) or via Node ESM
+
+**tsconfig.agent.json:**
+- **Purpose:** Compile `src/` to `dist/`
+- **outDir:** `./dist`
+- **rootDir:** `./src`
+
+### Module Resolution  
+
+- **Server imports:** Use `./server/`, `./shared/` paths (root-level directories)
+- **NO imports from `dist/server/`** - this causes duplication
+- **ESM project:** `"type": "module"` in package.json
+- **Import extensions:** Always include `.js` for ESM imports
+
+### Preventing dist/ Duplication
+
+**If you see "module missing" errors:**
+1. ❌ DO NOT copy files to `dist/`
+2. ✅ DO check import paths point to root `server/` and `shared/`
+3. ✅ DO verify the source file exists in the correct location
+4. ✅ DO use `.js` extensions in ESM imports
+
+**Cleanup command (if duplication occurs):**
+```bash
+rm -rf dist/server dist/shared dist/tools
+```
+
