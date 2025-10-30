@@ -37,11 +37,20 @@ APIs are categorized into:
 -   **Diagnostics & Health**: Service health, memory diagnostics, job metrics.
 -   **Agent Capabilities**: Secure endpoints for file system operations, shell execution, database queries, and memory management.
 
-### Deployment
+### Deployment & Preview Reliability
 The system supports both **Mono Mode** (single process) and **Split Mode** (gateway spawns SDK and Agent as child processes) to offer deployment flexibility, including on Replit.
 
+**Preview Reliability Architecture:**
+-   **Canonical Entry Point**: `scripts/start-replit.js` spawns gateway-server.js with health gate
+-   **PORT Binding**: Deterministic binding to port 5000 (ENV var configurable)
+-   **Health Gate**: Health polling at `/api/health` ensures preview only resolves when server is ready
+-   **Zombie Process Cleanup**: `start-clean.sh` kills leftover node processes before restart
+-   **Artifact Discipline**: `dist/` contains only agent TypeScript build output (`index.js`, `agent-ai-config.js`); server runs from canonical `server/*.js` sources
+-   **Fast-Fail Boot**: Server exits immediately on bind errors or missing strategy providers
+-   **Health Endpoints**: `/health`, `/api/health`, `/healthz`, `/ready` for different monitoring needs
+
 ### Data Integrity & Coordinate-First Policy
-All geographic computations must originate from snapshot coordinates. Names are for display only. All enrichment operations must be completed before returning a 200 OK. Missing business hours default to "unknown" and never "closed." All hour calculations use the venue-local timezone. Error responses consistently include `error`, `message`, and `correlationId`.
+All geographic computations must originate from snapshot coordinates. Names are for display only. All enrichment operations must be completed before returning a 200 OK. **Missing business hours default to "unknown" and never "closed"** - this prevents false "closed" states (e.g., IKEA showing closed when hours data is unavailable). All hour calculations use the venue-local timezone. Error responses consistently include `error`, `message`, and `correlationId`.
 
 ### Address & Origin Invariance Policy
 The driver's precise address must be captured once, normalized to rooftop geocoding precision, and propagated unchanged through the entire pipeline (Strategy → Planner → Enrichment → DB → UI). All stages must read the origin from the snapshot; re-geocoding or substitution is not allowed. The system requires rooftop precision geocoding for all addresses.
