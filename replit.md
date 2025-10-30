@@ -41,12 +41,17 @@ The user interface is a **React + TypeScript Single Page Application (SPA)** dev
 **UI Layout** (`client/src/pages/co-pilot.tsx`):
 - **Strategy Section**: Displays consolidated strategy with feedback controls
 - **Smart Blocks**: Ranked venue recommendations with event badges, earnings, drive time, value grade
-  - **Current**: Generated via venue planning (LLM-based) per snapshot
-  - **Future**: Will use venue catalog rankings once sufficient ML training data collected
+  - **ML Data Collection Phase**: Each generated venue + user interaction builds training dataset for future catalog-based system
+  - **Data Flow**:
+    1. Consolidated strategy sent with user's precise address to generate blocks
+    2. Perplexity called for venue-specific events using coordinates
+    3. APIs resolve venues and match them with business hours from Google Places
+    4. UI displays: business hours, staging info, pro tips, reasoning to visit even if closed
   - Each block persisted to database per snapshot via `persist-ranking.js`
   - GET endpoint retrieves existing blocks: `/api/blocks/fast?snapshotId=<uuid>`
   - Displays: name, distance, drive time, value/min, value grade, pro tips, staging info
 - **AI Coach**: Positioned below strategy initially, moves to bottom of blocks once loaded
+  - Full access to read workflow data and all fields populated throughout entire pipeline
 - **Dynamic Positioning**: Coach component conditionally renders based on `blocks.length` for optimal UX
 
 ### Data Storage
