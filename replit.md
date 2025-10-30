@@ -73,3 +73,40 @@ Supports both **Mono Mode** (single process, gateway embeds SDK and Agent) and *
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+## Strategy Provider Registry & Error Handling (October 30, 2025)
+
+### Centralized Provider Registry
+
+**Location:** `server/lib/strategies/index.js`
+
+All AI strategy providers are registered in a single centralized map to prevent ReferenceError issues:
+- **Startup Assertion:** Server validates all providers at boot (`gateway-server.js`)
+- **Health Check:** `/api/health/strategies` endpoint for monitoring
+- **Extensible:** New providers can be added without code changes elsewhere
+
+### 529 Overload Error Handling
+
+**Anthropic 529 Response:**
+- Server detects 529 status codes from Anthropic API  
+- Marks strategy as `failed` with `error_code: 'provider_overloaded'`
+- Returns **202 Accepted** to client with retry signal
+
+**Structured Errors:**
+All error responses include `error`, `message`, and `correlationId` for traceability.
+
+**Client Handling:**
+- 200: Success - display blocks
+- 202: Retrying - show "Provider overloaded, retrying..."  
+- 500: Hard error - display message with correlationId
+
+## Recent Changes (October 30, 2025)
+
+- ✅ Fixed `claudeStrategy` ReferenceError - now uses `consolidatedStrategy` at blocks.js:611
+- ✅ Added 529 overload handling with graceful 202 retry responses
+- ✅ Created centralized strategy provider registry (`server/lib/strategies/index.js`)
+- ✅ Added startup assertion to validate providers at boot
+- ✅ Added `/api/health/strategies` endpoint for monitoring
+- ✅ Added `correlationId` to all error responses for traceability
+- ✅ Enhanced Claude adapter to attach status codes to error objects
+- ✅ Documented port configuration policy and coordinate fallback rules
+- ✅ Added inline comments in co-pilot.tsx explaining fetch vs apiRequest usage
