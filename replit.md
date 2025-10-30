@@ -42,22 +42,22 @@ Preferred communication style: Simple, everyday language.
 
 ### AI Configuration
 
-All AI services (Agent, Eidolon, Assistant, Gateway) use unified parameters defined in `agent-ai-config.js`:
-- **Model**: extended-thinking (GPT-5 equivalent)
-- **Temperature**: 0.0 (deterministic outputs)
-- **Top-p**: 0.9
-- **Max tokens**: 4096
-- **Reasoning depth**: deep
-- **Chain of thought**: structured
-- **Hallucination guard**: strict
-- **Execution mode**: evidence_first
+**Three-Stage Strategy Pipeline** (`server/lib/strategy-generator.js`):
+1. **Claude Opus 4.1** (`claude-opus-4-1-20250805`): Generates initial strategic analysis from snapshot data (1000 tokens, temp 0.7)
+2. **Gemini 2.5 Pro**: Provides local news briefing with structured JSON (saved in `news_briefing` field)
+3. **GPT-5** (`gpt-5-2025-08-07`): Consolidates Claude's strategy + Gemini's briefing into final actionable intelligence (2000 tokens, reasoning_effort: medium)
 
-The three-stage AI pipeline for strategic analysis:
-1. **Claude Sonnet 4.5** (Strategist): Strategic analysis and pro tips, 64K token context
-2. **GPT-5** (Planner): Deep reasoning for venue selection and tactical planning
-3. **Gemini** (Validator): Output validation and quality assurance
+**Model Parameters**:
+- **Claude Opus**: Most capable Anthropic model, generates location-aware strategies
+- **Gemini**: Structured JSON briefing (0:15 Airports, 0:30 Traffic, 0:45 Events, 1:00 Policy)
+- **GPT-5**: Uses `reasoning_effort` instead of temperature (high/medium/low), consolidation specialist
 
-Model configurations are centralized in `models-dictionary.json` with cost tracking and capability definitions.
+**News Briefing Storage**:
+- Gemini briefing saved to `snapshots.news_briefing` field (dedicated for future Rideshare Briefing tab)
+- ~~Claude and GPT-5 read from `snapshots.local_news` field~~ **DEPRECATED**
+- Both fields retained: `news_briefing` for UI tab, consolidation happens in GPT-5 stage
+
+Model configurations are centralized in `docs/MODEL.md` with verified API endpoints and pricing.
 
 ### Frontend Architecture
 
