@@ -37,7 +37,10 @@ export async function callClaude({
   });
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    throw new Error(`Anthropic ${res.status}: ${errText}`);
+    const error = new Error(`Anthropic ${res.status}: ${errText}`);
+    error.status = res.status; // Attach status code for error handling
+    error.statusText = res.statusText;
+    throw error;
   }
   const j = await res.json();
   
