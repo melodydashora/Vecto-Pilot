@@ -89,14 +89,9 @@ async function performHealthCheck() {
   }
 }
 
-// Run health check in background after a delay - completely non-blocking
-// Use setTimeout instead of setImmediate to ensure server starts first
-setTimeout(() => {
-  performHealthCheck().catch(err => {
-    console.error('[db] Background health check failed:', err.message);
-    console.error('[db] WARNING: Database not available - app will continue but DB features won\'t work');
-  });
-}, 5000); // Wait 5 seconds after server starts (don't interfere with health checks)
+// REMOVED: Auto-run health check at module load
+// This was triggering DB connections BEFORE health endpoints could respond
+// Health checks now happen on-demand when first query is made
 
 // Export enhanced pool with LAZY query wrapper
 const enhancedPool = {

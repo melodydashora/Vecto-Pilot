@@ -124,7 +124,7 @@ export function getPoolStats() {
 }
 
 /**
- * Export singleton pool directly (for compatibility)
+ * Export singleton pool getter (lazy initialization)
+ * Pool is NOT created until first access - prevents boot-time DB connections
  */
-const pool = getSharedPool();
-export default pool;
+export default getSharedPool;
