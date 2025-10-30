@@ -66,141 +66,149 @@ export async function generateStrategyForSnapshot(snapshot_id) {
       ? `${snap.airport_context.airport_code} airport ${snap.airport_context.distance_miles.toFixed(1)} miles away - ${snap.airport_context.delay_minutes || 0} min delays`
       : null;
     
-    // Extract news briefing intelligence (Gemini structured or legacy format)
-    let localNewsStr = null;
+    // Extract Gemini news briefing from news_briefing field
+    let geminiBriefingStr = null;
     
-    if (snap.local_news) {
-      if (snap.local_news.type === 'gemini_structured' && snap.local_news.briefing) {
-        // New Gemini structured briefing - format for readability
-        const b = snap.local_news.briefing;
-        const sections = [];
-        
-        if (b.airports && b.airports.length > 0) {
-          sections.push(`AIRPORTS (next 60 min):\n${b.airports.map(a => `• ${a}`).join('\n')}`);
-        }
-        
-        if (b.traffic_construction && b.traffic_construction.length > 0) {
-          sections.push(`TRAFFIC & CONSTRUCTION:\n${b.traffic_construction.map(t => `• ${t}`).join('\n')}`);
-        }
-        
-        if (b.major_events && b.major_events.length > 0) {
-          sections.push(`MAJOR EVENTS:\n${b.major_events.map(e => `• ${e}`).join('\n')}`);
-        }
-        
-        if (b.policy_safety && b.policy_safety.length > 0) {
-          sections.push(`POLICY & SAFETY:\n${b.policy_safety.map(p => `• ${p}`).join('\n')}`);
-        }
-        
-        if (b.driver_takeaway && b.driver_takeaway.length > 0) {
-          sections.push(`KEY TAKEAWAYS:\n${b.driver_takeaway.map(t => `• ${t}`).join('\n')}`);
-        }
-        
-        localNewsStr = sections.length > 0 ? sections.join('\n\n') : null;
-      } else if (snap.local_news.briefing) {
-        // Legacy format (GPT-5 prose)
-        localNewsStr = snap.local_news.briefing;
-      } else if (snap.local_news.summary) {
-        // Old Perplexity format
-        localNewsStr = snap.local_news.summary;
+    if (snap.news_briefing && snap.news_briefing.briefing) {
+      const b = snap.news_briefing.briefing;
+      const sections = [];
+      
+      if (b.airports && b.airports.length > 0) {
+        sections.push(`AIRPORTS (next 60 min):\n${b.airports.map(a => `• ${a}`).join('\n')}`);
       }
+      
+      if (b.traffic_construction && b.traffic_construction.length > 0) {
+        sections.push(`TRAFFIC & CONSTRUCTION:\n${b.traffic_construction.map(t => `• ${t}`).join('\n')}`);
+      }
+      
+      if (b.major_events && b.major_events.length > 0) {
+        sections.push(`MAJOR EVENTS:\n${b.major_events.map(e => `• ${e}`).join('\n')}`);
+      }
+      
+      if (b.policy_safety && b.policy_safety.length > 0) {
+        sections.push(`POLICY & SAFETY:\n${b.policy_safety.map(p => `• ${p}`).join('\n')}`);
+      }
+      
+      if (b.driver_takeaway && b.driver_takeaway.length > 0) {
+        sections.push(`KEY TAKEAWAYS:\n${b.driver_takeaway.map(t => `• ${t}`).join('\n')}`);
+      }
+      
+      geminiBriefingStr = sections.length > 0 ? sections.join('\n\n') : null;
     }
     
-    const systemPrompt = `You are a rideshare strategy advisor and economist. Your job is to analyze the driver's COMPLETE snapshot context and provide hyper-specific, actionable strategic guidance in 3-5 sentences.
-
-ANALYZE THE COMPLETE CONTEXT:
-- Exact address and surrounding neighborhoods/districts
-- Specific day of week and what typically happens on that day
-- Precise time and daypart (dinner, late_evening, etc.)
-- Current weather impact on rider behavior
-- Air quality considerations
-- Airport proximity and flight activity (if relevant)
-- Local news, traffic alerts, and events affecting rideshare demand
-
-Think deeply about what's happening RIGHT NOW at this exact location, on this specific day, at this precise time. What venues are nearby? What events? What rider patterns exist for this daypart on this day of week? Are there any traffic disruptions, local events, or news that would impact demand or routing?
-
-DO NOT recommend specific venue addresses - provide strategic guidance about types of areas, opportunities, or timing strategies.
-
-DO NOT repeat the driver's street address back - reference the city/area/district in general terms.
-
-Your response must be plain text only, no JSON, no formatting. Keep it conversational, urgent, and action-oriented.
-
-CRITICAL FORMAT: Start your strategy with "Today is [DayName], [MM/DD/YYYY] at [time]" followed by the strategic analysis.
-
-Your strategy MUST explicitly weave these elements into the narrative:
-1. Start with exact date format: "Today is Sunday, 10/05/2025 at 5:59 PM"
-2. City/area context (e.g., "in Frisco's Coral Ridge area" or "in the Uptown district")
-3. Daypart awareness (e.g., "during the dinner rush" or "as late evening begins")
-4. Strategic action based on ALL snapshot data
-
-Example: "Today is Sunday, 10/05/2025 at 5:59 PM in Frisco's Coral Ridge area. With 52°F weather and families wrapping up weekend activities, position near dining clusters..."`;
-
-
     // Format date as MM/DD/YYYY
     const formattedDate = snap.created_at 
       ? new Date(snap.created_at).toLocaleDateString('en-US', { 
-          timeZone: snap.timezone, // No fallback - timezone required
+          timeZone: snap.timezone,
           year: 'numeric',
           month: '2-digit',
           day: '2-digit'
         })
       : 'unknown date';
 
-    const userPrompt = `SNAPSHOT CONTEXT - Analyze this complete picture:
+    // ==========================================
+    // STAGE 1: Claude Opus 4.1 - Initial Strategy
+    // ==========================================
+    console.log(`[TRIAD 1/3 - Claude Opus] Starting strategy generation for snapshot ${snapshot_id}`);
+    
+    const claudeSystemPrompt = `You are an expert rideshare strategy advisor. Analyze the driver's complete location snapshot and provide strategic guidance in 3-5 sentences.
 
-DRIVER LOCATION:
-Exact Address: ${snap.formatted_address || 'unknown'}
+Start with: "Today is [DayName], [MM/DD/YYYY] at [time]"
+
+Then analyze:
+- Exact location context (city/area/district)
+- Current time, day of week, and daypart
+- Weather and air quality impact on rider behavior
+- Airport proximity if relevant
+- Strategic positioning recommendations
+
+Keep it conversational, urgent, and action-oriented. Reference areas generally, not specific addresses.`;
+
+    const claudeUserPrompt = `DRIVER SNAPSHOT:
+
+Location: ${snap.formatted_address || 'unknown'}
 City: ${snap.city || 'unknown'}, ${snap.state || 'unknown'}
 
-EXACT TIMING:
-Day of Week: ${dayOfWeek}
-Date: ${formattedDate}
-Time: ${exactTime}
-Daypart: ${snap.day_part_key || 'unknown'}
+Timing:
+- Day: ${dayOfWeek}
+- Date: ${formattedDate}
+- Time: ${exactTime}
+- Daypart: ${snap.day_part_key || 'unknown'}
 
-CURRENT CONDITIONS:
-Weather: ${weatherStr}
-Air Quality: ${airStr}${airportStr ? `\nAirport: ${airportStr}` : ''}${localNewsStr ? `\n\nLOCAL INTELLIGENCE:\n${localNewsStr}` : ''}
+Conditions:
+- Weather: ${weatherStr}
+- Air: ${airStr}${airportStr ? `\n- Airport: ${airportStr}` : ''}
 
-START YOUR RESPONSE WITH: "Today is ${dayOfWeek}, ${formattedDate} at ${exactTime}"
+Provide strategic guidance starting with "Today is ${dayOfWeek}, ${formattedDate} at ${exactTime}"`;
 
-Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. Think about what's happening at this exact location, at this specific time, on this particular day of the week.`;
+    const claudeStart = Date.now();
+    let claudeStrategy = null;
+    
+    try {
+      claudeStrategy = await callClaude({
+        model: "claude-opus-4-1-20250805",
+        system: claudeSystemPrompt,
+        user: claudeUserPrompt,
+        max_tokens: 1000,
+        temperature: 0.7
+      });
+      console.log(`[TRIAD 1/3 - Claude] ✅ Strategy generated in ${Date.now() - claudeStart}ms`);
+      console.log(`[TRIAD 1/3 - Claude] Strategy: "${claudeStrategy.substring(0, 150)}..."`);
+    } catch (err) {
+      console.error(`[TRIAD 1/3 - Claude] ❌ Failed:`, err.message);
+      throw err;
+    }
 
-    // Build GPT-5 payload
-    const payload = {
+    // ==========================================
+    // STAGE 2: Extract Gemini News Briefing
+    // ==========================================
+    console.log(`[TRIAD 2/3 - Gemini] Extracting news briefing from snapshot`);
+    const geminiNewsAvailable = geminiBriefingStr ? true : false;
+    console.log(`[TRIAD 2/3 - Gemini] News briefing ${geminiNewsAvailable ? 'found' : 'not available'}`);
+    if (geminiNewsAvailable) {
+      console.log(`[TRIAD 2/3 - Gemini] Preview: "${geminiBriefingStr.substring(0, 150)}..."`);
+    }
+
+    // ==========================================
+    // STAGE 3: GPT-5 - Consolidate Both
+    // ==========================================
+    console.log(`[TRIAD 3/3 - GPT-5] Consolidating Claude strategy + Gemini briefing`);
+    
+    const gpt5SystemPrompt = `You are a rideshare strategy consolidator. You will receive:
+1. An initial strategy from Claude
+2. Optional local news briefing from Gemini
+
+Combine these into a single, cohesive 3-5 sentence strategy that:
+- Maintains the opening "Today is [DayName], [MM/DD/YYYY] at [time]" format
+- Weaves in news intelligence naturally (if provided)
+- Keeps the conversational, urgent, action-oriented tone
+- Focuses on strategic positioning and timing recommendations`;
+
+    const gpt5UserPrompt = `CLAUDE STRATEGY:
+${claudeStrategy}
+
+${geminiNewsAvailable ? `GEMINI NEWS BRIEFING:\n${geminiBriefingStr}` : 'No news briefing available.'}
+
+Consolidate these into a single strategy that naturally integrates the news intelligence (if any) into Claude's strategic analysis. Keep the same opening format and tone.`;
+
+    const gpt5Payload = {
       model: process.env.OPENAI_MODEL || "gpt-5",
-      system: systemPrompt,
-      user: userPrompt,
-      max_completion_tokens: 4096,
+      system: gpt5SystemPrompt,
+      user: gpt5UserPrompt,
+      max_completion_tokens: 2000,
       reasoning_effort: process.env.GPT5_REASONING_EFFORT || "medium"
     };
 
     const gpt5Start = Date.now();
-    
-    // Log the complete snapshot data being sent to GPT-5
-    console.log(`[TRIAD 1/3 - GPT-5] Snapshot data being sent:`, {
-      address: snap.formatted_address,
-      city: snap.city,
-      state: snap.state,
-      dayOfWeek,
-      date: formattedDate,
-      time: exactTime,
-      daypart: snap.day_part_key,
-      weather: weatherStr,
-      airQuality: airStr,
-      airport: airportStr || 'none',
-      localNews: localNewsStr ? `${localNewsStr.substring(0, 100)}...` : 'none'
-    });
-    
-    // Call GPT-5 with transient retry and hard budget (120s with 6 retries)
     const timeoutMs = Number(process.env.STRATEGIST_DEADLINE_MS) || 120000;
-    console.log(`[TRIAD 1/3 - GPT-5] Using timeout: ${timeoutMs}ms`);
     
-    const result = await callGPT5WithBudget(payload, { 
+    const result = await callGPT5WithBudget(gpt5Payload, { 
       timeoutMs, 
       maxRetries: 6 
     });
     
     const totalDuration = Date.now() - startTime;
+    console.log(`[TRIAD 3/3 - GPT-5] ✅ Final strategy consolidated in ${Date.now() - gpt5Start}ms`);
     
     if (result.ok) {
       const strategyText = result.text.trim();
@@ -216,17 +224,20 @@ Then provide a 3-5 sentence strategic overview based on this COMPLETE snapshot. 
         })
         .where(eq(strategies.snapshot_id, snapshot_id));
       
-      console.log(`[TRIAD 1/3 - GPT-5] ✅ Strategy generated successfully`);
-      console.log(`[TRIAD 1/3 - GPT-5] Strategy text: "${strategyText}"`);
-      console.log(`[TRIAD 1/3 - GPT-5] 💾 DB Write to 'strategies' table:`, {
+      console.log(`[TRIAD] ✅ Three-stage pipeline complete (Claude → Gemini → GPT-5)`);
+      console.log(`[TRIAD] Final strategy: "${strategyText}"`);
+      console.log(`[TRIAD] 💾 DB Write to 'strategies' table:`, {
         snapshot_id,
         status: 'ok',
         strategy_length: strategyText.length,
-        latency_ms: result.ms,
+        total_ms: totalDuration,
+        claude_ms: Date.now() - claudeStart,
+        gpt5_ms: result.ms,
+        gemini_news: geminiNewsAvailable,
         tokens: result.tokens,
         attempt: result.attempt
       });
-      console.log(`[triad] strategist.ok id=${snapshot_id} ms=${totalDuration} gpt5_ms=${result.ms} tokens=${result.tokens} attempts=${result.attempt}`);
+      console.log(`[triad] pipeline.ok id=${snapshot_id} total_ms=${totalDuration} claude+gemini+gpt5 gemini_news=${geminiNewsAvailable} tokens=${result.tokens}`);
       
       // LEARNING CAPTURE: Index strategy for semantic search and memory (async, non-blocking)
       const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshot_id)).limit(1);
