@@ -244,6 +244,60 @@ Model configurations are centralized in `docs/MODEL.md` with verified API endpoi
 5. **Triad pipeline**: GPT-5 strategist → GPT-5 planner → Gemini validator
 6. **Venue recommendations**: Real venues from database with actual events and rankings
 
+## Location Data Handling
+
+### Coordinate Fallbacks - When and Why
+
+**RULE: Avoid using raw coordinates (lat, lng) as fallback addresses**
+
+When displaying location information to users or in logs, ALWAYS prefer human-readable addresses:
+
+**Correct Priority Order:**
+1. `formatted_address` (e.g., "123 Main St, Frisco, TX 75034")
+2. `city, state` combination (e.g., "Frisco, TX")
+3. `city` alone (e.g., "Frisco")
+4. Only as LAST resort: coordinates formatted as `(lat, lng)` (e.g., "(33.1251, -96.8655)")
+
+**Why This Matters:**
+- **User Experience**: Humans read addresses, not coordinates
+- **Debugging**: "Frisco, TX" is more meaningful than "(33.1251, -96.8655)" in logs
+- **AI Context**: LLMs understand "Dallas-Fort Worth" better than decimal coordinates
+- **Data Quality**: If we're falling back to coordinates, it indicates geocoding failed
+
+**Acceptable Use Cases for Coordinate Fallbacks:**
+1. **Global/International Users**: When city/state data is unavailable for non-US locations
+   ```javascript
+   const locationName = fullSnapshot.city 
+     ? `${fullSnapshot.city}, ${fullSnapshot.state || fullSnapshot.country || 'global'}`
+     : `coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)})`; // Last resort for global users
+   ```
+
+2. **Logging for Diagnostics**: When debugging location resolution issues
+   ```javascript
+   console.log(`🌍 No venue catalog matches for ${locationName} - GPT-5 will generate venues from scratch`);
+   ```
+
+**What to Fix:**
+- If you see coordinates as fallback in user-facing text, trace back to find why geocoding failed
+- Check if `formatted_address`, `city`, or `state` fields are missing from snapshot
+- Verify Google Geocoding API is working correctly
+- Ensure database schema has proper address fields populated
+
+**Anti-Pattern Example:**
+```javascript
+// ❌ BAD: Using coordinates when formatted address should exist
+const address = `${lat}, ${lng}`; 
+```
+
+**Correct Pattern:**
+```javascript
+// ✅ GOOD: Proper fallback chain with human-readable preference
+const address = fullSnapshot.formatted_address 
+  || `${fullSnapshot.city}, ${fullSnapshot.state}` 
+  || fullSnapshot.city
+  || `coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)})`; // Last resort only
+```
+
 ## Instructions for AI Agents
 
 **ALWAYS read ALL documentation in /docs before making ANY changes**
