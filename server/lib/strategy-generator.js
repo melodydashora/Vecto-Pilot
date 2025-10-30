@@ -156,6 +156,26 @@ Provide strategic guidance starting with "Today is ${dayOfWeek}, ${formattedDate
       console.log(`[TRIAD 1/3 - Claude] Strategy: "${claudeStrategy.substring(0, 150)}..."`);
     } catch (err) {
       console.error(`[TRIAD 1/3 - Claude] ❌ Failed:`, err.message);
+      
+      // Handle Anthropic 529 Overloaded error gracefully
+      if (err.status === 529 || err.message?.includes('529') || err.message?.includes('overloaded')) {
+        console.warn(`[TRIAD 1/3 - Claude] ⚠️ Provider overloaded (529), marking strategy as retryable`);
+        await db.update(strategies)
+          .set({
+            status: 'failed',
+            error_code: 'provider_overloaded',
+            error_message: 'Anthropic API is experiencing high load (529)',
+            updated_at: new Date()
+          })
+          .where(eq(strategies.snapshot_id, snapshot_id));
+        
+        const overloadError = new Error('Anthropic API overloaded (529) - Please retry in a few seconds');
+        overloadError.code = 'PROVIDER_OVERLOADED';
+        overloadError.retryable = true;
+        throw overloadError;
+      }
+      
+      // For other errors, throw as-is
       throw err;
     }
 
