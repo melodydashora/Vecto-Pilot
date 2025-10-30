@@ -316,14 +316,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
       enrichmentControllerRef.current = new AbortController();
       const signal = enrichmentControllerRef.current.signal;
       
-      setLocationState((prev: any) => ({
-        ...prev,
-        coords: { ...coords }, // Spread to create new reference for React change detection
-        accuracy: coords.accuracy, // Store accuracy
-        isLoading: false, // Set loading to false
-        isUpdating: false, // Set updating to false
-        error: null, // Clear any previous GPS errors
-      }));
+      // DON'T update state yet - keep spinner active until location fully resolves
+      // We'll update after we get city, state, and formattedAddress
 
       // Resolve ALL context data in parallel: location, weather, and air quality
       Promise.all([
@@ -332,6 +326,16 @@ export function LocationProvider({ children }: LocationProviderProps) {
         fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()).catch(() => null),
       ])
         .then(async ([locationData, weatherData, airQualityData]) => {
+          // NOW update state - location is fully resolved
+          setLocationState((prev: any) => ({
+            ...prev,
+            coords: { ...coords },
+            accuracy: coords.accuracy,
+            isLoading: false, // NOW stop spinner - we have complete data
+            isUpdating: false,
+            error: null,
+          }));
+
           // Format as "City, ST" if we have both city and state
           let locationName;
           if (locationData.city && locationData.state) {
