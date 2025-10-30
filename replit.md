@@ -43,8 +43,19 @@ The system supports both **Mono Mode** (single process) and **Split Mode** (gate
 ### Data Integrity & Coordinate-First Policy
 All geographic computations originate from snapshot coordinates. All enrichment operations complete before a 200 OK response. Missing business hours default to "unknown," and all hour calculations use venue-local timezones. Error responses consistently include `error`, `message`, and `correlationId`. The driver's precise, rooftop-geocoded address is captured once and propagated unchanged through the entire pipeline.
 
-### Strategy Freshness
+### Strategy Freshness & Runtime-Fresh Specification
 Strategy refresh is triggered by location movement (500 meters), day part changes, or manual refresh. Strategies have explicit validity windows (`valid_window_start`, `valid_window_end`) and an auto-invalidation mechanism.
+
+**Runtime-Fresh Implementation (2025-10-30):**
+- **Validation Gates** (`server/lib/validation-gates.js`): Hard-fail checks for location freshness (≤2min), strategy freshness (≤120s), window duration (≤60min)
+- **Audit Logging** (`server/lib/audit-logger.js`): Single-line format with user=undefined, coordinates, window, catalog/events resolution
+- **Planner Prompt** (`server/lib/runtime-fresh-planner-prompt.js`): Spec-compliant prompt enforcing coordinate-first, catalog-as-backup normalization
+- **Movement Thresholds**: Primary 500m (spec-compliant), Secondary 150m @ >20mph for 2min (speed tracking pending)
+- **Time Windowing**: Strategies populate `strategy_timestamp`, `valid_window_start`, `valid_window_end` fields (migration ready)
+- **Catalog Policy**: Use catalog for display name/hours normalization only, never for venue selection (partial implementation)
+- **Events Fail-Soft**: Continue gracefully if events unavailable with `events_resolution` field (pending)
+
+See `RUNTIME_FRESH_IMPLEMENTATION.md` for complete status and field test checklist.
 
 ## External Dependencies
 
