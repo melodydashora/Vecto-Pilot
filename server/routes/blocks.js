@@ -608,7 +608,7 @@ router.post('/', async (req, res) => {
     const triadPlan = {
       version: "2.0",
       generatedAt: new Date().toISOString(),
-      strategy_for_now: claudeStrategy,
+      strategy_for_now: consolidatedStrategy,
       per_venue: fullyEnrichedVenues.map(v => ({
         name: v.name,
         description: v.description,
