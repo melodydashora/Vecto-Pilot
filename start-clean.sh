@@ -1,21 +1,18 @@
-#!/bin/bash
-# Clean startup script for Vecto Pilot
-# Ensures all ports are free before starting
+#!/usr/bin/env bash
+# ZOMBIE KILLER - Ensures clean restart
+# Kills leftover node processes before starting fresh
 
-echo "🧹 Cleaning up existing processes..."
-killall -9 node 2>/dev/null || true
-sleep 3
+set -euo pipefail
 
-echo "🔍 Verifying ports are free..."
-lsof -ti:80 | xargs kill -9 2>/dev/null || true
-lsof -ti:3000 | xargs kill -9 2>/dev/null || true  
-lsof -ti:3101 | xargs kill -9 2>/dev/null || true
-sleep 2
+echo "[clean] Killing zombie processes..."
 
-echo "🚀 Starting Vecto Pilot..."
-cd /home/runner/workspace
-export PORT=80
-export EIDOLON_PORT=3000
-export NODE_ENV=development
+# Kill any leftover gateway/server processes
+pkill -f "node gateway-server.js" || true
+pkill -f "node dist" || true
+pkill -f "tsx server" || true
 
-node gateway-server.js
+# Clean cache artifacts
+rm -rf .cache || true
+
+echo "[clean] Clean complete, starting app..."
+npm run start:replit
