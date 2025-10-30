@@ -30,7 +30,7 @@ router.post('/async', async (req, res) => {
         await startJob(jobId);
         
         // Import heavy processor dynamically AFTER response to keep boot slim
-        const { processBlocksRequestCore } = await import('./blocks-processor.js');
+        const { processBlocksRequestCore } = await import('./blocks-processor-full.js');
         
         const result = await runBlocksJobImpl(
           () => processBlocksRequestCore({ body: req.body, headers: req.headers }),
