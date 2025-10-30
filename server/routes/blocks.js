@@ -288,9 +288,10 @@ router.post('/', async (req, res) => {
     );
 
     // ============================================
-    // STEP 2: Generate Claude's Strategy (synchronous triad)
+    // STEP 2: Load Consolidated Strategy (Claude + Gemini → GPT-5)
+    // The three-stage pipeline runs in background via triad-worker
     // ============================================
-    let claudeStrategy = null;
+    let consolidatedStrategy = null;
 
     if (snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
       // Check if strategy already exists or is in progress
@@ -302,9 +303,9 @@ router.post('/', async (req, res) => {
         .limit(1);
 
       if (existing && existing.status === 'ok') {
-        // Strategy already generated successfully
-        claudeStrategy = existing.strategy;
-        console.log(`✅ [${correlationId}] TRIAD Step 1/3: Using existing strategic overview from DB`);
+        // Consolidated strategy already generated (Claude + Gemini briefing → GPT-5)
+        consolidatedStrategy = existing.strategy;
+        console.log(`✅ [${correlationId}] TRIAD Step 1/3: Using existing consolidated strategy from DB (Claude + Gemini → GPT-5)`);
       } else if (existing && existing.status === 'pending') {
         // Strategy generation in progress from snapshot background task
         const job = existing; // Alias for clarity
@@ -335,26 +336,26 @@ router.post('/', async (req, res) => {
           });
         }
       } else if (!existing || existing.status === 'failed') {
-        // No strategy or failed - generate new one
-        console.log(`🧠 [${correlationId}] TRIAD Step 1/3: Generating strategic overview for snapshot ${snapshotId}...`);
+        // No strategy or failed - generate new one (triggers full triad: Claude + Gemini → GPT-5)
+        console.log(`🧠 [${correlationId}] TRIAD Step 1/3: Generating consolidated strategy for snapshot ${snapshotId}...`);
 
-        const claudeStart = Date.now();
+        const triadStart = Date.now();
         const { generateStrategyForSnapshot } = await import('../lib/strategy-generator.js');
 
         try {
-          claudeStrategy = await generateStrategyForSnapshot(snapshotId);
-          const claudeElapsed = Date.now() - claudeStart;
+          consolidatedStrategy = await generateStrategyForSnapshot(snapshotId);
+          const triadElapsed = Date.now() - triadStart;
 
-          if (!claudeStrategy) {
-            console.error(`❌ [${correlationId}] Claude returned null/empty strategy`);
+          if (!consolidatedStrategy) {
+            console.error(`❌ [${correlationId}] Strategy generator returned null/empty`);
             return sendOnce(500, { 
-              error: 'Claude strategy generation failed', 
+              error: 'Strategy generation failed', 
               details: 'Strategy generator returned no content',
               correlationId 
             });
           }
 
-          console.log(`✅ [${correlationId}] TRIAD Step 1/3 Complete: Strategic overview generated in ${claudeElapsed}ms: "${claudeStrategy.slice(0, 80)}..."`);
+          console.log(`✅ [${correlationId}] TRIAD Step 1/3 Complete: Consolidated strategy generated in ${triadElapsed}ms: "${consolidatedStrategy.slice(0, 80)}..."`);
         } catch (err) {
           console.error(`❌ [${correlationId}] Strategy generation failed: ${err.message}`);
           return sendOnce(500, { 
@@ -367,11 +368,11 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
-    // STEP 2.5: Workflow Gating (enforce strategy exists before planner)
-    // Architectural guidance: No planner until strategic overview exists
+    // STEP 2.5: Workflow Gating (enforce consolidated strategy exists before planner)
+    // Architectural guidance: No planner until consolidated strategy exists
     // ============================================
-    if (!claudeStrategy) {
-      console.warn(`⚠️ [${correlationId}] Strategy required for tactical planning`);
+    if (!consolidatedStrategy) {
+      console.warn(`⚠️ [${correlationId}] Consolidated strategy required for tactical planning`);
       return sendOnce(202, { 
         ok: false, 
         status: 'pending_strategy',
@@ -381,16 +382,19 @@ router.post('/', async (req, res) => {
     }
 
     // ============================================
-    // STEP 3: Run GPT-5 Tactical Planner with Strategic Overview
+    // STEP 3: Run GPT-5 Tactical Planner with Consolidated Strategy
+    // Input: Consolidated strategy (Claude strategic analysis + Gemini news briefing → GPT-5)
+    // Output: Tactical venue recommendations with coordinates and pro tips
     // ============================================
-    console.log(`🎯 [${correlationId}] TRIAD Step 2/3: Starting GPT-5 tactical planner (requires strategic overview)...`);
+    console.log(`🎯 [${correlationId}] TRIAD Step 2/3: Starting GPT-5 tactical planner...`);
+    console.log(`📋 [${correlationId}] Planner input (consolidated strategy): "${consolidatedStrategy.slice(0, 100)}..."`);
     
     const plannerStart = Date.now();
     let tacticalPlan = null;
 
     try {
       tacticalPlan = await generateTacticalPlan({
-        strategy: claudeStrategy,
+        strategy: consolidatedStrategy,
         snapshot: fullSnapshot
       });
 
