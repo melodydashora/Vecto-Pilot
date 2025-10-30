@@ -40,8 +40,11 @@ The user interface is a **React + TypeScript Single Page Application (SPA)** dev
 
 **UI Layout** (`client/src/pages/co-pilot.tsx`):
 - **Strategy Section**: Displays consolidated strategy with feedback controls
+- **Smart Blocks**: Ranked venue recommendations with event badges, earnings, drive time, value grade
+  - Each block persisted to database per snapshot via `persist-ranking.js`
+  - GET endpoint retrieves existing blocks: `/api/blocks/fast?snapshotId=<uuid>`
+  - Displays: name, distance, drive time, value/min, value grade, pro tips, staging info
 - **AI Coach**: Positioned below strategy initially, moves to bottom of blocks once loaded
-- **Smart Blocks**: Ranked venue recommendations with event badges, earnings, drive time
 - **Dynamic Positioning**: Coach component conditionally renders based on `blocks.length` for optimal UX
 
 ### Data Storage

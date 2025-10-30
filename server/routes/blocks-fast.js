@@ -17,6 +17,50 @@ const router = Router();
 const PLANNER_BUDGET_MS = parseInt(process.env.PLANNER_BUDGET_MS || '7000'); // 7 second wall clock
 const PLANNER_TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS || '5000'); // 5 second planner timeout
 
+// GET endpoint - return existing blocks for a snapshot
+router.get('/', async (req, res) => {
+  const snapshotId = req.query.snapshotId || req.query.snapshot_id;
+  
+  if (!snapshotId) {
+    return res.status(400).json({ error: 'snapshot_required' });
+  }
+
+  try {
+    // Find ranking for this snapshot
+    const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+    
+    if (!ranking) {
+      return res.status(404).json({ error: 'NOT_FOUND', blocks: [] });
+    }
+
+    // Get candidates for this ranking
+    const candidates = await db.select().from(ranking_candidates)
+      .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
+      .orderBy(ranking_candidates.rank);
+
+    const blocks = candidates.map(c => ({
+      name: c.name,
+      coordinates: { lat: c.lat, lng: c.lng },
+      placeId: c.place_id,
+      estimated_distance_miles: c.distance_miles,
+      driveTimeMinutes: c.drive_minutes,
+      value_per_min: c.value_per_min,
+      value_grade: c.value_grade,
+      not_worth: c.not_worth,
+      proTips: c.pro_tips,
+      closed_venue_reasoning: c.closed_reasoning,
+      stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
+      eventBadge: c.venue_events?.badge,
+      eventSummary: c.venue_events?.summary,
+    }));
+
+    return res.json({ blocks, ranking_id: ranking.ranking_id });
+  } catch (error) {
+    console.error('[blocks-fast GET] Error:', error);
+    return res.status(500).json({ error: 'internal_error', blocks: [] });
+  }
+});
+
 router.post('/', async (req, res) => {
   const wallClockStart = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
