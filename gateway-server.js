@@ -77,91 +77,67 @@ function spawnChild(name, command, args, env) {
   
   const app = express();
   app.set('trust proxy', 1);
-  app.use(helmet({ contentSecurityPolicy: false }));
-  app.use(cors({ origin: true, credentials: true }));
-  app.use(express.json({ limit: '1mb' }));
 
-  // Global timeout middleware - wrap in try/catch
-  try {
-    const { timeoutMiddleware } = await import('./server/middleware/timeout.js');
-    app.use(timeoutMiddleware);
-  } catch (e) {
-    console.warn('[gateway] Timeout middleware failed to load:', e?.message);
-  }
+  // ═══════════════════════════════════════════════════════════════════
+  // 1) HEALTH ENDPOINTS FIRST — No middleware before these!
+  //    Cloud Run/Replit health probes MUST get instant 200 response
+  // ═══════════════════════════════════════════════════════════════════
+  app.get('/', (_req, res) => res.status(200).send('OK'));
+  app.get('/health', (_req, res) => res.status(200).send('OK'));
+  app.get('/healthz', (_req, res) => res.status(200).send('OK'));
+  app.get('/ready', (_req, res) => res.status(200).send('OK'));
+  app.get('/api/health', (_req, res) => res.status(200).json({ ok: true, port: PORT, mode: MODE }));
 
-  // Request logger
-  app.use((req, res, next) => {
-    const t = Date.now();
-    res.on('finish', () => {
-      console.log(`[gateway] ${req.method} ${req.originalUrl} -> ${res.statusCode} ${Date.now() - t}ms`);
-    });
-    next();
-  });
-
-  // CRITICAL: Health endpoints MUST respond instantly for Cloud Run
-  // These are registered BEFORE any other middleware to ensure immediate response
-  app.get('/health', (_req, res) => {
-    res.status(200).send('OK');
-  });
-  
-  app.get('/api/health', (_req, res) => {
-    res.status(200).json({ ok: true, port: PORT, mode: MODE });
-  });
-  
-  app.get('/healthz', (_req, res) => {
-    res.status(200).json({ ok: true, mode: MODE, t: Date.now() });
-  });
-  
-  app.get('/ready', (_req, res) => {
-    res.status(200).json({ ok: true, mode: MODE });
-  });
-  
-  // Root endpoint "/" - Cloud Run health checks hit this
-  // MUST return 200 immediately, no delays
-  app.get('/', (req, res, next) => {
-    const acceptHeader = req.headers.accept || '';
-    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-    
-    // Cloud Run health check detection
-    const isHealthCheck = 
-      !acceptHeader.includes('text/html') ||  // Not a browser
-      userAgent.includes('googlehc') ||       // Google health checker
-      userAgent.includes('cloud') ||          // Cloud Run
-      userAgent.includes('health') ||         // Generic health bot
-      userAgent.includes('kube-probe') ||     // Kubernetes
-      userAgent.includes('elb-health') ||     // AWS ELB
-      req.query.health === '1';               // Manual health check
-    
-    if (isHealthCheck) {
-      // INSTANT 200 response for health checks
-      return res.status(200).send('OK');
-    }
-    
-    // Browsers get the actual app (fall through to static files)
-    next();
-  });
-  
-  app.get('/diagnostics/memory', (_req, res) => res.json(process.memoryUsage()));
-  app.post('/diagnostics/prefs', express.json(), (req, res) => res.json({ ok: true, set: req.body || {} }));
-  app.post('/diagnostics/session', express.json(), (req, res) => res.json({ ok: true, phase: req.body?.phase ?? 'unknown' }));
-
+  // ═══════════════════════════════════════════════════════════════════
+  // 2) CREATE SERVER AND START LISTENING IMMEDIATELY
+  //    Health endpoints active before any route mounting
+  // ═══════════════════════════════════════════════════════════════════
   const server = http.createServer(app);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`[ready] Server listening on 0.0.0.0:${PORT}`);
+    console.log(`[ready] Health endpoints: /, /health, /healthz, /ready, /api/health`);
+  });
 
-  //  ═══════════════════════════════════════════════════════════════════
-  //  MODE A: MONO (Single Process - Replit-safe)
-  //  ═══════════════════════════════════════════════════════════════════
-  if (MODE === 'mono') {
-    console.log(`[mono] Starting MONO mode on port ${PORT}`);
+  // ═══════════════════════════════════════════════════════════════════
+  // 3) MOUNT MIDDLEWARE AND ROUTES AFTER SERVER IS LISTENING
+  //    This keeps health checks fast while allowing slow imports
+  // ═══════════════════════════════════════════════════════════════════
+  setImmediate(async () => {
+    // Middleware (mounted AFTER health endpoints)
+    app.use(helmet({ contentSecurityPolicy: false }));
+    app.use(cors({ origin: true, credentials: true }));
+    app.use(express.json({ limit: '1mb' }));
 
-    // Start server IMMEDIATELY for Cloud Run health checks
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🟢 [mono] Server listening on 0.0.0.0:${PORT}`);
-      console.log(`   Health endpoints ready: /health, /healthz, /`);
-      console.log(`   Cloud Run: port ${PORT} → external :80`);
+    // Timeout middleware (optional, per-route preferred)
+    try {
+      const { timeoutMiddleware } = await import('./server/middleware/timeout.js');
+      app.use('/api', timeoutMiddleware); // Only on API routes, not on health
+    } catch (e) {
+      console.warn('[gateway] Timeout middleware failed to load:', e?.message);
+    }
+
+    // Request logger (AFTER health endpoints)
+    app.use((req, res, next) => {
+      if (req.path === '/' || req.path === '/health' || req.path === '/healthz' || req.path === '/ready') {
+        return next(); // Skip logging for health checks
+      }
+      const t = Date.now();
+      res.on('finish', () => {
+        console.log(`[gateway] ${req.method} ${req.originalUrl} -> ${res.statusCode} ${Date.now() - t}ms`);
+      });
+      next();
     });
 
-    // Mount routes AFTER server starts (non-blocking for health checks)
-    setImmediate(async () => {
+    // Diagnostics endpoints
+    app.get('/diagnostics/memory', (_req, res) => res.json(process.memoryUsage()));
+    app.post('/diagnostics/prefs', express.json(), (req, res) => res.json({ ok: true, set: req.body || {} }));
+    app.post('/diagnostics/session', express.json(), (req, res) => res.json({ ok: true, phase: req.body?.phase ?? 'unknown' }));
+
+    //  ═══════════════════════════════════════════════════════════════════
+    //  MODE A: MONO (Single Process - Replit-safe)
+    //  ═══════════════════════════════════════════════════════════════════
+    if (MODE === 'mono') {
+      console.log(`[mono] Mounting routes in MONO mode...`);
       try {
         const createSdkRouter = (await import('./sdk-embed.js')).default;
         const sdkRouter = createSdkRouter({ API_PREFIX });
@@ -196,10 +172,7 @@ function spawnChild(name, command, args, env) {
         console.error('[triad-worker] Failed to start worker:', err.message);
       });
       
-      // Database pool is handled lazily by server/db/client.js
-      // No need for duplicate initialization here
-      
-      // Vite or static files (LAST - AFTER API routes are mounted)
+      // Vite or static files (LAST - NEVER mount at "/" to avoid shadowing health)
       if (isDev) {
         const viteTarget = 'http://127.0.0.1:5173';
         const proxy = createProxyServer({});
@@ -211,7 +184,11 @@ function spawnChild(name, command, args, env) {
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
-        app.use('/', (req, res) => {
+        // Proxy everything that's NOT a health/API route to Vite
+        app.use((req, res, next) => {
+          if (req.path === '/' || req.path === '/health' || req.path.startsWith('/api') || req.path.startsWith('/agent')) {
+            return next(); // Skip proxy for health/API
+          }
           proxy.web(req, res, { target: viteTarget, changeOrigin: true });
         });
 
@@ -227,18 +204,25 @@ function spawnChild(name, command, args, env) {
         const path = await import('path');
         const { fileURLToPath } = await import('url');
         const __dirname = path.dirname(fileURLToPath(import.meta.url));
-        app.use(express.static(path.join(__dirname, 'client/dist')));
-        app.get('*', (req, res) => {
+        // Static files mounted at /app to avoid shadowing health endpoints
+        app.use('/app', express.static(path.join(__dirname, 'client/dist')));
+        app.get('/app/*', (req, res) => {
           res.sendFile(path.join(__dirname, 'client/dist/index.html'));
         });
+        // Redirect non-health requests to /app for SPA
+        app.get('*', (req, res, next) => {
+          if (req.path === '/' || req.path === '/health' || req.path.startsWith('/api') || req.path.startsWith('/agent')) {
+            return next();
+          }
+          res.redirect('/app');
+        });
       }
-    });
-  }
+    }
 
-  //  ═══════════════════════════════════════════════════════════════════
-  //  MODE B: SPLIT (Multi-Process - Production)
-  //  ═══════════════════════════════════════════════════════════════════
-  else {
+    //  ═══════════════════════════════════════════════════════════════════
+    //  MODE B: SPLIT (Multi-Process - Production)
+    //  ═══════════════════════════════════════════════════════════════════
+    else {
     const GATEWAY_PORT = Number(process.env.GATEWAY_PORT || PORT);
     const agentTarget = `http://127.0.0.1:${AGENT_PORT}`;
     const sdkTarget = `http://127.0.0.1:${SDK_PORT}`;
@@ -337,6 +321,7 @@ function spawnChild(name, command, args, env) {
       if (isDev) console.log(`   proxy -> vite @ http://127.0.0.1:5173`);
     });
   }
+  }); // Close setImmediate async block
 
   // Common error handlers - never crash
   server.on('error', (err) => {
