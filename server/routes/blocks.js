@@ -912,7 +912,6 @@ router_post_OLD('/', async (req, res) => {
       strategy_for_now: triadPlan.strategy_for_now,
       tactical_summary: triadPlan.tactical_summary,
       best_staging_location: enrichedStagingLocation,
-*/
       seed_additions: triadPlan.seed_additions || [],
       validation: triadPlan.validation || { status: 'ok', flags: [] },
       elapsed_ms: Date.now() - startTime,
@@ -938,5 +937,6 @@ router_post_OLD('/', async (req, res) => {
     });
   }
 });
+*/
 
 export default router;
