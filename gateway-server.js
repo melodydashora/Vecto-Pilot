@@ -179,8 +179,8 @@ if (isAutoscale) {
         app.use(API_PREFIX, sdkRouter);
         console.log(`[mono] ✓ SDK routes mounted at ${API_PREFIX}`);
       } catch (e) {
-        console.error('[mono] FATAL: SDK embed failed:', e?.message || e);
-        process.exit(1);
+        console.error('[mono] ERROR: SDK embed failed:', e?.message || e);
+        console.error('[mono] Continuing with degraded functionality...');
       }
 
       try {
@@ -188,8 +188,8 @@ if (isAutoscale) {
         mountAgent({ app, basePath: AGENT_PREFIX, wsPath: WS_PUBLIC_PATH, server });
         console.log(`[mono] ✓ Agent routes mounted at ${AGENT_PREFIX}, WS at ${WS_PUBLIC_PATH}`);
       } catch (e) {
-        console.error('[mono] FATAL: Agent embed failed:', e?.message || e);
-        process.exit(1);
+        console.error('[mono] ERROR: Agent embed failed:', e?.message || e);
+        console.error('[mono] Continuing with degraded functionality...');
       }
 
       // Legacy redirect for closed-venue-reasoning (was at root, now at /api)
