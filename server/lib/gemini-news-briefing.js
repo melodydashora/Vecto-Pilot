@@ -60,17 +60,23 @@ export async function generateNewsBriefing(snapshot) {
     // Use only the detected airports from the snapshot's location
     const airportList = closestAirports;
     
-    // Build system instruction (exact structure from user's prompt)
+    // Build system instruction with radius constraints
     const systemInstruction = {
       parts: [
         {
           text: `You are my rideshare briefing assistant. Respond with **ONLY** a single JSON object, no prose. Keys: airports, traffic_construction, major_events, policy_safety, driver_takeaway (array of 3 strings). Each of the first four keys must be an array of short strings. Scope: ONLY the next 60 minutes from the provided time. If a section has nothing verifiable, use an empty array.
 
+GEOGRAPHIC RADIUS CONSTRAINTS:
+- major_events: 15-minute drive OR 7-10 mile radius from driver address (whichever is SMALLER)
+- traffic_construction: 0-30 minute drive OR 0-15 mile radius from driver address (whichever is SMALLER)
+- airports: Nearby airports only
+- policy_safety: City/metro-wide information
+
 Example shape:
 {
   "airports": ["Expected traffic patterns for nearby airports based on time of day."],
-  "traffic_construction": ["Major roadway conditions affecting the area."],
-  "major_events": ["Large events ending or starting in the next hour."],
+  "traffic_construction": ["Major roadway conditions affecting the area within 0-30min drive OR 0-15mi radius."],
+  "major_events": ["Large events ending or starting in the next hour within 15min drive OR 7-10mi radius."],
   "policy_safety": [],
   "driver_takeaway": [
     "Strategic positioning based on current conditions.",

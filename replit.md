@@ -25,6 +25,11 @@ A **four-stage AI pipeline** generates strategic briefings with clear separation
 **Venue Events Intelligence** (Perplexity - Separate Process):
 -  **Perplexity (Events Planner)**: Researches real-time venue-specific events (concerts, games, shows) using internet search with citations. Runs **non-blocking** after strategy generation, enriching `ranking_candidates.venue_events` for UI display. Events are NOT fed into strategy generation.
 
+**Gemini Radius Constraints** (2025-10-30):
+- **Events**: 15min drive OR 7-10mi radius (whichever smaller) for `major_events`
+- **Traffic/News**: 0-30min drive OR 0-15mi radius (whichever smaller) for `traffic_construction`
+- Constraints embedded in Gemini system instruction for consistent scoping
+
 **Data Flow**:
 - Gemini briefing stored in `snapshots.news_briefing` → used in strategy
 - Perplexity events stored in `ranking_candidates.venue_events` → displayed as badges
@@ -82,6 +87,20 @@ See `RUNTIME_FRESH_IMPLEMENTATION.md` for complete status and field test checkli
   - Database expects native array insertion without serialization
 - **Result**: Transaction COMMIT now succeeds, rankings and candidates persist correctly
 - **Rollback Path**: If issues arise, revert to `drive_time_minutes` column name and JSON.stringify for pro_tips (will require schema migration)
+
+### Recent Fixes (2025-10-30)
+
+**Location Resolution & UI Gating** - COMPLETE:
+1. **Backend Fix** (`server/lib/persist-ranking.js` line 78):
+   - ~~Mixed `||` and `??` operators~~ → Changed to all `||`
+   - SDK router now loads correctly
+   - Location API returns full address: "Frisco, TX"
+
+2. **Frontend Fix** (`client/src/contexts/location-context-clean.tsx` lines 322-340):
+   - ~~Spinner stopped after GPS, before location resolution~~
+   - Now: Spinner stays active until city/state/formattedAddress resolved
+   - State update moved inside `.then()` block after location data received
+   - Strategy generation waits for complete location data
 
 ## External Dependencies
 

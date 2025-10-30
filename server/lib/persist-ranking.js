@@ -72,7 +72,7 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
           v.rank,
           'epsilon_greedy', // Default exploration policy
           v.distance_miles ?? null,
-          v.drive_time_minutes || v.driveTimeMinutes ?? null,  // Column is drive_minutes
+          v.drive_time_minutes || v.driveTimeMinutes || null,  // Column is drive_minutes
           v.value_per_min ?? null,
           v.value_grade ?? null,
           v.not_worth ?? false,
