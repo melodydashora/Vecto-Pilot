@@ -10,25 +10,74 @@ import { sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
-const MIGRATION_FILE = 'drizzle/0003_event_enrichment.sql';
+const MIGRATION_FILES = [
+  'drizzle/0003_event_enrichment.sql',
+  'drizzle/0004_event_proximity.sql',
+  'drizzle/0005_staging_nodes.sql'
+];
 
+// Check DATABASE_URL (sanitized output)
+const dbUrl = process.env.DATABASE_URL;
+if (!dbUrl) {
+  console.error('❌ DATABASE_URL environment variable not set');
+  process.exit(1);
+}
+
+console.log('🔍 Database connection:');
+console.log(`   URL present: ✅`);
+console.log(`   SSL mode: ${dbUrl.includes('sslmode=require') ? '✅ required' : '⚠️  not set (may fail with Neon)'}`);
+
+// Test connection
 try {
-  console.log(`🔍 Loading migration: ${MIGRATION_FILE}`);
+  console.log('\n🔌 Testing database connection...');
+  const testResult = await db.execute(sql`SELECT now() as current_time, current_database() as db_name`);
+  console.log(`   ✅ Connected to: ${testResult.rows[0].db_name}`);
+  console.log(`   ✅ Server time: ${testResult.rows[0].current_time}`);
+} catch (err) {
+  console.error('\n❌ Database connection failed:', err.message);
+  console.error('   Check your DATABASE_URL secret and ensure it includes ?sslmode=require for Neon');
+  process.exit(1);
+}
+
+// Check extensions
+console.log('\n🔍 Checking required extensions...');
+try {
+  const extResult = await db.execute(sql`
+    SELECT extname, extversion 
+    FROM pg_extension 
+    WHERE extname IN ('pgcrypto', 'pg_trgm')
+  `);
+  const installed = extResult.rows.map(r => r.extname);
+  console.log(`   Extensions: ${installed.length > 0 ? installed.join(', ') : 'none yet (will be created)'}`);
+} catch (err) {
+  console.warn('   ⚠️  Could not check extensions (will be created during migration)');
+}
+
+// Execute migrations
+console.log('\n⚙️  Executing migrations...\n');
+
+for (const migrationFile of MIGRATION_FILES) {
+  console.log(`📄 ${migrationFile}`);
   
-  if (!fs.existsSync(MIGRATION_FILE)) {
-    console.error(`❌ Migration file not found: ${MIGRATION_FILE}`);
-    process.exit(1);
+  if (!fs.existsSync(migrationFile)) {
+    console.log(`   ⏭️  Skipped (file not found)`);
+    continue;
   }
   
-  const migrationSQL = fs.readFileSync(MIGRATION_FILE, 'utf8');
-  
-  console.log('⚙️  Executing migration...\n');
-  
-  const startTime = Date.now();
-  await db.execute(sql.raw(migrationSQL));
-  const elapsed = Date.now() - startTime;
-  
-  console.log(`\n✅ Migration completed successfully in ${elapsed}ms`);
+  try {
+    const migrationSQL = fs.readFileSync(migrationFile, 'utf8');
+    const startTime = Date.now();
+    await db.execute(sql.raw(migrationSQL));
+    const elapsed = Date.now() - startTime;
+    console.log(`   ✅ Completed in ${elapsed}ms`);
+  } catch (err) {
+    console.error(`   ❌ Failed: ${err.message}`);
+    // Don't exit - continue with other migrations
+  }
+  console.log('');
+}
+
+console.log('✅ All migrations processed\n');
   
   // Verify migration
   console.log('\n🔍 Verifying migration...');

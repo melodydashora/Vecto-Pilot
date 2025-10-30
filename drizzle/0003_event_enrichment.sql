@@ -3,6 +3,13 @@
 -- Date: 2025-10-30
 
 -- ============================================
+-- 0. EXTENSIONS
+-- ============================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
+CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- text similarity for name matching
+
+-- ============================================
 -- 1. CREATE events_facts TABLE
 -- ============================================
 
@@ -10,22 +17,24 @@ CREATE TABLE IF NOT EXISTS events_facts (
   event_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   source text NOT NULL,
   source_url text,
-  venue_place_id text NOT NULL,
+  venue_place_id text,  -- NULLABLE for proximity/zone events
   venue_name text,
   event_title text NOT NULL,
   event_type text,
   start_time timestamptz NOT NULL,
   end_time timestamptz NOT NULL,
-  confidence float DEFAULT 0.0,
+  confidence double precision DEFAULT 0.0,
   coordinates jsonb,
   description text,
   tags text[],
   expires_at timestamptz,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  -- Dedupe key: same title + time window (place_id OR empty string for proximity events)
+  UNIQUE (COALESCE(venue_place_id, ''), LOWER(event_title), start_time, end_time)
 );
 
-CREATE INDEX IF NOT EXISTS idx_events_venue_place_id ON events_facts(venue_place_id);
+CREATE INDEX IF NOT EXISTS idx_events_place_time ON events_facts(venue_place_id, start_time, end_time);
 CREATE INDEX IF NOT EXISTS idx_events_time_window ON events_facts(start_time, end_time);
 CREATE INDEX IF NOT EXISTS idx_events_expires_at ON events_facts(expires_at) WHERE expires_at IS NOT NULL;
 
@@ -91,7 +100,7 @@ CREATE OR REPLACE FUNCTION fn_upsert_event(
   p_event_type text,
   p_start_time timestamptz,
   p_end_time timestamptz,
-  p_confidence float DEFAULT 0.85,
+  p_confidence double precision DEFAULT 0.85,
   p_coordinates jsonb DEFAULT NULL,
   p_description text DEFAULT NULL,
   p_tags text[] DEFAULT NULL,
@@ -130,17 +139,17 @@ BEGIN
     p_tags,
     p_expires_at
   )
-  ON CONFLICT ON CONSTRAINT events_facts_pkey
+  ON CONFLICT (COALESCE(venue_place_id, ''), LOWER(event_title), start_time, end_time)
   DO UPDATE SET
-    event_title = EXCLUDED.event_title,
+    source = EXCLUDED.source,
+    source_url = EXCLUDED.source_url,
+    venue_name = COALESCE(EXCLUDED.venue_name, events_facts.venue_name),
     event_type = EXCLUDED.event_type,
-    start_time = EXCLUDED.start_time,
-    end_time = EXCLUDED.end_time,
-    confidence = EXCLUDED.confidence,
-    coordinates = EXCLUDED.coordinates,
-    description = EXCLUDED.description,
-    tags = EXCLUDED.tags,
-    expires_at = EXCLUDED.expires_at,
+    confidence = GREATEST(events_facts.confidence, EXCLUDED.confidence),
+    coordinates = COALESCE(EXCLUDED.coordinates, events_facts.coordinates),
+    description = COALESCE(EXCLUDED.description, events_facts.description),
+    tags = COALESCE(EXCLUDED.tags, events_facts.tags),
+    expires_at = COALESCE(EXCLUDED.expires_at, events_facts.expires_at),
     updated_at = now()
   RETURNING event_id INTO v_event_id;
 
@@ -148,7 +157,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION fn_upsert_event IS 'Idempotent event insertion/update - call from scrapers or API integrations';
+COMMENT ON FUNCTION fn_upsert_event IS 'Idempotent event insertion/update with proper deduplication on (place_id, title, time_window)';
 
 -- ============================================
 -- 5. FUNCTION: fn_refresh_venue_enrichment
