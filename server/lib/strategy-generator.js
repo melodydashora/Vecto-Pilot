@@ -27,17 +27,34 @@ export async function generateStrategyForSnapshot(snapshot_id) {
     }
     
     // Create or update strategy record with pending status
+    // RUNTIME-FRESH SPEC: Set time windowing fields
+    const now = new Date();
+    const windowStart = now;
+    const windowEnd = new Date(now.getTime() + 60 * 60 * 1000); // +60 minutes (max window)
+    
     await db.insert(strategies).values({
       snapshot_id,
       status: 'pending',
       attempt: 1,
+      strategy_timestamp: now,
+      valid_window_start: windowStart,
+      valid_window_end: windowEnd,
+      lat: snap.lat,
+      lng: snap.lng,
+      city: snap.city,
     }).onConflictDoUpdate({
       target: strategies.snapshot_id,
       set: {
         status: 'pending',
         error_code: null,
         error_message: null,
-        updated_at: new Date(),
+        updated_at: now,
+        strategy_timestamp: now,
+        valid_window_start: windowStart,
+        valid_window_end: windowEnd,
+        lat: snap.lat,
+        lng: snap.lng,
+        city: snap.city,
       }
     });
     
