@@ -175,6 +175,16 @@ export const venue_metrics = pgTable("venue_metrics", {
   last_verified_by_driver: timestamp("last_verified_by_driver", { withTimezone: true }),
 });
 
+export const block_jobs = pgTable("block_jobs", {
+  id: uuid("id").primaryKey(),
+  status: text("status").notNull(), // 'pending' | 'running' | 'succeeded' | 'failed'
+  request_body: jsonb("request_body").notNull(),
+  result: jsonb("result"),
+  error: text("error"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const triad_jobs = pgTable("triad_jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
