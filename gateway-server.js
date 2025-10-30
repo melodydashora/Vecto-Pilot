@@ -173,6 +173,16 @@ function spawnChild(name, command, args, env) {
 
       console.log(`🎉 [mono] Application fully initialized`);
       
+      // Start triad worker for strategy generation
+      import('./server/jobs/triad-worker.js').then(({ processTriadJobs }) => {
+        processTriadJobs().catch(err => {
+          console.error('[triad-worker] Worker crashed:', err.message);
+        });
+        console.log('[triad-worker] ✅ Strategy generation worker started');
+      }).catch(err => {
+        console.error('[triad-worker] Failed to start worker:', err.message);
+      });
+      
       // Database pool is handled lazily by server/db/client.js
       // No need for duplicate initialization here
       
