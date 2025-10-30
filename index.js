@@ -1597,6 +1597,16 @@ function startEidolonServer() {
     } catch (e) {
       console.error("[eidolon] workspace analysis failed:", e?.message || e);
     }
+
+    // Start triad worker for strategy generation
+    import('./server/jobs/triad-worker.js').then(({ processTriadJobs }) => {
+      processTriadJobs().catch(err => {
+        console.error('[triad-worker] Worker crashed:', err.message);
+      });
+      console.log('[triad-worker] ✅ Strategy generation worker started');
+    }).catch(err => {
+      console.error('[triad-worker] Failed to start worker:', err.message);
+    });
   });
 
   serverInstance.on("error", (err) => {
