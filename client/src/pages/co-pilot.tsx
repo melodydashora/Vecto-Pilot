@@ -54,6 +54,7 @@ interface SmartBlock {
   distanceSource?: string;
   driveTimeMinutes?: number;
   surge?: number;
+  type?: string;
   // Value per minute fields
   value_per_min?: number;
   value_grade?: string;
