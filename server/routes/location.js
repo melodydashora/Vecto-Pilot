@@ -858,7 +858,9 @@ router.post('/snapshot', async (req, res) => {
       updated_at: now
     }).onConflictDoUpdate({
       target: strategies.snapshot_id,
-      set: { updated_at: now, attempt: sql`${strategies.attempt} + 1` }
+      set: { 
+        updated_at: now
+      }
     });
 
     // Claim the pending job using SKIP LOCKED; only one request will own it
