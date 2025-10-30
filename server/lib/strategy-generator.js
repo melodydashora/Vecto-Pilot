@@ -1,9 +1,10 @@
 // server/lib/strategy-generator.js
-// Auto-generates strategic overview using GPT-5 with transient retry
+// Three-stage AI pipeline: Claude Opus 4.1 → Gemini Briefing → GPT-5 Consolidation
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { callGPT5WithBudget } from './gpt5-retry.js';
+import { callClaude } from './adapters/anthropic-claude.js';
 import { capturelearning, LEARNING_EVENTS } from '../middleware/learning-capture.js';
 import { indexStrategy } from './semantic-search.js';
 
