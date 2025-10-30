@@ -19,6 +19,8 @@ const router = Router();
 
 // GET /api/blocks/strategy/:snapshotId - Fetch strategy for a specific snapshot
 router.get('/strategy/:snapshotId', async (req, res) => {
+  const correlationId = req.headers['x-correlation-id'] || randomUUID();
+  
   try {
     const { snapshotId } = req.params;
 
@@ -33,7 +35,11 @@ router.get('/strategy/:snapshotId', async (req, res) => {
     }
 
     if (!snapshotId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
-      return res.status(400).json({ error: 'Invalid snapshot ID' });
+      return res.status(400).json({ 
+        error: 'Invalid snapshot ID',
+        message: 'Snapshot ID must be a valid UUID',
+        correlationId 
+      });
     }
 
     // Query the strategies table for this snapshot
@@ -76,7 +82,8 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         return res.status(202).json({
           status: 'pending',
           hasStrategy: false,
-          strategy: null
+          strategy: null,
+          correlationId
         });
       }
 
@@ -84,7 +91,8 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       return res.status(404).json({
         status: 'not_found',
         hasStrategy: false,
-        strategy: null
+        strategy: null,
+        correlationId
       });
     }
 
@@ -127,13 +135,16 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       status: 'pending',
       hasStrategy: false,
       strategy: null,
-      attempt: strategyRow.attempt
+      attempt: strategyRow.attempt,
+      correlationId
     });
   } catch (error) {
     console.error('[blocks] Strategy fetch error:', error);
     return res.status(500).json({ 
       error: 'Failed to fetch strategy',
-      hasStrategy: false 
+      message: error.message,
+      hasStrategy: false,
+      correlationId
     });
   }
 });
@@ -158,7 +169,8 @@ router.post('/', async (req, res) => {
     if (!snapshotId) {
       return sendOnce(400, {
         error: 'snapshot_id_required',
-        message: 'Snapshot ID required (from GPS snapshot creation)'
+        message: 'Snapshot ID required (from GPS snapshot creation)',
+        correlationId
       });
     }
 
