@@ -24,12 +24,19 @@ import {
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
-  MessageSquare
+  MessageSquare,
+  Info
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface SmartBlock {
   name: string;
@@ -1133,18 +1140,48 @@ const CoPilot: React.FC = () => {
                         <span className="text-xs text-gray-500">Live recommendation</span>
                       </div>
 
-                      {/* Event Badge - High Priority Display */}
+                      {/* Event Badge - High Priority Display with Full Details Tooltip */}
                       {block.hasEvent && block.eventBadge && (
                         <div className="bg-indigo-50 border-2 border-indigo-400 rounded-lg px-3 py-2 mb-3" data-testid={`event-badge-${index}`}>
                           <div className="flex items-center gap-2">
                             <span className="text-lg">{block.eventBadge.split(' ')[0]}</span>
-                            <p className="text-sm font-bold text-indigo-900">
+                            <p className="text-sm font-bold text-indigo-900 flex-1">
                               {block.eventBadge.split(' ').slice(1).join(' ')}
                             </p>
+                            {block.eventSummary && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button 
+                                      className="p-1 hover:bg-indigo-100 rounded-full transition-colors"
+                                      data-testid={`event-info-${index}`}
+                                    >
+                                      <Info className="w-4 h-4 text-indigo-600" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent 
+                                    className="max-w-md p-4 bg-white border-2 border-indigo-200"
+                                    side="left"
+                                    data-testid={`event-tooltip-${index}`}
+                                  >
+                                    <div className="space-y-2">
+                                      <h4 className="font-semibold text-indigo-900 text-sm">Event Details</h4>
+                                      <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                        {block.eventSummary}
+                                      </p>
+                                      {block.eventImpact && (
+                                        <div className="pt-2 border-t border-indigo-100">
+                                          <span className="text-xs font-semibold text-indigo-700">
+                                            Impact: <span className="capitalize">{block.eventImpact}</span> demand expected
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                           </div>
-                          {block.eventSummary && (
-                            <p className="text-xs text-indigo-700 mt-1">{block.eventSummary}</p>
-                          )}
                         </div>
                       )}
 

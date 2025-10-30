@@ -14,7 +14,7 @@ const anthropic = new Anthropic({
 
 // POST /api/chat - AI Strategy Coach with streaming
 router.post('/', async (req, res) => {
-  const { userId, message } = req.body;
+  const { userId, message, snapshotId, strategy, blocks } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
@@ -45,10 +45,49 @@ router.post('/', async (req, res) => {
           .orderBy(desc(strategies.created_at))
           .limit(1);
 
-        contextInfo = `\n\nCurrent Driver Context:\n- Location: ${snap.city || 'Unknown'}, ${snap.state || ''}\n- Time: ${snap.day_part_key || 'unknown'} on ${snap.day_of_week || 'unknown'}\n- Weather: ${snap.weather_condition || 'unknown'}\n- Airport nearby: ${snap.airport_context ? 'Yes' : 'No'}`;
+        // Build rich context from snapshot
+        const weather = snap.weather ? ` ${snap.weather.tempF}°F, ${snap.weather.conditions}` : 'unknown';
+        const airQuality = snap.air ? `AQI ${snap.air.aqi} (${snap.air.category})` : 'unknown';
+        const airport = snap.airport_context ? 
+          `${snap.airport_context.name} (${snap.airport_context.code}) - ${snap.airport_context.driving_status}` : 
+          'None nearby';
 
-        if (strategyData.length > 0 && strategyData[0].strategy) {
-          contextInfo += `\n- Current Strategy: ${strategyData[0].strategy.substring(0, 200)}...`;
+        contextInfo = `\n\nCurrent Driver Context:\n- Location: ${snap.city || 'Unknown'}, ${snap.state || ''} (${snap.timezone || 'unknown timezone'})\n- Time: ${snap.day_part_key || 'unknown'}, ${snap.hour}:00\n- Weather:${weather}\n- Air Quality: ${airQuality}\n- Airport: ${airport}`;
+
+        // Add news briefing if available (Gemini 60-min briefing)
+        if (snap.news_briefing) {
+          const nb = snap.news_briefing;
+          if (nb.airports) contextInfo += `\n- Airport Intel (0:15): ${nb.airports.substring(0, 150)}...`;
+          if (nb.traffic) contextInfo += `\n- Traffic (0:30): ${nb.traffic.substring(0, 150)}...`;
+          if (nb.events) contextInfo += `\n- Events (0:45): ${nb.events.substring(0, 150)}...`;
+          if (nb.policy) contextInfo += `\n- Policy (1:00): ${nb.policy.substring(0, 150)}...`;
+        }
+
+        // Add full strategy if available
+        if (strategyData.length > 0) {
+          if (strategyData[0].strategy_for_now) {
+            contextInfo += `\n\n--- FULL TACTICAL STRATEGY (GPT-5) ---\n${strategyData[0].strategy_for_now}`;
+          } else if (strategyData[0].strategy) {
+            contextInfo += `\n\n--- CURRENT STRATEGY (Claude) ---\n${strategyData[0].strategy.substring(0, 500)}...`;
+          }
+        }
+
+        // Add blocks with event details if provided
+        if (blocks && blocks.length > 0) {
+          contextInfo += `\n\n--- CURRENT RECOMMENDATIONS (${blocks.length} venues) ---`;
+          blocks.slice(0, 5).forEach((b, i) => {
+            contextInfo += `\n${i+1}. ${b.name}${b.category ? ` (${b.category})` : ''}`;
+            if (b.address) contextInfo += ` - ${b.address}`;
+            if (b.estimated_distance_miles) contextInfo += ` - ${b.estimated_distance_miles} mi`;
+            if (b.driveTimeMinutes) contextInfo += `, ${b.driveTimeMinutes} min`;
+            if (b.estimated_earnings) contextInfo += `, $${b.estimated_earnings}/ride`;
+            if (b.hasEvent && b.eventSummary) {
+              contextInfo += `\n   🎉 EVENT: ${b.eventSummary.substring(0, 200)}...`;
+            }
+            if (b.proTips && b.proTips.length > 0) {
+              contextInfo += `\n   💡 TIP: ${b.proTips[0]}`;
+            }
+          });
         }
       }
     } catch (err) {

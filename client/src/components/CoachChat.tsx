@@ -47,7 +47,7 @@ export default function CoachChat({ userId, snapshotId, strategy, blocks = [] }:
           message: my,
           snapshotId,
           strategy,
-          blocks: blocks.map(b => ({ name: b.name, category: b.category, address: b.address }))
+          blocks  // Send full blocks array with all fields (events, earnings, tips, etc.)
         }),
         signal: controllerRef.current.signal,
       });
