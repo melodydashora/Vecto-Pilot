@@ -74,6 +74,53 @@ The driver's precise address must be captured once, normalized to rooftop geocod
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
 
+## AI Coach/Companion Data Access
+
+### Full Context Integration (2025-10-30)
+The AI Coach (chat endpoint) has been enhanced to receive complete driver context for highly personalized responses:
+
+**What Coach Can Access:**
+1. **Full Snapshot Data** (snapshots table):
+   - Location: lat/lng, city, state, timezone, formatted_address
+   - Time: local_iso, day_part_key, hour (for time-aware advice)
+   - Weather: temperature, conditions, description
+   - Air Quality: AQI, category
+   - Airport: name, code, distance, driving_status
+   - News Briefing: Gemini's 60-min intel (0:15 Airports, 0:30 Traffic, 0:45 Events, 1:00 Policy)
+   - Local News: Perplexity daily news affecting rideshare
+
+2. **Full Strategy Data** (strategies table):
+   - strategy: Full Claude Opus 4.1 strategic analysis
+   - strategy_for_now: Full GPT-5 tactical briefing
+   - Model metadata: name, params, prompt version
+
+3. **Full Blocks/Rankings** (ranking_candidates table):
+   - All venue fields: name, lat/lng, place_id, address, category
+   - Distance & Time: drive_time_min, distance_miles, driveTimeMinutes
+   - Earnings: est_earnings_per_ride, earnings_per_mile, value_per_min, value_grade
+   - Pro Tips: GPT-5 tactical tips array
+   - Staging Tips: Parking and staging guidance
+   - **Event Data**: Full Perplexity venue_events JSONB (summary, badge, citations, impact_level)
+   - Business Hours: Open/closed status, businessHours string
+   - User Feedback: up_count, down_count aggregates
+
+4. **UI Integration**:
+   - Event tooltips: Info icon reveals full Perplexity event summary with impact level
+   - All user-visible data + additional database fields for deeper analysis
+
+**Data Flow:**
+- Frontend sends full blocks array (not just name/category/address)
+- Backend enriches with snapshot weather, air quality, airport intel, news briefings
+- Coach receives ~100+ data points vs previous ~9 (1100% increase in context)
+
+**Example Coach Response Capabilities:**
+- "Legacy Hall has a 🎸 Concert tonight - Hall-O-Ween Bash with Emerald City Band. Large crowd expected, high surge likely ($2.1x). Stage in Lexus Box Garden parking (2-min walk)."
+- Weather-aware: "It's 59°F and clear - perfect for outdoor staging at Trinity Groves"
+- Traffic-aware: "Avoid I-35 south - major accident at Exit 428 (from 60-min briefing)"
+- Pattern recognition: "You gave this venue 👍 last time - matches your preference for event hotspots"
+
+See COACH_DATA_ACCESS.md for comprehensive field inventory.
+
 ## Code Hygiene & Import Management
 
 ### Unused Import Policy
