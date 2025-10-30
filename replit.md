@@ -141,6 +141,39 @@ All unused imports must be:
 - **CorrelationId**: ENRICH-412
 - **Still Used In**: server/lib/venue-discovery.js (legitimate usage remains)
 
+## Freshness-First Strategy Specification
+
+### Movement Detection & Strategy Refresh Triggers
+The system implements intelligent strategy refresh based on real-time driver context:
+
+**Primary Triggers:**
+1. **Location Movement**: 500 meters (0.3 miles) - Spec-compliant threshold for responsive updates
+2. **Day Part Change**: Morning → Afternoon transitions trigger fresh analysis
+3. **Manual Refresh**: User-initiated strategy regeneration
+4. **Time Expiry**: Auto-invalidation after 60-minute window (when implemented)
+
+**Implementation:**
+- Movement threshold: `500m` (down from previous 2 miles for better responsiveness)
+- Haversine distance calculation for precise geo-aware triggers
+- File: `server/lib/strategy-triggers.js`
+
+### Time Windowing (Schema Ready, Logic Pending)
+Strategies now support explicit validity windows per freshness-first specification:
+
+**Database Fields** (Added 2025-10-30):
+- `valid_window_start` - When strategy becomes valid
+- `valid_window_end` - When strategy expires (≤ 60 min from start)
+- `strategy_timestamp` - Generation timestamp
+
+**Validation Rules** (To Be Implemented):
+- Strategy freshness: timestamp within 120s of request
+- Window duration: ≤ 60 minutes maximum
+- Auto-invalidation on window expiry or movement threshold breach
+
+**Migration:** `drizzle/0002_natural_thunderbolts.sql` (generated, ready to apply)
+
+See `SPEC_COMPLIANCE_STATUS.md` for full implementation roadmap.
+
 ## Preview Reliability Status
 
 ### Current State: ⚠️ Preview Not Resolving
