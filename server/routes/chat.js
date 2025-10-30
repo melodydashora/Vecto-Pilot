@@ -4,9 +4,38 @@ import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 
 const router = Router();
+
+// GET /coach/context/:snapshotId - Snapshot-wide context for strategy coach
+router.get('/context/:snapshotId', async (req, res) => {
+  const { snapshotId } = req.params;
+  
+  console.log('[coach] Fetching context for snapshot:', snapshotId);
+  
+  try {
+    // Use v_coach_strategy_context view for complete snapshot context
+    const result = await db.execute(sql`
+      SELECT * FROM v_coach_strategy_context 
+      WHERE active_snapshot_id = ${snapshotId}::uuid
+      ORDER BY rank;
+    `);
+    
+    res.json({
+      snapshot_id: snapshotId,
+      items: result.rows || [],
+      count: result.rows?.length || 0
+    });
+  } catch (error) {
+    console.error('[coach] Context fetch failed:', error.message);
+    res.status(500).json({
+      error: 'CONTEXT_FETCH_FAILED',
+      message: error.message,
+      snapshot_id: snapshotId
+    });
+  }
+});
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,

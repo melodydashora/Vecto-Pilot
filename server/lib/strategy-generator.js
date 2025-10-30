@@ -276,6 +276,16 @@ Consolidate these into a single strategy that naturally integrates the news inte
       });
       console.log(`[triad] pipeline.ok id=${snapshot_id} total_ms=${totalDuration} claude+gemini+gpt5 gemini_news=${geminiNewsAvailable} tokens=${result.tokens}`);
       
+      // EVENT ENRICHMENT: Refresh venue_events for all candidates (runtime-fresh spec)
+      try {
+        console.log(`[TRIAD] 🎉 Refreshing event enrichment for snapshot ${snapshot_id}`);
+        await db.execute(sql`select fn_refresh_venue_enrichment(${snapshot_id}::uuid);`);
+        console.log(`[TRIAD] ✅ Event enrichment complete`);
+      } catch (enrichErr) {
+        console.warn(`[TRIAD] ⚠️  Event enrichment failed (non-blocking):`, enrichErr.message);
+        // Non-blocking - continue even if enrichment fails
+      }
+      
       // LEARNING CAPTURE: Index strategy for semantic search and memory (async, non-blocking)
       const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshot_id)).limit(1);
       if (strategyRow?.id) {
