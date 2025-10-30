@@ -150,6 +150,31 @@ router.get('/strategy/:snapshotId', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  const { processBlocksRequestCore, BlocksProcessorError } = await import('./blocks-processor-full.js');
+  
+  try {
+    const result = await processBlocksRequestCore({ body: req.body, headers: req.headers });
+    return res.status(200).json(result);
+  } catch (e) {
+    if (e instanceof BlocksProcessorError) {
+      // Extract JSON if it was stringified
+      let errorBody;
+      try {
+        errorBody = JSON.parse(e.message);
+      } catch {
+        errorBody = { ok: false, error: e.message };
+      }
+      return res.status(e.httpStatus).json(errorBody);
+    }
+    const correlationId = req.headers['x-correlation-id'] || randomUUID();
+    console.error('[blocks-sync] unhandled:', e);
+    return res.status(500).json({ ok: false, error: 'Internal error', correlationId });
+  }
+});
+
+// OLD SYNC HANDLER BELOW - REPLACED BY SHARED PROCESSOR
+/*
+router_post_OLD('/', async (req, res) => {
   const startTime = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
 
@@ -887,6 +912,7 @@ router.post('/', async (req, res) => {
       strategy_for_now: triadPlan.strategy_for_now,
       tactical_summary: triadPlan.tactical_summary,
       best_staging_location: enrichedStagingLocation,
+*/
       seed_additions: triadPlan.seed_additions || [],
       validation: triadPlan.validation || { status: 'ok', flags: [] },
       elapsed_ms: Date.now() - startTime,
