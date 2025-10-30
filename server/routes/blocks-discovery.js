@@ -233,7 +233,7 @@ router.get('/', async (req, res) => {
     if (shouldDiscover) {
       console.log(`🔍 Exploration mode: Asking LLM for NEW venue suggestions...`);
       
-      const discoveryPrompt = `You are a rideshare strategy expert for the DFW metro area.
+      const discoveryPrompt = `You are a rideshare strategy expert${snapshot.city ? ` for the ${snapshot.city} area` : ''}.
 
 Current driver location: ${city}, ${state} (${latitude}, ${longitude})
 Time: ${dayPart}

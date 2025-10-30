@@ -57,13 +57,8 @@ export async function generateNewsBriefing(snapshot) {
       ? `${snapshot.airport_context.airport_code}` 
       : 'None nearby';
     
-    // Add secondary airport if available (common pattern: DFW + DAL, LAX + BUR, etc.)
-    const airportList = closestAirports === 'DFW' ? 'DFW, Dallas Love Field (DAL)' :
-                        closestAirports === 'LAX' ? 'LAX, Burbank (BUR), Long Beach (LGB)' :
-                        closestAirports === 'ORD' ? 'ORD, Chicago Midway (MDW)' :
-                        closestAirports === 'ATL' ? 'ATL' :
-                        closestAirports === 'JFK' ? 'JFK, LaGuardia (LGA), Newark (EWR)' :
-                        closestAirports;
+    // Use only the detected airports from the snapshot's location
+    const airportList = closestAirports;
     
     // Build system instruction (exact structure from user's prompt)
     const systemInstruction = {
@@ -73,14 +68,14 @@ export async function generateNewsBriefing(snapshot) {
 
 Example shape:
 {
-  "airports": ["DFW: Expecting continued arrivals from Sunday travel, moderate demand."],
-  "traffic_construction": ["Sam Rayburn Tollway (121) near DNT: Typical Sunday evening volume, no major incidents reported."],
-  "major_events": ["AT&T Stadium: Dallas Cowboys game ending around 6:30 PM, expect early departures."],
+  "airports": ["Expected traffic patterns for nearby airports based on time of day."],
+  "traffic_construction": ["Major roadway conditions affecting the area."],
+  "major_events": ["Large events ending or starting in the next hour."],
   "policy_safety": [],
   "driver_takeaway": [
-    "Position near Frisco entertainment districts for post-watch party demand.",
-    "Anticipate early departure traffic from the Cowboys game creating demand south towards Arlington/I-30.",
-    "Monitor DFW arrivals for potential high-value airport runs as the Sunday travel rush continues."
+    "Strategic positioning based on current conditions.",
+    "Traffic flow patterns to watch for opportunities.",
+    "Time-sensitive opportunities in the next hour."
   ]
 }`
         }
