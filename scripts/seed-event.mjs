@@ -21,7 +21,13 @@ const {
   CONFIDENCE = '0.85',
   EXPIRES_ISO,
   DESCRIPTION = '',
-  TAGS = ''
+  TAGS = '',
+  COORDINATES_LAT,
+  COORDINATES_LNG,
+  COORDINATES_SOURCE = 'manual',
+  LOCATION_QUALITY = 'exact',
+  RADIUS_HINT_M,
+  IMPACT_HINT = 'none'
 } = process.env;
 
 if (!VENUE_PLACE_ID || !START_ISO || !END_ISO) {
@@ -38,6 +44,11 @@ if (!VENUE_PLACE_ID || !START_ISO || !END_ISO) {
 }
 
 try {
+  // Build coordinates JSONB if lat/lng provided
+  const coordinates = (COORDINATES_LAT && COORDINATES_LNG)
+    ? sql`jsonb_build_object('lat', ${COORDINATES_LAT}::float, 'lng', ${COORDINATES_LNG}::float)`
+    : sql`null`;
+
   const result = await db.execute(sql`
     select fn_upsert_event(
       'web',
@@ -49,10 +60,14 @@ try {
       ${START_ISO}::timestamptz,
       ${END_ISO}::timestamptz,
       ${CONFIDENCE}::float,
-      null,
+      ${coordinates},
       ${DESCRIPTION},
       ${TAGS ? TAGS.split(',') : null},
-      ${EXPIRES_ISO ? sql`${EXPIRES_ISO}::timestamptz` : sql`null`}
+      ${EXPIRES_ISO ? sql`${EXPIRES_ISO}::timestamptz` : sql`null`},
+      ${COORDINATES_SOURCE},
+      ${LOCATION_QUALITY},
+      ${RADIUS_HINT_M ? sql`${RADIUS_HINT_M}::int` : sql`null`},
+      ${IMPACT_HINT}
     ) as event_id;
   `);
 
@@ -61,7 +76,14 @@ try {
   console.log(`   Event ID: ${eventId}`);
   console.log(`   Venue: ${VENUE_NAME} (${VENUE_PLACE_ID})`);
   console.log(`   Title: ${EVENT_TITLE}`);
+  console.log(`   Type: ${EVENT_TYPE} | Impact: ${IMPACT_HINT}`);
   console.log(`   Window: ${START_ISO} → ${END_ISO}`);
+  if (COORDINATES_LAT && COORDINATES_LNG) {
+    console.log(`   Coordinates: ${COORDINATES_LAT}, ${COORDINATES_LNG} (${COORDINATES_SOURCE}, ${LOCATION_QUALITY})`);
+  }
+  if (RADIUS_HINT_M) {
+    console.log(`   Radius hint: ${RADIUS_HINT_M}m`);
+  }
 } catch (error) {
   console.error('❌ Event upsert failed:', error.message);
   process.exit(1);
