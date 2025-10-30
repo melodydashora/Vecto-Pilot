@@ -15,11 +15,12 @@ Vecto Pilot is a full-stack Node.js application built with a multi-service archi
 -   **Agent Server**: Manages workspace intelligence, offering secure, token-based access to file system operations, shell commands, and database queries.
 
 ### AI Configuration
-A three-stage AI pipeline generates strategic briefings:
-1.  **Claude Opus 4.1**: Performs initial strategic analysis.
-2.  **Gemini 2.5 Pro**: Provides local news briefings.
-3.  **GPT-5**: Consolidates outputs into final actionable intelligence.
-Model configurations are centralized, and news briefings are stored for UI display.
+A four-stage AI pipeline generates strategic briefings:
+1.  **Claude Opus 4.5 (Strategist)**: Performs initial strategic analysis based on location context, time, weather, and traffic.
+2.  **Gemini 2.5 Pro (News Briefing)**: Provides local news, traffic updates, and airport intelligence.
+3.  **Perplexity (Events Planner)**: Researches real-time events at specific venues using internet search with citations.
+4.  **GPT-5 (Tactical Consolidator)**: Combines all outputs into final time-windowed actionable intelligence.
+Model configurations are centralized, event data is stored per venue, and consolidated strategies are cached for freshness validation.
 
 ### Frontend Architecture
 The user interface is a **React + TypeScript Single Page Application (SPA)** developed with Vite. It uses Radix UI for accessible components, TailwindCSS for styling, and React Query for server state management.
