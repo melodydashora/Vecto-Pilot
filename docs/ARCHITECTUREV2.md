@@ -1,4 +1,3 @@
-
 # Vecto Pilot™ - Architecture V2 Reference
 **Comprehensive System Design & AI Development Blueprint**
 
@@ -352,172 +351,85 @@ vecto-pilot/
 
 ## 🔧 Environment Variables Reference
 
-### Complete .env Configuration
-
+**Database:**
 ```bash
-# =============================================================================
-# DATABASE CONFIGURATION
-# =============================================================================
-DATABASE_URL=postgresql://user:password@host:5432/database?sslmode=require
-# Required: PostgreSQL connection string (Neon serverless recommended)
-# Format: postgresql://[user]:[password]@[host]:[port]/[database]?sslmode=require
-# Used in: server/util/db.js, drizzle.config.ts
+DATABASE_URL=postgres://user:pass@host:5432/dbname  # Neon connection string
+PGSSLMODE=require                                    # SSL for production
+PG_USE_SHARED_POOL=true                             # NEW: Enable shared connection pool
+PG_MAX=10                                           # NEW: Max pool connections
+PG_MIN=2                                            # NEW: Min idle connections
+PG_IDLE_TIMEOUT_MS=120000                           # NEW: 2-minute idle timeout
+PG_KEEPALIVE=true                                   # NEW: TCP keepalive enabled
+PG_KEEPALIVE_DELAY_MS=30000                         # NEW: 30s keepalive interval
+```
 
-# =============================================================================
-# AI MODEL CONFIGURATION (Triad Pipeline)
-# =============================================================================
-
-# --- Claude Sonnet 4.5 (Strategist) ---
-ANTHROPIC_API_KEY=sk-ant-api03-...
-# Required: Anthropic API key for Claude
-# Get from: https://console.anthropic.com/settings/keys
-# Used in: server/lib/adapters/anthropic-claude.js
-
+**AI Model Configuration:**
+```bash
+# Claude (Strategist)
+ANTHROPIC_API_KEY=sk-ant-...
 CLAUDE_MODEL=claude-sonnet-4-5-20250929
-# Required: Exact model ID for Claude
-# Default: claude-sonnet-4-5-20250929
-# VERIFY MONTHLY: This model may be deprecated
-# Used in: server/lib/strategy-generator.js
+ANTHROPIC_MAX_TOKENS=64000
 
-CLAUDE_TIMEOUT_MS=12000
-# Optional: Claude API timeout in milliseconds
-# Default: 12000 (12 seconds)
-# Used in: server/lib/strategy-generator.js
-
-# --- OpenAI GPT-5 (Planner) ---
+# GPT-5 (Planner)
 OPENAI_API_KEY=sk-proj-...
-# Required: OpenAI API key for GPT-5
-# Get from: https://platform.openai.com/api-keys
-# Used in: server/lib/adapters/openai-gpt5.js
-
 OPENAI_MODEL=gpt-5
-# Required: GPT-5 model ID
-# Default: gpt-5
-# ⚠️ DO NOT use: gpt-4, gpt-4-turbo (deprecated for this app)
-# Used in: server/lib/gpt5-tactical-planner.js
+OPENAI_REASONING_EFFORT=medium                      # minimal|low|medium|high
+OPENAI_MAX_COMPLETION_TOKENS=16384
 
-PLANNER_DEADLINE_MS=120000
-# Required: GPT-5 timeout in milliseconds
-# Default: 120000 (2 minutes)
-# ⚠️ CRITICAL: This is the canonical timeout for GPT-5
-# Used in: server/lib/gpt5-tactical-planner.js
-
-GPT5_REASONING_EFFORT=high
-# Required: GPT-5 reasoning effort level
-# Options: minimal | low | medium | high
-# Default: high (best quality, slower)
-# Used in: server/lib/gpt5-tactical-planner.js
-
-# --- Google Gemini 2.5 Pro (Validator) ---
-GOOGLE_GENERATIVE_AI_API_KEY=AIza...
-# Required: Google AI API key for Gemini
-# Get from: https://makersuite.google.com/app/apikey
-# Used in: server/lib/adapters/google-gemini.js
-
+# Gemini (Validator)
+GEMINI_API_KEY=...
 GEMINI_MODEL=gemini-2.5-pro-latest
-# Required: Gemini model ID
-# Default: gemini-2.5-pro-latest
-# Options: gemini-2.5-pro-latest | gemini-2.5-flash
-# Used in: server/lib/gemini-validator.js
 
-VALIDATOR_DEADLINE_MS=60000
-# Optional: Gemini API timeout in milliseconds
-# Default: 60000 (60 seconds)
-# Used in: server/lib/gemini-validator.js
+# NEW: Perplexity (Research)
+PERPLEXITY_API_KEY=pplx-...
+PERPLEXITY_MODEL=sonar-pro
+PERPLEXITY_ENABLED=true
+```
 
-# =============================================================================
-# GOOGLE MAPS API CONFIGURATION
-# =============================================================================
-GOOGLE_MAPS_API_KEY=AIza...
-# Required: Google Maps Platform API key
-# Enable APIs: Geocoding, Places, Routes, Timezone
-# Get from: https://console.cloud.google.com/apis/credentials
-# Used in: server/routes/location.js, server/lib/venue-resolver.js
+**Google APIs:**
+```bash
+GOOGLE_MAPS_API_KEY=AIza...                         # Places, Routes, Geocoding, Timezone
+GOOGLEAQ_API_KEY=AIza...                            # Air Quality API
+OPENWEATHER_API_KEY=...                             # Weather data
+```
 
-# =============================================================================
-# WEATHER & AIR QUALITY APIS
-# =============================================================================
-OPENWEATHER_API_KEY=abc123...
-# Required: OpenWeather API key for weather data
-# Get from: https://openweathermap.org/api
-# Free tier: 1000 calls/day
-# Used in: server/routes/location.js
+**Deployment & Ports:**
+```bash
+PORT=5000                                            # Main gateway port
+APP_MODE=mono                                        # mono|split (currently mono)
+VITE_PORT=24700                                      # NEW: Vite HMR port (changed from 24678)
+NODE_ENV=production                                  # development|production
+```
 
-GOOGLE_AIR_QUALITY_API_KEY=AIza...
-# Optional: Google Air Quality API key (can use GOOGLE_MAPS_API_KEY)
-# Get from: https://console.cloud.google.com/apis/credentials
-# Used in: server/routes/location.js
+**NEW: Authentication & Security:**
+```bash
+# JWT Configuration
+JWKS_URL=https://<your-domain>/.well-known/jwks.json
+JWT_ISSUER=https://vectopilot.app
+JWT_AUDIENCE=vectopilot-api
 
-# =============================================================================
-# SERVER CONFIGURATION
-# =============================================================================
-NODE_ENV=development
-# Required: Environment mode
-# Options: development | production
-# Default: development
-# Used in: gateway-server.js, server/index.js
+# API Tokens
+AGENT_TOKEN=<64-char-hex>                           # Agent server auth
+EIDOLON_TOKEN=<64-char-hex>                         # Eidolon SDK auth
+```
 
-PORT=5000
-# Optional: Gateway server port (public-facing)
-# Default: 5000 (Replit firewall requirement)
-# ⚠️ MUST be 5000 on Replit (only port not firewalled)
-# Used in: gateway-server.js
+**NEW: ML & Learning:**
+```bash
+# Semantic Search
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small       # 1536 dimensions
+ML_LEARNING_ENABLED=true                            # Enable learning capture
 
-SDK_PORT=3101
-# Optional: SDK server port (internal)
-# Default: 3101
-# Used in: server/index.js
+# Memory Tables
+ASSISTANT_MEMORY_TABLE=assistant_memory
+EIDOLON_MEMORY_TABLE=eidolon_memory
+```
 
-VITE_PORT=3003
-# Optional: Vite dev server port (development only)
-# Default: 3003
-# Used in: server/vite.ts
-
-# =============================================================================
-# TOTAL BUDGET & RATE LIMITS
-# =============================================================================
-LLM_TOTAL_BUDGET_MS=200000
-# Optional: Total AI pipeline timeout
-# Default: 200000 (200 seconds = 3m 20s)
-# Sum of: Claude (12s) + GPT-5 (120s) + Gemini (60s) + overhead
-# Used in: server/routes/blocks.js
-
-RATE_LIMIT_WINDOW_MS=900000
-# Optional: Rate limit window
-# Default: 900000 (15 minutes)
-# Used in: gateway-server.js
-
-RATE_LIMIT_MAX_REQUESTS=100
-# Optional: Max requests per window
-# Default: 100
-# Used in: gateway-server.js
-
-# =============================================================================
-# LOGGING & MONITORING
-# =============================================================================
-LOG_LEVEL=info
-# Optional: Logging verbosity
-# Options: debug | info | warn | error
-# Default: info
-# Used in: server/util/logger.js
-
-ENABLE_REQUEST_LOGGING=true
-# Optional: Log all HTTP requests
-# Default: true
-# Used in: gateway-server.js
-
-# =============================================================================
-# FEATURE FLAGS (Future)
-# =============================================================================
-ENABLE_ML_RERANKING=false
-# Optional: Use ML model instead of Triad (future)
-# Default: false
-# Planned for: Q1 2026
-
-ENABLE_FAST_PATH=true
-# Optional: Enable /api/blocks/fast endpoint
-# Default: true
-# Used in: server/routes/blocks-fast.js
+**Timeouts & Budgets:**
+```bash
+LLM_TOTAL_BUDGET_MS=180000                          # 3 minutes total
+STRATEGIST_DEADLINE_MS=120000                       # 2 minutes for GPT-5 strategy
+PLANNER_DEADLINE_MS=120000                          # 2 minutes for GPT-5 planner
+VALIDATOR_DEADLINE_MS=10000                         # 10 seconds for Gemini
 ```
 
 ### Environment Variable Validation
@@ -565,310 +477,193 @@ X-Idempotency-Key: <uuid>          # Required for /api/actions
 
 ---
 
-### **1. Location Resolution**
+### Core Location & Context
 
-#### `POST /api/location/resolve`
-Resolve GPS coordinates to city, timezone, weather, and air quality.
-
-**Request:**
-```json
-{
-  "lat": 33.12854,
-  "lng": -96.87551,
-  "accuracy": 97
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "city": "Frisco",
-  "state": "TX",
-  "country": "United States",
-  "formatted_address": "Frisco, TX 75034, USA",
-  "timezone": "America/Chicago",
-  "utc_offset": -18000,
-  "weather": {
-    "tempF": 75,
-    "conditions": "clear sky",
-    "description": "Clear"
-  },
-  "air": {
-    "aqi": 71,
-    "category": "Moderate",
-    "dominantPollutant": "pm25"
+**POST /api/location/snapshot**
+- **Purpose:** Create immutable context snapshot with full enrichment
+- **Body:**
+  ```json
+  {
+    "snapshot_id": "uuid",
+    "user_id": "uuid",
+    "device_id": "uuid",
+    "session_id": "uuid",
+    "coord": { "lat": 32.77, "lng": -96.79, "accuracyMeters": 10, "source": "gps" },
+    "resolved": { "city": "Dallas", "state": "TX", "country": "US", "timezone": "America/Chicago" },
+    "time_context": { "local_iso": "2025-10-26T14:30:00", "dow": 6, "hour": 14, "day_part_key": "afternoon" },
+    "weather": { "tempF": 72, "conditions": "Clear" },
+    "air": { "aqi": 45, "category": "Good" }
   }
-}
-```
+  ```
+- **Returns:** `{ snapshot_id, created_at }`
+- **Enrichment:**
+  - Reverse geocoding (Google Geocoding API)
+  - Timezone detection (Google Timezone API)
+  - Weather (OpenWeather API)
+  - Air quality (Google Air Quality API)
+  - Airport delays (FAA ASWS)
+  - **NEW:** Local news/events (Perplexity API)
+  - H3 geospatial indexing (resolution 8)
 
-**Error (400 Bad Request):**
-```json
-{
-  "error": "Invalid coordinates",
-  "details": "Latitude must be between -90 and 90"
-}
-```
+**GET /api/location/geocode/reverse**
+- **Query:** `?lat=32.77&lng=-96.79`
+- **Returns:** `{ city, state, country, formattedAddress }`
 
----
+**GET /api/location/timezone**
+- **Query:** `?lat=32.77&lng=-96.79`
+- **Returns:** `{ timeZone, offset, localTime }`
 
-#### `POST /api/location/snapshot`
-Create a location context snapshot for recommendations.
+### Smart Blocks (Triad Pipeline)
 
-**Request:**
-```json
-{
-  "snapshot_id": "51a60564-c6d5-4360-8ed1-24f5c1cc1df8",
-  "user_id": "ce372d10-30b7-4f14-af77-d1cada207d27",
-  "device_id": "abc-123-def",
-  "session_id": "session-xyz",
-  "lat": 33.12854,
-  "lng": -96.87551,
-  "accuracy_m": 97,
-  "coord_source": "gps",
-  "city": "Frisco",
-  "state": "TX",
-  "country": "United States",
-  "timezone": "America/Chicago",
-  "local_iso": "2025-10-13T11:28:00",
-  "weather": {...},
-  "air": {...}
-}
-```
+**GET /api/blocks**
+- **Query:** `?snapshotId=<uuid>`
+- **Purpose:** Generate tactical venue recommendations via Triad pipeline
+- **Pipeline:**
+  1. **GPT-5 Strategist:** Generate strategic overview (120s timeout)
+  2. **GPT-5 Planner:** Generate 4-6 venues with coords (180s timeout)
+  3. **Gemini Validator:** Validate JSON & rerank (10s timeout)
+  4. **Venue Enrichment:**
+     - Google Places API (New) - Business hours, place details
+     - Google Routes API (New) - Traffic-aware drive times
+     - Perplexity API - Event research per venue
+  5. **ML Capture:** Persist to rankings + ranking_candidates tables
+- **Returns:**
+  ```json
+  {
+    "strategy": "...",
+    "tactical_summary": "...",
+    "blocks": [
+      {
+        "rank": 1,
+        "name": "Dallas Love Field Airport",
+        "address": "8008 Herb Kelleher Way, Dallas, TX",
+        "placeId": "ChIJ...",
+        "lat": 32.8471, "lng": -96.8509,
+        "category": "airport",
+        "driveTimeMinutes": 12,
+        "distanceMiles": "8.3",
+        "trafficDelayMinutes": 3,
+        "isOpen": true,
+        "businessHours": {...},
+        "pro_tips": ["..."],
+        "staging_tips": "...",
+        "venue_events": { "has_events": false, "summary": "..." }
+      }
+    ]
+  }
+  ```
 
-**Response (201 Created):**
-```json
-{
-  "snapshot_id": "51a60564-c6d5-4360-8ed1-24f5c1cc1df8",
-  "h3_r8": "8823674bfffffff",
-  "airport_context": {
-    "airport_code": "DFW",
-    "distance_miles": 12.5,
-    "delay_minutes": 15
-  },
-  "status": "ok"
-}
-```
+**GET /api/blocks/strategy/:snapshotId**
+- **Purpose:** Poll for strategy completion
+- **Returns:**
+  ```json
+  {
+    "status": "ok|pending|failed",
+    "hasStrategy": true,
+    "strategy": "...",
+    "latency_ms": 45000,
+    "tokens": 12500
+  }
+  ```
+- **Headers:** `ETag` for caching, `Retry-After: 1` if pending
 
----
+### User Actions & Feedback
 
-### **2. Recommendations (Triad Pipeline)**
+**POST /api/actions**
+- **Headers:** `X-Idempotency-Key: <uuid>`
+- **Body:**
+  ```json
+  {
+    "ranking_id": "uuid",
+    "action": "block_clicked|view|dwell|dismiss",
+    "block_id": "Dallas Love Field Airport",
+    "dwell_ms": 5432,
+    "from_rank": 1
+  }
+  ```
+- **Purpose:** Log user interactions for ML training
 
-#### `POST /api/blocks`
-Get AI-powered venue recommendations (Triad: Claude → GPT-5 → Gemini).
+**POST /api/feedback/venue**
+- **Body:**
+  ```json
+  {
+    "snapshot_id": "uuid",
+    "ranking_id": "uuid",
+    "place_id": "ChIJ...",
+    "sentiment": "up|down",
+    "comment": "Great staging area"
+  }
+  ```
 
-**Headers:**
-```http
-X-Snapshot-Id: 51a60564-c6d5-4360-8ed1-24f5c1cc1df8
-```
+**POST /api/feedback/strategy**
+- **Body:**
+  ```json
+  {
+    "snapshot_id": "uuid",
+    "ranking_id": "uuid",
+    "sentiment": "up|down",
+    "comment": "Very helpful tactical advice"
+  }
+  ```
 
-**Request:**
-```json
-{
-  "userId": "ce372d10-30b7-4f14-af77-d1cada207d27"
-}
-```
+### NEW: ML & Research Endpoints
 
-**Response (200 OK):**
-```json
-{
-  "blocks": [
-    {
-      "id": "ChIJPXYJW648TIYRjtIg0_rKXeo",
-      "name": "Legacy West",
-      "address": "7401 Windrose Ave, Plano, TX 75024",
-      "lat": 33.0795292,
-      "lng": -96.8265703,
-      "distance": 6.3,
-      "driveTime": 14,
-      "value_per_min": 0.52,
-      "value_grade": "C",
-      "not_worth": false,
-      "rank": 1,
-      "category": "shopping",
-      "hours": "Open until 9:00 PM",
-      "reasoning": "High-end mixed-use shopping district with corporate lunch traffic..."
+**GET /api/ml/health**
+- **Purpose:** ML system health dashboard
+- **Returns:**
+  ```json
+  {
+    "ok": true,
+    "health_score": 85,
+    "data_completeness": {
+      "snapshots": { "count": 1523, "complete_pct": 98.2 },
+      "strategies": { "count": 1520, "success_rate": 99.8 },
+      "rankings": { "count": 1450, "avg_blocks": 5.8 }
+    },
+    "ml_readiness": {
+      "training_data_available": true,
+      "min_samples_met": true,
+      "feature_completeness": 0.95
     }
-  ],
-  "staging": {
-    "name": "Shops at Legacy North Parking Garage",
-    "lat": 33.0798,
-    "lng": -96.8209,
-    "address": "7300 Lone Star Dr, Plano, TX 75024"
-  },
-  "strategy": {
-    "text": "Reposition to Legacy/Granite corridor for lunch rush...",
-    "model": "claude-sonnet-4-5-20250929"
-  },
-  "meta": {
-    "ranking_id": "389c4944-e7da-40cb-9581-4471ffbfbe52",
-    "snapshot_id": "51a60564-c6d5-4360-8ed1-24f5c1cc1df8",
-    "total_ms": 257594,
-    "model_name": "claude-sonnet-4-5→gpt-5→gemini-2.5-pro"
   }
-}
-```
+  ```
 
-**Response (202 Accepted - Strategy Pending):**
-```json
-{
-  "status": "pending",
-  "message": "Strategy generation in progress",
-  "retry_after": 5
-}
-```
-
-**Error (400 Bad Request - Incomplete Snapshot):**
-```json
-{
-  "error": "Incomplete snapshot",
-  "status": "refresh_required",
-  "missing_fields": ["timezone", "weather"]
-}
-```
-
----
-
-#### `GET /api/blocks/strategy/:snapshotId`
-Get Claude strategic overview for a snapshot (background job result).
-
-**Response (200 OK):**
-```json
-{
-  "strategy": "Today is Monday at 11:28 AM in Frisco. With perfect weather...",
-  "status": "ok",
-  "model": "claude-sonnet-4-5-20250929",
-  "latency_ms": 3450
-}
-```
-
-**Response (202 Accepted - Still Generating):**
-```json
-{
-  "status": "pending",
-  "attempt": 1,
-  "next_retry_at": "2025-10-13T11:28:15Z"
-}
-```
-
----
-
-### **3. User Actions & Tracking**
-
-#### `POST /api/actions`
-Log user interaction with venue card.
-
-**Headers:**
-```http
-X-Idempotency-Key: action-abc-123-def
-```
-
-**Request:**
-```json
-{
-  "action": "block_clicked",
-  "snapshot_id": "51a60564-c6d5-4360-8ed1-24f5c1cc1df8",
-  "ranking_id": "389c4944-e7da-40cb-9581-4471ffbfbe52",
-  "block_id": "ChIJPXYJW648TIYRjtIg0_rKXeo",
-  "from_rank": 1,
-  "dwell_ms": 5432
-}
-```
-
-**Action Types:**
-- `view` - Card appeared in viewport (IntersectionObserver)
-- `dwell` - User stayed on card >2 seconds
-- `block_clicked` - User tapped "Navigate" button
-- `block_dismissed` - User swiped away or closed
-
-**Response (201 Created):**
-```json
-{
-  "action_id": "action-uuid-123",
-  "status": "logged"
-}
-```
-
-**Error (409 Conflict - Duplicate):**
-```json
-{
-  "error": "Duplicate action",
-  "idempotency_key": "action-abc-123-def"
-}
-```
-
----
-
-### **4. Feedback**
-
-#### `POST /api/feedback/venue`
-Submit thumbs up/down for a venue.
-
-**Request:**
-```json
-{
-  "snapshot_id": "51a60564-c6d5-4360-8ed1-24f5c1cc1df8",
-  "ranking_id": "389c4944-e7da-40cb-9581-4471ffbfbe52",
-  "place_id": "ChIJPXYJW648TIYRjtIg0_rKXeo",
-  "sentiment": "up",
-  "comment": "Great lunch spot, easy pickup at north entrance"
-}
-```
-
-**Sentiment:** `"up"` or `"down"`
-
-**Response (201 Created):**
-```json
-{
-  "feedback_id": "feedback-uuid",
-  "status": "recorded"
-}
-```
-
-**Rate Limit:** 10 feedback submissions per 1 minute per user
-
----
-
-#### `POST /api/feedback/strategy`
-Submit feedback on Claude's strategic overview.
-
-**Request:**
-```json
-{
-  "snapshot_id": "51a60564-c6d5-4360-8ed1-24f5c1cc1df8",
-  "sentiment": "down",
-  "comment": "Strategy suggested north side but surge was south"
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "feedback_id": "strategy-feedback-uuid",
-  "status": "recorded"
-}
-```
-
----
-
-### **5. Health & Monitoring**
-
-#### `GET /health`
-Server health check.
-
-**Response (200 OK):**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-10-13T11:28:00Z",
-  "uptime_seconds": 3600,
-  "database": "connected",
-  "services": {
-    "claude": "operational",
-    "gpt5": "operational",
-    "gemini": "operational"
+**GET /api/ml/search**
+- **Query:** `?q=dinner rush strategy`
+- **Purpose:** Semantic search across strategies and feedback
+- **Returns:**
+  ```json
+  {
+    "results": [
+      {
+        "text": "...",
+        "similarity": 0.87,
+        "source": "strategy",
+        "created_at": "..."
+      }
+    ]
   }
-}
-```
+  ```
+
+**GET /api/research/search**
+- **Query:** `?q=What's happening in Dallas tonight?`
+- **Purpose:** Real-time internet research via Perplexity
+- **Returns:**
+  ```json
+  {
+    "answer": "...",
+    "citations": ["https://...", "https://..."],
+    "relatedQuestions": ["..."],
+    "model": "sonar-pro"
+  }
+  ```
+
+### Health & Diagnostics
+
+**GET /health**
+- **Returns:** `{ ok: true, uptime, timestamp }`
+
+**~~GET /api/workspace/diagnose~~** **→ DEPRECATED** (Eidolon-specific, removed in mono-mode)
 
 ---
 
@@ -881,20 +676,20 @@ Server health check.
   <LocationProvider>                        # GPS + location state
     <QueryClientProvider>                   # TanStack Query
       <Toaster />                           # Toast notifications
-      
+
       <Route path="/">
         <HomePage />
       </Route>
-      
+
       <Route path="/co-pilot">
         <CoPilotPage>                       # Main app interface
           <LocationHeader />                # GPS status, city, weather
-          
+
           <StrategyCard                     # Claude strategic overview
             strategy={strategyQuery.data}
             isLoading={strategyQuery.isLoading}
           />
-          
+
           {blocksQuery.data?.blocks.map(block => (
             <BlockCard                      # Venue recommendation
               key={block.id}
@@ -905,7 +700,7 @@ Server health check.
           ))}
         </CoPilotPage>
       </Route>
-      
+
       <Route path="/settings">
         <SettingsPage />
       </Route>
@@ -935,12 +730,12 @@ Server health check.
     longitude: number;
     accuracy: number;
   } | null;
-  
+
   // Resolved Location
   city: string | null;
   state: string | null;
   timezone: string | null;
-  
+
   // Context Data
   weather: {
     tempF: number;
@@ -950,13 +745,13 @@ Server health check.
     aqi: number;
     category: string;
   } | null;
-  
+
   // Snapshot
   currentSnapshot: {
     snapshot_id: string;
     h3_r8: string;
   } | null;
-  
+
   // Loading States
   isLoadingGPS: boolean;
   isLoadingEnrichment: boolean;
@@ -1011,12 +806,12 @@ export async function apiRequest<T>(
       ...options?.headers,
     },
   });
-  
+
   if (!res.ok) {
     const error = await res.json();
     throw new Error(error.message || `HTTP ${res.status}`);
   }
-  
+
   return res.json();
 }
 ```
@@ -1079,21 +874,21 @@ import { Route, Switch, useLocation } from 'wouter';
 
 function App() {
   const [location, setLocation] = useLocation();
-  
+
   return (
     <Switch>
       <Route path="/">
         <HomePage />
       </Route>
-      
+
       <Route path="/co-pilot">
         <CoPilotPage />
       </Route>
-      
+
       <Route path="/settings">
         <SettingsPage />
       </Route>
-      
+
       <Route>
         <NotFoundPage />
       </Route>
@@ -1141,14 +936,14 @@ function FeedbackDialog() {
       comment: '',
     },
   });
-  
+
   const onSubmit = async (data: FeedbackForm) => {
     await apiRequest('/api/feedback/venue', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   };
-  
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -1167,7 +962,7 @@ function FeedbackDialog() {
             </FormItem>
           )}
         />
-        
+
         <Button type="submit">Submit</Button>
       </form>
     </Form>
@@ -1192,7 +987,7 @@ function FeedbackDialog() {
     --primary: 221 83% 53%;           /* #3B82F6 */
     /* ... */
   }
-  
+
   .dark {
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;
@@ -1644,12 +1439,12 @@ class CircuitBreaker {
     this.timeout = timeout;
     this.state = 'CLOSED'; // CLOSED | OPEN | HALF_OPEN
   }
-  
+
   async execute(fn) {
     if (this.state === 'OPEN') {
       throw new Error('Circuit breaker OPEN - service unavailable');
     }
-    
+
     try {
       const result = await fn();
       this.onSuccess();
@@ -1659,12 +1454,12 @@ class CircuitBreaker {
       throw error;
     }
   }
-  
+
   onSuccess() {
     this.failureCount = 0;
     this.state = 'CLOSED';
   }
-  
+
   onFailure() {
     this.failureCount++;
     if (this.failureCount >= this.threshold) {
@@ -1692,15 +1487,15 @@ async function retryWithBackoff(fn, maxRetries = 3) {
       return await fn();
     } catch (error) {
       if (i === maxRetries - 1) throw error;
-      
+
       const isRetryable = 
         error.status === 429 || // Rate limit
         error.status === 502 || // Bad gateway
         error.status === 503 || // Service unavailable
         error.status === 504;   // Gateway timeout
-      
+
       if (!isRetryable) throw error;
-      
+
       const delay = Math.min(1000 * 2 ** i, 30000); // Exponential backoff (max 30s)
       await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -1994,26 +1789,43 @@ curl http://localhost:5000/api/blocks/strategy/<snapshot-id>
 
 ---
 
-## ⚠️ Known Risks & Mitigations
+## 🚨 Known Risks & Mitigations
 
-### **RISK MATRIX**
+### ❌ **CRITICAL: Database Schema Not Deployed**
 
-| Risk ID | Category | Severity | Likelihood | Mitigation Status |
-|---------|----------|----------|------------|-------------------|
-| R1 | Post-training-cutoff models | HIGH | HIGH | ✅ Documented + monthly verification |
-| R2 | Silent model swaps | MEDIUM | LOW | ✅ Model assertion in adapters |
-| R3 | Google API quota exhaustion | HIGH | MEDIUM | 🟡 Circuit breakers + fail-fast |
-| R4 | Database replication lag | MEDIUM | MEDIUM | ✅ Retry logic with exponential backoff |
-| R5 | GPT-5 timeout (5min limit) | HIGH | MEDIUM | 🔴 **ACTIVE ISSUE** - See Issue #22-27 |
-| R6 | Hard-coded timezone fallbacks | LOW | LOW | ✅ FIXED - Issue #21 |
-| R7 | Missing database indexes | MEDIUM | LOW | ✅ Added FK indexes - Issue #28 |
-| R8 | Venue catalog staleness | MEDIUM | MEDIUM | 🟡 Auto-suppression logic planned |
-| R9 | Client-side GPS denial | LOW | HIGH | ✅ Clear error message + refresh prompt |
-| R10 | FAA API unavailability | LOW | MEDIUM | ✅ Graceful degradation (no airport context) |
+**Risk:** Application cannot persist data - all database writes fail with "relation does not exist"
 
-### **DETAILED RISK ANALYSIS**
+**Impact:**
+- Snapshots not saved (context lost)
+- Strategies not persisted (regenerated on every request)
+- ML training data not captured
+- User actions not logged
+- Venue feedback not stored
 
-#### R1: Post-Training-Cutoff Models
+**Mitigation:**
+```bash
+# IMMEDIATE ACTION REQUIRED
+npx drizzle-kit push:pg
+
+# OR manual migration
+for f in migrations/*.sql; do psql $DATABASE_URL -f $f; done
+```
+
+**Root Cause:** Drizzle migrations exist but have not been executed against the database
+
+**Prevention:** Add database health check to startup script (`verify-startup.sh`)
+
+---
+
+### ~~Port Conflicts~~ **→ RESOLVED** (Mono-mode eliminates multi-process conflicts)
+
+~~**Risk:** SDK server (3101) and gateway (5000) port conflicts~~
+
+**Status:** ✅ Resolved by switching to mono-mode (single process)
+
+---
+
+### R1: Post-Training-Cutoff Models
 **Description:** GPT-5 (Aug 2025) and Claude Sonnet 4.5 (Sep 2025) are newer than most AI assistant training cutoffs.
 
 **Impact if Unmitigated:**
@@ -2028,7 +1840,7 @@ curl http://localhost:5000/api/blocks/strategy/<snapshot-id>
 
 **Residual Risk:** LOW (requires manual diligence to run monthly verification)
 
-#### R5: GPT-5 Timeout (5-Minute Hard Limit)
+### R5: GPT-5 Timeout (5-Minute Hard Limit)
 **Description:** GPT-5 has hard-coded 5-minute timeout (300,000ms) despite environment variable `PLANNER_DEADLINE_MS=120000` (2 minutes).
 
 **Evidence:**
@@ -2055,7 +1867,7 @@ setTimeout(() => {
 
 **Status:** 🔴 ACTIVE ISSUE - Tracked in ISSUES.md #22, #27
 
-#### R8: Venue Catalog Staleness
+### R8: Venue Catalog Staleness
 **Description:** Venues can close permanently but remain in catalog.
 
 **Impact:**
@@ -2152,7 +1964,7 @@ export async function getUserRecommendationHistory(userId, limit = 20) {
     .groupBy(rankings.ranking_id, rankings.created_at, rankings.city)
     .orderBy(desc(rankings.created_at))
     .limit(limit);
-  
+
   return result;
 }
 ```
@@ -2169,9 +1981,9 @@ router.get('/history/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const limit = parseInt(req.query.limit) || 20;
-    
+
     const history = await getUserRecommendationHistory(userId, limit);
-    
+
     res.json({
       user_id: userId,
       total: history.length,
@@ -2232,7 +2044,7 @@ export function useRecommendationHistory(userId: string, limit = 20) {
 // shared/schema.ts
 export const rankingCandidates = pgTable('ranking_candidates', {
   // ... existing fields
-  
+
   favorite: boolean('favorite').default(false),  // NEW FIELD
 });
 ```
@@ -2300,12 +2112,12 @@ export async function rerankVenues(venues, context) {
   const model = genAI.getGenerativeModel({ 
     model: process.env.GEMINI_MODEL 
   });
-  
+
   const prompt = `Rerank these venues based on driver earnings potential...`;
-  
+
   const result = await model.generateContent(prompt);
   const text = result.response.text();
-  
+
   return JSON.parse(text);
 }
 ```
@@ -2373,15 +2185,15 @@ export default function AnalyticsPage() {
     queryKey: ['/api/analytics/stats'],
     queryFn: () => fetch('/api/analytics/stats').then(r => r.json()),
   });
-  
+
   if (statsQuery.isLoading) {
     return <div>Loading analytics...</div>;
   }
-  
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Analytics Dashboard</h1>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader>
@@ -2391,7 +2203,7 @@ export default function AnalyticsPage() {
             <p className="text-3xl">{statsQuery.data?.total_recommendations}</p>
           </CardContent>
         </Card>
-        
+
         {/* Add more cards */}
       </div>
     </div>
@@ -2408,7 +2220,7 @@ function App() {
   return (
     <Switch>
       {/* ... existing routes */}
-      
+
       <Route path="/analytics">
         <AnalyticsPage />
       </Route>
@@ -2440,7 +2252,7 @@ router.get('/analytics/stats', async (req, res) => {
   .from(rankings)
   .leftJoin(actions, eq(rankings.ranking_id, actions.ranking_id))
   .execute();
-  
+
   res.json(stats[0]);
 });
 
@@ -2689,7 +2501,7 @@ export function log(level, message, meta = {}) {
     correlation_id: meta.correlation_id,
     ...meta,
   };
-  
+
   console.log(JSON.stringify(logEntry));
 }
 ```
