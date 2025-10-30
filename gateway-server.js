@@ -104,6 +104,10 @@ function spawnChild(name, command, args, env) {
     res.status(200).send('OK');
   });
   
+  app.get('/api/health', (_req, res) => {
+    res.status(200).json({ ok: true, port: PORT, mode: MODE });
+  });
+  
   app.get('/healthz', (_req, res) => {
     res.status(200).json({ ok: true, mode: MODE, t: Date.now() });
   });
