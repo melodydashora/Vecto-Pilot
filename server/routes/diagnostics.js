@@ -225,6 +225,35 @@ router.post('/migrate', async (req, res) => {
       results.push({ table: 'snapshots', column: 'news_briefing', action: 'error', error: err.message });
     }
     
+    // Add unique constraints to memory tables
+    const memoryTables = ['assistant_memory', 'eidolon_memory', 'cross_thread_memory'];
+    
+    for (const tableName of memoryTables) {
+      try {
+        const constraintName = `${tableName}_scope_key_user_id_key`;
+        const checkConstraint = await db.execute(sql.raw(`
+          SELECT constraint_name 
+          FROM information_schema.table_constraints 
+          WHERE table_name = '${tableName}' 
+            AND constraint_type = 'UNIQUE'
+            AND constraint_name = '${constraintName}'
+        `));
+        
+        if (checkConstraint.rows.length === 0) {
+          await db.execute(sql.raw(`
+            ALTER TABLE ${tableName} 
+            ADD CONSTRAINT ${constraintName} 
+            UNIQUE (scope, key, user_id)
+          `));
+          results.push({ table: tableName, constraint: constraintName, action: 'added' });
+        } else {
+          results.push({ table: tableName, constraint: constraintName, action: 'exists' });
+        }
+      } catch (err) {
+        results.push({ table: tableName, constraint: `unique`, action: 'error', error: err.message });
+      }
+    }
+    
     // List all columns in snapshots
     const cols = await db.execute(sql`
       SELECT column_name, data_type 
