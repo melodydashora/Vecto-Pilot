@@ -20,17 +20,18 @@ export async function researchVenueEvents(venueName, city, date = null) {
   const query = `Events happening today (${dayName}, ${targetDate}) at ${venueName} in ${city}. Include concerts, games, festivals, shows, or any special events. If no events, say "no scheduled events".`;
 
   try {
-    console.log(`🔍 [PERPLEXITY] Venue Events Query: "${query}"`);
+    console.log(`🔍 [PERPLEXITY Events Planner] Researching events for: "${venueName}"`);
+    console.log(`🔍 [PERPLEXITY Events Planner] Query: "${query}"`);
     
     const result = await perplexity.search(query, {
-      systemPrompt: 'You are a local events researcher helping rideshare drivers. Provide concise summaries of events happening TODAY at specific venues. Include event name, time, and expected crowd size if available. If no events are scheduled, clearly state "No scheduled events today".',
+      systemPrompt: 'You are an events planner helping rideshare drivers maximize earnings. Provide concise summaries of events happening TODAY at specific venues. Include event name, time, and expected crowd size if available. If no events are scheduled, clearly state "No scheduled events today".',
       maxTokens: 300,
       temperature: 0.2,
       searchRecencyFilter: 'day' // Only search today's news
     });
 
-    console.log(`📰 [PERPLEXITY] Venue Events Response for ${venueName}:`, {
-      answer: result.answer,
+    console.log(`📰 [PERPLEXITY Events Planner] Response for ${venueName}:`, {
+      answer: result.answer?.substring(0, 150),
       citations: result.citations?.length || 0
     });
 
@@ -48,15 +49,16 @@ export async function researchVenueEvents(venueName, city, date = null) {
       date: targetDate
     };
     
-    console.log(`✅ [PERPLEXITY] Event data for ${venueName}:`, {
+    console.log(`✅ [PERPLEXITY Events Planner] ${venueName}:`, {
       has_events: hasEvents,
       badge: eventData.badge,
-      impact: eventData.impact_level
+      impact: eventData.impact_level,
+      citations: result.citations?.length || 0
     });
     
     return eventData;
   } catch (error) {
-    console.error(`❌ [PERPLEXITY] Error researching ${venueName}:`, error.message);
+    console.error(`❌ [PERPLEXITY Events Planner] Error researching ${venueName}:`, error.message);
     return {
       venue_name: venueName,
       has_events: false,
