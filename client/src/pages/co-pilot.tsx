@@ -1070,9 +1070,24 @@ const CoPilot: React.FC = () => {
                               <h3 className="font-semibold text-gray-900 text-base">
                                 {block.name}
                               </h3>
+                              {block.isOpen === true && (
+                                <Badge className="bg-green-100 text-green-700 border-green-300 text-xs">
+                                  Open
+                                </Badge>
+                              )}
                               {block.isOpen === false && (
                                 <Badge className="bg-red-100 text-red-700 border-red-300 text-xs">
                                   Closed
+                                </Badge>
+                              )}
+                              {block.isOpen !== true && block.isOpen !== false && block.type === 'staging' && (
+                                <Badge className="bg-blue-100 text-blue-700 border-blue-300 text-xs">
+                                  Staging (open curb)
+                                </Badge>
+                              )}
+                              {block.isOpen !== true && block.isOpen !== false && block.type !== 'staging' && (
+                                <Badge className="bg-gray-100 text-gray-700 border-gray-300 text-xs">
+                                  Unknown
                                 </Badge>
                               )}
                               {block.hasEvent && block.eventBadge && (
