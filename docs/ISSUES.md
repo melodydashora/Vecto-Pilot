@@ -1824,11 +1824,317 @@ pool.on('error', (err) => { console.error('[db] Pool error:', err); });
 ---
 
 **Report Generated:** 2025-01-23  
-**Updated:** 2025-10-24T03:05:00Z  
+**Updated:** 2025-10-30T22:30:00Z  
 **Test Execution:** 2025-10-24T02:23:00Z - 2025-10-24T03:05:00Z  
 **Analyst:** AI Code Review System  
 **Repository Version:** Current main branch  
 **Lines of Code Analyzed:** ~15,000+
+
+---
+
+## 🔴 NEW CRITICAL ISSUES DISCOVERED (2025-10-30)
+
+### ISSUE #75: Strategy Generation Failing - Blocks Query Aborting
+**Severity:** P0 - CRITICAL  
+**Impact:** Users cannot receive venue recommendations, core feature broken  
+**Location:** Frontend strategy polling, blocks query logic
+
+**Evidence from Webview Console:**
+```javascript
+[blocks-query] Aborting query - strategy not ready: {currentSnapshotId: null}
+// Repeated 20+ times in logs
+```
+
+**Problem:**
+- Frontend creates snapshot successfully
+- Strategy generation never completes or takes too long
+- `blocks-query` repeatedly aborts because `currentSnapshotId` remains null
+- Users stuck in loading state, never see recommendations
+- Snapshot saved with metadata but no strategy text generated
+
+**Root Cause Analysis:**
+1. Strategy generation timing out or failing silently
+2. Frontend polling mechanism not waiting for strategy completion
+3. Race condition between snapshot creation and strategy generation
+4. No error feedback to user when strategy fails
+
+**User Impact:**
+- Complete feature failure - no recommendations shown
+- Poor UX - infinite loading with no error message
+- No actionable feedback for debugging
+
+**Fix Required:**
+1. Add strategy generation timeout handling with user notification
+2. Implement retry logic for failed strategy generation
+3. Add fallback mechanism if triad pipeline fails
+4. Show loading progress to user during strategy generation
+5. Add error state UI when strategy generation fails
+
+---
+
+### ISSUE #76: GPS Fallback to Google Geolocation API Over-reliance
+**Severity:** P1 - HIGH  
+**Impact:** Browser geolocation failures cause unnecessary API calls, potential cost issues  
+**Location:** `client/src/hooks/useGeoPosition.ts`
+
+**Evidence from Webview Console:**
+```javascript
+[useGeoPosition] Browser position failed, trying Google Geolocation API fallback...
+✅ Google Geolocation API success: {location: {lat: 33.1251712, lng: -96.8654848}, accuracy: 938.480361970675}
+// This pattern repeats on EVERY page load
+```
+
+**Problem:**
+- Browser geolocation API fails silently (possibly permissions denied)
+- System immediately falls back to Google Geolocation API
+- Fallback happens on every GPS refresh, potentially multiple times per session
+- No caching of permissions state
+- No user prompt to enable browser geolocation
+
+**Cost Impact:**
+- Google Geolocation API is billed per request
+- Unnecessary API calls if browser permissions just need to be granted
+- No rate limiting on fallback usage
+
+**Fix Required:**
+1. Check and request browser geolocation permissions explicitly
+2. Cache permissions state to avoid repeated checks
+3. Show user prompt to enable browser geolocation before falling back
+4. Implement rate limiting on Google API fallback
+5. Add local caching of last known position with timestamp
+
+---
+
+### ISSUE #77: Enrichment Request Abortion on GPS Updates
+**Severity:** P2 - MEDIUM  
+**Impact:** Wasted API calls, inefficient resource usage  
+**Location:** Context enrichment pipeline
+
+**Evidence from Webview Console:**
+```javascript
+🚫 Aborting stale enrichment request
+⏭️ Enrichment aborted - new GPS position received
+// Happens multiple times during initial load
+```
+
+**Problem:**
+- Multiple GPS position updates trigger during page load
+- Each update aborts previous enrichment request
+- Wasted API calls that get cancelled mid-flight
+- Race conditions in enrichment pipeline
+- No debouncing or throttling of GPS updates
+
+**Resource Impact:**
+- Wasted compute on aborted requests
+- Potential billing for partial API calls
+- Network congestion from cancelled requests
+
+**Fix Required:**
+1. Implement debouncing on GPS position updates (500ms-1000ms)
+2. Only trigger enrichment after GPS stabilizes
+3. Add minimum distance threshold before re-enriching (500m as per spec)
+4. Cache enrichment results by location grid to avoid re-processing
+
+---
+
+### ISSUE #78: Strategy Cleared Event Before Snapshot Ready
+**Severity:** P2 - MEDIUM  
+**Impact:** UI flicker, confusing loading states  
+**Location:** Strategy clearing logic in frontend
+
+**Evidence from Webview Console:**
+```javascript
+🧹 Clearing old strategy before creating new snapshot
+🧹 Strategy cleared event received - updating UI state
+[blocks-query] Gating check: {coords: true, lastSnapshotId: null, isStrategyFetching: false, shouldEnable: false}
+```
+
+**Problem:**
+- Strategy cleared immediately when GPS updates
+- UI shows "no strategy" state before new snapshot created
+- Creates visual flicker and confusing loading states
+- User sees empty state unnecessarily
+
+**UX Impact:**
+- Poor perceived performance
+- Unclear loading progression
+- User doesn't know if system is working
+
+**Fix Required:**
+1. Keep old strategy visible until new one ready
+2. Show "Refreshing..." state instead of clearing
+3. Implement optimistic UI updates
+4. Add skeleton/shimmer loading states
+
+---
+
+### ISSUE #79: No Error Handling for Strategy Generation Failures
+**Severity:** P1 - HIGH  
+**Impact:** Silent failures, no user feedback, difficult debugging  
+**Location:** Strategy generation pipeline, error boundaries
+
+**Evidence:**
+- Console shows strategy polling but no error messages
+- No UI feedback when strategy fails
+- Users left in perpetual loading state
+- No retry mechanism visible to user
+
+**Problem:**
+- Strategy generation can fail silently due to:
+  - LLM provider outages (529, 503 errors)
+  - Timeout issues (Claude/GPT-5/Gemini)
+  - Invalid context data
+  - Database write failures
+- No error propagation to frontend
+- No user-facing error messages
+- No retry UI
+
+**Fix Required:**
+1. Add comprehensive error handling in strategy pipeline
+2. Propagate errors to frontend with user-friendly messages
+3. Add retry button in UI when strategy fails
+4. Log detailed errors for debugging
+5. Implement circuit breaker for repeated failures
+
+---
+
+### ISSUE #80: Multiple GPS Fetches on Initial Load
+**Severity:** P2 - MEDIUM  
+**Impact:** Slow initial load, excessive API usage  
+**Location:** GPS initialization, useGeoPosition hook
+
+**Evidence from Webview Console:**
+```javascript
+[useGeoPosition] Starting GPS fetch...
+[useGeoPosition] Calling getCurrentPosition...
+📍 Location context initialized - Initial GPS fetch triggered
+[useGeoPosition] Initial GPS request after DOM ready...
+[useGeoPosition] Starting GPS fetch...
+[useGeoPosition] Calling getCurrentPosition...
+// Multiple fetches triggered simultaneously
+```
+
+**Problem:**
+- Multiple components trigger GPS fetch independently
+- No coordination between GPS requests
+- Race conditions in GPS initialization
+- Excessive fallback API calls
+
+**Fix Required:**
+1. Centralize GPS fetching in single source
+2. Implement GPS fetch deduplication
+3. Share GPS state across components via context
+4. Add request coalescing for simultaneous fetches
+
+---
+
+### ISSUE #81: Snapshot Context Saved Before Strategy Generated
+**Severity:** P2 - MEDIUM  
+**Impact:** Incomplete data persistence, missing strategy context  
+**Location:** Snapshot creation workflow
+
+**Evidence from Webview Console:**
+```javascript
+📸 Context snapshot saved: {city: "Frisco", dayPart: "morning", isWeekend: false, weather: "44°F", airQuality: "AQI 78"}
+[blocks-query] Aborting query - strategy not ready: {currentSnapshotId: null}
+```
+
+**Problem:**
+- Snapshot metadata saved immediately
+- Strategy generation happens asynchronously after
+- Snapshot lacks strategy text initially
+- Creates orphaned snapshots if strategy fails
+- No transactional integrity between snapshot and strategy
+
+**Data Integrity Impact:**
+- Incomplete snapshots in database
+- Missing strategy_for_now field
+- Difficult to debug failed strategy generations
+- Orphaned context data
+
+**Fix Required:**
+1. Make snapshot creation atomic with strategy generation
+2. Use database transactions to ensure both complete
+3. Add strategy_pending state to snapshots
+4. Implement cleanup job for orphaned snapshots
+
+---
+
+### ISSUE #82: No Visible Loading Progress During Strategy Generation
+**Severity:** P3 - LOW (UX)  
+**Impact:** Poor user experience, unclear what's happening  
+**Location:** Frontend loading states
+
+**Evidence:**
+- User sees loading spinner but no progress indication
+- No feedback about which stage of AI pipeline is running
+- No estimated time remaining
+- Claude → GPT-5 → Gemini pipeline invisible to user
+
+**UX Impact:**
+- User doesn't know if system is frozen or working
+- No sense of progress during 30-60 second wait
+- Unclear if refresh needed
+
+**Fix Required:**
+1. Add progress bar showing pipeline stages
+2. Show current stage: "Analyzing context...", "Generating strategy...", "Refining recommendations..."
+3. Add estimated time remaining based on historical latency
+4. Show mini-animation or activity indicator per stage
+
+---
+
+### ISSUE #83: Geocoding Service Still Returning Null (Recurring)
+**Severity:** P2 - MEDIUM  
+**Impact:** Missing city names, degraded UX  
+**Status:** Previously identified as Issue #74, still unresolved
+
+**Evidence:**
+- City displays correctly as "Frisco, TX" in some logs
+- But global test scenarios still show `city: null`
+- Inconsistent geocoding behavior
+- May be related to Google Maps API key configuration
+
+**Fix Required:**
+1. Verify GOOGLE_MAPS_API_KEY in Replit Secrets
+2. Add geocoding error logging
+3. Implement timezone-based city detection fallback
+4. Add OpenStreetMap fallback provider
+
+---
+
+## 📊 UPDATED STATISTICS (2025-10-30)
+
+**Total Issues Found:** 83 (9 new)  
+**Critical (P0):** 6 (+1 new: #75)  
+**High (P1):** 13 (+2 new: #76, #79)  
+**Medium (P2):** 14 (+5 new: #77, #78, #80, #81, #83)  
+**Low (P3):** 7 (+1 new: #82)
+
+**Issue Categories:**
+- Frontend/UX: 6 new issues
+- Backend/Strategy: 2 new issues  
+- Performance/Cost: 3 new issues
+- Data Integrity: 1 new issue
+
+---
+
+## 🎯 RECOMMENDED IMMEDIATE ACTIONS
+
+### This Week (Critical Path)
+1. **Fix Issue #75** - Strategy generation failures (blocks core feature)
+2. **Fix Issue #76** - GPS fallback API over-reliance (cost concern)
+3. **Fix Issue #79** - Error handling for strategy failures (UX blocker)
+
+### This Month (High Priority)
+4. Fix Issue #77 - Enrichment abortion inefficiency
+5. Fix Issue #78 - UI flicker during strategy clearing
+6. Fix Issue #80 - Multiple GPS fetches
+7. Fix Issue #81 - Snapshot/strategy atomicity
+
+### Next Sprint (Nice to Have)
+8. Fix Issue #82 - Loading progress visibility
+9. Revisit Issue #83 - Geocoding reliability
 
 ---
 
