@@ -156,4 +156,85 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/diagnostics/db-data - Show actual database records
+router.get('/db-data', async (req, res) => {
+  try {
+    const snapshots = await db.execute(sql`
+      SELECT snapshot_id, city, state, created_at, 
+             news_briefing IS NOT NULL as has_news_briefing,
+             weather IS NOT NULL as has_weather,
+             air IS NOT NULL as has_air
+      FROM snapshots 
+      ORDER BY created_at DESC 
+      LIMIT 5
+    `);
+    
+    const jobs = await db.execute(sql`
+      SELECT id, snapshot_id, status, created_at 
+      FROM triad_jobs 
+      ORDER BY created_at DESC 
+      LIMIT 5
+    `);
+    
+    const strategies = await db.execute(sql`
+      SELECT id, snapshot_id, status, created_at,
+             strategy IS NOT NULL as has_strategy,
+             error_message
+      FROM strategies 
+      ORDER BY created_at DESC 
+      LIMIT 5
+    `);
+    
+    res.json({
+      ok: true,
+      snapshots: snapshots.rows || [],
+      jobs: jobs.rows || [],
+      strategies: strategies.rows || []
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/diagnostics/migrate - Run database migrations
+router.post('/migrate', async (req, res) => {
+  try {
+    const results = [];
+    
+    // Add news_briefing column if missing
+    try {
+      const checkCol = await db.execute(sql`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'snapshots' AND column_name = 'news_briefing'
+      `);
+      
+      if (checkCol.rows.length === 0) {
+        await db.execute(sql`ALTER TABLE snapshots ADD COLUMN news_briefing jsonb`);
+        results.push({ table: 'snapshots', column: 'news_briefing', action: 'added' });
+      } else {
+        results.push({ table: 'snapshots', column: 'news_briefing', action: 'exists' });
+      }
+    } catch (err) {
+      results.push({ table: 'snapshots', column: 'news_briefing', action: 'error', error: err.message });
+    }
+    
+    // List all columns in snapshots
+    const cols = await db.execute(sql`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'snapshots'
+      ORDER BY ordinal_position
+    `);
+    
+    res.json({
+      ok: true,
+      migrations: results,
+      snapshotsColumns: cols.rows.map(r => ({ name: r.column_name, type: r.data_type }))
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 export default router;

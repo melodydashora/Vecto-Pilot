@@ -727,9 +727,16 @@ router.post('/snapshot', async (req, res) => {
     }
 
     // Transform SnapshotV1 to Postgres schema
+    // Helper to safely parse dates, returning null for invalid dates
+    const safeDate = (value) => {
+      if (!value) return null;
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     const dbSnapshot = {
       snapshot_id: snapshotV1.snapshot_id,
-      created_at: new Date(snapshotV1.created_at),
+      created_at: safeDate(snapshotV1.created_at) || new Date(),
       user_id: snapshotV1.user_id || null,
       device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
@@ -742,7 +749,7 @@ router.post('/snapshot', async (req, res) => {
       country: snapshotV1.resolved?.country || null,
       formatted_address: snapshotV1.resolved?.formattedAddress || null,
       timezone: snapshotV1.resolved?.timezone || null,
-      local_iso: snapshotV1.time_context?.local_iso ? new Date(snapshotV1.time_context.local_iso) : null,
+      local_iso: safeDate(snapshotV1.time_context?.local_iso),
       dow: snapshotV1.time_context?.dow !== undefined ? snapshotV1.time_context.dow : null,
       hour: snapshotV1.time_context?.hour !== undefined ? snapshotV1.time_context.hour : null,
       day_part_key: snapshotV1.time_context?.day_part_key || null,
