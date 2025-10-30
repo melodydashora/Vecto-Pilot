@@ -81,10 +81,12 @@ function spawnChild(name, command, args, env) {
   // ═══════════════════════════════════════════════════════════════════
   // 1) HEALTH ENDPOINTS FIRST — No middleware before these!
   //    Cloud Run/Replit health probes MUST get instant 200 response
+  //    Includes HEAD / for load balancers that probe via HEAD
   // ═══════════════════════════════════════════════════════════════════
   app.get('/', (_req, res) => res.status(200).send('OK'));
+  app.head('/', (_req, res) => res.status(200).end());
   app.get('/health', (_req, res) => res.status(200).send('OK'));
-  app.get('/healthz', (_req, res) => res.status(200).send('OK'));
+  app.get('/healthz', (_req, res) => res.status(200).json({ ok: true, mode: MODE, port: PORT }));
   app.get('/ready', (_req, res) => res.status(200).send('OK'));
   app.get('/api/health', (_req, res) => res.status(200).json({ ok: true, port: PORT, mode: MODE }));
 
@@ -104,14 +106,18 @@ function spawnChild(name, command, args, env) {
   // ═══════════════════════════════════════════════════════════════════
   setImmediate(async () => {
     // Middleware (mounted AFTER health endpoints)
+    // Helmet & CORS are lightweight, can be global
     app.use(helmet({ contentSecurityPolicy: false }));
     app.use(cors({ origin: true, credentials: true }));
-    app.use(express.json({ limit: '1mb' }));
+    
+    // JSON parsing ONLY on API routes (not health endpoints)
+    app.use('/api', express.json({ limit: '1mb' }));
+    app.use('/agent', express.json({ limit: '1mb' }));
 
-    // Timeout middleware (optional, per-route preferred)
+    // Timeout middleware (selective: only on API/agent routes)
     try {
       const { timeoutMiddleware } = await import('./server/middleware/timeout.js');
-      app.use('/api', timeoutMiddleware); // Only on API routes, not on health
+      app.use(['/api', '/agent'], timeoutMiddleware);
     } catch (e) {
       console.warn('[gateway] Timeout middleware failed to load:', e?.message);
     }
@@ -331,22 +337,43 @@ function spawnChild(name, command, args, env) {
     }
   });
 
-  // Cleanup on exit
+  // ═══════════════════════════════════════════════════════════════════
+  // 4) HARDENING: Graceful shutdown & crash shields
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Graceful shutdown for SIGTERM (Cloud Run, Docker, Kubernetes)
   process.on('SIGTERM', () => {
-    console.log('🛑 [gateway] Shutting down...');
-    children.forEach((child) => child.kill());
-    server.close(() => process.exit(0));
+    console.log('[signal] SIGTERM received, shutting down gracefully...');
+    children.forEach((child) => child.kill('SIGTERM'));
+    server.close(() => {
+      console.log('[signal] HTTP server closed');
+      process.exit(0);
+    });
+    // Force exit after 10s if graceful shutdown hangs
+    setTimeout(() => {
+      console.error('[signal] Force exit after 10s timeout');
+      process.exit(1);
+    }, 10000);
   });
 
-  // Prevent crashes
+  // Graceful shutdown for SIGINT (Ctrl+C in terminal)
+  process.on('SIGINT', () => {
+    console.log('[signal] SIGINT received, shutting down gracefully...');
+    children.forEach((child) => child.kill('SIGINT'));
+    server.close(() => {
+      console.log('[signal] HTTP server closed');
+      process.exit(0);
+    });
+  });
+
+  // Crash shields (log but don't exit, keep health endpoints alive)
   process.on('uncaughtException', (err) => {
-    console.error('[gateway] UNCAUGHT EXCEPTION:', err);
-    console.error('[gateway] Stack:', err.stack);
+    console.error('[uncaughtException]', err);
+    console.error('[uncaughtException] Stack:', err.stack);
   });
 
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('[gateway] UNHANDLED REJECTION at:', promise);
-    console.error('[gateway] Reason:', reason);
+  process.on('unhandledRejection', (reason) => {
+    console.error('[unhandledRejection]', reason);
   });
 
 })().catch((err) => {
