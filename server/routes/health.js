@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { routerDiagnosticsV2 } from '../lib/llm-router-v2.js';
 import { getPoolStats } from '../db/pool.js';
+import { providers } from '../lib/strategies/index.js';
 
 const router = Router();
 
@@ -24,6 +25,29 @@ router.get('/pool-stats', (req, res) => {
     ok: true,
     timestamp: new Date().toISOString(),
     pool: stats
+  });
+});
+
+// Strategy provider registry health check
+router.get('/strategies', (req, res) => {
+  const providerStatus = {};
+  
+  for (const [name, fn] of Object.entries(providers)) {
+    providerStatus[name] = {
+      registered: true,
+      isFunction: typeof fn === 'function',
+      status: typeof fn === 'function' ? 'ready' : 'invalid'
+    };
+  }
+  
+  const allReady = Object.values(providerStatus).every(p => p.status === 'ready');
+  
+  res.json({
+    ok: allReady,
+    status: allReady ? 'ok' : 'degraded',
+    providers: providerStatus,
+    availableProviders: Object.keys(providers),
+    timestamp: new Date().toISOString()
   });
 });
 
