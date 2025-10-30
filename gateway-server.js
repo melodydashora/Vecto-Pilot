@@ -297,20 +297,25 @@ if (isAutoscale) {
           }
         });
       } else {
+        // Production mode - serve built static files
         const path = await import('path');
         const { fileURLToPath } = await import('url');
         const __dirname = path.dirname(fileURLToPath(import.meta.url));
-        // Static files mounted at /app to avoid shadowing health endpoints
-        app.use('/app', express.static(path.join(__dirname, 'client/dist')));
-        app.get('/app/*', (req, res) => {
-          res.sendFile(path.join(__dirname, 'client/dist/index.html'));
-        });
-        // Redirect non-health requests to /app for SPA
+        const distPath = path.join(__dirname, 'client/dist');
+        
+        // Serve static assets
+        app.use(express.static(distPath));
+        
+        // SPA fallback - serve index.html for all non-API routes
         app.get('*', (req, res, next) => {
-          if (req.path === '/' || req.path === '/health' || req.path.startsWith('/api') || req.path.startsWith('/agent')) {
+          // Skip if it's a health or API endpoint
+          if (req.path.startsWith('/health') || req.path.startsWith('/ready') || 
+              req.path.startsWith('/api') || req.path.startsWith('/agent') ||
+              req.path.startsWith('/diagnostics')) {
             return next();
           }
-          res.redirect('/app');
+          // Serve the React app for everything else
+          res.sendFile(path.join(distPath, 'index.html'));
         });
       }
     }
