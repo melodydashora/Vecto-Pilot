@@ -1,6 +1,7 @@
 entrypoint = "gateway-server.js"
 modules = ["nodejs-22", "postgresql-16", "python-3.11"]
-run = "sh -c 'export $(cat mono-mode.env | xargs) && node gateway-server.js'"
+run = "sh -c 'export $(cat mono-mode.env | xargs) && npm run start:replit'"
+
 [nix]
 packages = ["nodejs-22", "lsof", "jq", "tree"]
 channel = "stable-25_05"
@@ -28,4 +29,4 @@ author = 43532959
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "set -a && source mono-mode.env && set +a && node gateway-server.js"
+args = "set -a && source mono-mode.env && set +a && npm run start:replit"
