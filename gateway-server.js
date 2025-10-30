@@ -86,11 +86,10 @@ if (isAutoscale) {
   // ═══════════════════════════════════════════════════════════════════
   // 1) HEALTH ENDPOINTS FIRST — No middleware before these!
   //    Cloud Run/Replit health probes MUST get instant 200 response
-  //    Includes HEAD / for load balancers that probe via HEAD
+  //    Note: Root / serves the app, dedicated health paths for probes
   // ═══════════════════════════════════════════════════════════════════
-  app.get('/', (_req, res) => res.status(200).send('OK'));
-  app.head('/', (_req, res) => res.status(200).end());
   app.get('/health', (_req, res) => res.status(200).send('OK'));
+  app.head('/health', (_req, res) => res.status(200).end());
   app.get('/healthz', (_req, res) => res.status(200).json({ ok: true, mode: MODE, port: PORT }));
   app.get('/ready', (_req, res) => res.status(200).send('OK'));
   app.get('/api/health', (_req, res) => res.status(200).json({ ok: true, port: PORT, mode: MODE }));
@@ -277,11 +276,15 @@ if (isAutoscale) {
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
-        // Proxy everything that's NOT a health/API route to Vite
+        // Proxy to Vite for frontend, skip for API/health routes
         app.use((req, res, next) => {
-          if (req.path === '/' || req.path === '/health' || req.path.startsWith('/api') || req.path.startsWith('/agent')) {
-            return next(); // Skip proxy for health/API
+          // Skip proxy for health and API endpoints only
+          if (req.path.startsWith('/health') || req.path.startsWith('/ready') || 
+              req.path.startsWith('/api') || req.path.startsWith('/agent') ||
+              req.path.startsWith('/diagnostics')) {
+            return next();
           }
+          // Everything else (including /) goes to Vite for the React app
           proxy.web(req, res, { target: viteTarget, changeOrigin: true });
         });
 
