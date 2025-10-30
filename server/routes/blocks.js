@@ -151,7 +151,7 @@ router.post('/', async (req, res) => {
   };
 
   try {
-    const { userId = 'demo', origin } = req.body;
+    const { userId = 'demo' } = req.body;
     const snapshotId = req.headers['x-snapshot-id'];
 
     // Load snapshot from DB (already saved with GPS coordinates)
