@@ -2,7 +2,7 @@ entrypoint = "gateway-server.js"
 modules = ["nodejs-22", "postgresql-16", "python-3.11"]
 run = "sh -c 'export $(cat mono-mode.env | xargs) && node gateway-server.js'"
 [nix]
-packages = ["nodejs-22", "lsof", "jq"]
+packages = ["nodejs-22", "lsof", "jq", "tree"]
 channel = "stable-25_05"
 
 [deployment]
