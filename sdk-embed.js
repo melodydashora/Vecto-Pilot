@@ -13,6 +13,7 @@ import snapshotRoutes from "./server/routes/snapshot.js";
 import jobMetricsRoutes from "./server/routes/job-metrics.js";
 import mlHealthRoutes from "./server/routes/ml-health.js";
 import chatRoutes from "./server/routes/chat.js";
+import closedVenueReasoningRoutes from "./server/routes/closed-venue-reasoning.js";
 import { loggingMiddleware } from "./server/middleware/logging.js";
 import { securityMiddleware } from "./server/middleware/security.js";
 import { 
@@ -81,6 +82,7 @@ export default function createSdkRouter(opts = {}) {
   r.use('/metrics/jobs', jobMetricsRoutes);
   r.use('/ml', mlHealthRoutes);
   r.use('/chat', chatRoutes); // AI Strategy Coach
+  r.use('/closed-venue-reasoning', closedVenueReasoningRoutes); // Closed venue reasoning (GPT-5)
   
   // Assistant override verification route
   r.get('/assistant/verify-override', (req, res) => {
