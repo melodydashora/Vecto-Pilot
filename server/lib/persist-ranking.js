@@ -54,14 +54,14 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
       const cols = [
         "id","ranking_id","block_id","name","lat","lng","place_id","rank","exploration_policy",
         "distance_miles","drive_minutes","value_per_min","value_grade","not_worth","distance_source",
-        "pro_tips","closed_reasoning","staging_tips","snapshot_id"
+        "pro_tips","closed_reasoning","staging_tips","snapshot_id","business_hours"
       ];
       const rows = [];
       const args = [];
       let p = 1;
       for (const v of venues) {
         console.log(`📊 [${correlation_id}] Candidate ${v.rank}: ${v.name} - place_id: ${v.place_id}, dist: ${v.distance_miles} mi, time: ${v.drive_time_minutes} min, value_per_min: ${v.value_per_min}, grade: ${v.value_grade}, source: ${v.distanceSource || v.distance_source || 'unknown'}`);
-        rows.push(`(gen_random_uuid(),$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+        rows.push(`(gen_random_uuid(),$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
         args.push(
           ranking_id,
           v.place_id || `block_${v.rank}`,  // Use place_id as block_id (unique identifier)
@@ -80,7 +80,8 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
           v.pro_tips || null,  // pro_tips is ARRAY type, insert directly
           v.closed_reasoning || null,  // Why recommend if closed
           v.staging_tips || null,  // Where to park/stage
-          snapshot_id  // Link to snapshot for event research
+          snapshot_id,  // Link to snapshot for event research
+          v.business_hours ? JSON.stringify(v.business_hours) : null  // Business hours from Google Places
         );
       }
       console.log(`📝 [${correlation_id}] INSERT ranking_candidates: ${venues.length} rows`);

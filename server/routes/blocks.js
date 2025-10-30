@@ -715,7 +715,8 @@ router_post_OLD('/', async (req, res) => {
           est_earnings: venue.estimated_earnings ?? null,
           pro_tips: venue.pro_tips || null,
           closed_reasoning: venue.closed_venue_reasoning || null,
-          staging_tips: venue.staging_tips || null
+          staging_tips: venue.staging_tips || null,
+          business_hours: venue.businessHours || null
         };
       });
 
