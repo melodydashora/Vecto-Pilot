@@ -300,6 +300,12 @@ router.get('/resolve', async (req, res) => {
         country,
         formattedAddress
       });
+    } else {
+      console.error(`[Location API] ❌ Geocode failed:`, {
+        status: geocodeData.status,
+        error_message: geocodeData.error_message,
+        results_count: geocodeData.results?.length
+      });
     }
 
     // Extract timezone
