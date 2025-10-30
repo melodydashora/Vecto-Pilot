@@ -757,8 +757,7 @@ router.post('/snapshot', async (req, res) => {
         category: snapshotV1.air.category
       } : null,
       airport_context: airportContext,
-      local_news: localNews,
-      news_briefing: newsBriefing, // Add the Gemini-generated news briefing
+      news_briefing: localNews, // Gemini-generated 60-minute briefing
       device: snapshotV1.device || null,
       permissions: snapshotV1.permissions || null,
       extras: snapshotV1.extras || null,

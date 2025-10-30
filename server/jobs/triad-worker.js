@@ -11,7 +11,7 @@ export async function processTriadJobs() {
       // Claim one job with SKIP LOCKED (only one worker processes it)
       const [job] = await db.execute(sql`
         UPDATE ${triad_jobs}
-        SET status = 'running', updated_at = now()
+        SET status = 'running'
         WHERE id = (
           SELECT id 
           FROM ${triad_jobs}
