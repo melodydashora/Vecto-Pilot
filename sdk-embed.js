@@ -111,10 +111,7 @@ export default function createSdkRouter(opts = {}) {
     res.json({ 
       ok: true, 
       snapshotId, 
-      items: [
-        { name: 'DFW Airport Terminal D', score: 0.92, rank: 1 },
-        { name: 'Downtown Dallas', score: 0.85, rank: 2 }
-      ], 
+      items: [], // No hardcoded venues - use POST /api/blocks for real rankings
       timestamp: new Date().toISOString() 
     });
   });
