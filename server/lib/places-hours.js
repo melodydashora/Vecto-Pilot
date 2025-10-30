@@ -1,65 +1,72 @@
 /**
- * PLACES API - Business Hours (Regular + Holiday Hours)
+ * PLACES API (New) - Business Hours (Regular + Holiday Hours)
  * 
  * Retrieves real-time business hours including:
  * - Regular weekly schedule
- * - Holiday hours (via current_opening_hours)
+ * - Holiday hours (via currentOpeningHours)
  * - Open/closed status
  * 
- * Cost: Contact category billing (higher rate)
+ * Migration: Converted from Places API (Old) to Places API (New) for consistency
+ * Uses POST requests with X-Goog-Api-Key and X-Goog-FieldMask headers
+ * 
+ * Cost: Basic Data category billing
  */
 
-const PLACE_DETAILS_URL = 'https://maps.googleapis.com/maps/api/place/details/json';
+const PLACES_API_BASE_URL = 'https://places.googleapis.com/v1';
 
 /**
- * Get business hours for a place
+ * Get business hours for a place using Places API (New)
  * @param {string} placeId - Google Place ID
  * @returns {Promise<{openNow, weekdayText, currentHours, periods}>}
  */
 export async function getPlaceHours(placeId) {
   try {
-    const url = new URL(PLACE_DETAILS_URL);
-    url.searchParams.set('place_id', placeId);
-    url.searchParams.set('fields', 'opening_hours,current_opening_hours,name,formatted_address,geometry');
-    url.searchParams.set('key', process.env.GOOGLE_MAPS_API_KEY);
+    // Places API (New): GET /v1/places/{place_id}
+    const url = `${PLACES_API_BASE_URL}/places/${placeId}`;
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'displayName,formattedAddress,location,currentOpeningHours,regularOpeningHours,businessStatus'
+      }
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Places API] Error ${response.status}: ${errorText}`);
+      console.error(`[Places API (New)] Error ${response.status}: ${errorText}`);
       throw new Error(`Places API failed: ${response.status}`);
     }
 
-    const data = await response.json();
-
-    if (data.status !== 'OK') {
-      throw new Error(`Places API status: ${data.status}`);
-    }
-
-    const result = data.result;
+    const place = await response.json();
+    
+    // Extract opening hours (prioritize currentOpeningHours for holiday-adjusted hours)
+    const hours = place.currentOpeningHours || place.regularOpeningHours;
+    const weekdayTexts = hours?.weekdayDescriptions || [];
+    const periods = hours?.periods || [];
     
     const hoursData = {
-      name: result.name,
-      address: result.formatted_address || null,
-      lat: result.geometry?.location?.lat || null,
-      lng: result.geometry?.location?.lng || null,
-      openNow: result.opening_hours?.open_now || false,
-      weekdayText: result.opening_hours?.weekday_text || [],
-      periods: result.opening_hours?.periods || [],
-      currentHours: result.current_opening_hours?.weekday_text || null, // Holiday-adjusted hours
-      hasHolidayHours: !!result.current_opening_hours
+      name: place.displayName?.text || null,
+      address: place.formattedAddress || null,
+      lat: place.location?.latitude || null,
+      lng: place.location?.longitude || null,
+      openNow: hours?.openNow || false,
+      weekdayText: weekdayTexts,
+      periods: periods,
+      currentHours: place.currentOpeningHours?.weekdayDescriptions || null, // Holiday-adjusted hours
+      hasHolidayHours: !!place.currentOpeningHours
     };
 
     // Cache the hours data (non-blocking)
-    if (result.opening_hours) {
+    if (hours) {
       try {
         const { db } = await import('../db/drizzle.js');
         const { sql } = await import('drizzle-orm');
         
         await db.execute(sql`
           INSERT INTO places_cache (place_id, formatted_hours, cached_at, access_count)
-          VALUES (${placeId}, ${JSON.stringify(result.opening_hours)}, NOW(), 1)
+          VALUES (${placeId}, ${JSON.stringify(hours)}, NOW(), 1)
           ON CONFLICT (place_id) DO UPDATE
           SET formatted_hours = EXCLUDED.formatted_hours,
               cached_at = NOW(),
@@ -72,42 +79,65 @@ export async function getPlaceHours(placeId) {
     
     return hoursData;
   } catch (error) {
-    console.error('[Places API] getPlaceHours failed:', error.message);
+    console.error('[Places API (New)] getPlaceHours failed:', error.message);
     throw error;
   }
 }
 
 /**
- * Search for place ID by name and location
+ * Search for place ID by name and location using Text Search API (New)
  * @param {string} name - Business name
  * @param {Object} location - {lat, lng}
  * @returns {Promise<string>} Place ID
  */
 export async function findPlaceId(name, location) {
   try {
-    const url = new URL('https://maps.googleapis.com/maps/api/place/findplacefromtext/json');
-    url.searchParams.set('input', name);
-    url.searchParams.set('inputtype', 'textquery');
-    url.searchParams.set('fields', 'place_id,name');
-    url.searchParams.set('locationbias', `point:${location.lat},${location.lng}`);
-    url.searchParams.set('key', process.env.GOOGLE_MAPS_API_KEY);
+    // Places API (New): POST /v1/places:searchText
+    const url = `${PLACES_API_BASE_URL}/places:searchText`;
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'places.id,places.displayName'
+      },
+      body: JSON.stringify({
+        textQuery: name,
+        locationBias: {
+          circle: {
+            center: {
+              latitude: location.lat,
+              longitude: location.lng
+            },
+            radius: 500.0 // 500m radius for text search
+          }
+        },
+        maxResultCount: 1
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Places API (New)] Error ${response.status}: ${errorText}`);
+      throw new Error(`Places API failed: ${response.status}`);
+    }
+
     const data = await response.json();
 
-    if (data.status !== 'OK' || !data.candidates || data.candidates.length === 0) {
+    if (!data.places || data.places.length === 0) {
       throw new Error(`No place found for: ${name}`);
     }
 
-    return data.candidates[0].place_id;
+    return data.places[0].id;
   } catch (error) {
-    console.error('[Places API] findPlaceId failed:', error.message);
+    console.error('[Places API (New)] findPlaceId failed:', error.message);
     throw error;
   }
 }
 
 /**
- * Search for place by text name and return place_id + coordinates
+ * Search for place by text name and return place_id + coordinates using Text Search API (New)
  * Used for name-to-place_id resolution per architectural guidance
  * @param {Object} params
  * @param {string} params.text - Business name or search text
@@ -118,47 +148,65 @@ export async function findPlaceId(name, location) {
  */
 export async function findPlaceIdByText({ text, lat, lng, apiKey = process.env.GOOGLE_MAPS_API_KEY }) {
   try {
-    const url = new URL('https://maps.googleapis.com/maps/api/place/findplacefromtext/json');
-    url.searchParams.set('input', text);
-    url.searchParams.set('inputtype', 'textquery');
-    
-    if (lat != null && lng != null) {
-      url.searchParams.set('locationbias', `point:${lat},${lng}`);
-    }
-    
-    url.searchParams.set('fields', 'place_id,geometry,name,formatted_address');
-    url.searchParams.set('key', apiKey);
+    // Places API (New): POST /v1/places:searchText
+    const url = `${PLACES_API_BASE_URL}/places:searchText`;
 
-    const response = await fetch(url.toString());
+    const requestBody = {
+      textQuery: text,
+      maxResultCount: 1
+    };
+
+    // Add location bias if coordinates provided
+    if (lat != null && lng != null) {
+      requestBody.locationBias = {
+        circle: {
+          center: {
+            latitude: lat,
+            longitude: lng
+          },
+          radius: 500.0 // 500m radius for text search
+        }
+      };
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'places.id,places.location,places.displayName,places.formattedAddress'
+      },
+      body: JSON.stringify(requestBody)
+    });
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Places API] Error ${response.status}: ${errorText}`);
+      console.error(`[Places API (New)] Error ${response.status}: ${errorText}`);
       throw new Error(`Places API failed: ${response.status}`);
     }
 
     const data = await response.json();
     
-    if (data.status !== 'OK' || !data.candidates || data.candidates.length === 0) {
+    if (!data.places || data.places.length === 0) {
       throw new Error(`places_no_match: ${text}`);
     }
 
-    const candidate = data.candidates[0];
+    const place = data.places[0];
     
-    if (!candidate.place_id) {
+    if (!place.id) {
       throw new Error('places_no_match');
     }
 
-    console.log(`🔍 [Places API] Found place_id for "${text}": ${candidate.place_id}`);
+    console.log(`🔍 [Places API (New)] Found place_id for "${text}": ${place.id}`);
 
     return {
-      place_id: candidate.place_id,
-      lat: candidate.geometry?.location?.lat || null,
-      lng: candidate.geometry?.location?.lng || null,
-      formatted_address: candidate.formatted_address || null
+      place_id: place.id,
+      lat: place.location?.latitude || null,
+      lng: place.location?.longitude || null,
+      formatted_address: place.formattedAddress || null
     };
   } catch (error) {
-    console.error('[Places API] findPlaceIdByText failed:', error.message);
+    console.error('[Places API (New)] findPlaceIdByText failed:', error.message);
     throw error;
   }
 }
@@ -258,41 +306,43 @@ export async function getFormattedHours(placeId) {
 }
 
 /**
- * Get business hours ONLY for a place (no coordinates per architectural guidance)
+ * Get business hours ONLY for a place (no coordinates per architectural guidance) using Places API (New)
  * @param {string} placeId - Google Place ID
  * @returns {Promise<{status, hours, weekdayText}>}
  */
 export async function getBusinessHoursOnly(placeId) {
   try {
-    const url = new URL(PLACE_DETAILS_URL);
-    url.searchParams.set('place_id', placeId);
-    url.searchParams.set('fields', 'opening_hours,current_opening_hours,business_status');
-    url.searchParams.set('key', process.env.GOOGLE_MAPS_API_KEY);
+    // Places API (New): GET /v1/places/{place_id}
+    const url = `${PLACES_API_BASE_URL}/places/${placeId}`;
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'currentOpeningHours,regularOpeningHours,businessStatus'
+      }
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Places API] Error ${response.status}: ${errorText}`);
+      console.error(`[Places API (New)] Error ${response.status}: ${errorText}`);
       throw new Error(`Places API failed: ${response.status}`);
     }
 
-    const data = await response.json();
-
-    if (data.status !== 'OK') {
-      throw new Error(`Places API status: ${data.status}`);
-    }
-
-    const result = data.result;
+    const place = await response.json();
+    
+    const hours = place.currentOpeningHours || place.regularOpeningHours;
+    const weekdayTexts = hours?.weekdayDescriptions || [];
     
     return {
-      status: result.opening_hours?.open_now ? 'open' : 'closed',
-      hours: formatHoursCompact(result.current_opening_hours?.weekday_text || result.opening_hours?.weekday_text),
-      weekdayText: result.opening_hours?.weekday_text || [],
-      hasHolidayHours: !!result.current_opening_hours
+      status: hours?.openNow ? 'open' : 'closed',
+      hours: formatHoursCompact(weekdayTexts),
+      weekdayText: weekdayTexts,
+      hasHolidayHours: !!place.currentOpeningHours
     };
   } catch (error) {
-    console.error('[Places API] getBusinessHoursOnly failed:', error.message);
+    console.error('[Places API (New)] getBusinessHoursOnly failed:', error.message);
     throw error;
   }
 }
