@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import httpProxy from 'http-proxy';
 const { createProxyServer } = httpProxy;
 import { GATEWAY_CONFIG } from './agent-ai-config.js';
+import { assertStrategies } from './server/lib/strategies/index.js';
 
 //  ═══════════════════════════════════════════════════════════════════
 //  MODE DETECTION - Single Source of Truth
@@ -66,6 +67,14 @@ function spawnChild(name, command, args, env) {
 //  MAIN ASYNC BOOTSTRAP
 //  ═══════════════════════════════════════════════════════════════════
 (async function main() {
+  // Startup assertion: Validate all strategy providers are registered
+  try {
+    assertStrategies();
+  } catch (err) {
+    console.error('❌ [gateway] Strategy provider validation failed:', err.message);
+    process.exit(1);
+  }
+  
   const app = express();
   app.set('trust proxy', 1);
   app.use(helmet({ contentSecurityPolicy: false }));
