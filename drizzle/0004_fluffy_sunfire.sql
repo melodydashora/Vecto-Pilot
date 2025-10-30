@@ -1,0 +1,1 @@
+ALTER TABLE "ranking_candidates" ADD COLUMN "business_hours" jsonb;

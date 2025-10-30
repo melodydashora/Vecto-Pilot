@@ -115,6 +115,8 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   pro_tips: text("pro_tips").array(), // Array of tactical tips from planner
   closed_reasoning: text("closed_reasoning"), // Why recommend if closed (strategic timing)
   staging_tips: text("staging_tips"), // Where to park/stage for this venue
+  // Google Places enrichment
+  business_hours: jsonb("business_hours"), // Business hours from Google Places API
   // Perplexity event research (populated after planner completes)
   venue_events: jsonb("venue_events"), // Today's events at this venue (concerts, games, festivals)
 }, (table) => ({
