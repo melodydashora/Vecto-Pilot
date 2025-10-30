@@ -13,7 +13,8 @@ import path from 'path';
 const MIGRATION_FILES = [
   'drizzle/0003_event_enrichment.sql',
   'drizzle/0004_event_proximity.sql',
-  'drizzle/0005_staging_nodes.sql'
+  'drizzle/0005_staging_nodes.sql',
+  'drizzle/0006_unblock_enrichment_and_staging.sql'  // Hotfix: repairs business hours + staging + enrichment
 ];
 
 // Check DATABASE_URL (sanitized output)
