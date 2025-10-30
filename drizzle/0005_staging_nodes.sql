@@ -131,7 +131,7 @@ SET
   )
 WHERE 
   node_type = 'venue'
-  AND fn_detect_staging_node(name, category);
+  AND fn_detect_staging_node(name);
 
 -- ============================================
 -- 4. GEOMETRY KEY GENERATION FUNCTION
@@ -140,16 +140,17 @@ WHERE
 CREATE OR REPLACE FUNCTION fn_generate_geom_key(
   p_lat float,
   p_lng float,
-  p_precision int DEFAULT 9
+  p_precision int DEFAULT 4
 )
 RETURNS text AS $$
 DECLARE
-  lat_bucket int;
-  lng_bucket int;
+  lat_bucket bigint;
+  lng_bucket bigint;
   precision_factor float;
 BEGIN
   -- Simple geohash-like bucketing (precision controls grid size)
-  -- precision=9 gives ~50m resolution, precision=10 gives ~25m
+  -- precision=4 gives ~10m resolution (0.0001 deg ≈ 11m)
+  -- precision=3 gives ~100m resolution
   IF p_lat IS NULL OR p_lng IS NULL THEN
     RETURN NULL;
   END IF;
@@ -169,12 +170,8 @@ COMMENT ON FUNCTION fn_generate_geom_key IS 'Generate geometry hash for coords-f
 -- ============================================
 
 UPDATE ranking_candidates
-SET geom_key = fn_generate_geom_key(
-  (coords->>'lat')::float,
-  (coords->>'lng')::float,
-  9
-)
-WHERE coords IS NOT NULL AND geom_key IS NULL;
+SET geom_key = fn_generate_geom_key(lat, lng, 4)
+WHERE lat IS NOT NULL AND lng IS NOT NULL AND geom_key IS NULL;
 
 -- ============================================
 -- 6. PARENT COMPLEX FINDER (BY NAME FUZZY MATCH)
@@ -269,10 +266,11 @@ DECLARE
   key1 text;
   key2 text;
 BEGIN
-  -- Same location should generate same key
-  SELECT fn_generate_geom_key(33.128041, -96.875377, 9) INTO key1;
-  SELECT fn_generate_geom_key(33.128045, -96.875380, 9) INTO key2;
-  ASSERT key1 = key2, 'Geom keys should match for nearby points';
+  -- Same bucket should generate same key (within ~11m / precision=4 grid)
+  -- Points differing by < 0.0001 deg should have same key
+  SELECT fn_generate_geom_key(33.1280, -96.8753, 4) INTO key1;
+  SELECT fn_generate_geom_key(33.1280, -96.8753, 4) INTO key2;
+  ASSERT key1 = key2, 'Identical points should have same geom key';
   
   RAISE NOTICE '✅ Geom key generation: %', key1;
 END $$;

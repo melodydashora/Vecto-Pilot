@@ -4,7 +4,7 @@
  * Usage:
  *   SNAPSHOT_ID=$(node scripts/latest-snapshot.mjs)
  * 
- * Returns the most recent snapshot ID without requiring psql
+ * Returns ONLY the UUID (no logs) for shell capture
  */
 
 import { db } from '../server/db/drizzle.js';
@@ -20,13 +20,14 @@ try {
   const snapshotId = result.rows?.[0]?.snapshot_id;
   
   if (!snapshotId) {
-    console.error('❌ No snapshots found in database');
+    process.stderr.write('❌ No snapshots found in database\n');
     process.exit(2);
   }
   
-  // Output only the ID (for shell capture)
-  process.stdout.write(String(snapshotId));
+  // Output ONLY the UUID to stdout (clean for shell capture)
+  process.stdout.write(String(snapshotId) + '\n');
+  process.exit(0);
 } catch (error) {
-  console.error('❌ Failed to fetch latest snapshot:', error.message);
+  process.stderr.write(`❌ Failed to fetch latest snapshot: ${error.message}\n`);
   process.exit(1);
 }

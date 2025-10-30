@@ -60,99 +60,7 @@ COMMENT ON COLUMN events_facts.radius_hint_m IS 'Approximate crowd/footprint rad
 COMMENT ON COLUMN events_facts.impact_hint IS 'Expected rideshare demand impact (none, low, med, high)';
 
 -- ============================================
--- 2. UPDATE fn_upsert_event WITH NEW FIELDS
--- ============================================
-
-CREATE OR REPLACE FUNCTION fn_upsert_event(
-  p_source text,
-  p_source_url text,
-  p_venue_place_id text,
-  p_venue_name text,
-  p_event_title text,
-  p_event_type text DEFAULT NULL,
-  p_start_time timestamptz DEFAULT NULL,
-  p_end_time timestamptz DEFAULT NULL,
-  p_confidence float DEFAULT 0.0,
-  p_coordinates jsonb DEFAULT NULL,
-  p_description text DEFAULT NULL,
-  p_tags text[] DEFAULT NULL,
-  p_expires_at timestamptz DEFAULT NULL,
-  p_coordinates_source text DEFAULT 'manual',
-  p_location_quality text DEFAULT 'exact',
-  p_radius_hint_m int DEFAULT NULL,
-  p_impact_hint text DEFAULT 'none'
-)
-RETURNS uuid AS $$
-DECLARE
-  v_event_id uuid;
-BEGIN
-  INSERT INTO events_facts (
-    source,
-    source_url,
-    venue_place_id,
-    venue_name,
-    event_title,
-    event_type,
-    start_time,
-    end_time,
-    confidence,
-    coordinates,
-    description,
-    tags,
-    expires_at,
-    coordinates_source,
-    location_quality,
-    radius_hint_m,
-    impact_hint,
-    created_at,
-    updated_at
-  ) VALUES (
-    p_source,
-    p_source_url,
-    p_venue_place_id,
-    p_venue_name,
-    p_event_title,
-    p_event_type,
-    p_start_time,
-    p_end_time,
-    p_confidence,
-    p_coordinates,
-    p_description,
-    p_tags,
-    p_expires_at,
-    p_coordinates_source,
-    p_location_quality,
-    p_radius_hint_m,
-    p_impact_hint,
-    now(),
-    now()
-  )
-  ON CONFLICT (source, venue_place_id, event_title, start_time)
-  DO UPDATE SET
-    source_url = EXCLUDED.source_url,
-    venue_name = EXCLUDED.venue_name,
-    event_type = EXCLUDED.event_type,
-    end_time = EXCLUDED.end_time,
-    confidence = EXCLUDED.confidence,
-    coordinates = EXCLUDED.coordinates,
-    description = EXCLUDED.description,
-    tags = EXCLUDED.tags,
-    expires_at = EXCLUDED.expires_at,
-    coordinates_source = EXCLUDED.coordinates_source,
-    location_quality = EXCLUDED.location_quality,
-    radius_hint_m = EXCLUDED.radius_hint_m,
-    impact_hint = EXCLUDED.impact_hint,
-    updated_at = now()
-  RETURNING event_id INTO v_event_id;
-
-  RETURN v_event_id;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION fn_upsert_event IS 'Idempotent event insertion with proximity metadata (coordinates_source, location_quality, radius_hint_m, impact_hint)';
-
--- ============================================
--- 3. HAVERSINE DISTANCE FUNCTION
+-- 2. HAVERSINE DISTANCE FUNCTION
 -- ============================================
 
 CREATE OR REPLACE FUNCTION fn_haversine_distance(
@@ -189,7 +97,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 COMMENT ON FUNCTION fn_haversine_distance IS 'Calculate distance in meters between two lat/lng points';
 
 -- ============================================
--- 4. UPDATE fn_refresh_venue_enrichment WITH PROXIMITY
+-- 3. UPDATE fn_refresh_venue_enrichment WITH PROXIMITY
 -- ============================================
 
 CREATE OR REPLACE FUNCTION fn_refresh_venue_enrichment(p_snapshot_id uuid)
@@ -221,8 +129,8 @@ BEGIN
           fn_haversine_distance(
             (e.coordinates->>'lat')::float,
             (e.coordinates->>'lng')::float,
-            (rc.coords->>'lat')::float,
-            (rc.coords->>'lng')::float
+            COALESCE((rc.coords->>'lat')::float, rc.lat),
+            COALESCE((rc.coords->>'lng')::float, rc.lng)
           ) <= v_event_assoc_radius_m
         ),
         'offset_m', MIN(
@@ -231,8 +139,8 @@ BEGIN
             ELSE fn_haversine_distance(
               (e.coordinates->>'lat')::float,
               (e.coordinates->>'lng')::float,
-              (rc.coords->>'lat')::float,
-              (rc.coords->>'lng')::float
+              COALESCE((rc.coords->>'lat')::float, rc.lat),
+              COALESCE((rc.coords->>'lng')::float, rc.lng)
             )
           END
         ),
@@ -256,12 +164,12 @@ BEGIN
           -- Proximity match within radius
           (
             e.coordinates IS NOT NULL
-            AND rc.coords IS NOT NULL
+            AND (rc.coords IS NOT NULL OR (rc.lat IS NOT NULL AND rc.lng IS NOT NULL))
             AND fn_haversine_distance(
               (e.coordinates->>'lat')::float,
               (e.coordinates->>'lng')::float,
-              (rc.coords->>'lat')::float,
-              (rc.coords->>'lng')::float
+              COALESCE((rc.coords->>'lat')::float, rc.lat),
+              COALESCE((rc.coords->>'lng')::float, rc.lng)
             ) <= v_event_assoc_radius_m
           )
         )
@@ -277,12 +185,12 @@ BEGIN
           OR
           (
             e.coordinates IS NOT NULL
-            AND rc.coords IS NOT NULL
+            AND (rc.coords IS NOT NULL OR (rc.lat IS NOT NULL AND rc.lng IS NOT NULL))
             AND fn_haversine_distance(
               (e.coordinates->>'lat')::float,
               (e.coordinates->>'lng')::float,
-              (rc.coords->>'lat')::float,
-              (rc.coords->>'lng')::float
+              COALESCE((rc.coords->>'lat')::float, rc.lat),
+              COALESCE((rc.coords->>'lng')::float, rc.lng)
             ) <= v_event_assoc_radius_m
           )
         )
@@ -295,16 +203,7 @@ $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION fn_refresh_venue_enrichment IS 'Refresh venue_events for all candidates, matching by place_id OR proximity (350m radius)';
 
 -- ============================================
--- 5. CREATE UNIQUE CONSTRAINT FOR UPSERT
--- ============================================
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_events_upsert_key 
-ON events_facts(source, venue_place_id, event_title, start_time);
-
-COMMENT ON INDEX idx_events_upsert_key IS 'Unique constraint for idempotent event upserts';
-
--- ============================================
--- VERIFICATION QUERIES
+-- 4. VERIFICATION QUERIES
 -- ============================================
 
 -- Check new columns exist

@@ -28,11 +28,17 @@ CREATE TABLE IF NOT EXISTS events_facts (
   description text,
   tags text[],
   expires_at timestamptz,
+  coordinates_source text CHECK (coordinates_source IN ('perplexity', 'geocoder', 'runtime', 'manual')) DEFAULT 'manual',
+  location_quality text CHECK (location_quality IN ('exact', 'approx')) DEFAULT 'exact',
+  radius_hint_m int,
+  impact_hint text CHECK (impact_hint IN ('none', 'low', 'med', 'high')) DEFAULT 'none',
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now(),
-  -- Dedupe key: same title + time window (place_id OR empty string for proximity events)
-  UNIQUE (COALESCE(venue_place_id, ''), LOWER(event_title), start_time, end_time)
+  updated_at timestamptz DEFAULT now()
 );
+
+-- Expression-based unique index for deduplication (table-level UNIQUE doesn't support expressions)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_dedupe
+ON events_facts ((COALESCE(venue_place_id, '')), lower(event_title), start_time, end_time);
 
 CREATE INDEX IF NOT EXISTS idx_events_place_time ON events_facts(venue_place_id, start_time, end_time);
 CREATE INDEX IF NOT EXISTS idx_events_time_window ON events_facts(start_time, end_time);
@@ -97,51 +103,39 @@ CREATE OR REPLACE FUNCTION fn_upsert_event(
   p_venue_place_id text,
   p_venue_name text,
   p_event_title text,
-  p_event_type text,
-  p_start_time timestamptz,
-  p_end_time timestamptz,
-  p_confidence double precision DEFAULT 0.85,
+  p_event_type text DEFAULT NULL,
+  p_start_time timestamptz DEFAULT NULL,
+  p_end_time timestamptz DEFAULT NULL,
+  p_confidence double precision DEFAULT 0.0,
   p_coordinates jsonb DEFAULT NULL,
   p_description text DEFAULT NULL,
   p_tags text[] DEFAULT NULL,
-  p_expires_at timestamptz DEFAULT NULL
+  p_expires_at timestamptz DEFAULT NULL,
+  p_coordinates_source text DEFAULT 'manual',
+  p_location_quality text DEFAULT 'exact',
+  p_radius_hint_m int DEFAULT NULL,
+  p_impact_hint text DEFAULT 'none'
 )
 RETURNS uuid AS $$
 DECLARE
   v_event_id uuid;
 BEGIN
-  INSERT INTO events_facts (
-    source,
-    source_url,
-    venue_place_id,
-    venue_name,
-    event_title,
-    event_type,
-    start_time,
-    end_time,
-    confidence,
-    coordinates,
-    description,
-    tags,
-    expires_at
+  INSERT INTO events_facts(
+    source, source_url, venue_place_id, venue_name,
+    event_title, event_type, start_time, end_time,
+    confidence, coordinates, description, tags, expires_at,
+    coordinates_source, location_quality, radius_hint_m, impact_hint,
+    created_at, updated_at
   ) VALUES (
-    p_source,
-    p_source_url,
-    p_venue_place_id,
-    p_venue_name,
-    p_event_title,
-    p_event_type,
-    p_start_time,
-    p_end_time,
-    p_confidence,
-    p_coordinates,
-    p_description,
-    p_tags,
-    p_expires_at
+    p_source, p_source_url, p_venue_place_id, p_venue_name,
+    p_event_title, p_event_type, p_start_time, p_end_time,
+    p_confidence, p_coordinates, p_description, p_tags, p_expires_at,
+    p_coordinates_source, p_location_quality, p_radius_hint_m, p_impact_hint,
+    now(), now()
   )
-  ON CONFLICT (COALESCE(venue_place_id, ''), LOWER(event_title), start_time, end_time)
+  -- Must match idx_events_dedupe exactly (expressions + order)
+  ON CONFLICT ((COALESCE(venue_place_id, '')), lower(event_title), start_time, end_time)
   DO UPDATE SET
-    source = EXCLUDED.source,
     source_url = EXCLUDED.source_url,
     venue_name = COALESCE(EXCLUDED.venue_name, events_facts.venue_name),
     event_type = EXCLUDED.event_type,
@@ -150,6 +144,10 @@ BEGIN
     description = COALESCE(EXCLUDED.description, events_facts.description),
     tags = COALESCE(EXCLUDED.tags, events_facts.tags),
     expires_at = COALESCE(EXCLUDED.expires_at, events_facts.expires_at),
+    coordinates_source = COALESCE(EXCLUDED.coordinates_source, events_facts.coordinates_source),
+    location_quality = COALESCE(EXCLUDED.location_quality, events_facts.location_quality),
+    radius_hint_m = COALESCE(EXCLUDED.radius_hint_m, events_facts.radius_hint_m),
+    impact_hint = COALESCE(EXCLUDED.impact_hint, events_facts.impact_hint),
     updated_at = now()
   RETURNING event_id INTO v_event_id;
 
@@ -269,9 +267,8 @@ SELECT
   s.airport_context,
   s.news_briefing,
   st.strategy as current_strategy,
-  st.valid_window_start,
-  st.valid_window_end,
-  st.strategy_timestamp
+  st.created_at as strategy_created_at,
+  st.updated_at as strategy_updated_at
 FROM ranking_candidates rc
 JOIN snapshots s ON rc.snapshot_id = s.snapshot_id
 LEFT JOIN strategies st ON st.snapshot_id = s.snapshot_id AND st.status = 'ok'
