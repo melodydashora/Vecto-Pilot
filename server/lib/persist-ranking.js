@@ -53,7 +53,7 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
 
       const cols = [
         "id","ranking_id","block_id","name","lat","lng","place_id","rank","exploration_policy",
-        "distance_miles","drive_time_minutes","value_per_min","value_grade","not_worth","distance_source",
+        "distance_miles","drive_minutes","value_per_min","value_grade","not_worth","distance_source",
         "pro_tips","closed_reasoning","staging_tips","snapshot_id"
       ];
       const rows = [];
@@ -72,12 +72,12 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
           v.rank,
           'epsilon_greedy', // Default exploration policy
           v.distance_miles ?? null,
-          v.drive_time_minutes ?? null,
+          v.drive_time_minutes || v.driveTimeMinutes ?? null,  // Column is drive_minutes
           v.value_per_min ?? null,
           v.value_grade ?? null,
           v.not_worth ?? false,
           v.distanceSource || v.distance_source || 'unknown', // Issue #30 Fix: Track distance source
-          v.pro_tips ? JSON.stringify(v.pro_tips) : null,  // GPT-5 planner tactical tips
+          v.pro_tips || null,  // pro_tips is ARRAY type, insert directly
           v.closed_reasoning || null,  // Why recommend if closed
           v.staging_tips || null,  // Where to park/stage
           snapshot_id  // Link to snapshot for event research

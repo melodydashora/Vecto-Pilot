@@ -72,6 +72,17 @@ Strategy refresh is triggered by location movement (500 meters), day part change
 
 See `RUNTIME_FRESH_IMPLEMENTATION.md` for complete status and field test checklist.
 
+### Database Persistence Layer (2025-10-30)
+**Persist-Ranking Fix** (`server/lib/persist-ranking.js`):
+- **Column Name Alignment**: Fixed mismatched column names in INSERT statement
+  - ~~`drive_time_minutes`~~ → `drive_minutes` (aligned with database schema)
+  - Maps from `v.drive_time_minutes` or `v.driveTimeMinutes` in venue objects
+- **Data Type Correction**: Fixed `pro_tips` handling
+  - ~~`JSON.stringify(v.pro_tips)`~~ → `v.pro_tips` (column type is ARRAY, not JSONB)
+  - Database expects native array insertion without serialization
+- **Result**: Transaction COMMIT now succeeds, rankings and candidates persist correctly
+- **Rollback Path**: If issues arise, revert to `drive_time_minutes` column name and JSON.stringify for pro_tips (will require schema migration)
+
 ## External Dependencies
 
 ### Third-Party APIs
