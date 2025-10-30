@@ -9,7 +9,8 @@ import fs from 'fs';
 import { glob } from 'glob';
 
 const files = await glob(['**/*.{ts,tsx,js,jsx,mjs}', '!node_modules/**', '!dist/**', '!.replit/**'], { 
-  ignore: ['node_modules/**', 'dist/**', '.replit/**', 'scripts/**']
+  ignore: ['node_modules/**', 'dist/**', '.replit/**', 'scripts/**'],
+  nodir: true  // Skip directories to avoid EISDIR errors
 });
 
 const patterns = [
@@ -29,18 +30,29 @@ const patterns = [
 let violations = [];
 
 for (const file of files) {
-  const content = fs.readFileSync(file, 'utf8');
-  
-  for (const pattern of patterns) {
-    const match = pattern.exec(content);
-    if (match) {
-      const line = content.substring(0, match.index).split('\n').length;
-      violations.push({
-        file,
-        line,
-        pattern: pattern.toString(),
-        match: match[0].substring(0, 80) // Truncate long matches
-      });
+  try {
+    // Skip if it's a directory (safety check)
+    const stat = fs.statSync(file);
+    if (stat.isDirectory()) continue;
+    
+    const content = fs.readFileSync(file, 'utf8');
+    
+    for (const pattern of patterns) {
+      const match = pattern.exec(content);
+      if (match) {
+        const line = content.substring(0, match.index).split('\n').length;
+        violations.push({
+          file,
+          line,
+          pattern: pattern.toString(),
+          match: match[0].substring(0, 80) // Truncate long matches
+        });
+      }
+    }
+  } catch (err) {
+    // Skip files that can't be read
+    if (err.code !== 'EISDIR') {
+      console.warn(`Warning: Could not read ${file}: ${err.message}`);
     }
   }
 }
