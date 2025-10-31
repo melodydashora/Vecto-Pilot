@@ -147,9 +147,10 @@ router.post('/', async (req, res) => {
       maxDistance: 15
     });
 
-    const gpt5Venues = gpt5Result.venues;
+    // CRITICAL: Cap at exactly 8 venues (16 coords total)
+    const gpt5Venues = gpt5Result.venues.slice(0, 8);
     const generationMs = Date.now() - generationStart;
-    console.log(`✅ [${correlationId}] GPT-5 generated ${gpt5Venues.length} venues in ${generationMs}ms`);
+    console.log(`✅ [${correlationId}] GPT-5 generated ${gpt5Venues.length} venues (${gpt5Venues.length * 2} coords) in ${generationMs}ms`);
 
     // ============================================
     // STEP 3: Enrich GPT-5 venues with drive times
@@ -300,7 +301,7 @@ router.post('/', async (req, res) => {
         return rid;
       });
 
-      console.log(`✅ [${correlationId}] Persisted ranking ${ranking_id} with timing: scoring=${scoringMs}ms planner=${plannerMs}ms total=${totalMs}ms path=${pathTaken}`);
+      console.log(`✅ [${correlationId}] Persisted ranking ${ranking_id} with timing: generation=${generationMs}ms enrichment=${enrichmentMs}ms total=${totalMs}ms`);
     } catch (e) {
       console.error(`❌ [${correlationId}] Persistence failed:`, e);
       return sendOnce(502, { ok: false, error: 'persist_failed', correlationId });
@@ -337,24 +338,21 @@ router.post('/', async (req, res) => {
       blocks,
       userId,
       generatedAt: new Date().toISOString(),
-      strategy_for_now: pathTaken === 'refined' ? 'AI-refined tactical recommendations' : 'Quick deterministic picks',
-      path_taken: pathTaken,
-      refined: pathTaken === 'refined',
+      path_taken: 'gpt5-generated',
       timing: {
-        scoring_ms: scoringMs,
-        planner_ms: plannerMs,
+        generation_ms: generationMs,
+        enrichment_ms: enrichmentMs,
         total_ms: totalMs,
-        timed_out: plannerTimedOut,
         budget_ms: PLANNER_BUDGET_MS
       },
       metadata: {
         totalBlocks: blocks.length,
         processingTimeMs: totalMs,
-        modelRoute: pathTaken === 'refined' ? 'gemini-2.5-pro-rerank' : 'deterministic'
+        modelRoute: 'gpt-5-venue-generator'
       }
     };
 
-    console.log(`✅ [${correlationId}] Fast blocks complete in ${totalMs}ms (${pathTaken}): ${blocks.length} venues`);
+    console.log(`✅ [${correlationId}] Fast blocks complete in ${totalMs}ms (gpt5-generated): ${blocks.length} venues`);
     sendOnce(200, response);
 
   } catch (error) {
