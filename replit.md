@@ -87,6 +87,26 @@ Strategy refresh is triggered by location movement (500 meters), day part change
 
 ## Recent Changes & Implementation Notes
 
+### CRITICAL FIX: Triad Worker - Strategy vs Venue Separation (2025-10-31)
+**Issue**: Triad worker was incorrectly mixing strategy building with venue ranking - two completely separate flows.
+
+**Root Cause**: Worker was building venue catalogs/shortlists and passing them to Claude during strategy generation. Strategy building should ONLY use snapshot context (location, weather, time), NO venues.
+
+**Fix** (`server/jobs/triad-worker.js`):
+- **Removed ALL venue logic**: No `venue_catalog`, `venue_metrics`, `scoring-engine`, `diversity-guardrails`
+- **Claude gets snapshot context ONLY**: `formatted_address`, `city`, `state`, `weather`, `timezone`, `clock`
+- **Claude returns plain text strategy**: 3-5 sentences of strategic positioning advice (no JSON, no venue names)
+- **Data flow preserved**: 
+  1. Gemini news briefing → `snapshots.news_briefing` (parallel, happens at snapshot creation)
+  2. Claude strategy → `strategies.strategy` (worker persists to DB)
+  3. GPT-5 fetches BOTH from DB → consolidates → `strategies.strategy_for_now`
+
+**Two Separate Flows**:
+1. **Strategy Flow** (triad-worker.js): Snapshot context → Claude + Gemini → GPT-5 → final strategy (NO VENUES)
+2. **Venue Ranking Flow** (blocks-fast.js): Strategy + catalog → scoring → ranked venues (SEPARATE endpoint)
+
+**Impact**: Strategy building is now clean, focused, and doesn't touch venue data. Venues are handled only when user requests blocks.
+
 ### GPT-5 Consolidation Fix (2025-10-31)
 **Issue**: GPT-5 was only receiving Claude's strategy, missing Gemini's news briefing for consolidation.
 

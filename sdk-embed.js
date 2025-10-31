@@ -24,6 +24,12 @@ import {
   storeAgentMemory
 } from "./server/agent/enhanced-context.js";
 import { getThreadManager } from "./server/agent/thread-context.js";
+import { processTriadJobs } from "./server/jobs/triad-worker.js";
+
+// Start triad worker on SDK server boot
+processTriadJobs().catch(err => {
+  console.error('[SDK] Triad worker crashed:', err.message);
+});
 
 export default function createSdkRouter(opts = {}) {
   const r = express.Router();
