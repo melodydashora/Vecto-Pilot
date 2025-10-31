@@ -684,4 +684,93 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Export core processing function for use by other routes
+export async function processBlocksFast({ snapshotId, headers = {}, body = {} }) {
+  const correlationId = headers['x-correlation-id'] || randomUUID();
+  const { userId = 'demo' } = body;
+  
+  if (!snapshotId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
+    throw new Error('Invalid or missing snapshot ID');
+  }
+
+  // Load snapshot
+  const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+  if (!snap || snap.lat == null || snap.lng == null) {
+    throw new Error('Snapshot not found or missing coordinates');
+  }
+
+  // Check for strategy readiness
+  const { ready, strategy, status } = await isStrategyReady(snapshotId);
+  if (!ready) {
+    return {
+      ok: false,
+      status: 'strategy_pending',
+      reason: 'strategy_pending',
+      message: 'Waiting for consolidated strategy to complete'
+    };
+  }
+
+  // Check for existing ranking
+  const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+  
+  if (ranking) {
+    // Return existing blocks
+    const candidates = await db.select().from(ranking_candidates)
+      .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
+      .orderBy(ranking_candidates.rank);
+    
+    const [strategyRow] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    
+    const briefing = strategyRow ? {
+      claude_strategy: strategyRow.claude_strategy || null,
+      gemini: {
+        news: strategyRow.gemini_news || [],
+        events: strategyRow.gemini_events || [],
+        traffic: strategyRow.gemini_traffic || []
+      },
+      gpt5_consolidated: strategyRow.gpt5_consolidated || null
+    } : null;
+    
+    const within15Min = (driveMin) => Number.isFinite(driveMin) && driveMin <= 15;
+    const blocks = candidates
+      .filter(c => within15Min(c.drive_minutes || c.drive_time_minutes))
+      .map(c => ({
+        name: c.name,
+        coordinates: { lat: c.lat, lng: c.lng },
+        placeId: c.place_id,
+        estimated_distance_miles: c.distance_miles,
+        driveTimeMinutes: c.drive_minutes || c.drive_time_minutes,
+        value_per_min: c.value_per_min,
+        value_grade: c.value_grade,
+        not_worth: c.not_worth,
+        proTips: c.pro_tips,
+        closed_venue_reasoning: c.closed_reasoning,
+        stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
+        businessHours: c.business_hours,
+        isOpen: c.business_hours?.isOpen,
+        eventBadge: c.venue_events?.badge,
+        eventSummary: c.venue_events?.summary,
+      }));
+    
+    return {
+      ok: true,
+      blocks,
+      ranking_id: ranking.ranking_id,
+      briefing,
+      snapshot_id: snapshotId,
+      correlationId
+    };
+  }
+
+  // No ranking exists - return empty for now (full generation would happen in POST handler)
+  return {
+    ok: true,
+    blocks: [],
+    message: 'No ranking exists yet',
+    snapshot_id: snapshotId,
+    correlationId
+  };
+}
+
 export default router;
