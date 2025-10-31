@@ -67,12 +67,16 @@ export const strategies = pgTable("strategies", {
   valid_window_start: timestamp("valid_window_start", { withTimezone: true }), // When strategy becomes valid
   valid_window_end: timestamp("valid_window_end", { withTimezone: true }), // When strategy expires (≤ 60 min from start)
   strategy_timestamp: timestamp("strategy_timestamp", { withTimezone: true }), // Generation timestamp
-  // Parallel briefing fields (independent provider writes)
-  claude_strategy: text("claude_strategy"),
-  gemini_news: jsonb("gemini_news"),
-  gemini_events: jsonb("gemini_events"),
-  gemini_traffic: jsonb("gemini_traffic"),
-  gpt5_consolidated: text("gpt5_consolidated"),
+  // User-resolved location (copied from snapshot at creation time)
+  user_resolved_address: text("user_resolved_address"),
+  user_resolved_city: text("user_resolved_city"),
+  user_resolved_state: text("user_resolved_state"),
+  // Model-agnostic provider outputs (generic columns for parallel multi-model pipeline)
+  minstrategy: text("minstrategy"), // Short strategy from first provider (Claude)
+  briefing_news: jsonb("briefing_news"), // News feed from second provider (Gemini)
+  briefing_events: jsonb("briefing_events"), // Events feed from second provider (Gemini)
+  briefing_traffic: jsonb("briefing_traffic"), // Traffic feed from second provider (Gemini)
+  consolidated_strategy: text("consolidated_strategy"), // Final consolidated strategy from third provider (GPT-5)
 });
 
 export const rankings = pgTable("rankings", {
