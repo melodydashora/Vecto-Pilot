@@ -51,7 +51,7 @@ export async function processTriadJobs() {
         console.error(`[triad-worker] ❌ Lock busy for ${snapshot_id}, marking job FAILED`);
         await db.execute(sql`
           UPDATE ${triad_jobs}
-          SET status = 'error'
+          SET status = 'error', error_message = 'Lock busy - another worker processing this snapshot'
           WHERE id = ${jobId}
         `);
         continue;
