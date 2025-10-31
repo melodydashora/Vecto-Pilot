@@ -427,8 +427,9 @@ router.get('/model-ping', async (req, res) => {
 
       try {
         const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-5-20250929';
         const response = await anthropic.messages.create({
-          model: 'claude-3-5-sonnet-20241022',
+          model: modelId,
           max_tokens: 10,
           messages: [{ role: 'user', content: 'ping' }]
         });
@@ -583,9 +584,10 @@ router.get('/workflow-dry-run', async (req, res) => {
     try {
       const { default: Anthropic } = await import('@anthropic-ai/sdk');
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-5-20250929';
       
       await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: modelId,
         max_tokens: 20,
         messages: [{ 
           role: 'user', 
