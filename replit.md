@@ -107,16 +107,32 @@ Strategy refresh is triggered by location movement (500 meters), day part change
 
 **Impact**: Strategy building is now clean, focused, and doesn't touch venue data. Venues are handled only when user requests blocks.
 
-### GPT-5 Consolidation Fix (2025-10-31)
-**Issue**: GPT-5 was only receiving Claude's strategy, missing Gemini's news briefing for consolidation.
+### Complete Pipeline Fix: Gemini + Claude + GPT-5 Consolidation (2025-10-31)
+**Issue**: Frontend displayed only Claude's intermediate strategy, missing Gemini's news/traffic/events intelligence.
 
-**Fix** (`server/lib/triad-orchestrator.js` lines 68-75):
-- Extract `snapshot.news_briefing` from database
-- Pass BOTH Claude strategy AND Gemini briefing to GPT-5
-- Updated system prompt: "Consolidate the strategist's plan with the Gemini news briefing"
-- Result: `strategy_for_now` now incorporates traffic, events, news, AND strategic analysis
+**Root Causes**:
+1. API endpoint returned `strategy` field instead of `strategy_for_now` 
+2. No null validation before GPT-5 consolidation
+3. GPT-5 receiving incomplete data
 
-**Impact**: Strategies now properly consolidate all intelligence sources into final actionable output.
+**Complete Fix** (`server/jobs/triad-worker.js` + `server/routes/blocks.js`):
+- **Null Guards** (lines 115-124): Verify BOTH Claude strategy (≥20 chars) AND Gemini briefing (not null) exist before GPT-5 runs
+- **API Fix** (blocks.js line 116): Return `strategy_for_now || strategy` to serve consolidated output
+- **Data Flow**: 
+  1. Gemini briefing → `snapshots.news_briefing` (parallel at snapshot creation)
+  2. Claude strategy → `strategies.strategy` (worker persists)
+  3. Worker fetches BOTH from DB
+  4. Validation guards ensure no nulls
+  5. GPT-5 consolidates → `strategies.strategy_for_now`
+- **Worker Auto-Start**: Triad worker launches automatically via `sdk-embed.js` lines 27-30
+
+**Verified Working State** (snapshot 5ef62f5a):
+- ✅ Gemini: Halloween events, DFW arrivals, DNT/SRT traffic, law enforcement alerts
+- ✅ Claude: Time/location/weather strategic positioning (no venues)
+- ✅ GPT-5: Consolidated final output with all intelligence sources
+- ✅ Frontend: Displays `strategy_for_now` with complete news/events/traffic data
+
+**Impact**: Complete three-stage pipeline working end-to-end with proper consolidation and no null failures.
 
 ### AI Coach Read-Only Context (2025-10-31)
 **New Endpoint** (`server/routes/chat-context.js`):
