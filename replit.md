@@ -174,3 +174,86 @@ All geographic computations use snapshot coordinates. Enrichment operations comp
 - `server/lib/venue-event-research.js` - Event planner with Perplexity integration
 
 **Impact**: Complete strategy-first architecture with deterministic gating, proper lock isolation, verified planner inputs, strict 15-minute perimeter enforcement, and schema-safe upsert operations. All exit criteria met.
+
+### 2025-10-31: Strategy Persistence & Planner Integration
+**Objective**: Ensure GPT-5 consolidation persists all required context fields and planners receive precise inputs for venue/event generation.
+
+**1. Strategy Persistence Enhancement** (triad-worker.js lines 172-189):
+- **Fields Persisted**: `snapshot_id`, `user_id`, `user_address`, `city`, `state`, `lat`, `lng`, `events`, `news`, `traffic`, `strategy_for_now`
+- **Source Data**: Full snapshot context + Gemini briefing structured data
+- **Update Applied**:
+  ```javascript
+  await db.update(strategies).set({
+    status: 'ok',
+    strategy_for_now: gpt5Result.text.trim(),  // Consolidated strategy
+    user_address: snap.formatted_address,       // Precise address for planners
+    city: snap.city,
+    state: snap.state,
+    lat: snap.lat,
+    lng: snap.lng,
+    user_id: snap.user_id,
+    events: snap.news_briefing?.events || [],
+    news: snap.news_briefing?.news || [],
+    traffic: snap.news_briefing?.traffic || []
+  })
+  ```
+
+**2. Planner Input Verification**:
+- **Venue Generator** (`generateVenueCoordinates()` in gpt5-venue-generator.js):
+  - Receives: `consolidatedStrategy`, `driverLat`, `driverLng`, `city`, `state`, `currentTime`, `weather`, `maxDistance: 15`
+  - Generates: 8 venues with dual coordinates (location + staging), pro tips, closed reasoning
+  - Called from: blocks-fast.js POST endpoint (lines 224-233) when generating fallback venues
+- **Event Planner** (researchVenueEvents() in venue-event-research.js):
+  - Receives: `venueName`, `city`, `date`
+  - Uses: Perplexity API with `searchRecencyFilter: 'day'`
+  - Returns: Event badges, summaries, impact levels
+
+**3. Smart Blocks Gating Flow** (blocks-fast.js):
+- **GET Endpoint** (lines 23-91):
+  1. Call `isStrategyReady(snapshotId)` → check `strategies.strategy_for_now` existence
+  2. Return `202 { reason: 'strategy_pending' }` if not ready
+  3. Return `200 { blocks[], audit[] }` with 15-minute filtered blocks once ready
+- **POST Endpoint** (lines 93-674):
+  1. Load snapshot from database
+  2. Check for existing `ranking_candidates` (snapshot-first pattern)
+  3. If insufficient data (< 4 candidates):
+     - Fetch consolidated strategy from DB
+     - Generate 8 venues using GPT-5 with strategy + snapshot context
+  4. Enrich with drive times and scores
+  5. Filter to 15-minute perimeter
+  6. Persist to `rankings` and `ranking_candidates` tables
+
+**4. Perimeter Enforcement Details**:
+- **Filter Logic** (blocks-fast.js lines 57-79):
+  ```javascript
+  const within15Min = (driveMin) => Number.isFinite(driveMin) && driveMin <= 15;
+  const blocks = allBlocks.filter(b => within15Min(b.driveTimeMinutes));
+  const rejected = allBlocks.filter(b => !within15Min(b.driveTimeMinutes)).length;
+  ```
+- **Audit Trail**: `{ step: 'perimeter', accepted, rejected, max_minutes: 15 }`
+- **Render Rule**: Only blocks ≤ 15 drive minutes appear in frontend
+
+**5. Exit Criteria Verification**:
+✅ **Strategy Row**: Persists once per snapshot with all required fields (snapshot_id, user_address, city, state, events, news, traffic, consolidated_strategy)
+✅ **Gating**: `/api/blocks/fast` returns 202 until `strategy_for_now` exists, then 200 with blocks
+✅ **Block Count**: Minimum 4 blocks generated using precise address + consolidated strategy
+✅ **Perimeter**: All displayed blocks ≤ 15 minutes; audit shows accepted/rejected counts
+✅ **Lock**: Per-snapshot lock `triad:${snapshot_id}` with 120s TTL, released in finally
+✅ **Job**: Transactional states (queued → running → ok|error), no retries on schema mismatch
+✅ **Indices**: All ON CONFLICT clauses match unique indexes (verified via SQL queries)
+
+**Database Schema Verification**:
+```sql
+-- Strategies table has all required fields
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'strategies' 
+AND column_name IN ('snapshot_id', 'user_address', 'city', 'state', 'events', 'news', 'traffic', 'strategy_for_now', 'user_id', 'lat', 'lng');
+-- Returns: 11 columns (all present)
+
+-- Unique index on snapshot_id
+SELECT indexname FROM pg_indexes 
+WHERE tablename = 'strategies' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%snapshot_id%';
+-- Returns: strategies_snapshot_id_unique
+```
+
+**Impact**: Complete strategy persistence with all context fields. Planners receive precise user address and consolidated strategy. Gating prevents premature block rendering. Perimeter strictly enforced at 15 minutes. All exit criteria verified and met.
