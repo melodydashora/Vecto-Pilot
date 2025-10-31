@@ -1,0 +1,90 @@
+{
+  "blocks": [
+    {
+      "name": "Embassy Suites by Hilton Dallas Frisco Hotel & Convention Center",
+      "coordinates": {
+        "lat": 33.0976,
+        "lng": -96.8191
+      },
+      "placeId": null,
+      "estimated_distance_miles": 6.63,
+      "driveTimeMinutes": 11,
+      "value_per_min": 0.58,
+      "value_grade": "C",
+      "not_worth": false,
+      "proTips": null,
+      "closed_venue_reasoning": null,
+      "stagingArea": null,
+      "businessHours": null
+    },
+    {
+      "name": "Comerica Center",
+      "coordinates": {
+        "lat": 33.1018,
+        "lng": -96.8185
+      },
+      "placeId": null,
+      "estimated_distance_miles": 5.29,
+      "driveTimeMinutes": 11,
+      "value_per_min": 0.58,
+      "value_grade": "C",
+      "not_worth": false,
+      "proTips": null,
+      "closed_venue_reasoning": null,
+      "stagingArea": null,
+      "businessHours": null
+    },
+    {
+      "name": "Riders Field",
+      "coordinates": {
+        "lat": 33.0997,
+        "lng": -96.8208
+      },
+      "placeId": null,
+      "estimated_distance_miles": 5.33,
+      "driveTimeMinutes": 12,
+      "value_per_min": 0.56,
+      "value_grade": "C",
+      "not_worth": false,
+      "proTips": null,
+      "closed_venue_reasoning": null,
+      "stagingArea": null,
+      "businessHours": null
+    },
+    {
+      "name": "Stonebriar Centre",
+      "coordinates": {
+        "lat": 33.0974,
+        "lng": -96.8156
+      },
+      "placeId": null,
+      "estimated_distance_miles": 5.78,
+      "driveTimeMinutes": 13,
+      "value_per_min": 0.54,
+      "value_grade": "C",
+      "not_worth": false,
+      "proTips": null,
+      "closed_venue_reasoning": null,
+      "stagingArea": null,
+      "businessHours": null
+    },
+    {
+      "name": "Dave & Buster’s - Frisco",
+      "coordinates": {
+        "lat": 33.0955,
+        "lng": -96.8154
+      },
+      "placeId": null,
+      "estimated_distance_miles": 5.89,
+      "driveTimeMinutes": 13,
+      "value_per_min": 0.54,
+      "value_grade": "C",
+      "not_worth": false,
+      "proTips": null,
+      "closed_venue_reasoning": null,
+      "stagingArea": null,
+      "businessHours": null
+    }
+  ],
+  "ranking_id": "1012ae3c-6f0f-4f4c-8a08-86562cb337a3"
+}
