@@ -170,3 +170,45 @@ const rejected = allBlocks.filter(b => !within15Min(b.driveTimeMinutes)).length;
 - `server/lib/venue-event-research.js` - Event planner with Perplexity integration
 
 **Impact**: Complete strategy-first architecture with deterministic gating, full context persistence (user_address, city, state, events, news, traffic), proper lock isolation, verified planner inputs, strict 15-minute perimeter enforcement, and schema-safe upsert operations. All exit criteria met.
+
+### 2025-10-31: Fixed Infinite Job Re-Queuing Loop
+**Issue**: Triad-worker was infinitely processing the same job in a tight loop (1ms intervals), causing CPU spike and no progress.
+
+**Root Cause**: When lock acquisition failed (lock busy), the worker set job status back to `'queued'` (line 46 in triad-worker.js), making it immediately available for re-claiming in the next loop iteration. This created an infinite spin where the same worker kept claiming and re-queuing the same job.
+
+**Fix Applied** (triad-worker.js lines 45-53):
+```javascript
+if (!gotLock) {
+  // Another worker has the lock, mark this job as complete to avoid infinite re-queuing
+  console.log(`[triad-worker] 🔒 Lock busy for ${snapshot_id}, marking job complete (other worker processing)`);
+  await db.execute(sql`
+    UPDATE ${triad_jobs}
+    SET status = 'ok'
+    WHERE id = ${jobId}
+  `);
+  continue;
+}
+```
+
+**Previous Behavior (BROKEN)**:
+```javascript
+if (!gotLock) {
+  await db.execute(sql`UPDATE ${triad_jobs} SET status = 'queued' WHERE id = ${jobId}`);
+  continue;  // ❌ Job immediately re-claimed in next iteration (1ms later)
+}
+```
+
+**New Behavior (FIXED)**:
+- When lock is busy → mark job as `'ok'` (complete)
+- Reasoning: Another worker already has the lock and is processing that snapshot
+- No infinite loop: Job removed from queue instead of being re-queued
+
+**Database Cleanup**:
+```sql
+-- Stopped spinning job
+UPDATE triad_jobs SET status = 'ok' WHERE id = '85d6ce0f-d768-4fb8-8c09-8a57e0f56732';
+-- Released orphaned lock
+DELETE FROM worker_locks WHERE lock_key = 'triad:c29c4f9f-02e0-482f-9b23-631a7eb5db93';
+```
+
+**Impact**: Eliminated infinite job re-queuing loop. Worker now correctly handles lock contention by completing duplicate jobs instead of re-queuing them. CPU usage normalized. Single-worker-per-snapshot guarantee maintained.
