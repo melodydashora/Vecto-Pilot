@@ -74,8 +74,12 @@ router.get('/', async (req, res) => {
       .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
       .orderBy(ranking_candidates.rank);
     
-    // 15-minute perimeter enforcement
-    const within15Min = (driveMin) => Number.isFinite(driveMin) && driveMin <= 15;
+    // 15-minute perimeter enforcement (show all if drive time not calculated yet)
+    const within15Min = (driveMin) => {
+      // If drive time not calculated yet, include the venue (will show "calculating...")
+      if (!Number.isFinite(driveMin)) return true;
+      return driveMin <= 15;
+    };
     
     const allBlocks = candidates.map(c => ({
       name: c.name,
