@@ -5,28 +5,17 @@ const pool = new pg.Pool({
 });
 
 /**
- * Upsert place coordinates and address into places table
- * Separates stable data (coords/address) from volatile data (hours in places_cache)
+ * Upsert place coordinates and address into places_cache table
+ * NOTE: The 'places' table doesn't exist - all data goes into places_cache
+ * This function is deprecated and should not be used.
  */
 export async function upsertPlace({ place_id, name, formatted_address, lat, lng }) {
   if (!place_id) return;
   
-  try {
-    await pool.query(
-      `INSERT INTO places (place_id, name, formatted_address, lat, lng, coords_verified_at)
-       VALUES ($1, $2, $3, $4, $5, now())
-       ON CONFLICT (place_id) DO UPDATE SET
-         name = EXCLUDED.name,
-         formatted_address = EXCLUDED.formatted_address,
-         lat = EXCLUDED.lat,
-         lng = EXCLUDED.lng,
-         coords_verified_at = now()`,
-      [place_id, name || null, formatted_address || null, lat, lng]
-    );
-    console.log(`[Places Cache] ✅ Upserted place_id: ${place_id}`);
-  } catch (e) {
-    console.error(`[Places Cache] ⚠️ Upsert failed for ${place_id}:`, e.message);
-  }
+  // DEPRECATED: 'places' table doesn't exist in schema
+  // All place data is stored in places_cache
+  console.warn(`[Places Cache] ⚠️ upsertPlace is deprecated - 'places' table doesn't exist. Use places_cache only.`);
+  return;
 }
 
 /**
