@@ -71,6 +71,9 @@ const isCloudRun = !!(process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE =
 const isAutoscale = isCloudRun && !isReplit; // Cloud Run autoscale, NOT Replit
 const fastBoot = process.env.FAST_BOOT === '1' || isAutoscale;
 
+console.log(`[env] 🔍 ENABLE_BACKGROUND_WORKER="${process.env.ENABLE_BACKGROUND_WORKER}" (type: ${typeof process.env.ENABLE_BACKGROUND_WORKER})`);
+console.log(`[env] 🔍 isReplit=${isReplit}, isCloudRun=${isCloudRun}, isAutoscale=${isAutoscale}`);
+
 if (isAutoscale) {
   console.log('[autoscale] Cloud Run autoscale detected - using fast boot profile');
 }
@@ -270,7 +273,9 @@ if (isReplit) {
       // ═══════════════════════════════════════════════════════════════════
       // BACKGROUND WORKER - Disabled on Cloud Run Autoscale
       // ═══════════════════════════════════════════════════════════════════
+      console.log(`[triad-worker] 🔍 Debug: ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}, isAutoscale=${isAutoscale}, isReplit=${isReplit}, isCloudRun=${isCloudRun}`);
       const enableWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true' && !isAutoscale;
+      console.log(`[triad-worker] 🔍 enableWorker=${enableWorker}`);
       
       if (enableWorker) {
         import('./server/jobs/triad-worker.js').then(({ processTriadJobs }) => {
