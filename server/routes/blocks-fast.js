@@ -693,7 +693,7 @@ router.post('/', async (req, res) => {
 
 /**
  * Get strategy status and data (no 202s, no NaNs, no undefined)
- * Always returns 200 with clean JSON
+ * Always returns 200 with clean JSON using GENERIC model-agnostic columns
  */
 export async function getStrategyFast({ snapshotId }) {
   const [row] = await db.select().from(strategies)
@@ -704,12 +704,13 @@ export async function getStrategyFast({ snapshotId }) {
     return { status: 'missing', snapshot_id: snapshotId, timeElapsedMs: 0 };
   }
 
+  // GENERIC: Check model-agnostic fields only (no model names in waitFor)
   const waitFor = [];
-  if (!row.claude_strategy) waitFor.push('claude');
-  if (row.gemini_news === null || row.gemini_events === null || row.gemini_traffic === null) {
-    waitFor.push('gemini');
+  if (!row.minstrategy) waitFor.push('strategy');
+  if (row.briefing_news === null || row.briefing_events === null || row.briefing_traffic === null) {
+    waitFor.push('briefings');
   }
-  if (!row.gpt5_consolidated) waitFor.push('gpt5');
+  if (!row.consolidated_strategy) waitFor.push('consolidation');
 
   const timeElapsedMs = safeElapsedMs(row);
 
@@ -717,20 +718,28 @@ export async function getStrategyFast({ snapshotId }) {
     return {
       status: 'pending',
       snapshot_id: snapshotId,
-      waitFor,
+      waitFor: Array.from(new Set(waitFor)),  // Remove duplicates
       timeElapsedMs
     };
   }
 
+  // GENERIC: Return model-agnostic fields with fallbacks to never return undefined/NaN
   return {
     status: 'ok',
     snapshot_id: snapshotId,
-    consolidated: row.gpt5_consolidated,
-    raw: {
-      claude_strategy: row.claude_strategy,
-      news: row.gemini_news,
-      events: row.gemini_events,
-      traffic: row.gemini_traffic
+    strategy: {
+      min: row.minstrategy || '',
+      consolidated: row.consolidated_strategy || '',
+      briefing: {
+        news: row.briefing_news ?? [],
+        events: row.briefing_events ?? [],
+        traffic: row.briefing_traffic ?? []
+      },
+      user: {
+        address: row.user_resolved_address || row.user_address || '',
+        city: row.user_resolved_city || row.city || '',
+        state: row.user_resolved_state || row.state || ''
+      }
     },
     timeElapsedMs
   };

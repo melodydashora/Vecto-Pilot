@@ -661,6 +661,9 @@ router.post('/test-claude/:snapshotId', async (req, res) => {
       return res.status(404).json({ error: 'Snapshot not found: ' + snapshotId });
     }
     
+    // Get strategy data for user_resolved_address (strategies table has the address, not snapshots)
+    const [strat] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    
     // Import and call provider
     const { runParallelProviders } = await import('../lib/strategy-generator-parallel.js');
     
@@ -671,7 +674,7 @@ router.post('/test-claude/:snapshotId', async (req, res) => {
         lng: snap.lng,
         city: snap.city,
         state: snap.state,
-        user_address: snap.user_address
+        user_address: strat?.user_resolved_address || strat?.user_address || snap.formatted_address || ''
       },
       snapshot: {
         day_part_key: snap.day_part_key,
@@ -704,8 +707,10 @@ router.post('/test-consolidate/:snapshotId', async (req, res) => {
     res.json({ 
       ok: true, 
       snapshotId,
-      consolidationComplete: row?.gpt5_consolidated != null,
-      status: row?.status
+      consolidationComplete: row?.consolidated_strategy != null,
+      status: row?.status,
+      hasStrategy: row?.minstrategy != null,
+      hasBriefings: row?.briefing_news != null && row?.briefing_events != null && row?.briefing_traffic != null
     });
   } catch (err) {
     console.error('[diagnostics/test-consolidate] Error:', err);

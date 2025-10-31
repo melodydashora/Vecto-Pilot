@@ -390,21 +390,21 @@ export async function maybeConsolidate(snapshotId) {
       return;
     }
 
-    // Gate: all provider fields must be present AND gpt5_consolidated must be null
-    const hasClaude = row.claude_strategy != null;
-    const hasNews = row.gemini_news != null;
-    const hasEvents = row.gemini_events != null;
-    const hasTraffic = row.gemini_traffic != null;
-    const alreadyConsolidated = row.gpt5_consolidated != null;
+    // Gate: all GENERIC provider fields must be present AND consolidated_strategy must be null
+    const hasStrategy = row.minstrategy != null;
+    const hasNews = row.briefing_news != null;
+    const hasEvents = row.briefing_events != null;
+    const hasTraffic = row.briefing_traffic != null;
+    const alreadyConsolidated = row.consolidated_strategy != null;
     
-    const ready = hasClaude && hasNews && hasEvents && hasTraffic && !alreadyConsolidated;
+    const ready = hasStrategy && hasNews && hasEvents && hasTraffic && !alreadyConsolidated;
 
     // Detailed gate logging for observability
     console.log(`[consolidation-listener] Gate for ${snapshotId}:`, {
-      hasClaude,
-      hasNews: hasNews && Array.isArray(row.gemini_news),
-      hasEvents: hasEvents && Array.isArray(row.gemini_events),
-      hasTraffic: hasTraffic && Array.isArray(row.gemini_traffic),
+      hasStrategy,
+      hasNews: hasNews && Array.isArray(row.briefing_news),
+      hasEvents: hasEvents && Array.isArray(row.briefing_events),
+      hasTraffic: hasTraffic && Array.isArray(row.briefing_traffic),
       alreadyConsolidated,
       ready
     });
@@ -413,24 +413,24 @@ export async function maybeConsolidate(snapshotId) {
       return;
     }
 
-    console.log(`[consolidation-listener] ✅ All fields present for ${snapshotId}, triggering consolidation...`);
+    console.log(`[consolidation-listener] ✅ All generic fields present for ${snapshotId}, triggering consolidation...`);
 
     const { consolidateStrategy } = await import('../lib/strategy-generator-parallel.js');
     
     const user = {
       lat: row.lat,
       lng: row.lng,
-      user_address: row.user_address,
-      city: row.city,
-      state: row.state
+      user_address: row.user_resolved_address || row.user_address || '',
+      city: row.user_resolved_city || row.city || '',
+      state: row.user_resolved_state || row.state || ''
     };
 
     const result = await consolidateStrategy({
       snapshotId,
-      claudeStrategy: row.claude_strategy,
-      geminiNews: row.gemini_news,
-      geminiEvents: row.gemini_events,
-      geminiTraffic: row.gemini_traffic,
+      claudeStrategy: row.minstrategy,
+      geminiNews: row.briefing_news,
+      geminiEvents: row.briefing_events,
+      geminiTraffic: row.briefing_traffic,
       user
     });
 
