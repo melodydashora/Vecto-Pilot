@@ -1,3 +1,7 @@
+// RETIRED FILE - DO NOT USE
+// This legacy async processor has been replaced by event-driven LISTEN/NOTIFY flow
+throw new Error('RETIRED: blocks-async.js is no longer used. Blocks now use fast synchronous path.');
+
 // server/routes/blocks-async.js
 // Async /api/blocks endpoint with job queue
 // Returns 202 Accepted immediately, processes in background
