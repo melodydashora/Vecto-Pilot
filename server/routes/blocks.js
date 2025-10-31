@@ -110,7 +110,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       return res.json({
         status: 'ok',
         hasStrategy: true,
-        strategy: strategyRow.strategy,
+        strategy: strategyRow.strategy_for_now || strategyRow.strategy,
         latency_ms: strategyRow.latency_ms,
         tokens: strategyRow.tokens,
         createdAt: strategyRow.created_at
