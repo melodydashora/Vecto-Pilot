@@ -11,6 +11,7 @@ import { predictDriveMinutes } from '../lib/driveTime.js';
 import { rerankCandidates } from '../lib/fast-tactical-reranker.js';
 import { persistRankingTx } from '../lib/persist-ranking.js';
 import { generateVenueCoordinates } from '../lib/gpt5-venue-generator.js';
+import { isStrategyReady } from '../lib/strategy-utils.js';
 
 const router = Router();
 
@@ -29,14 +30,13 @@ router.get('/', async (req, res) => {
 
   try {
     // GATE 1: Strategy must be ready before blocks
-    const [strategyRow] = await db.select().from(strategies)
-      .where(eq(strategies.snapshot_id, snapshotId))
-      .limit(1);
+    const { ready, strategy, status } = await isStrategyReady(snapshotId);
     
-    if (!strategyRow || !strategyRow.strategy_for_now) {
+    if (!ready) {
       return res.status(202).json({ 
         ok: false, 
         reason: 'strategy_pending',
+        status: status || 'pending',
         message: 'Waiting for consolidated strategy to complete'
       });
     }
