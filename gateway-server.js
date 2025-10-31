@@ -91,7 +91,24 @@ if (isAutoscale) {
   app.get('/health', (_req, res) => res.status(200).send('OK'));
   app.head('/health', (_req, res) => res.status(200).end());
   app.get('/healthz', (_req, res) => res.status(200).json({ ok: true, mode: MODE, port: PORT }));
-  app.get('/ready', (_req, res) => res.status(200).send('OK'));
+  
+  // /ready with DB probe per stabilization doc
+  app.get('/ready', async (_req, res) => {
+    try {
+      const { db } = await import('./server/db/drizzle.js');
+      const { sql } = await import('drizzle-orm');
+      await db.execute(sql`SELECT 1`);
+      res.status(200).send('OK');
+    } catch (err) {
+      console.error('[ready] DB probe failed:', err.message);
+      res.status(503).json({ 
+        ok: false, 
+        reason: 'database_unavailable', 
+        cause: err.message 
+      });
+    }
+  });
+  
   app.get('/api/health', (_req, res) => res.status(200).json({ ok: true, port: PORT, mode: MODE }));
 
   // ═══════════════════════════════════════════════════════════════════
