@@ -272,4 +272,51 @@ router.post('/migrate', async (req, res) => {
   }
 });
 
+// GET /api/diagnostics/worker-status - Check worker configuration
+router.get('/worker-status', async (req, res) => {
+  try {
+    const status = {
+      env: {
+        ENABLE_BACKGROUND_WORKER: process.env.ENABLE_BACKGROUND_WORKER,
+        REPL_ID: !!process.env.REPL_ID,
+        K_SERVICE: !!process.env.K_SERVICE,
+        CLOUD_RUN_AUTOSCALE: process.env.CLOUD_RUN_AUTOSCALE
+      },
+      computed: {
+        isReplit: !!process.env.REPL_ID,
+        isCloudRun: !!(process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1'),
+        isAutoscale: !!(process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1') && !process.env.REPL_ID,
+        shouldEnableWorker: process.env.ENABLE_BACKGROUND_WORKER === 'true' && (!((process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1') && !process.env.REPL_ID))
+      }
+    };
+    
+    // Check for pending/queued jobs
+    const pendingJobs = await db.execute(sql`
+      SELECT COUNT(*) as count FROM triad_jobs 
+      WHERE status IN ('queued', 'running')
+    `);
+    
+    const recentStrategies = await db.execute(sql`
+      SELECT snapshot_id, status, 
+             strategy IS NOT NULL as has_claude,
+             strategy_for_now IS NOT NULL as has_gpt5,
+             created_at
+      FROM strategies 
+      WHERE created_at > NOW() - INTERVAL '10 minutes'
+      ORDER BY created_at DESC
+      LIMIT 3
+    `);
+    
+    status.jobs = {
+      pending: Number(pendingJobs.rows?.[0]?.count || 0)
+    };
+    
+    status.recentStrategies = recentStrategies.rows || [];
+    
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 export default router;

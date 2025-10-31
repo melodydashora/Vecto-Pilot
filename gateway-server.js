@@ -273,11 +273,15 @@ if (isReplit) {
       // ═══════════════════════════════════════════════════════════════════
       // BACKGROUND WORKER - Disabled on Cloud Run Autoscale
       // ═══════════════════════════════════════════════════════════════════
-      console.log(`[triad-worker] 🔍 Debug: ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}, isAutoscale=${isAutoscale}, isReplit=${isReplit}, isCloudRun=${isCloudRun}`);
-      const enableWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true' && !isAutoscale;
-      console.log(`[triad-worker] 🔍 enableWorker=${enableWorker}`);
+      const workerEnv = process.env.ENABLE_BACKGROUND_WORKER;
+      const enableWorker = workerEnv === 'true' && !isAutoscale;
+      
+      console.error(`\n🔍 [WORKER DEBUG] ENABLE_BACKGROUND_WORKER="${workerEnv}"`);
+      console.error(`🔍 [WORKER DEBUG] isAutoscale=${isAutoscale}, enableWorker=${enableWorker}\n`);
       
       if (enableWorker) {
+        console.error('⚡ [WORKER] STARTING BACKGROUND WORKER NOW...');
+        process.stderr.write('⚡ [WORKER] STDERR: Starting worker import...\n');
         import('./server/jobs/triad-worker.js').then(({ processTriadJobs }) => {
           processTriadJobs().catch(err => {
             console.error('[triad-worker] Worker crashed:', err.message);
