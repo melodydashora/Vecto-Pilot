@@ -56,6 +56,13 @@ export const strategies = pgTable("strategies", {
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   city: text("city"),
+  state: text("state"),
+  user_address: text("user_address"),
+  user_id: uuid("user_id"),
+  // Multi-model orchestration outputs (parallel Claude + Gemini → GPT-5 consolidation)
+  events: jsonb("events").default([]), // Gemini events feed
+  news: jsonb("news").default([]), // Gemini news feed
+  traffic: jsonb("traffic").default([]), // Gemini traffic feed
   // Time windowing (freshness-first spec compliance)
   valid_window_start: timestamp("valid_window_start", { withTimezone: true }), // When strategy becomes valid
   valid_window_end: timestamp("valid_window_end", { withTimezone: true }), // When strategy expires (≤ 60 min from start)
