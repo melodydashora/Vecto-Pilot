@@ -360,4 +360,23 @@ export const cross_thread_memory = pgTable("cross_thread_memory", {
   idxExpires: sql`create index if not exists idx_cross_thread_memory_expires on ${table} (expires_at)`,
 }));
 
+export const venue_events = pgTable("venue_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  venue_id: uuid("venue_id"),
+  place_id: text("place_id"),
+  title: text("title").notNull(),
+  starts_at: timestamp("starts_at", { withTimezone: true }),
+  ends_at: timestamp("ends_at", { withTimezone: true }),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  source: text("source").notNull(),
+  radius_m: integer("radius_m"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxVenueId: sql`create index if not exists idx_venue_events_venue_id on ${table} (venue_id)`,
+  idxCoords: sql`create index if not exists idx_venue_events_coords on ${table} (lat, lng)`,
+  idxStartsAt: sql`create index if not exists idx_venue_events_starts_at on ${table} (starts_at)`,
+}));
+
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
