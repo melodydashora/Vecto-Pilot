@@ -6,7 +6,10 @@ import { triad_jobs, strategies, snapshots } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { callClaude45Raw } from '../lib/adapters/anthropic-sonnet45.js';
 import { callGPT5 } from '../lib/adapters/openai-gpt5.js';
-import { acquireLock, releaseLock } from '../lib/locks.js';
+import { acquireLock, releaseLock, extendLock } from '../lib/locks.js';
+
+const LOCK_TTL_MS = Number(process.env.LOCK_TTL_MS || 9000);
+const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 3000);
 
 export async function processTriadJobs() {
   console.log('[triad-worker] 🔄 Worker loop started, polling for jobs...');
@@ -44,7 +47,7 @@ export async function processTriadJobs() {
       const lockKey = `triad:${snapshot_id}`;
       console.log(`[triad-worker] 🔑 Attempting to acquire lock: ${lockKey}`);
       
-      const gotLock = await acquireLock(lockKey, 120000); // 120s TTL
+      const gotLock = await acquireLock(lockKey, LOCK_TTL_MS);
       
       if (!gotLock) {
         // Lock busy - mark job failed and skip
@@ -57,7 +60,17 @@ export async function processTriadJobs() {
         continue;
       }
 
-      console.log(`[triad-worker] ✅ Lock acquired: ${lockKey}`);
+      console.log(`[triad-worker] ✅ Lock acquired: ${lockKey}, TTL=${LOCK_TTL_MS}ms`);
+
+      // Heartbeat timer to extend lock during long-running operations
+      let heartbeat = setInterval(async () => {
+        try {
+          await extendLock(lockKey, LOCK_TTL_MS);
+          console.log(`[triad-worker] 💓 Lock heartbeat: ${lockKey}`);
+        } catch (e) {
+          console.error(`[triad-worker] ❌ Lock heartbeat error:`, e?.message || e);
+        }
+      }, HEARTBEAT_MS);
 
       try {
         // Check if strategy already exists (race condition guard)
@@ -247,7 +260,8 @@ Create a consolidated strategy using ONLY city and district names. Start with ge
           WHERE snapshot_id = ${snapshot_id}
         `);
       } finally {
-        // Always release lock
+        // Clean up heartbeat and release lock
+        try { clearInterval(heartbeat); } catch {}
         await releaseLock(lockKey);
       }
     } catch (err) {

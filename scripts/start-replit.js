@@ -39,7 +39,15 @@ try {
 
 // Ensure deterministic env and port
 process.env.PORT = process.env.PORT || '5000';
-process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+
+// Force explicit value to survive shell quirks; allow override via FORCE_DEV
+if (process.env.FORCE_DEV === '1') {
+  process.env.NODE_ENV = 'development';
+} else {
+  process.env.NODE_ENV = 'production';
+}
+
+process.env.WORKER_ID = process.env.WORKER_ID || `replit:${process.pid}`;
 
 const PORT = process.env.PORT;
 
@@ -60,7 +68,7 @@ console.log(`[boot] REPL_ID=${process.env.REPL_ID ? 'set' : 'not set'}`);
 // Start gateway server
 const server = spawn('node', ['gateway-server.js'], {
   stdio: 'inherit',
-  env: process.env
+  env: { ...process.env } // ensure explicit env propagation
 });
 
 server.on('error', (err) => {
@@ -79,7 +87,7 @@ if (process.env.ENABLE_BACKGROUND_WORKER === 'true') {
   console.log('[boot] ⚡ Starting triad worker...');
   worker = spawn('node', ['strategy-generator.js'], {
     stdio: 'inherit',
-    env: process.env
+    env: { ...process.env } // ensure explicit env propagation
   });
   
   worker.on('error', (err) => {
