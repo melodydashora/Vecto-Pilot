@@ -15,17 +15,23 @@ Vecto Pilot is a full-stack Node.js application built with a multi-service archi
 -   **Agent Server**: Manages workspace intelligence, offering secure, token-based access to file system operations, shell commands, and database queries.
 
 ### AI Configuration
-A **four-stage AI pipeline** generates strategic briefings with clear separation of concerns:
+**Model-Agnostic Architecture**: All AI models are configurable via environment variables (`.env`). Default models listed below can be swapped without code changes.
 
-**Strategy Generation Pipeline**:
-1.  **Claude Opus 4.5 (Strategist)**: Performs initial strategic analysis.
-2.  **Gemini 2.5 Pro (News Briefing)**: Provides city-wide local news, traffic, airport intelligence, and major regional events.
-3.  **GPT-5 (Tactical Consolidator)**: Combines strategies and briefings into final time-windowed actionable intelligence.
+**Strategy Generation Pipeline** (Sequential Flow):
+1.  **Snapshot Creation** → **News Briefing Generator** (default: Gemini 2.5 Pro): Generates city-wide traffic, airport intelligence, major events. Stored in `snapshots.news_briefing`.
+2.  **Strategy Worker** → **Strategist** (default: Claude Opus 4.5): Reads snapshot data, generates initial strategic analysis. 
+3.  **Strategy Worker** → **Tactical Consolidator** (default: GPT-5): Receives BOTH Strategist output + News Briefing, consolidates into final `strategy_for_now` with time-windowed actionable intelligence.
+4.  **Strategy Worker** → **Validator** (default: Gemini 2.5 Pro): Validates final output, enforces caps/shape, suggests seed additions.
+
+**Key Data Flow**:
+- Precise user location sent to both News Briefing and Strategist (different tasks)
+- Both outputs → Consolidator → final strategy persisted to `strategies` table
+- `strategy_for_now` field contains consolidated output from all three stages
 
 **Venue Events Intelligence**:
--  **Perplexity (Events Planner)**: Researches real-time venue-specific events using internet search. This runs non-blocking to enrich venue data for UI display and is not used in strategy generation.
+-  **Events Researcher** (default: Perplexity): Researches real-time venue-specific events using internet search. Runs non-blocking to enrich venue data for UI display, NOT used in strategy generation.
 
-**Gemini Radius Constraints**:
+**News Briefing Radius Constraints**:
 - **Events**: 15min drive OR 7-10mi radius.
 - **Traffic/News**: 0-30min drive OR 0-15mi radius.
 
@@ -80,6 +86,17 @@ Strategy refresh is triggered by location movement (500 meters), day part change
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
 
 ## Recent Changes & Implementation Notes
+
+### GPT-5 Consolidation Fix (2025-10-31)
+**Issue**: GPT-5 was only receiving Claude's strategy, missing Gemini's news briefing for consolidation.
+
+**Fix** (`server/lib/triad-orchestrator.js` lines 68-75):
+- Extract `snapshot.news_briefing` from database
+- Pass BOTH Claude strategy AND Gemini briefing to GPT-5
+- Updated system prompt: "Consolidate the strategist's plan with the Gemini news briefing"
+- Result: `strategy_for_now` now incorporates traffic, events, news, AND strategic analysis
+
+**Impact**: Strategies now properly consolidate all intelligence sources into final actionable output.
 
 ### AI Coach Read-Only Context (2025-10-31)
 **New Endpoint** (`server/routes/chat-context.js`):
