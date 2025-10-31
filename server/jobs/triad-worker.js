@@ -298,3 +298,96 @@ Create a consolidated strategy using ONLY city and district names. Start with ge
 
 // NOTE: Worker is started by strategy-generator.js (separate process)
 // Removed auto-start to prevent duplicate worker loops
+
+/**
+ * Event-driven consolidation listener
+ * Listens for strategy updates and triggers GPT-5 consolidation when all provider fields present
+ */
+export async function startConsolidationListener() {
+  const { getListenClient } = await import('../lib/db-client.js');
+  const { consolidateStrategy } = await import('../lib/strategy-generator-parallel.js');
+
+  try {
+    const pgClient = await getListenClient();
+    
+    // Set up notification handler
+    pgClient.on('notification', async (msg) => {
+      if (msg.channel === 'strategy_update' && msg.payload) {
+        const snapshotId = msg.payload;
+        console.log(`[consolidation-listener] 📢 Received notification for snapshot ${snapshotId}`);
+        
+        try {
+          // Fire-and-forget: check if consolidation needed and run if ready
+          await maybeConsolidate(snapshotId);
+        } catch (err) {
+          console.error(`[consolidation-listener] ❌ Error processing notification:`, err.message);
+        }
+      }
+    });
+
+    // Start listening
+    await pgClient.query('LISTEN strategy_update');
+    console.log('[consolidation-listener] 🎧 Listening for strategy updates on channel: strategy_update');
+    
+  } catch (err) {
+    console.error('[consolidation-listener] ❌ Failed to start listener:', err);
+    throw err;
+  }
+}
+
+/**
+ * Check if all provider fields present and consolidation needed
+ */
+async function maybeConsolidate(snapshotId) {
+  try {
+    const [row] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+
+    if (!row) {
+      console.log(`[consolidation-listener] ⚠️  No strategy row found for ${snapshotId}`);
+      return;
+    }
+
+    // Gate: all provider fields must be present AND gpt5_consolidated must be null
+    const ready =
+      row.claude_strategy &&
+      Array.isArray(row.gemini_news) &&
+      Array.isArray(row.gemini_events) &&
+      Array.isArray(row.gemini_traffic) &&
+      !row.gpt5_consolidated;
+
+    if (!ready) {
+      console.log(`[consolidation-listener] ⏸️  Not ready yet for ${snapshotId} (claude=${!!row.claude_strategy}, gemini_news=${Array.isArray(row.gemini_news)}, gemini_events=${Array.isArray(row.gemini_events)}, gemini_traffic=${Array.isArray(row.gemini_traffic)}, gpt5=${!!row.gpt5_consolidated})`);
+      return;
+    }
+
+    console.log(`[consolidation-listener] ✅ All fields present for ${snapshotId}, triggering consolidation...`);
+
+    const { consolidateStrategy } = await import('../lib/strategy-generator-parallel.js');
+    
+    const user = {
+      lat: row.lat,
+      lng: row.lng,
+      user_address: row.user_address,
+      city: row.city,
+      state: row.state
+    };
+
+    const result = await consolidateStrategy({
+      snapshotId,
+      claudeStrategy: row.claude_strategy,
+      geminiNews: row.gemini_news,
+      geminiEvents: row.gemini_events,
+      geminiTraffic: row.gemini_traffic,
+      user
+    });
+
+    if (result.ok) {
+      console.log(`[consolidation-listener] ✅ Consolidation complete for ${snapshotId}`);
+    } else {
+      console.error(`[consolidation-listener] ❌ Consolidation failed for ${snapshotId}:`, result.reason);
+    }
+  } catch (err) {
+    console.error(`[consolidation-listener] ❌ Error in maybeConsolidate:`, err.message);
+  }
+}
