@@ -71,7 +71,22 @@ Return JSON with events[], news[], traffic[] arrays.`;
       maxOutputTokens: 2048
     });
 
-    const parsed = JSON.parse(result);
+    // Robust JSON parsing with fallback to empty arrays
+    let parsed;
+    try {
+      parsed = JSON.parse(result);
+    } catch (parseErr) {
+      console.warn(`[parallel-strategy] JSON parse failed, trying to extract:`, result?.substring(0, 200));
+      // Try to extract JSON from markdown or text
+      const jsonMatch = result?.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        console.error(`[parallel-strategy] No valid JSON found, returning empty arrays`);
+        return { ok: true, events: [], news: [], traffic: [] };
+      }
+    }
+
     return {
       ok: true,
       events: parsed.events || [],
