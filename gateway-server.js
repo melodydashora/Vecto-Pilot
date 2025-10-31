@@ -323,29 +323,11 @@ if (isReplit) {
       }
       
       // ═══════════════════════════════════════════════════════════════════
-      // BACKGROUND WORKER - Disabled on Cloud Run Autoscale
+      // BACKGROUND WORKER - Managed by start-replit.js
       // ═══════════════════════════════════════════════════════════════════
-      const workerEnv = process.env.ENABLE_BACKGROUND_WORKER;
-      const enableWorker = workerEnv === 'true' && !isAutoscale;
-      
-      console.error(`\n🔍 [WORKER DEBUG] ENABLE_BACKGROUND_WORKER="${workerEnv}"`);
-      console.error(`🔍 [WORKER DEBUG] isAutoscale=${isAutoscale}, enableWorker=${enableWorker}\n`);
-      
-      if (enableWorker) {
-        console.error('⚡ [WORKER] STARTING BACKGROUND WORKER NOW...');
-        process.stderr.write('⚡ [WORKER] STDERR: Starting worker import...\n');
-        import('./server/jobs/triad-worker.js').then(({ processTriadJobs }) => {
-          processTriadJobs().catch(err => {
-            console.error('[triad-worker] Worker crashed:', err.message);
-          });
-          console.log('[triad-worker] ✅ Strategy generation worker started');
-        }).catch(err => {
-          console.error('[triad-worker] Failed to start worker:', err.message);
-        });
-      } else {
-        const reason = isAutoscale ? 'Cloud Run autoscale' : 'ENABLE_BACKGROUND_WORKER not set';
-        console.log(`[triad-worker] ⏸️  Disabled (${reason})`);
-      }
+      // NOTE: Worker runs in strategy-generator.js (separate process)
+      // This avoids duplicate worker loops and ensures clean separation
+      console.log('[gateway] Background worker managed by separate process (strategy-generator.js)');
       
       // Vite or static files (LAST - NEVER mount at "/" to avoid shadowing health)
       if (isDev) {
