@@ -730,6 +730,7 @@ export async function getStrategyFast({ snapshotId }) {
     strategy: {
       min: row.minstrategy || '',
       consolidated: row.consolidated_strategy || '',
+      holiday: row.holiday || null,
       briefing: {
         news: row.briefing_news ?? [],
         events: row.briefing_events ?? [],

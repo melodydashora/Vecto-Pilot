@@ -24,7 +24,8 @@ import {
   ThumbsUp,
   ThumbsDown,
   MessageSquare,
-  Info
+  Info,
+  PartyPopper
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
@@ -771,6 +772,27 @@ const CoPilot: React.FC = () => {
             {fastTacticalMode ? 'Fast Mode' : 'Full Mode'}
           </Button>
         </div>
+
+        {/* Holiday Banner */}
+        {strategyData?.strategy?.holiday && (
+          <Card className="mb-6 border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 shadow-lg" data-testid="holiday-banner">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-100">
+                  <PartyPopper className="w-6 h-6 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-amber-900 text-lg">
+                    🎉 Happy {strategyData.strategy.holiday}!
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    Holiday demand patterns in effect - expect increased airport traffic and surge pricing opportunities
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Selection Controls */}
         {selectedBlocks.size > 0 && (
