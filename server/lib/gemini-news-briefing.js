@@ -108,7 +108,7 @@ Generate the briefing now, strictly for the next 60 minutes.`
       systemInstruction: systemInstruction,
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 8192,
         topP: 0.95,
         topK: 40,
         responseMimeType: "application/json"
@@ -134,17 +134,73 @@ Generate the briefing now, strictly for the next 60 minutes.`
     
     console.log(`[gemini-briefing] Raw response:`, text.substring(0, 200));
     
-    // Parse JSON response
+    // Parse JSON response with aggressive extraction
     let briefing;
     try {
       briefing = JSON.parse(text);
     } catch (parseError) {
-      // Try to extract JSON from markdown code blocks
-      const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        briefing = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-      } else {
-        throw new Error(`Failed to parse JSON: ${parseError.message}`);
+      console.warn(`[gemini-briefing] Initial parse failed: ${parseError.message}`);
+      console.warn(`[gemini-briefing] Raw text: ${text}`);
+      
+      // Strategy 1: Extract from markdown code blocks
+      let extracted = text.match(/```json\s*([\s\S]*?)\s*```/);
+      if (extracted) {
+        try {
+          briefing = JSON.parse(extracted[1]);
+          console.log(`[gemini-briefing] ✅ Extracted from markdown code block`);
+        } catch (e) {
+          console.warn(`[gemini-briefing] Markdown block extraction failed`);
+        }
+      }
+      
+      // Strategy 2: Find first balanced JSON object
+      if (!briefing) {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) {
+          try {
+            briefing = JSON.parse(match[0]);
+            console.log(`[gemini-briefing] ✅ Extracted first JSON object`);
+          } catch (e) {
+            console.warn(`[gemini-briefing] JSON object extraction failed`);
+          }
+        }
+      }
+      
+      // Strategy 3: Try to fix truncated JSON by closing brackets
+      if (!briefing) {
+        let fixed = text.trim();
+        // Count open/close braces and brackets
+        const openBraces = (fixed.match(/\{/g) || []).length;
+        const closeBraces = (fixed.match(/\}/g) || []).length;
+        const openBrackets = (fixed.match(/\[/g) || []).length;
+        const closeBrackets = (fixed.match(/\]/g) || []).length;
+        
+        // Add missing closing characters
+        if (openBraces > closeBraces || openBrackets > closeBrackets) {
+          // Close any open strings
+          if ((fixed.match(/"/g) || []).length % 2 !== 0) {
+            fixed += '"';
+          }
+          // Close arrays
+          for (let i = 0; i < (openBrackets - closeBrackets); i++) {
+            fixed += ']';
+          }
+          // Close objects
+          for (let i = 0; i < (openBraces - closeBraces); i++) {
+            fixed += '}';
+          }
+          
+          try {
+            briefing = JSON.parse(fixed);
+            console.log(`[gemini-briefing] ✅ Repaired truncated JSON`);
+          } catch (e) {
+            console.warn(`[gemini-briefing] JSON repair failed`);
+          }
+        }
+      }
+      
+      if (!briefing) {
+        throw new Error(`All JSON extraction strategies failed. Original error: ${parseError.message}`);
       }
     }
     
