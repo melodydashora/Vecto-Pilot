@@ -1,5 +1,5 @@
 entrypoint = "gateway-server.js"
-modules = ["nodejs-22", "postgresql-16", "python-3.11"]
+modules = ["postgresql-16", "python-3.11", "nodejs-18"]
 run = "sh -c 'export $(cat mono-mode.env | xargs) && npm run start:replit'"
 
 [nix]
