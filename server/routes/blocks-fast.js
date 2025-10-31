@@ -380,10 +380,20 @@ router.post('/', async (req, res) => {
 
   } catch (error) {
     console.error(`❌ [${correlationId}] Error:`, error);
+    
+    // Improved error handling per stabilization doc
+    const isDrizzleError = error.name === 'DrizzleQueryError' || error.message?.includes('query');
+    const isDbError = error.code === 'ECONNREFUSED' || error.message?.includes('database');
+    
     sendOnce(500, {
-      error: 'Internal server error',
-      message: error.message,
-      correlationId
+      ok: false,
+      error: isDrizzleError ? 'DATABASE_QUERY_ERROR' : isDbError ? 'DATABASE_UNAVAILABLE' : 'INTERNAL_ERROR',
+      reason: error.message,
+      cause: error.cause?.message || null,
+      correlationId,
+      // Help UI degrade gracefully with yellow status
+      degraded: true,
+      fallback_message: 'Could not generate blocks - please try refreshing your location'
     });
   }
 });
