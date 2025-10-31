@@ -684,53 +684,85 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Export core processing function for use by other routes
-export async function processBlocksFast({ snapshotId, headers = {}, body = {} }) {
-  const correlationId = headers['x-correlation-id'] || randomUUID();
-  const { userId = 'demo' } = body;
-  
-  if (!snapshotId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
-    throw new Error('Invalid or missing snapshot ID');
+/**
+ * Get strategy status and data (no 202s, no NaNs, no undefined)
+ * Always returns 200 with clean JSON
+ */
+export async function getStrategyFast({ snapshotId }) {
+  const [row] = await db.select().from(strategies)
+    .where(eq(strategies.snapshot_id, snapshotId))
+    .limit(1);
+
+  if (!row) {
+    return { status: 'missing', snapshot_id: snapshotId };
+  }
+
+  const waitFor = [];
+  if (!row.claude_strategy) waitFor.push('claude');
+  if (!Array.isArray(row.gemini_news)) waitFor.push('gemini_news');
+  if (!Array.isArray(row.gemini_events)) waitFor.push('gemini_events');
+  if (!Array.isArray(row.gemini_traffic)) waitFor.push('gemini_traffic');
+  if (!row.gpt5_consolidated) waitFor.push('gpt5');
+
+  const timeElapsedMs = row.created_at
+    ? (Date.now() - new Date(row.created_at).getTime())
+    : null;
+
+  if (waitFor.length) {
+    return {
+      status: 'pending',
+      snapshot_id: snapshotId,
+      waitFor,
+      timeElapsedMs: timeElapsedMs ?? 0
+    };
+  }
+
+  return {
+    status: 'ok',
+    snapshot_id: snapshotId,
+    consolidated: row.gpt5_consolidated,
+    raw: {
+      claude_strategy: row.claude_strategy,
+      news: row.gemini_news,
+      events: row.gemini_events,
+      traffic: row.gemini_traffic
+    },
+    timeElapsedMs: timeElapsedMs ?? 0
+  };
+}
+
+/**
+ * Get blocks for a snapshot (no 202s, no NaNs, no undefined)
+ * Always returns 200 with clean JSON
+ */
+export async function getBlocksFast({ snapshotId, req }) {
+  // Check strategy readiness first
+  const strat = await getStrategyFast({ snapshotId });
+  if (strat.status !== 'ok') {
+    return strat; // 200 + {status:'pending', ...}
   }
 
   // Load snapshot
-  const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+  const [snap] = await db.select().from(snapshots)
+    .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+  
   if (!snap || snap.lat == null || snap.lng == null) {
-    throw new Error('Snapshot not found or missing coordinates');
-  }
-
-  // Check for strategy readiness
-  const { ready, strategy, status } = await isStrategyReady(snapshotId);
-  if (!ready) {
-    return {
-      ok: false,
-      status: 'strategy_pending',
-      reason: 'strategy_pending',
-      message: 'Waiting for consolidated strategy to complete'
+    return { 
+      status: 'error',
+      error: 'snapshot_not_found',
+      snapshot_id: snapshotId 
     };
   }
 
   // Check for existing ranking
-  const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+  const [ranking] = await db.select().from(rankings)
+    .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
   
   if (ranking) {
     // Return existing blocks
     const candidates = await db.select().from(ranking_candidates)
       .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
       .orderBy(ranking_candidates.rank);
-    
-    const [strategyRow] = await db.select().from(strategies)
-      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    
-    const briefing = strategyRow ? {
-      claude_strategy: strategyRow.claude_strategy || null,
-      gemini: {
-        news: strategyRow.gemini_news || [],
-        events: strategyRow.gemini_events || [],
-        traffic: strategyRow.gemini_traffic || []
-      },
-      gpt5_consolidated: strategyRow.gpt5_consolidated || null
-    } : null;
     
     const within15Min = (driveMin) => Number.isFinite(driveMin) && driveMin <= 15;
     const blocks = candidates
@@ -754,22 +786,28 @@ export async function processBlocksFast({ snapshotId, headers = {}, body = {} })
       }));
     
     return {
-      ok: true,
+      status: 'ok',
+      snapshot_id: snapshotId,
       blocks,
       ranking_id: ranking.ranking_id,
-      briefing,
-      snapshot_id: snapshotId,
-      correlationId
+      briefing: {
+        claude_strategy: strat.raw.claude_strategy,
+        gemini: {
+          news: strat.raw.news,
+          events: strat.raw.events,
+          traffic: strat.raw.traffic
+        },
+        gpt5_consolidated: strat.consolidated
+      }
     };
   }
 
-  // No ranking exists - return empty for now (full generation would happen in POST handler)
+  // No ranking exists yet
   return {
-    ok: true,
-    blocks: [],
-    message: 'No ranking exists yet',
+    status: 'ok',
     snapshot_id: snapshotId,
-    correlationId
+    blocks: [],
+    message: 'No ranking exists yet - blocks will be generated on next refresh'
   };
 }
 
