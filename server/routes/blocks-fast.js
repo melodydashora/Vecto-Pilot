@@ -129,52 +129,131 @@ router.post('/', async (req, res) => {
     console.log(`⚡ [${correlationId}] FAST BLOCKS: lat=${lat} lng=${lng} budget=${PLANNER_BUDGET_MS}ms`);
 
     // ============================================
-    // STEP 2: Fetch Consolidated Strategy + Generate GPT-5 Venues
+    // STEP 2: Load Snapshot Data First (snapshot-first pattern)
     // ============================================
-    const generationStart = Date.now();
+    const dataLoadStart = Date.now();
     
-    // Get consolidated strategy for this snapshot
-    const [strategyRow] = await db.select().from(strategies)
-      .where(eq(strategies.snapshot_id, snapshotId))
-      .limit(1);
+    // Check for existing ranking_candidates from snapshot
+    const existingCandidates = await db.select().from(ranking_candidates)
+      .where(eq(ranking_candidates.snapshot_id, snapshotId))
+      .orderBy(ranking_candidates.rank)
+      .limit(8);
     
-    if (!strategyRow || !strategyRow.strategy_for_now) {
-      return sendOnce(400, {
-        error: 'strategy_not_ready',
-        message: 'Consolidated strategy required. Wait for strategy generation to complete.'
+    logAudit('snapshot_data', {
+      existing_candidates: existingCandidates.length,
+      source: 'ranking_candidates'
+    });
+
+    let rawVenues = [];
+    let generationUsed = false;
+
+    // SNAPSHOT-FIRST PATTERN: Use existing data if available
+    if (existingCandidates.length >= 4) {
+      console.log(`✅ [${correlationId}] Using ${existingCandidates.length} snapshot candidates (no generation needed)`);
+      rawVenues = existingCandidates.map(c => ({
+        name: c.name,
+        location_lat: c.lat,
+        location_lng: c.lng,
+        staging_name: c.staging_name || '',
+        staging_lat: c.staging_lat || c.lat,
+        staging_lng: c.staging_lng || c.lng,
+        category: 'snapshot',
+        pro_tips: c.pro_tips || '',
+        staging_tips: c.staging_tips || '',
+        closed_reasoning: c.closed_reasoning || null,
+        estimated_earnings: 25,
+        demand_level: 'medium',
+        driveTimeMinutes: c.drive_minutes || c.drive_time_minutes || 10
+      }));
+      
+      logAudit('source', {
+        type: 'snapshot',
+        count: rawVenues.length,
+        generation_used: false
       });
+    } else {
+      // FALLBACK: Generate venues if insufficient snapshot data
+      console.log(`⚠️  [${correlationId}] Only ${existingCandidates.length} snapshot candidates, calling generator...`);
+      generationUsed = true;
+
+      // Get consolidated strategy for generation
+      const [strategyRow] = await db.select().from(strategies)
+        .where(eq(strategies.snapshot_id, snapshotId))
+        .limit(1);
+      
+      if (!strategyRow || !strategyRow.strategy_for_now) {
+        return sendOnce(400, {
+          error: 'strategy_not_ready',
+          message: 'Consolidated strategy required. Wait for strategy generation to complete.'
+        });
+      }
+
+      const consolidatedStrategy = strategyRow.strategy_for_now;
+      const currentTime = new Date(fullSnapshot.local_iso || new Date()).toLocaleString('en-US', {
+        timeZone: fullSnapshot.timezone || 'America/Chicago'
+      });
+
+      try {
+        const gpt5Result = await generateVenueCoordinates({
+          consolidatedStrategy,
+          driverLat: lat,
+          driverLng: lng,
+          city: fullSnapshot.city,
+          state: fullSnapshot.state,
+          currentTime,
+          weather: fullSnapshot.weather || '',
+          maxDistance: 15
+        });
+
+        rawVenues = gpt5Result.venues.slice(0, 8);
+        
+        logAudit('source', {
+          type: 'generated',
+          count: rawVenues.length,
+          generation_used: true,
+          model: 'gpt-5-venue-generator'
+        });
+        
+        console.log(`✅ [${correlationId}] GPT-5 generated ${rawVenues.length} venues as fallback`);
+      } catch (genError) {
+        console.error(`❌ [${correlationId}] Generation failed:`, genError.message);
+        
+        logAudit('generator_error', {
+          reason: genError.message,
+          fallback: 'empty_generation'
+        });
+        
+        // Fail gracefully: return empty if both snapshot and generator fail
+        if (existingCandidates.length === 0) {
+          return sendOnce(200, {
+            ok: false,
+            blocks: [],
+            reason: 'insufficient_data',
+            message: 'No snapshot data and generator failed'
+          });
+        }
+        
+        // Use what we have from snapshot
+        rawVenues = existingCandidates.map(c => ({
+          name: c.name,
+          location_lat: c.lat,
+          location_lng: c.lng,
+          staging_name: c.staging_name || '',
+          staging_lat: c.staging_lat || c.lat,
+          staging_lng: c.staging_lng || c.lng,
+          category: 'snapshot',
+          pro_tips: c.pro_tips || '',
+          staging_tips: c.staging_tips || '',
+          closed_reasoning: c.closed_reasoning || null,
+          estimated_earnings: 25,
+          demand_level: 'medium',
+          driveTimeMinutes: c.drive_minutes || c.drive_time_minutes || 10
+        }));
+      }
     }
-
-    const consolidatedStrategy = strategyRow.strategy_for_now;
-    const currentTime = new Date(fullSnapshot.local_iso || new Date()).toLocaleString('en-US', {
-      timeZone: fullSnapshot.timezone || 'America/Chicago'
-    });
-
-    // Call GPT-5 to generate venue coordinates within 15 mile radius
-    console.log(`[${correlationId}] Calling GPT-5 venue generator...`);
-    const gpt5Result = await generateVenueCoordinates({
-      consolidatedStrategy,
-      driverLat: lat,
-      driverLng: lng,
-      city: fullSnapshot.city,
-      state: fullSnapshot.state,
-      currentTime,
-      weather: fullSnapshot.weather || '',
-      maxDistance: 15
-    });
-
-    // CRITICAL: Cap at exactly 8 venues (16 coords total)
-    const gpt5Venues = gpt5Result.venues.slice(0, 8);
-    const generationMs = Date.now() - generationStart;
     
-    logAudit('generation', {
-      venue_count: gpt5Venues.length,
-      coords_count: gpt5Venues.length * 2,
-      generation_ms: generationMs,
-      model: 'gpt-5-venue-generator'
-    });
-    
-    console.log(`✅ [${correlationId}] GPT-5 generated ${gpt5Venues.length} venues (${gpt5Venues.length * 2} coords) in ${generationMs}ms`);
+    const gpt5Venues = rawVenues;
+    const generationMs = Date.now() - dataLoadStart;
 
     // ============================================
     // STEP 3: Enrich GPT-5 venues with drive times
