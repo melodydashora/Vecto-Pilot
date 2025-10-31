@@ -1,64 +1,76 @@
-#!/bin/bash
-# Vecto Pilot - Mono Mode Startup Script (Cloud Run optimized)
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e  # Exit on error
+echo "[start] 🚀 Starting Vecto Pilot in MONO mode..."
 
-echo "[start-mono] Starting Vecto Pilot in MONO mode..."
-
-# Load mono-mode.env if present
+# Load env from mono-mode.env and .env (if present)
 if [ -f mono-mode.env ]; then
-  echo "[start-mono] Loading environment from mono-mode.env"
-  set -a
-  source mono-mode.env
-  set +a
-else
-  echo "[start-mono] WARNING: mono-mode.env not found, using defaults"
-  export APP_MODE=mono
-  export DISABLE_SPAWN_SDK=1
-  export DISABLE_SPAWN_AGENT=1
-  export NODE_ENV="${NODE_ENV:-production}"
-  export PORT="${PORT:-5000}"   # Replit maps internal 5000 → external 80
-  export DISABLE_SPAWN_VITE=1   # Don't spawn Vite in production
-  export API_PREFIX="${API_PREFIX:-/api}"
-  export AGENT_PREFIX="${AGENT_PREFIX:-/agent}"
-  export WS_PUBLIC_PATH="${WS_PUBLIC_PATH:-/agent/ws}"
-  export SOCKET_IO_PATH="${SOCKET_IO_PATH:-/socket.io}"
+  set -a && source mono-mode.env && set +a
+  echo "[start] ✅ Loaded mono-mode.env"
+fi
+if [ -f .env ]; then
+  set -a && source .env && set +a
+  echo "[start] ✅ Loaded .env"
 fi
 
-# Force Neon database (PostgreSQL 17.5, not Replit's 16.9)
-# Using production database (with pooler)
-export DATABASE_URL="postgresql://neondb_owner:npg_g83xmlUKGSVy@ep-fancy-snow-ah3jjx69-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
-export PG_USE_SHARED_POOL="true"
-
-# Force internal port 5000 (Cloud Run maps to external 80)
+export HOST="${HOST:-0.0.0.0}"
 export PORT="${PORT:-5000}"
-echo "[start-mono] Forcing internal port 5000 → external 80"
+export ENABLE_BACKGROUND_WORKER="${ENABLE_BACKGROUND_WORKER:-true}"
 
-# Environment check
-echo "[start-mono] Environment check:"
-echo "  APP_MODE=${APP_MODE}"
-echo "  PORT=${PORT}"
-echo "  NODE_ENV=${NODE_ENV}"
+echo "[start] Environment:"
+echo "  HOST=$HOST"
+echo "  PORT=$PORT"
+echo "  ENABLE_BACKGROUND_WORKER=$ENABLE_BACKGROUND_WORKER"
+echo "  NODE_ENV=$NODE_ENV"
 echo "  DATABASE_URL=${DATABASE_URL:+***configured***}"
 
-# Check if frontend is built (skip CI if already built)
-if [ -d "client/dist" ]; then
-  echo "[start-mono] ✅ Frontend already built (client/dist exists)"
-else
-  echo "[start-mono] ⚠️  No client/dist found"
-  if [ -d "client" ] && [ -f "client/package.json" ]; then
-    echo "[start-mono] Building frontend..."
-    # Use npm install instead of ci since there's no lock file
-    cd client
-    npm install --omit=dev
-    npm run build
-    cd ..
-    echo "[start-mono] ✅ Frontend build complete"
-  else
-    echo "[start-mono] ⚠️  No client directory, skipping frontend build"
-  fi
+# Kill stale processes on PORT
+if command -v lsof >/dev/null 2>&1; then
+  echo "[start] 🧹 Clearing port $PORT..."
+  lsof -ti tcp:$PORT | xargs -r kill -9 2>/dev/null || true
+  echo "[start] ✅ Port cleared"
 fi
 
-# Launch server
-echo "[start-mono] Launching gateway-server.js on port ${PORT}..."
-exec node gateway-server.js
+# Start gateway server
+echo "[start] 🌐 Starting gateway server..."
+node gateway-server.js &
+SERVER_PID=$!
+echo "[start] ✅ Gateway server started (PID: $SERVER_PID)"
+
+# Start triad worker (only if enabled)
+if [ "$ENABLE_BACKGROUND_WORKER" = "true" ]; then
+  echo "[start] ⚡ Starting triad worker..."
+  node strategy-generator.js &
+  WORKER_PID=$!
+  echo "[start] ✅ Triad worker started (PID: $WORKER_PID)"
+else
+  echo "[start] ⏸️  Background worker disabled"
+  WORKER_PID=""
+fi
+
+# Readiness: wait for /ready 200
+echo "[start] ⏳ Waiting for server ready..."
+ATTEMPTS=30
+READY=0
+for i in $(seq 1 $ATTEMPTS); do
+  if curl -s -m 2 "http://127.0.0.1:$PORT/ready" 2>/dev/null | grep -q '"ok":true'; then
+    READY=1
+    echo "[start] ✅ Server ready!"
+    break
+  fi
+  sleep 1
+done
+
+if [ "$READY" -ne 1 ]; then
+  echo "[start] ❌ Readiness check failed after $ATTEMPTS attempts"
+  kill $SERVER_PID 2>/dev/null || true
+  [ -n "${WORKER_PID:-}" ] && kill $WORKER_PID 2>/dev/null || true
+  exit 1
+fi
+
+echo "[start] 🎉 Vecto Pilot ready at http://$HOST:$PORT"
+echo "[start] Server PID: $SERVER_PID"
+[ -n "${WORKER_PID:-}" ] && echo "[start] Worker PID: $WORKER_PID"
+
+# Wait for server process (worker runs independently)
+wait $SERVER_PID
