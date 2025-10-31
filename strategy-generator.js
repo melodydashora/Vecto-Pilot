@@ -2,13 +2,29 @@
 // strategy-generator.js - Triad Worker Entry Point
 // Runs the background strategy generation loop independently
 
-import { processTriadJobs } from './server/jobs/triad-worker.js';
-
 console.log('[strategy-generator] 🚀 Triad worker starting...');
 console.log('[strategy-generator] Environment:');
 console.log(`  NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`  DATABASE_URL=${process.env.DATABASE_URL ? '***configured***' : 'MISSING'}`);
 console.log(`  ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}`);
+
+// Test database connection first
+import { db } from './server/db/drizzle.js';
+import { sql } from 'drizzle-orm';
+
+console.log('[strategy-generator] Testing database connection...');
+try {
+  await db.execute(sql`SELECT 1 as test`);
+  console.log('[strategy-generator] ✅ Database connection OK');
+} catch (err) {
+  console.error('[strategy-generator] ❌ Database connection FAILED:', err.message);
+  process.exit(1);
+}
+
+// Now start the worker loop
+import { processTriadJobs } from './server/jobs/triad-worker.js';
+
+console.log('[strategy-generator] ✅ Starting worker loop...');
 
 // Start the worker loop
 processTriadJobs()
@@ -29,4 +45,7 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-console.log('[strategy-generator] ✅ Worker loop started');
+// Log every 10 seconds to prove worker is alive
+setInterval(() => {
+  console.log('[strategy-generator] ❤️ Worker heartbeat - still running...');
+}, 10000);
