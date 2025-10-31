@@ -427,6 +427,12 @@ router.post('/', async (req, res) => {
     // ============================================
     // STEP 5: Return response
     // ============================================
+    
+    // 15-minute perimeter enforcement helper
+    const within15Min = (driveTimeMinutes) => {
+      return Number.isFinite(driveTimeMinutes) && driveTimeMinutes <= 15;
+    };
+    
     const blocks = finalVenues.map((v, index) => {
       // Implement reason codes from stabilization doc
       const reasons = [];
@@ -442,8 +448,14 @@ router.post('/', async (req, res) => {
       if (!flags.tipsOk) reasons.push('tips_missing');
       if (!flags.enrichmentOk) reasons.push('enrichment_incomplete');
 
+      // CRITICAL: 15-minute perimeter enforcement
+      const withinPerimeter = within15Min(v.driveTimeMinutes);
+      if (!withinPerimeter) reasons.push('out_of_perimeter');
+
       const okCount = Object.values(flags).filter(Boolean).length;
-      const status = okCount === 4 ? 'green' : okCount >= 2 ? 'yellow' : 'red';
+      // Status requires BOTH flag counts AND perimeter check
+      const status = (okCount === 4 && withinPerimeter) ? 'green' : 
+                     (okCount >= 2 && withinPerimeter) ? 'yellow' : 'red';
 
       const eventData = venueEventsMap.get(v.name);
       
@@ -477,12 +489,29 @@ router.post('/', async (req, res) => {
       };
     });
 
-    // Final status audit
+    // 15-minute perimeter filter - only display blocks within perimeter
+    const blocksWithinPerimeter = blocks.filter(b => within15Min(b.driveTimeMinutes));
+    const blocksOutOfPerimeter = blocks.filter(b => !within15Min(b.driveTimeMinutes)).map(b => ({
+      name: b.name,
+      driveTimeMinutes: b.driveTimeMinutes,
+      reason: 'out_of_perimeter'
+    }));
+    
+    // Perimeter audit
+    logAudit('perimeter', {
+      accepted: blocksWithinPerimeter.length,
+      rejected: blocksOutOfPerimeter.length,
+      max_minutes: 15,
+      out_of_perimeter: blocksOutOfPerimeter
+    });
+    
+    // Final status audit (only for blocks within perimeter)
     const statusCounts = {
-      green: blocks.filter(b => b.status === 'green').length,
-      yellow: blocks.filter(b => b.status === 'yellow').length,
-      red: blocks.filter(b => b.status === 'red').length,
-      total: blocks.length
+      green: blocksWithinPerimeter.filter(b => b.status === 'green').length,
+      yellow: blocksWithinPerimeter.filter(b => b.status === 'yellow').length,
+      red: blocksWithinPerimeter.filter(b => b.status === 'red').length,
+      total: blocksWithinPerimeter.length,
+      excluded_out_of_perimeter: blocksOutOfPerimeter.length
     };
     logAudit('status', statusCounts);
 
@@ -491,7 +520,7 @@ router.post('/', async (req, res) => {
       correlationId,
       ranking_id,
       snapshot_id: fullSnapshot.snapshot_id,
-      blocks,
+      blocks: blocksWithinPerimeter, // CRITICAL: Only return blocks within 15-min perimeter
       userId,
       generatedAt: new Date().toISOString(),
       path_taken: 'gpt5-generated',
@@ -502,14 +531,17 @@ router.post('/', async (req, res) => {
         budget_ms: PLANNER_BUDGET_MS
       },
       metadata: {
-        totalBlocks: blocks.length,
+        totalBlocks: blocksWithinPerimeter.length,
+        totalGenerated: blocks.length,
+        outOfPerimeter: blocksOutOfPerimeter.length,
         processingTimeMs: totalMs,
         modelRoute: 'gpt-5-venue-generator',
         statusCounts
-      }
+      },
+      audit: auditTrail
     };
 
-    console.log(`✅ [${correlationId}] Fast blocks complete in ${totalMs}ms (gpt5-generated): ${blocks.length} venues`);
+    console.log(`✅ [${correlationId}] Fast blocks complete in ${totalMs}ms (gpt5-generated): ${blocksWithinPerimeter.length}/${blocks.length} venues within 15-min perimeter`);
     sendOnce(200, response);
 
   } catch (error) {
