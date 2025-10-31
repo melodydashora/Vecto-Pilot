@@ -7,8 +7,44 @@ import { callGPT5WithBudget } from './gpt5-retry.js';
 import { callClaude } from './adapters/anthropic-claude.js';
 import { capturelearning, LEARNING_EVENTS } from '../middleware/learning-capture.js';
 import { indexStrategy } from './semantic-search.js';
+import { generateMultiStrategy } from './strategy-generator-parallel.js';
+
+// Feature flag for parallel multi-model strategy
+const MULTI_STRATEGY_ENABLED = process.env.MULTI_STRATEGY_ENABLED === 'true';
 
 export async function generateStrategyForSnapshot(snapshot_id) {
+  // Route to parallel orchestration if enabled
+  if (MULTI_STRATEGY_ENABLED) {
+    console.log(`[strategy] Routing to parallel multi-model orchestration (feature enabled)`);
+    const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshot_id));
+    
+    if (!snap) {
+      console.warn(`[strategy] Snapshot not found: ${snapshot_id}`);
+      return null;
+    }
+    
+    const result = await generateMultiStrategy({
+      snapshotId: snapshot_id,
+      userId: snap.user_id || null,
+      userAddress: snap.formatted_address,
+      city: snap.city,
+      state: snap.state,
+      snapshot: snap
+    });
+    
+    if (result.ok) {
+      console.log(`[strategy] ✅ Parallel strategy complete: ${result.strategyId}`);
+      console.log(`[strategy] Audits: ${JSON.stringify(result.audits)}`);
+      return result.strategy;
+    } else {
+      console.error(`[strategy] ❌ Parallel strategy failed: ${result.reason}`);
+      return null;
+    }
+  }
+  
+  // Otherwise, fall through to sequential path
+  console.log(`[strategy] Using sequential strategy path (parallel disabled)`);
+  
   const startTime = Date.now();
   
   try {
