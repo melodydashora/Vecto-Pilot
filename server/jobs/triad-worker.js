@@ -125,11 +125,12 @@ export async function processTriadJobs() {
 
         // STEP 4: Run GPT-5 consolidation without precise address in output
         console.log(`[triad-worker] 🤖 STEP 3/3: Running GPT-5 consolidation...`);
-        const gpt5SystemPrompt = `You are a rideshare strategy consolidator. Combine Claude's strategy with Gemini's news briefing into a single cohesive 3-5 sentence strategy. Use general location references (city name, district names) - DO NOT include the driver's precise street address in your output.`;
+        const gpt5SystemPrompt = `You are a rideshare strategy consolidator. Combine Claude's strategy with Gemini's news briefing into a single cohesive 3-5 sentence strategy.
 
-        const gpt5UserPrompt = `DRIVER LOCATION (for context only - do not repeat address in output):
-City: ${snap.city}, ${snap.state}
-General Area: ${snap.formatted_address}
+CRITICAL: Never mention street addresses, house numbers, or precise locations in your output. Only use city name and district/landmark names (e.g., "In Frisco near The Star and Legacy West" NOT "From 6068 Midnight Moon Dr").`;
+
+        const gpt5UserPrompt = `DRIVER CONTEXT (for your understanding only - DO NOT echo any addresses in your response):
+Location: ${snap.city}, ${snap.state}
 
 CLAUDE STRATEGY:
 ${claudeFromDB}
@@ -137,7 +138,7 @@ ${claudeFromDB}
 GEMINI NEWS BRIEFING:
 ${geminiFromDB}
 
-Consolidate these into a final strategy that naturally integrates news intelligence with strategic analysis. Use city and district names, not street addresses.`;
+Create a consolidated strategy using ONLY city and district names. Start with general positioning advice - do not start with "From [address]".`;
 
         const gpt5Result = await callGPT5({
           developer: gpt5SystemPrompt,
