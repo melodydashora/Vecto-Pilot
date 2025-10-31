@@ -22,11 +22,22 @@ try {
 }
 
 // Now start the worker loop
-import { processTriadJobs } from './server/jobs/triad-worker.js';
+import { processTriadJobs, startConsolidationListener } from './server/jobs/triad-worker.js';
+
+console.log('[strategy-generator] ✅ Starting consolidation listener first...');
+
+// Start the consolidation listener FIRST (before worker loop)
+try {
+  await startConsolidationListener();
+  console.log('[strategy-generator] ✅ Consolidation listener started successfully');
+} catch (err) {
+  console.error('[strategy-generator] ❌ Consolidation listener error:', err.message);
+  console.error(err.stack);
+}
 
 console.log('[strategy-generator] ✅ Starting worker loop...');
 
-// Start the worker loop
+// Start the worker loop (this is an infinite loop, so it never returns)
 processTriadJobs()
   .catch(err => {
     console.error('[strategy-generator] ❌ Fatal error:', err.message);
