@@ -704,13 +704,9 @@ export async function getStrategyFast({ snapshotId }) {
     return { status: 'missing', snapshot_id: snapshotId, timeElapsedMs: 0 };
   }
 
-  // GENERIC: Check model-agnostic fields only (no model names in waitFor)
+  // SIMPLIFIED: Only check consolidated_strategy (Gemini → GPT-5 pipeline)
   const waitFor = [];
-  if (!row.minstrategy) waitFor.push('strategy');
-  if (row.briefing_news === null || row.briefing_events === null || row.briefing_traffic === null) {
-    waitFor.push('briefings');
-  }
-  if (!row.consolidated_strategy) waitFor.push('consolidation');
+  if (!row.consolidated_strategy) waitFor.push('strategy');
 
   const timeElapsedMs = safeElapsedMs(row);
 
