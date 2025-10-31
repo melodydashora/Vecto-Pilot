@@ -13,7 +13,14 @@ import { assertStrategies } from './server/lib/strategies/index.js';
 //  MODE DETECTION - Single Source of Truth
 //  ═══════════════════════════════════════════════════════════════════
 const MODE = (process.env.APP_MODE || 'mono').toLowerCase(); // 'mono' | 'gateway'
-const isDev = process.env.NODE_ENV !== 'production';
+
+// Robust dev detection: honor explicit envs and Replit flags
+const env = (process.env.NODE_ENV || '').toLowerCase();
+const isDev =
+  env === 'development' ||
+  (env === '' && process.env.REPLIT_DEV === '1') ||
+  process.env.FORCE_DEV === '1';
+
 const DISABLE_SPAWN_SDK = process.env.DISABLE_SPAWN_SDK === '1';
 const DISABLE_SPAWN_AGENT = process.env.DISABLE_SPAWN_AGENT === '1';
 
@@ -96,9 +103,54 @@ if (isReplit) {
   //    Cloud Run/Replit health probes MUST get instant 200 response
   //    Note: Root / serves the app, dedicated health paths for probes
   // ═══════════════════════════════════════════════════════════════════
+  
+  // Shell renderer function
+  function renderShellHtml({ mode }) {
+    return `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Gateway</title>
+        <style>
+          :root{color-scheme:light dark}
+          body{margin:0;font:14px system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
+          header{position:sticky;top:0;z-index:10;padding:8px 12px;border-bottom:1px solid #ccc;background:Canvas}
+          main{padding:12px}
+          .status{font-weight:600}
+        </style>
+      </head>
+      <body>
+        <header>
+          <div class="status">Mode: ${mode} • <span id="hb">hb…</span></div>
+        </header>
+        <main>
+          <div id="app">Loading UI… If the client isn't built, the shell stays available.</div>
+        </main>
+        <script>
+          async function ping(){
+            try{
+              const r = await fetch('/healthz');
+              const j = await r.json();
+              document.getElementById('hb').textContent = 'ok@'+j.ts;
+            }catch(e){
+              document.getElementById('hb').textContent = 'recovering';
+            }
+          }
+          setInterval(ping, 3000); ping();
+        </script>
+      </body>
+    </html>`;
+  }
+  
   app.get('/health', (_req, res) => res.status(200).send('OK'));
   app.head('/health', (_req, res) => res.status(200).end());
-  app.get('/healthz', (_req, res) => res.status(200).json({ ok: true, mode: MODE, port: PORT }));
+  app.get('/healthz', (_req, res) => res.status(200).json({ ok: true, mode: isDev ? 'dev' : 'prod', ts: Date.now() }));
+  
+  // Root route: guaranteed shell (never shadowed by Vite or static files)
+  app.get('/', (_req, res) => {
+    res.status(200).send(renderShellHtml({ mode: isDev ? 'dev' : 'prod' }));
+  });
   
   // /ready with DB probe per stabilization doc
   app.get('/ready', async (_req, res) => {
@@ -307,15 +359,15 @@ if (isReplit) {
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
-        // Proxy to Vite for frontend, skip for API/health routes
+        // Proxy to Vite for frontend, skip for API/health routes and root
         app.use((req, res, next) => {
-          // Skip proxy for health and API endpoints only
-          if (req.path.startsWith('/health') || req.path.startsWith('/ready') || 
+          // Skip proxy for root and health/API endpoints
+          if (req.path === '/' || req.path.startsWith('/health') || req.path.startsWith('/healthz') || req.path.startsWith('/ready') || 
               req.path.startsWith('/api') || req.path.startsWith('/agent') ||
               req.path.startsWith('/diagnostics')) {
             return next();
           }
-          // Everything else (including /) goes to Vite for the React app
+          // Everything else goes to Vite for the React app
           proxy.web(req, res, { target: viteTarget, changeOrigin: true });
         });
 
@@ -337,10 +389,10 @@ if (isReplit) {
         // Serve static assets
         app.use(express.static(distPath));
         
-        // SPA fallback - serve index.html for all non-API routes
+        // SPA fallback - serve index.html for all non-API, non-root routes
         app.get('*', (req, res, next) => {
-          // Skip if it's a health or API endpoint
-          if (req.path.startsWith('/health') || req.path.startsWith('/ready') || 
+          // Skip if it's root, health, or API endpoint
+          if (req.path === '/' || req.path.startsWith('/health') || req.path.startsWith('/healthz') || req.path.startsWith('/ready') || 
               req.path.startsWith('/api') || req.path.startsWith('/agent') ||
               req.path.startsWith('/diagnostics')) {
             return next();
