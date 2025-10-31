@@ -445,6 +445,8 @@ router.post('/', async (req, res) => {
       const okCount = Object.values(flags).filter(Boolean).length;
       const status = okCount === 4 ? 'green' : okCount >= 2 ? 'yellow' : 'red';
 
+      const eventData = venueEventsMap.get(v.name);
+      
       return {
         name: v.name,
         category: v.category,
@@ -463,6 +465,11 @@ router.post('/', async (req, res) => {
         value_per_min: v.value_per_min,
         value_grade: v.value_grade,
         not_worth: v.not_worth,
+        // Event matching data
+        eventBadge: eventData?.badge || null,
+        eventSummary: eventData?.summary || null,
+        eventMatchReason: eventData?.match_reason || null,
+        eventRouteDistanceMiles: eventData?.route_distance_miles || null,
         // Stabilization: explicit status and reasons
         status,
         flags,
@@ -478,13 +485,6 @@ router.post('/', async (req, res) => {
       total: blocks.length
     };
     logAudit('status', statusCounts);
-    
-    // Event matching audit (blocked: no venue_events table)
-    logAudit('events', {
-      event_match: 'none',
-      reason: 'venue_events_table_missing',
-      note: 'Event matching requires venue_events schema creation'
-    });
 
     const response = {
       ok: true,

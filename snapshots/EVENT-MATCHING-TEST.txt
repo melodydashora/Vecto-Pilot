@@ -1,0 +1,7 @@
+snapshot=4d1db587-dd75-442c-b26a-4a21f03f914f status=yellow flags={"addressOk":true,"placeOk":true,"routeOk":true,"eventsOk":false} event_match=none route_distance_miles=n/a hours=missing audits=0
+snapshot=8be557fb-2431-44f0-a280-dc8533cfc8e0 status=yellow flags={"addressOk":true,"placeOk":true,"routeOk":true,"eventsOk":false} event_match=none route_distance_miles=n/a hours=missing audits=0
+snapshot=d260968d-23df-4d2c-a61d-3ee0d6f2b18b status=yellow flags={"addressOk":true,"placeOk":true,"routeOk":true,"eventsOk":false} event_match=none route_distance_miles=n/a hours=missing audits=0
+
+Final Summary:
+venue_events_migrated=true ready=true db_probe=true drizzle_errors=0 replit_md_updated=pending artifacts_saved=true
+event_matching_enabled=false
