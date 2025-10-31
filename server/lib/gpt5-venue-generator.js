@@ -78,15 +78,21 @@ CRITICAL: Return exactly 8 venues in the JSON array, no more, no less.
 Return JSON only - no markdown, no explanation.`;
 
   try {
+    // CRITICAL: Bound to 1200 tokens to prevent length-based stops with 0 content
     const result = await callGPT5({
       developer: systemPrompt,
       user: userPrompt,
-      max_completion_tokens: 4000
+      max_completion_tokens: 1200,
+      reasoning_effort: 'low' // Reduce reasoning tokens to prioritize content generation
     });
 
-    if (!result.text) {
-      throw new Error('GPT-5 returned no text');
+    // HARD VALIDATION: Ensure content was actually generated
+    if (!result.text || result.text.trim().length < 20) {
+      console.error('[GPT-5 Venue Generator] Empty or minimal content returned');
+      throw new Error('empty_generation: GPT-5 returned no usable content');
     }
+    
+    console.log(`[GPT-5 Venue Generator] Generated ${result.text.length} chars of content`);
 
     // Parse JSON response
     let parsed;
