@@ -42,116 +42,28 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       });
     }
 
-    // Query the strategies table for this snapshot
-    const [strategyRow] = await db
-      .select()
-      .from(strategies)
-      .where(eq(strategies.snapshot_id, snapshotId))
-      .orderBy(desc(strategies.created_at))
-      .limit(1);
-
-    if (!strategyRow) {
-      // No strategy row yet - check if snapshot exists and validate completeness
-      const [snap] = await db
-        .select()
-        .from(snapshots)
-        .where(eq(snapshots.snapshot_id, snapshotId))
-        .limit(1);
-
-      if (snap) {
-        // Check if snapshot has all required fields
-        const missing = [];
-        if (snap.lat == null || !Number.isFinite(snap.lat)) missing.push("lat");
-        if (snap.lng == null || !Number.isFinite(snap.lng)) missing.push("lng");
-        if (!snap.city && !snap.formatted_address) missing.push("city_or_formattedAddress");
-        if (!snap.timezone) missing.push("timezone");
-
-        if (missing.length > 0) {
-          // Snapshot exists but has missing critical fields - likely crawler or denied permissions
-          console.warn('[blocks] Incomplete snapshot detected', { snapshotId, missing });
-          return res.json({
-            status: 'refresh_required',
-            hasStrategy: false,
-            fields_missing: missing,
-            tip: 'Please refresh the page and enable location to continue.'
-          });
-        }
-
-        // Snapshot is complete but strategy not written yet → report pending with Retry-After
-        res.set('Retry-After', '1');
-        return res.status(202).json({
-          status: 'pending',
-          hasStrategy: false,
-          strategy: null,
-          correlationId
-        });
-      }
-
-      // Truly unknown snapshot ID
-      return res.status(404).json({
-        status: 'not_found',
-        hasStrategy: false,
-        strategy: null,
-        correlationId
-      });
-    }
-
-    // Generate ETag from updated_at timestamp
-    const etag = `"${new Date(strategyRow.updated_at).getTime()}"`;
+    console.log('[blocks] FAST_STRATEGY_READ', { snapshotId });
     
-    // Check If-None-Match for caching
-    if (req.get('if-none-match') === etag) {
-      return res.status(304).end();
-    }
-
-    // Return current status from DB with ETag
-    if (strategyRow.status === 'ok') {
-      res.set('ETag', etag);
-      return res.json({
-        status: 'ok',
-        hasStrategy: true,
-        strategy: strategyRow.strategy_for_now || strategyRow.strategy,
-        latency_ms: strategyRow.latency_ms,
-        tokens: strategyRow.tokens,
-        createdAt: strategyRow.created_at
-      });
-    }
-
-    if (strategyRow.status === 'failed') {
-      res.set('ETag', etag);
-      return res.json({
-        status: 'failed',
-        hasStrategy: false,
-        strategy: null,
-        error_code: strategyRow.error_code,
-        error_message: strategyRow.error_message,
-        next_retry_at: strategyRow.next_retry_at
-      });
-    }
-
-    // Still pending - tell client to back off
-    res.set('Retry-After', '1');
-    return res.status(202).json({
-      status: 'pending',
-      hasStrategy: false,
-      strategy: null,
-      attempt: strategyRow.attempt,
-      correlationId
-    });
+    const { getStrategyFast } = await import('./blocks-fast.js');
+    const out = await getStrategyFast({ snapshotId });
+    
+    // Always return 200 with clean JSON (no 202, no NaNs, no undefined)
+    return res.status(200).json(out);
   } catch (error) {
     console.error('[blocks] Strategy fetch error:', error);
     return res.status(500).json({ 
+      status: 'error',
       error: 'Failed to fetch strategy',
       message: error.message,
-      hasStrategy: false,
       correlationId
     });
   }
 });
 
+// Helper to extract snapshot ID from request
 function getSnapshotIdFromReq(req) {
   return (
-    req.headers['x-snapshot-id'] ||
+    req.headers['x-snapshot-id'] ||  // Express lowercases headers
     req.body?.snapshot_id ||
     req.query?.snapshot_id ||
     null
@@ -167,14 +79,21 @@ router.post('/', async (req, res) => {
     });
   }
 
-  const { processBlocksFast } = await import('./blocks-fast.js');
+  console.log('[blocks] FAST_ROUTE_ACTIVE', { snapshotId });
+  
+  const { getBlocksFast } = await import('./blocks-fast.js');
   try {
-    const result = await processBlocksFast({ snapshotId, headers: req.headers, body: req.body });
-    return res.status(200).json(result);
+    const out = await getBlocksFast({ snapshotId, req });
+    return res.status(200).json(out);
   } catch (error) {
     const correlationId = req.headers['x-correlation-id'] || randomUUID();
     console.error('[blocks] Error:', error);
-    return res.status(500).json({ ok: false, error: 'Internal error', correlationId });
+    return res.status(500).json({ 
+      status: 'error',
+      error: 'Internal error', 
+      message: error.message,
+      correlationId 
+    });
   }
 });
 
