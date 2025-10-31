@@ -30,15 +30,15 @@ export async function processTriadJobs() {
     const SAFETY_SWEEP_INTERVAL = 10 * 60 * 1000; // 10 minutes
     setInterval(async () => {
       console.log('[triad-worker] 🧹 Running safety sweep for orphaned strategies...');
-      // Check for strategies that have all fields but no consolidation
+      // Check for strategies that have all GENERIC fields but no consolidation
       try {
         const orphaned = await db.execute(sql`
           SELECT snapshot_id FROM ${strategies}
-          WHERE claude_strategy IS NOT NULL
-            AND gemini_news IS NOT NULL
-            AND gemini_events IS NOT NULL
-            AND gemini_traffic IS NOT NULL
-            AND gpt5_consolidated IS NULL
+          WHERE minstrategy IS NOT NULL
+            AND briefing_news IS NOT NULL
+            AND briefing_events IS NOT NULL
+            AND briefing_traffic IS NOT NULL
+            AND consolidated_strategy IS NULL
           LIMIT 5
         `);
         
