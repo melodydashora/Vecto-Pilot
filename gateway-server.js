@@ -358,15 +358,8 @@ if (isReplit) {
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
-        // Proxy to Vite for frontend, skip for API/health routes and root
-        app.use((req, res, next) => {
-          // Skip proxy for root and health/API endpoints
-          if (req.path === '/' || req.path.startsWith('/health') || req.path.startsWith('/healthz') || req.path.startsWith('/ready') || 
-              req.path.startsWith('/api') || req.path.startsWith('/agent') ||
-              req.path.startsWith('/diagnostics')) {
-            return next();
-          }
-          // Everything else goes to Vite for the React app
+        // Proxy /app/* to Vite for frontend
+        app.use('/app', (req, res) => {
           proxy.web(req, res, { target: viteTarget, changeOrigin: true });
         });
 
@@ -379,26 +372,32 @@ if (isReplit) {
           }
         });
       } else {
-        // Production mode - serve built static files
+        // Production mode - serve built static files at /app/
         const path = await import('path');
         const { fileURLToPath } = await import('url');
+        const fs = await import('fs');
         const __dirname = path.dirname(fileURLToPath(import.meta.url));
-        const distPath = path.join(__dirname, 'client/dist');
         
-        // Serve static assets
-        app.use(express.static(distPath));
+        // Try common build output locations
+        const candidates = [
+          path.join(__dirname, 'client/dist'),
+          path.join(__dirname, '../client/dist'),
+          path.join(process.cwd(), 'client/dist'),
+        ];
         
-        // SPA fallback - serve index.html for all non-API, non-root routes
-        app.get('*', (req, res, next) => {
-          // Skip if it's root, health, or API endpoint
-          if (req.path === '/' || req.path.startsWith('/health') || req.path.startsWith('/healthz') || req.path.startsWith('/ready') || 
-              req.path.startsWith('/api') || req.path.startsWith('/agent') ||
-              req.path.startsWith('/diagnostics')) {
-            return next();
-          }
-          // Serve the React app for everything else
-          res.sendFile(path.join(distPath, 'index.html'));
+        const CLIENT_DIST = candidates.find(p => {
+          try { return fs.statSync(p).isDirectory(); } catch { return false; }
         });
+        
+        if (CLIENT_DIST) {
+          console.log('[gateway] Serving SPA from', CLIENT_DIST);
+          app.use('/app', express.static(CLIENT_DIST, { index: 'index.html' }));
+          app.get(['/app', '/app/*'], (req, res) => {
+            res.sendFile(path.join(CLIENT_DIST, 'index.html'));
+          });
+        } else {
+          console.warn('[gateway] No client build found — /app/ will 404 until you build the client.');
+        }
       }
     }
 
@@ -455,30 +454,37 @@ if (isReplit) {
     // 3. Frontend (LAST) - Gate to preserve root shell and health endpoints
     if (isDev) {
       const viteTarget = 'http://127.0.0.1:5173';
-      app.use((req, res, next) => {
-        // Skip proxy for root shell and critical endpoints
-        if (
-          req.path === '/' ||
-          req.path.startsWith('/health') ||
-          req.path.startsWith('/healthz') ||
-          req.path.startsWith('/ready') ||
-          req.path.startsWith(API_PREFIX) ||
-          req.path.startsWith(AGENT_PREFIX) ||
-          req.path.startsWith('/diagnostics') ||
-          req.path.startsWith(SOCKET_IO_PATH)
-        ) {
-          return next();
-        }
+      // Proxy /app/* to Vite for frontend
+      app.use('/app', (req, res) => {
         proxy.web(req, res, { target: viteTarget, changeOrigin: true });
       });
     } else {
+      // Production mode - serve built static files at /app/
       const path = await import('path');
       const { fileURLToPath } = await import('url');
+      const fs = await import('fs');
       const __dirname = path.dirname(fileURLToPath(import.meta.url));
-      app.use(express.static(path.join(__dirname, 'client/dist')));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(__dirname, 'client/dist/index.html'));
+      
+      // Try common build output locations
+      const candidates = [
+        path.join(__dirname, 'client/dist'),
+        path.join(__dirname, '../client/dist'),
+        path.join(process.cwd(), 'client/dist'),
+      ];
+      
+      const CLIENT_DIST = candidates.find(p => {
+        try { return fs.statSync(p).isDirectory(); } catch { return false; }
       });
+      
+      if (CLIENT_DIST) {
+        console.log('[gateway] Serving SPA from', CLIENT_DIST);
+        app.use('/app', express.static(CLIENT_DIST, { index: 'index.html' }));
+        app.get(['/app', '/app/*'], (req, res) => {
+          res.sendFile(path.join(CLIENT_DIST, 'index.html'));
+        });
+      } else {
+        console.warn('[gateway] No client build found — /app/ will 404 until you build the client.');
+      }
     }
 
     // WebSocket upgrades

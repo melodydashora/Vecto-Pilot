@@ -14,6 +14,7 @@ export default defineConfig(async () => {
   const projectRoot = process.cwd();
 
   return {
+    base: '/app/',
     root: path.resolve(projectRoot, "client"),
     plugins: [
       react(),
@@ -30,6 +31,9 @@ export default defineConfig(async () => {
       port: 5173,
       strictPort: true,
       host: '0.0.0.0',
+    },
+    build: {
+      outDir: path.resolve(projectRoot, "client", "dist"),
     },
   };
 });
