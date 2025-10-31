@@ -15,6 +15,7 @@ const MULTI_STRATEGY_ENABLED = process.env.MULTI_STRATEGY_ENABLED === 'true';
  * Call Claude for core strategic plan (no venues)
  */
 async function callClaudeCore({ snapshotId, userAddress, city, state, snapshot }) {
+  console.log(`[callClaudeCore] ENTER - snapshot ${snapshotId}, city=${city}`);
   try {
     const systemPrompt = `You are a senior rideshare strategist. Analyze the driver's location, time, and conditions to provide strategic positioning advice. Focus on general patterns: time-of-day demand, weather impact, typical hotspots for this area. Return a 3-5 sentence strategy ONLY.`;
 
@@ -48,6 +49,7 @@ Provide strategic positioning advice for a rideshare driver right now.`;
  * Call Gemini for events, news, traffic feeds
  */
 async function callGeminiFeeds({ userAddress, city, state }) {
+  console.log(`[callGeminiFeeds] ENTER - city=${city}, state=${state}`);
   try {
     const systemPrompt = `You are a local intelligence researcher for rideshare drivers. Research real-time events, news, and traffic for ${city}, ${state}.
 
@@ -197,8 +199,10 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
   const { lat, lng, city, state, user_address } = user;
 
   console.log(`[parallel-providers] Starting independent writes for snapshot ${snapshotId}`);
+  console.log(`[parallel-providers] Input context:`, { city, state, user_address, day_part_key: snapshot?.day_part_key });
 
   // Fire both providers concurrently, let them resolve independently
+  console.log(`[parallel-providers] 🚀 Calling Claude provider...`);
   const claudePromise = callClaudeCore({ 
     snapshotId, 
     userAddress: user_address, 
@@ -238,6 +242,7 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
     console.error(`[parallel-providers] ❌ Strategy provider promise rejected:`, err.message);
   });
 
+  console.log(`[parallel-providers] 🚀 Calling Gemini provider...`);
   const geminiPromise = callGeminiFeeds({ 
     userAddress: user_address, 
     city, 
