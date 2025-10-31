@@ -13,6 +13,7 @@ import snapshotRoutes from "./server/routes/snapshot.js";
 import jobMetricsRoutes from "./server/routes/job-metrics.js";
 import mlHealthRoutes from "./server/routes/ml-health.js";
 import chatRoutes from "./server/routes/chat.js";
+import chatContextRoutes from "./server/routes/chat-context.js";
 import closedVenueReasoningRoutes from "./server/routes/closed-venue-reasoning.js";
 import createBlocksAsyncRouter from "./server/routes/blocks-async.js";
 import { loggingMiddleware } from "./server/middleware/logging.js";
@@ -67,7 +68,16 @@ export default function createSdkRouter(opts = {}) {
   r.use('/healthz', healthRoutes);
   r.use('/blocks/fast', blocksFastRoutes); // Fast tactical path (mounted before generic blocks)
   r.use('/blocks', createBlocksAsyncRouter()); // Async endpoint (/blocks/async) + job status (/blocks/jobs/:id)
-  r.use('/blocks', blocksRoutes); // Original synchronous POST /blocks (unchanged for backward compat)
+  
+  // Force async blocks redirect (until client fully migrated to fast path)
+  r.post('/blocks', (req, res, next) => {
+    if (process.env.FORCE_ASYNC_BLOCKS === '1') {
+      return res.redirect(307, '/api/blocks/async');
+    }
+    next();
+  });
+  
+  r.use('/blocks', blocksRoutes); // Original synchronous POST /blocks (backward compat)
   r.use('/blocks/discovery', blocksDiscoveryRoutes);
   r.use('/location', locationRoutes);
   r.use('/resolve', locationRoutes);
@@ -84,6 +94,7 @@ export default function createSdkRouter(opts = {}) {
   r.use('/metrics/jobs', jobMetricsRoutes);
   r.use('/ml', mlHealthRoutes);
   r.use('/chat', chatRoutes); // AI Strategy Coach
+  r.use('/chat', chatContextRoutes); // Read-only context for AI Coach (no external API calls)
   r.use('/closed-venue-reasoning', closedVenueReasoningRoutes); // Closed venue reasoning (GPT-5)
   
   // Assistant override verification route
