@@ -1,11 +1,11 @@
 // server/jobs/triad-worker.js
 // Background worker that claims and processes triad jobs with SKIP LOCKED
+// Strategy building flow: NO VENUES (that's a separate flow for blocks)
 import { db } from '../db/drizzle.js';
-import { triad_jobs, strategies, snapshots, venue_catalog, venue_metrics } from '../../shared/schema.js';
+import { triad_jobs, strategies, snapshots } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { callClaude45Raw } from '../lib/adapters/anthropic-sonnet45.js';
 import { callGPT5 } from '../lib/adapters/openai-gpt5.js';
-import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
 
 export async function processTriadJobs() {
   while (true) {
@@ -61,31 +61,7 @@ export async function processTriadJobs() {
 
         console.log(`[triad-worker] ✅ Gemini briefing available: ${snap.news_briefing ? 'YES' : 'NO'}`);
 
-        // Build venue catalog and shortlist for Claude
-        console.log(`[triad-worker] 🏢 Building venue shortlist for Claude...`);
-        const catalogVenues = await db.select().from(venue_catalog);
-        const metricsData = await db.select().from(venue_metrics);
-        const metricsMap = new Map(metricsData.map(m => [m.venue_id, m]));
-        
-        const venuesWithMetrics = catalogVenues.map(v => {
-          const metrics = metricsMap.get(v.venue_id);
-          return {
-            ...v,
-            times_recommended: metrics?.times_recommended || 0,
-            positive_feedback: metrics?.positive_feedback || 0,
-            reliability_score: metrics?.reliability_score || 0.5
-          };
-        });
-
-        const scored = venuesWithMetrics.map(venue => ({
-          ...venue,
-          score: scoreCandidate(venue, { lat: snap.lat, lng: snap.lng })
-        }));
-        scored.sort((a, b) => b.score - a.score);
-        const diverse = applyDiversityGuardrails(scored, { minCategories: 2, maxPerCategory: 3 });
-        const shortlist = diverse.slice(0, 12);
-
-        // STEP 2: Run Claude (parallel with Gemini) → persist to strategies.strategy
+        // STEP 2: Run Claude with snapshot context ONLY (NO VENUES) → persist to strategies.strategy
         console.log(`[triad-worker] 🧠 STEP 2/3: Running Claude strategist...`);
         const clock = new Date().toLocaleString("en-US", {
           timeZone: snap.timezone,
@@ -95,20 +71,20 @@ export async function processTriadJobs() {
         });
 
         const claudeSys = [
-          "You are a senior rideshare strategist and economist.",
-          "Analyze the snapshot and listed venues only. Never invent venues.",
-          "Return JSON: {\"strategy_for_now\":\"≤120 words\",\"ranked_venues\":[\"names\"],\"risks\":\"one sentence\"}"
+          "You are a senior rideshare strategist.",
+          "Analyze the driver's location, time, and conditions to provide strategic positioning advice.",
+          "Focus on general patterns: time-of-day demand, weather impact, typical hotspots for this area.",
+          "Return a 3-5 sentence strategy text ONLY. No JSON, no venue names, just strategic advice."
         ].join(" ");
 
         const claudeUser = [
-          `Clock: ${clock}`,
-          `Location: ${snap.city}, ${snap.state}`,
-          `Address: ${snap.formatted_address}`,
-          `Weather: ${snap.weather?.tempF || 'unknown'}°F | AQI: ${snap.air?.aqi || 'unknown'}`,
-          `Driver goals: maximize $/hr, minimize unpaid miles`,
-          "Shortlist (DO NOT add venues):",
-          ...shortlist.map(v => `- ${v.name}`),
-          'Return JSON only: {"strategy_for_now":"...","ranked_venues":["..."],"risks":"..."}'
+          `Current time: ${clock}`,
+          `Driver location: ${snap.formatted_address}`,
+          `City: ${snap.city}, ${snap.state}`,
+          `Weather: ${snap.weather?.tempF || 'unknown'}°F, ${snap.weather?.conditions || 'unknown'}`,
+          `Air Quality: AQI ${snap.air?.aqi || 'unknown'}`,
+          ``,
+          `Provide strategic positioning advice for a rideshare driver right now. Consider time of day, weather, and location patterns.`
         ].join("\n");
 
         const claudeRaw = await callClaude45Raw({
@@ -116,16 +92,15 @@ export async function processTriadJobs() {
           user: claudeUser
         });
 
-        // Parse Claude's response
-        const claudeStrategy = JSON.parse(claudeRaw.match(/\{[\s\S]*\}/)?.[0] || '{}');
-        if (!claudeStrategy.strategy_for_now) {
-          throw new Error('Claude returned no strategy_for_now');
+        const claudeStrategy = claudeRaw.trim();
+        if (!claudeStrategy || claudeStrategy.length < 20) {
+          throw new Error('Claude returned invalid strategy');
         }
 
         // Persist Claude's intermediate strategy to DB
         await db.update(strategies)
           .set({
-            strategy: claudeStrategy.strategy_for_now,
+            strategy: claudeStrategy,
             updated_at: new Date()
           })
           .where(eq(strategies.snapshot_id, snapshot_id));
