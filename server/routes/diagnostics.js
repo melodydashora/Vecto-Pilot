@@ -1,7 +1,8 @@
 import express from 'express';
 import crypto from 'crypto';
 import { db } from '../db/drizzle.js';
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
+import { strategies, snapshots } from '../../shared/schema.js';
 
 const router = express.Router();
 
@@ -653,44 +654,61 @@ router.post('/test-claude/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
     
-    // Get strategy and snapshot data
-    const [strat] = await db.execute(sql`
-      SELECT s.*, snap.lat, snap.lng, snap.city, snap.state, snap.user_address,
-             snap.day_part_key, snap.dow, snap.weather, snap.air
-      FROM strategies s
-      LEFT JOIN snapshots snap ON s.snapshot_id = snap.snapshot_id
-      WHERE s.snapshot_id = ${snapshotId}
-    `);
+    // Get snapshot data
+    const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     
-    if (!strat.rows || !strat.rows[0]) {
-      return res.status(404).json({ error: 'Strategy row not found' });
+    if (!snap) {
+      return res.status(404).json({ error: 'Snapshot not found: ' + snapshotId });
     }
-    
-    const row = strat.rows[0];
     
     // Import and call provider
     const { runParallelProviders } = await import('../lib/strategy-generator-parallel.js');
     
-    const result = await runParallelProviders({
+    const providerResult = await runParallelProviders({
       snapshotId,
       user: {
-        lat: row.lat,
-        lng: row.lng,
-        city: row.city,
-        state: row.state,
-        user_address: row.user_address
+        lat: snap.lat,
+        lng: snap.lng,
+        city: snap.city,
+        state: snap.state,
+        user_address: snap.user_address
       },
       snapshot: {
-        day_part_key: row.day_part_key,
-        dow: row.dow,
-        weather: row.weather,
-        air: row.air
+        day_part_key: snap.day_part_key,
+        dow: snap.dow,
+        weather: snap.weather,
+        air: snap.air
       }
     });
     
-    res.json({ ok: true, result, snapshotId });
+    res.json({ ok: true, result: providerResult, snapshotId });
   } catch (err) {
     console.error('[diagnostics/test-claude] Error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/diagnostics/test-consolidate/:snapshotId - Manually test consolidation logic
+router.post('/test-consolidate/:snapshotId', async (req, res) => {
+  try {
+    const { snapshotId } = req.params;
+    
+    // Import and call maybeConsolidate directly
+    const { maybeConsolidate } = await import('../jobs/triad-worker.js');
+    
+    await maybeConsolidate(snapshotId);
+    
+    // Check result
+    const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    
+    res.json({ 
+      ok: true, 
+      snapshotId,
+      consolidationComplete: row?.gpt5_consolidated != null,
+      status: row?.status
+    });
+  } catch (err) {
+    console.error('[diagnostics/test-consolidate] Error:', err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
