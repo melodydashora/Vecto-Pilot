@@ -54,16 +54,24 @@ export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
   console.log(`[triad] ⏱️  GPT-5 planner deadline: ${plannerDeadline}ms (hard timeout)`);
 
   const dev = [
-    "You are a rideshare planner.",
+    "You are a rideshare planner and consolidator.",
+    "Consolidate the strategist's plan with the Gemini news briefing to create an accurate, actionable strategy.",
+    "Incorporate traffic, events, and news from the briefing into your consolidated strategy.",
     "Use only the provided venues; do not add venues or facts.",
-    "Derive staging and per-venue pro tips from the strategist plan and the seeded shortlist.",
+    "Derive staging and per-venue pro tips from the strategist plan, news briefing, and seeded shortlist.",
     "Caps: strategy ≤120 words; ≤4 bullets/venue; ≤140 chars/bullet; staging notes ≤200 chars.",
     "Return JSON only with keys: strategy_for_now, per_venue[{name,pro_tips[]}], staging[{name,notes}]"
   ].join(" ");
+  // Extract Gemini news briefing from snapshot
+  const geminiBriefing = snapshot?.news_briefing?.briefing ? 
+    JSON.stringify(snapshot.news_briefing.briefing) : 
+    'No news briefing available';
+  
   const usr = [
     `Clock: ${clock}`,
     `Driver goals: ${goals || "maximize $/hr, minimize unpaid miles"}`,
     `Strategist plan: ${JSON.stringify(strategist)}`,
+    `News Briefing (Gemini): ${geminiBriefing}`,
     "Shortlist (DO NOT add venues):",
     ...shortlist.map(v => `- ${v.name} (potential $${v.data?.potential || 0}, ${v.data?.driveTimeMinutes || 0} min, surge ${v.data?.surge || 1.0}x)`),
     "Return JSON only."
