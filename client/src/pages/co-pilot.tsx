@@ -266,17 +266,6 @@ const CoPilot: React.FC = () => {
     queryFn: async () => {
       if (!coords) throw new Error('No GPS coordinates');
       
-      // CRITICAL: Double-check strategy is ready before making blocks request
-      // This prevents retries from executing when strategy is still pending
-      if (strategyData?.status !== 'ok' || strategyData?._snapshotId !== lastSnapshotId) {
-        console.log('[blocks-query] Aborting query - strategy not ready:', {
-          strategyStatus: strategyData?.status,
-          strategySnapshotId: strategyData?._snapshotId,
-          currentSnapshotId: lastSnapshotId
-        });
-        throw new Error('Strategy not ready yet');
-      }
-      
       // 3min 50s timeout for Triad orchestrator (Claude 15s + GPT-5 120s + Gemini 20s + buffer)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 230000); // 230s = 3min 50s with buffer
