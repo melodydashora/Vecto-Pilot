@@ -196,31 +196,31 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
         await db
           .update(strategies)
           .set({
-            claude_strategy: result.plan || null,
+            minstrategy: result.plan || null,  // GENERIC: model-agnostic column
             lat, lng, city, state, user_address,
             status: 'partial',
             updated_at: new Date(),
           })
           .where(eq(strategies.snapshot_id, snapshotId));
-        console.log(`[parallel-providers] ✅ Claude strategy written (${result.plan.length} chars)`);
+        console.log(`[parallel-providers] ✅ Strategy provider wrote minstrategy (${result.plan.length} chars)`);
       } else {
-        throw new Error(result.reason || 'Claude call failed');
+        throw new Error(result.reason || 'Strategy provider call failed');
       }
     } catch (err) {
       await db.update(strategies).set({
-        error_message: `[claude] ${err.message?.slice(0, 800)}`,
+        error_message: `[strategy] ${err.message?.slice(0, 800)}`,
         status: 'partial',
         updated_at: new Date(),
       }).where(eq(strategies.snapshot_id, snapshotId));
-      console.error(`[parallel-providers] ❌ Claude write failed:`, err.message);
+      console.error(`[parallel-providers] ❌ Strategy provider write failed:`, err.message);
     }
   }).catch(async (err) => {
     await db.update(strategies).set({
-      error_message: `[claude] ${err.message?.slice(0, 800)}`,
+      error_message: `[strategy] ${err.message?.slice(0, 800)}`,
       status: 'partial',
       updated_at: new Date(),
     }).where(eq(strategies.snapshot_id, snapshotId));
-    console.error(`[parallel-providers] ❌ Claude promise rejected:`, err.message);
+    console.error(`[parallel-providers] ❌ Strategy provider promise rejected:`, err.message);
   });
 
   const geminiPromise = callGeminiFeeds({ 
@@ -233,38 +233,52 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
         await db
           .update(strategies)
           .set({
-            gemini_news: result.news ?? [],
-            gemini_events: result.events ?? [],
-            gemini_traffic: result.traffic ?? [],
+            briefing_news: result.news ?? [],      // GENERIC: model-agnostic columns
+            briefing_events: result.events ?? [],
+            briefing_traffic: result.traffic ?? [],
             lat, lng, city, state, user_address,
             status: 'partial',
             updated_at: new Date(),
           })
           .where(eq(strategies.snapshot_id, snapshotId));
-        console.log(`[parallel-providers] ✅ Gemini feeds written (news=${result.news.length}, events=${result.events.length}, traffic=${result.traffic.length})`);
+        console.log(`[parallel-providers] ✅ Briefing provider wrote briefings (news=${result.news.length}, events=${result.events.length}, traffic=${result.traffic.length})`);
       } else {
-        throw new Error(result.reason || 'Gemini call failed');
+        throw new Error(result.reason || 'Briefing provider call failed');
       }
     } catch (err) {
       await db.update(strategies).set({
-        error_message: `[gemini] ${err.message?.slice(0, 800)}`,
+        error_message: `[briefing] ${err.message?.slice(0, 800)}`,
         status: 'partial',
         updated_at: new Date(),
       }).where(eq(strategies.snapshot_id, snapshotId));
-      console.error(`[parallel-providers] ❌ Gemini write failed:`, err.message);
+      console.error(`[parallel-providers] ❌ Briefing provider write failed:`, err.message);
     }
   }).catch(async (err) => {
     await db.update(strategies).set({
-      error_message: `[gemini] ${err.message?.slice(0, 800)}`,
+      error_message: `[briefing] ${err.message?.slice(0, 800)}`,
       status: 'partial',
       updated_at: new Date(),
     }).where(eq(strategies.snapshot_id, snapshotId));
-    console.error(`[parallel-providers] ❌ Gemini promise rejected:`, err.message);
+    console.error(`[parallel-providers] ❌ Briefing provider promise rejected:`, err.message);
   });
 
   // Don't await - let them resolve independently
   // The LISTEN/NOTIFY trigger will fire consolidation when all fields present
-  return { ok: true, note: 'Parallel writes initiated, consolidation will be triggered by db event' };
+  
+  // FALLBACK: Auto-consolidate after 5s if NOTIFY is lost
+  // This ensures forward progress even if LISTEN/NOTIFY fails
+  setTimeout(async () => {
+    try {
+      // Import dynamically to avoid circular dependency
+      const { maybeConsolidate } = await import('../jobs/triad-worker.js');
+      await maybeConsolidate(snapshotId);
+      console.log(`[parallel-providers] ⏱️ Fallback consolidation check triggered for ${snapshotId}`);
+    } catch (err) {
+      console.error(`[parallel-providers] ⚠️ Fallback consolidation failed:`, err.message);
+    }
+  }, 5000);
+  
+  return { ok: true, note: 'Parallel writes initiated, consolidation will be triggered by db event or 5s fallback' };
 }
 
 /**
@@ -286,12 +300,12 @@ export async function consolidateStrategy({ snapshotId, claudeStrategy, geminiNe
     }
 
     await db.update(strategies).set({
-      gpt5_consolidated: consolidated.strategy || '',
+      consolidated_strategy: consolidated.strategy || '',  // GENERIC: model-agnostic column
       status: 'ok',
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    console.log(`[consolidation] ✅ GPT-5 consolidated (${consolidated.strategy.length} chars)`);
+    console.log(`[consolidation] ✅ Consolidation complete (${consolidated.strategy.length} chars)`);
     return { ok: true };
   } catch (err) {
     console.error(`[consolidation] ❌ Failed:`, err.message);

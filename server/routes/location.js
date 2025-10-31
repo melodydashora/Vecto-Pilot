@@ -862,13 +862,33 @@ router.post('/snapshot', async (req, res) => {
       attempt: 1,
       created_at: now,
       updated_at: now,
-      // Seed with empty arrays to satisfy NOT NULL constraints on JSONB columns
-      gemini_news: [],
-      gemini_events: [],
-      gemini_traffic: []
+      // Copy precise user-resolved location context
+      user_resolved_address: snapshotV1.resolved?.formattedAddress || null,
+      user_resolved_city: snapshotV1.resolved?.city || null,
+      user_resolved_state: snapshotV1.resolved?.state || null,
+      // Also copy coordinates for continuity
+      lat: snapshotV1.coord.lat,
+      lng: snapshotV1.coord.lng,
+      city: snapshotV1.resolved?.city || null,
+      state: snapshotV1.resolved?.state || null,
+      user_address: snapshotV1.resolved?.formattedAddress || null,
+      // Provider fields remain NULL until providers write (no pre-seeding)
+      minstrategy: null,
+      briefing_news: null,
+      briefing_events: null,
+      briefing_traffic: null,
+      consolidated_strategy: null
     }).onConflictDoUpdate({
       target: strategies.snapshot_id,
       set: { 
+        user_resolved_address: snapshotV1.resolved?.formattedAddress || null,
+        user_resolved_city: snapshotV1.resolved?.city || null,
+        user_resolved_state: snapshotV1.resolved?.state || null,
+        lat: snapshotV1.coord.lat,
+        lng: snapshotV1.coord.lng,
+        city: snapshotV1.resolved?.city || null,
+        state: snapshotV1.resolved?.state || null,
+        user_address: snapshotV1.resolved?.formattedAddress || null,
         updated_at: now
       }
     });
