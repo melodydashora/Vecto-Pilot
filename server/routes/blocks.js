@@ -149,25 +149,31 @@ router.get('/strategy/:snapshotId', async (req, res) => {
   }
 });
 
+function getSnapshotIdFromReq(req) {
+  return (
+    req.headers['x-snapshot-id'] ||
+    req.body?.snapshot_id ||
+    req.query?.snapshot_id ||
+    null
+  );
+}
+
 router.post('/', async (req, res) => {
-  const { processBlocksRequestCore, BlocksProcessorError } = await import('./blocks-processor-full.js');
-  
+  const snapshotId = getSnapshotIdFromReq(req);
+  if (!snapshotId) {
+    return res.status(400).json({
+      error: 'snapshot_id_required',
+      message: 'Snapshot ID required (from GPS snapshot creation)'
+    });
+  }
+
+  const { processBlocksFast } = await import('./blocks-fast.js');
   try {
-    const result = await processBlocksRequestCore({ body: req.body, headers: req.headers });
+    const result = await processBlocksFast({ snapshotId, headers: req.headers, body: req.body });
     return res.status(200).json(result);
-  } catch (e) {
-    if (e instanceof BlocksProcessorError) {
-      // Extract JSON if it was stringified
-      let errorBody;
-      try {
-        errorBody = JSON.parse(e.message);
-      } catch {
-        errorBody = { ok: false, error: e.message };
-      }
-      return res.status(e.httpStatus).json(errorBody);
-    }
+  } catch (error) {
     const correlationId = req.headers['x-correlation-id'] || randomUUID();
-    console.error('[blocks-sync] unhandled:', e);
+    console.error('[blocks] Error:', error);
     return res.status(500).json({ ok: false, error: 'Internal error', correlationId });
   }
 });
