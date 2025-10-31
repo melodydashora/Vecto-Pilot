@@ -12,8 +12,8 @@ export async function acquireLock(key, ttlMs = 120000) {
       WITH old_lock AS (
         SELECT expires_at, owner_id FROM worker_locks WHERE lock_key = ${key}
       )
-      INSERT INTO worker_locks (lock_key, expires_at, owner_id)
-      VALUES (${key}, ${expiresAt}, ${ownerId})
+      INSERT INTO worker_locks (lock_key, expires_at, owner_id, last_beat_at)
+      VALUES (${key}, ${expiresAt}, ${ownerId}, NOW())
       ON CONFLICT (lock_key)
       DO UPDATE SET
         expires_at =
@@ -27,6 +27,12 @@ export async function acquireLock(key, ttlMs = 120000) {
           WHEN worker_locks.expires_at <= NOW() THEN ${ownerId}
           WHEN worker_locks.owner_id = ${ownerId} THEN ${ownerId}
           ELSE worker_locks.owner_id
+        END
+      , last_beat_at =
+        CASE
+          WHEN worker_locks.expires_at <= NOW() THEN NOW()
+          WHEN worker_locks.owner_id = ${ownerId} THEN NOW()
+          ELSE worker_locks.last_beat_at
         END
       RETURNING (
         SELECT COALESCE(
@@ -68,7 +74,8 @@ export async function releaseLock(key) {
 export async function sweepExpiredLocks() {
   try {
     const result = await db.execute(sql`
-      DELETE FROM worker_locks WHERE expires_at < NOW()
+      DELETE FROM worker_locks 
+      WHERE expires_at <= NOW()
       RETURNING lock_key
     `);
     if (result.rowCount > 0) {
@@ -85,7 +92,7 @@ export async function extendLock(key, ttlMs = 120000) {
   try {
     const result = await db.execute(sql`
       UPDATE worker_locks 
-      SET expires_at = ${expiresAt}
+      SET expires_at = ${expiresAt}, last_beat_at = NOW()
       WHERE lock_key = ${key} AND owner_id = ${ownerId}
       RETURNING 1
     `);
