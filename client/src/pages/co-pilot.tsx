@@ -240,11 +240,12 @@ const CoPilot: React.FC = () => {
 
   // Update persistent strategy when new strategy arrives
   useEffect(() => {
-    if (strategyData?.strategy && strategyData.strategy !== persistentStrategy) {
+    const consolidatedStrategy = strategyData?.strategy?.consolidated;
+    if (consolidatedStrategy && consolidatedStrategy !== persistentStrategy) {
       console.log("📝 New strategy received, persisting to localStorage");
-      localStorage.setItem('vecto_persistent_strategy', strategyData.strategy);
+      localStorage.setItem('vecto_persistent_strategy', consolidatedStrategy);
       localStorage.setItem('vecto_strategy_snapshot_id', lastSnapshotId || '');
-      setPersistentStrategy(strategyData.strategy);
+      setPersistentStrategy(consolidatedStrategy);
       setStrategySnapshotId(lastSnapshotId);
     }
   }, [strategyData, lastSnapshotId, persistentStrategy]);
