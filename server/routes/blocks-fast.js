@@ -68,11 +68,19 @@ router.post('/', async (req, res) => {
   const wallClockStart = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
   
+  // Audit trail for deployment verification
+  const audit = [];
+  const logAudit = (step, data) => {
+    const entry = { step, ...data, ts: Date.now() - wallClockStart };
+    audit.push(entry);
+    console.log(`[audit:${correlationId}] ${step}:`, JSON.stringify(data));
+  };
+  
   let responded = false;
   const sendOnce = (code, body) => {
     if (!responded) {
       responded = true;
-      res.status(code).json(body);
+      res.status(code).json({ ...body, audit });
     }
   };
 
@@ -107,8 +115,16 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const lat = fullSnapshot.lat;
-    const lng = fullSnapshot.lng;
+    const lat = parseFloat(fullSnapshot.lat.toFixed(6));
+    const lng = parseFloat(fullSnapshot.lng.toFixed(6));
+    
+    // Input normalization audit
+    logAudit('input', {
+      coords: `${lat},${lng}`,
+      source: 'snapshot',
+      reverseGeo: fullSnapshot.formatted_address || fullSnapshot.city,
+      snapshotId
+    });
     
     console.log(`⚡ [${correlationId}] FAST BLOCKS: lat=${lat} lng=${lng} budget=${PLANNER_BUDGET_MS}ms`);
 
@@ -150,6 +166,14 @@ router.post('/', async (req, res) => {
     // CRITICAL: Cap at exactly 8 venues (16 coords total)
     const gpt5Venues = gpt5Result.venues.slice(0, 8);
     const generationMs = Date.now() - generationStart;
+    
+    logAudit('generation', {
+      venue_count: gpt5Venues.length,
+      coords_count: gpt5Venues.length * 2,
+      generation_ms: generationMs,
+      model: 'gpt-5-venue-generator'
+    });
+    
     console.log(`✅ [${correlationId}] GPT-5 generated ${gpt5Venues.length} venues (${gpt5Venues.length * 2} coords) in ${generationMs}ms`);
 
     // ============================================
@@ -211,6 +235,16 @@ router.post('/', async (req, res) => {
 
     // Use GPT-5 venues as final output (no reranking needed)
     const finalVenues = enrichedVenues;
+    
+    // Enrichment audit: count successful enrichments
+    const enrichmentStats = {
+      total: finalVenues.length,
+      with_drive_time: finalVenues.filter(v => v.driveTimeMinutes > 0).length,
+      with_hours: 0, // No hours enrichment yet
+      enrichment_ms: enrichmentMs
+    };
+    logAudit('enrichment', enrichmentStats);
+    
     const totalMs = Date.now() - wallClockStart;
 
     // ============================================
@@ -353,6 +387,22 @@ router.post('/', async (req, res) => {
       };
     });
 
+    // Final status audit
+    const statusCounts = {
+      green: blocks.filter(b => b.status === 'green').length,
+      yellow: blocks.filter(b => b.status === 'yellow').length,
+      red: blocks.filter(b => b.status === 'red').length,
+      total: blocks.length
+    };
+    logAudit('status', statusCounts);
+    
+    // Event matching audit (blocked: no venue_events table)
+    logAudit('events', {
+      event_match: 'none',
+      reason: 'venue_events_table_missing',
+      note: 'Event matching requires venue_events schema creation'
+    });
+
     const response = {
       ok: true,
       correlationId,
@@ -371,7 +421,8 @@ router.post('/', async (req, res) => {
       metadata: {
         totalBlocks: blocks.length,
         processingTimeMs: totalMs,
-        modelRoute: 'gpt-5-venue-generator'
+        modelRoute: 'gpt-5-venue-generator',
+        statusCounts
       }
     };
 
