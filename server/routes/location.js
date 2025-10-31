@@ -869,38 +869,40 @@ router.post('/snapshot', async (req, res) => {
       }
     });
 
-    // Claim the pending job using SKIP LOCKED; only one request will own it
-    let iOwnTheJob = false;
+    // Call parallel providers directly instead of enqueueing job
     if (snapshotV1.resolved?.formattedAddress || snapshotV1.resolved?.city) {
-      const rows = await db.execute(sql`
-        with c as (
-          select snapshot_id
-          from ${strategies}
-          where ${strategies.snapshot_id} = ${snapshotV1.snapshot_id}
-            and ${strategies.status} in ('pending', 'queued')
-          for update skip locked
-        )
-        select snapshot_id from c
-      `);
-      iOwnTheJob = rows?.rows?.length === 1;
-
-      if (iOwnTheJob) {
-        // Enqueue strategy generation via database table (for triad-worker.js)
-        const { triad_jobs } = await import('../../shared/schema.js');
-        await db.insert(triad_jobs).values({
-          snapshot_id: snapshotV1.snapshot_id,
-          kind: 'triad',
-          status: 'queued'
-        }).onConflictDoNothing();
-        console.log(`[location] ✅ Strategy job enqueued in database for snapshot ${snapshotV1.snapshot_id}`);
-      }
+      const { runParallelProviders } = await import('../lib/strategy-generator-parallel.js');
+      
+      // Fire parallel provider calls (non-blocking)
+      // Claude + Gemini will write to their respective fields, triggering NOTIFY events
+      runParallelProviders({
+        snapshotId: snapshotV1.snapshot_id,
+        user: {
+          lat: snapshotV1.coord.lat,
+          lng: snapshotV1.coord.lng,
+          city: snapshotV1.resolved?.city,
+          state: snapshotV1.resolved?.state,
+          user_address: snapshotV1.resolved?.formattedAddress,
+          user_id: snapshotV1.user_id
+        },
+        snapshot: {
+          day_part_key: snapshotV1.time_context?.day_part_key,
+          dow: snapshotV1.time_context?.dow,
+          weather: snapshotV1.weather,
+          air: snapshotV1.air
+        }
+      }).catch(err => {
+        console.error('[snapshot→parallel] Provider error:', err.message);
+      });
+      
+      console.log(`[location] ✅ Parallel providers initiated for snapshot ${snapshotV1.snapshot_id}`);
     }
 
     res.json({ 
       success: true, 
       snapshot_id: snapshotV1.snapshot_id,
       h3_r8,
-      status: iOwnTheJob ? 'enqueued' : 'already_enqueued',
+      status: 'parallel_providers_initiated',
       req_id: reqId
     });
   } catch (err) {
