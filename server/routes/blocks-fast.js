@@ -310,25 +310,48 @@ router.post('/', async (req, res) => {
     // ============================================
     // STEP 5: Return response
     // ============================================
-    const blocks = finalVenues.map((v, index) => ({
-      name: v.name,
-      category: v.category,
-      coordinates: { lat: v.lat, lng: v.lng },
-      stagingArea: {
-        name: v.staging_name,
-        coordinates: { lat: v.staging_lat, lng: v.staging_lng },
-        parkingTip: v.staging_tips
-      },
-      proTips: v.pro_tips,
-      closed_venue_reasoning: v.closed_reasoning,
-      estimated_distance_miles: v.distance_miles,
-      driveTimeMinutes: v.driveTimeMinutes,
-      surge: v.surge,
-      estimatedEarningsPerRide: v.estimated_earnings,
-      value_per_min: v.value_per_min,
-      value_grade: v.value_grade,
-      not_worth: v.not_worth
-    }));
+    const blocks = finalVenues.map((v, index) => {
+      // Implement reason codes from stabilization doc
+      const reasons = [];
+      const flags = {
+        coordsOk: v.lat && v.lng,
+        stagingOk: v.staging_lat && v.staging_lng,
+        tipsOk: v.pro_tips,
+        enrichmentOk: v.driveTimeMinutes > 0
+      };
+
+      if (!flags.coordsOk) reasons.push('coords_missing');
+      if (!flags.stagingOk) reasons.push('staging_missing');
+      if (!flags.tipsOk) reasons.push('tips_missing');
+      if (!flags.enrichmentOk) reasons.push('enrichment_incomplete');
+
+      const okCount = Object.values(flags).filter(Boolean).length;
+      const status = okCount === 4 ? 'green' : okCount >= 2 ? 'yellow' : 'red';
+
+      return {
+        name: v.name,
+        category: v.category,
+        coordinates: { lat: v.lat, lng: v.lng },
+        stagingArea: {
+          name: v.staging_name,
+          coordinates: { lat: v.staging_lat, lng: v.staging_lng },
+          parkingTip: v.staging_tips
+        },
+        proTips: v.pro_tips,
+        closed_venue_reasoning: v.closed_reasoning,
+        estimated_distance_miles: v.distance_miles,
+        driveTimeMinutes: v.driveTimeMinutes,
+        surge: v.surge,
+        estimatedEarningsPerRide: v.estimated_earnings,
+        value_per_min: v.value_per_min,
+        value_grade: v.value_grade,
+        not_worth: v.not_worth,
+        // Stabilization: explicit status and reasons
+        status,
+        flags,
+        reasons: reasons.length > 0 ? reasons : null
+      };
+    });
 
     const response = {
       ok: true,
