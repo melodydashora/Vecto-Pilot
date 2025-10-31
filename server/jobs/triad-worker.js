@@ -9,8 +9,12 @@ import { callGPT5 } from '../lib/adapters/openai-gpt5.js';
 import { acquireLock, releaseLock } from '../lib/locks.js';
 
 export async function processTriadJobs() {
+  console.log('[triad-worker] 🔄 Worker loop started, polling for jobs...');
+  
   while (true) {
     try {
+      console.log('[triad-worker] 🔍 Checking for queued jobs...');
+      
       // Claim one job with SKIP LOCKED (only one worker processes it)
       const job = await db.execute(sql`
         UPDATE ${triad_jobs}
@@ -27,6 +31,7 @@ export async function processTriadJobs() {
 
       if (!job || !job.rows || job.rows.length === 0) {
         // No jobs available, wait before checking again
+        console.log('[triad-worker] ⏸️ No queued jobs, waiting 1s...');
         await new Promise(resolve => setTimeout(resolve, 1000));
         continue;
       }
@@ -40,13 +45,14 @@ export async function processTriadJobs() {
       const gotLock = await acquireLock(lockKey, 120000); // 120s TTL
       
       if (!gotLock) {
-        // Another worker has the lock, mark this job as complete to avoid infinite re-queuing
-        console.log(`[triad-worker] 🔒 Lock busy for ${snapshot_id}, marking job complete (other worker processing)`);
+        // Lock busy - put job back to queued and wait before retrying
+        console.log(`[triad-worker] 🔒 Lock busy for ${snapshot_id}, requeuing job and waiting...`);
         await db.execute(sql`
           UPDATE ${triad_jobs}
-          SET status = 'ok'
+          SET status = 'queued'
           WHERE id = ${jobId}
         `);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before next poll
         continue;
       }
 
