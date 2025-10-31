@@ -35,6 +35,7 @@ export const snapshots = pgTable("snapshots", {
 
 export const strategies = pgTable("strategies", {
   id: uuid("id").primaryKey().defaultRandom(),
+  strategy_id: uuid("strategy_id"),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   correlation_id: uuid("correlation_id"),
   strategy: text("strategy"),
