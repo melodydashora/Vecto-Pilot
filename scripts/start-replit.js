@@ -52,7 +52,7 @@ try {
   // Port already free, continue
 }
 
-console.log('[boot] Starting Vecto Pilot gateway...');
+console.log('[boot] Starting Vecto Pilot in MONO mode...');
 console.log(`[boot] PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`[boot] ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}`);
 console.log(`[boot] REPL_ID=${process.env.REPL_ID ? 'set' : 'not set'}`);
@@ -72,6 +72,28 @@ server.on('exit', (code) => {
   console.error(`[boot:exit] Gateway exited with code ${code}`);
   process.exit(code || 1);
 });
+
+// Start triad worker (only if enabled)
+let worker = null;
+if (process.env.ENABLE_BACKGROUND_WORKER === 'true') {
+  console.log('[boot] ⚡ Starting triad worker...');
+  worker = spawn('node', ['strategy-generator.js'], {
+    stdio: 'inherit',
+    env: process.env
+  });
+  
+  worker.on('error', (err) => {
+    console.error('[boot:worker:error] Failed to spawn worker:', err.message);
+  });
+  
+  worker.on('exit', (code) => {
+    console.error(`[boot:worker:exit] Worker exited with code ${code}`);
+  });
+  
+  console.log(`[boot] ✅ Triad worker started (PID: ${worker.pid})`);
+} else {
+  console.log('[boot] ⏸️  Background worker disabled');
+}
 
 // Health gate: Wait for server to be ready before declaring success
 function waitHealth(url, timeoutMs = 15000) {
@@ -117,9 +139,11 @@ waitHealth(healthUrl)
 process.on('SIGTERM', () => {
   console.log('[boot] SIGTERM received, shutting down...');
   server.kill();
+  if (worker) worker.kill();
 });
 
 process.on('SIGINT', () => {
   console.log('[boot] SIGINT received, shutting down...');
   server.kill();
+  if (worker) worker.kill();
 });

@@ -46,7 +46,8 @@
     "agent:dev": "ts-node src/index.ts",
     "rls:enable": "node scripts/toggle-rls.js enable",
     "rls:disable": "node scripts/toggle-rls.js disable",
-    "rls:status": "node scripts/toggle-rls.js status"
+    "rls:status": "node scripts/toggle-rls.js status",
+    "start:mono": "./start-mono.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
