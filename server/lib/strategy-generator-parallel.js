@@ -196,7 +196,7 @@ async function saveStrategy(row) {
  * GPT-5 consolidation happens via event-driven worker when all fields present
  */
 export async function runParallelProviders({ snapshotId, user, snapshot }) {
-  const { lat, lng, city, state, user_address } = user;
+  const { lat, lng, city, state, user_address, user_id } = user;
 
   console.log(`[SIMPLE-STRATEGY] Starting Gemini → GPT-5 pipeline for snapshot ${snapshotId}`);
   console.log(`[SIMPLE-STRATEGY] Input:`, { city, state, user_address });
@@ -243,6 +243,29 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
     }).where(eq(strategies.snapshot_id, snapshotId));
 
     console.log(`[SIMPLE-STRATEGY] ✅ Strategy complete and saved to consolidated_strategy`);
+    
+    // Step 4: Generate Enhanced Smart Blocks - GPT-5 venue planner
+    console.log(`[SMART-BLOCKS] 🎯 Generating enhanced smart blocks with GPT-5 venue planner...`);
+    try {
+      const { generateEnhancedSmartBlocks } = await import('./enhanced-smart-blocks.js');
+      await generateEnhancedSmartBlocks({
+        snapshotId,
+        strategy: consolidated.strategy,
+        snapshot: {
+          ...snapshot,
+          formatted_address: user_address,
+          city,
+          state,
+          lat,
+          lng
+        },
+        user_id
+      });
+      console.log(`[SMART-BLOCKS] ✅ Enhanced smart blocks generated and saved`);
+    } catch (blocksErr) {
+      console.error(`[SMART-BLOCKS] ⚠️ Failed to generate blocks (non-blocking):`, blocksErr.message);
+      // Don't fail the entire pipeline if blocks generation fails
+    }
     
     return { ok: true };
   } catch (err) {
