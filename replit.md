@@ -61,3 +61,23 @@ All geographic computations use snapshot coordinates. Enrichment operations comp
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Recent Changes
+
+### 2025-10-31: Fixed ON CONFLICT Error in Context Enrichment
+**Issue**: "there is no unique or exclusion constraint matching the ON CONFLICT specification" error during venue enrichment.
+
+**Root Cause**: The `upsertPlace()` function in `server/lib/places-cache.js` attempted to INSERT INTO a `places` table that doesn't exist in the database schema. Only the `places_cache` table exists.
+
+**Fix Applied**:
+1. Deprecated the `upsertPlace()` function in `server/lib/places-cache.js` (function now returns immediately with warning)
+2. Removed `upsertPlace()` call from `server/lib/venue-enrichment.js`
+3. Removed unused import of `upsertPlace` from venue enrichment module
+
+**Database Structure Clarification**:
+- ✅ `places_cache` table exists with unique index on `place_id` (stores business hours)
+- ❌ `places` table does NOT exist
+- ✅ `venue_catalog` table exists with unique index on `place_id` (stores venue coordinates and metadata)
+- ✅ Coordinates are preserved in `venue_catalog` and `rankings` tables
+
+**Impact**: Eliminated SQL errors during venue enrichment. All place data flows correctly into `places_cache` (hours) and `venue_catalog` (metadata/coordinates).
