@@ -19,8 +19,50 @@ export async function processTriadJobs() {
   }
   global.__TRIAD_WORKER_STARTED__ = true;
   
+  // Event-driven mode: LISTEN/NOTIFY instead of hot polling
+  const USE_LISTEN = process.env.USE_LISTEN_MODE !== 'false'; // Default to true
+  
+  if (USE_LISTEN) {
+    console.log('[triad-worker] 🎧 LISTEN mode active — hot polling disabled');
+    console.log('[triad-worker] 💡 Strategy consolidation runs on PostgreSQL NOTIFY events');
+    
+    // Optional: Safety sweep every 10 minutes to catch missed events
+    const SAFETY_SWEEP_INTERVAL = 10 * 60 * 1000; // 10 minutes
+    setInterval(async () => {
+      console.log('[triad-worker] 🧹 Running safety sweep for orphaned strategies...');
+      // Check for strategies that have all fields but no consolidation
+      try {
+        const orphaned = await db.execute(sql`
+          SELECT snapshot_id FROM ${strategies}
+          WHERE claude_strategy IS NOT NULL
+            AND gemini_news IS NOT NULL
+            AND gemini_events IS NOT NULL
+            AND gemini_traffic IS NOT NULL
+            AND gpt5_consolidated IS NULL
+          LIMIT 5
+        `);
+        
+        if (orphaned.rows && orphaned.rows.length > 0) {
+          console.log(`[triad-worker] 🧹 Found ${orphaned.rows.length} orphaned strategies, triggering consolidation...`);
+          for (const row of orphaned.rows) {
+            const { maybeConsolidate } = await import('./triad-worker.js');
+            await maybeConsolidate(row.snapshot_id);
+          }
+        }
+      } catch (err) {
+        console.error('[triad-worker] ❌ Safety sweep error:', err.message);
+      }
+    }, SAFETY_SWEEP_INTERVAL);
+    
+    return; // Exit - no hot polling
+  }
+  
+  // ─────────────────────────────────────────────────────────────
+  // FALLBACK: Hot polling mode (legacy)
+  // ─────────────────────────────────────────────────────────────
   const workerId = process.env.WORKER_ID || `pid:${process.pid}`;
   console.log(`[triad-worker] 🔄 Worker loop started, polling for jobs... (worker_id=${workerId})`);
+  console.warn(`[triad-worker] ⚠️  Hot polling mode active (set USE_LISTEN_MODE=false to enable LISTEN)`);
   
   while (true) {
     try {
@@ -338,7 +380,7 @@ export async function startConsolidationListener() {
 /**
  * Check if all provider fields present and consolidation needed
  */
-async function maybeConsolidate(snapshotId) {
+export async function maybeConsolidate(snapshotId) {
   try {
     const [row] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
@@ -349,15 +391,25 @@ async function maybeConsolidate(snapshotId) {
     }
 
     // Gate: all provider fields must be present AND gpt5_consolidated must be null
-    const ready =
-      row.claude_strategy &&
-      Array.isArray(row.gemini_news) &&
-      Array.isArray(row.gemini_events) &&
-      Array.isArray(row.gemini_traffic) &&
-      !row.gpt5_consolidated;
+    const hasClaude = row.claude_strategy != null;
+    const hasNews = row.gemini_news != null;
+    const hasEvents = row.gemini_events != null;
+    const hasTraffic = row.gemini_traffic != null;
+    const alreadyConsolidated = row.gpt5_consolidated != null;
+    
+    const ready = hasClaude && hasNews && hasEvents && hasTraffic && !alreadyConsolidated;
+
+    // Detailed gate logging for observability
+    console.log(`[consolidation-listener] Gate for ${snapshotId}:`, {
+      hasClaude,
+      hasNews: hasNews && Array.isArray(row.gemini_news),
+      hasEvents: hasEvents && Array.isArray(row.gemini_events),
+      hasTraffic: hasTraffic && Array.isArray(row.gemini_traffic),
+      alreadyConsolidated,
+      ready
+    });
 
     if (!ready) {
-      console.log(`[consolidation-listener] ⏸️  Not ready yet for ${snapshotId} (claude=${!!row.claude_strategy}, gemini_news=${Array.isArray(row.gemini_news)}, gemini_events=${Array.isArray(row.gemini_events)}, gemini_traffic=${Array.isArray(row.gemini_traffic)}, gpt5=${!!row.gpt5_consolidated})`);
       return;
     }
 
