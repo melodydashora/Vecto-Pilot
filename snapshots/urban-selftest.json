@@ -1,0 +1,73 @@
+{
+  "blocks": [
+    {
+      "name": "J. Theodore Restaurant & Bar (Shops at Starwood)",
+      "coordinates": {
+        "lat": 33.1154,
+        "lng": -96.8479
+      },
+      "placeId": null,
+      "estimated_distance_miles": 2.6,
+      "driveTimeMinutes": 6,
+      "value_per_min": 0.71,
+      "value_grade": "C",
+      "not_worth": false,
+      "proTips": null,
+      "closed_venue_reasoning": null,
+      "stagingArea": null,
+      "businessHours": null
+    },
+    {
+      "name": "AC Hotel Dallas Frisco at Frisco Station (Front Drive)",
+      "coordinates": {
+        "lat": 33.1109,
+        "lng": -96.8163
+      },
+      "placeId": null,
+      "estimated_distance_miles": 5.1,
+      "driveTimeMinutes": 10,
+      "value_per_min": 0.6,
+      "value_grade": "C",
+      "not_worth": false,
+      "proTips": null,
+      "closed_venue_reasoning": null,
+      "stagingArea": null,
+      "businessHours": null
+    },
+    {
+      "name": "The Westin Dallas Stonebriar Golf Resort & Spa (Porte-cochère)",
+      "coordinates": {
+        "lat": 33.1038,
+        "lng": -96.8436
+      },
+      "placeId": null,
+      "estimated_distance_miles": 4.37,
+      "driveTimeMinutes": 10,
+      "value_per_min": 0.6,
+      "value_grade": "C",
+      "not_worth": false,
+      "proTips": null,
+      "closed_venue_reasoning": null,
+      "stagingArea": null,
+      "businessHours": null
+    },
+    {
+      "name": "Omni Frisco Hotel at The Star (Valet Entrance)",
+      "coordinates": {
+        "lat": 33.10835,
+        "lng": -96.81978
+      },
+      "placeId": null,
+      "estimated_distance_miles": 5.06,
+      "driveTimeMinutes": 11,
+      "value_per_min": 0.58,
+      "value_grade": "C",
+      "not_worth": false,
+      "proTips": null,
+      "closed_venue_reasoning": null,
+      "stagingArea": null,
+      "businessHours": null
+    }
+  ],
+  "ranking_id": "80dd2935-d4bd-4dda-8e99-9d5b0aa0a8cc"
+}
