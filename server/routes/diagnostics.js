@@ -648,4 +648,51 @@ router.get('/workflow-dry-run', async (req, res) => {
   }
 });
 
+// POST /api/diagnostics/test-claude/:snapshotId - Manually kick Claude for a snapshot
+router.post('/test-claude/:snapshotId', async (req, res) => {
+  try {
+    const { snapshotId } = req.params;
+    
+    // Get strategy and snapshot data
+    const [strat] = await db.execute(sql`
+      SELECT s.*, snap.lat, snap.lng, snap.city, snap.state, snap.user_address,
+             snap.day_part_key, snap.dow, snap.weather, snap.air
+      FROM strategies s
+      LEFT JOIN snapshots snap ON s.snapshot_id = snap.snapshot_id
+      WHERE s.snapshot_id = ${snapshotId}
+    `);
+    
+    if (!strat.rows || !strat.rows[0]) {
+      return res.status(404).json({ error: 'Strategy row not found' });
+    }
+    
+    const row = strat.rows[0];
+    
+    // Import and call provider
+    const { runParallelProviders } = await import('../lib/strategy-generator-parallel.js');
+    
+    const result = await runParallelProviders({
+      snapshotId,
+      user: {
+        lat: row.lat,
+        lng: row.lng,
+        city: row.city,
+        state: row.state,
+        user_address: row.user_address
+      },
+      snapshot: {
+        day_part_key: row.day_part_key,
+        dow: row.dow,
+        weather: row.weather,
+        air: row.air
+      }
+    });
+    
+    res.json({ ok: true, result, snapshotId });
+  } catch (err) {
+    console.error('[diagnostics/test-claude] Error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 export default router;
