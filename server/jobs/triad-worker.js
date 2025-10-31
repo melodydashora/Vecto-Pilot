@@ -166,12 +166,21 @@ Create a consolidated strategy using ONLY city and district names. Start with ge
           throw new Error('GPT-5 returned no text');
         }
 
-        // STEP 5: Persist GPT-5 final output to strategies.strategy_for_now
+        // STEP 5: Persist GPT-5 final output + snapshot context to strategies
         await db.update(strategies)
           .set({
             status: 'ok',
             strategy_for_now: gpt5Result.text.trim(),
             model_name: 'claude-4.5→gpt-5',
+            user_address: snap.formatted_address,
+            city: snap.city,
+            state: snap.state,
+            lat: snap.lat,
+            lng: snap.lng,
+            user_id: snap.user_id,
+            events: snap.news_briefing?.events || [],
+            news: snap.news_briefing?.news || [],
+            traffic: snap.news_briefing?.traffic || [],
             updated_at: new Date()
           })
           .where(eq(strategies.snapshot_id, snapshot_id));
