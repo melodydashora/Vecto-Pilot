@@ -153,7 +153,7 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
 
     // Stream response from Claude
     const stream = await anthropic.messages.stream({
-      model: 'claude-sonnet-4-20250514',
+      model: process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
       max_tokens: 1024,
       temperature: 0.7,
       system: systemPrompt,
