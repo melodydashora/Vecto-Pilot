@@ -40,7 +40,7 @@ CRITICAL REQUIREMENTS:
 4. Pro tips: Why go to this venue right now (specific to current conditions)
 5. Staging tips: Where exactly to park/wait for pickups
 6. Closed reasoning: If venue is outside business hours, explain why it's still valuable
-7. Maximum 12 venues, prioritized by earnings potential
+7. EXACTLY 8 venues, no more, no less - prioritized by earnings potential
 
 OUTPUT FORMAT (strict JSON):
 {
@@ -72,8 +72,9 @@ Maximum Distance: ${maxDistance} miles
 CONSOLIDATED STRATEGY:
 ${consolidatedStrategy}
 
-Generate 10-12 venue recommendations with precise coordinates. Focus on venues mentioned in the strategy (e.g., The Star, Legacy West, DFW Airport) plus additional high-value locations based on current conditions.
+Generate EXACTLY 8 venue recommendations with precise coordinates. Focus on venues mentioned in the strategy plus high-value locations based on current conditions.
 
+CRITICAL: Return exactly 8 venues in the JSON array, no more, no less.
 Return JSON only - no markdown, no explanation.`;
 
   try {
@@ -153,10 +154,13 @@ Return JSON only - no markdown, no explanation.`;
       };
     }).filter(Boolean); // Remove nulls
 
-    console.log(`[GPT-5 Venue Generator] ✅ Generated ${venues.length} venues`);
+    // CRITICAL: Cap at exactly 8 venues (16 coords: 8 location + 8 staging)
+    const cappedVenues = venues.slice(0, 8);
+
+    console.log(`[GPT-5 Venue Generator] ✅ Generated ${cappedVenues.length} venues (${cappedVenues.length * 2} coordinates)`);
     
     return {
-      venues,
+      venues: cappedVenues,
       tokens: result.total_tokens,
       reasoning_tokens: result.reasoning_tokens
     };
