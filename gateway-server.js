@@ -285,6 +285,13 @@ if (isReplit) {
       // ═══════════════════════════════════════════════════════════════════
       const initSteps = [
         {
+          name: 'Job seeding',
+          fn: async () => {
+            const { seedJobIfEmpty } = await import('./server/bootstrap/enqueue-initial.js');
+            await seedJobIfEmpty();
+          }
+        },
+        {
           name: 'Strategy validation',
           fn: async () => {
             const { safeAssertStrategies } = await import('./server/lib/strategies/assert-safe.js');

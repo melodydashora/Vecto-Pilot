@@ -12,14 +12,37 @@ const LOCK_TTL_MS = Number(process.env.LOCK_TTL_MS || 9000);
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 3000);
 
 export async function processTriadJobs() {
-  // Log who's calling us for debugging
-  const caller = new Error().stack.split('\n')[2]?.trim() || 'unknown';
-  console.log('[triad-worker] 🔄 Worker loop started, polling for jobs...');
-  console.log(`[triad-worker] 🔍 Called from: ${caller}`);
+  // Single-process guard: prevent duplicate loops
+  if (global.__TRIAD_WORKER_STARTED__) {
+    console.warn('[triad-worker] ⚠️  Duplicate start suppressed (already running)');
+    return;
+  }
+  global.__TRIAD_WORKER_STARTED__ = true;
+  
+  const workerId = process.env.WORKER_ID || `pid:${process.pid}`;
+  console.log(`[triad-worker] 🔄 Worker loop started, polling for jobs... (worker_id=${workerId})`);
   
   while (true) {
     try {
-      console.log('[triad-worker] 🔍 Checking for queued jobs...');
+      // Check queue status with counts
+      const pollStart = Date.now();
+      const counts = await db.execute(sql`
+        SELECT status, COUNT(*) as count 
+        FROM ${triad_jobs} 
+        GROUP BY status
+      `);
+      const statusMap = {};
+      counts.rows?.forEach(r => { statusMap[r.status] = parseInt(r.count); });
+      const queuedCount = statusMap.queued || 0;
+      const pollMs = Date.now() - pollStart;
+      
+      console.log(`[triad-worker] 📊 Poll: queued=${queuedCount}, running=${statusMap.running || 0}, ok=${statusMap.ok || 0}, error=${statusMap.error || 0} (${pollMs}ms)`);
+      
+      if (queuedCount === 0) {
+        // No jobs available, wait before checking again
+        await new Promise(resolve => setTimeout(resolve, 3000)); // Increased to 3s
+        continue;
+      }
       
       // Claim one job with SKIP LOCKED (only one worker processes it)
       const job = await db.execute(sql`
@@ -36,8 +59,7 @@ export async function processTriadJobs() {
       `);
 
       if (!job || !job.rows || job.rows.length === 0) {
-        // No jobs available, wait before checking again
-        console.log('[triad-worker] ⏸️ No queued jobs, waiting 1s...');
+        // Race condition - another worker claimed it
         await new Promise(resolve => setTimeout(resolve, 1000));
         continue;
       }
