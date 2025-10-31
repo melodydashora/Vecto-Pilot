@@ -803,15 +803,83 @@ const CoPilot: React.FC = () => {
           </Card>
         )}
 
-        {/* AI-Powered Recommendations - MOVED TO TOP */}
-        <div className="mb-6" id="blocks-section">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 flex-wrap">
+        {/* Strategy Section - ALWAYS FIRST */}
+        <div className="mb-6 space-y-4">
+          <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
+            <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">Closest High-Earning Spots</h2>
-              <Badge className="bg-purple-100 text-purple-700 border-0">
-                Smart Blocks
-              </Badge>
+              <h2 className="text-lg font-semibold text-gray-800">Strategy</h2>
+            </div>
+            {/* Static Feedback Button - Always Visible & Clickable */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-8 px-3 text-sm"
+              onClick={() => setStrategyFeedbackOpen(true)}
+              data-testid="button-strategy-feedback-static"
+            >
+              <MessageSquare className="w-4 h-4 mr-1" />
+              Give Feedback
+            </Button>
+          </div>
+          {!coords ? (
+            <Card className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 border-gray-300 shadow-md" data-testid="strategy-needs-gps">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700 mb-1">GPS Required for Strategy</p>
+                    <p className="text-xs text-gray-600">Enable location to receive AI-powered strategic analysis</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : persistentStrategy ? (
+            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="persistent-strategy-card">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-purple-100">
+                    <Sparkles className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-purple-900">Strategic Overview</p>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
+                          Auto-Generated
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-300 shadow-md" data-testid="strategy-pending-card">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <RefreshCw className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900 mb-1">AI Strategy Generating...</p>
+                    <p className="text-xs text-blue-700">Claude and GPT-5 are analyzing your location and conditions</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Smart Blocks - Only render when we have data */}
+        {blocks.length > 0 && (
+          <div className="mb-6" id="blocks-section">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Sparkles className="w-5 h-5 text-purple-600" />
+                <h2 className="text-lg font-semibold text-gray-800">Closest High-Earning Spots</h2>
+                <Badge className="bg-purple-100 text-purple-700 border-0">
+                  Smart Blocks
+                </Badge>
               {metadata && (
                 <>
                   <span className="text-sm text-gray-500">
@@ -840,8 +908,8 @@ const CoPilot: React.FC = () => {
             </div>
           </div>
 
-          {/* Loading State with Skeleton Cards */}
-          {persistentStrategy && (isLoading || (!error && coords && blocks.length === 0)) && (
+            {/* Loading State with Skeleton Cards */}
+            {isLoading && (
             <div className="space-y-4" data-testid="loading-state">
               <Card className="p-8 border-blue-100 bg-blue-50/50">
                 <div className="flex items-center gap-3 mb-4">
@@ -916,121 +984,8 @@ const CoPilot: React.FC = () => {
             </Card>
           )}
 
-          {/* If we have 0 blocks, trigger a retry automatically (user never sees error) */}
-          {!isLoading && !error && coords && blocks.length === 0 && (() => {
-            // Auto-retry when we get 0 blocks - keep spinner going
-            setTimeout(() => refetch(), 1000);
-            return null; // Don't render anything, keep showing loading spinner below
-          })()}
-        </div>
-
-        {/* Strategy Section - Always visible with sticky header */}
-        <div className="mb-6 space-y-4">
-          <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">Strategy</h2>
-            </div>
-            {/* Static Feedback Button - Always Visible & Clickable */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-8 px-3 text-sm"
-              onClick={() => setStrategyFeedbackOpen(true)}
-              data-testid="button-strategy-feedback-static"
-            >
-              <MessageSquare className="w-4 h-4 mr-1" />
-              Give Feedback
-            </Button>
-          </div>
-          {!coords ? (
-            <Card className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 border-gray-300 shadow-md" data-testid="strategy-needs-gps">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3">
-                  <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700 mb-1">GPS Required for Strategy</p>
-                    <p className="text-xs text-gray-600">Enable location to receive AI-powered strategic analysis</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : persistentStrategy ? (
-            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="persistent-strategy-card">
-              <CardContent className="p-5">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100">
-                    <Sparkles className="w-5 h-5 text-purple-600 flex-shrink-0" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-purple-900">Strategic Overview</p>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
-                          Auto-Generated
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-6 px-2 text-xs"
-                          onClick={() => setStrategyFeedbackOpen(true)}
-                          data-testid="button-strategy-feedback"
-                        >
-                          <MessageSquare className="w-3 h-3 mr-1" />
-                          Give feedback
-                        </Button>
-                      </div>
-                    </div>
-                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
-                    <div className="mt-3 flex items-center gap-2 text-xs text-purple-600">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>Strategy persists until next refresh</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="strategy-loading">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3">
-                  <RefreshCw className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-purple-900 mb-1">Generating Strategic Overview...</p>
-                    <p className="text-xs text-gray-600">AI is analyzing your area and current conditions</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* AI Coach - Show below strategy when blocks not loaded yet */}
-        {blocks.length === 0 && (
-          <div className="mb-6" data-testid="ai-coach-section">
-            <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-purple-600" />
-                <h2 className="text-lg font-semibold text-gray-800">AI Coach</h2>
-              </div>
-              <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
-                Coach
-              </Badge>
-            </div>
-            <div className="mt-4">
-              <CoachChat 
-                userId={localStorage.getItem('vecto_user_id') || 'default'}
-                snapshotId={lastSnapshotId || undefined}
-                strategy={persistentStrategy}
-                blocks={blocks}
-              />
-            </div>
-          </div>
-        )}
-        
-        {/* Blocks List */}
-        <div className="mb-6">
-          {blocks.length > 0 && (
+            {/* Blocks List */}
+            {blocks.length > 0 && (
             <div className="space-y-4" data-testid="blocks-list">
               {blocks.map((block, index) => {
                 const isSelected = selectedBlocks.has(index);
@@ -1366,10 +1321,11 @@ const CoPilot: React.FC = () => {
                 );
               })}
             </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        {/* AI Coach - Show below smart blocks when loaded */}
+        {/* AI Coach - Only show when blocks are loaded */}
         {blocks.length > 0 && (
           <div className="mb-6" data-testid="ai-coach-section">
             <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
