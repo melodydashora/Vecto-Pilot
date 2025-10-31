@@ -40,10 +40,11 @@ export async function processTriadJobs() {
       const gotLock = await acquireLock(lockKey, 120000); // 120s TTL
       
       if (!gotLock) {
-        console.log(`[triad-worker] 🔒 Another worker is processing ${snapshot_id}, skipping`);
+        // Another worker has the lock, mark this job as complete to avoid infinite re-queuing
+        console.log(`[triad-worker] 🔒 Lock busy for ${snapshot_id}, marking job complete (other worker processing)`);
         await db.execute(sql`
           UPDATE ${triad_jobs}
-          SET status = 'queued'
+          SET status = 'ok'
           WHERE id = ${jobId}
         `);
         continue;
