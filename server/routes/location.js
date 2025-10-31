@@ -861,7 +861,11 @@ router.post('/snapshot', async (req, res) => {
       status: 'pending',
       attempt: 1,
       created_at: now,
-      updated_at: now
+      updated_at: now,
+      // Seed with empty arrays to satisfy NOT NULL constraints on JSONB columns
+      gemini_news: [],
+      gemini_events: [],
+      gemini_traffic: []
     }).onConflictDoUpdate({
       target: strategies.snapshot_id,
       set: { 
