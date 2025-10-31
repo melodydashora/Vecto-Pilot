@@ -4,8 +4,8 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
-import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates, strategies } from '../../shared/schema.js';
-import { eq, sql } from 'drizzle-orm';
+import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates, strategies, venue_events } from '../../shared/schema.js';
+import { eq, sql, and, lte, gte, or, isNotNull } from 'drizzle-orm';
 import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
 import { predictDriveMinutes } from '../lib/driveTime.js';
 import { rerankCandidates } from '../lib/fast-tactical-reranker.js';
@@ -244,6 +244,77 @@ router.post('/', async (req, res) => {
       enrichment_ms: enrichmentMs
     };
     logAudit('enrichment', enrichmentStats);
+
+    // ============================================
+    // STEP 3.5: Event Matching (venue_events)
+    // ============================================
+    const eventMatchStart = Date.now();
+    let venueEventsMap = new Map();
+    let eventMatchStats = { matched: 0, direct: 0, route: 0, none: 0, reason: 'venue_events_table_missing' };
+    
+    try {
+      // Query venue_events for active events in the area
+      const now = new Date();
+      const events = await db.select().from(venue_events)
+        .where(
+          and(
+            or(
+              isNotNull(venue_events.starts_at),
+              isNotNull(venue_events.lat)
+            )
+          )
+        )
+        .limit(100);
+      
+      // Match events to venues
+      for (const venue of enrichedVenues) {
+        let matchedEvent = null;
+        let matchReason = 'none';
+        let routeDistanceMiles = null;
+        
+        for (const event of events) {
+          // Direct match: venue_id or place_id
+          if (event.venue_id && venue.place_id && event.venue_id === venue.place_id) {
+            matchedEvent = event;
+            matchReason = 'direct_match';
+            eventMatchStats.direct++;
+            break;
+          }
+          
+          // Route proximity match: ≤2 miles
+          if (event.lat && event.lng && venue.lat && venue.lng) {
+            const distanceMiles = venue.distance_miles; // Already calculated from origin
+            if (distanceMiles <= 2) {
+              matchedEvent = event;
+              matchReason = 'route_match';
+              routeDistanceMiles = distanceMiles;
+              eventMatchStats.route++;
+              break;
+            }
+          }
+        }
+        
+        if (matchedEvent) {
+          venueEventsMap.set(venue.name, {
+            badge: matchedEvent.title,
+            summary: matchedEvent.title,
+            match_reason: matchReason,
+            route_distance_miles: routeDistanceMiles
+          });
+          eventMatchStats.matched++;
+        } else {
+          eventMatchStats.none++;
+        }
+      }
+      
+      eventMatchStats.reason = eventMatchStats.matched > 0 ? 'events_matched' : 'no_events_in_window';
+    } catch (err) {
+      console.error('[event-matching] Failed to query venue_events:', err);
+      eventMatchStats.reason = 'event_query_failed';
+    }
+    
+    const eventMatchMs = Date.now() - eventMatchStart;
+    logAudit('events', { ...eventMatchStats, event_match_ms: eventMatchMs });
     
     const totalMs = Date.now() - wallClockStart;
 
@@ -253,29 +324,39 @@ router.post('/', async (req, res) => {
     const isValidUuid = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     const isValidSnapshotId = snapshotId && snapshotId !== 'live-snapshot' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId);
 
-    const venuesToPersist = finalVenues.map((venue, i) => ({
-      name: venue.name,
-      place_id: null, // Will be resolved via Places API (new)
-      category: venue.category || null,
-      rank: i + 1,
-      lat: venue.lat,
-      lng: venue.lng,
-      // Staging coordinates from GPT-5
-      staging_name: venue.staging_name,
-      staging_lat: venue.staging_lat,
-      staging_lng: venue.staging_lng,
-      // GPT-5 tactical outputs
-      pro_tips: venue.pro_tips ? [venue.pro_tips] : null,
-      staging_tips: venue.staging_tips,
-      closed_reasoning: venue.closed_reasoning,
-      // Calculated metrics
-      distance_miles: venue.distance_miles,
-      drive_minutes: venue.driveTimeMinutes,
-      value_per_min: venue.value_per_min,
-      value_grade: venue.value_grade,
-      not_worth: venue.not_worth,
-      est_earnings_per_ride: venue.estimated_earnings
-    }));
+    const venuesToPersist = finalVenues.map((venue, i) => {
+      const eventData = venueEventsMap.get(venue.name);
+      return {
+        name: venue.name,
+        place_id: null, // Will be resolved via Places API (new)
+        category: venue.category || null,
+        rank: i + 1,
+        lat: venue.lat,
+        lng: venue.lng,
+        // Staging coordinates from GPT-5
+        staging_name: venue.staging_name,
+        staging_lat: venue.staging_lat,
+        staging_lng: venue.staging_lng,
+        // GPT-5 tactical outputs
+        pro_tips: venue.pro_tips ? [venue.pro_tips] : null,
+        staging_tips: venue.staging_tips,
+        closed_reasoning: venue.closed_reasoning,
+        // Calculated metrics
+        distance_miles: venue.distance_miles,
+        drive_minutes: venue.driveTimeMinutes,
+        value_per_min: venue.value_per_min,
+        value_grade: venue.value_grade,
+        not_worth: venue.not_worth,
+        est_earnings_per_ride: venue.estimated_earnings,
+        // Event matching data
+        venue_events: eventData ? {
+          badge: eventData.badge,
+          summary: eventData.summary,
+          match_reason: eventData.match_reason,
+          route_distance_miles: eventData.route_distance_miles
+        } : null
+      };
+    });
 
     let ranking_id;
     try {
@@ -322,6 +403,8 @@ router.post('/', async (req, res) => {
             // Calculated metrics
             distance_miles: venue.distance_miles,
             drive_minutes: venue.drive_minutes,
+            // Event matching data
+            venue_events: venue.venue_events,
             value_per_min: venue.value_per_min,
             value_grade: venue.value_grade,
             not_worth: venue.not_worth,
