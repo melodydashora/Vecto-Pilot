@@ -3,7 +3,7 @@ modules = ["postgresql-16", "python-3.11", "nodejs-18"]
 run = "sh -c 'export $(cat mono-mode.env | xargs) && npm run start:replit'"
 
 [nix]
-packages = ["nodejs-22", "lsof", "jq", "tree"]
+packages = ["jq", "lsof", "nodejs-22", "tree"]
 channel = "stable-25_05"
 
 [deployment]
