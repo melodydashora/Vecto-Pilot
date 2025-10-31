@@ -66,11 +66,16 @@ function spawnChild(name, command, args, env) {
 //  ═══════════════════════════════════════════════════════════════════
 //  ENVIRONMENT DETECTION
 //  ═══════════════════════════════════════════════════════════════════
-const isAutoscale = !!(process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1');
+const isReplit = !!process.env.REPL_ID;
+const isCloudRun = !!(process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1');
+const isAutoscale = isCloudRun && !isReplit; // Cloud Run autoscale, NOT Replit
 const fastBoot = process.env.FAST_BOOT === '1' || isAutoscale;
 
 if (isAutoscale) {
   console.log('[autoscale] Cloud Run autoscale detected - using fast boot profile');
+}
+if (isReplit) {
+  console.log('[replit] Replit environment detected - worker will be enabled');
 }
 
 //  ═══════════════════════════════════════════════════════════════════
