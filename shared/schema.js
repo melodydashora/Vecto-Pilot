@@ -115,6 +115,10 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   pro_tips: text("pro_tips").array(), // Array of tactical tips from planner
   closed_reasoning: text("closed_reasoning"), // Why recommend if closed (strategic timing)
   staging_tips: text("staging_tips"), // Where to park/stage for this venue
+  // GPT-5 Staging area coordinates
+  staging_name: text("staging_name"), // Name of staging location for verification
+  staging_lat: doublePrecision("staging_lat"), // Staging area latitude
+  staging_lng: doublePrecision("staging_lng"), // Staging area longitude
   // Google Places enrichment
   business_hours: jsonb("business_hours"), // Business hours from Google Places API
   // Perplexity event research (populated after planner completes)
