@@ -106,7 +106,7 @@ if (isReplit) {
       const { db } = await import('./server/db/drizzle.js');
       const { sql } = await import('drizzle-orm');
       await db.execute(sql`SELECT 1`);
-      res.status(200).send('OK');
+      res.status(200).json({ ok: true, db: 'connected' });
     } catch (err) {
       console.error('[ready] DB probe failed:', err.message);
       res.status(503).json({ 
