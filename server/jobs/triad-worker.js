@@ -354,7 +354,7 @@ export async function startConsolidationListener() {
     
     // Set up notification handler
     pgClient.on('notification', async (msg) => {
-      if (msg.channel === 'strategy_update' && msg.payload) {
+      if (msg.channel === 'strategy_ready' && msg.payload) {
         const snapshotId = msg.payload;
         console.log(`[consolidation-listener] 📢 Received notification for snapshot ${snapshotId}`);
         
@@ -368,8 +368,8 @@ export async function startConsolidationListener() {
     });
 
     // Start listening
-    await pgClient.query('LISTEN strategy_update');
-    console.log('[consolidation-listener] 🎧 Listening for strategy updates on channel: strategy_update');
+    await pgClient.query('LISTEN strategy_ready');
+    console.log('[consolidation-listener] 🎧 Listening for strategy updates on channel: strategy_ready');
     
   } catch (err) {
     console.error('[consolidation-listener] ❌ Failed to start listener:', err);
