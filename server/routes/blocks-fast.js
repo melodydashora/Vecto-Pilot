@@ -41,6 +41,20 @@ router.get('/', async (req, res) => {
       });
     }
     
+    // Fetch strategy row for briefing bundle
+    const [strategyRow] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    
+    const briefing = strategyRow ? {
+      claude_strategy: strategyRow.claude_strategy || null,
+      gemini: {
+        news: strategyRow.gemini_news || [],
+        events: strategyRow.gemini_events || [],
+        traffic: strategyRow.gemini_traffic || []
+      },
+      gpt5_consolidated: strategyRow.gpt5_consolidated || null
+    } : null;
+    
     // GATE 2: Find ranking for this snapshot
     const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
     
@@ -83,7 +97,7 @@ router.get('/', async (req, res) => {
       { step: 'perimeter', accepted: blocks.length, rejected, max_minutes: 15 }
     ];
 
-    return res.json({ blocks, ranking_id: ranking.ranking_id, audit });
+    return res.json({ blocks, ranking_id: ranking.ranking_id, briefing, audit });
   } catch (error) {
     console.error('[blocks-fast GET] Error:', error);
     return res.status(500).json({ error: 'internal_error', blocks: [] });
