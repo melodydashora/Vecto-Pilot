@@ -39,7 +39,12 @@ A **PostgreSQL Database** with Drizzle ORM stores snapshots, strategies, venue e
 The platform uses **JWT with RS256 Asymmetric Keys**. Security middleware includes rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.
 
 ### Deployment & Reliability
-Vecto Pilot supports **Mono Mode** (single process) and **Split Mode** (gateway spawns SDK and Agent as child processes). Reliability features include health-gated entry points, deterministic port binding, health polling, and zombie process cleanup.
+Vecto Pilot supports **Mono Mode** (single process) and **Split Mode** (gateway spawns SDK and Agent as child processes). Reliability features include:
+-   **Health-Gated Entry Points**: Root shell and health endpoints (`/`, `/healthz`, `/ready`, `/api/health`) are guaranteed to respond immediately, never shadowed by proxies or route mounting.
+-   **Unified Port Binding**: Single `server.listen()` call with mode-aware port selection (GATEWAY_PORT in split mode, PORT otherwise).
+-   **Proxy Gating**: In split dev mode, Vite proxy explicitly skips root shell, health endpoints, and API routes to prevent routing conflicts.
+-   **WebSocket Protection**: WS upgrade handler rejects connections to health endpoints, preventing HMR from hijacking critical paths.
+-   **Process Discipline**: Single worker loop guard prevents duplicate workers; gateway has NO worker code.
 
 ### Data Integrity
 All geographic computations rely on snapshot coordinates. Enrichment operations are completed before a 200 OK response. Missing business hours default to "unknown," and all hour calculations use venue-local timezones. Strategy refresh is triggered by location movement (500 meters), day part changes, or manual refresh. Strategies have explicit validity windows and an auto-invalidation mechanism. Strategy generation follows a strict sequence: Snapshot → Strategy (Claude + Gemini → GPT-5) → Persist → Venue Planner → Event Planner → Smart Blocks.
@@ -49,8 +54,8 @@ The platform enforces single-process discipline with one host/port binding. Read
 
 ### Process Management
 In Mono Mode, two main processes run:
-1.  **Gateway Server**: HTTP server, serves React SPA, routes API requests, manages WebSockets.
-2.  **Triad Worker** (`strategy-generator.js`): Background job processor for strategy generation, runs if `ENABLE_BACKGROUND_WORKER=true`.
+1.  **Gateway Server** (`gateway-server.js`): HTTP server, serves React SPA, routes API requests, manages WebSockets. **Contains NO worker loop** - all duplicate worker imports removed.
+2.  **Triad Worker** (`strategy-generator.js`): Background job processor for strategy generation with **single-process guard** to prevent duplicate worker loops. Runs if `ENABLE_BACKGROUND_WORKER=true`.
 
 ### Strategy-First Gating & Pipeline
 The system gates API access until a strategy is ready. The pipeline uses multi-model orchestration: Gemini and Claude run in parallel for initial analysis, then GPT-5 consolidates their outputs into `strategy_for_now`, which is then validated and persisted.
@@ -59,8 +64,10 @@ The system gates API access until a strategy is ready. The pipeline uses multi-m
 Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. Venues are matched with events by coordinates or proximity. Only blocks where `route.duration_minutes <= 15` (calculated via Google Routes API) are rendered, with audit logging for accepted and rejected venues.
 
 ### Locks, Job States & Indices
-**Lock Semantics**: Distributed locks using `worker_locks` table with a TTL of 120 seconds.
-**Job State Machine**: `triad_jobs` table tracks `queued`, `running`, `done`, `failed` states.
+**Lock Semantics**: Distributed locks using `worker_locks` table with a **9s TTL** and **3s heartbeat** for rapid recovery from worker failures. Lock ownership is enforced via `owner_id NOT NULL` (default 'unknown') with diagnostic tracking via `last_beat_at`. Indexes on `expires_at` and `owner_id` enable efficient lock cleanup and ownership queries.
+
+**Job State Machine**: `triad_jobs` table tracks `queued`, `running`, `ok`, `error` states. Jobs are claimed with `FOR UPDATE SKIP LOCKED` for concurrency safety. **Job seeding mechanism** (`SEED_JOB_ON_BOOT=true`) auto-creates jobs when queue is empty, ensuring the worker always has work.
+
 **Unique Indices Alignment**: Critical unique indexes exist on `strategies(snapshot_id)`, `rankings(snapshot_id)`, and `ranking_candidates(snapshot_id, venue_id)` to ensure data integrity and prevent concurrency issues.
 
 ## External Dependencies
@@ -80,3 +87,79 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Architectural Decisions & Retired Components
+
+### Gateway Server Hardening (October 2025)
+**Problem**: Double `server.listen()` in split mode caused port conflicts. Vite proxy shadowed root shell and health endpoints, breaking guaranteed health checks.
+
+**Solution**:
+-   Unified listen with `LISTEN_PORT` derived from mode (one `server.listen()` call only)
+-   Removed second `server.listen()` in split mode block
+-   Gated Vite proxy to skip root shell (`/`), health endpoints (`/healthz`, `/ready`), and API routes
+-   WebSocket upgrade handler rejects health endpoint connections to prevent HMR hijacking
+
+**Impact**: Root shell guaranteed to respond in all modes. Health endpoints never shadowed. Zero routing conflicts.
+
+### Worker Loop Deduplication (October 2025)
+**Problem**: Multiple worker loops running simultaneously (gateway-server.js, index.js, sdk-embed.js, auto-start in triad-worker.js) caused lock contention, duplicate job processing, and database conflicts.
+
+**Solution**:
+-   Single worker process: `strategy-generator.js` only
+-   Added single-process guard in `triad-worker.js`
+-   Removed all worker imports from `gateway-server.js`, `index.js`, `sdk-embed.js`
+-   Removed auto-start code from `triad-worker.js`
+-   Job seeding mechanism (`server/bootstrap/enqueue-initial.js`) ensures queue never empty
+
+**Impact**: One worker loop, predictable job processing, zero lock conflicts.
+
+### Enhanced Lock System (October 2025)
+**Problem**: 120s lock TTL caused slow recovery from worker failures. Nullable `owner_id` allowed orphaned locks.
+
+**Solution**:
+-   Reduced TTL to **9s** with **3s heartbeat** for rapid recovery
+-   `owner_id NOT NULL` with default 'unknown' enforces ownership tracking
+-   Added `last_beat_at` timestamp for diagnostics
+-   Indexes on `expires_at` and `owner_id` for efficient queries
+
+**Impact**: <10s recovery from worker crashes, clear ownership attribution, audit-friendly diagnostics.
+
+### Retired Files & Why They're Safe to Remove
+The following components are orphaned (not imported, mounted, or referenced by build/runtime):
+
+**Legacy Block Processors** (superseded by blocks-fast + enrichment):
+-   `server/routes/blocks-idempotent.js`
+-   `server/routes/blocks-processor-full.js`
+-   `server/routes/blocks-processor.js`
+-   `server/routes/blocks-triad-strict.js`
+-   `server/lib/blocks-jobs.js`
+-   `server/lib/blocks-job-queue.js`
+-   `server/lib/job-queue.js`
+
+**Alternate Entry Points & Client Duplicates**:
+-   `client/src/main-simple.tsx` (not referenced by bundler)
+-   `client/test.html` (standalone test page)
+-   `client/src/hooks/use-geolocation.tsx` (superseded by use-enhanced-geolocation)
+-   `client/src/hooks/useGeoPosition.tsx` (duplicate)
+-   `client/src/components/ui/ThreadPatternRouter.ts` (not imported)
+
+**Backup Files** (source of drift):
+-   `package.json.backup-pre-agent`
+-   `gateway-server.js.backup-split`
+-   `gateway-server.js.backup-split-original`
+
+**Ad-Hoc Scripts & Tools** (not integrated):
+-   `scripts/fix-progress.js`
+-   `scripts/typescript-error-counter.js`
+-   `tools/debug/client-override-userscript.js`
+-   `tools/debug/emergency-eidolon.js`
+-   `tools/debug/eidolon-recovery.sh`
+-   `tools/debug/hedge-burst-v2.mjs`
+
+**Documentation & Artifacts** (not consumed by runtime):
+-   `Other/` (exported docs)
+-   `attached_assets/` (if empty or unreferenced)
+-   `snapshots/` (historical test outputs)
+-   `keys/` (local dev secrets, should be .gitignored)
+
+**Decision**: Keep the current architecture (triad worker, heartbeat locks, blocks-fast, agent embed). Remove legacy routes/queues to prevent silent conflicts. Document retired files to lock the decision and prevent reintroduction.
