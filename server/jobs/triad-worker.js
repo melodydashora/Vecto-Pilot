@@ -1,6 +1,6 @@
 // server/jobs/triad-worker.js
 // Background worker that claims and processes triad jobs with SKIP LOCKED
-// Strategy building flow: NO VENUES (that's a separate flow for blocks)
+// Complete automatic workflow: Strategy → Enhanced Smart Blocks (venue planner)
 import { db } from '../db/drizzle.js';
 import { triad_jobs, strategies, snapshots } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
@@ -278,6 +278,32 @@ Create a consolidated strategy using ONLY city and district names. Start with ge
         console.log(`[triad-worker] ✅ GPT-5 final strategy persisted to strategies.strategy_for_now`);
         console.log(`[triad-worker] 💾 Final: ${gpt5Result.text.trim().substring(0, 100)}...`);
 
+        // STEP 5: Generate Enhanced Smart Blocks - GPT-5 venue planner
+        console.log(`[triad-worker] 🎯 STEP 4/4: Generating enhanced smart blocks with GPT-5 venue planner...`);
+        try {
+          const { generateEnhancedSmartBlocks } = await import('../lib/enhanced-smart-blocks.js');
+          await generateEnhancedSmartBlocks({
+            snapshotId: snapshot_id,
+            strategy: gpt5Result.text.trim(),
+            snapshot: {
+              ...snap,
+              formatted_address: snap.formatted_address,
+              city: snap.city,
+              state: snap.state,
+              lat: snap.lat,
+              lng: snap.lng,
+              created_at: snap.created_at,
+              timezone: snap.timezone,
+              dow: snap.dow
+            },
+            user_id: snap.user_id
+          });
+          console.log(`[triad-worker] ✅ Enhanced smart blocks generated and saved`);
+        } catch (blocksErr) {
+          console.error(`[triad-worker] ⚠️ Failed to generate blocks (non-blocking):`, blocksErr.message);
+          // Don't fail the entire pipeline if blocks generation fails
+        }
+
         // Mark job complete
         await db.execute(sql`
           UPDATE ${triad_jobs}
@@ -436,6 +462,42 @@ export async function maybeConsolidate(snapshotId) {
 
     if (result.ok) {
       console.log(`[consolidation-listener] ✅ Consolidation complete for ${snapshotId}`);
+      
+      // Generate Enhanced Smart Blocks after successful consolidation
+      console.log(`[consolidation-listener] 🎯 Generating enhanced smart blocks...`);
+      try {
+        const { generateEnhancedSmartBlocks } = await import('../lib/enhanced-smart-blocks.js');
+        
+        // Fetch the consolidated strategy from DB
+        const [updatedRow] = await db.select().from(strategies)
+          .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+        
+        if (updatedRow?.consolidated_strategy) {
+          // Fetch snapshot for full context
+          const [snap] = await db.select().from(snapshots)
+            .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+          
+          await generateEnhancedSmartBlocks({
+            snapshotId,
+            strategy: updatedRow.consolidated_strategy,
+            snapshot: {
+              ...snap,
+              formatted_address: updatedRow.user_address || snap?.formatted_address,
+              city: updatedRow.city || snap?.city,
+              state: updatedRow.state || snap?.state,
+              lat: updatedRow.lat || snap?.lat,
+              lng: updatedRow.lng || snap?.lng,
+              created_at: snap?.created_at,
+              timezone: snap?.timezone,
+              dow: snap?.dow
+            },
+            user_id: updatedRow.user_id || snap?.user_id
+          });
+          console.log(`[consolidation-listener] ✅ Enhanced smart blocks generated`);
+        }
+      } catch (blocksErr) {
+        console.error(`[consolidation-listener] ⚠️ Failed to generate blocks (non-blocking):`, blocksErr.message);
+      }
     } else {
       console.error(`[consolidation-listener] ❌ Consolidation failed for ${snapshotId}:`, result.reason);
     }
