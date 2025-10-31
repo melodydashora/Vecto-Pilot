@@ -15,7 +15,8 @@ import mlHealthRoutes from "./server/routes/ml-health.js";
 import chatRoutes from "./server/routes/chat.js";
 import chatContextRoutes from "./server/routes/chat-context.js";
 import closedVenueReasoningRoutes from "./server/routes/closed-venue-reasoning.js";
-import createBlocksAsyncRouter from "./server/routes/blocks-async.js";
+// Legacy processor retired — do not import
+// Fast path is mounted via the gateway (server/routes/blocks.js -> blocks-fast)
 import { loggingMiddleware } from "./server/middleware/logging.js";
 import { securityMiddleware } from "./server/middleware/security.js";
 import { 
@@ -70,7 +71,7 @@ export default function createSdkRouter(opts = {}) {
   r.use('/health', healthRoutes);
   r.use('/healthz', healthRoutes);
   r.use('/blocks/fast', blocksFastRoutes); // Fast tactical path (mounted before generic blocks)
-  r.use('/blocks', createBlocksAsyncRouter()); // Async endpoint (/blocks/async) + job status (/blocks/jobs/:id)
+  // Async blocks retired - all blocks use fast synchronous path now
   
   // Force async blocks redirect (until client fully migrated to fast path)
   r.post('/blocks', (req, res, next) => {

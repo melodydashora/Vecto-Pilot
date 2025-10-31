@@ -17,6 +17,28 @@ import { researchMultipleVenueEvents } from '../lib/venue-event-research.js';
 
 const router = Router();
 
+// Helper to extract snapshot ID and location context from request
+function getSnapshotContext(req) {
+  const h = req.headers || {};
+  const q = req.query || {};
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+
+  const snap =
+    h['x-snapshot-id'] ||
+    b.snapshot_id ||
+    q.snapshot_id;
+
+  const loc = {
+    lat: parseFloat(h['x-user-lat'] ?? b.lat ?? q.lat),
+    lng: parseFloat(h['x-user-lng'] ?? b.lng ?? q.lng),
+    user_address: h['x-user-address'] ?? b.user_address ?? q.user_address,
+    city: h['x-city'] ?? b.city ?? q.city,
+    state: h['x-state'] ?? b.state ?? q.state,
+  };
+
+  return { snapshot_id: snap, location: loc };
+}
+
 // GET /api/blocks/strategy/:snapshotId - Fetch strategy for a specific snapshot
 router.get('/strategy/:snapshotId', async (req, res) => {
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
