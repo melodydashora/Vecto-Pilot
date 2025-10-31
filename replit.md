@@ -314,3 +314,75 @@ const rejected = allBlocks.filter(b => !within15Min(b.driveTimeMinutes)).length;
 - ✓ Audit shows perimeter accepted/rejected counts
 - ✓ No 400 errors for pending strategy (use 202 instead)
 
+
+---
+
+### 2025-10-31T03:27:45Z — Strategy-First Gating Verification Complete
+
+**Test Results** ✅:
+```
+Snapshot 4d1db587: 200 OK - 5 blocks, max 13min ✓
+Snapshot 8be557fb: 200 OK - 5 blocks, max 13min ✓
+Snapshot d260968d: 200 OK - 5 blocks, max 12min ✓
+
+All snapshots have strategies ready → returned 200 with blocks
+All blocks within 15-minute perimeter
+Strategy-first sequencing working correctly
+```
+
+**Implementation Summary**:
+
+**GET /api/blocks/fast** (Lines 26-94):
+1. ✓ Gate 1: Check `strategies.strategy_for_now` exists → 202 if missing
+2. ✓ Gate 2: Check ranking exists → 404 if missing
+3. ✓ Load candidates from `ranking_candidates`
+4. ✓ Filter to 15-minute perimeter
+5. ✓ Return audit with gating + perimeter counts
+
+**POST /api/blocks/fast** (Line 214):
+1. ✓ Changed from 400 error to 202 pending when strategy not ready
+2. ✓ Snapshot-first pattern maintained (use existing if ≥4)
+3. ✓ GPT-5 fallback if <4 candidates
+4. ✓ 15-minute perimeter enforcement
+5. ✓ Full audit trail
+
+**Strategy Persistence**:
+- Table: `strategies`
+- Unique Index: `strategies_snapshot_id_unique` ON (`snapshot_id`)
+- One consolidated strategy per snapshot
+- Column: `strategy_for_now` TEXT (consolidated from GPT-5)
+
+**Lock Behavior** (From Previous Fix):
+- Acquisition: Returns true if lock is new OR expired
+- Active lock: Other workers get false, log "Lock busy" once, backoff
+- Release: Always in `finally` block
+- Sweep: Periodic cleanup of expired locks
+
+**Perimeter Contract**:
+```javascript
+const within15Min = (driveMin) => Number.isFinite(driveMin) && driveMin <= 15;
+```
+- All blocks filtered before response
+- Audit shows accepted/rejected counts
+- Only perimeter-compliant blocks render in UI
+
+**Complete Sequence** ✅:
+```
+1. User location → Snapshot created
+2. Triad worker acquires lock
+3. Strategy generation (Claude + Gemini → GPT-5)
+4. Strategy persisted to strategies.strategy_for_now
+5. Venue planner generates candidates
+6. Event planner matches events
+7. blocks-fast returns 200 with ≤15min blocks
+8. Lock released in finally
+```
+
+**Documentation Growth**:
+- Lines: 73 → 119 → 187 → 245 → 316 (append-only)
+- Sections: Lock Contract, Strategy-First Gating, Perimeter Enforcement
+- All changes logged with timestamps
+- Strikethrough for reversals, never deletions
+
+**ALL FIXES COMPLETE** ✅
+
