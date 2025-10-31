@@ -1,15 +1,16 @@
 // server/routes/blocks-fast.js
 // Fast Tactical Path: Sub-7s performance optimization
-// Quick Picks (deterministic) + parallel LLM reranker with strict timeout
+// GPT-5 Venue Generation + Google Places enrichment
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
-import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates } from '../../shared/schema.js';
+import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates, strategies } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
 import { predictDriveMinutes } from '../lib/driveTime.js';
 import { rerankCandidates } from '../lib/fast-tactical-reranker.js';
 import { persistRankingTx } from '../lib/persist-ranking.js';
+import { generateVenueCoordinates } from '../lib/gpt5-venue-generator.js';
 
 const router = Router();
 
@@ -112,160 +113,103 @@ router.post('/', async (req, res) => {
     console.log(`⚡ [${correlationId}] FAST BLOCKS: lat=${lat} lng=${lng} budget=${PLANNER_BUDGET_MS}ms`);
 
     // ============================================
-    // STEP 2: Generate Quick Picks (deterministic scoring)
+    // STEP 2: Fetch Consolidated Strategy + Generate GPT-5 Venues
     // ============================================
-    const scoringStart = Date.now();
+    const generationStart = Date.now();
     
-    const currentHour = new Date().getHours();
-    let daypart = 'afternoon';
-    if (currentHour >= 0 && currentHour < 6) daypart = 'overnight';
-    else if (currentHour >= 6 && currentHour < 10) daypart = 'early_morning';
-    else if (currentHour >= 10 && currentHour < 14) daypart = 'morning';
-    else if (currentHour >= 14 && currentHour < 18) daypart = 'afternoon';
-    else if (currentHour >= 18 && currentHour < 22) daypart = 'evening';
-    else daypart = 'late_night';
+    // Get consolidated strategy for this snapshot
+    const [strategyRow] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId))
+      .limit(1);
+    
+    if (!strategyRow || !strategyRow.strategy_for_now) {
+      return sendOnce(400, {
+        error: 'strategy_not_ready',
+        message: 'Consolidated strategy required. Wait for strategy generation to complete.'
+      });
+    }
 
-    // Get catalog venues filtered by daypart
-    const catalogVenues = await db.select().from(venue_catalog);
-    const daypartVenues = catalogVenues.filter(v => 
-      v.dayparts && (v.dayparts.includes(daypart) || v.dayparts.includes('all_day'))
-    );
-
-    // Enrich with metrics
-    const metricsData = await db.select().from(venue_metrics);
-    const metricsMap = new Map(metricsData.map(m => [m.venue_id, m]));
-
-    const venuesWithMetrics = daypartVenues.map(v => {
-      const metrics = metricsMap.get(v.venue_id);
-      return {
-        ...v,
-        times_recommended: metrics?.times_recommended || 0,
-        positive_feedback: metrics?.positive_feedback || 0,
-        negative_feedback: metrics?.negative_feedback || 0,
-        reliability_score: metrics?.reliability_score || 0.5
-      };
+    const consolidatedStrategy = strategyRow.strategy_for_now;
+    const currentTime = new Date(fullSnapshot.local_iso || new Date()).toLocaleString('en-US', {
+      timeZone: fullSnapshot.timezone || 'America/Chicago'
     });
 
-    // Filter nearby venues (within 100km)
-    const nearbyVenues = venuesWithMetrics.filter(venue => {
-      if (!venue.lat || !venue.lng) return false;
-      const R = 6371;
-      const dLat = (venue.lat - lat) * Math.PI / 180;
-      const dLon = (venue.lng - lng) * Math.PI / 180;
-      const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(lat * Math.PI / 180) * Math.cos(venue.lat * Math.PI / 180) *
-        Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distanceKm = R * c;
-      return distanceKm <= 100;
+    // Call GPT-5 to generate venue coordinates within 15 mile radius
+    console.log(`[${correlationId}] Calling GPT-5 venue generator...`);
+    const gpt5Result = await generateVenueCoordinates({
+      consolidatedStrategy,
+      driverLat: lat,
+      driverLng: lng,
+      city: fullSnapshot.city,
+      state: fullSnapshot.state,
+      currentTime,
+      weather: fullSnapshot.weather || '',
+      maxDistance: 15
     });
 
-    // Score and sort
-    const scored = nearbyVenues.map(venue => ({
-      ...venue,
-      score: scoreCandidate(venue, { lat, lng })
-    }));
-    scored.sort((a, b) => b.score - a.score);
-    
-    const diverse = applyDiversityGuardrails(scored, { minCategories: 2, maxPerCategory: 3 });
-    const top30Candidates = diverse.slice(0, 30); // Top 30 for reranking
-    
-    const scoringMs = Date.now() - scoringStart;
-    console.log(`✅ [${correlationId}] Quick Picks scored in ${scoringMs}ms: ${top30Candidates.length} candidates`);
+    const gpt5Venues = gpt5Result.venues;
+    const generationMs = Date.now() - generationStart;
+    console.log(`✅ [${correlationId}] GPT-5 generated ${gpt5Venues.length} venues in ${generationMs}ms`);
 
     // ============================================
-    // STEP 3: Parallel Race - Enrichment + Fast Planner
+    // STEP 3: Enrich GPT-5 venues with drive times
     // ============================================
+    const enrichmentStart = Date.now();
     const driveCtx = { 
       tz: fullSnapshot.timezone,
       dow: new Date().getDay(), 
       hour: new Date().getHours() 
     };
 
-    // Enrich top 12 with drive times for Quick Picks
-    const quickPicks = await Promise.all(
-      top30Candidates.slice(0, 12).map(async (v) => {
-        const driveMin = await predictDriveMinutes({lat, lng}, {lat: v.lat, lng: v.lng}, driveCtx);
-        const potential = Math.round(25 * Math.max(0.5, 1 - (driveMin / 60)));
+    // Enrich GPT-5 venues with drive times using location coords
+    const enrichedVenues = await Promise.all(
+      gpt5Venues.map(async (v) => {
+        const driveMin = await predictDriveMinutes(
+          {lat, lng}, 
+          {lat: v.location_lat, lng: v.location_lng}, 
+          driveCtx
+        );
+        
+        // Calculate value metrics
+        const distanceMeters = driveMin * 1000 * 0.6; // Rough estimate
+        const distanceMiles = (distanceMeters / 1609.344).toFixed(1);
+        const potential = v.estimated_earnings || Math.round(25 * Math.max(0.5, 1 - (driveMin / 60)));
         const surge = driveMin < 10 ? 1.5 : driveMin < 20 ? 1.2 : 1.0;
+        const valuePerMin = (potential / Math.max(1, driveMin)).toFixed(2);
+        
+        // Determine value grade
+        let valueGrade = 'C';
+        if (parseFloat(valuePerMin) >= 1.0) valueGrade = 'A';
+        else if (parseFloat(valuePerMin) >= 0.6) valueGrade = 'B';
+        
         return {
-          ...v,
+          name: v.location_name,
+          lat: v.location_lat,
+          lng: v.location_lng,
+          staging_name: v.staging_name,
+          staging_lat: v.staging_lat,
+          staging_lng: v.staging_lng,
+          category: v.category,
+          pro_tips: v.pro_tips,
+          staging_tips: v.staging_tips,
+          closed_reasoning: v.closed_reasoning,
           driveTimeMinutes: driveMin,
-          potential,
+          distance_miles: parseFloat(distanceMiles),
+          estimated_earnings: potential,
           surge: surge.toFixed(1),
-          data: { driveTimeMinutes: driveMin, potential, surge: surge.toFixed(1) }
+          value_per_min: parseFloat(valuePerMin),
+          value_grade: valueGrade,
+          not_worth: parseFloat(valuePerMin) < 0.3,
+          demand_level: v.demand_level
         };
       })
     );
-
-    // Start fast planner in parallel (strict 5s timeout)
-    const plannerStart = Date.now();
-    const plannerPromise = rerankCandidates({
-      candidates: top30Candidates,
-      context: fullSnapshot,
-      timeoutMs: PLANNER_TIMEOUT_MS
-    }).catch(err => {
-      console.warn(`[${correlationId}] Planner error: ${err.message}`);
-      return null;
-    });
-
-    // Race: planner vs timeout (strict budget enforcement)
-    const remainingBudget = PLANNER_BUDGET_MS - (Date.now() - wallClockStart);
     
-    // If budget exhausted, skip planner immediately
-    const plannerResult = remainingBudget <= 0 ? null : await Promise.race([
-      plannerPromise,
-      new Promise(resolve => setTimeout(() => resolve(null), remainingBudget))
-    ]);
+    const enrichmentMs = Date.now() - enrichmentStart;
+    console.log(`✅ [${correlationId}] Enriched ${enrichedVenues.length} venues in ${enrichmentMs}ms`);
 
-    const plannerMs = Date.now() - plannerStart;
-    const plannerTimedOut = !plannerResult;
-    
-    // Enforce hard wall clock limit - bail if budget exceeded
-    const elapsedSoFar = Date.now() - wallClockStart;
-    if (elapsedSoFar >= PLANNER_BUDGET_MS) {
-      console.log(`⏱️ [${correlationId}] Wall clock budget exhausted (${elapsedSoFar}ms) - forcing Quick Picks`);
-    }
-    
-    let finalVenues = quickPicks;
-    let pathTaken = 'deterministic';
-
-    if (plannerResult && plannerResult.ranked_venue_ids && elapsedSoFar < PLANNER_BUDGET_MS) {
-      // Planner succeeded and we're still under budget - rerank venues
-      console.log(`✅ [${correlationId}] Planner reranked ${plannerResult.ranked_venue_ids.length} venues in ${plannerMs}ms`);
-      
-      const venueMap = new Map(top30Candidates.map(v => [v.venue_id, v]));
-      finalVenues = plannerResult.ranked_venue_ids
-        .map(id => venueMap.get(id))
-        .filter(v => v !== undefined)
-        .slice(0, 12);
-      
-      // Enrich reranked venues with drive times if not already done (skip if budget critical)
-      const enrichmentBudget = PLANNER_BUDGET_MS - (Date.now() - wallClockStart);
-      if (enrichmentBudget > 500) {
-        finalVenues = await Promise.all(
-          finalVenues.map(async (v) => {
-            if (v.driveTimeMinutes) return v;
-            const driveMin = await predictDriveMinutes({lat, lng}, {lat: v.lat, lng: v.lng}, driveCtx);
-            const potential = Math.round(25 * Math.max(0.5, 1 - (driveMin / 60)));
-            const surge = driveMin < 10 ? 1.5 : driveMin < 20 ? 1.2 : 1.0;
-            return {
-              ...v,
-              driveTimeMinutes: driveMin,
-              potential,
-              surge: surge.toFixed(1),
-              data: { driveTimeMinutes: driveMin, potential, surge: surge.toFixed(1) }
-            };
-          })
-        );
-      }
-      
-      pathTaken = 'refined';
-    } else {
-      console.log(`⏱️ [${correlationId}] Planner ${plannerTimedOut ? 'timed out' : 'failed'} after ${plannerMs}ms - using Quick Picks`);
-    }
-
+    // Use GPT-5 venues as final output (no reranking needed)
+    const finalVenues = enrichedVenues;
     const totalMs = Date.now() - wallClockStart;
 
     // ============================================
@@ -276,17 +220,26 @@ router.post('/', async (req, res) => {
 
     const venuesToPersist = finalVenues.map((venue, i) => ({
       name: venue.name,
-      place_id: venue.place_id || null,
+      place_id: null, // Will be resolved via Places API (new)
       category: venue.category || null,
       rank: i + 1,
-      lat: venue.lat ?? null,
-      lng: venue.lng ?? null,
-      distance_miles: null, // Will be calculated by Routes API if needed
-      drive_time_minutes: venue.driveTimeMinutes ?? null,
-      value_per_min: null,
-      value_grade: null,
-      surge: parseFloat(venue.surge) || null,
-      est_earnings: venue.potential ?? null
+      lat: venue.lat,
+      lng: venue.lng,
+      // Staging coordinates from GPT-5
+      staging_name: venue.staging_name,
+      staging_lat: venue.staging_lat,
+      staging_lng: venue.staging_lng,
+      // GPT-5 tactical outputs
+      pro_tips: venue.pro_tips ? [venue.pro_tips] : null,
+      staging_tips: venue.staging_tips,
+      closed_reasoning: venue.closed_reasoning,
+      // Calculated metrics
+      distance_miles: venue.distance_miles,
+      drive_minutes: venue.driveTimeMinutes,
+      value_per_min: venue.value_per_min,
+      value_grade: venue.value_grade,
+      not_worth: venue.not_worth,
+      est_earnings_per_ride: venue.estimated_earnings
     }));
 
     let ranking_id;
@@ -302,16 +255,16 @@ router.post('/', async (req, res) => {
           correlation_id: correlationId,
           user_id: isValidUuid ? userId : null,
           city: fullSnapshot?.city || null,
-          model_name: pathTaken === 'refined' ? 'gemini-2.5-pro-fast-rerank' : 'deterministic-quick-picks',
-          scoring_ms: scoringMs,
-          planner_ms: plannerMs,
+          model_name: 'gpt-5-venue-generator',
+          scoring_ms: generationMs,
+          planner_ms: enrichmentMs,
           total_ms: totalMs,
-          timed_out: plannerTimedOut,
-          path_taken: pathTaken,
+          timed_out: false,
+          path_taken: 'gpt5-generated',
           ui: null
         });
 
-        // Insert candidates
+        // Insert candidates with GPT-5 generated data
         for (const venue of venuesToPersist) {
           await tx.insert(ranking_candidates).values({
             id: randomUUID(),
@@ -320,13 +273,27 @@ router.post('/', async (req, res) => {
             name: venue.name,
             lat: venue.lat,
             lng: venue.lng,
-            drive_time_min: venue.drive_time_minutes,
-            est_earnings_per_ride: venue.est_earnings,
+            category: venue.category,
             rank: venue.rank,
-            exploration_policy: 'fast-tactical',
-            place_id: venue.place_id,
-            drive_time_minutes: venue.drive_time_minutes,
-            distance_source: 'predictive'
+            exploration_policy: 'gpt5-generated',
+            // Staging coordinates
+            staging_name: venue.staging_name,
+            staging_lat: venue.staging_lat,
+            staging_lng: venue.staging_lng,
+            // GPT-5 tactical outputs
+            pro_tips: venue.pro_tips,
+            staging_tips: venue.staging_tips,
+            closed_reasoning: venue.closed_reasoning,
+            // Calculated metrics
+            distance_miles: venue.distance_miles,
+            drive_minutes: venue.drive_minutes,
+            value_per_min: venue.value_per_min,
+            value_grade: venue.value_grade,
+            not_worth: venue.not_worth,
+            est_earnings_per_ride: venue.est_earnings_per_ride,
+            // Will be enriched later by reverse geo, Places API (new), Routes API (new)
+            place_id: null,
+            snapshot_id: isValidSnapshotId ? snapshotId : null
           });
         }
 
@@ -344,17 +311,22 @@ router.post('/', async (req, res) => {
     // ============================================
     const blocks = finalVenues.map((v, index) => ({
       name: v.name,
-      address: v.address,
       category: v.category,
-      placeId: v.place_id,
       coordinates: { lat: v.lat, lng: v.lng },
-      estimated_distance_miles: 0, // Will be enriched by frontend if needed
-      driveTimeMinutes: v.driveTimeMinutes || 0,
-      distanceSource: 'predictive',
-      surge: parseFloat(v.surge) || 1.0,
-      estimated_earnings: v.potential || 0,
-      potential: v.potential || 0,
-      reliability_score: v.reliability_score || 0.5
+      stagingArea: {
+        name: v.staging_name,
+        coordinates: { lat: v.staging_lat, lng: v.staging_lng },
+        parkingTip: v.staging_tips
+      },
+      proTips: v.pro_tips,
+      closed_venue_reasoning: v.closed_reasoning,
+      estimated_distance_miles: v.distance_miles,
+      driveTimeMinutes: v.driveTimeMinutes,
+      surge: v.surge,
+      estimatedEarningsPerRide: v.estimated_earnings,
+      value_per_min: v.value_per_min,
+      value_grade: v.value_grade,
+      not_worth: v.not_worth
     }));
 
     const response = {
