@@ -6,8 +6,11 @@ export async function acquireLock(key, ttlMs = 120000) {
   const expiresAt = new Date(now.getTime() + ttlMs);
   
   try {
-    // Correct acquisition: only succeed if lock is new OR expired
+    // FIXED: Check if lock was acquired by comparing old expiry to NOW
     const result = await db.execute(sql`
+      WITH old_lock AS (
+        SELECT expires_at FROM worker_locks WHERE lock_key = ${key}
+      )
       INSERT INTO worker_locks (lock_key, expires_at)
       VALUES (${key}, ${expiresAt})
       ON CONFLICT (lock_key)
@@ -16,7 +19,9 @@ export async function acquireLock(key, ttlMs = 120000) {
           WHEN worker_locks.expires_at <= NOW() THEN EXCLUDED.expires_at
           ELSE worker_locks.expires_at
         END
-      RETURNING (worker_locks.expires_at <= NOW()) AS acquired
+      RETURNING (
+        SELECT COALESCE((SELECT expires_at FROM old_lock) <= NOW(), true)
+      ) AS acquired
     `);
     
     const acquired = Boolean(result.rows?.[0]?.acquired);
