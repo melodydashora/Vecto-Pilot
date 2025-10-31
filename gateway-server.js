@@ -181,8 +181,13 @@ if (isReplit) {
   server.keepAliveTimeout = 65000;
   server.headersTimeout = 66000;
   
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[ready] Server listening on 0.0.0.0:${PORT}`);
+  // Unified listen: use GATEWAY_PORT in split mode, PORT otherwise
+  const LISTEN_PORT = MODE === 'split'
+    ? Number(process.env.GATEWAY_PORT || PORT)
+    : PORT;
+  
+  server.listen(LISTEN_PORT, '0.0.0.0', () => {
+    console.log(`[ready] Server listening on 0.0.0.0:${LISTEN_PORT}`);
     console.log(`[ready] Health endpoints: /, /health, /healthz, /ready, /api/health`);
   });
 
@@ -396,7 +401,6 @@ if (isReplit) {
     //  MODE B: SPLIT (Multi-Process - Production)
     //  ═══════════════════════════════════════════════════════════════════
     else {
-    const GATEWAY_PORT = Number(process.env.GATEWAY_PORT || PORT);
     const agentTarget = `http://127.0.0.1:${AGENT_PORT}`;
     const sdkTarget = `http://127.0.0.1:${SDK_PORT}`;
 
@@ -443,10 +447,23 @@ if (isReplit) {
       res.status(404).json({ error: 'not_found', path: req.path, mode: 'split' });
     });
 
-    // 3. Frontend (LAST)
+    // 3. Frontend (LAST) - Gate to preserve root shell and health endpoints
     if (isDev) {
       const viteTarget = 'http://127.0.0.1:5173';
-      app.use('/', (req, res) => {
+      app.use((req, res, next) => {
+        // Skip proxy for root shell and critical endpoints
+        if (
+          req.path === '/' ||
+          req.path.startsWith('/health') ||
+          req.path.startsWith('/healthz') ||
+          req.path.startsWith('/ready') ||
+          req.path.startsWith(API_PREFIX) ||
+          req.path.startsWith(AGENT_PREFIX) ||
+          req.path.startsWith('/diagnostics') ||
+          req.path.startsWith(SOCKET_IO_PATH)
+        ) {
+          return next();
+        }
         proxy.web(req, res, { target: viteTarget, changeOrigin: true });
       });
     } else {
@@ -463,6 +480,12 @@ if (isReplit) {
     server.on('upgrade', (req, socket, head) => {
       try {
         const url = req.url || '/';
+
+        // Reject upgrades for health endpoints
+        if (url === '/' || url.startsWith('/health') || url.startsWith('/healthz') || url.startsWith('/ready')) {
+          socket.destroy();
+          return;
+        }
 
         if (url.startsWith(AGENT_PREFIX)) {
           req.url = url.replace(new RegExp(`^${AGENT_PREFIX}`), '') || '/';
@@ -487,12 +510,9 @@ if (isReplit) {
       }
     });
 
-    server.listen(GATEWAY_PORT, '0.0.0.0', () => {
-      console.log(`🚀 [split] Gateway listening on ${GATEWAY_PORT}`);
-      console.log(`   proxy -> agent @ ${agentTarget}`);
-      console.log(`   proxy -> sdk @ ${sdkTarget}`);
-      if (isDev) console.log(`   proxy -> vite @ http://127.0.0.1:5173`);
-    });
+    // Log split mode proxies (server already listening from line 184)
+    console.log(`🚀 [split] Proxies mounted: agent=${agentTarget}, sdk=${sdkTarget}${isDev ? ', vite=http://127.0.0.1:5173' : ''}`);
+    console.log(`[split] Root shell retained; health endpoints never shadowed`);
   }
   }); // Close setImmediate async block
 
