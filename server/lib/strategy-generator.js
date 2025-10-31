@@ -199,7 +199,7 @@ Provide strategic guidance starting with "Today is ${dayOfWeek}, ${formattedDate
     
     try {
       claudeStrategy = await callClaude({
-        model: "claude-opus-4-1-20250805",
+        model: process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
         system: claudeSystemPrompt,
         user: claudeUserPrompt,
         max_tokens: 1000,

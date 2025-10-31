@@ -466,7 +466,8 @@ router.get('/model-ping', async (req, res) => {
 
       try {
         const genAI = new GoogleGenerativeAI(process.env.GOOGLEAQ_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+        const modelId = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+        const model = genAI.getGenerativeModel({ model: modelId });
         const result = await model.generateContent('ping', { signal: controller.signal });
         
         clearTimeout(timeoutId);
@@ -501,8 +502,9 @@ router.get('/model-ping', async (req, res) => {
 
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const modelId = process.env.OPENAI_MODEL || 'gpt-5';
         const response = await openai.chat.completions.create({
-          model: 'gpt-4o',
+          model: modelId,
           max_tokens: 10,
           messages: [{ role: 'user', content: 'ping' }]
         }, { signal: controller.signal });
