@@ -19,6 +19,7 @@ const PLANNER_BUDGET_MS = parseInt(process.env.PLANNER_BUDGET_MS || '7000'); // 
 const PLANNER_TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS || '5000'); // 5 second planner timeout
 
 // GET endpoint - return existing blocks for a snapshot
+// STRATEGY-FIRST GATING: Returns 202 until strategy is ready
 router.get('/', async (req, res) => {
   const snapshotId = req.query.snapshotId || req.query.snapshot_id;
   
@@ -27,7 +28,20 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    // Find ranking for this snapshot
+    // GATE 1: Strategy must be ready before blocks
+    const [strategyRow] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId))
+      .limit(1);
+    
+    if (!strategyRow || !strategyRow.strategy_for_now) {
+      return res.status(202).json({ 
+        ok: false, 
+        reason: 'strategy_pending',
+        message: 'Waiting for consolidated strategy to complete'
+      });
+    }
+    
+    // GATE 2: Find ranking for this snapshot
     const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
     
     if (!ranking) {
@@ -38,8 +52,11 @@ router.get('/', async (req, res) => {
     const candidates = await db.select().from(ranking_candidates)
       .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
       .orderBy(ranking_candidates.rank);
-
-    const blocks = candidates.map(c => ({
+    
+    // 15-minute perimeter enforcement
+    const within15Min = (driveMin) => Number.isFinite(driveMin) && driveMin <= 15;
+    
+    const allBlocks = candidates.map(c => ({
       name: c.name,
       coordinates: { lat: c.lat, lng: c.lng },
       placeId: c.place_id,
@@ -56,8 +73,17 @@ router.get('/', async (req, res) => {
       eventBadge: c.venue_events?.badge,
       eventSummary: c.venue_events?.summary,
     }));
+    
+    // Filter to 15-minute perimeter
+    const blocks = allBlocks.filter(b => within15Min(b.driveTimeMinutes));
+    const rejected = allBlocks.filter(b => !within15Min(b.driveTimeMinutes)).length;
+    
+    const audit = [
+      { step: 'gating', strategy_ready: true },
+      { step: 'perimeter', accepted: blocks.length, rejected, max_minutes: 15 }
+    ];
 
-    return res.json({ blocks, ranking_id: ranking.ranking_id });
+    return res.json({ blocks, ranking_id: ranking.ranking_id, audit });
   } catch (error) {
     console.error('[blocks-fast GET] Error:', error);
     return res.status(500).json({ error: 'internal_error', blocks: [] });
@@ -176,15 +202,16 @@ router.post('/', async (req, res) => {
       console.log(`⚠️  [${correlationId}] Only ${existingCandidates.length} snapshot candidates, calling generator...`);
       generationUsed = true;
 
-      // Get consolidated strategy for generation
+      // STRATEGY-FIRST GATING: Get consolidated strategy for generation
       const [strategyRow] = await db.select().from(strategies)
         .where(eq(strategies.snapshot_id, snapshotId))
         .limit(1);
       
       if (!strategyRow || !strategyRow.strategy_for_now) {
-        return sendOnce(400, {
-          error: 'strategy_not_ready',
-          message: 'Consolidated strategy required. Wait for strategy generation to complete.'
+        return sendOnce(202, {
+          ok: false,
+          reason: 'strategy_pending',
+          message: 'Waiting for consolidated strategy to complete'
         });
       }
 
