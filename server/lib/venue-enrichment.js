@@ -10,7 +10,6 @@
 
 import { getRouteWithTraffic } from "./routes-api.js";
 import { getPlaceHours, findPlaceIdByText } from "./places-hours.js";
-import { upsertPlace } from "./places-cache.js";
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
@@ -75,20 +74,9 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           }
         }
 
-        // 4. Cache stable data in database (only if place_id is valid)
-        if (placeDetails?.place_id) {
-          await upsertPlace({
-            place_id: placeDetails.place_id,
-            name: venue.name,
-            formatted_address: address,
-            lat: venue.lat,
-            lng: venue.lng,
-          });
-        } else {
-          console.warn(
-            `[Venue Enrichment] ⚠️ No place_id for "${venue.name}" - coords will be preserved`,
-          );
-        }
+        // 4. Cache stable data in database - REMOVED (places table doesn't exist)
+        // Only places_cache table exists for storing business hours
+        // Coordinates are preserved in venue_catalog and rankings tables
 
         const enrichedVenue = {
           ...venue,
