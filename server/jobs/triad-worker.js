@@ -12,7 +12,10 @@ const LOCK_TTL_MS = Number(process.env.LOCK_TTL_MS || 9000);
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 3000);
 
 export async function processTriadJobs() {
+  // Log who's calling us for debugging
+  const caller = new Error().stack.split('\n')[2]?.trim() || 'unknown';
   console.log('[triad-worker] 🔄 Worker loop started, polling for jobs...');
+  console.log(`[triad-worker] 🔍 Called from: ${caller}`);
   
   while (true) {
     try {
@@ -271,11 +274,5 @@ Create a consolidated strategy using ONLY city and district names. Start with ge
   }
 }
 
-// Auto-start worker if this file is run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  console.log('[triad-worker] Starting triad worker...');
-  processTriadJobs().catch(err => {
-    console.error('[triad-worker] Fatal error:', err);
-    process.exit(1);
-  });
-}
+// NOTE: Worker is started by strategy-generator.js (separate process)
+// Removed auto-start to prevent duplicate worker loops
