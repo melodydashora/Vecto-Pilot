@@ -67,6 +67,12 @@ export const strategies = pgTable("strategies", {
   valid_window_start: timestamp("valid_window_start", { withTimezone: true }), // When strategy becomes valid
   valid_window_end: timestamp("valid_window_end", { withTimezone: true }), // When strategy expires (≤ 60 min from start)
   strategy_timestamp: timestamp("strategy_timestamp", { withTimezone: true }), // Generation timestamp
+  // Parallel briefing fields (independent provider writes)
+  claude_strategy: text("claude_strategy"),
+  gemini_news: jsonb("gemini_news"),
+  gemini_events: jsonb("gemini_events"),
+  gemini_traffic: jsonb("gemini_traffic"),
+  gpt5_consolidated: text("gpt5_consolidated"),
 });
 
 export const rankings = pgTable("rankings", {
