@@ -3,7 +3,8 @@
 import { db } from '../db/drizzle.js';
 import { triad_jobs, strategies, snapshots, venue_catalog, venue_metrics } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
-import { runTriadPlan } from '../lib/triad-orchestrator.js';
+import { callClaude45Raw } from '../lib/adapters/anthropic-sonnet45.js';
+import { callGPT5 } from '../lib/adapters/openai-gpt5.js';
 import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
 
 export async function processTriadJobs() {
@@ -52,14 +53,16 @@ export async function processTriadJobs() {
           continue;
         }
 
-        // Fetch snapshot
+        // STEP 1: Fetch snapshot with Gemini briefing (already created in parallel)
         const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshot_id)).limit(1);
         if (!snap) {
           throw new Error('Snapshot not found');
         }
 
-        // Build venue catalog and shortlist
-        console.log(`[triad-worker] 🏢 Building venue catalog for ${snapshot_id}...`);
+        console.log(`[triad-worker] ✅ Gemini briefing available: ${snap.news_briefing ? 'YES' : 'NO'}`);
+
+        // Build venue catalog and shortlist for Claude
+        console.log(`[triad-worker] 🏢 Building venue shortlist for Claude...`);
         const catalogVenues = await db.select().from(venue_catalog);
         const metricsData = await db.select().from(venue_metrics);
         const metricsMap = new Map(metricsData.map(m => [m.venue_id, m]));
@@ -70,12 +73,10 @@ export async function processTriadJobs() {
             ...v,
             times_recommended: metrics?.times_recommended || 0,
             positive_feedback: metrics?.positive_feedback || 0,
-            negative_feedback: metrics?.negative_feedback || 0,
             reliability_score: metrics?.reliability_score || 0.5
           };
         });
 
-        // Score and build shortlist
         const scored = venuesWithMetrics.map(venue => ({
           ...venue,
           score: scoreCandidate(venue, { lat: snap.lat, lng: snap.lng })
@@ -83,33 +84,99 @@ export async function processTriadJobs() {
         scored.sort((a, b) => b.score - a.score);
         const diverse = applyDiversityGuardrails(scored, { minCategories: 2, maxPerCategory: 3 });
         const shortlist = diverse.slice(0, 12);
-        const catalog = diverse.slice(0, 30);
 
-        console.log(`[triad-worker] 🧠 Running Triad pipeline (Claude + Gemini → GPT-5) for ${snapshot_id}...`);
-        const result = await runTriadPlan({ 
-          shortlist, 
-          catalog, 
-          snapshot: snap, 
-          goals: "maximize $/hr, minimize unpaid miles" 
+        // STEP 2: Run Claude (parallel with Gemini) → persist to strategies.strategy
+        console.log(`[triad-worker] 🧠 STEP 2/3: Running Claude strategist...`);
+        const clock = new Date().toLocaleString("en-US", {
+          timeZone: snap.timezone,
+          weekday: "short", 
+          hour: "numeric", 
+          minute: "2-digit"
         });
 
-        if (!result || !result.strategy_for_now) {
-          throw new Error('Triad pipeline returned no strategy_for_now');
+        const claudeSys = [
+          "You are a senior rideshare strategist and economist.",
+          "Analyze the snapshot and listed venues only. Never invent venues.",
+          "Return JSON: {\"strategy_for_now\":\"≤120 words\",\"ranked_venues\":[\"names\"],\"risks\":\"one sentence\"}"
+        ].join(" ");
+
+        const claudeUser = [
+          `Clock: ${clock}`,
+          `Location: ${snap.city}, ${snap.state}`,
+          `Address: ${snap.formatted_address}`,
+          `Weather: ${snap.weather?.tempF || 'unknown'}°F | AQI: ${snap.air?.aqi || 'unknown'}`,
+          `Driver goals: maximize $/hr, minimize unpaid miles`,
+          "Shortlist (DO NOT add venues):",
+          ...shortlist.map(v => `- ${v.name}`),
+          'Return JSON only: {"strategy_for_now":"...","ranked_venues":["..."],"risks":"..."}'
+        ].join("\n");
+
+        const claudeRaw = await callClaude45Raw({
+          system: claudeSys,
+          user: claudeUser
+        });
+
+        // Parse Claude's response
+        const claudeStrategy = JSON.parse(claudeRaw.match(/\{[\s\S]*\}/)?.[0] || '{}');
+        if (!claudeStrategy.strategy_for_now) {
+          throw new Error('Claude returned no strategy_for_now');
         }
 
-        console.log(`[triad-worker] ✅ Triad pipeline complete for ${snapshot_id}`);
-
-        // Persist result to database
+        // Persist Claude's intermediate strategy to DB
         await db.update(strategies)
           .set({
-            status: 'ok',
-            strategy_for_now: result.strategy_for_now,
-            model_name: result.model_route || 'claude→gpt5→gemini',
+            strategy: claudeStrategy.strategy_for_now,
             updated_at: new Date()
           })
           .where(eq(strategies.snapshot_id, snapshot_id));
 
-        console.log(`[triad-worker] 💾 Strategy persisted: ${result.strategy_for_now.substring(0, 100)}...`);
+        console.log(`[triad-worker] ✅ Claude strategy persisted to strategies.strategy`);
+
+        // STEP 3: Fetch BOTH Claude strategy + Gemini briefing from DB
+        const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshot_id)).limit(1);
+        const claudeFromDB = strategyRow.strategy;
+        const geminiFromDB = snap.news_briefing?.briefing ? JSON.stringify(snap.news_briefing.briefing) : 'No news briefing available';
+
+        console.log(`[triad-worker] 📦 Fetched from DB - Claude: ${claudeFromDB?.substring(0, 50)}... | Gemini: ${geminiFromDB.substring(0, 50)}...`);
+
+        // STEP 4: Run GPT-5 consolidation with precise location
+        console.log(`[triad-worker] 🤖 STEP 3/3: Running GPT-5 consolidation...`);
+        const gpt5SystemPrompt = `You are a rideshare strategy consolidator. Combine Claude's strategy with Gemini's news briefing into a single cohesive 3-5 sentence strategy. Include the driver's precise location context.`;
+
+        const gpt5UserPrompt = `DRIVER LOCATION:
+Address: ${snap.formatted_address}
+City: ${snap.city}, ${snap.state}
+
+CLAUDE STRATEGY:
+${claudeFromDB}
+
+GEMINI NEWS BRIEFING:
+${geminiFromDB}
+
+Consolidate these into a final strategy that naturally integrates news intelligence with strategic analysis.`;
+
+        const gpt5Result = await callGPT5({
+          developer: gpt5SystemPrompt,
+          user: gpt5UserPrompt,
+          max_completion_tokens: 2000
+        });
+
+        if (!gpt5Result.text) {
+          throw new Error('GPT-5 returned no text');
+        }
+
+        // STEP 5: Persist GPT-5 final output to strategies.strategy_for_now
+        await db.update(strategies)
+          .set({
+            status: 'ok',
+            strategy_for_now: gpt5Result.text.trim(),
+            model_name: 'claude-4.5→gpt-5',
+            updated_at: new Date()
+          })
+          .where(eq(strategies.snapshot_id, snapshot_id));
+
+        console.log(`[triad-worker] ✅ GPT-5 final strategy persisted to strategies.strategy_for_now`);
+        console.log(`[triad-worker] 💾 Final: ${gpt5Result.text.trim().substring(0, 100)}...`);
 
         // Mark job complete
         await db.execute(sql`
