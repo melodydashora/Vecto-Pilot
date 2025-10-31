@@ -28,12 +28,12 @@ export async function isStrategyReady(snapshotId) {
       return { ready: false };
     }
 
-    // Ready when strategy_for_now exists (GPT-5 consolidated output)
-    const ready = Boolean(strategyRow.strategy_for_now);
+    // Ready when consolidated_strategy exists (GPT-5 consolidated output)
+    const ready = Boolean(strategyRow.consolidated_strategy);
     
     return {
       ready,
-      strategy: strategyRow.strategy_for_now,
+      strategy: strategyRow.consolidated_strategy,
       status: strategyRow.status
     };
   } catch (error) {
