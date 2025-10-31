@@ -35,7 +35,12 @@ The user interface is a **React + TypeScript Single Page Application (SPA)** dev
 **UI Layout**:
 - **Strategy Section**: Displays consolidated strategy with feedback controls.
 - **Smart Blocks**: Ranked venue recommendations with event badges, earnings, drive time, and value grade. Each block interaction helps build a training dataset for future ML.
-- **AI Coach**: Provides insights and has full access to workflow data.
+- **AI Coach**: 
+  - **Positioning**: Initially below strategy, dynamically moves beneath blocks when blocks load for optimal UX
+  - **Read-Only Context**: Uses `/api/chat/context?snapshotId=<uuid>` endpoint (NO external API calls)
+  - **Data Access**: Reads enriched data already written by pipeline (strategy, venues, events, business hours, pro_tips)
+  - **No Resolving**: Coach never calls Places API, Perplexity, or geocoding - only reads from database
+  - Full access to all fields populated throughout entire pipeline via read-only context endpoint
 
 ### Data Storage
 A **PostgreSQL Database** serves as the primary data store, with Drizzle ORM managing the schema. It includes tables for snapshots, strategies, venue events, and ML training data. The system uses enhanced memory systems: `cross_thread_memory` for system-wide state, `eidolon_memory` for agent-scoped sessions, and `assistant_memory` for user preferences.
@@ -73,3 +78,49 @@ Strategy refresh is triggered by location movement (500 meters), day part change
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Recent Changes & Implementation Notes
+
+### AI Coach Read-Only Context (2025-10-31)
+**New Endpoint** (`server/routes/chat-context.js`):
+- **Route**: `GET /api/chat/context?snapshotId=<uuid>` or header `x-snapshot-id`
+- **Purpose**: Read-only context for AI Coach - NO external API calls (no Places, no Perplexity, no geocoding)
+- **Data Returned**:
+  - Strategy status and summary from `strategies` table
+  - Enriched venue candidates from `ranking_candidates` table
+  - All enrichment fields: business_hours, venue_events, pro_tips, staging_tips, closed_reasoning
+- **Benefits**: Coach reads pre-enriched data → faster responses, no API costs, no rate limits
+- **Mounted**: `sdk-embed.js` line 100 under `/api/chat`
+
+**Force Async Blocks Redirect** (`sdk-embed.js` lines 76-81):
+- **Purpose**: Until client fully migrated to fast path, force sync blocks to use async endpoint
+- **Implementation**: POST /api/blocks → 307 redirect → POST /api/blocks/async when `FORCE_ASYNC_BLOCKS=1`
+- **Environment Variable**: Set `FORCE_ASYNC_BLOCKS=1` to enable redirect
+- **Reasoning**: Prevents heavy sync blocks from blocking event loop during migration period
+
+### Schema Updates (2025-10-31)
+**Added business_hours Column** (`shared/schema.js` line 122):
+- **Column**: `business_hours: jsonb("business_hours")` added to `ranking_candidates` table
+- **Purpose**: Store Google Places API business hours data for venue enrichment
+- **Migration**: Ran `npm run db:push` - generated migration `drizzle/0004_fluffy_sunfire.sql`
+- **Data Flow**: Google Places enrichment → `businessHours` object → persisted as JSONB → returned in GET /api/blocks/fast
+- **Status**: ✅ Column exists in database, ready for new block generations
+
+### Frontend Fixes (2025-10-31)
+**Blocks Loading Race Condition** (`client/src/pages/co-pilot.tsx` line 269):
+- **Issue**: Blocks query passed `enabled` gate but aborted inside `queryFn` with redundant strategy check
+- **Fix**: Removed duplicate strategy validation
+  - `enabled` gate already validates: `strategyData?.status === 'ok' && strategyData?._snapshotId === lastSnapshotId`
+  - Redundant check inside queryFn created deadlock where query was enabled but never executed
+- **Result**: Blocks now load immediately when strategy is ready
+
+**apiRequest Import Removal** (`client/src/pages/co-pilot.tsx` line 10):
+- **Deleted**: `import { apiRequest } from '@/lib/queryClient'`
+- **Reason**: Co-pilot.tsx uses native `fetch()` for all API calls with AbortController for timeout handling
+- **Context**: apiRequest is a React Query helper, but blocks query needs:
+  - Custom timeout (230s for Triad orchestration)
+  - AbortController for cancellation
+  - Custom headers (x-idempotency-key, X-Snapshot-Id)
+  - Manual response transformation
+- **Decision**: Native fetch() provides necessary control; apiRequest adds no value here
+- **Rollback**: If apiRequest needed, re-add import and replace fetch() calls with apiRequest({ method: 'POST', url, body })
