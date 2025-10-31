@@ -778,7 +778,11 @@ export async function getBlocksFast({ snapshotId, req }) {
       .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
       .orderBy(ranking_candidates.rank);
     
-    const within15Min = (driveMin) => Number.isFinite(driveMin) && driveMin <= 15;
+    // Show all venues even if drive time not calculated yet (will show "calculating...")
+    const within15Min = (driveMin) => {
+      if (!Number.isFinite(driveMin)) return true;
+      return driveMin <= 15;
+    };
     const blocks = candidates
       .filter(c => within15Min(c.drive_minutes || c.drive_time_minutes))
       .map(c => ({
