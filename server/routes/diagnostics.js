@@ -319,4 +319,329 @@ router.get('/worker-status', async (req, res) => {
   }
 });
 
+// GET /diagnostics/workflow-prereqs - Check workflow prerequisites
+router.get('/workflow-prereqs', async (req, res) => {
+  try {
+    const result = { checks: {} };
+
+    // 1. DB connectivity
+    try {
+      await db.execute(sql`SELECT 1`);
+      result.checks.db = 'ok';
+    } catch (err) {
+      result.checks.db = { status: 'error', message: err.message };
+    }
+
+    // 2. Current window (latest snapshot with valid strategy)
+    try {
+      const latestSnapshot = await db.execute(sql`
+        SELECT s.snapshot_id, s.created_at, st.snapshot_id as has_strategy
+        FROM snapshots s
+        LEFT JOIN strategies st ON st.snapshot_id = s.snapshot_id
+        ORDER BY s.created_at DESC
+        LIMIT 1
+      `);
+      
+      if (latestSnapshot.rows?.length > 0) {
+        const snap = latestSnapshot.rows[0];
+        result.checks.window = snap.has_strategy ? 'present_with_strategy' : 'present_no_strategy';
+        result.latestSnapshotId = snap.snapshot_id;
+      } else {
+        result.checks.window = 'no_snapshots';
+      }
+    } catch (err) {
+      result.checks.window = { status: 'error', message: err.message };
+    }
+
+    // 3. Queued triad jobs
+    try {
+      const jobCounts = await db.execute(sql`
+        SELECT status, COUNT(*) as count 
+        FROM triad_jobs 
+        WHERE created_at > NOW() - INTERVAL '1 hour'
+        GROUP BY status
+      `);
+
+      const jobs = {};
+      for (const row of jobCounts.rows || []) {
+        jobs[row.status] = Number(row.count);
+      }
+
+      result.checks.jobs = jobs;
+      result.checks.queuedCount = jobs.queued || 0;
+    } catch (err) {
+      result.checks.jobs = { status: 'error', message: err.message };
+    }
+
+    // 4. Worker locks
+    try {
+      const activeLocks = await db.execute(sql`
+        SELECT lock_key, owner_id, 
+               EXTRACT(EPOCH FROM (expires_at - NOW()))::int as ttl_seconds
+        FROM worker_locks 
+        WHERE expires_at > NOW()
+      `);
+
+      result.checks.activeLocks = activeLocks.rows?.length || 0;
+      if (activeLocks.rows?.length > 0) {
+        result.lockDetails = activeLocks.rows;
+      }
+    } catch (err) {
+      result.checks.activeLocks = { status: 'error', message: err.message };
+    }
+
+    const allOk = 
+      result.checks.db === 'ok' && 
+      (result.checks.window === 'present_with_strategy' || result.checks.window === 'present_no_strategy');
+
+    res.json({ 
+      ok: allOk, 
+      ...result,
+      timestamp: new Date().toISOString() 
+    });
+  } catch (err) {
+    console.error('[diagnostics/workflow-prereqs] Error:', err);
+    res.status(500).json({ 
+      ok: false, 
+      error: err.message,
+      timestamp: new Date().toISOString() 
+    });
+  }
+});
+
+// GET /diagnostics/model-ping - Test model reachability with minimal prompts
+router.get('/model-ping', async (req, res) => {
+  const results = {};
+  const timeout = 8000; // 8s timeout per model
+
+  // Claude (Anthropic)
+  try {
+    const start = Date.now();
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    
+    if (!process.env.ANTHROPIC_API_KEY) {
+      results.claude = { status: 'no_api_key' };
+    } else {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      try {
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const response = await anthropic.messages.create({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 10,
+          messages: [{ role: 'user', content: 'ping' }]
+        });
+
+        clearTimeout(timeoutId);
+        results.claude = {
+          status: 'ok',
+          latency_ms: Date.now() - start,
+          response_preview: response.content[0]?.text?.substring(0, 50)
+        };
+      } catch (err) {
+        clearTimeout(timeoutId);
+        results.claude = {
+          status: err.name === 'AbortError' ? 'timeout' : 'error',
+          latency_ms: Date.now() - start,
+          message: err.message
+        };
+      }
+    }
+  } catch (err) {
+    results.claude = { status: 'error', message: err.message };
+  }
+
+  // Gemini (Google)
+  try {
+    const start = Date.now();
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    
+    if (!process.env.GOOGLEAQ_API_KEY) {
+      results.gemini = { status: 'no_api_key' };
+    } else {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      try {
+        const genAI = new GoogleGenerativeAI(process.env.GOOGLEAQ_API_KEY);
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+        const result = await model.generateContent('ping', { signal: controller.signal });
+        
+        clearTimeout(timeoutId);
+        results.gemini = {
+          status: 'ok',
+          latency_ms: Date.now() - start,
+          response_preview: result.response.text()?.substring(0, 50)
+        };
+      } catch (err) {
+        clearTimeout(timeoutId);
+        results.gemini = {
+          status: err.name === 'AbortError' ? 'timeout' : 'error',
+          latency_ms: Date.now() - start,
+          message: err.message
+        };
+      }
+    }
+  } catch (err) {
+    results.gemini = { status: 'error', message: err.message };
+  }
+
+  // OpenAI (GPT)
+  try {
+    const start = Date.now();
+    const { default: OpenAI } = await import('openai');
+    
+    if (!process.env.OPENAI_API_KEY) {
+      results.gpt = { status: 'no_api_key' };
+    } else {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      try {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const response = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          max_tokens: 10,
+          messages: [{ role: 'user', content: 'ping' }]
+        }, { signal: controller.signal });
+
+        clearTimeout(timeoutId);
+        results.gpt = {
+          status: 'ok',
+          latency_ms: Date.now() - start,
+          response_preview: response.choices[0]?.message?.content?.substring(0, 50)
+        };
+      } catch (err) {
+        clearTimeout(timeoutId);
+        results.gpt = {
+          status: err.name === 'AbortError' ? 'timeout' : 'error',
+          latency_ms: Date.now() - start,
+          message: err.message
+        };
+      }
+    }
+  } catch (err) {
+    results.gpt = { status: 'error', message: err.message };
+  }
+
+  const allOk = Object.values(results).every(r => r.status === 'ok');
+  
+  console.log(`[diagnostics/model-ping] Claude:${results.claude?.status} Gemini:${results.gemini?.status} GPT:${results.gpt?.status}`);
+
+  res.json({
+    ok: allOk,
+    models: results,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// GET /diagnostics/workflow-dry-run - Minimal workflow dry-run without DB writes
+router.get('/workflow-dry-run', async (req, res) => {
+  const report = { steps: {} };
+
+  try {
+    // Step 1: Latest snapshot
+    const snapshotResult = await db.execute(sql`
+      SELECT snapshot_id, lat, lng, formatted_address, city, state, created_at
+      FROM snapshots
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+
+    if (!snapshotResult.rows?.length) {
+      report.steps.snapshot = { status: 'no_data', message: 'No snapshots in database' };
+      return res.json({ ok: false, report, timestamp: new Date().toISOString() });
+    }
+
+    const snapshot = snapshotResult.rows[0];
+    report.steps.snapshot = { status: 'ok', snapshot_id: snapshot.snapshot_id };
+
+    // Step 2: Check for existing strategy
+    const strategyResult = await db.execute(sql`
+      SELECT snapshot_id, created_at
+      FROM strategies
+      WHERE snapshot_id = ${snapshot.snapshot_id}
+      LIMIT 1
+    `);
+
+    if (strategyResult.rows?.length > 0) {
+      report.steps.strategy = { 
+        status: 'exists', 
+        snapshot_id: strategyResult.rows[0].snapshot_id,
+        note: 'Strategy already generated for this snapshot'
+      };
+    } else {
+      report.steps.strategy = { 
+        status: 'missing',
+        note: 'Would trigger strategy generation in real workflow'
+      };
+    }
+
+    // Step 3: Minimal model call (just test reachability, don't generate full strategy)
+    const start = Date.now();
+    try {
+      const { default: Anthropic } = await import('@anthropic-ai/sdk');
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      
+      await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 20,
+        messages: [{ 
+          role: 'user', 
+          content: `Test prompt for location: ${snapshot.city}, ${snapshot.state}` 
+        }]
+      });
+
+      report.steps.model_call = {
+        status: 'ok',
+        latency_ms: Date.now() - start
+      };
+    } catch (err) {
+      report.steps.model_call = {
+        status: 'error',
+        latency_ms: Date.now() - start,
+        message: err.message
+      };
+    }
+
+    // Step 4: Check venues available for ranking
+    const venueResult = await db.execute(sql`
+      SELECT COUNT(*) as count
+      FROM venue_catalog
+      WHERE city = ${snapshot.city}
+    `);
+
+    report.steps.venues = {
+      status: 'ok',
+      count: Number(venueResult.rows?.[0]?.count || 0)
+    };
+
+    const allOk = 
+      report.steps.snapshot.status === 'ok' &&
+      report.steps.model_call?.status === 'ok' &&
+      report.steps.venues.status === 'ok';
+
+    res.json({
+      ok: allOk,
+      report,
+      snapshotContext: {
+        snapshot_id: snapshot.snapshot_id,
+        location: `${snapshot.city}, ${snapshot.state}`,
+        created_at: snapshot.created_at
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (err) {
+    console.error('[diagnostics/workflow-dry-run] Error:', err);
+    res.status(500).json({
+      ok: false,
+      error: err.message,
+      report,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 export default router;
