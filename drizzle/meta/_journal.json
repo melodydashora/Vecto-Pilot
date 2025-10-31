@@ -43,6 +43,13 @@
       "when": 1761874975816,
       "tag": "0005_overjoyed_quicksilver",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1761878769460,
+      "tag": "0006_steep_the_hood",
+      "breakpoints": true
     }
   ]
 }
