@@ -395,18 +395,21 @@ const CoPilot: React.FC = () => {
     // 3. Don't run while strategy is fetching (initial load OR polling)
     // This ensures blocks query ONLY runs after strategy is persisted in DB with proper foreign key
     enabled: (() => {
-      const shouldEnable = !!coords && 
-                           !!lastSnapshotId && 
-                           !isStrategyFetching && 
-                           strategyData?.status === 'ok' && 
-                           strategyData?._snapshotId === lastSnapshotId;
+      const hasCoords = !!coords;
+      const hasSnapshot = !!lastSnapshotId;
+      const strategyReady = strategyData?.status === 'ok';
+      const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
+      
+      const shouldEnable = hasCoords && hasSnapshot && !isStrategyFetching && strategyReady && snapshotMatches;
       
       console.log('[blocks-query] Gating check:', {
-        coords: !!coords,
+        coords: hasCoords,
         lastSnapshotId,
         isStrategyFetching,
         strategyStatus: strategyData?.status,
+        strategyReady,
         strategySnapshotId: strategyData?._snapshotId,
+        snapshotMatches,
         shouldEnable
       });
       
