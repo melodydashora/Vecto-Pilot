@@ -110,9 +110,18 @@ export async function processTriadJobs() {
         // STEP 3: Fetch BOTH Claude strategy + Gemini briefing from DB
         const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshot_id)).limit(1);
         const claudeFromDB = strategyRow.strategy;
-        const geminiFromDB = snap.news_briefing?.briefing ? JSON.stringify(snap.news_briefing.briefing) : 'No news briefing available';
+        const geminiFromDB = snap.news_briefing?.briefing ? JSON.stringify(snap.news_briefing.briefing) : null;
 
-        console.log(`[triad-worker] 📦 Fetched from DB - Claude: ${claudeFromDB?.substring(0, 50)}... | Gemini: ${geminiFromDB.substring(0, 50)}...`);
+        // CRITICAL: Verify BOTH fields exist before consolidation
+        if (!claudeFromDB || claudeFromDB.length < 20) {
+          throw new Error('Claude strategy missing or invalid - cannot consolidate');
+        }
+        if (!geminiFromDB || geminiFromDB === 'null') {
+          throw new Error('Gemini news briefing missing - cannot consolidate');
+        }
+
+        console.log(`[triad-worker] 📦 Fetched from DB - Claude: ${claudeFromDB.substring(0, 50)}... | Gemini: ${geminiFromDB.substring(0, 50)}...`);
+        console.log(`[triad-worker] ✅ Both Claude and Gemini data verified - proceeding to GPT-5 consolidation`);
 
         // STEP 4: Run GPT-5 consolidation with precise location
         console.log(`[triad-worker] 🤖 STEP 3/3: Running GPT-5 consolidation...`);
