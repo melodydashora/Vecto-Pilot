@@ -74,6 +74,7 @@ export const strategies = pgTable("strategies", {
   user_resolved_state: text("user_resolved_state"),
   // Model-agnostic provider outputs (generic columns for parallel multi-model pipeline)
   minstrategy: text("minstrategy"), // Short strategy from first provider (Claude)
+  holiday: text("holiday"), // Holiday name if today is a holiday (e.g., "Independence Day", "Thanksgiving"), null otherwise
   briefing_news: jsonb("briefing_news"), // News feed from second provider (Gemini)
   briefing_events: jsonb("briefing_events"), // Events feed from second provider (Gemini)
   briefing_traffic: jsonb("briefing_traffic"), // Traffic feed from second provider (Gemini)

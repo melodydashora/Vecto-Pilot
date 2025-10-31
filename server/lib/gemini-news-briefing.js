@@ -64,7 +64,12 @@ export async function generateNewsBriefing(snapshot) {
     const systemInstruction = {
       parts: [
         {
-          text: `You are my rideshare briefing assistant. Respond with **ONLY** a single JSON object, no prose. Keys: airports, traffic_construction, major_events, policy_safety, driver_takeaway (array of 3 strings). Each of the first four keys must be an array of short strings. Scope: ONLY the next 60 minutes from the provided time. If a section has nothing verifiable, use an empty array.
+          text: `You are my rideshare briefing assistant. Respond with **ONLY** a single JSON object, no prose. Keys: holiday, airports, traffic_construction, major_events, policy_safety, driver_takeaway (array of 3 strings). Each of the last five keys must be an array of short strings. Scope: ONLY the next 60 minutes from the provided time. If a section has nothing verifiable, use an empty array.
+
+HOLIDAY DETECTION:
+- "holiday": Check if the current date is a US federal holiday or major holiday (New Year's Day, MLK Day, Presidents Day, Memorial Day, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, Christmas, Christmas Eve, New Year's Eve)
+- Format: "Holiday Name" if today is a holiday, otherwise null
+- Examples: "Independence Day", "Thanksgiving", "Christmas Eve", null
 
 GEOGRAPHIC RADIUS CONSTRAINTS:
 - major_events: 15-minute drive OR 7-10 mile radius from driver address (whichever is SMALLER)
@@ -74,6 +79,7 @@ GEOGRAPHIC RADIUS CONSTRAINTS:
 
 Example shape:
 {
+  "holiday": "Independence Day",
   "airports": ["Expected traffic patterns for nearby airports based on time of day."],
   "traffic_construction": ["Major roadway conditions affecting the area within 0-30min drive OR 0-15mi radius."],
   "major_events": ["Large events ending or starting in the next hour within 15min drive OR 7-10mi radius."],
@@ -205,7 +211,7 @@ Generate the briefing now, strictly for the next 60 minutes.`
     }
     
     // Validate structure
-    const requiredKeys = ['airports', 'traffic_construction', 'major_events', 'policy_safety', 'driver_takeaway'];
+    const requiredKeys = ['holiday', 'airports', 'traffic_construction', 'major_events', 'policy_safety', 'driver_takeaway'];
     const missingKeys = requiredKeys.filter(key => !briefing.hasOwnProperty(key));
     
     if (missingKeys.length > 0) {
@@ -220,6 +226,7 @@ Generate the briefing now, strictly for the next 60 minutes.`
     const duration = Date.now() - startTime;
     
     console.log(`[gemini-briefing] ✅ Briefing generated in ${duration}ms:`, {
+      holiday: briefing.holiday || 'none',
       airports: briefing.airports.length,
       traffic: briefing.traffic_construction.length,
       events: briefing.major_events.length,
@@ -243,6 +250,7 @@ Generate the briefing now, strictly for the next 60 minutes.`
       error: error.message,
       latency_ms: duration,
       briefing: {
+        holiday: null,
         airports: [],
         traffic_construction: [],
         major_events: [],

@@ -202,19 +202,27 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
   console.log(`[SIMPLE-STRATEGY] Input:`, { city, state, user_address });
 
   try {
-    // Step 1: Get Gemini briefings
-    console.log(`[SIMPLE-STRATEGY] 🚀 Calling Gemini for briefings...`);
-    const geminiResult = await callGeminiFeeds({ 
-      userAddress: user_address, 
-      city, 
-      state 
-    });
-
-    if (!geminiResult.ok) {
-      throw new Error(geminiResult.reason || 'Gemini call failed');
+    // Step 1: Fetch snapshot to get existing news briefing with holiday info
+    console.log(`[SIMPLE-STRATEGY] 📍 Fetching snapshot ${snapshotId} for briefing data...`);
+    const [snapshotData] = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    
+    if (!snapshotData) {
+      throw new Error('Snapshot not found');
     }
+    
+    // Extract briefing from snapshot (includes holiday field)
+    const newsBriefing = snapshotData.news_briefing?.briefing || {};
+    const holiday = newsBriefing.holiday || null;
+    const geminiResult = {
+      ok: true,
+      holiday: holiday,
+      news: newsBriefing.airports || [],
+      events: newsBriefing.major_events || [],
+      traffic: newsBriefing.traffic_construction || []
+    };
 
-    console.log(`[SIMPLE-STRATEGY] ✅ Gemini briefings received (news=${geminiResult.news.length}, events=${geminiResult.events.length}, traffic=${geminiResult.traffic.length})`);
+    console.log(`[SIMPLE-STRATEGY] ✅ Briefings extracted from snapshot (holiday=${holiday || 'none'}, news=${geminiResult.news.length}, events=${geminiResult.events.length}, traffic=${geminiResult.traffic.length})`);
 
     // Step 2: Send directly to GPT-5 for strategy
     console.log(`[SIMPLE-STRATEGY] 🚀 Sending briefings to GPT-5...`);
@@ -231,8 +239,9 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
 
     console.log(`[SIMPLE-STRATEGY] ✅ GPT-5 strategy generated (${consolidated.strategy.length} chars)`);
 
-    // Step 3: Write everything to database in one shot
+    // Step 3: Write everything to database including holiday
     await db.update(strategies).set({
+      holiday: geminiResult.holiday,
       briefing_news: geminiResult.news ?? [],
       briefing_events: geminiResult.events ?? [],
       briefing_traffic: geminiResult.traffic ?? [],
