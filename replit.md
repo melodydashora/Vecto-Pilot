@@ -158,3 +158,15 @@ Per stabilization document, each block includes explicit quality flags:
 - Explicit reasons for any yellow/red blocks ✓
 - No `DrizzleQueryError` in worker logs ✓
 - Schema freeze tagged as `geo_blocks_v1` ✓
+
+#### Known Limitations (2025-10-31)
+**Event Matching**: Documented as "coords or ≤2 miles" but not yet implemented:
+- `venue_events` table does not exist in database schema
+- Event matching logic not present in blocks-fast.js
+- UI shows `eventBadge` and `eventSummary` fields but they are always null
+- **Status**: Aspirational - requires venue_events schema + haversine proximity matching
+
+**Health Probes** (2025-10-31):
+- `/ready` endpoint now probes DB with `SELECT 1` - returns 503 if DB unavailable
+- `/health`, `/healthz`, `/api/health` remain instant 200 (transport-only checks)
+- Blocks endpoint returns structured errors: `DATABASE_QUERY_ERROR`, `DATABASE_UNAVAILABLE`, `INTERNAL_ERROR`
