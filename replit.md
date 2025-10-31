@@ -200,3 +200,146 @@ artifacts_saved=true
 ```
 
 **Implementation Complete**: All 8 features delivered, event matching unblocked
+
+---
+
+## 15-Minute Perimeter & Parallel Strategy (2025-10-31)
+
+### Smart Blocks: 15-Minute Drive Perimeter
+
+**Objective**: Enforce strict 15-minute driving perimeter for all smart blocks displayed above AI Coach.
+
+**Implementation** (`server/routes/blocks-fast.js`):
+```javascript
+const within15Min = (driveTimeMinutes) => {
+  return Number.isFinite(driveTimeMinutes) && driveTimeMinutes <= 15;
+};
+
+// Filter blocks to perimeter
+const blocksWithinPerimeter = blocks.filter(b => within15Min(b.driveTimeMinutes));
+const blocksOutOfPerimeter = blocks.filter(b => !within15Min(b.driveTimeMinutes));
+
+// Status requires BOTH flag counts AND perimeter check
+const status = (okCount === 4 && withinPerimeter) ? 'green' : 
+               (okCount >= 2 && withinPerimeter) ? 'yellow' : 'red';
+```
+
+**Audit Trail**:
+- `perimeter.accepted`: Blocks within 15 minutes
+- `perimeter.rejected`: Blocks exceeding 15 minutes
+- `perimeter.max_minutes`: Hard limit (15)
+- `perimeter.out_of_perimeter[]`: Rejected blocks with drive times
+
+**Response**:
+- Only returns `blocksWithinPerimeter` in response
+- `metadata.totalGenerated`: All generated blocks
+- `metadata.outOfPerimeter`: Count of rejected blocks
+
+**Test Results** (2025-10-31):
+```
+Urban:     4 blocks, 6-11 min drive time ✓
+Suburban:  5 blocks, 11-13 min drive time ✓
+Venue-heavy: 5 blocks, 11-12 min drive time ✓
+```
+
+All blocks passed 15-minute perimeter enforcement.
+
+---
+
+### Parallel Multi-Model Strategy Orchestration
+
+**Objective**: Execute Claude (core plan) + Gemini (events/news/traffic) in parallel, consolidate with GPT-5, persist all context fields.
+
+**Architecture**:
+```
+Promise.allSettled([
+  callClaudeCore()     // Strategic plan (required)
+  callGeminiFeeds()    // Events/news/traffic (optional)
+]) → consolidateWithGPT5Thinking() → saveStrategy()
+```
+
+**Feature Flag**: `MULTI_STRATEGY_ENABLED=true`
+
+**Implementation** (`server/lib/strategy-generator-parallel.js`):
+1. **Claude Core**: Generates 3-5 sentence strategic plan based on snapshot context
+2. **Gemini Feeds**: Fetches events[], news[], traffic[] arrays (fail-soft: empty arrays if unavailable)
+3. **GPT-5 Consolidation**: Merges Claude plan + Gemini feeds into final strategy
+4. **DB Persistence**: Saves all context fields to strategies table
+
+**Database Schema Extensions**:
+```sql
+ALTER TABLE strategies ADD COLUMN state TEXT;
+ALTER TABLE strategies ADD COLUMN user_address TEXT;
+ALTER TABLE strategies ADD COLUMN user_id UUID;
+ALTER TABLE strategies ADD COLUMN events JSONB DEFAULT '[]';
+ALTER TABLE strategies ADD COLUMN news JSONB DEFAULT '[]';
+ALTER TABLE strategies ADD COLUMN traffic JSONB DEFAULT '[]';
+```
+
+**Routing Logic**:
+- If `MULTI_STRATEGY_ENABLED=true`: Use parallel orchestration
+- If `MULTI_STRATEGY_ENABLED=false`: Use sequential path (Claude → Gemini → GPT-5)
+
+**Audit Structure**:
+```javascript
+{
+  claude_call: 'ok' | 'fail',
+  gemini_call: 'ok' | 'fail',
+  gpt5_consolidation: 'ok' | 'fail',
+  db_insert: 'ok' | 'fail'
+}
+```
+
+**Fail-Soft Behavior**:
+- Claude failure: HARD FAIL (strategy cannot proceed)
+- Gemini failure: SOFT FAIL (use empty arrays, continue)
+- GPT-5 failure: HARD FAIL (consolidation failed)
+- DB failure: HARD FAIL (persistence failed)
+
+---
+
+### Critical Fixes for Smart Blocks Stability
+
+**1. GPT-5 Venue Generator Token Limits**
+- **Problem**: `max_completion_tokens: 4000` caused length-based stops with 0 content
+- **Fix**: Reduced to `1200` tokens with `reasoning_effort: 'low'`
+- **Validation**: Hard check for empty content (min 20 chars)
+
+**2. ON CONFLICT Error Handling**
+- **Problem**: Constraint violations caused infinite retry loops
+- **Fix**: Added schema mismatch detection in `triad-worker.js`
+- **Behavior**: Throws `schema_mismatch_unique_index_required` on constraint errors, prevents retry loops
+
+**3. Unique Index Verification**
+- **Confirmed**: `strategies_snapshot_id_unique` index exists on `strategies(snapshot_id)`
+- **Status**: No schema changes needed, constraint enforcement working
+
+---
+
+### Agent Reporting Format
+
+**Blocks (per snapshot)**:
+```
+snapshot=<uuid> status=<green|yellow|red> accepted_blocks=<n> rejected_out_of_perimeter=<n> perimeter_minutes_max=15 audits=<count>
+```
+
+**Strategy (per run)**:
+```
+snapshot=<uuid> strategy_id=<uuid> claude_call=<ok|fail> gemini_call=<ok|fail> gpt5_consolidation=<ok|fail> db_insert=<ok|fail> city=<city> state=<state>
+```
+
+---
+
+### Exit Criteria
+
+**Success** ✅:
+- 15-minute perimeter enforced: All displayed blocks within drive time limit
+- Parallel strategy: Claude + Gemini execute in parallel, GPT-5 consolidates
+- DB persistence: All context fields (events, news, traffic, user_address, state, user_id) saved
+- Error handling: ON CONFLICT errors surface schema mismatch, don't retry
+- Token limits: GPT-5 venue generator bounded to 1200 tokens with content validation
+
+**Rollback**:
+- Trigger: Repeated constraint violations or empty generation responses
+- Action: Set `MULTI_STRATEGY_ENABLED=false`, disable venue generation, render snapshot-only
+- Documentation: Strikethrough in replit.md, keep artifacts
