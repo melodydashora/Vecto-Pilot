@@ -12,29 +12,27 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-// Load mono-mode.env (but override DATABASE_URL on Replit to use built-in DB)
-const isReplit = !!process.env.REPL_ID;
-const replitDatabaseUrl = process.env.DATABASE_URL; // Save Replit's DB URL before loading mono-mode.env
-
+// Load mono-mode.env
 try {
   const envFile = readFileSync('mono-mode.env', 'utf-8');
   envFile.split('\n').forEach(line => {
     line = line.trim();
-    if (line && !line.startsWith('#') && !line.startsWith('export') && line.includes('=')) {
+    // Skip comments and empty lines
+    if (!line || line.startsWith('#')) return;
+    
+    // Remove 'export ' prefix if present
+    if (line.startsWith('export ')) {
+      line = line.substring(7);
+    }
+    
+    // Parse KEY=value
+    if (line.includes('=')) {
       const [key, ...valueParts] = line.split('=');
-      const keyTrimmed = key.trim();
       const value = valueParts.join('=').replace(/^["']|["']$/g, '');
-      process.env[keyTrimmed] = value.trim();
+      process.env[key.trim()] = value.trim();
     }
   });
   console.log('[boot] ✅ Loaded mono-mode.env');
-  
-  // On Replit, override DATABASE_URL to use built-in PostgreSQL instead of Neon
-  if (isReplit && replitDatabaseUrl) {
-    process.env.DATABASE_URL = replitDatabaseUrl;
-    delete process.env.DATABASE_URL_UNPOOLED; // Remove Neon unpooled URL
-    console.log('[boot] 🗄️  Overriding to Replit PostgreSQL:', replitDatabaseUrl.substring(0, 50) + '...');
-  }
 } catch (err) {
   console.warn('[boot] ⚠️  Could not load mono-mode.env:', err.message);
 }
@@ -45,9 +43,19 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
 const PORT = process.env.PORT;
 
+// Kill any existing process on port 5000 to prevent conflicts
+import { execSync } from 'node:child_process';
+try {
+  execSync(`lsof -ti:${PORT} | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
+  console.log(`[boot] ✅ Cleared port ${PORT}`);
+} catch (err) {
+  // Port already free, continue
+}
+
 console.log('[boot] Starting Vecto Pilot gateway...');
 console.log(`[boot] PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`[boot] ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}`);
+console.log(`[boot] REPL_ID=${process.env.REPL_ID ? 'set' : 'not set'}`);
 
 // Start gateway server
 const server = spawn('node', ['gateway-server.js'], {
