@@ -6,6 +6,7 @@ import { triad_jobs, strategies, snapshots } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { callClaude45Raw } from '../lib/adapters/anthropic-sonnet45.js';
 import { callGPT5 } from '../lib/adapters/openai-gpt5.js';
+import { acquireLock, releaseLock } from '../lib/locks.js';
 
 export async function processTriadJobs() {
   while (true) {
@@ -34,6 +35,20 @@ export async function processTriadJobs() {
 
       console.log(`[triad-worker] 🔧 Processing job ${jobId} for snapshot ${snapshot_id}`);
 
+      // LOCK: Acquire per-snapshot lock to prevent concurrent processing
+      const lockKey = `triad:${snapshot_id}`;
+      const gotLock = await acquireLock(lockKey, 120000); // 120s TTL
+      
+      if (!gotLock) {
+        console.log(`[triad-worker] 🔒 Another worker is processing ${snapshot_id}, skipping`);
+        await db.execute(sql`
+          UPDATE ${triad_jobs}
+          SET status = 'queued'
+          WHERE id = ${jobId}
+        `);
+        continue;
+      }
+
       try {
         // Check if strategy already exists (race condition guard)
         const [existing] = await db
@@ -50,6 +65,7 @@ export async function processTriadJobs() {
             SET status = 'ok'
             WHERE id = ${jobId}
           `);
+          await releaseLock(lockKey);
           continue;
         }
 
@@ -180,6 +196,21 @@ Create a consolidated strategy using ONLY city and district names. Start with ge
             String(err?.code) === '23505') {
           console.error(`[triad-worker] 🛑 SCHEMA MISMATCH - ON CONFLICT or constraint violation detected`);
           console.error(`[triad-worker] 🛑 Fix: Ensure unique index matches ON CONFLICT target`);
+          
+          // Mark job as failed with schema error
+          await db.execute(sql`
+            UPDATE ${triad_jobs}
+            SET status = 'error'
+            WHERE id = ${jobId}
+          `);
+          
+          await db.execute(sql`
+            UPDATE ${strategies}
+            SET status = 'failed', error_message = 'schema_mismatch_unique_index_required'
+            WHERE snapshot_id = ${snapshot_id}
+          `);
+          
+          await releaseLock(lockKey);
           throw new Error('schema_mismatch_unique_index_required: ' + err.message);
         }
         
@@ -196,6 +227,9 @@ Create a consolidated strategy using ONLY city and district names. Start with ge
           SET status = 'failed', error_message = ${err.message}
           WHERE snapshot_id = ${snapshot_id}
         `);
+      } finally {
+        // Always release lock
+        await releaseLock(lockKey);
       }
     } catch (err) {
       console.error('[triad-worker] Worker loop error:', err);
