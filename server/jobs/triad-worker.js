@@ -38,23 +38,26 @@ export async function processTriadJobs() {
 
       const { id: jobId, snapshot_id, kind } = job.rows[0];
 
-      console.log(`[triad-worker] 🔧 Processing job ${jobId} for snapshot ${snapshot_id}`);
+      console.log(`[triad-worker] 🔧 CLAIMED job ${jobId} for snapshot ${snapshot_id}`);
 
       // LOCK: Acquire per-snapshot lock to prevent concurrent processing
       const lockKey = `triad:${snapshot_id}`;
+      console.log(`[triad-worker] 🔑 Attempting to acquire lock: ${lockKey}`);
+      
       const gotLock = await acquireLock(lockKey, 120000); // 120s TTL
       
       if (!gotLock) {
-        // Lock busy - put job back to queued and wait before retrying
-        console.log(`[triad-worker] 🔒 Lock busy for ${snapshot_id}, requeuing job and waiting...`);
+        // Lock busy - mark job failed and skip
+        console.error(`[triad-worker] ❌ Lock busy for ${snapshot_id}, marking job FAILED`);
         await db.execute(sql`
           UPDATE ${triad_jobs}
-          SET status = 'queued'
+          SET status = 'error'
           WHERE id = ${jobId}
         `);
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before next poll
         continue;
       }
+
+      console.log(`[triad-worker] ✅ Lock acquired: ${lockKey}`);
 
       try {
         // Check if strategy already exists (race condition guard)
