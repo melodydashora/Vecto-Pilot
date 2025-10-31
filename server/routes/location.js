@@ -894,11 +894,20 @@ router.post('/snapshot', async (req, res) => {
     });
 
     // Call parallel providers directly instead of enqueueing job
+    console.log(`[location] 📍 Snapshot created: ${snapshotV1.snapshot_id}`, {
+      hasAddress: !!snapshotV1.resolved?.formattedAddress,
+      hasCity: !!snapshotV1.resolved?.city,
+      address: snapshotV1.resolved?.formattedAddress,
+      city: snapshotV1.resolved?.city,
+      state: snapshotV1.resolved?.state
+    });
+    
     if (snapshotV1.resolved?.formattedAddress || snapshotV1.resolved?.city) {
+      console.log(`[location] 🚀 Triggering automatic strategy generation for ${snapshotV1.snapshot_id}...`);
+      
       const { runParallelProviders } = await import('../lib/strategy-generator-parallel.js');
       
-      // Fire parallel provider calls (non-blocking)
-      // Claude + Gemini will write to their respective fields, triggering NOTIFY events
+      // Fire-and-forget with comprehensive error logging
       runParallelProviders({
         snapshotId: snapshotV1.snapshot_id,
         user: {
@@ -915,11 +924,15 @@ router.post('/snapshot', async (req, res) => {
           weather: snapshotV1.weather,
           air: snapshotV1.air
         }
+      }).then(() => {
+        console.log(`[location] ✅ Strategy generation COMPLETED for ${snapshotV1.snapshot_id}`);
       }).catch(err => {
-        console.error('[snapshot→parallel] Provider error:', err.message);
+        console.error(`[location] ❌ Strategy generation FAILED for ${snapshotV1.snapshot_id}:`, err.message, err.stack);
       });
       
-      console.log(`[location] ✅ Parallel providers initiated for snapshot ${snapshotV1.snapshot_id}`);
+      console.log(`[location] ✅ Parallel providers INITIATED for snapshot ${snapshotV1.snapshot_id}`);
+    } else {
+      console.warn(`[location] ⚠️  Skipping strategy generation - no address or city for snapshot ${snapshotV1.snapshot_id}`);
     }
 
     res.json({ 
