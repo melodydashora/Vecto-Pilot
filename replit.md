@@ -243,3 +243,74 @@ RETURNING (worker_locks.expires_at <= NOW()) AS acquired
 
 **LOCK FIX COMPLETE** ✅
 
+
+---
+
+### 2025-10-31T03:27:30Z — Strategy-First Sequencing & Smart Blocks Gating
+
+**Required Sequence** (Explicit Dependency):
+```
+Snapshot → Strategy (Claude + Gemini → GPT-5) → Persist → Venue Planner → Event Planner → Smart Blocks
+```
+
+**Gating Signal for blocks-fast**:
+- ✓ GET `/api/blocks/fast?snapshotId=<uuid>` returns 202 until strategy persisted
+- ✓ Returns 200 with blocks array once `strategies.strategy_for_now` exists
+- ✓ POST endpoint also gates on strategy (202 if pending)
+
+**Strategy Persistence Contract**:
+- Unique Index: `strategies_snapshot_id_unique` ON (`snapshot_id`)
+- Upsert Pattern: `ON CONFLICT (snapshot_id) DO UPDATE SET strategy_for_now = EXCLUDED.strategy_for_now`
+- One consolidated strategy per snapshot
+
+**Ready Check Helper**:
+```javascript
+async function isStrategyReady(snapshotId) {
+  const [row] = await db.select().from(strategies)
+    .where(eq(strategies.snapshot_id, snapshotId))
+    .limit(1);
+  return Boolean(row?.strategy_for_now);
+}
+```
+
+**blocks-fast GET Endpoint Changes** ✅:
+1. Added GATE 1: Check `strategies.strategy_for_now` exists
+2. Return 202 with `reason: 'strategy_pending'` if not ready
+3. Added GATE 2: Check ranking exists
+4. Enforce 15-minute perimeter before returning blocks
+5. Include audit trail: gating status + perimeter counts
+
+**blocks-fast POST Endpoint Changes** ✅:
+1. Changed strategy check from 400 error to 202 pending
+2. Maintains snapshot-first pattern (use existing candidates if ≥4)
+3. Falls back to GPT-5 generation only if <4 candidates
+4. All blocks filtered to 15-minute perimeter before response
+
+**15-Minute Perimeter Enforcement** (Strict):
+```javascript
+const within15Min = (driveMin) => Number.isFinite(driveMin) && driveMin <= 15;
+const blocks = allBlocks.filter(b => within15Min(b.driveTimeMinutes));
+const rejected = allBlocks.filter(b => !within15Min(b.driveTimeMinutes)).length;
+```
+
+**Audit Trail** (Both Endpoints):
+```javascript
+{
+  gating: { strategy_ready: true },
+  perimeter: { accepted: 5, rejected: 0, max_minutes: 15 }
+}
+```
+
+**Venue/Event Planner Inputs** (From Strategy):
+- user_address (precise, from snapshot)
+- city, state
+- consolidated_strategy (strategy_for_now text)
+- Outputs: venue candidates with routes, events, hours, pro tips, staging
+
+**Exit Criteria for Strategy-First** ✅:
+- ✓ `/api/blocks/fast` returns 202 while strategy is pending
+- ✓ Returns 200 with ≥4 blocks once strategy is ready
+- ✓ All returned blocks have driveTimeMinutes ≤ 15
+- ✓ Audit shows perimeter accepted/rejected counts
+- ✓ No 400 errors for pending strategy (use 202 instead)
+
