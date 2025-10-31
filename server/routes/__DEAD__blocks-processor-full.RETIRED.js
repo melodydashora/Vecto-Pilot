@@ -1,3 +1,7 @@
+// RETIRED FILE - DO NOT USE
+// This legacy processor has been replaced by blocks-fast.js
+throw new Error('RETIRED: blocks-processor-full.js is no longer used. Use blocks-fast.js instead.');
+
 // server/routes/blocks-processor-full.js
 // Core blocks processing logic extracted from blocks.js
 // NO req/res here. NO process.exit. Throw typed errors; return plain JSON.
