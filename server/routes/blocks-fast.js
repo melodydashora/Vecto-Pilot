@@ -15,6 +15,13 @@ import { isStrategyReady } from '../lib/strategy-utils.js';
 
 const router = Router();
 
+// Helper to safely calculate elapsed time and prevent NaN in responses
+function safeElapsedMs(row) {
+  const t0 = row?.created_at ? new Date(row.created_at).getTime() : Date.now();
+  const ms = Date.now() - t0;
+  return Number.isFinite(ms) && ms >= 0 ? ms : 0;
+}
+
 // Environment configuration
 const PLANNER_BUDGET_MS = parseInt(process.env.PLANNER_BUDGET_MS || '7000'); // 7 second wall clock
 const PLANNER_TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS || '5000'); // 5 second planner timeout
@@ -694,26 +701,24 @@ export async function getStrategyFast({ snapshotId }) {
     .limit(1);
 
   if (!row) {
-    return { status: 'missing', snapshot_id: snapshotId };
+    return { status: 'missing', snapshot_id: snapshotId, timeElapsedMs: 0 };
   }
 
   const waitFor = [];
   if (!row.claude_strategy) waitFor.push('claude');
-  if (!Array.isArray(row.gemini_news)) waitFor.push('gemini_news');
-  if (!Array.isArray(row.gemini_events)) waitFor.push('gemini_events');
-  if (!Array.isArray(row.gemini_traffic)) waitFor.push('gemini_traffic');
+  if (row.gemini_news === null || row.gemini_events === null || row.gemini_traffic === null) {
+    waitFor.push('gemini');
+  }
   if (!row.gpt5_consolidated) waitFor.push('gpt5');
 
-  const timeElapsedMs = row.created_at
-    ? (Date.now() - new Date(row.created_at).getTime())
-    : null;
+  const timeElapsedMs = safeElapsedMs(row);
 
   if (waitFor.length) {
     return {
       status: 'pending',
       snapshot_id: snapshotId,
       waitFor,
-      timeElapsedMs: timeElapsedMs ?? 0
+      timeElapsedMs
     };
   }
 
@@ -727,7 +732,7 @@ export async function getStrategyFast({ snapshotId }) {
       events: row.gemini_events,
       traffic: row.gemini_traffic
     },
-    timeElapsedMs: timeElapsedMs ?? 0
+    timeElapsedMs
   };
 }
 
