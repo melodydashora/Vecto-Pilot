@@ -173,6 +173,16 @@ Create a consolidated strategy using ONLY city and district names. Start with ge
       } catch (err) {
         console.error(`[triad-worker] ❌ Job ${jobId} failed:`, err.message);
         
+        // HARD FAIL on constraint errors - schema mismatch, don't retry
+        if (String(err?.message).includes('ON CONFLICT') || 
+            String(err?.message).includes('constraint') ||
+            String(err?.message).includes('unique') ||
+            String(err?.code) === '23505') {
+          console.error(`[triad-worker] 🛑 SCHEMA MISMATCH - ON CONFLICT or constraint violation detected`);
+          console.error(`[triad-worker] 🛑 Fix: Ensure unique index matches ON CONFLICT target`);
+          throw new Error('schema_mismatch_unique_index_required: ' + err.message);
+        }
+        
         // Mark job as error
         await db.execute(sql`
           UPDATE ${triad_jobs}
