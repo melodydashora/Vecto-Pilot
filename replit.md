@@ -81,3 +81,96 @@ All geographic computations use snapshot coordinates. Enrichment operations comp
 - ✅ Coordinates are preserved in `venue_catalog` and `rankings` tables
 
 **Impact**: Eliminated SQL errors during venue enrichment. All place data flows correctly into `places_cache` (hours) and `venue_catalog` (metadata/coordinates).
+
+### 2025-10-31: Strategy-First Gating & Comprehensive System Integration
+**Objective**: Enforce strategy-must-complete-before-blocks rendering, verify planner inputs, strengthen lock reliability, and document all unique indices.
+
+**1. Strategy-First Gating**:
+- ✅ `strategies` table has unique index on `snapshot_id` (verified)
+- ✅ `strategies.strategy_for_now` field stores GPT-5 consolidated output (unlimited text)
+- ✅ Created `isStrategyReady(snapshotId)` helper function in `server/lib/strategy-utils.js`
+- ✅ `GET /api/blocks/fast?snapshotId=<uuid>` returns:
+  - `202 { reason: 'strategy_pending' }` until `strategy_for_now` exists
+  - `200 { blocks[], audit[] }` once strategy is ready
+- ✅ blocks-fast GET endpoint uses `isStrategyReady()` for gating logic
+
+**2. Venue Planner & Event Planner Inputs** (Verified):
+- **Venue Planner** (`enrichVenues()` in `server/lib/venue-enrichment.js`):
+  - Receives: `venues[]`, `driverLocation {lat, lng}`, `snapshot` (full object)
+  - Snapshot provides: `formatted_address`, `city`, `state`, `lat`, `lng`, `timezone`, `snapshot_id`
+  - Outputs: `address`, `placeId`, `businessStatus`, `businessHours`, `isOpen`, `distanceMeters`, `driveTimeMinutes`, `stagingArea`
+- **Event Planner** (`researchVenueEvents()` in `server/lib/venue-event-research.js`):
+  - Receives: `venueName`, `city`, `date`
+  - Uses Perplexity API with `searchRecencyFilter: 'day'` for today's events
+  - Outputs: `has_events`, `summary`, `badge`, `citations`, `impact_level`
+- **Event Matching**: Direct coord match from planners + proximity enrichment (≤2 miles via Google Places)
+
+**3. Smart Blocks Perimeter Enforcement** (Verified):
+- **Build Sequence**: `Snapshot → Strategy (Claude + Gemini → GPT-5) → Persist → Venue Planner → Event Planner → blocks-fast payload`
+- **15-Minute Filter**: `blocks-fast.js` lines 57-79
+  ```javascript
+  const within15Min = (driveMin) => Number.isFinite(driveMin) && driveMin <= 15;
+  const blocks = allBlocks.filter(b => within15Min(b.driveTimeMinutes));
+  const rejected = allBlocks.filter(b => !within15Min(b.driveTimeMinutes)).length;
+  ```
+- **Audit Trail**: Returns `{ step: 'perimeter', accepted, rejected, max_minutes: 15 }`
+- **Render Rule**: Only blocks with `route.duration_minutes ≤ 15` appear above AI Coach
+
+**4. Lock & Job Reliability** (Verified):
+- **Triad-Worker Lock** (`server/jobs/triad-worker.js` lines 38-50):
+  - Lock key: `triad:${snapshot_id}` (per-snapshot isolation)
+  - TTL: 120,000ms (120 seconds)
+  - Acquisition: `acquireLock()` checks if lock is new OR expired (CASE statement in SQL)
+  - Release: `releaseLock()` in `finally` block (line 230-232)
+- **Job State Transitions**: `queued → running → ok|error` (transactional with SKIP LOCKED)
+- **Schema Mismatch Policy** (lines 192-214):
+  - Detects: `ON CONFLICT`, `constraint`, `unique`, error code `23505`
+  - Action: Mark job as `error`, set strategy status to `failed` with `error_message: 'schema_mismatch_unique_index_required'`
+  - **No retries** on schema mismatches - requires manual schema fix
+
+**5. Unique Indices & ON CONFLICT Alignment** (Verified):
+- **strategies**:
+  - Unique index: `strategies_snapshot_id_unique` on `snapshot_id`
+  - ON CONFLICT: ✅ Matches (upserts use `snapshot_id`)
+- **rankings**:
+  - Unique index: `ux_rankings_snapshot` on `snapshot_id`
+  - ON CONFLICT: ✅ Matches (upserts use `snapshot_id`)
+- **ranking_candidates**:
+  - Unique index: `ux_ranking_candidates_snapshot_place` on `(snapshot_id, place_id)`
+  - ON CONFLICT: ✅ Matches (upserts use both columns)
+- **venue_catalog**:
+  - Unique index: `venue_catalog_place_id_unique` on `place_id`
+  - ON CONFLICT: ✅ Matches (lines 32 in `persist-ranking.js`)
+- **venue_metrics**:
+  - Unique index: `venue_metrics_pkey` on `venue_id`
+  - ON CONFLICT: ✅ Matches (line 46 in `persist-ranking.js`)
+- **places_cache**:
+  - Unique index: `places_cache_pkey` on `place_id`
+  - ON CONFLICT: ✅ Matches (lines 42, 70 in `places-cache.js` and `places-hours.js`)
+- **worker_locks**:
+  - Unique index: `worker_locks_pkey` on `lock_key`
+  - ON CONFLICT: ✅ Matches (line 13 in `locks.js`)
+- **Memory Tables** (eidolon_memory, assistant_memory, cross_thread_memory):
+  - Unique constraint: `(scope, key, user_id)` composite
+  - ON CONFLICT: ✅ Matches (line 46 in `eidolon/memory/pg.js`)
+
+**6. Exit Criteria Verification**:
+- ✅ `/api/blocks/fast?snapshotId=<uuid>` returns 202 until strategy ready, then 200 with blocks
+- ✅ All blocks returned have `driveTimeMinutes ≤ 15` (perimeter enforcement)
+- ✅ Single triad-worker run per snapshot (lock prevents duplicates)
+- ✅ Locks released in `finally` blocks
+- ✅ No ON CONFLICT errors (all indices match upsert targets)
+- ✅ Planner inputs verified: snapshot_id, user_address (formatted_address), city, state, coords, timezone
+- ✅ Strategy context persisted: `strategy_for_now` in strategies table
+- ✅ Business hours stored in `places_cache`, coordinates in `venue_catalog` and `rankings`
+- ✅ Event data flows from Perplexity → venue_events → blocks payload
+
+**Implementation Files**:
+- `server/lib/strategy-utils.js` - New utility for `isStrategyReady()` and `getStrategyContext()`
+- `server/routes/blocks-fast.js` - Enhanced with strategy gating using helper function
+- `server/jobs/triad-worker.js` - Lock-protected job processing with schema mismatch detection
+- `server/lib/locks.js` - Lock acquisition with TTL and atomic CASE statement
+- `server/lib/venue-enrichment.js` - Receives full snapshot context for planners
+- `server/lib/venue-event-research.js` - Event planner with Perplexity integration
+
+**Impact**: Complete strategy-first architecture with deterministic gating, proper lock isolation, verified planner inputs, strict 15-minute perimeter enforcement, and schema-safe upsert operations. All exit criteria met.
