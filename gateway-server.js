@@ -147,8 +147,13 @@ if (isReplit) {
   app.head('/health', (_req, res) => res.status(200).end());
   app.get('/healthz', (_req, res) => res.status(200).json({ ok: true, mode: isDev ? 'dev' : 'prod', ts: Date.now() }));
   
-  // Root route: guaranteed shell (never shadowed by Vite or static files)
+  // Root route: redirect to app (shell available at /shell if needed)
   app.get('/', (_req, res) => {
+    res.redirect(302, '/app/');
+  });
+  
+  // Shell route for diagnostics
+  app.get('/shell', (_req, res) => {
     res.status(200).send(renderShellHtml({ mode: isDev ? 'dev' : 'prod' }));
   });
   
