@@ -175,7 +175,136 @@ async function saveStrategy(row) {
 }
 
 /**
- * Main parallel strategy generator
+ * Parallel provider writes - each lands independently
+ * GPT-5 consolidation happens via event-driven worker when all fields present
+ */
+export async function runParallelProviders({ snapshotId, user, snapshot }) {
+  const { lat, lng, city, state, user_address } = user;
+
+  console.log(`[parallel-providers] Starting independent writes for snapshot ${snapshotId}`);
+
+  // Fire both providers concurrently, let them resolve independently
+  const claudePromise = callClaudeCore({ 
+    snapshotId, 
+    userAddress: user_address, 
+    city, 
+    state, 
+    snapshot 
+  }).then(async (result) => {
+    try {
+      if (result.ok) {
+        await db
+          .update(strategies)
+          .set({
+            claude_strategy: result.plan || null,
+            lat, lng, city, state, user_address,
+            status: 'partial',
+            updated_at: new Date(),
+          })
+          .where(eq(strategies.snapshot_id, snapshotId));
+        console.log(`[parallel-providers] ✅ Claude strategy written (${result.plan.length} chars)`);
+      } else {
+        throw new Error(result.reason || 'Claude call failed');
+      }
+    } catch (err) {
+      await db.update(strategies).set({
+        error_message: `[claude] ${err.message?.slice(0, 800)}`,
+        status: 'partial',
+        updated_at: new Date(),
+      }).where(eq(strategies.snapshot_id, snapshotId));
+      console.error(`[parallel-providers] ❌ Claude write failed:`, err.message);
+    }
+  }).catch(async (err) => {
+    await db.update(strategies).set({
+      error_message: `[claude] ${err.message?.slice(0, 800)}`,
+      status: 'partial',
+      updated_at: new Date(),
+    }).where(eq(strategies.snapshot_id, snapshotId));
+    console.error(`[parallel-providers] ❌ Claude promise rejected:`, err.message);
+  });
+
+  const geminiPromise = callGeminiFeeds({ 
+    userAddress: user_address, 
+    city, 
+    state 
+  }).then(async (result) => {
+    try {
+      if (result.ok) {
+        await db
+          .update(strategies)
+          .set({
+            gemini_news: result.news ?? [],
+            gemini_events: result.events ?? [],
+            gemini_traffic: result.traffic ?? [],
+            lat, lng, city, state, user_address,
+            status: 'partial',
+            updated_at: new Date(),
+          })
+          .where(eq(strategies.snapshot_id, snapshotId));
+        console.log(`[parallel-providers] ✅ Gemini feeds written (news=${result.news.length}, events=${result.events.length}, traffic=${result.traffic.length})`);
+      } else {
+        throw new Error(result.reason || 'Gemini call failed');
+      }
+    } catch (err) {
+      await db.update(strategies).set({
+        error_message: `[gemini] ${err.message?.slice(0, 800)}`,
+        status: 'partial',
+        updated_at: new Date(),
+      }).where(eq(strategies.snapshot_id, snapshotId));
+      console.error(`[parallel-providers] ❌ Gemini write failed:`, err.message);
+    }
+  }).catch(async (err) => {
+    await db.update(strategies).set({
+      error_message: `[gemini] ${err.message?.slice(0, 800)}`,
+      status: 'partial',
+      updated_at: new Date(),
+    }).where(eq(strategies.snapshot_id, snapshotId));
+    console.error(`[parallel-providers] ❌ Gemini promise rejected:`, err.message);
+  });
+
+  // Don't await - let them resolve independently
+  // The LISTEN/NOTIFY trigger will fire consolidation when all fields present
+  return { ok: true, note: 'Parallel writes initiated, consolidation will be triggered by db event' };
+}
+
+/**
+ * GPT-5 consolidation - called by event-driven worker
+ */
+export async function consolidateStrategy({ snapshotId, claudeStrategy, geminiNews, geminiEvents, geminiTraffic, user }) {
+  console.log(`[consolidation] Starting GPT-5 consolidation for snapshot ${snapshotId}`);
+
+  try {
+    const consolidated = await consolidateWithGPT5Thinking({
+      plan: claudeStrategy,
+      events: geminiEvents || [],
+      news: geminiNews || [],
+      traffic: geminiTraffic || []
+    });
+
+    if (!consolidated.ok) {
+      throw new Error(consolidated.reason || 'GPT-5 consolidation failed');
+    }
+
+    await db.update(strategies).set({
+      gpt5_consolidated: consolidated.strategy || '',
+      status: 'ok',
+      updated_at: new Date()
+    }).where(eq(strategies.snapshot_id, snapshotId));
+
+    console.log(`[consolidation] ✅ GPT-5 consolidated (${consolidated.strategy.length} chars)`);
+    return { ok: true };
+  } catch (err) {
+    console.error(`[consolidation] ❌ Failed:`, err.message);
+    await db.update(strategies).set({
+      error_message: `[gpt5] ${err.message?.slice(0, 800)}`,
+      updated_at: new Date()
+    }).where(eq(strategies.snapshot_id, snapshotId));
+    return { ok: false, reason: err.message };
+  }
+}
+
+/**
+ * Legacy main function - kept for backwards compatibility
  */
 export async function generateMultiStrategy(ctx) {
   const startTime = Date.now();
