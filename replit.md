@@ -99,8 +99,29 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 
 **Result**: NavigationTabs and all page content now visible below the GlobalHeader.
 
-### Preview/Deployment Status
-- **Localhost**: Server responds correctly on http://localhost:5000/app/ and http://0.0.0.0:5000/healthz
-- **External URL**: https://workspace.melodydashora.repl.co does not respond (Replit proxy/port forwarding issue)
-- **Port Configuration**: `.replit` configured with localPort 5000 → externalPort 80
-- **Server Binding**: Listening on `0.0.0.0:5000` (all interfaces) - confirmed via `lsof`
+### Known Issues
+
+#### External Preview URL Returns "Cannot GET /app/"
+**Status**: ACTIVE ISSUE - Server works on localhost but Replit preview shows "Cannot GET /app/"
+
+**Verified Working:**
+- ✅ Server listening on `0.0.0.0:5000` (verified via `lsof`)
+- ✅ Port config: localPort 5000 → externalPort 80 (.replit file)
+- ✅ `/healthz` returns HTTP 200 with JSON {"ok":true}
+- ✅ `/app/` returns HTTP 200 with full HTML (localhost test confirmed)
+- ✅ Root `/` redirects to `/app/` with HTTP 302
+- ✅ Frontend routes mounted BEFORE heavy init (lines 290-352)
+- ✅ `client/dist` exists with latest build (NavigationTabs + padding fix)
+
+**Still Broken:**
+- ❌ External Replit preview URL shows "Cannot GET /app/"
+- ❌ Webview doesn't refresh when workflow restarts
+- ❌ Browser cache may be serving old error page
+
+**Troubleshooting Steps:**
+1. Server configuration is correct - all localhost tests pass
+2. Issue is with Replit's external URL proxy/caching
+3. Try: Open preview in new browser tab (not embedded webview)
+4. Try: Hard refresh browser (Ctrl+Shift+R)
+5. Try: Clear browser cache and reload
+6. Possible Replit platform caching issue with external URL forwarding
