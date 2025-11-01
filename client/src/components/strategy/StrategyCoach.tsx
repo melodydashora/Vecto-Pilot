@@ -1,7 +1,8 @@
 import { useStrategy } from '../../hooks/useStrategy';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Sparkles, Brain } from 'lucide-react';
+import { Sparkles, Brain, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 export function StrategyCoach({ snapshotId }: { snapshotId?: string }) {
   const { data, loading } = useStrategy(snapshotId);
@@ -12,6 +13,8 @@ export function StrategyCoach({ snapshotId }: { snapshotId?: string }) {
 
   const min = data?.strategy?.min;
   const consolidated = data?.strategy?.consolidated;
+  const status = data?.status;
+  const isPartial = status === 'ok_partial';
 
   if (!min && !consolidated) {
     return (
@@ -37,9 +40,20 @@ export function StrategyCoach({ snapshotId }: { snapshotId?: string }) {
             <div className="flex items-center gap-2 mb-2">
               <h3 className="font-semibold text-sm text-purple-900">AI Strategy Coach</h3>
               <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
-                Live Analysis
+                {isPartial ? 'Partial Analysis' : 'Live Analysis'}
               </Badge>
             </div>
+            
+            {isPartial && (
+              <Alert className="mb-3 bg-yellow-50 border-yellow-300" data-testid="partial-strategy-warning">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertTitle className="text-yellow-900 text-sm font-semibold">Partial Strategy</AlertTitle>
+                <AlertDescription className="text-yellow-800 text-xs">
+                  Showing synthesized plan from tactical analysis and market intelligence. All data is current.
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <CoachBody min={min} consolidated={consolidated} />
             {data?.strategy?.holiday && (
               <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
