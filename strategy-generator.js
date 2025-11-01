@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // strategy-generator.js - Triad Worker Entry Point
-// Runs the background strategy generation loop independently
+// Runs the consolidation listener only (LISTEN mode, no hot polling)
 
-console.log('[strategy-generator] 🚀 Triad worker starting...');
+console.log('[strategy-generator] 🚀 Triad worker starting (LISTEN-only mode)...');
 console.log('[strategy-generator] Environment:');
 console.log(`  NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`  DATABASE_URL=${process.env.DATABASE_URL ? '***configured***' : 'MISSING'}`);
@@ -21,30 +21,19 @@ try {
   process.exit(1);
 }
 
-// Now start the worker loop
-import { processTriadJobs } from './server/jobs/triad-worker.js';
-import { startConsolidationListener } from './server/lib/strategy-consolidator.js';
+// Import the LISTEN-only worker
+import { startConsolidationListener } from './server/jobs/triad-worker.js';
 
-console.log('[strategy-generator] ✅ Starting consolidation listener first...');
+console.log('[strategy-generator] ✅ Starting consolidation listener...');
 
-// Start the consolidation listener FIRST (before worker loop)
 try {
   await startConsolidationListener();
   console.log('[strategy-generator] ✅ Consolidation listener started successfully');
 } catch (err) {
   console.error('[strategy-generator] ❌ Consolidation listener error:', err.message);
   console.error(err.stack);
+  process.exit(1);
 }
-
-console.log('[strategy-generator] ✅ Starting worker loop...');
-
-// Start the worker loop (this is an infinite loop, so it never returns)
-processTriadJobs()
-  .catch(err => {
-    console.error('[strategy-generator] ❌ Fatal error:', err.message);
-    console.error(err.stack);
-    process.exit(1);
-  });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
@@ -59,5 +48,5 @@ process.on('SIGINT', () => {
 
 // Log every 10 seconds to prove worker is alive
 setInterval(() => {
-  console.log('[strategy-generator] ❤️ Worker heartbeat - still running...');
+  console.log('[strategy-generator] ❤️ Listener heartbeat - still running...');
 }, 10000);
