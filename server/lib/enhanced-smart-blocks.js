@@ -6,31 +6,46 @@ import { db } from '../db/drizzle.js';
 import { rankings, ranking_candidates } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { generateTacticalPlan } from './gpt5-tactical-planner.js';
+import { hasRenderableBriefing } from './strategy-utils.js';
 
 /**
  * Generate enhanced smart blocks using GPT-5 venue planner
- * Takes consolidated strategy + user location → venue recommendations
+ * Takes consolidated strategy + briefing + user location → venue recommendations
  * 
  * @param {Object} params
  * @param {string} params.snapshotId - Snapshot ID
- * @param {string} params.strategy - Consolidated strategy text
+ * @param {string} params.consolidated - Consolidated strategy text (required)
+ * @param {Object} params.briefing - Gemini briefing (required)
  * @param {Object} params.snapshot - Snapshot context
  * @param {string} params.user_id - User ID
  */
-export async function generateEnhancedSmartBlocks({ snapshotId, strategy, snapshot, user_id }) {
+export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, briefing, snapshot, user_id }) {
   const startTime = Date.now();
   const correlationId = randomUUID();
   const rankingId = randomUUID();
   
   console.log(`[ENHANCED-BLOCKS] Starting venue planner for snapshot ${snapshotId}`);
-  console.log(`[ENHANCED-BLOCKS] Strategy preview: "${strategy.slice(0, 100)}..."`);
+  
+  // Guard: Check if consolidated strategy exists and is not empty
+  if (!consolidated || typeof consolidated !== 'string' || !consolidated.trim()) {
+    throw new Error('blocks_input_missing_consolidated');
+  }
+  
+  // Guard: Check if briefing has renderable content
+  if (!hasRenderableBriefing(briefing)) {
+    throw new Error('blocks_input_missing_briefing');
+  }
+  
+  console.log(`[ENHANCED-BLOCKS] ✅ Input validation passed`);
+  console.log(`[ENHANCED-BLOCKS] Strategy preview: "${consolidated.slice(0, 100)}..."`);
+  console.log(`[ENHANCED-BLOCKS] Briefing: events=${briefing.events?.length || 0}, holidays=${briefing.holidays?.length || 0}, traffic=${briefing.traffic?.length || 0}, news=${briefing.news?.length || 0}`);
   console.log(`[ENHANCED-BLOCKS] Location: ${snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`}`);
   
   try {
     // Step 1: Call GPT-5 Venue Planner
     const plannerStart = Date.now();
     const venuesPlan = await generateTacticalPlan({
-      strategy,
+      strategy: consolidated,
       snapshot
     });
     const plannerMs = Date.now() - plannerStart;
