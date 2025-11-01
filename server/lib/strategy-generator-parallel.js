@@ -110,19 +110,48 @@ Return JSON with events[], news[], traffic[] arrays.`;
 /**
  * Call GPT-5 to consolidate Claude plan + Gemini feeds
  */
-async function consolidateWithGPT5Thinking({ plan, events, news, traffic }) {
+async function consolidateWithGPT5Thinking({ plan, events, news, traffic, snapshot, holiday }) {
   try {
-    const developerPrompt = `You are a rideshare strategy consolidator. Combine Claude's strategic plan with Gemini's real-time intelligence (events, news, traffic) into a single cohesive 3-5 sentence strategy. Keep it conversational, urgent, and action-oriented.`;
+    // Format date and time context
+    const currentTime = snapshot?.created_at ? new Date(snapshot.created_at) : new Date();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const dayName = dayNames[currentTime.getDay()];
+    const monthName = monthNames[currentTime.getMonth()];
+    const dayNum = currentTime.getDate();
+    const year = currentTime.getFullYear();
+    const hour = currentTime.getHours();
+    
+    const timeStr = currentTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: snapshot?.timezone || 'America/Chicago'
+    });
+    
+    // Format: "Friday, October 31, 2025 at 6:45 PM"
+    const formattedDateTime = `${dayName}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
+    
+    const developerPrompt = `You are a rideshare strategy consolidator. Create a time-aware, actionable strategy that references specific times, dates, and events happening TODAY. Be conversational, urgent, and specific about timing (e.g., "tonight's game", "this evening", "in the next hour"). Keep it 3-5 sentences.`;
 
-    const userPrompt = `CLAUDE STRATEGIC PLAN:
-${plan}
+    const userPrompt = `CURRENT DATE & TIME: ${formattedDateTime}
+DAY OF WEEK: ${dayName}${holiday ? `\nHOLIDAY: ${holiday} 🎉` : ''}
+TIME OF DAY: ${snapshot?.day_part_key || 'unknown'}
 
-GEMINI REAL-TIME INTELLIGENCE:
+LOCATION: ${snapshot?.city || 'unknown'}, ${snapshot?.state || 'unknown'}
+WEATHER: ${snapshot?.weather?.tempF || 'unknown'}°F, ${snapshot?.weather?.conditions || 'unknown'}
+
+REAL-TIME INTELLIGENCE:
 Events: ${events.length > 0 ? events.join('; ') : 'none'}
 News: ${news.length > 0 ? news.join('; ') : 'none'}
 Traffic: ${traffic.length > 0 ? traffic.join('; ') : 'none'}
 
-Consolidate into a single strategy that naturally integrates the intelligence into the strategic analysis.`;
+Generate a strategy that:
+1. References the specific date/time (e.g., "tonight", "this ${dayName} evening")
+2. Mentions the holiday if present
+3. Integrates the real-time intelligence naturally
+4. Provides actionable positioning advice for RIGHT NOW`;
 
     const result = await callGPT5({
       developer: developerPrompt,
@@ -224,13 +253,23 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
 
     console.log(`[SIMPLE-STRATEGY] ✅ Briefings extracted from snapshot (holiday=${holiday || 'none'}, news=${geminiResult.news.length}, events=${geminiResult.events.length}, traffic=${geminiResult.traffic.length})`);
 
-    // Step 2: Send directly to GPT-5 for strategy
-    console.log(`[SIMPLE-STRATEGY] 🚀 Sending briefings to GPT-5...`);
+    // Step 2: Send directly to GPT-5 for strategy with full temporal context
+    console.log(`[SIMPLE-STRATEGY] 🚀 Sending briefings to GPT-5 with date/holiday context...`);
     const consolidated = await consolidateWithGPT5Thinking({
       plan: null,  // No Claude plan needed
       events: geminiResult.events || [],
       news: geminiResult.news || [],
-      traffic: geminiResult.traffic || []
+      traffic: geminiResult.traffic || [],
+      snapshot: {
+        ...snapshot,
+        created_at: snapshotData.created_at,
+        timezone: snapshotData.timezone,
+        city: city,
+        state: state,
+        weather: snapshotData.weather,
+        day_part_key: snapshot.day_part_key
+      },
+      holiday: geminiResult.holiday
     });
 
     if (!consolidated.ok) {
@@ -291,7 +330,7 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
 /**
  * GPT-5 consolidation - called by event-driven worker
  */
-export async function consolidateStrategy({ snapshotId, claudeStrategy, geminiNews, geminiEvents, geminiTraffic, user }) {
+export async function consolidateStrategy({ snapshotId, claudeStrategy, geminiNews, geminiEvents, geminiTraffic, user, snapshot, holiday }) {
   console.log(`[consolidation] Starting GPT-5 consolidation for snapshot ${snapshotId}`);
 
   try {
@@ -299,7 +338,9 @@ export async function consolidateStrategy({ snapshotId, claudeStrategy, geminiNe
       plan: claudeStrategy,
       events: geminiEvents || [],
       news: geminiNews || [],
-      traffic: geminiTraffic || []
+      traffic: geminiTraffic || [],
+      snapshot: snapshot || {},
+      holiday: holiday || null
     });
 
     if (!consolidated.ok) {
