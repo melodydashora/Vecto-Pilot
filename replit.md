@@ -16,13 +16,26 @@ Vecto Pilot is a full-stack Node.js application with a multi-service architectur
 
 ### AI Configuration
 The platform uses a model-agnostic architecture with configurable AI models for strategy generation and venue events intelligence.
-**Strategy Generation Pipeline**:
-1.  **News Briefing Generator**: Collects city-wide traffic, airport, and major event data.
-2.  **Strategist**: Performs initial strategic analysis.
-3.  **Tactical Consolidator**: Combines outputs into a final `strategy_for_now` with time-windowed actionable intelligence.
-4.  **Validator**: Validates the final strategy.
+
+**Strategy Generation Pipeline** (Event-Driven LISTEN/NOTIFY):
+1.  **Minstrategy** (Claude via `server/lib/providers/minstrategy.js`): Generates initial strategic analysis based on snapshot context → writes `strategies.minstrategy`
+2.  **Briefing** (Gemini via `server/lib/providers/briefing.js`): Generates real-time city intelligence → writes `strategies.briefing` (JSONB: `{events, holidays, traffic, news}`)
+3.  **Consolidator** (GPT-5 via `server/lib/strategy-consolidator.js`): Automatically triggered by PostgreSQL NOTIFY when both minstrategy + briefing ready → writes `strategies.consolidated_strategy`
+
+**Model-Agnostic Schema**:
+- Database columns use generic names (no provider-specific prefixes like `claude_`, `gemini_`, `gpt5_`)
+- Critical fields: `minstrategy` (text), `briefing` (jsonb), `consolidated_strategy` (text)
+- Trigger: `strategies_ready_trg` fires on UPDATE of `minstrategy` or `briefing`, sending NOTIFY to `strategy_ready` channel
+
+**Event-Driven Architecture**:
+- PostgreSQL LISTEN/NOTIFY replaces polling loops
+- Worker (`strategy-generator.js`) starts consolidation listener on boot
+- Advisory locks prevent duplicate consolidations per snapshot
+- Automatic catch-up: consolidator processes pending strategies on startup
+
 **Venue Events Intelligence**:
 -   **Events Researcher**: Researches real-time, venue-specific events for UI display.
+
 The system uses parallel multi-model orchestration (Claude, Gemini, GPT-5) and persists critical context to a PostgreSQL database.
 
 ### Frontend Architecture
@@ -87,6 +100,30 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Recent Changes
+
+### Model-Agnostic Strategy Pipeline (November 2025)
+**Goal**: Eliminate provider-specific field names, use event-driven consolidation instead of polling.
+
+**Implementation**:
+- **Single Briefing Field**: Gemini writes to `strategies.briefing` (JSONB) containing `{events, holidays, traffic, news}` instead of separate `briefing_news/events/traffic` arrays
+- **PostgreSQL Trigger**: `notify_strategy_ready()` fires when both `minstrategy` and `briefing` are populated, sending NOTIFY on `strategy_ready` channel
+- **LISTEN/NOTIFY Consolidation**: `strategy-consolidator.js` listens for notifications and automatically consolidates via GPT-5 when both inputs ready
+- **Advisory Locks**: Uses `pg_try_advisory_lock` to prevent duplicate consolidations per snapshot
+- **API Surface**: `GET /api/strategy/:snapshotId` returns `{status, min, briefing, consolidated, waitFor, timeElapsedMs}`
+- **Test Routes**: `/api/diagnostics/test-claude/:id`, `/api/diagnostics/test-briefing/:id`, `/api/diagnostics/strategy-status/:id`
+
+**Files**:
+- `server/lib/providers/minstrategy.js` - Claude provider
+- `server/lib/providers/briefing.js` - Gemini provider (writes single JSONB)
+- `server/lib/strategy-consolidator.js` - GPT-5 consolidator with LISTEN/NOTIFY
+- `server/routes/strategy.js` - Strategy API endpoints
+- `server/routes/diagnostics-strategy.js` - Test/diagnostic routes
+- `server/lib/strategy-utils.js` - Shared utilities (ensureStrategyRow)
+- `server/lib/snapshot/get-snapshot-context.js` - Snapshot context loader
+
+**Impact**: Fully automatic event-driven pipeline with no polling, model-agnostic schema, and guaranteed single consolidation per snapshot.
 
 ## Architectural Decisions & Retired Components
 
