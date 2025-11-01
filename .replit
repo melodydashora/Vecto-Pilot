@@ -1,15 +1,21 @@
+# Entrypoint and runtime modules
 entrypoint = "gateway-server.js"
 modules = ["postgresql-16", "python-3.11", "nodejs-20"]
+
+# Primary run command (Run button / default start)
 run = "sh -c 'export $(cat mono-mode.env | xargs) && npm run start:replit'"
 
+# Nix/packages configuration
 [nix]
 packages = ["jq", "lsof", "nodejs-22", "tree"]
 channel = "stable-25_05"
 
+# Deployment settings (CI-like build/start)
 [deployment]
-build = ["sh", "-c", "npm ci --omit=dev"]
-run = ["sh", "-c", "./start-mono.sh"]
+build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
+run = ["sh", "-c", "export $(cat mono-mode.env | xargs) && ./start-mono.sh"]
 
+# Port mappings
 [[ports]]
 localPort = 5000
 externalPort = 80
@@ -18,7 +24,7 @@ externalPort = 80
 localPort = 5173
 externalPort = 5173
 
-
+# Workflows
 [workflows]
 runButton = "Run App"
 
