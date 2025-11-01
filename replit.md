@@ -24,6 +24,7 @@ The platform uses a model-agnostic architecture with configurable AI models.
 **Frontend Architecture**:
 A **React + TypeScript Single Page Application (SPA)**, built with Vite, uses Radix UI, TailwindCSS, and React Query.
 -   **UI Layout**: Features a Strategy Section for consolidated strategies, Smart Blocks for ranked venue recommendations (with event badges, earnings, drive time, and value grades within a 15-minute perimeter), and an AI Coach.
+-   **Debug Briefing Tab**: A debug view accessible via navigation tabs that displays raw database outputs from the AI pipeline, including sections for General Strategy (`minstrategy`), Traffic, News, Venues/Events (from `briefing` JSONB), and Consolidation (`consolidated_strategy`).
 
 **Data Storage**:
 A **PostgreSQL Database** with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It includes enhanced memory systems and uses unique indexes for data integrity.
