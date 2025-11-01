@@ -6,6 +6,7 @@ import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 import { callGemini } from '../adapters/google-gemini.js';
+import { normalizeBriefingShape } from '../strategy-utils.js';
 
 /**
  * Run briefing generation using Gemini
@@ -73,36 +74,48 @@ Generate real-time intelligence briefing for the next 60 minutes in the 15-mile 
     });
 
     // Parse JSON response - with responseMimeType, Gemini returns clean JSON
-    let briefing = { events: [], holidays: [], traffic: [], news: [] };
+    let briefing = null;
+    let parsed = null;
+    
+    // Defensive parsing with multiple fallback strategies
     try {
-      // Try direct parse first (when responseMimeType is set)
-      const parsed = typeof response === 'string' ? JSON.parse(response) : response;
-      briefing = {
-        events: Array.isArray(parsed.events) ? parsed.events : [],
-        holidays: Array.isArray(parsed.holidays) ? parsed.holidays : (holiday ? [holiday] : []),
-        traffic: Array.isArray(parsed.traffic) ? parsed.traffic : [],
-        news: Array.isArray(parsed.news) ? parsed.news : []
-      };
-      console.log(`[briefing] Parsed response: events=${briefing.events.length}, holidays=${briefing.holidays.length}, traffic=${briefing.traffic.length}, news=${briefing.news.length}`);
+      // Strategy 1: Direct parse (when responseMimeType: application/json)
+      parsed = typeof response === 'string' ? JSON.parse(response) : response;
+      console.log(`[briefing] ✅ Direct JSON parse successful`);
     } catch (parseError) {
-      console.warn(`[briefing] JSON parse error for ${snapshotId}:`, parseError.message, 'Response:', response?.substring?.(0, 200));
-      // Fallback: Try regex extraction
-      try {
-        const jsonMatch = String(response).match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          briefing = {
-            events: Array.isArray(parsed.events) ? parsed.events : [],
-            holidays: Array.isArray(parsed.holidays) ? parsed.holidays : (holiday ? [holiday] : []),
-            traffic: Array.isArray(parsed.traffic) ? parsed.traffic : [],
-            news: Array.isArray(parsed.news) ? parsed.news : []
-          };
+      console.warn(`[briefing] Direct JSON parse failed, trying extraction...`);
+      
+      // Strategy 2: Extract JSON substring between first '{' and last '}'
+      const responseStr = String(response);
+      const start = responseStr.indexOf('{');
+      const end = responseStr.lastIndexOf('}');
+      
+      if (start !== -1 && end !== -1 && end > start) {
+        const candidate = responseStr.slice(start, end + 1);
+        try {
+          parsed = JSON.parse(candidate);
+          console.log(`[briefing] ✅ Extracted JSON parse successful`);
+        } catch (extractError) {
+          console.error(`[briefing] ❌ Extraction parse failed:`, extractError.message);
         }
-      } catch (regexError) {
-        console.error(`[briefing] Regex extraction also failed, using defaults`);
-        if (holiday) briefing.holidays = [holiday];
       }
     }
+    
+    // Normalize parsed data to ensure consistent shape
+    if (parsed) {
+      briefing = normalizeBriefingShape(parsed);
+      // Add fallback holiday if present
+      if (holiday && (!briefing.holidays || briefing.holidays.length === 0)) {
+        briefing.holidays = [holiday];
+      }
+    } else {
+      // Last resort: Return default shape with holiday if available
+      briefing = normalizeBriefingShape({});
+      if (holiday) briefing.holidays = [holiday];
+      console.warn(`[briefing] ⚠️ Using default empty shape with holiday=${holiday || 'none'}`);
+    }
+    
+    console.log(`[briefing] Final briefing: events=${briefing.events.length}, holidays=${briefing.holidays.length}, traffic=${briefing.traffic.length}, news=${briefing.news.length}`);
 
     // Write to single JSONB field
     await db.update(strategies).set({
