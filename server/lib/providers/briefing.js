@@ -72,22 +72,36 @@ Generate real-time intelligence briefing for the next 60 minutes in the 15-mile 
       responseMimeType: 'application/json'
     });
 
-    // Parse JSON response
+    // Parse JSON response - with responseMimeType, Gemini returns clean JSON
     let briefing = { events: [], holidays: [], traffic: [], news: [] };
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        briefing = {
-          events: Array.isArray(parsed.events) ? parsed.events : [],
-          holidays: Array.isArray(parsed.holidays) ? parsed.holidays : (holiday ? [holiday] : []),
-          traffic: Array.isArray(parsed.traffic) ? parsed.traffic : [],
-          news: Array.isArray(parsed.news) ? parsed.news : []
-        };
-      }
+      // Try direct parse first (when responseMimeType is set)
+      const parsed = typeof response === 'string' ? JSON.parse(response) : response;
+      briefing = {
+        events: Array.isArray(parsed.events) ? parsed.events : [],
+        holidays: Array.isArray(parsed.holidays) ? parsed.holidays : (holiday ? [holiday] : []),
+        traffic: Array.isArray(parsed.traffic) ? parsed.traffic : [],
+        news: Array.isArray(parsed.news) ? parsed.news : []
+      };
+      console.log(`[briefing] Parsed response: events=${briefing.events.length}, holidays=${briefing.holidays.length}, traffic=${briefing.traffic.length}, news=${briefing.news.length}`);
     } catch (parseError) {
-      console.warn(`[briefing] JSON parse error for ${snapshotId}, using defaults`);
-      if (holiday) briefing.holidays = [holiday];
+      console.warn(`[briefing] JSON parse error for ${snapshotId}:`, parseError.message, 'Response:', response?.substring?.(0, 200));
+      // Fallback: Try regex extraction
+      try {
+        const jsonMatch = String(response).match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          briefing = {
+            events: Array.isArray(parsed.events) ? parsed.events : [],
+            holidays: Array.isArray(parsed.holidays) ? parsed.holidays : (holiday ? [holiday] : []),
+            traffic: Array.isArray(parsed.traffic) ? parsed.traffic : [],
+            news: Array.isArray(parsed.news) ? parsed.news : []
+          };
+        }
+      } catch (regexError) {
+        console.error(`[briefing] Regex extraction also failed, using defaults`);
+        if (holiday) briefing.holidays = [holiday];
+      }
     }
 
     // Write to single JSONB field
