@@ -393,11 +393,17 @@ if (isReplit) {
           console.log('[gateway] Serving SPA from', CLIENT_DIST);
           app.use('/app', express.static(CLIENT_DIST, { index: 'index.html' }));
           app.get(['/app', '/app/*'], (req, res) => {
+            console.log('[gateway] SPA route hit:', req.path);
             res.sendFile(path.join(CLIENT_DIST, 'index.html'));
           });
         } else {
           console.warn('[gateway] No client build found — /app/ will 404 until you build the client.');
         }
+        
+        app.use((req, res, next) => {
+          console.log('[gateway] Unmatched request:', req.method, req.path);
+          next();
+        });
       }
     }
 
