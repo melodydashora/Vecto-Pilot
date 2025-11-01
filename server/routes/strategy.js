@@ -17,11 +17,15 @@ router.get('/strategy/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
+    console.log(`[strategy] GET /api/strategy/${snapshotId} - Fetching from DB...`);
     const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
     if (!row) {
+      console.log(`[strategy] ❌ Strategy not found for snapshot ${snapshotId}`);
       return res.status(404).json({ error: 'not_found', snapshot_id: snapshotId });
     }
+    
+    console.log(`[strategy] ✅ Strategy found: status=${row.status}, has_consolidated=${!!row.consolidated_strategy}`);
 
     const hasMin = !!(row.minstrategy && row.minstrategy.trim().length);
     const hasBriefing = !!(row.briefing && JSON.stringify(row.briefing) !== '{}');

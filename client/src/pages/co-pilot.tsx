@@ -267,6 +267,7 @@ const CoPilot: React.FC = () => {
     // Note: selectedModel and modelParameter NOT in queryKey to avoid cancelling previous requests during testing
     queryKey: ['/api/blocks', coords?.latitude, coords?.longitude, distanceFilter, locationContext.locationSessionId, lastSnapshotId],
     queryFn: async () => {
+      console.log('[blocks-query] Starting blocks fetch for snapshot:', lastSnapshotId);
       if (!coords) throw new Error('No GPS coordinates');
       
       // 3min 50s timeout for Triad orchestrator (Claude 15s + GPT-5 120s + Gemini 20s + buffer)
@@ -406,14 +407,16 @@ const CoPilot: React.FC = () => {
       
       const shouldEnable = hasCoords && hasSnapshot && !isStrategyFetching && strategyReady && snapshotMatches;
       
-      console.log('[blocks-query] Gating check:', {
-        coords: hasCoords,
+      console.log('[blocks-query] 🔍 GATING CHECK:', {
+        hasCoords,
+        hasSnapshot,
         lastSnapshotId,
         isStrategyFetching,
         strategyStatus: strategyData?.status,
         strategyReady,
         strategySnapshotId: strategyData?._snapshotId,
         snapshotMatches,
+        '⚠️ BLOCKED_REASON': !shouldEnable ? (!hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : isStrategyFetching ? 'STRATEGY_FETCHING' : !strategyReady ? 'STRATEGY_NOT_READY' : !snapshotMatches ? 'SNAPSHOT_MISMATCH' : 'UNKNOWN') : 'NONE',
         shouldEnable
       });
       
