@@ -161,3 +161,37 @@ export function compressText(text, maxLength) {
   if (!text) return '';
   return text.length > maxLength ? text.slice(0, maxLength) + '…' : text;
 }
+
+/**
+ * Check if briefing has renderable content (not just an empty object)
+ * @param {Object} briefing - Gemini briefing {events, holidays, traffic, news}
+ * @returns {boolean} - True if briefing has at least one populated field
+ */
+export function hasRenderableBriefing(briefing) {
+  if (!briefing || typeof briefing !== 'object') return false;
+  
+  const { events, holidays, traffic, news } = briefing;
+  
+  return (
+    (Array.isArray(events) && events.length > 0) ||
+    (Array.isArray(holidays) && holidays.length > 0) ||
+    (Array.isArray(news) && news.length > 0) ||
+    (Array.isArray(traffic) && traffic.length > 0) ||
+    (traffic && typeof traffic === 'object' && Object.keys(traffic).length > 0)
+  );
+}
+
+/**
+ * Normalize briefing to ensure consistent shape
+ * Guarantees all fields are arrays/objects even if input is malformed
+ * @param {any} briefing - Raw briefing data
+ * @returns {Object} - Normalized briefing with guaranteed shape
+ */
+export function normalizeBriefingShape(briefing) {
+  return {
+    events: Array.isArray(briefing?.events) ? briefing.events : [],
+    holidays: Array.isArray(briefing?.holidays) ? briefing.holidays : [],
+    news: Array.isArray(briefing?.news) ? briefing.news : [],
+    traffic: Array.isArray(briefing?.traffic) ? briefing.traffic : []
+  };
+}
