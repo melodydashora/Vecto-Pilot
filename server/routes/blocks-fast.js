@@ -143,6 +143,19 @@ router.post('/', async (req, res) => {
       return sendOnce(400, { error: 'snapshot_required', message: 'snapshot_id is required' });
     }
 
+    // CRITICAL: Create triad_job to trigger provider pipeline
+    const { triad_jobs } = await import('../../shared/schema.js');
+    try {
+      await db.insert(triad_jobs).values({
+        snapshot_id: snapshotId,
+        kind: 'triad',
+        status: 'queued'
+      }).onConflictDoNothing();
+      console.log(`[blocks-fast POST] ✅ Triad job queued for ${snapshotId}`);
+    } catch (jobErr) {
+      console.warn(`[blocks-fast POST] Job insertion skipped (may already exist):`, jobErr.message);
+    }
+
     // ============================================
     // STEP 1: Load snapshot (REQUIRED for origin coords)
     // ============================================
