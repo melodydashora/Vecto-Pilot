@@ -94,7 +94,7 @@ if (isReplit) {
 (async function main() {
   // ❌ REMOVED: assertStrategies() - moved to post-listen yielded ladder
   // This was blocking the event loop and causing Cloud Run health check failures
-  
+
   const app = express();
   app.set('trust proxy', 1);
 
@@ -103,7 +103,7 @@ if (isReplit) {
   //    Cloud Run/Replit health probes MUST get instant 200 response
   //    Note: Root / serves the app, dedicated health paths for probes
   // ═══════════════════════════════════════════════════════════════════
-  
+
   // Shell renderer function
   function renderShellHtml({ mode }) {
     return `<!doctype html>
@@ -142,10 +142,10 @@ if (isReplit) {
       </body>
     </html>`;
   }
-  
+
   app.get('/health', (_req, res) => res.status(200).send('OK'));
   app.head('/health', (_req, res) => res.status(200).end());
-  
+
   // Health check with client build verification
   app.get('/healthz', async (_req, res) => {
     const path = await import('path');
@@ -154,13 +154,13 @@ if (isReplit) {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const clientDist = path.join(__dirname, 'client/dist');
     const indexPath = path.join(clientDist, 'index.html');
-    
+
     if (existsSync(indexPath)) {
       return res.status(200).json({ ok: true, spa: 'ready', mode: isDev ? 'dev' : 'prod', ts: Date.now() });
     }
     return res.status(503).json({ ok: false, spa: 'missing', mode: isDev ? 'dev' : 'prod', ts: Date.now() });
   });
-  
+
   // Prevent caching of SPA shell to avoid stale "Cannot GET" pages
   app.use((req, res, next) => {
     if (req.path === '/' || req.path.startsWith('/app')) {
@@ -168,17 +168,17 @@ if (isReplit) {
     }
     next();
   });
-  
+
   // Root route: redirect to app (shell available at /shell if needed)
   app.get('/', (_req, res) => {
     res.redirect(302, '/app/');
   });
-  
+
   // Shell route for diagnostics
   app.get('/shell', (_req, res) => {
     res.status(200).send(renderShellHtml({ mode: isDev ? 'dev' : 'prod' }));
   });
-  
+
   // /ready with DB probe per stabilization doc
   app.get('/ready', async (_req, res) => {
     try {
@@ -195,7 +195,7 @@ if (isReplit) {
       });
     }
   });
-  
+
   app.get('/api/health', (_req, res) => res.status(200).json({ ok: true, port: PORT, mode: MODE }));
 
   // ═══════════════════════════════════════════════════════════════════
@@ -203,16 +203,16 @@ if (isReplit) {
   //    Health endpoints active before any route mounting
   // ═══════════════════════════════════════════════════════════════════
   const server = http.createServer(app);
-  
+
   // HTTP keepalive tuning for Cloud Run (slightly higher than Cloud Run's 60s timeout)
   server.keepAliveTimeout = 65000;
   server.headersTimeout = 66000;
-  
+
   // Unified listen: use GATEWAY_PORT in split mode, PORT otherwise
   const LISTEN_PORT = MODE === 'split'
     ? Number(process.env.GATEWAY_PORT || PORT)
     : PORT;
-  
+
   server.listen(LISTEN_PORT, '0.0.0.0', () => {
     console.log(`[ready] Server listening on 0.0.0.0:${LISTEN_PORT}`);
     console.log(`[ready] Health endpoints: /, /health, /healthz, /ready, /api/health`);
@@ -224,9 +224,9 @@ if (isReplit) {
   const { monitorEventLoopDelay } = await import('node:perf_hooks');
   const loopMonitor = monitorEventLoopDelay({ resolution: 20 });
   loopMonitor.enable();
-  
+
   globalThis.__PAUSE_BACKGROUND__ = false;
-  
+
   setInterval(() => {
     const p95 = Math.round(loopMonitor.percentile(95) / 1_000_000); // Convert ns to ms
     if (p95 > 200) {
@@ -246,7 +246,7 @@ if (isReplit) {
     // Helmet & CORS are lightweight, can be global
     app.use(helmet({ contentSecurityPolicy: false }));
     app.use(cors({ origin: true, credentials: true }));
-    
+
     // JSON parsing ONLY on API routes (not health endpoints)
     app.use('/api', express.json({ limit: '1mb' }));
     app.use('/agent', express.json({ limit: '1mb' }));
@@ -342,23 +342,29 @@ if (isReplit) {
         // Production mode - serve built static files at /app/
         const path = await import('path');
         const { fileURLToPath } = await import('url');
-        const { statSync } = await import('fs');
+        const fs = await import('fs');
         const __dirname = path.dirname(fileURLToPath(import.meta.url));
-        
+
         // Try common build output locations
         const candidates = [
           path.join(__dirname, 'client/dist'),
           path.join(__dirname, '../client/dist'),
           path.join(process.cwd(), 'client/dist'),
         ];
-        
+
         const CLIENT_DIST = candidates.find(p => {
-          try { return statSync(p).isDirectory(); } catch { return false; }
+          try { return fs.statSync(p).isDirectory(); } catch { return false; }
         });
-        
+
         if (CLIENT_DIST) {
           console.log('[gateway] Serving SPA from', CLIENT_DIST);
-          app.use('/app', express.static(CLIENT_DIST, { index: 'index.html' }));
+          // Serve React build (SPA)
+          const clientDistPath = path.join(__dirname, 'client', 'dist');
+          if (!fs.existsSync(clientDistPath)) {
+            console.error('❌ [gateway] Client build not found at:', clientDistPath);
+            console.error('❌ [gateway] Run "npm run build:client" before starting the server');
+          }
+          app.use(express.static(clientDistPath));
           app.get(['/app', '/app/*'], (req, res) => {
             console.log('[gateway] SPA route hit:', req.path);
             res.sendFile(path.join(CLIENT_DIST, 'index.html'));
@@ -366,22 +372,22 @@ if (isReplit) {
         } else {
           console.warn('[gateway] No client build found — /app/ will 404 until you build the client.');
         }
-        
+
         app.use((req, res, next) => {
           console.log('[gateway] Unmatched request:', req.method, req.path);
           next();
         });
       }
-      
+
       console.log(`🎉 [mono] Application fully initialized`);
-      
+
       // ═══════════════════════════════════════════════════════════════════
       // POST-LISTEN YIELDED LADDER - Heavy initialization AFTER routes mounted
       // Yields between steps to keep health checks responsive
       // ═══════════════════════════════════════════════════════════════════
       setImmediate(async () => {
         console.log('[gateway] Background worker managed by separate process (strategy-generator.js)');
-        
+
         const initSteps = [
           {
             name: 'Job seeding',
@@ -409,7 +415,7 @@ if (isReplit) {
             }
           },
         ];
-        
+
         // Execute init steps with yielding
         for (const step of initSteps) {
           // Check if event loop is starved
@@ -417,17 +423,17 @@ if (isReplit) {
             console.warn(`[boot] Pausing due to event loop lag before: ${step.name}`);
             await new Promise(r => setTimeout(r, 250));
           }
-          
+
           try {
             await step.fn();
           } catch (e) {
             console.warn(`[boot] Step '${step.name}' failed:`, e?.message || e);
           }
-          
+
           // Yield to event loop after each step
           await new Promise(r => setTimeout(r, 0));
         }
-        
+
         console.log('[gateway] ✓ Background initialization complete');
       });
     }
@@ -495,21 +501,27 @@ if (isReplit) {
       const { fileURLToPath } = await import('url');
       const fs = await import('fs');
       const __dirname = path.dirname(fileURLToPath(import.meta.url));
-      
+
       // Try common build output locations
       const candidates = [
         path.join(__dirname, 'client/dist'),
         path.join(__dirname, '../client/dist'),
         path.join(process.cwd(), 'client/dist'),
       ];
-      
+
       const CLIENT_DIST = candidates.find(p => {
         try { return fs.statSync(p).isDirectory(); } catch { return false; }
       });
-      
+
       if (CLIENT_DIST) {
         console.log('[gateway] Serving SPA from', CLIENT_DIST);
-        app.use('/app', express.static(CLIENT_DIST, { index: 'index.html' }));
+        // Serve React build (SPA)
+        const clientDistPath = path.join(__dirname, 'client', 'dist');
+        if (!fs.existsSync(clientDistPath)) {
+          console.error('❌ [gateway] Client build not found at:', clientDistPath);
+          console.error('❌ [gateway] Run "npm run build:client" before starting the server');
+        }
+        app.use(express.static(clientDistPath));
         app.get(['/app', '/app/*'], (req, res) => {
           res.sendFile(path.join(CLIENT_DIST, 'index.html'));
         });
@@ -569,7 +581,7 @@ if (isReplit) {
   // ═══════════════════════════════════════════════════════════════════
   // 4) HARDENING: Graceful shutdown & crash shields
   // ═══════════════════════════════════════════════════════════════════
-  
+
   // Graceful shutdown for SIGTERM (Cloud Run, Docker, Kubernetes)
   process.on('SIGTERM', () => {
     console.log('[signal] SIGTERM received, shutting down gracefully...');

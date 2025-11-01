@@ -1,6 +1,6 @@
 /**
  * REPLIT BOOT SCRIPT - Canonical Entry Point
- * 
+ *
  * Ensures:
  * - Deterministic PORT binding (5000)
  * - Health gate before preview resolves
@@ -19,12 +19,12 @@ try {
     line = line.trim();
     // Skip comments and empty lines
     if (!line || line.startsWith('#')) return;
-    
+
     // Remove 'export ' prefix if present
     if (line.startsWith('export ')) {
       line = line.substring(7);
     }
-    
+
     // Parse KEY=value
     if (line.includes('=')) {
       const [key, ...valueParts] = line.split('=');
@@ -65,6 +65,23 @@ console.log(`[boot] PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`[boot] ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}`);
 console.log(`[boot] REPL_ID=${process.env.REPL_ID ? 'set' : 'not set'}`);
 
+const fs = require('fs');
+const path = require('path');
+
+// Verify client build exists
+const clientDistPath = path.join(__dirname, '..', 'client', 'dist', 'index.html');
+if (!fs.existsSync(clientDistPath)) {
+  console.error('❌ [boot] Client build missing! Building now...');
+  const { execSync } = require('child_process');
+  try {
+    execSync('cd client && npm install && npm run build', { stdio: 'inherit' });
+    console.log('✅ [boot] Client build complete');
+  } catch (err) {
+    console.error('❌ [boot] Client build failed:', err.message);
+    process.exit(1);
+  }
+}
+
 // Start gateway server
 const server = spawn('node', ['gateway-server.js'], {
   stdio: 'inherit',
@@ -89,15 +106,15 @@ if (process.env.ENABLE_BACKGROUND_WORKER === 'true') {
     stdio: 'inherit',
     env: { ...process.env } // ensure explicit env propagation
   });
-  
+
   worker.on('error', (err) => {
     console.error('[boot:worker:error] Failed to spawn worker:', err.message);
   });
-  
+
   worker.on('exit', (code) => {
     console.error(`[boot:worker:exit] Worker exited with code ${code}`);
   });
-  
+
   console.log(`[boot] ✅ Triad worker started (PID: ${worker.pid})`);
 } else {
   console.log('[boot] ⏸️  Background worker disabled');
@@ -106,7 +123,7 @@ if (process.env.ENABLE_BACKGROUND_WORKER === 'true') {
 // Health gate: Wait for server to be ready before declaring success
 function waitHealth(url, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
-  
+
   return new Promise((resolve, reject) => {
     const tick = () => {
       http.get(url, (res) => {
@@ -125,7 +142,7 @@ function waitHealth(url, timeoutMs = 15000) {
         setTimeout(tick, 500);
       });
     };
-    
+
     // Start polling after 1s to give server time to bind
     setTimeout(tick, 1000);
   });
