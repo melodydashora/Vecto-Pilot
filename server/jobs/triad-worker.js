@@ -186,30 +186,45 @@ export async function processTriadJobs() {
 
         console.log(`[triad-worker] ✅ STEP 1/2 Complete: Providers executed successfully`);
 
-        // STEP 5: Generate Enhanced Smart Blocks - GPT-5 venue planner
-        console.log(`[triad-worker] 🎯 STEP 4/4: Generating enhanced smart blocks with GPT-5 venue planner...`);
-        try {
-          const { generateEnhancedSmartBlocks } = await import('../lib/enhanced-smart-blocks.js');
-          await generateEnhancedSmartBlocks({
-            snapshotId: snapshot_id,
-            strategy: gpt5Result.text.trim(),
-            snapshot: {
-              ...snap,
-              formatted_address: snap.formatted_address,
-              city: snap.city,
-              state: snap.state,
-              lat: snap.lat,
-              lng: snap.lng,
-              created_at: snap.created_at,
-              timezone: snap.timezone,
-              dow: snap.dow
-            },
-            user_id: snap.user_id
-          });
-          console.log(`[triad-worker] ✅ Enhanced smart blocks generated and saved`);
-        } catch (blocksErr) {
-          console.error(`[triad-worker] ⚠️ Failed to generate blocks (non-blocking):`, blocksErr.message);
-          // Don't fail the entire pipeline if blocks generation fails
+        // STEP 2: Fetch strategy row to check consolidation status
+        const [strategyRow] = await db.select().from(strategies)
+          .where(eq(strategies.snapshot_id, snapshot_id)).limit(1);
+        
+        if (!strategyRow) {
+          throw new Error('Strategy row not found after pipeline execution');
+        }
+        
+        console.log(`[triad-worker] 📊 Strategy status: ${strategyRow.status}`);
+        
+        // STEP 3: Generate Enhanced Smart Blocks only if consolidation succeeded
+        if (strategyRow.status === 'ok' || strategyRow.status === 'ok_partial') {
+          console.log(`[triad-worker] 🎯 STEP 2/2: Generating enhanced smart blocks with consolidated strategy...`);
+          try {
+            const { generateEnhancedSmartBlocks } = await import('../lib/enhanced-smart-blocks.js');
+            await generateEnhancedSmartBlocks({
+              snapshotId: snapshot_id,
+              consolidated: strategyRow.consolidated_strategy,
+              briefing: strategyRow.briefing,
+              snapshot: {
+                ...snap,
+                formatted_address: snap.formatted_address,
+                city: snap.city,
+                state: snap.state,
+                lat: snap.lat,
+                lng: snap.lng,
+                created_at: snap.created_at,
+                timezone: snap.timezone,
+                dow: snap.dow
+              },
+              user_id: snap.user_id
+            });
+            console.log(`[triad-worker] ✅ Enhanced smart blocks generated and saved`);
+          } catch (blocksErr) {
+            console.error(`[triad-worker] ⚠️ Failed to generate blocks (non-blocking):`, blocksErr.message);
+            // Don't fail the entire pipeline if blocks generation fails
+          }
+        } else {
+          console.warn(`[triad-worker] ⚠️ Skipping blocks generation - strategy status is ${strategyRow.status}`);
         }
 
         // Mark job complete
