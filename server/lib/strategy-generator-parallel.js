@@ -133,25 +133,37 @@ async function consolidateWithGPT5Thinking({ plan, events, news, traffic, snapsh
     // Format: "Friday, October 31, 2025 at 6:45 PM"
     const formattedDateTime = `${dayName}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
     
-    const developerPrompt = `You are a rideshare strategy consolidator. Create a time-aware, actionable strategy that references specific times, dates, and events happening TODAY. Be conversational, urgent, and specific about timing (e.g., "tonight's game", "this evening", "in the next hour"). Keep it 3-5 sentences.`;
+    const developerPrompt = `You are a rideshare strategy consolidator for the Dallas-Fort Worth market. Create a time-aware, location-specific, actionable strategy that references TODAY's date, holiday status, weather, and events. Be conversational, urgent, and specific about timing (e.g., "tonight's game", "this ${dayName} evening", "in the next hour"). Keep it 3-5 sentences.`;
+
+    // Format airport context
+    const airportInfo = snapshot?.airport_context 
+      ? `${snapshot.airport_context.airport_code || 'DFW'} airport (${snapshot.airport_context.distance_miles || '?'} mi away)${snapshot.airport_context.has_delays ? ' - DELAYS: ' + (snapshot.airport_context.delay_reason || 'unknown reason') + ' (' + (snapshot.airport_context.delay_minutes || '?') + ' min)' : ''}`
+      : 'No airport data';
 
     const userPrompt = `CURRENT DATE & TIME: ${formattedDateTime}
-DAY OF WEEK: ${dayName}${holiday ? `\nHOLIDAY: ${holiday} 🎉` : ''}
+DAY OF WEEK: ${dayName}${holiday ? `\n🎉 HOLIDAY ALERT: ${holiday}! Special demand patterns expected.` : ''}
 TIME OF DAY: ${snapshot?.day_part_key || 'unknown'}
 
-LOCATION: ${snapshot?.city || 'unknown'}, ${snapshot?.state || 'unknown'}
-WEATHER: ${snapshot?.weather?.tempF || 'unknown'}°F, ${snapshot?.weather?.conditions || 'unknown'}
+DRIVER LOCATION:
+Address: ${snapshot?.formatted_address || 'unknown'}
+City: ${snapshot?.city || 'unknown'}, ${snapshot?.state || 'unknown'}
+Coordinates: ${snapshot?.lat || '?'}, ${snapshot?.lng || '?'}
 
-REAL-TIME INTELLIGENCE:
-Events: ${events.length > 0 ? events.join('; ') : 'none'}
-News: ${news.length > 0 ? news.join('; ') : 'none'}
+CURRENT CONDITIONS:
+Weather: ${snapshot?.weather?.tempF || '?'}°F, ${snapshot?.weather?.conditions || 'unknown'} - ${snapshot?.weather?.description || 'no details'}
+Airport: ${airportInfo}
+
+REAL-TIME INTELLIGENCE (Next 60 Minutes):
+${holiday ? `🎉 HOLIDAY: ${holiday} - Expect increased demand for travel, dining, entertainment, and family gatherings.\n` : ''}Events: ${events.length > 0 ? events.join('; ') : 'none'}
+Airport News: ${news.length > 0 ? news.join('; ') : 'none'}
 Traffic: ${traffic.length > 0 ? traffic.join('; ') : 'none'}
 
 Generate a strategy that:
-1. References the specific date/time (e.g., "tonight", "this ${dayName} evening")
-2. Mentions the holiday if present
-3. Integrates the real-time intelligence naturally
-4. Provides actionable positioning advice for RIGHT NOW`;
+1. Opens with the date/holiday if applicable (e.g., "It's ${holiday ? holiday + ' - ' : ''}${dayName} evening")
+2. References specific locations near the driver's address
+3. Integrates weather conditions if relevant (rain, heat, cold)
+4. Mentions airport delays/demand if applicable
+5. Provides actionable positioning advice for the NEXT HOUR with specific street names, venues, or zones`;
 
     const result = await callGPT5({
       developer: developerPrompt,
@@ -253,21 +265,27 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
 
     console.log(`[SIMPLE-STRATEGY] ✅ Briefings extracted from snapshot (holiday=${holiday || 'none'}, news=${geminiResult.news.length}, events=${geminiResult.events.length}, traffic=${geminiResult.traffic.length})`);
 
-    // Step 2: Send directly to GPT-5 for strategy with full temporal context
-    console.log(`[SIMPLE-STRATEGY] 🚀 Sending briefings to GPT-5 with date/holiday context...`);
+    // Step 2: Send FULL snapshot data to GPT-5 for contextual strategy
+    console.log(`[SIMPLE-STRATEGY] 🚀 Sending FULL snapshot + briefings to GPT-5...`);
     const consolidated = await consolidateWithGPT5Thinking({
       plan: null,  // No Claude plan needed
       events: geminiResult.events || [],
       news: geminiResult.news || [],
       traffic: geminiResult.traffic || [],
       snapshot: {
-        ...snapshot,
+        // FULL snapshot data for complete context
+        snapshot_id: snapshotData.snapshot_id,
         created_at: snapshotData.created_at,
-        timezone: snapshotData.timezone,
+        formatted_address: snapshotData.formatted_address || user_address,
         city: city,
         state: state,
+        lat: lat,
+        lng: lng,
+        timezone: snapshotData.timezone,
+        day_part_key: snapshotData.day_part_key,
         weather: snapshotData.weather,
-        day_part_key: snapshot.day_part_key
+        airport_context: snapshotData.airport_context,
+        user_id: user_id
       },
       holiday: geminiResult.holiday
     });
