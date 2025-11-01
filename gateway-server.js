@@ -375,7 +375,7 @@ if (isReplit) {
         // Production mode - serve built static files at /app/
         const path = await import('path');
         const { fileURLToPath } = await import('url');
-        const fs = await import('fs');
+        const { statSync } = await import('fs');
         const __dirname = path.dirname(fileURLToPath(import.meta.url));
         
         // Try common build output locations
@@ -386,7 +386,7 @@ if (isReplit) {
         ];
         
         const CLIENT_DIST = candidates.find(p => {
-          try { return fs.statSync(p).isDirectory(); } catch { return false; }
+          try { return statSync(p).isDirectory(); } catch { return false; }
         });
         
         if (CLIENT_DIST) {
