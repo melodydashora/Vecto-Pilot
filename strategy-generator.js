@@ -22,7 +22,8 @@ try {
 }
 
 // Now start the worker loop
-import { processTriadJobs, startConsolidationListener } from './server/jobs/triad-worker.js';
+import { processTriadJobs } from './server/jobs/triad-worker.js';
+import { startConsolidationListener } from './server/lib/strategy-consolidator.js';
 
 console.log('[strategy-generator] ✅ Starting consolidation listener first...');
 
