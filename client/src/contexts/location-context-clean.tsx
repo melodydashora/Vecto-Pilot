@@ -448,7 +448,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
                 const jobResponse = await fetch("/api/blocks", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ snapshotId }),
+                  body: JSON.stringify({ snapshot_id: snapshotId }),
                   signal,
                 });
                 

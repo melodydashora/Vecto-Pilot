@@ -1,12 +1,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useLocation } from '@/contexts/location-context-clean';
 import { useStrategy } from '@/hooks/useStrategy';
 import { Loader2, AlertCircle, MapPin, TrendingUp, Radio, Newspaper, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export default function BriefingPage() {
-  const { currentSnapshot } = useLocation();
-  const { data, loading, error } = useStrategy(currentSnapshot?.id);
+  const [snapshotId, setSnapshotId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const handleSnapshot = (e: any) => {
+      setSnapshotId(e.detail.snapshotId);
+    };
+    
+    window.addEventListener('vecto-snapshot-saved', handleSnapshot);
+    return () => window.removeEventListener('vecto-snapshot-saved', handleSnapshot);
+  }, []);
+  
+  const { data, loading, error } = useStrategy(snapshotId || undefined);
 
   if (loading) {
     return (
