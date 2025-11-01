@@ -905,8 +905,8 @@ const CoPilot: React.FC = () => {
               <Sparkles className="w-5 h-5 text-indigo-600" />
               <h2 className="text-lg font-semibold text-gray-800">Market Intelligence</h2>
             </div>
-            <StrategyCoach snapshotId={snapshotId} />
-            <SmartBlocks snapshotId={snapshotId} />
+            <StrategyCoach snapshotId={lastSnapshotId || undefined} />
+            <SmartBlocks snapshotId={lastSnapshotId || undefined} />
           </div>
         )}
 

@@ -249,7 +249,90 @@ async function saveStrategy(row) {
 }
 
 /**
- * Parallel provider writes - each lands independently
+ * NEW ARCHITECTURE: Run minstrategy + briefing providers in parallel
+ * Each provider writes to its own model-agnostic column
+ * Then triggers consolidation
+ */
+export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddress, city, state, lat, lng, snapshot }) {
+  console.log(`[runSimpleStrategyPipeline] Starting for snapshot ${snapshotId}`);
+  
+  try {
+    // Ensure strategy row exists
+    const [existing] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    
+    if (!existing) {
+      console.log(`[runSimpleStrategyPipeline] Creating initial strategy row for ${snapshotId}`);
+      await db.insert(strategies).values({
+        snapshot_id: snapshotId,
+        user_id: userId,
+        status: 'pending',
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+    }
+    
+    // Import providers
+    const { runMinStrategy } = await import('./providers/minstrategy.js');
+    const { runBriefing } = await import('./providers/briefing.js');
+    
+    // Run both providers in parallel
+    console.log(`[runSimpleStrategyPipeline] 🚀 Running minstrategy + briefing in parallel...`);
+    const [minResult, briefingResult] = await Promise.allSettled([
+      runMinStrategy(snapshotId),
+      runBriefing(snapshotId)
+    ]);
+    
+    if (minResult.status === 'rejected') {
+      console.error(`[runSimpleStrategyPipeline] ❌ Minstrategy failed:`, minResult.reason?.message || minResult.reason);
+    } else {
+      console.log(`[runSimpleStrategyPipeline] ✅ Minstrategy complete`);
+    }
+    
+    if (briefingResult.status === 'rejected') {
+      console.error(`[runSimpleStrategyPipeline] ❌ Briefing failed:`, briefingResult.reason?.message || briefingResult.reason);
+    } else {
+      console.log(`[runSimpleStrategyPipeline] ✅ Briefing complete`);
+    }
+    
+    // Check if at least one succeeded
+    if (minResult.status === 'rejected' && briefingResult.status === 'rejected') {
+      throw new Error('Both minstrategy and briefing providers failed');
+    }
+    
+    // Fetch updated strategy row to get provider outputs
+    const [strategyRow] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    
+    // Run consolidation if both fields exist
+    if (strategyRow.minstrategy && strategyRow.briefing) {
+      console.log(`[runSimpleStrategyPipeline] 🤖 Running GPT-5 consolidation...`);
+      const { consolidateStrategy } = await import('./strategy-generator-parallel.js');
+      await consolidateStrategy({
+        snapshotId,
+        claudeStrategy: strategyRow.minstrategy,
+        briefing: strategyRow.briefing,
+        snapshot,
+        user: { userId, userAddress, city, state, lat, lng }
+      });
+    } else {
+      console.warn(`[runSimpleStrategyPipeline] ⚠️ Skipping consolidation - missing data (minstrategy=${!!strategyRow.minstrategy}, briefing=${!!strategyRow.briefing})`);
+    }
+    
+    return { ok: true };
+  } catch (err) {
+    console.error(`[runSimpleStrategyPipeline] ❌ Pipeline failed:`, err.message);
+    await db.update(strategies).set({
+      error_message: `[simple-strategy] ${err.message?.slice(0, 800)}`,
+      status: 'failed',
+      updated_at: new Date()
+    }).where(eq(strategies.snapshot_id, snapshotId));
+    return { ok: false, reason: err.message };
+  }
+}
+
+/**
+ * OLD ARCHITECTURE: Parallel provider writes - each lands independently
  * GPT-5 consolidation happens via event-driven worker when all fields present
  */
 export async function runParallelProviders({ snapshotId, user, snapshot }) {
