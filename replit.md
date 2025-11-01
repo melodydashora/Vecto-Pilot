@@ -109,20 +109,54 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 
 ### Known Issues
 
-#### Browser Cache Shows Stale "Cannot GET /app/" Error
-**Status**: RESOLVED - Server is working correctly, browser cache needs clearing
+#### Browser Cache Shows Stale "Cannot GET /app/" Error After Workflow Restart
+**Status**: ACTIVE - Requires implementation of build-before-start workflow
 
-**Verified Working:**
-- ✅ Server listening on `0.0.0.0:5000` (verified via `lsof`)
-- ✅ Port config: localPort 5000 → externalPort 80 (.replit file)
-- ✅ `/healthz` returns HTTP 200 with JSON {"ok":true}
-- ✅ `/app/` returns HTTP 200 with full HTML (localhost test confirmed)
-- ✅ Root `/` redirects to `/app/` with HTTP 302
-- ✅ Frontend routes mounted BEFORE heavy init (lines 290-352)
-- ✅ `client/dist` built with header fix (index-D4hBqnqV.css, index-DhShLQNe.js)
-- ✅ Browser console logs show React app loading (GPS hooks, location context, event listeners)
+**Current Issue**: When workflow restarts, Replit preview shows cached "Cannot GET /app/" even though server is working. This happens because:
+1. Client build (`client/dist`) may not exist or be stale when server starts
+2. No Cache-Control headers prevent browser/proxy from serving stale error pages
+3. Preview opens before SPA files are available
 
-**Solution**: Hard refresh browser to clear cached error page:
+**Immediate Workaround**: Hard refresh browser to clear cached error page:
 - Windows/Linux: `Ctrl+Shift+R`
 - Mac: `Cmd+Shift+R`
 - Or open preview in new browser tab (not embedded webview)
+
+**Permanent Fix Required** (not yet implemented):
+
+1. **Add client build to start script** (package.json):
+```json
+"scripts": {
+  "build:client": "vite build",
+  "start:server": "node gateway-server.js",
+  "start:replit": "npm run build:client && npm run prestart:replit && node scripts/start-replit.js"
+}
+```
+
+2. **Add Cache-Control headers** (gateway-server.js):
+```javascript
+// Prevent caching of SPA shell to avoid stale "Cannot GET" pages
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path.startsWith('/app')) {
+    res.set('Cache-Control', 'no-store, must-revalidate');
+  }
+  next();
+});
+```
+
+3. **Add client/dist existence check** to health endpoint:
+```javascript
+app.get('/healthz', (req, res) => {
+  const indexPath = path.join(clientDist, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    return res.status(200).json({ ok: true, spa: 'ready' });
+  }
+  return res.status(503).json({ ok: false, spa: 'missing' });
+});
+```
+
+**Why This Works**:
+- Build step ensures `client/dist` exists before server advertises routes
+- Cache-Control prevents Replit proxy and browser from serving stale error pages
+- Health check gates readiness until SPA is actually available
+- Early route mounting (already implemented lines 290-352) serves SPA immediately once built
