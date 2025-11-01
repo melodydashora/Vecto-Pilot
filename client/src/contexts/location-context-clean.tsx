@@ -443,6 +443,26 @@ export function LocationProvider({ children }: LocationProviderProps) {
               const snapshotData = await snapshotResponse.json();
               const snapshotId = snapshotData.snapshot_id || snapshotV1.snapshot_id;
               
+              // CRITICAL: Create triad_job to start the strategy pipeline
+              try {
+                const jobResponse = await fetch("/api/blocks", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ snapshotId }),
+                  signal,
+                });
+                
+                if (jobResponse.ok) {
+                  const jobData = await jobResponse.json();
+                  console.log("🎯 Co-Pilot: Strategy pipeline started for snapshot:", snapshotId);
+                  console.log("📋 Job status:", jobData.status);
+                } else {
+                  console.warn("⚠️ Failed to start strategy pipeline:", jobResponse.status);
+                }
+              } catch (jobErr) {
+                console.warn("⚠️ Error starting strategy pipeline:", jobErr);
+              }
+              
               // Dispatch event to notify UI that snapshot is complete and ready
               window.dispatchEvent(
                 new CustomEvent("vecto-snapshot-saved", {
