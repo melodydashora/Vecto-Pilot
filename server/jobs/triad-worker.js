@@ -157,124 +157,34 @@ export async function processTriadJobs() {
           continue;
         }
 
-        // STEP 1: Fetch snapshot with Gemini briefing (already created in parallel)
+        // STEP 1: Fetch snapshot
         const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshot_id)).limit(1);
         if (!snap) {
           throw new Error('Snapshot not found');
         }
 
-        console.log(`[triad-worker] ✅ Gemini briefing available: ${snap.news_briefing ? 'YES' : 'NO'}`);
+        console.log(`[triad-worker] 🚀 Starting NEW provider-based pipeline for ${snapshot_id}`);
 
-        // STEP 2: Run Claude with snapshot context ONLY (NO VENUES) → persist to strategies.strategy
-        console.log(`[triad-worker] 🧠 STEP 2/3: Running Claude strategist...`);
-        const clock = new Date().toLocaleString("en-US", {
-          timeZone: snap.timezone,
-          weekday: "short", 
-          hour: "numeric", 
-          minute: "2-digit"
+        // STEP 2: Run providers in PARALLEL (Claude minstrategy + Gemini briefing)
+        console.log(`[triad-worker] 🧠 STEP 1/2: Running minstrategy + briefing providers in parallel...`);
+        const { runSimpleStrategyPipeline } = await import('../lib/strategy-generator-parallel.js');
+        
+        const pipelineResult = await runSimpleStrategyPipeline({
+          snapshotId: snapshot_id,
+          userId: snap.user_id,
+          userAddress: snap.formatted_address,
+          city: snap.city,
+          state: snap.state,
+          lat: snap.lat,
+          lng: snap.lng,
+          snapshot: snap
         });
 
-        const claudeSys = [
-          "You are a senior rideshare strategist.",
-          "Analyze the driver's location, time, and conditions to provide strategic positioning advice.",
-          "Focus on general patterns: time-of-day demand, weather impact, typical hotspots for this area.",
-          "Return a 3-5 sentence strategy text ONLY. No JSON, no venue names, just strategic advice."
-        ].join(" ");
-
-        const claudeUser = [
-          `Current time: ${clock}`,
-          `Driver location: ${snap.formatted_address}`,
-          `City: ${snap.city}, ${snap.state}`,
-          `Weather: ${snap.weather?.tempF || 'unknown'}°F, ${snap.weather?.conditions || 'unknown'}`,
-          `Air Quality: AQI ${snap.air?.aqi || 'unknown'}`,
-          ``,
-          `Provide strategic positioning advice for a rideshare driver right now. Consider time of day, weather, and location patterns.`
-        ].join("\n");
-
-        const claudeRaw = await callClaude45Raw({
-          system: claudeSys,
-          user: claudeUser
-        });
-
-        const claudeStrategy = claudeRaw.trim();
-        if (!claudeStrategy || claudeStrategy.length < 20) {
-          throw new Error('Claude returned invalid strategy');
+        if (!pipelineResult.ok) {
+          throw new Error(`Pipeline failed: ${pipelineResult.reason}`);
         }
 
-        // Persist Claude's intermediate strategy to DB
-        await db.update(strategies)
-          .set({
-            strategy: claudeStrategy,
-            updated_at: new Date()
-          })
-          .where(eq(strategies.snapshot_id, snapshot_id));
-
-        console.log(`[triad-worker] ✅ Claude strategy persisted to strategies.strategy`);
-
-        // STEP 3: Fetch BOTH Claude strategy + Gemini briefing from DB
-        const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshot_id)).limit(1);
-        const claudeFromDB = strategyRow.strategy;
-        const geminiFromDB = snap.news_briefing?.briefing ? JSON.stringify(snap.news_briefing.briefing) : null;
-
-        // CRITICAL: Verify BOTH fields exist before consolidation
-        if (!claudeFromDB || claudeFromDB.length < 20) {
-          throw new Error('Claude strategy missing or invalid - cannot consolidate');
-        }
-        if (!geminiFromDB || geminiFromDB === 'null') {
-          throw new Error('Gemini news briefing missing - cannot consolidate');
-        }
-
-        console.log(`[triad-worker] 📦 Fetched from DB - Claude: ${claudeFromDB.substring(0, 50)}... | Gemini: ${geminiFromDB.substring(0, 50)}...`);
-        console.log(`[triad-worker] ✅ Both Claude and Gemini data verified - proceeding to GPT-5 consolidation`);
-
-        // STEP 4: Run GPT-5 consolidation without precise address in output
-        console.log(`[triad-worker] 🤖 STEP 3/3: Running GPT-5 consolidation...`);
-        const gpt5SystemPrompt = `You are a rideshare strategy consolidator. Combine Claude's strategy with Gemini's news briefing into a single cohesive 3-5 sentence strategy.
-
-CRITICAL: Never mention street addresses, house numbers, or precise locations in your output. Only use city name and district/landmark names (e.g., "In Frisco near The Star and Legacy West" NOT "From 6068 Midnight Moon Dr").`;
-
-        const gpt5UserPrompt = `DRIVER CONTEXT (for your understanding only - DO NOT echo any addresses in your response):
-Location: ${snap.city}, ${snap.state}
-
-CLAUDE STRATEGY:
-${claudeFromDB}
-
-GEMINI NEWS BRIEFING:
-${geminiFromDB}
-
-Create a consolidated strategy using ONLY city and district names. Start with general positioning advice - do not start with "From [address]".`;
-
-        const gpt5Result = await callGPT5({
-          developer: gpt5SystemPrompt,
-          user: gpt5UserPrompt,
-          max_completion_tokens: 2000
-        });
-
-        if (!gpt5Result.text) {
-          throw new Error('GPT-5 returned no text');
-        }
-
-        // STEP 5: Persist GPT-5 final output + snapshot context to strategies
-        await db.update(strategies)
-          .set({
-            status: 'ok',
-            strategy_for_now: gpt5Result.text.trim(),
-            model_name: 'claude-4.5→gpt-5',
-            user_address: snap.formatted_address,
-            city: snap.city,
-            state: snap.state,
-            lat: snap.lat,
-            lng: snap.lng,
-            user_id: snap.user_id,
-            events: snap.news_briefing?.events || [],
-            news: snap.news_briefing?.news || [],
-            traffic: snap.news_briefing?.traffic || [],
-            updated_at: new Date()
-          })
-          .where(eq(strategies.snapshot_id, snapshot_id));
-
-        console.log(`[triad-worker] ✅ GPT-5 final strategy persisted to strategies.strategy_for_now`);
-        console.log(`[triad-worker] 💾 Final: ${gpt5Result.text.trim().substring(0, 100)}...`);
+        console.log(`[triad-worker] ✅ STEP 1/2 Complete: Providers executed successfully`);
 
         // STEP 5: Generate Enhanced Smart Blocks - GPT-5 venue planner
         console.log(`[triad-worker] 🎯 STEP 4/4: Generating enhanced smart blocks with GPT-5 venue planner...`);

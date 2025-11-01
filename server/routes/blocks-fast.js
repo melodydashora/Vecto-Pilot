@@ -724,17 +724,21 @@ export async function getStrategyFast({ snapshotId }) {
   }
 
   // GENERIC: Return model-agnostic fields with fallbacks to never return undefined/NaN
+  // Extract briefing from single JSONB column
+  const briefing = row.briefing || {};
+  
   return {
     status: 'ok',
     snapshot_id: snapshotId,
     strategy: {
       min: row.minstrategy || '',
       consolidated: row.consolidated_strategy || '',
-      holiday: row.holiday || null,
+      holiday: row.holiday || (briefing.holidays?.length > 0 ? briefing.holidays[0] : null),
       briefing: {
-        news: row.briefing_news ?? [],
-        events: row.briefing_events ?? [],
-        traffic: row.briefing_traffic ?? []
+        news: briefing.news ?? [],
+        events: briefing.events ?? [],
+        traffic: briefing.traffic ?? [],
+        holidays: briefing.holidays ?? []
       },
       user: {
         address: row.user_resolved_address || row.user_address || '',
