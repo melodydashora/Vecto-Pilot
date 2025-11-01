@@ -92,17 +92,25 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 4. Frontend routes (`/app/*`) - Lines 297-355 (immediate)
 5. Background init (job seeding, validation, cache warmup) - Lines 363-413 (deferred)
 
-### Fixed Header Content Overlap Fix (App.tsx)
-**Issue**: GlobalHeader uses `position: fixed` (index.css line 112), causing NavigationTabs and page content to be hidden underneath the header. Only the header was visible on screen.
+### Header Positioning Fix (index.css) - Nov 1, 2025
+**Issue**: Header used `position: fixed` which removed it from document flow, causing all page content (NavigationTabs, landing page) to render underneath the header and be visually blocked. Only the header was visible on screen.
 
-**Fix**: Changed main element class from `pt-4` to `main-content-with-header` (App.tsx line 68), applying 120px top padding defined in index.css (lines 130-132) to push content below the fixed header.
+**Root Cause**: `.vecto-header-stack` had `position: fixed; top: 0; z-index: 9999` while main content tried to compensate with `padding-top: 120px`, but the offset wasn't working correctly.
 
-**Result**: NavigationTabs and all page content now visible below the GlobalHeader.
+**Fix Applied** (client/src/index.css):
+1. Changed `.vecto-header-stack` from `position: fixed` to `position: static` (line 115)
+2. Removed `top`, `left`, `right`, `z-index` positioning (header now in normal flow)
+3. Changed `.main-content-with-header` from `padding-top: 120px` to `padding-top: 0` (line 131)
+4. Updated `html, body, #root` to use `height: auto; min-height: 100%; overflow: auto` (lines 83-87)
+
+**Result**: Header flows normally in document layout. All content (tabs, pages) renders beneath header and is fully visible and scrollable.
+
+**Build**: Client rebuilt with `npm run build:client` - new bundle: `index-D4hBqnqV.css` (73.94 kB)
 
 ### Known Issues
 
-#### External Preview URL Returns "Cannot GET /app/"
-**Status**: ACTIVE ISSUE - Server works on localhost but Replit preview shows "Cannot GET /app/"
+#### Browser Cache Shows Stale "Cannot GET /app/" Error
+**Status**: RESOLVED - Server is working correctly, browser cache needs clearing
 
 **Verified Working:**
 - ✅ Server listening on `0.0.0.0:5000` (verified via `lsof`)
@@ -111,17 +119,10 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 - ✅ `/app/` returns HTTP 200 with full HTML (localhost test confirmed)
 - ✅ Root `/` redirects to `/app/` with HTTP 302
 - ✅ Frontend routes mounted BEFORE heavy init (lines 290-352)
-- ✅ `client/dist` exists with latest build (NavigationTabs + padding fix)
+- ✅ `client/dist` built with header fix (index-D4hBqnqV.css, index-DhShLQNe.js)
+- ✅ Browser console logs show React app loading (GPS hooks, location context, event listeners)
 
-**Still Broken:**
-- ❌ External Replit preview URL shows "Cannot GET /app/"
-- ❌ Webview doesn't refresh when workflow restarts
-- ❌ Browser cache may be serving old error page
-
-**Troubleshooting Steps:**
-1. Server configuration is correct - all localhost tests pass
-2. Issue is with Replit's external URL proxy/caching
-3. Try: Open preview in new browser tab (not embedded webview)
-4. Try: Hard refresh browser (Ctrl+Shift+R)
-5. Try: Clear browser cache and reload
-6. Possible Replit platform caching issue with external URL forwarding
+**Solution**: Hard refresh browser to clear cached error page:
+- Windows/Linux: `Ctrl+Shift+R`
+- Mac: `Cmd+Shift+R`
+- Or open preview in new browser tab (not embedded webview)
