@@ -75,6 +75,28 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 
 ## Recent Changes (Nov 1, 2025)
 
+### Startup Script Module Fix - Nov 1, 2025 11:39 AM
+**Issue**: App crashed on startup - server wouldn't start after workflow restart.
+
+**Root Cause**: `scripts/start-replit.js` mixed ES modules (`import`) and CommonJS (`require`) syntax in the same file, causing a runtime error:
+- Line 15: `import { spawn } from 'node:child_process'` (ESM)
+- Line 68: `const fs = require('fs')` (CommonJS) ❌
+- Line 69: `const path = require('path')` (CommonJS) ❌
+- Line 75: `const { execSync } = require('child_process')` (CommonJS, duplicate import) ❌
+
+**Fix Applied**: Converted all `require` statements to ES module `import` statements (lines 14-21):
+```javascript
+import { spawn, execSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+```
+
+**Result**: Server starts successfully, health endpoint returns `{"ok":true,"spa":"ready","mode":"prod"}`
+
 ### Frontend Navigation Tabs
 - Added NavigationTabs component with Copilot and Briefing tabs in App.tsx
 - Created BriefingPage.tsx to display raw database outputs from AI pipeline
