@@ -1,5 +1,5 @@
 // server/lib/providers/briefing.js
-// Gemini provider for news/events/traffic briefing (model-agnostic naming)
+// Gemini provider for city briefing (model-agnostic naming)
 
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
@@ -9,7 +9,7 @@ import { callGemini } from '../adapters/google-gemini.js';
 
 /**
  * Run briefing generation using Gemini
- * Writes to strategies.briefing_news/events/traffic (model-agnostic fields)
+ * Writes to strategies.briefing (single JSONB field)
  * @param {string} snapshotId - UUID of snapshot
  */
 export async function runBriefing(snapshotId) {
@@ -25,9 +25,10 @@ export async function runBriefing(snapshotId) {
 
 RESPONSE FORMAT (JSON only, no markdown):
 {
-  "news": ["airport delays", "weather alerts"],
-  "events": ["concerts ending", "games starting"],
-  "traffic": ["construction", "closures"]
+  "events": ["concerts ending at 10pm", "game starting at 8pm"],
+  "holidays": ["Thanksgiving", "New Year's Eve"],
+  "traffic": ["I-35 construction", "downtown closures"],
+  "news": ["airport delays", "weather alerts"]
 }
 
 Return empty arrays [] if no intelligence for that category.`;
@@ -49,26 +50,31 @@ Generate real-time intelligence briefing for the next 60 minutes.`;
     });
 
     // Parse JSON response
-    let briefing = { news: [], events: [], traffic: [] };
+    let briefing = { events: [], holidays: [], traffic: [], news: [] };
     try {
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        briefing = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        briefing = {
+          events: Array.isArray(parsed.events) ? parsed.events : [],
+          holidays: Array.isArray(parsed.holidays) ? parsed.holidays : (holiday ? [holiday] : []),
+          traffic: Array.isArray(parsed.traffic) ? parsed.traffic : [],
+          news: Array.isArray(parsed.news) ? parsed.news : []
+        };
       }
     } catch (parseError) {
-      console.warn(`[briefing] JSON parse error for ${snapshotId}, using empty arrays`);
+      console.warn(`[briefing] JSON parse error for ${snapshotId}, using defaults`);
+      if (holiday) briefing.holidays = [holiday];
     }
 
-    // Write to model-agnostic fields (allow empty arrays)
+    // Write to single JSONB field
     await db.update(strategies).set({
-      briefing_news: Array.isArray(briefing.news) ? briefing.news : [],
-      briefing_events: Array.isArray(briefing.events) ? briefing.events : [],
-      briefing_traffic: Array.isArray(briefing.traffic) ? briefing.traffic : [],
+      briefing,
       strategy_timestamp: new Date(),
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    console.log(`[briefing] ✅ Complete for ${snapshotId} (news:${briefing.news?.length || 0}, events:${briefing.events?.length || 0}, traffic:${briefing.traffic?.length || 0})`);
+    console.log(`[briefing] ✅ Complete for ${snapshotId} (events:${briefing.events?.length || 0}, holidays:${briefing.holidays?.length || 0}, traffic:${briefing.traffic?.length || 0}, news:${briefing.news?.length || 0})`);
   } catch (error) {
     console.error(`[briefing] ❌ Error for ${snapshotId}:`, error.message);
     throw error;

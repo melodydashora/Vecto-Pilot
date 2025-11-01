@@ -24,14 +24,12 @@ router.get('/strategy/:snapshotId', async (req, res) => {
     }
 
     const hasMin = !!(row.minstrategy && row.minstrategy.trim().length);
-    const hasNews = Array.isArray(row.briefing_news) && row.briefing_news.length > 0;
-    const hasEvents = Array.isArray(row.briefing_events) && row.briefing_events.length > 0;
-    const hasTraffic = Array.isArray(row.briefing_traffic) && row.briefing_traffic.length > 0;
+    const hasBriefing = !!(row.briefing && JSON.stringify(row.briefing) !== '{}');
     const hasConsolidated = !!(row.consolidated_strategy && row.consolidated_strategy.trim().length);
 
     const waitFor = [];
     if (!hasMin) waitFor.push('minstrategy');
-    if (!(hasNews || hasEvents || hasTraffic)) waitFor.push('briefing');
+    if (!hasBriefing) waitFor.push('briefing');
     if (!hasConsolidated) waitFor.push('consolidated');
 
     const startedAt = row.strategy_timestamp ?? row.created_at ?? null;
@@ -40,9 +38,11 @@ router.get('/strategy/:snapshotId', async (req, res) => {
     res.json({
       status: hasConsolidated ? 'ok' : 'pending',
       snapshot_id: snapshotId,
+      min: hasMin ? row.minstrategy : '',
+      briefing: row.briefing || { events: [], holidays: [], traffic: [], news: [] },
+      consolidated: hasConsolidated ? row.consolidated_strategy : '',
       waitFor,
-      timeElapsedMs,
-      consolidated_strategy: hasConsolidated ? row.consolidated_strategy : undefined
+      timeElapsedMs
     });
   } catch (error) {
     console.error(`[strategy] GET error:`, error);

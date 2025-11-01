@@ -16,6 +16,7 @@ import chatRoutes from "./server/routes/chat.js";
 import chatContextRoutes from "./server/routes/chat-context.js";
 import closedVenueReasoningRoutes from "./server/routes/closed-venue-reasoning.js";
 import strategyRoutes from "./server/routes/strategy.js";
+import diagnosticsStrategyRoutes from "./server/routes/diagnostics-strategy.js";
 // Legacy processor retired — do not import
 // Fast path is mounted via the gateway (server/routes/blocks.js -> blocks-fast)
 import { loggingMiddleware } from "./server/middleware/logging.js";
@@ -102,6 +103,7 @@ export default function createSdkRouter(opts = {}) {
   r.use('/chat', chatContextRoutes); // Read-only context for AI Coach (no external API calls)
   r.use('/closed-venue-reasoning', closedVenueReasoningRoutes); // Closed venue reasoning (GPT-5)
   r.use('/strategy', strategyRoutes); // Model-agnostic strategy API (minstrategy + briefing + consolidation)
+  r.use('/diagnostics', diagnosticsStrategyRoutes); // Strategy pipeline test routes
   
   // Assistant override verification route
   r.get('/assistant/verify-override', (req, res) => {

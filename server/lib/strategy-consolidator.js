@@ -24,12 +24,10 @@ async function maybeConsolidate(snapshotId) {
   const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
   if (!row) return;
 
-  // Check if ready
+  // Check if ready: need minstrategy + non-empty briefing
   const hasMin = !!(row.minstrategy && row.minstrategy.trim().length);
-  const hasNews = Array.isArray(row.briefing_news) && row.briefing_news.length > 0;
-  const hasEvents = Array.isArray(row.briefing_events) && row.briefing_events.length > 0;
-  const hasTraffic = Array.isArray(row.briefing_traffic) && row.briefing_traffic.length > 0;
-  const ready = hasMin && (hasNews || hasEvents || hasTraffic);
+  const hasBriefing = !!(row.briefing && JSON.stringify(row.briefing) !== '{}');
+  const ready = hasMin && hasBriefing;
   const already = !!(row.consolidated_strategy && row.consolidated_strategy.trim().length);
 
   if (!ready || already) return;
@@ -47,8 +45,9 @@ async function maybeConsolidate(snapshotId) {
   try {
     const ctx = await getSnapshotContext(snapshotId);
     
-    // Extract holiday from news briefing
-    const holiday = ctx.news_briefing?.briefing?.holiday || null;
+    // Extract briefing data (Gemini output)
+    const briefing = row.briefing || { events: [], holidays: [], traffic: [], news: [] };
+    const holiday = briefing.holidays?.[0] || ctx.news_briefing?.briefing?.holiday || null;
     
     // Format date/time context
     const currentTime = new Date(ctx.created_at);
@@ -87,9 +86,9 @@ INITIAL STRATEGY:
 ${row.minstrategy}
 
 REAL-TIME INTELLIGENCE:
-${holiday ? `🎉 HOLIDAY: ${holiday}\n` : ''}News: ${row.briefing_news?.join('; ') || 'none'}
-Events: ${row.briefing_events?.join('; ') || 'none'}
-Traffic: ${row.briefing_traffic?.join('; ') || 'none'}
+${briefing.holidays?.length ? `🎉 HOLIDAYS: ${briefing.holidays.join(', ')}\n` : ''}Events: ${briefing.events?.join('; ') || 'none'}
+Traffic: ${briefing.traffic?.join('; ') || 'none'}
+News: ${briefing.news?.join('; ') || 'none'}
 
 Consolidate into a final strategy that integrates the intelligence with the strategic analysis.`;
 
