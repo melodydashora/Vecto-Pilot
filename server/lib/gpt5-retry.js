@@ -1,6 +1,6 @@
 // server/lib/gpt5-retry.js
-// GPT-5 strategist with transient retry logic
-import { callGPT5 } from './adapters/openai-gpt5.js';
+// Model-agnostic strategist with transient retry logic
+import { callModel } from './adapters/index.js';
 
 export async function callGPT5WithBudget(payload, { timeoutMs = 45000, maxRetries = 6 } = {}) {
   const startTime = Date.now();
