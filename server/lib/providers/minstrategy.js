@@ -33,8 +33,13 @@ Airport: ${ctx.airport_context?.airport_code || 'none'} ${ctx.airport_context?.d
 
 Provide a brief strategic assessment of positioning opportunities for the next hour.`;
 
+    const strategistModel = process.env.STRATEGY_STRATEGIST;
+    if (!strategistModel) {
+      throw new Error('Missing STRATEGY_STRATEGIST environment variable');
+    }
+    
     const response = await claude.messages.create({
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
+      model: strategistModel,
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }]

@@ -90,9 +90,15 @@ ${briefing.holidays?.length ? `🎉 HOLIDAYS: ${briefing.holidays.join(', ')}\n`
 
 Consolidate into a final strategy that integrates the intelligence with the strategic analysis.`;
 
-    console.log(`[consolidator] 🚀 Calling GPT-5 for ${snapshotId}...`);
+    const consolidatorModel = process.env.STRATEGY_CONSOLIDATOR;
+    if (!consolidatorModel) {
+      throw new Error('Missing STRATEGY_CONSOLIDATOR environment variable');
+    }
+    
+    console.log(`[consolidator] 🚀 Calling consolidator (${consolidatorModel}) for ${snapshotId}...`);
 
     const result = await callGPT5({
+      model: consolidatorModel,
       developer: developerPrompt,
       user: userPrompt,
       max_completion_tokens: 2000,
