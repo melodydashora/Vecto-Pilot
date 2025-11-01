@@ -170,6 +170,17 @@ Generate a strategy that:
 4. Mentions airport delays/demand if applicable
 5. Provides actionable positioning advice for the NEXT HOUR with specific street names, venues, or zones`;
 
+    // Log the full prompt being sent to GPT-5 for verification
+    console.log(`[GPT-5] === FULL CONTEXT SENT ===`);
+    console.log(`[GPT-5] Market: ${marketArea}`);
+    console.log(`[GPT-5] Date/Time: ${formattedDateTime}`);
+    console.log(`[GPT-5] Holiday: ${holiday || 'none'}`);
+    console.log(`[GPT-5] Location: ${snapshot?.formatted_address || 'unknown'}`);
+    console.log(`[GPT-5] Weather: ${snapshot?.weather?.tempF || '?'}°F`);
+    console.log(`[GPT-5] Airport: ${airportInfo}`);
+    console.log(`[GPT-5] Events: ${events.length}, News: ${news.length}, Traffic: ${traffic.length}`);
+    console.log(`[GPT-5] === END CONTEXT ===`);
+
     const result = await callGPT5({
       developer: developerPrompt,
       user: userPrompt,
