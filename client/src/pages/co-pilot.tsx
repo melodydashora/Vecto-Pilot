@@ -31,6 +31,8 @@ import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
+import { StrategyCoach } from '@/components/strategy/StrategyCoach';
+import { SmartBlocks } from '@/components/strategy/SmartBlocks';
 import {
   Tooltip,
   TooltipContent,
@@ -895,6 +897,18 @@ const CoPilot: React.FC = () => {
             </Card>
           )}
         </div>
+
+        {/* NEW: Strategy Coach + Smart Blocks Intelligence */}
+        {coords && (
+          <div className="mb-6 space-y-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-semibold text-gray-800">Market Intelligence</h2>
+            </div>
+            <StrategyCoach snapshotId={snapshotId} />
+            <SmartBlocks snapshotId={snapshotId} />
+          </div>
+        )}
 
         {/* Smart Blocks - Only render when we have data */}
         {blocks.length > 0 && (
