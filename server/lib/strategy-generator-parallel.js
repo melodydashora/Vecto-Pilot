@@ -364,17 +364,24 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
 /**
  * GPT-5 consolidation - called by event-driven worker
  */
-export async function consolidateStrategy({ snapshotId, claudeStrategy, geminiNews, geminiEvents, geminiTraffic, user, snapshot, holiday }) {
+export async function consolidateStrategy({ snapshotId, claudeStrategy, briefing, user, snapshot, holiday }) {
   console.log(`[consolidation] Starting GPT-5 consolidation for snapshot ${snapshotId}`);
 
   try {
+    // Extract briefing fields from single JSONB object
+    const events = briefing?.events || [];
+    const news = briefing?.news || [];
+    const traffic = briefing?.traffic || [];
+    const holidays = briefing?.holidays || [];
+    
     const consolidated = await consolidateWithGPT5Thinking({
       plan: claudeStrategy,
-      events: geminiEvents || [],
-      news: geminiNews || [],
-      traffic: geminiTraffic || [],
+      events,
+      news,
+      traffic,
+      briefing, // Pass full briefing object for future use
       snapshot: snapshot || {},
-      holiday: holiday || null
+      holiday: holiday || (holidays.length > 0 ? holidays[0] : null) // Use first holiday from briefing if present
     });
 
     if (!consolidated.ok) {
