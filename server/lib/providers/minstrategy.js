@@ -38,9 +38,13 @@ Provide a brief strategic assessment of positioning opportunities for the next h
       throw new Error('Missing STRATEGY_STRATEGIST environment variable');
     }
     
+    const maxTokens = parseInt(process.env.STRATEGY_STRATEGIST_MAX_TOKENS || '1024', 10);
+    const temperature = parseFloat(process.env.STRATEGY_STRATEGIST_TEMPERATURE || '0.2');
+    
     const response = await claude.messages.create({
       model: strategistModel,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
+      temperature: temperature,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }]
     });

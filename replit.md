@@ -99,13 +99,31 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 
 **Environment Variables Required**:
 ```bash
-# Role-based strategy pipeline
+# Role-based strategy pipeline - Model selection
 STRATEGY_STRATEGIST=claude-sonnet-4-5-20250929
 STRATEGY_BRIEFER=gemini-2.5-pro
 STRATEGY_CONSOLIDATOR=gpt-5
+
+# Strategist parameters (Claude)
+STRATEGY_STRATEGIST_MAX_TOKENS=1024
+STRATEGY_STRATEGIST_TEMPERATURE=0.2
+
+# Briefer parameters (Gemini)
+STRATEGY_BRIEFER_MAX_TOKENS=8192
+STRATEGY_BRIEFER_TEMPERATURE=0.7
+STRATEGY_BRIEFER_TOP_P=0.95
+STRATEGY_BRIEFER_TOP_K=40
+
+# Consolidator parameters (GPT-5/OpenAI)
+STRATEGY_CONSOLIDATOR_MAX_TOKENS=2000
+STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
 ```
 
-**Benefits**: Models can now be swapped by changing environment variables only—no code changes required. System is truly model-agnostic and follows role-based naming instead of provider-specific coupling.
+**Benefits**: 
+- Models can be swapped by changing environment variables only—no code changes required
+- All parameters (tokens, temperature, reasoning effort) are configurable in one place
+- System is truly model-agnostic and follows role-based naming instead of provider-specific coupling
+- Easy A/B testing and performance tuning without touching code
 
 ## Recent Changes (Nov 1, 2025)
 
