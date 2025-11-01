@@ -446,6 +446,7 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
 
 /**
  * GPT-5 consolidation - called by event-driven worker
+ * Includes retry logic with reduced max_tokens and fallback synthesis
  */
 export async function consolidateStrategy({ snapshotId, claudeStrategy, briefing, user, snapshot, holiday }) {
   console.log(`[consolidation] Starting GPT-5 consolidation for snapshot ${snapshotId}`);
@@ -457,35 +458,164 @@ export async function consolidateStrategy({ snapshotId, claudeStrategy, briefing
     const traffic = briefing?.traffic || [];
     const holidays = briefing?.holidays || [];
     
-    const consolidated = await consolidateWithGPT5Thinking({
-      plan: claudeStrategy,
-      events,
-      news,
-      traffic,
-      briefing, // Pass full briefing object for future use
-      snapshot: snapshot || {},
-      holiday: holiday || (holidays.length > 0 ? holidays[0] : null) // Use first holiday from briefing if present
-    });
+    // Retry logic with progressively reduced max_tokens
+    const attempts = 3;
+    const maxTokensSequence = [900, 600, 450]; // Reduced from 2000 to avoid length truncation
+    let lastError = null;
+    let finishReason = null;
+    
+    for (let i = 0; i < attempts; i++) {
+      const maxTokens = maxTokensSequence[i];
+      console.log(`[consolidation] Attempt ${i + 1}/${attempts} with max_tokens=${maxTokens}`);
+      
+      try {
+        const consolidated = await consolidateWithGPT5ThinkingWithMetadata({
+          plan: claudeStrategy,
+          events,
+          news,
+          traffic,
+          briefing,
+          snapshot: snapshot || {},
+          holiday: holiday || (holidays.length > 0 ? holidays[0] : null),
+          maxTokens
+        });
 
-    if (!consolidated.ok) {
-      throw new Error(consolidated.reason || 'GPT-5 consolidation failed');
+        finishReason = consolidated.finishReason;
+        
+        // Success: content present
+        if (consolidated.ok && consolidated.strategy && consolidated.strategy.trim().length > 0) {
+          await db.update(strategies).set({
+            consolidated_strategy: consolidated.strategy,
+            status: 'ok',
+            updated_at: new Date()
+          }).where(eq(strategies.snapshot_id, snapshotId));
+          
+          console.log(`[consolidation] ✅ Consolidation complete on attempt ${i + 1} (${consolidated.strategy.length} chars)`);
+          return { ok: true };
+        }
+        
+        // Length truncation - retry with smaller max_tokens
+        if (finishReason === 'length') {
+          lastError = new Error(`Consolidation truncated with finish_reason: length`);
+          console.warn(`[consolidation] ⚠️ Attempt ${i + 1} truncated (finish_reason=length), retrying with reduced tokens...`);
+          continue;
+        }
+        
+        // Other failure - break retry loop
+        lastError = new Error(consolidated.reason || 'No content from consolidator');
+        break;
+        
+      } catch (attemptErr) {
+        lastError = attemptErr;
+        console.error(`[consolidation] Attempt ${i + 1} error:`, attemptErr.message);
+        if (i < attempts - 1) continue;
+        break;
+      }
     }
-
+    
+    // All retries failed - synthesize fallback strategy
+    console.warn(`[consolidation] ⚠️ All consolidation attempts failed, synthesizing fallback...`);
+    const { synthesizeFallback } = await import('./strategy-utils.js');
+    const fallbackStrategy = synthesizeFallback(claudeStrategy, briefing);
+    
     await db.update(strategies).set({
-      consolidated_strategy: consolidated.strategy || '',  // GENERIC: model-agnostic column
-      status: 'ok',
+      consolidated_strategy: fallbackStrategy,
+      status: 'ok_partial',  // Differentiate from full consolidation
+      error_message: `Fallback used: ${lastError?.message || 'Unknown error'}`,
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
-
-    console.log(`[consolidation] ✅ Consolidation complete (${consolidated.strategy.length} chars)`);
-    return { ok: true };
+    
+    console.log(`[consolidation] ⚠️ Fallback strategy synthesized (${fallbackStrategy.length} chars) - status: ok_partial`);
+    return { ok: true, partial: true, reason: lastError?.message };
+    
   } catch (err) {
     console.error(`[consolidation] ❌ Failed:`, err.message);
     await db.update(strategies).set({
       error_message: `[gpt5] ${err.message?.slice(0, 800)}`,
+      status: 'error',
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
     return { ok: false, reason: err.message };
+  }
+}
+
+/**
+ * Call GPT-5 with metadata (finish_reason, tokens, etc.)
+ */
+async function consolidateWithGPT5ThinkingWithMetadata({ plan, events, news, traffic, briefing, snapshot, holiday, maxTokens = 900 }) {
+  try {
+    // Format date and time context
+    const currentTime = snapshot?.created_at ? new Date(snapshot.created_at) : new Date();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const dayName = dayNames[currentTime.getDay()];
+    const monthName = monthNames[currentTime.getMonth()];
+    const dayNum = currentTime.getDate();
+    const year = currentTime.getFullYear();
+    
+    const timeStr = currentTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: snapshot?.timezone || 'America/Chicago'
+    });
+    
+    const formattedDateTime = `${dayName}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
+    const marketArea = snapshot?.city && snapshot?.state ? `${snapshot.city}, ${snapshot.state}` : 'local';
+    
+    // Compress inputs to reduce token usage
+    const topEvents = (events || []).slice(0, 6);
+    const topNews = (news || []).slice(0, 4);
+    const topTraffic = (traffic || []).slice(0, 3);
+    const topHolidays = (briefing?.holidays || []).slice(0, 2);
+    
+    const developerPrompt = `You are a rideshare strategy consolidator for the ${marketArea} market. Create concise, actionable positioning advice in 3-5 sentences. Keep under 350 tokens. Be specific about timing and location.`;
+    
+    const airportInfo = snapshot?.airport_context 
+      ? `${snapshot.airport_context.airport_code || 'DFW'} (${snapshot.airport_context.distance_miles || '?'} mi)${snapshot.airport_context.has_delays ? ' - DELAYS' : ''}`
+      : 'No airport data';
+    
+    const userPrompt = `DATE: ${formattedDateTime}${holiday ? `\n🎉 HOLIDAY: ${holiday}` : ''}
+TIME: ${snapshot?.day_part_key || 'unknown'}
+
+LOCATION: ${snapshot?.formatted_address || 'unknown'}
+WEATHER: ${snapshot?.weather?.tempF || '?'}°F, ${snapshot?.weather?.conditions || 'unknown'}
+AIRPORT: ${airportInfo}
+
+INTELLIGENCE:
+${holiday ? `Holiday: ${holiday}\n` : ''}Events: ${topEvents.join('; ') || 'none'}
+News: ${topNews.join('; ') || 'none'}
+Traffic: ${topTraffic.join('; ') || 'none'}
+
+TACTICAL ANALYSIS:
+${plan || 'No analysis available'}
+
+Consolidate into 3-5 actionable sentences for the driver's next hour.`;
+    
+    // Call GPT-5 with custom max_tokens
+    const result = await callGPT5({
+      developer: developerPrompt,
+      user: userPrompt,
+      max_completion_tokens: maxTokens,
+      reasoning_effort: 'medium'
+    });
+    
+    // Note: We can't directly access finish_reason from the adapter
+    // The adapter throws on empty content, so if we get here, content exists
+    return {
+      ok: true,
+      strategy: result.text.trim(),
+      finishReason: 'stop' // Assume stop if we got content
+    };
+  } catch (err) {
+    // Check if error message indicates truncation
+    const isLengthTruncation = err.message?.includes('No content in completion response');
+    return {
+      ok: false,
+      reason: err.message || 'consolidation_failed',
+      finishReason: isLengthTruncation ? 'length' : 'error'
+    };
   }
 }
 
