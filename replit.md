@@ -62,3 +62,61 @@ API access is gated until a strategy is ready. The pipeline involves parallel ex
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Recent Architecture Updates (Nov 1, 2025)
+
+### Role-Pure Model-Agnostic Orchestration
+**Achievement**: Fully model-agnostic AI pipeline with role-pure inputs and configurable parameters.
+
+**Code Architecture**:
+```
+Strategist → minstrategy (text) ─┐
+                                   ├─→ Consolidator → consolidated_strategy  
+Briefer → briefing (JSONB) ───────┘
+     ↓
+User Address (shared context for all 3 roles)
+```
+
+**Consolidator Role-Pure Inputs**:
+- ✅ User address (location context only)
+- ✅ Strategist output (minstrategy text)
+- ✅ Briefer output (briefing JSONB)
+- ❌ NO raw snapshot context (no date/weather/events/temperature)
+
+**Model-Agnostic Adapter System**:
+- `server/lib/adapters/index.js` - Role dispatcher reads `.env` and routes to provider
+- `server/lib/adapters/openai-adapter.js` - OpenAI provider with `{ok, output}` shape
+- `server/lib/adapters/anthropic-adapter.js` - Anthropic provider with `{ok, output}` shape  
+- `server/lib/adapters/gemini-adapter.js` - Gemini provider with `{ok, output}` shape
+- All adapters return consistent `{ok: boolean, output: string}` shape
+
+**Environment Variables (from .env)**:
+```bash
+# Role-to-model binding
+STRATEGY_STRATEGIST=claude-sonnet-4-5-20250929
+STRATEGY_BRIEFER=gemini-2.5-pro
+STRATEGY_CONSOLIDATOR=gpt-5
+
+# Strategist parameters
+STRATEGY_STRATEGIST_MAX_TOKENS=1024
+STRATEGY_STRATEGIST_TEMPERATURE=0.2
+
+# Briefer parameters
+STRATEGY_BRIEFER_MAX_TOKENS=8192
+STRATEGY_BRIEFER_TEMPERATURE=0.7
+STRATEGY_BRIEFER_TOP_P=0.95
+STRATEGY_BRIEFER_TOP_K=40
+
+# Consolidator parameters
+STRATEGY_CONSOLIDATOR_MAX_TOKENS=8000  # Allows reasoning + output for o1 models
+STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
+```
+
+**Key Benefits**:
+- **Triad Purity**: Each role receives only appropriate context
+- **Role-Pure**: Consolidator gets NO raw snapshot data—only role outputs
+- **Model Agnostic**: Swap models by changing .env only
+- **Provider Neutral**: Code never mentions specific providers
+- **Token Control**: Consolidator max_tokens=8000 prevents truncation
+- **Consistent Errors**: All adapters return {ok, output}; failures tracked
+- **Dynamic Model Names**: DB stores actual model chain (e.g., `claude-sonnet-4-5→gemini-2.5-pro→gpt-5`)
