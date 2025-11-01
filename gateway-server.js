@@ -145,7 +145,29 @@ if (isReplit) {
   
   app.get('/health', (_req, res) => res.status(200).send('OK'));
   app.head('/health', (_req, res) => res.status(200).end());
-  app.get('/healthz', (_req, res) => res.status(200).json({ ok: true, mode: isDev ? 'dev' : 'prod', ts: Date.now() }));
+  
+  // Health check with client build verification
+  app.get('/healthz', async (_req, res) => {
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const { existsSync } = await import('fs');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const clientDist = path.join(__dirname, 'client/dist');
+    const indexPath = path.join(clientDist, 'index.html');
+    
+    if (existsSync(indexPath)) {
+      return res.status(200).json({ ok: true, spa: 'ready', mode: isDev ? 'dev' : 'prod', ts: Date.now() });
+    }
+    return res.status(503).json({ ok: false, spa: 'missing', mode: isDev ? 'dev' : 'prod', ts: Date.now() });
+  });
+  
+  // Prevent caching of SPA shell to avoid stale "Cannot GET" pages
+  app.use((req, res, next) => {
+    if (req.path === '/' || req.path.startsWith('/app')) {
+      res.set('Cache-Control', 'no-store, must-revalidate');
+    }
+    next();
+  });
   
   // Root route: redirect to app (shell available at /shell if needed)
   app.get('/', (_req, res) => {

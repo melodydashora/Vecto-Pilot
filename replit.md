@@ -109,31 +109,17 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 
 ### Known Issues
 
-#### Browser Cache Shows Stale "Cannot GET /app/" Error After Workflow Restart
-**Status**: ACTIVE - Requires implementation of build-before-start workflow
+#### Workflow Restart Fix - Preventing "Cannot GET /app/" Errors
+**Status**: PARTIALLY IMPLEMENTED - Two of three fixes applied
 
-**Current Issue**: When workflow restarts, Replit preview shows cached "Cannot GET /app/" even though server is working. This happens because:
-1. Client build (`client/dist`) may not exist or be stale when server starts
-2. No Cache-Control headers prevent browser/proxy from serving stale error pages
-3. Preview opens before SPA files are available
+**Root Cause**: When workflow restarts, Replit preview can show cached "Cannot GET /app/" because:
+1. Client build (`client/dist`) may not exist when server starts
+2. No Cache-Control headers prevented browser/proxy from serving stale error pages
+3. Preview opened before SPA files were available
 
-**Immediate Workaround**: Hard refresh browser to clear cached error page:
-- Windows/Linux: `Ctrl+Shift+R`
-- Mac: `Cmd+Shift+R`
-- Or open preview in new browser tab (not embedded webview)
+**Fixes Applied** (Nov 1, 2025):
 
-**Permanent Fix Required** (not yet implemented):
-
-1. **Add client build to start script** (package.json):
-```json
-"scripts": {
-  "build:client": "vite build",
-  "start:server": "node gateway-server.js",
-  "start:replit": "npm run build:client && npm run prestart:replit && node scripts/start-replit.js"
-}
-```
-
-2. **Add Cache-Control headers** (gateway-server.js):
+✅ **1. Cache-Control Headers Added** (gateway-server.js lines 167-173):
 ```javascript
 // Prevent caching of SPA shell to avoid stale "Cannot GET" pages
 app.use((req, res, next) => {
@@ -144,19 +130,35 @@ app.use((req, res, next) => {
 });
 ```
 
-3. **Add client/dist existence check** to health endpoint:
+✅ **2. Health Endpoint with Client Build Check** (gateway-server.js lines 152-165):
 ```javascript
-app.get('/healthz', (req, res) => {
+app.get('/healthz', async (_req, res) => {
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+  const { existsSync } = await import('fs');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const clientDist = path.join(__dirname, 'client/dist');
   const indexPath = path.join(clientDist, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    return res.status(200).json({ ok: true, spa: 'ready' });
+  
+  if (existsSync(indexPath)) {
+    return res.status(200).json({ ok: true, spa: 'ready', mode: isDev ? 'dev' : 'prod', ts: Date.now() });
   }
-  return res.status(503).json({ ok: false, spa: 'missing' });
+  return res.status(503).json({ ok: false, spa: 'missing', mode: isDev ? 'dev' : 'prod', ts: Date.now() });
 });
 ```
 
-**Why This Works**:
-- Build step ensures `client/dist` exists before server advertises routes
-- Cache-Control prevents Replit proxy and browser from serving stale error pages
-- Health check gates readiness until SPA is actually available
-- Early route mounting (already implemented lines 290-352) serves SPA immediately once built
+⚠️ **3. Build-Before-Start Script** (MANUAL STEP REQUIRED):
+The `prestart:replit` script in package.json must be manually updated to build client first:
+```json
+"prestart:replit": "npm run build:client && npm run agent:build"
+```
+
+**Current Workaround**: Hard refresh browser after workflow restart:
+- Windows/Linux: `Ctrl+Shift+R`
+- Mac: `Cmd+Shift+R`
+- Or open preview in new browser tab
+
+**Already in Place**:
+- ✅ Server binds to `0.0.0.0` (all interfaces) on port from `process.env.PORT` (gateway-server.js line 194)
+- ✅ Root `/` redirects to `/app/` (gateway-server.js lines 175-178)
+- ✅ Frontend routes mounted early before heavy initialization (lines 290-352)
