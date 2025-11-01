@@ -339,9 +339,12 @@ export async function maybeConsolidate(snapshotId) {
       return;
     }
 
+    // Import hasRenderableBriefing for proper validation
+    const { hasRenderableBriefing } = await import('../lib/strategy-utils.js');
+
     // Gate: all GENERIC provider fields must be present AND consolidated_strategy must be null
-    const hasStrategy = row.minstrategy != null;
-    const hasBriefing = row.briefing != null && typeof row.briefing === 'object';
+    const hasStrategy = row.minstrategy != null && row.minstrategy.length > 0;
+    const hasBriefing = hasRenderableBriefing(row.briefing);
     const alreadyConsolidated = row.consolidated_strategy != null;
     
     const ready = hasStrategy && hasBriefing && !alreadyConsolidated;
@@ -350,7 +353,12 @@ export async function maybeConsolidate(snapshotId) {
     console.log(`[consolidation-listener] Gate for ${snapshotId}:`, {
       hasStrategy,
       hasBriefing,
-      briefingKeys: hasBriefing ? Object.keys(row.briefing) : [],
+      briefingData: hasBriefing ? {
+        events: row.briefing?.events?.length || 0,
+        holidays: row.briefing?.holidays?.length || 0,
+        traffic: row.briefing?.traffic?.length || 0,
+        news: row.briefing?.news?.length || 0
+      } : null,
       alreadyConsolidated,
       ready
     });
