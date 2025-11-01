@@ -133,7 +133,12 @@ async function consolidateWithGPT5Thinking({ plan, events, news, traffic, snapsh
     // Format: "Friday, October 31, 2025 at 6:45 PM"
     const formattedDateTime = `${dayName}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
     
-    const developerPrompt = `You are a rideshare strategy consolidator for the Dallas-Fort Worth market. Create a time-aware, location-specific, actionable strategy that references TODAY's date, holiday status, weather, and events. Be conversational, urgent, and specific about timing (e.g., "tonight's game", "this ${dayName} evening", "in the next hour"). Keep it 3-5 sentences.`;
+    // Build dynamic market reference from snapshot
+    const marketArea = snapshot?.city && snapshot?.state 
+      ? `${snapshot.city}, ${snapshot.state}` 
+      : 'local';
+    
+    const developerPrompt = `You are a rideshare strategy consolidator for the ${marketArea} market. Create a time-aware, location-specific, actionable strategy that references TODAY's date, holiday status, weather, and events. Be conversational, urgent, and specific about timing (e.g., "tonight's game", "this ${dayName} evening", "in the next hour"). Keep it 3-5 sentences.`;
 
     // Format airport context
     const airportInfo = snapshot?.airport_context 
