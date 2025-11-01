@@ -1,12 +1,10 @@
 // server/lib/strategy-generator-parallel.js
-// Parallel multi-model strategy orchestration: Claude + Gemini → GPT-5 consolidation
+// Parallel multi-model strategy orchestration: Model-agnostic role-based pipeline
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { callClaude45Raw } from './adapters/anthropic-sonnet45.js';
-import { callGeminiGenerateContent } from './adapters/gemini-2.5-pro.js';
-import { callGPT5 } from './adapters/openai-gpt5.js';
+import { callModel } from './adapters/index.js';
 
 // Feature flag - set to true to enable parallel orchestration
 const MULTI_STRATEGY_ENABLED = process.env.MULTI_STRATEGY_ENABLED === 'true';
@@ -27,14 +25,18 @@ Air Quality: AQI ${snapshot.air?.aqi || 'unknown'}
 
 Provide strategic positioning advice for a rideshare driver right now.`;
 
-    const result = await callClaude45Raw({
+    const result = await callModel("strategist", {
       system: systemPrompt,
       user: userPrompt
     });
 
+    if (!result.ok) {
+      return { ok: false, reason: 'strategist_failed' };
+    }
+
     return {
       ok: true,
-      plan: result.trim()
+      plan: result.output.trim()
     };
   } catch (err) {
     console.error(`[parallel-strategy] Claude core call failed:`, err.message);
@@ -67,20 +69,23 @@ Return JSON with arrays:
 
 Return JSON with events[], news[], traffic[] arrays.`;
 
-    const result = await callGeminiGenerateContent({
-      systemInstruction: systemPrompt,
-      userText: userPrompt,
-      maxOutputTokens: 2048
+    const result = await callModel("briefer", {
+      system: systemPrompt,
+      user: userPrompt
     });
+
+    if (!result.ok) {
+      return { ok: false, events: [], news: [], traffic: [], reason: 'briefer_failed' };
+    }
 
     // Robust JSON parsing with fallback to empty arrays
     let parsed;
     try {
-      parsed = JSON.parse(result);
+      parsed = JSON.parse(result.output);
     } catch (parseErr) {
-      console.warn(`[parallel-strategy] JSON parse failed, trying to extract:`, result?.substring(0, 200));
+      console.warn(`[parallel-strategy] JSON parse failed, trying to extract:`, result.output?.substring(0, 200));
       // Try to extract JSON from markdown or text
-      const jsonMatch = result?.match(/\{[\s\S]*\}/);
+      const jsonMatch = result.output?.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[0]);
       } else {
@@ -108,89 +113,46 @@ Return JSON with events[], news[], traffic[] arrays.`;
 }
 
 /**
- * Call GPT-5 to consolidate Claude plan + Gemini feeds
+ * Call GPT-5 to consolidate strategist + briefer outputs
+ * ROLE-PURE: Only receives address + strategist output + briefer output
  */
-async function consolidateWithGPT5Thinking({ plan, events, news, traffic, snapshot, holiday }) {
+async function consolidateWithGPT5Thinking({ plan, briefing, userAddress }) {
   try {
-    // Format date and time context
-    const currentTime = snapshot?.created_at ? new Date(snapshot.created_at) : new Date();
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    
-    const dayName = dayNames[currentTime.getDay()];
-    const monthName = monthNames[currentTime.getMonth()];
-    const dayNum = currentTime.getDate();
-    const year = currentTime.getFullYear();
-    const hour = currentTime.getHours();
-    
-    const timeStr = currentTime.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: snapshot?.timezone || 'America/Chicago'
-    });
-    
-    // Format: "Friday, October 31, 2025 at 6:45 PM"
-    const formattedDateTime = `${dayName}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
-    
-    // Build dynamic market reference from snapshot
-    const marketArea = snapshot?.city && snapshot?.state 
-      ? `${snapshot.city}, ${snapshot.state}` 
-      : 'local';
-    
-    const developerPrompt = `You are a rideshare strategy consolidator for the ${marketArea} market. Create a time-aware, location-specific, actionable strategy that references TODAY's date, holiday status, weather, and events. Be conversational, urgent, and specific about timing (e.g., "tonight's game", "this ${dayName} evening", "in the next hour"). Keep it 3-5 sentences.`;
+    const developerPrompt = `You are a rideshare strategy consolidator.
+Merge the strategist's initial plan with the briefer's real-time intelligence into one final actionable strategy.
+Keep it 3–5 sentences, urgent, time-aware, and specific.`;
 
-    // Format airport context
-    const airportInfo = snapshot?.airport_context 
-      ? `${snapshot.airport_context.airport_code || 'DFW'} airport (${snapshot.airport_context.distance_miles || '?'} mi away)${snapshot.airport_context.has_delays ? ' - DELAYS: ' + (snapshot.airport_context.delay_reason || 'unknown reason') + ' (' + (snapshot.airport_context.delay_minutes || '?') + ' min)' : ''}`
-      : 'No airport data';
+    const userPrompt = `USER LOCATION:
+${userAddress || 'Unknown location'}
 
-    const userPrompt = `CURRENT DATE & TIME: ${formattedDateTime}
-DAY OF WEEK: ${dayName}${holiday ? `\n🎉 HOLIDAY ALERT: ${holiday}! Special demand patterns expected.` : ''}
-TIME OF DAY: ${snapshot?.day_part_key || 'unknown'}
+STRATEGIST OUTPUT:
+${plan || 'No strategist output'}
 
-DRIVER LOCATION:
-Address: ${snapshot?.formatted_address || 'unknown'}
-City: ${snapshot?.city || 'unknown'}, ${snapshot?.state || 'unknown'}
-Coordinates: ${snapshot?.lat || '?'}, ${snapshot?.lng || '?'}
+BRIEFER OUTPUT:
+${briefing ? JSON.stringify(briefing, null, 2) : 'No briefer output'}
 
-CURRENT CONDITIONS:
-Weather: ${snapshot?.weather?.tempF || '?'}°F, ${snapshot?.weather?.conditions || 'unknown'} - ${snapshot?.weather?.description || 'no details'}
-Airport: ${airportInfo}
+Task: Merge these into a final consolidated strategy for this location.`;
 
-REAL-TIME INTELLIGENCE (Next 60 Minutes):
-${holiday ? `🎉 HOLIDAY: ${holiday} - Expect increased demand for travel, dining, entertainment, and family gatherings.\n` : ''}Events: ${events.length > 0 ? events.join('; ') : 'none'}
-Airport News: ${news.length > 0 ? news.join('; ') : 'none'}
-Traffic: ${traffic.length > 0 ? traffic.join('; ') : 'none'}
-
-Generate a strategy that:
-1. Opens with the date/holiday if applicable (e.g., "It's ${holiday ? holiday + ' - ' : ''}${dayName} evening")
-2. References specific locations near the driver's address
-3. Integrates weather conditions if relevant (rain, heat, cold)
-4. Mentions airport delays/demand if applicable
-5. Provides actionable positioning advice for the NEXT HOUR with specific street names, venues, or zones`;
-
-    // Log the full prompt being sent to GPT-5 for verification
-    console.log(`[GPT-5] === FULL CONTEXT SENT ===`);
-    console.log(`[GPT-5] Market: ${marketArea}`);
-    console.log(`[GPT-5] Date/Time: ${formattedDateTime}`);
-    console.log(`[GPT-5] Holiday: ${holiday || 'none'}`);
-    console.log(`[GPT-5] Location: ${snapshot?.formatted_address || 'unknown'}`);
-    console.log(`[GPT-5] Weather: ${snapshot?.weather?.tempF || '?'}°F`);
-    console.log(`[GPT-5] Airport: ${airportInfo}`);
-    console.log(`[GPT-5] Events: ${events.length}, News: ${news.length}, Traffic: ${traffic.length}`);
+    console.log(`[GPT-5] === ROLE-PURE CONSOLIDATION ===`);
+    console.log(`[GPT-5] Location: ${userAddress || 'Unknown'}`);
+    console.log(`[GPT-5] Strategist output: ${plan?.length || 0} chars`);
+    console.log(`[GPT-5] Briefer output: ${briefing ? JSON.stringify(briefing).length : 0} chars`);
     console.log(`[GPT-5] === END CONTEXT ===`);
 
-    const result = await callGPT5({
-      developer: developerPrompt,
-      user: userPrompt,
-      max_completion_tokens: 2000,
-      reasoning_effort: 'medium'
+    console.log(`[CONSOLIDATOR] 🚀 Calling model-agnostic consolidator role...`);
+
+    const result = await callModel("consolidator", {
+      system: developerPrompt,
+      user: userPrompt
     });
+
+    if (!result.ok) {
+      return { ok: false, reason: 'consolidator_failed' };
+    }
 
     return {
       ok: true,
-      strategy: result.text.trim()
+      strategy: result.output.trim()
     };
   } catch (err) {
     console.error(`[parallel-strategy] GPT-5 consolidation failed:`, err.message);
@@ -206,6 +168,12 @@ Generate a strategy that:
  */
 async function saveStrategy(row) {
   try {
+    // Build dynamic model name from environment variables
+    const strategist = process.env.STRATEGY_STRATEGIST || 'unknown';
+    const briefer = process.env.STRATEGY_BRIEFER || 'unknown';
+    const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'unknown';
+    const modelName = `${strategist}→${briefer}→${consolidator}`;
+
     await db.insert(strategies).values({
       snapshot_id: row.snapshot_id,
       user_id: row.user_id,
@@ -219,7 +187,7 @@ async function saveStrategy(row) {
       traffic: row.traffic,
       strategy_for_now: row.consolidated_strategy,
       status: 'ok',
-      model_name: 'claude-4.5→gemini-2.5→gpt-5',
+      model_name: modelName,
       created_at: new Date(),
       updated_at: new Date()
     }).onConflictDoUpdate({
@@ -236,7 +204,7 @@ async function saveStrategy(row) {
         traffic: row.traffic,
         strategy_for_now: row.consolidated_strategy,
         status: 'ok',
-        model_name: 'claude-4.5→gemini-2.5→gpt-5',
+        model_name: modelName,
         updated_at: new Date()
       }
     });
@@ -378,29 +346,18 @@ export async function runParallelProviders({ snapshotId, user, snapshot }) {
 
     console.log(`[SIMPLE-STRATEGY] ✅ Briefings extracted from snapshot (holiday=${holiday || 'none'}, news=${geminiResult.news.length}, events=${geminiResult.events.length}, traffic=${geminiResult.traffic.length})`);
 
-    // Step 2: Send FULL snapshot data to GPT-5 for contextual strategy
-    console.log(`[SIMPLE-STRATEGY] 🚀 Sending FULL snapshot + briefings to GPT-5...`);
+    // Step 2: Consolidate with role-pure inputs (address + briefer output only)
+    // Note: This path has no strategist, so we pass the briefing as the main content
+    console.log(`[SIMPLE-STRATEGY] 🚀 Calling consolidator (briefing-only mode)...`);
     const consolidated = await consolidateWithGPT5Thinking({
-      plan: null,  // No Claude plan needed
-      events: geminiResult.events || [],
-      news: geminiResult.news || [],
-      traffic: geminiResult.traffic || [],
-      snapshot: {
-        // FULL snapshot data for complete context
-        snapshot_id: snapshotData.snapshot_id,
-        created_at: snapshotData.created_at,
-        formatted_address: snapshotData.formatted_address || user_address,
-        city: city,
-        state: state,
-        lat: lat,
-        lng: lng,
-        timezone: snapshotData.timezone,
-        day_part_key: snapshotData.day_part_key,
-        weather: snapshotData.weather,
-        airport_context: snapshotData.airport_context,
-        user_id: user_id
+      plan: `No strategist analysis available. Use briefing data to create strategy.`,
+      briefing: {
+        holiday: geminiResult.holiday,
+        events: geminiResult.events,
+        news: geminiResult.news,
+        traffic: geminiResult.traffic
       },
-      holiday: geminiResult.holiday
+      userAddress: snapshotData.formatted_address || user_address
     });
 
     if (!consolidated.ok) {
@@ -483,15 +440,10 @@ export async function consolidateStrategy({ snapshotId, claudeStrategy, briefing
       console.log(`[consolidation] Attempt ${i + 1}/${attempts} with max_tokens=${maxTokens}`);
       
       try {
-        const consolidated = await consolidateWithGPT5ThinkingWithMetadata({
+        const consolidated = await consolidateWithGPT5Thinking({
           plan: claudeStrategy,
-          events,
-          news,
-          traffic,
-          briefing,
-          snapshot: snapshot || {},
-          holiday: holiday || (holidays.length > 0 ? holidays[0] : null),
-          maxTokens
+          briefing: briefing,
+          userAddress: user?.user_address || snapshot?.formatted_address || 'Unknown location'
         });
 
         finishReason = consolidated.finishReason;
@@ -553,85 +505,7 @@ export async function consolidateStrategy({ snapshotId, claudeStrategy, briefing
   }
 }
 
-/**
- * Call GPT-5 with metadata (finish_reason, tokens, etc.)
- */
-async function consolidateWithGPT5ThinkingWithMetadata({ plan, events, news, traffic, briefing, snapshot, holiday, maxTokens = 900 }) {
-  try {
-    // Format date and time context
-    const currentTime = snapshot?.created_at ? new Date(snapshot.created_at) : new Date();
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    
-    const dayName = dayNames[currentTime.getDay()];
-    const monthName = monthNames[currentTime.getMonth()];
-    const dayNum = currentTime.getDate();
-    const year = currentTime.getFullYear();
-    
-    const timeStr = currentTime.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: snapshot?.timezone || 'America/Chicago'
-    });
-    
-    const formattedDateTime = `${dayName}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
-    const marketArea = snapshot?.city && snapshot?.state ? `${snapshot.city}, ${snapshot.state}` : 'local';
-    
-    // Compress inputs to reduce token usage
-    const topEvents = (events || []).slice(0, 6);
-    const topNews = (news || []).slice(0, 4);
-    const topTraffic = (traffic || []).slice(0, 3);
-    const topHolidays = (briefing?.holidays || []).slice(0, 2);
-    
-    const developerPrompt = `You are a rideshare strategy consolidator for the ${marketArea} market. Create concise, actionable positioning advice in 3-5 sentences. Keep under 350 tokens. Be specific about timing and location.`;
-    
-    const airportInfo = snapshot?.airport_context 
-      ? `${snapshot.airport_context.airport_code || 'DFW'} (${snapshot.airport_context.distance_miles || '?'} mi)${snapshot.airport_context.has_delays ? ' - DELAYS' : ''}`
-      : 'No airport data';
-    
-    const userPrompt = `DATE: ${formattedDateTime}${holiday ? `\n🎉 HOLIDAY: ${holiday}` : ''}
-TIME: ${snapshot?.day_part_key || 'unknown'}
-
-LOCATION: ${snapshot?.formatted_address || 'unknown'}
-WEATHER: ${snapshot?.weather?.tempF || '?'}°F, ${snapshot?.weather?.conditions || 'unknown'}
-AIRPORT: ${airportInfo}
-
-INTELLIGENCE:
-${holiday ? `Holiday: ${holiday}\n` : ''}Events: ${topEvents.join('; ') || 'none'}
-News: ${topNews.join('; ') || 'none'}
-Traffic: ${topTraffic.join('; ') || 'none'}
-
-TACTICAL ANALYSIS:
-${plan || 'No analysis available'}
-
-Consolidate into 3-5 actionable sentences for the driver's next hour.`;
-    
-    // Call GPT-5 with custom max_tokens
-    const result = await callGPT5({
-      developer: developerPrompt,
-      user: userPrompt,
-      max_completion_tokens: maxTokens,
-      reasoning_effort: 'medium'
-    });
-    
-    // Note: We can't directly access finish_reason from the adapter
-    // The adapter throws on empty content, so if we get here, content exists
-    return {
-      ok: true,
-      strategy: result.text.trim(),
-      finishReason: 'stop' // Assume stop if we got content
-    };
-  } catch (err) {
-    // Check if error message indicates truncation
-    const isLengthTruncation = err.message?.includes('No content in completion response');
-    return {
-      ok: false,
-      reason: err.message || 'consolidation_failed',
-      finishReason: isLengthTruncation ? 'length' : 'error'
-    };
-  }
-}
+// Old consolidateWithGPT5ThinkingWithMetadata function DELETED - replaced with role-pure consolidateWithGPT5Thinking
 
 /**
  * Legacy main function - kept for backwards compatibility

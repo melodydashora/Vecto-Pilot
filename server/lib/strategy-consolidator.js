@@ -55,18 +55,24 @@ async function maybeConsolidate(snapshotId) {
   }
 
   try {
-    // ROLE-PURE PROMPTS: Only use strategist + briefer outputs
+    // Get user address from snapshot
+    const userAddress = row.user_resolved_address || 'Unknown location';
+
+    // ROLE-PURE PROMPTS: Address + strategist + briefer outputs
     const systemPrompt = `You are a rideshare strategy consolidator.
 Merge the strategist's initial plan with the briefer's real-time intelligence into one final actionable strategy.
 Keep it 3–5 sentences, urgent, time-aware, and specific.`;
 
-    const userPrompt = `STRATEGIST OUTPUT:
+    const userPrompt = `USER LOCATION:
+${userAddress}
+
+STRATEGIST OUTPUT:
 ${strategistOutput}
 
 BRIEFER OUTPUT:
 ${brieferOutput}
 
-Task: Merge these into a final consolidated strategy.`;
+Task: Merge these into a final consolidated strategy for this location.`;
 
     console.log(`[consolidation] 🚀 Calling consolidator role for ${snapshotId}...`);
 
