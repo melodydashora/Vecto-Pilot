@@ -5,7 +5,7 @@
   "main": "gateway-server.js",
   "type": "module",
   "scripts": {
-    "prestart:replit": "npm run agent:build",
+    "prestart:replit": "npm run build:client && npm run agent:build",
     "start:replit": "node scripts/start-replit.js",
     "start": "NODE_ENV=production node gateway-server.js",
     "dev": "NODE_ENV=development node gateway-server.js",
