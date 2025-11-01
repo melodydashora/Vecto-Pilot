@@ -35,9 +35,7 @@ export async function processTriadJobs() {
         const orphaned = await db.execute(sql`
           SELECT snapshot_id FROM ${strategies}
           WHERE minstrategy IS NOT NULL
-            AND briefing_news IS NOT NULL
-            AND briefing_events IS NOT NULL
-            AND briefing_traffic IS NOT NULL
+            AND briefing IS NOT NULL
             AND consolidated_strategy IS NULL
           LIMIT 5
         `);
@@ -418,19 +416,16 @@ export async function maybeConsolidate(snapshotId) {
 
     // Gate: all GENERIC provider fields must be present AND consolidated_strategy must be null
     const hasStrategy = row.minstrategy != null;
-    const hasNews = row.briefing_news != null;
-    const hasEvents = row.briefing_events != null;
-    const hasTraffic = row.briefing_traffic != null;
+    const hasBriefing = row.briefing != null && typeof row.briefing === 'object';
     const alreadyConsolidated = row.consolidated_strategy != null;
     
-    const ready = hasStrategy && hasNews && hasEvents && hasTraffic && !alreadyConsolidated;
+    const ready = hasStrategy && hasBriefing && !alreadyConsolidated;
 
     // Detailed gate logging for observability
     console.log(`[consolidation-listener] Gate for ${snapshotId}:`, {
       hasStrategy,
-      hasNews: hasNews && Array.isArray(row.briefing_news),
-      hasEvents: hasEvents && Array.isArray(row.briefing_events),
-      hasTraffic: hasTraffic && Array.isArray(row.briefing_traffic),
+      hasBriefing,
+      briefingKeys: hasBriefing ? Object.keys(row.briefing) : [],
       alreadyConsolidated,
       ready
     });
@@ -454,9 +449,7 @@ export async function maybeConsolidate(snapshotId) {
     const result = await consolidateStrategy({
       snapshotId,
       claudeStrategy: row.minstrategy,
-      geminiNews: row.briefing_news,
-      geminiEvents: row.briefing_events,
-      geminiTraffic: row.briefing_traffic,
+      briefing: row.briefing, // Single JSONB object with {events, holidays, traffic, news}
       user
     });
 
