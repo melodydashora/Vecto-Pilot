@@ -62,7 +62,7 @@ function App() {
             <GlobalHeader />
             <NavigationTabs />
             
-            <main className="pt-4">
+            <main className="main-content-with-header">
               <Switch>
                 <Route path="/" component={CoPilot} />
                 <Route path="/briefing" component={BriefingPage} />

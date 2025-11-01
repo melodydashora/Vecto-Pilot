@@ -92,6 +92,13 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 4. Frontend routes (`/app/*`) - Lines 297-355 (immediate)
 5. Background init (job seeding, validation, cache warmup) - Lines 363-413 (deferred)
 
+### Fixed Header Content Overlap Fix (App.tsx)
+**Issue**: GlobalHeader uses `position: fixed` (index.css line 112), causing NavigationTabs and page content to be hidden underneath the header. Only the header was visible on screen.
+
+**Fix**: Changed main element class from `pt-4` to `main-content-with-header` (App.tsx line 68), applying 120px top padding defined in index.css (lines 130-132) to push content below the fixed header.
+
+**Result**: NavigationTabs and all page content now visible below the GlobalHeader.
+
 ### Preview/Deployment Status
 - **Localhost**: Server responds correctly on http://localhost:5000/app/ and http://0.0.0.0:5000/healthz
 - **External URL**: https://workspace.melodydashora.repl.co does not respond (Replit proxy/port forwarding issue)
