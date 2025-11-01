@@ -1,13 +1,13 @@
 // server/lib/strategy-consolidator.js
 // LISTEN/NOTIFY consolidator - waits for minstrategy + briefing, then consolidates
+// ROLE-PURE: receives ONLY strategist + briefer outputs (no raw snapshot context)
 
 import { db } from '../db/drizzle.js';
 import { strategies } from '../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { getListenClient } from './db-client.js';
-import { getSnapshotContext } from './snapshot/get-snapshot-context.js';
-import { callGPT5 } from './adapters/openai-gpt5.js';
+import { callModel } from './adapters/index.js';
 
 /**
  * Generate advisory lock key from snapshot ID
@@ -25,101 +25,77 @@ async function maybeConsolidate(snapshotId) {
   if (!row) return;
 
   // Check if ready: need minstrategy + non-empty briefing
-  const hasMin = !!(row.minstrategy && row.minstrategy.trim().length);
-  const hasBriefing = !!(row.briefing && JSON.stringify(row.briefing) !== '{}');
-  const ready = hasMin && hasBriefing;
+  const strategistOutput = row.minstrategy?.trim();
+  const brieferOutput = row.briefing && JSON.stringify(row.briefing) !== '{}' ? JSON.stringify(row.briefing, null, 2) : null;
   const already = !!(row.consolidated_strategy && row.consolidated_strategy.trim().length);
 
-  if (!ready || already) return;
+  if (!strategistOutput || !brieferOutput) {
+    console.warn(`[consolidation] skip ${snapshotId} — missing strategist/briefing`);
+    await db.execute(sql`
+      UPDATE strategies
+      SET status = 'pending', error_message = 'missing role outputs'
+      WHERE snapshot_id = ${snapshotId}
+    `);
+    return;
+  }
 
-  console.log(`[consolidator] 🎯 Ready to consolidate ${snapshotId}`);
+  if (already) {
+    console.log(`[consolidation] skip ${snapshotId} — already consolidated`);
+    return;
+  }
+
+  console.log(`[consolidation] 🎯 Ready to consolidate ${snapshotId}`);
 
   // Advisory lock to guarantee single consolidation per snapshot
   const client = await getListenClient();
   const lk = await client.query('SELECT pg_try_advisory_lock($1::bigint)', [key(snapshotId)]);
   if (!lk?.rows?.[0]?.pg_try_advisory_lock) {
-    console.log(`[consolidator] ⏭️ Lock held by another worker for ${snapshotId}`);
+    console.log(`[consolidation] ⏭️ Lock held by another worker for ${snapshotId}`);
     return;
   }
 
   try {
-    const ctx = await getSnapshotContext(snapshotId);
-    
-    // Extract briefing data (Gemini output)
-    const briefing = row.briefing || { events: [], holidays: [], traffic: [], news: [] };
-    const holiday = briefing.holidays?.[0] || ctx.news_briefing?.briefing?.holiday || null;
-    
-    // Format date/time context
-    const currentTime = new Date(ctx.created_at);
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    
-    const dayName = dayNames[currentTime.getDay()];
-    const monthName = monthNames[currentTime.getMonth()];
-    const dayNum = currentTime.getDate();
-    const year = currentTime.getFullYear();
-    
-    const timeStr = currentTime.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: ctx.timezone || 'America/Chicago'
-    });
-    
-    const formattedDateTime = `${dayName}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
+    // ROLE-PURE PROMPTS: Only use strategist + briefer outputs
+    const systemPrompt = `You are a rideshare strategy consolidator.
+Merge the strategist's initial plan with the briefer's real-time intelligence into one final actionable strategy.
+Keep it 3–5 sentences, urgent, time-aware, and specific.`;
 
-    const developerPrompt = `You are a rideshare strategy consolidator for ${ctx.city}, ${ctx.state}. Combine the initial strategy with real-time intelligence into a final actionable strategy. Be conversational, urgent, and specific about timing. Keep it 3-5 sentences.`;
+    const userPrompt = `STRATEGIST OUTPUT:
+${strategistOutput}
 
-    const userPrompt = `CURRENT DATE & TIME: ${formattedDateTime}
-DAY OF WEEK: ${dayName}${holiday ? `\n🎉 HOLIDAY: ${holiday}` : ''}
-TIME OF DAY: ${ctx.day_part_key}
+BRIEFER OUTPUT:
+${brieferOutput}
 
-DRIVER LOCATION:
-Address: ${row.user_resolved_address || ctx.formatted_address}
-City: ${row.user_resolved_city || ctx.city}, ${row.user_resolved_state || ctx.state}
+Task: Merge these into a final consolidated strategy.`;
 
-CURRENT CONDITIONS:
-Weather: ${ctx.weather?.tempF || '?'}°F, ${ctx.weather?.conditions || 'unknown'}
-Airport: ${ctx.airport_context?.airport_code || 'none'} ${ctx.airport_context?.has_delays ? `(${ctx.airport_context.delay_minutes} min delays)` : ''}
+    console.log(`[consolidation] 🚀 Calling consolidator role for ${snapshotId}...`);
 
-INITIAL STRATEGY:
-${row.minstrategy}
+    const res = await callModel("consolidator", { system: systemPrompt, user: userPrompt });
 
-REAL-TIME INTELLIGENCE:
-${briefing.holidays?.length ? `🎉 HOLIDAYS: ${briefing.holidays.join(', ')}\n` : ''}${briefing.events?.length ? `Events: ${briefing.events.join('; ')}\n` : ''}${briefing.traffic?.length ? `Traffic: ${briefing.traffic.join('; ')}\n` : ''}${briefing.news?.length ? `News: ${briefing.news.join('; ')}` : ''}
-
-Consolidate into a final strategy that integrates the intelligence with the strategic analysis.`;
-
-    const consolidatorModel = process.env.STRATEGY_CONSOLIDATOR;
-    if (!consolidatorModel) {
-      throw new Error('Missing STRATEGY_CONSOLIDATOR environment variable');
+    if (res?.ok && res.output?.trim()) {
+      await db.execute(sql`
+        UPDATE strategies
+        SET consolidated_strategy = ${res.output.trim()}, status = 'ok', updated_at = NOW()
+        WHERE snapshot_id = ${snapshotId}
+      `);
+      console.log(`[consolidation] ✅ saved ${snapshotId} (${res.output.length} chars)`);
+    } else {
+      console.warn(`[consolidation] ⚠️ empty consolidator output for ${snapshotId}`);
+      // Safe fallback to unblock UI: use strategist output
+      await db.execute(sql`
+        UPDATE strategies
+        SET consolidated_strategy = ${strategistOutput}, status = 'ok', updated_at = NOW()
+        WHERE snapshot_id = ${snapshotId}
+      `);
+      console.log(`[consolidation] ✅ fallback to strategist output for ${snapshotId}`);
     }
-    
-    const maxTokens = parseInt(process.env.STRATEGY_CONSOLIDATOR_MAX_TOKENS || '2000', 10);
-    const reasoningEffort = process.env.STRATEGY_CONSOLIDATOR_REASONING_EFFORT || 'medium';
-    
-    console.log(`[consolidator] 🚀 Calling consolidator (${consolidatorModel}) for ${snapshotId}...`);
-
-    const result = await callGPT5({
-      model: consolidatorModel,
-      developer: developerPrompt,
-      user: userPrompt,
-      max_completion_tokens: maxTokens,
-      reasoning_effort: reasoningEffort
-    });
-
-    const consolidated = result.text?.trim() || null;
-
-    // Write consolidated strategy
-    await db.update(strategies).set({
-      consolidated_strategy: consolidated,
-      status: consolidated ? 'ok' : 'pending',
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId));
-
-    console.log(`[consolidator] ✅ Consolidated ${snapshotId} (${consolidated?.length || 0} chars)`);
-  } catch (error) {
-    console.error(`[consolidator] ❌ Error consolidating ${snapshotId}:`, error.message);
+  } catch (err) {
+    console.error(`[consolidation] ❌ ${snapshotId}:`, err?.message || err);
+    await db.execute(sql`
+      UPDATE strategies
+      SET status = 'failed', error_message = ${String(err?.message || err)}, updated_at = NOW()
+      WHERE snapshot_id = ${snapshotId}
+    `);
   } finally {
     await client.query('SELECT pg_advisory_unlock($1::bigint)', [key(snapshotId)]);
   }
