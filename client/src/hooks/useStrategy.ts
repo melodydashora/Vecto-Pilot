@@ -23,7 +23,7 @@ export type Briefing = {
 
 export type StrategyData = {
   snapshot_id: string;
-  status: 'missing' | 'pending' | 'ok';
+  status: 'missing' | 'pending' | 'running' | 'ok' | 'ok_partial' | 'error';
   strategy?: {
     min?: string;
     consolidated?: string;
@@ -37,6 +37,7 @@ export type StrategyData = {
   };
   waitFor?: string[];
   timeElapsedMs?: number;
+  error_message?: string | null;
 };
 
 export function useStrategy(snapshotId?: string) {
@@ -46,6 +47,7 @@ export function useStrategy(snapshotId?: string) {
 
   useEffect(() => {
     let active = true;
+    let pollTimeout: NodeJS.Timeout | null = null;
     
     if (!snapshotId) {
       setData(null);
@@ -53,29 +55,38 @@ export function useStrategy(snapshotId?: string) {
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
-    fetch(`/api/blocks/strategy/${snapshotId}`)
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then(d => {
-        if (active) {
+    const fetchStrategy = () => {
+      fetch(`/api/blocks/strategy/${snapshotId}`)
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then(d => {
+          if (!active) return;
+          
           setData(d);
           setLoading(false);
-        }
-      })
-      .catch(err => {
-        if (active) {
+          
+          // Poll every 2s until strategy is ready (ok or ok_partial) or error
+          const shouldPoll = d.status === 'pending' || d.status === 'running';
+          if (shouldPoll) {
+            pollTimeout = setTimeout(fetchStrategy, 2000);
+          }
+        })
+        .catch(err => {
+          if (!active) return;
           setError(err.message);
           setLoading(false);
-        }
-      });
+        });
+    };
+
+    setLoading(true);
+    setError(null);
+    fetchStrategy();
 
     return () => {
       active = false;
+      if (pollTimeout) clearTimeout(pollTimeout);
     };
   }, [snapshotId]);
 
