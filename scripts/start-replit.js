@@ -9,8 +9,13 @@
  */
 
 import http from 'node:http';
-import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { spawn, execSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load mono-mode.env
 try {
@@ -52,7 +57,6 @@ process.env.WORKER_ID = process.env.WORKER_ID || `replit:${process.pid}`;
 const PORT = process.env.PORT;
 
 // Kill any existing process on port 5000 to prevent conflicts
-import { execSync } from 'node:child_process';
 try {
   execSync(`lsof -ti:${PORT} | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
   console.log(`[boot] ✅ Cleared port ${PORT}`);
@@ -65,14 +69,10 @@ console.log(`[boot] PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`[boot] ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}`);
 console.log(`[boot] REPL_ID=${process.env.REPL_ID ? 'set' : 'not set'}`);
 
-const fs = require('fs');
-const path = require('path');
-
 // Verify client build exists
 const clientDistPath = path.join(__dirname, '..', 'client', 'dist', 'index.html');
-if (!fs.existsSync(clientDistPath)) {
+if (!existsSync(clientDistPath)) {
   console.error('❌ [boot] Client build missing! Building now...');
-  const { execSync } = require('child_process');
   try {
     execSync('cd client && npm install && npm run build', { stdio: 'inherit' });
     console.log('✅ [boot] Client build complete');
