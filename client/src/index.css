@@ -77,7 +77,11 @@
   *, ::before, ::after {
     @apply border-border;
   }
-  html, body, #root { height: 100%; }
+  html, body, #root { 
+    height: auto;
+    min-height: 100%;
+    overflow: auto;
+  }
   body {
     @apply bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 font-sans antialiased;
     color: hsl(var(--foreground));
@@ -109,11 +113,8 @@
 :root { --vecto-header-height: 200px; }
 
 .vecto-header-stack {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
+  position: static;
+  width: 100%;
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -126,9 +127,9 @@
 .vecto-header-stack .vh-row.vh-brand { order: 1; }
 .vecto-header-stack .vh-row.vh-location { order: 2; }
 
-/* Ensure main content doesn't overlap header */
+/* Main content flows normally beneath static header */
 .main-content-with-header {
-  padding-top: 120px; /* Adjust based on actual header height */
+  padding-top: 0;
 }
 
 /* Fix for React Router main content */
