@@ -86,9 +86,7 @@ INITIAL STRATEGY:
 ${row.minstrategy}
 
 REAL-TIME INTELLIGENCE:
-${briefing.holidays?.length ? `🎉 HOLIDAYS: ${briefing.holidays.join(', ')}\n` : ''}Events: ${briefing.events?.join('; ') || 'none'}
-Traffic: ${briefing.traffic?.join('; ') || 'none'}
-News: ${briefing.news?.join('; ') || 'none'}
+${briefing.holidays?.length ? `🎉 HOLIDAYS: ${briefing.holidays.join(', ')}\n` : ''}${briefing.events?.length ? `Events: ${briefing.events.join('; ')}\n` : ''}${briefing.traffic?.length ? `Traffic: ${briefing.traffic.join('; ')}\n` : ''}${briefing.news?.length ? `News: ${briefing.news.join('; ')}` : ''}
 
 Consolidate into a final strategy that integrates the intelligence with the strategic analysis.`;
 
