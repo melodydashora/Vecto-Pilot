@@ -16,7 +16,6 @@
     "gateway:proxy": "tsx server/gateway/assistant-proxy.ts",
     "agent:server": "tsx server/agent/index.ts",
     "override:start": "npm-run-all --parallel gateway:proxy agent:server",
-    "build:client": "vite build",
     "dev:client": "vite dev",
     "lint": "eslint client/src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "typecheck": "tsc --noEmit",

@@ -3,7 +3,8 @@ entrypoint = "gateway-server.js"
 modules = ["postgresql-16", "python-3.11", "nodejs-20"]
 
 # Primary run command (Run button / default start)
-run = "sh -c 'export $(cat mono-mode.env | xargs) && npm run start:replit'"
+# Source env safely so comments/quotes are handled correctly
+run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-replit.js\""
 
 # Nix/packages configuration
 [nix]
@@ -13,7 +14,8 @@ channel = "stable-25_05"
 # Deployment settings (CI-like build/start)
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
-run = ["sh", "-c", "export $(cat mono-mode.env | xargs) && ./start-mono.sh"]
+run = ["sh", "-c", "set -a && . ./mono-mode.env && set +a && node scripts/start-replit.js"]
+
 
 # Port mappings
 [[ports]]
@@ -35,4 +37,5 @@ author = 43532959
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "set -a && source mono-mode.env && set +a && npm run start:replit"
+args = "set -a && . mono-mode.env && set +a && npm run start:replit"
+
