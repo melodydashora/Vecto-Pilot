@@ -6,6 +6,29 @@ import { strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
+ * Ensure a strategy row exists for a snapshot
+ * Creates one if missing, idempotent
+ * @param {string} snapshotId - UUID of snapshot
+ * @returns {Promise<void>}
+ */
+export async function ensureStrategyRow(snapshotId) {
+  const [existing] = await db
+    .select()
+    .from(strategies)
+    .where(eq(strategies.snapshot_id, snapshotId))
+    .limit(1);
+
+  if (existing) return;
+
+  await db.insert(strategies).values({
+    snapshot_id: snapshotId,
+    status: 'pending',
+    created_at: new Date(),
+    updated_at: new Date()
+  }).onConflictDoNothing();
+}
+
+/**
  * Check if consolidated strategy is ready for a snapshot
  * Used by blocks-fast to gate rendering until strategy exists
  * 
