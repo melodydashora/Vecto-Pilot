@@ -72,3 +72,28 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Recent Changes (Nov 1, 2025)
+
+### Frontend Navigation Tabs
+- Added NavigationTabs component with Copilot and Briefing tabs in App.tsx
+- Created BriefingPage.tsx to display raw database outputs from AI pipeline
+- Tabs positioned below GlobalHeader for easy switching between views
+
+### Route Mounting Fix (gateway-server.js)
+**Issue**: Frontend `/app/*` routes were mounted inside `setImmediate()` callback after heavy initialization (job seeding, strategy validation, cache warmup). This caused "Cannot GET /app/" errors when preview accessed the app before initialization completed.
+
+**Fix**: Moved frontend route mounting (lines 293-355) to execute immediately after API routes, before background initialization. Background tasks now run in `setImmediate()` (lines 363-413) to avoid blocking the app.
+
+**Route Order** (Mono Mode):
+1. Health endpoints (`/health`, `/healthz`, `/ready`) - Lines 146-175
+2. API routes (`/api/*`) - Lines 263-266 (SDK embed)
+3. Agent routes (`/agent/*`) - Lines 273-275
+4. Frontend routes (`/app/*`) - Lines 297-355 (immediate)
+5. Background init (job seeding, validation, cache warmup) - Lines 363-413 (deferred)
+
+### Preview/Deployment Status
+- **Localhost**: Server responds correctly on http://localhost:5000/app/ and http://0.0.0.0:5000/healthz
+- **External URL**: https://workspace.melodydashora.repl.co does not respond (Replit proxy/port forwarding issue)
+- **Port Configuration**: `.replit` configured with localPort 5000 → externalPort 80
+- **Server Binding**: Listening on `0.0.0.0:5000` (all interfaces) - confirmed via `lsof`
