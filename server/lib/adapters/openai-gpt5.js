@@ -1,10 +1,10 @@
 // server/lib/adapters/openai-gpt5.js
 // OpenAI GPT-5 — Chat Completions API with reasoning effort
-// Model from env: OPENAI_MODEL (default: gpt-5)
-// Reasoning effort from env: GPT5_REASONING_EFFORT (default: high)
+// Model from env: OPENAI_MODEL (required)
+// Reasoning effort from env: OPENAI_REASONING_EFFORT (default: medium)
 export async function callGPT5({ 
   apiKey = process.env.OPENAI_API_KEY, 
-  model = process.env.OPENAI_MODEL || "gpt-5", 
+  model = process.env.OPENAI_MODEL, 
   system, 
   user, 
   messages,
@@ -14,6 +14,7 @@ export async function callGPT5({
   max_completion_tokens = 16000,
   abortSignal 
 }) {
+  if (!model) throw new Error("Missing OPENAI_MODEL environment variable");
   const url = "https://api.openai.com/v1/chat/completions";
 
   // Build messages array if not provided

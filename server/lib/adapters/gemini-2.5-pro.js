@@ -1,9 +1,9 @@
 // Google Gemini 2.5 Pro — v1beta generateContent
-// Model ID from env: GEMINI_MODEL (default: gemini-2.5-pro)
+// Model ID from env: GEMINI_MODEL (required)
 // Temperature from env: GEMINI_TEMPERATURE (default: 0.2)
 export async function callGeminiGenerateContent({
   apiKey = process.env.GEMINI_API_KEY,
-  model = process.env.GEMINI_MODEL || "gemini-2.5-pro",
+  model = process.env.GEMINI_MODEL,
   systemInstruction,
   userText,
   maxOutputTokens = parseInt(process.env.GEMINI_MAX_TOKENS || "2048"),
@@ -11,6 +11,7 @@ export async function callGeminiGenerateContent({
   abortSignal
 }) {
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+  if (!model) throw new Error("Missing GEMINI_MODEL environment variable");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const body = {
     systemInstruction: systemInstruction ? { role: "system", parts: [{ text: systemInstruction }] } : undefined,

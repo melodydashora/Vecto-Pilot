@@ -108,9 +108,14 @@ Generate the briefing now, strictly for the next 60 minutes.`
       ]
     };
     
-    // Configure Gemini model with thinking budget
+    // Configure briefer model
+    const brieferModel = process.env.STRATEGY_BRIEFER;
+    if (!brieferModel) {
+      throw new Error('Missing STRATEGY_BRIEFER environment variable');
+    }
+    
     const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+      model: brieferModel,
       systemInstruction: systemInstruction,
       generationConfig: {
         temperature: 0.7,

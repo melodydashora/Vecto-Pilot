@@ -15,9 +15,12 @@ Vecto Pilot is a full-stack Node.js application with a multi-service architectur
 -   **Agent Server**: Delivers workspace intelligence, including secure, token-based access for file system operations, shell commands, and database queries.
 
 **AI Configuration**:
-The platform uses a model-agnostic architecture with configurable AI models.
--   **Strategy Generation Pipeline**: An event-driven pipeline where Minstrategy (Claude) generates initial analysis, Briefing (Gemini) provides real-time city intelligence, and Consolidator (GPT-5) combines their outputs. This process is triggered by PostgreSQL LISTEN/NOTIFY.
--   **Model-Agnostic Schema**: Database columns use generic names (e.g., `minstrategy`, `briefing`, `consolidated_strategy`) to avoid provider-specific coupling.
+The platform uses a **role-based, model-agnostic architecture** with configurable AI models.
+-   **Strategy Generation Pipeline**: An event-driven pipeline with three roles:
+    - **Strategist** (`STRATEGY_STRATEGIST`): Generates initial strategic analysis (default: Claude)
+    - **Briefer** (`STRATEGY_BRIEFER`): Provides real-time city intelligence (default: Gemini)
+    - **Consolidator** (`STRATEGY_CONSOLIDATOR`): Combines outputs into final strategy (default: GPT-5)
+-   **Model-Agnostic Schema**: Database columns use generic names (e.g., `minstrategy`, `briefing`, `consolidated_strategy`) to avoid provider-specific coupling. Environment variables use role names (`STRATEGY_STRATEGIST`, `STRATEGY_BRIEFER`, `STRATEGY_CONSOLIDATOR`) instead of provider names.
 -   **Event-Driven Architecture**: PostgreSQL LISTEN/NOTIFY replaces polling, with a worker (`strategy-generator.js`) managing consolidation.
 -   **Venue Events Intelligence**: An "Events Researcher" identifies real-time, venue-specific events for UI display.
 
@@ -58,7 +61,7 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 ## External Dependencies
 
 ### Third-Party APIs
--   **AI & Research**: Anthropic API (Claude), OpenAI API (GPT-5), Google Gemini API, Perplexity API.
+-   **AI & Research**: Strategy pipeline uses role-based configuration via `STRATEGY_STRATEGIST`, `STRATEGY_BRIEFER`, `STRATEGY_CONSOLIDATOR` environment variables. Supported providers: Anthropic (Claude), OpenAI (GPT-5), Google (Gemini), Perplexity.
 -   **Location & Mapping**: Google Places API, Google Routes API, Google Geocoding API.
 -   **Weather and Air Quality**: Configurable via environment variables.
 
@@ -72,6 +75,37 @@ Planner inputs include `user_address`, `city`, `state`, and `strategy_for_now`. 
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Recent Changes (Nov 1, 2025)
+
+### Role-Based Model Configuration - Nov 1, 2025 12:40 PM
+**Issue**: Model names were hardcoded in adapter files, making the system inflexible and provider-coupled.
+
+**Changes Applied**:
+1. **Removed hardcoded model defaults** from all adapter files:
+   - `server/lib/adapters/openai-gpt5.js` - Now requires `OPENAI_MODEL` env var
+   - `server/lib/adapters/anthropic-sonnet45.js` - Now requires `ANTHROPIC_MODEL` env var
+   - `server/lib/adapters/gemini-2.5-pro.js` - Now requires `GEMINI_MODEL` env var
+
+2. **Introduced role-based environment variables** for strategy pipeline:
+   - `STRATEGY_STRATEGIST` - Model for initial strategic analysis (e.g., `claude-sonnet-4-5-20250929`)
+   - `STRATEGY_BRIEFER` - Model for real-time intelligence briefing (e.g., `gemini-2.5-pro`)
+   - `STRATEGY_CONSOLIDATOR` - Model for final strategy consolidation (e.g., `gpt-5`)
+
+3. **Updated strategy pipeline code** to use role-based variables:
+   - `server/lib/providers/minstrategy.js` - Reads `STRATEGY_STRATEGIST`
+   - `server/lib/gemini-news-briefing.js` - Reads `STRATEGY_BRIEFER`
+   - `server/lib/strategy-consolidator.js` - Reads `STRATEGY_CONSOLIDATOR`
+
+**Environment Variables Required**:
+```bash
+# Role-based strategy pipeline
+STRATEGY_STRATEGIST=claude-sonnet-4-5-20250929
+STRATEGY_BRIEFER=gemini-2.5-pro
+STRATEGY_CONSOLIDATOR=gpt-5
+```
+
+**Benefits**: Models can now be swapped by changing environment variables only—no code changes required. System is truly model-agnostic and follows role-based naming instead of provider-specific coupling.
 
 ## Recent Changes (Nov 1, 2025)
 
