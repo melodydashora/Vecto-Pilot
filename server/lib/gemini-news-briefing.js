@@ -114,14 +114,19 @@ Generate the briefing now, strictly for the next 60 minutes.`
       throw new Error('Missing STRATEGY_BRIEFER environment variable');
     }
     
+    const maxTokens = parseInt(process.env.STRATEGY_BRIEFER_MAX_TOKENS || '8192', 10);
+    const temperature = parseFloat(process.env.STRATEGY_BRIEFER_TEMPERATURE || '0.7');
+    const topP = parseFloat(process.env.STRATEGY_BRIEFER_TOP_P || '0.95');
+    const topK = parseInt(process.env.STRATEGY_BRIEFER_TOP_K || '40', 10);
+    
     const model = genAI.getGenerativeModel({
       model: brieferModel,
       systemInstruction: systemInstruction,
       generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 8192,
-        topP: 0.95,
-        topK: 40,
+        temperature: temperature,
+        maxOutputTokens: maxTokens,
+        topP: topP,
+        topK: topK,
         responseMimeType: "application/json"
       }
     });

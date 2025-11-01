@@ -95,14 +95,17 @@ Consolidate into a final strategy that integrates the intelligence with the stra
       throw new Error('Missing STRATEGY_CONSOLIDATOR environment variable');
     }
     
+    const maxTokens = parseInt(process.env.STRATEGY_CONSOLIDATOR_MAX_TOKENS || '2000', 10);
+    const reasoningEffort = process.env.STRATEGY_CONSOLIDATOR_REASONING_EFFORT || 'medium';
+    
     console.log(`[consolidator] 🚀 Calling consolidator (${consolidatorModel}) for ${snapshotId}...`);
 
     const result = await callGPT5({
       model: consolidatorModel,
       developer: developerPrompt,
       user: userPrompt,
-      max_completion_tokens: 2000,
-      reasoning_effort: 'medium'
+      max_completion_tokens: maxTokens,
+      reasoning_effort: reasoningEffort
     });
 
     const consolidated = result.text?.trim() || null;
