@@ -287,65 +287,10 @@ if (isReplit) {
       // 404 JSON for unknown API routes (AFTER route mounting)
       app.use(API_PREFIX, (_req, res) => res.status(404).json({ ok: false, error: 'NOT_FOUND', mode: 'mono' }));
 
-      console.log(`🎉 [mono] Application fully initialized`);
-      
       // ═══════════════════════════════════════════════════════════════════
-      // POST-LISTEN YIELDED LADDER - Heavy initialization after health is green
-      // Yields between steps to keep health checks responsive
+      // MOUNT FRONTEND ROUTES EARLY - Before heavy initialization
+      // This ensures the app is accessible immediately
       // ═══════════════════════════════════════════════════════════════════
-      const initSteps = [
-        {
-          name: 'Job seeding',
-          fn: async () => {
-            const { seedJobIfEmpty } = await import('./server/bootstrap/enqueue-initial.js');
-            await seedJobIfEmpty();
-          }
-        },
-        {
-          name: 'Strategy validation',
-          fn: async () => {
-            const { safeAssertStrategies } = await import('./server/lib/strategies/assert-safe.js');
-            await safeAssertStrategies({ batchSize: 5, delayMs: 0 });
-          }
-        },
-        {
-          name: 'Cache warmup',
-          fn: async () => {
-            if (!fastBoot) {
-              const { maybeWarmCaches } = await import('./server/lib/strategies/assert-safe.js');
-              await maybeWarmCaches();
-            } else {
-              console.log('[warmup] Skipped (FAST_BOOT enabled)');
-            }
-          }
-        },
-      ];
-      
-      // Execute init steps with yielding
-      for (const step of initSteps) {
-        // Check if event loop is starved
-        if (globalThis.__PAUSE_BACKGROUND__) {
-          console.warn(`[boot] Pausing due to event loop lag before: ${step.name}`);
-          await new Promise(r => setTimeout(r, 250));
-        }
-        
-        try {
-          await step.fn();
-        } catch (e) {
-          console.warn(`[boot] Step '${step.name}' failed:`, e?.message || e);
-        }
-        
-        // Yield to event loop after each step
-        await new Promise(r => setTimeout(r, 0));
-      }
-      
-      // ═══════════════════════════════════════════════════════════════════
-      // BACKGROUND WORKER - Managed by start-replit.js
-      // ═══════════════════════════════════════════════════════════════════
-      // NOTE: Worker runs in strategy-generator.js (separate process)
-      // This avoids duplicate worker loops and ensures clean separation
-      console.log('[gateway] Background worker managed by separate process (strategy-generator.js)');
-      
       // Vite or static files (LAST - NEVER mount at "/" to avoid shadowing health)
       if (isDev) {
         const viteTarget = 'http://127.0.0.1:5173';
@@ -405,6 +350,64 @@ if (isReplit) {
           next();
         });
       }
+      
+      console.log(`🎉 [mono] Application fully initialized`);
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // POST-LISTEN YIELDED LADDER - Heavy initialization AFTER routes mounted
+      // Yields between steps to keep health checks responsive
+      // ═══════════════════════════════════════════════════════════════════
+      setImmediate(async () => {
+        console.log('[gateway] Background worker managed by separate process (strategy-generator.js)');
+        
+        const initSteps = [
+          {
+            name: 'Job seeding',
+            fn: async () => {
+              const { seedJobIfEmpty } = await import('./server/bootstrap/enqueue-initial.js');
+              await seedJobIfEmpty();
+            }
+          },
+          {
+            name: 'Strategy validation',
+            fn: async () => {
+              const { safeAssertStrategies } = await import('./server/lib/strategies/assert-safe.js');
+              await safeAssertStrategies({ batchSize: 5, delayMs: 0 });
+            }
+          },
+          {
+            name: 'Cache warmup',
+            fn: async () => {
+              if (!fastBoot) {
+                const { maybeWarmCaches } = await import('./server/lib/strategies/assert-safe.js');
+                await maybeWarmCaches();
+              } else {
+                console.log('[warmup] Skipped (FAST_BOOT enabled)');
+              }
+            }
+          },
+        ];
+        
+        // Execute init steps with yielding
+        for (const step of initSteps) {
+          // Check if event loop is starved
+          if (globalThis.__PAUSE_BACKGROUND__) {
+            console.warn(`[boot] Pausing due to event loop lag before: ${step.name}`);
+            await new Promise(r => setTimeout(r, 250));
+          }
+          
+          try {
+            await step.fn();
+          } catch (e) {
+            console.warn(`[boot] Step '${step.name}' failed:`, e?.message || e);
+          }
+          
+          // Yield to event loop after each step
+          await new Promise(r => setTimeout(r, 0));
+        }
+        
+        console.log('[gateway] ✓ Background initialization complete');
+      });
     }
 
     //  ═══════════════════════════════════════════════════════════════════
