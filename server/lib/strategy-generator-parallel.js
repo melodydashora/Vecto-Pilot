@@ -304,8 +304,17 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
     const [strategyRow] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
     
+    // Import validation helper
+    const { hasRenderableBriefing } = await import('./strategy-utils.js');
+    
+    // Check if we have valid data for consolidation
+    const hasMin = !!strategyRow.minstrategy && strategyRow.minstrategy.length > 0;
+    const hasBriefing = hasRenderableBriefing(strategyRow.briefing);
+    
+    console.log(`[runSimpleStrategyPipeline] 📊 Consolidation inputs: minstrategy=${hasMin}, briefing=${hasBriefing}`);
+    
     // Run consolidation if both fields exist
-    if (strategyRow.minstrategy && strategyRow.briefing) {
+    if (hasMin && hasBriefing) {
       console.log(`[runSimpleStrategyPipeline] 🤖 Running GPT-5 consolidation...`);
       const { consolidateStrategy } = await import('./strategy-generator-parallel.js');
       await consolidateStrategy({
@@ -316,7 +325,12 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
         user: { userId, userAddress, city, state, lat, lng }
       });
     } else {
-      console.warn(`[runSimpleStrategyPipeline] ⚠️ Skipping consolidation - missing data (minstrategy=${!!strategyRow.minstrategy}, briefing=${!!strategyRow.briefing})`);
+      console.warn(`[runSimpleStrategyPipeline] ⚠️ Skipping consolidation - missing data (minstrategy=${hasMin}, briefing=${hasBriefing})`);
+      await db.update(strategies).set({
+        status: 'running',
+        error_message: `Waiting for ${!hasMin ? 'minstrategy' : 'briefing'} data`,
+        updated_at: new Date()
+      }).where(eq(strategies.snapshot_id, snapshotId));
     }
     
     return { ok: true };
