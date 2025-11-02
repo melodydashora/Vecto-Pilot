@@ -120,3 +120,25 @@ STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
 - **Token Control**: Consolidator max_tokens=8000 prevents truncation
 - **Consistent Errors**: All adapters return {ok, output}; failures tracked
 - **Dynamic Model Names**: DB stores actual model chain (e.g., `claude-sonnet-4-5→gemini-2.5-pro→gpt-5`)
+
+## Recent Fixes (Nov 2, 2025)
+
+### Temporal Context for Consolidator
+**Problem**: Consolidator was receiving only user address, missing date/time context, causing incorrect day-of-week references.
+
+**Solution**: Enhanced consolidator.js to extract and send complete temporal context:
+- Day of week (Sunday, Monday, etc.)
+- Weekend flag ([WEEKEND] marker)
+- Full local timestamp
+- Day part (morning, afternoon, etc.)
+
+**Result**: Consolidator now knows exact date/time and generates time-aware strategies.
+
+### Holiday Banner Persistence
+**Problem**: "Happy Día de los Muertos!" banner appeared briefly then disappeared.
+
+**Root Cause**: Briefing provider wrote holidays to `briefing.holidays` JSONB array but NOT to the dedicated `holiday` text column that the UI reads.
+
+**Solution**: Updated briefing.js to write `briefing.holidays[0]` to `strategies.holiday` column.
+
+**Result**: Holiday banners now persist across refreshes and display consistently.

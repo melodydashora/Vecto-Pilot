@@ -63,9 +63,24 @@ export async function runConsolidator(snapshotId) {
       throw new Error('Missing briefer output (briefing field is null)');
     }
     
-    // Step 2: Fetch snapshot to get user address (role-pure: only address metadata)
+    // Step 2: Fetch snapshot to get user address + date/time context (role-pure: location + temporal metadata)
     const ctx = await getSnapshotContext(snapshotId);
     const userAddress = ctx.formatted_address || 'Unknown location';
+    
+    // Extract date/time context from snapshot
+    const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][ctx.dow] || 'Unknown';
+    const isWeekend = ctx.dow === 0 || ctx.dow === 6;
+    const localTime = ctx.local_iso ? new Date(ctx.local_iso).toLocaleString('en-US', { 
+      timeZone: ctx.timezone || 'America/Chicago',
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }) : 'Unknown time';
+    const dayPart = ctx.day_part_key || 'unknown';
     
     // OBSERVABILITY: Log input sizes and metadata for auditability
     const briefingStr = JSON.stringify(briefing, null, 2);
@@ -74,6 +89,10 @@ export async function runConsolidator(snapshotId) {
       strategist_length: minstrategy.length,
       briefer_length: briefingStr.length,
       user_address: userAddress,
+      day_of_week: dayOfWeek,
+      is_weekend: isWeekend,
+      local_time: localTime,
+      day_part: dayPart,
       strategist_model: process.env.STRATEGY_STRATEGIST || 'unknown',
       briefer_model: process.env.STRATEGY_BRIEFER || 'unknown',
       consolidator_model: process.env.STRATEGY_CONSOLIDATOR || 'unknown'
@@ -86,7 +105,10 @@ export async function runConsolidator(snapshotId) {
 Merge the strategist's initial plan with the briefer's real-time intelligence into one final actionable strategy.
 Keep it 3–5 sentences, urgent, time-aware, and specific.`;
 
-    const userPrompt = `USER LOCATION:
+    const userPrompt = `CURRENT DATE & TIME:
+${localTime} (${dayOfWeek}, ${dayPart})${isWeekend ? ' [WEEKEND]' : ''}
+
+USER LOCATION:
 ${userAddress}
 
 STRATEGIST OUTPUT:
@@ -95,7 +117,7 @@ ${minstrategy}
 BRIEFER OUTPUT:
 ${briefingStr}
 
-Task: Merge these into a final consolidated strategy for this location.`;
+Task: Merge these into a final consolidated strategy for this location. Use the exact day of week and time provided above.`;
 
     const promptSize = systemPrompt.length + userPrompt.length;
     console.log(`[consolidator] 📝 Prompt size: ${promptSize} chars`);
