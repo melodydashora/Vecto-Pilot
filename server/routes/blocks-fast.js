@@ -727,26 +727,30 @@ export async function getStrategyFast({ snapshotId }) {
 
   const timeElapsedMs = safeElapsedMs(row);
 
+  // Extract briefing for early holiday display
+  const briefing = row.briefing || {};
+  const holidayData = row.holiday || (briefing.holidays?.length > 0 ? briefing.holidays[0] : null);
+
   if (waitFor.length) {
     return {
       status: 'pending',
       snapshot_id: snapshotId,
       waitFor: Array.from(new Set(waitFor)),  // Remove duplicates
-      timeElapsedMs
+      timeElapsedMs,
+      strategy: {
+        holiday: holidayData  // Include holiday even when strategy is pending
+      }
     };
   }
 
   // GENERIC: Return model-agnostic fields with fallbacks to never return undefined/NaN
-  // Extract briefing from single JSONB column
-  const briefing = row.briefing || {};
-  
   return {
     status: 'ok',
     snapshot_id: snapshotId,
     strategy: {
       min: row.minstrategy || '',
       consolidated: row.consolidated_strategy || '',
-      holiday: row.holiday || (briefing.holidays?.length > 0 ? briefing.holidays[0] : null),
+      holiday: holidayData,
       briefing: {
         news: briefing.news ?? [],
         events: briefing.events ?? [],
