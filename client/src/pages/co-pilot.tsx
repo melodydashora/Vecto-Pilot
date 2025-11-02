@@ -732,7 +732,7 @@ const CoPilot: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24" data-testid="copilot-page">
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 pt-24 pb-6">
+      <div className="max-w-7xl mx-auto px-4 pt-6 pb-6">
         {/* Live Status Banner */}
         <div className="mb-6 flex items-center gap-3 flex-wrap justify-between">
           <div className="flex items-center gap-2">
