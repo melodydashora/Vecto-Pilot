@@ -64,6 +64,10 @@ loadEnvFile('.env');
 // Load mono-mode.env (overrides deployment-specific settings)
 loadEnvFile('mono-mode.env');
 
+// Validate required STRATEGY_* environment variables (fail-fast on missing config)
+const { validateStrategyEnv } = await import('../server/lib/validate-strategy-env.js');
+validateStrategyEnv();
+
 // Ensure deterministic env and port
 process.env.PORT = process.env.PORT || '5000';
 

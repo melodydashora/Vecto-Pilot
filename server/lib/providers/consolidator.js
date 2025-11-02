@@ -12,10 +12,17 @@ import { callModel } from '../adapters/index.js';
  * Run consolidation using configured consolidator model
  * Fetches strategist + briefer outputs from DB, then consolidates
  * Writes to strategies.consolidated_strategy
+ * 
+ * ARCHITECTURE: Event-driven, idempotent, role-pure
+ * - Input: { snapshotId } only
+ * - DB reads: strategies table (strategist + briefer) + snapshots table (address)
+ * - Output: consolidated_strategy + metadata
+ * 
  * @param {string} snapshotId - UUID of snapshot
  */
 export async function runConsolidator(snapshotId) {
-  console.log(`[consolidator] Starting for snapshot ${snapshotId}`);
+  const startTime = Date.now();
+  console.log(`[consolidator] 🚀 Starting for snapshot ${snapshotId}`);
   
   try {
     // Step 1: Fetch strategy row to get strategist + briefer outputs
@@ -26,27 +33,53 @@ export async function runConsolidator(snapshotId) {
       throw new Error(`Strategy row not found for snapshot ${snapshotId}`);
     }
     
+    // IDEMPOTENCE: If already consolidated with status=ok, skip
+    if (strategyRow.consolidated_strategy && strategyRow.status === 'ok') {
+      console.log(`[consolidator] ⏭️  Already consolidated (status=ok) - skipping duplicate run for ${snapshotId}`);
+      return { ok: true, skipped: true, reason: 'already_consolidated' };
+    }
+    
     const minstrategy = strategyRow.minstrategy;
     const briefing = strategyRow.briefing;
     
-    // Validate that both inputs exist
+    // PREREQUISITE VALIDATION: Check that both inputs exist
     if (!minstrategy || minstrategy.trim().length === 0) {
+      console.warn(`[consolidator] ⚠️  Missing strategist output for ${snapshotId}`);
+      await db.update(strategies).set({
+        status: 'missing_prereq',
+        error_message: 'Strategist output (minstrategy) is missing or empty',
+        updated_at: new Date()
+      }).where(eq(strategies.snapshot_id, snapshotId));
       throw new Error('Missing strategist output (minstrategy field is empty)');
     }
     
     if (!briefing) {
+      console.warn(`[consolidator] ⚠️  Missing briefer output for ${snapshotId}`);
+      await db.update(strategies).set({
+        status: 'missing_prereq',
+        error_message: 'Briefer output (briefing) is missing',
+        updated_at: new Date()
+      }).where(eq(strategies.snapshot_id, snapshotId));
       throw new Error('Missing briefer output (briefing field is null)');
     }
     
-    // Step 2: Fetch snapshot to get user address
+    // Step 2: Fetch snapshot to get user address (role-pure: only address metadata)
     const ctx = await getSnapshotContext(snapshotId);
     const userAddress = ctx.formatted_address || 'Unknown location';
     
-    console.log(`[consolidator] 📊 Inputs ready:`, {
-      minstrategy_length: minstrategy.length,
-      briefing_keys: Object.keys(briefing || {}),
-      user_address: userAddress
-    });
+    // OBSERVABILITY: Log input sizes and metadata for auditability
+    const briefingStr = JSON.stringify(briefing, null, 2);
+    const inputMetrics = {
+      snapshot_id: snapshotId,
+      strategist_length: minstrategy.length,
+      briefer_length: briefingStr.length,
+      user_address: userAddress,
+      strategist_model: process.env.STRATEGY_STRATEGIST || 'unknown',
+      briefer_model: process.env.STRATEGY_BRIEFER || 'unknown',
+      consolidator_model: process.env.STRATEGY_CONSOLIDATOR || 'unknown'
+    };
+    
+    console.log(`[consolidator] 📊 Inputs ready:`, inputMetrics);
     
     // Step 3: Build prompts for consolidation
     const systemPrompt = `You are a rideshare strategy consolidator.
@@ -60,21 +93,25 @@ STRATEGIST OUTPUT:
 ${minstrategy}
 
 BRIEFER OUTPUT:
-${JSON.stringify(briefing, null, 2)}
+${briefingStr}
 
 Task: Merge these into a final consolidated strategy for this location.`;
 
-    console.log(`[consolidator] 🚀 Calling model-agnostic consolidator role...`);
+    const promptSize = systemPrompt.length + userPrompt.length;
+    console.log(`[consolidator] 📝 Prompt size: ${promptSize} chars`);
+    console.log(`[consolidator] 🚀 Calling model: ${inputMetrics.consolidator_model}`);
     
     // Step 4: Call model-agnostic consolidator role
+    const modelCallStart = Date.now();
     const result = await callModel("consolidator", {
       system: systemPrompt,
       user: userPrompt
     });
+    const modelCallDuration = Date.now() - modelCallStart;
 
     if (!result.ok) {
       const errorMsg = result.error || 'consolidator_failed';
-      console.error(`[consolidator] ❌ Model call failed:`, errorMsg);
+      console.error(`[consolidator] ❌ Model call failed after ${modelCallDuration}ms:`, errorMsg);
       throw new Error(errorMsg);
     }
     
@@ -84,20 +121,41 @@ Task: Merge these into a final consolidated strategy for this location.`;
       throw new Error('Consolidator returned empty output');
     }
     
-    // Step 5: Write consolidated strategy to DB
+    // METADATA TRACKING: Build model chain for traceability
+    const modelChain = `${inputMetrics.strategist_model}→${inputMetrics.briefer_model}→${inputMetrics.consolidator_model}`;
+    const totalDuration = Date.now() - startTime;
+    
+    // Step 5: Write consolidated strategy + metadata to DB
     await db.update(strategies).set({
       consolidated_strategy: consolidatedStrategy,
       status: 'ok',
+      model_name: modelChain,
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    console.log(`[consolidator] ✅ Complete for ${snapshotId} (${consolidatedStrategy.length} chars)`);
+    // OBSERVABILITY: Emit completion event with full metrics
+    console.log(`[consolidator] ✅ Complete for ${snapshotId}`, {
+      model_chain: modelChain,
+      output_length: consolidatedStrategy.length,
+      model_call_ms: modelCallDuration,
+      total_ms: totalDuration,
+      prompt_size: promptSize
+    });
     
-    return { ok: true, strategy: consolidatedStrategy };
+    return { 
+      ok: true, 
+      strategy: consolidatedStrategy,
+      metrics: {
+        modelChain,
+        outputLength: consolidatedStrategy.length,
+        durationMs: totalDuration
+      }
+    };
   } catch (error) {
-    console.error(`[consolidator] ❌ Error for ${snapshotId}:`, error.message);
+    const totalDuration = Date.now() - startTime;
+    console.error(`[consolidator] ❌ Error for ${snapshotId} after ${totalDuration}ms:`, error.message);
     
-    // Write error to DB
+    // Write error to DB with metadata
     await db.update(strategies).set({
       status: 'error',
       error_code: 'consolidator_failed',
