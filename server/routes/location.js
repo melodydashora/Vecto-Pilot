@@ -139,7 +139,7 @@ router.get('/geocode/reverse', async (req, res) => {
   }
 });
 
-// GET /api/location/geocode/forward?city=Dallas,TX
+// GET /api/location/geocode/forward?city=CityName,StateCode
 // Forward geocode city name to coordinates
 router.get('/geocode/forward', async (req, res) => {
   try {
@@ -992,8 +992,8 @@ router.post('/news-briefing', async (req, res) => {
       longitude,
       formatted_address: address,
       city: city || address.split(',')[0]?.trim() || 'Unknown',
-      state: state || address.split(',')[1]?.trim() || 'TX',
-      timezone: 'America/Chicago', // Default to Central Time for Texas
+      state: state || address.split(',')[1]?.trim() || null,
+      timezone: null, // Will be resolved via Google Timezone API if needed
       created_at: new Date().toISOString(),
       airport_context: null // Will be determined by Gemini
     };

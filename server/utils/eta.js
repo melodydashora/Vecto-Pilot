@@ -1,6 +1,6 @@
 /**
- * Traffic-aware ETA calculations for DFW metro area
- * Uses DFW-calibrated road factor and time-of-day congestion model
+ * Traffic-aware ETA calculations for urban metro areas
+ * Uses calibrated road factor and time-of-day congestion model
  */
 
 const R_EARTH_M = 6371000; // meters
@@ -26,7 +26,7 @@ function haversineMeters(a, b) {
 /**
  * Calculate road distance from straight-line distance
  * @param {number} haversine_m - Straight-line distance in meters
- * @param {number} k - Road factor (1.25 for DFW grid-like metro)
+ * @param {number} k - Road factor (1.25 for grid-like urban metros)
  * @returns {number} Estimated road distance in meters
  */
 function roadDistanceMeters(haversine_m, k = 1.25) {
@@ -34,7 +34,7 @@ function roadDistanceMeters(haversine_m, k = 1.25) {
 }
 
 /**
- * DFW urban driving average speed by hour of day (24-hour format)
+ * Urban driving average speed by hour of day (24-hour format)
  * Accounts for traffic lights, turns, and city congestion
  * Units: mph (realistic city driving speeds, not freeway)
  */
@@ -95,7 +95,7 @@ function etaMinutes(a, b, when = new Date(), opts = {}) {
  * @param {Object} a - Origin {lat, lng}
  * @param {Object} b - Destination {lat, lng}
  * @param {boolean} raining - Is it raining?
- * @param {number} kRoad - Road factor (default 1.25 for DFW)
+ * @param {number} kRoad - Road factor (default 1.25 for grid-like urban metros)
  * @returns {Object} {distanceMeters, roadMeters, minutes}
  */
 function estimateNow(a, b, raining = false, kRoad = 1.25) {

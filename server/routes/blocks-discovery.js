@@ -254,7 +254,7 @@ Return ONLY valid JSON (no markdown):
       "name": "Exact venue name",
       "category": "category",
       "reasoning": "Why drivers should go here now",
-      "address": "Approximate address, ${city}, TX",
+      "address": "Approximate address, ${city}, ${state}",
       "lat": ${latitude},
       "lng": ${longitude}
     }

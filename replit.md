@@ -1,7 +1,7 @@
 # Vecto Pilot™ - Rideshare Intelligence Platform
 
 ## Overview
-Vecto Pilot is an AI-powered rideshare intelligence platform for Dallas-Fort Worth drivers. Its primary purpose is to maximize driver earnings through real-time, data-driven strategic briefings, providing a significant market advantage through advanced AI and data analytics. The platform integrates various data sources (location, events, traffic, weather, air quality) and utilizes a multi-AI pipeline to generate actionable strategies.
+Vecto Pilot is an AI-powered rideshare intelligence platform for drivers globally. Its primary purpose is to maximize driver earnings through real-time, data-driven strategic briefings, providing a significant market advantage through advanced AI and data analytics. The platform integrates various data sources (location, events, traffic, weather, air quality) and utilizes a multi-AI pipeline to generate actionable strategies.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
