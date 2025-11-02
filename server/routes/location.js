@@ -709,7 +709,7 @@ router.post('/snapshot', async (req, res) => {
           model: briefingResult.model,
           type: 'gemini_structured'
         };
-        console.log('📰 [GEMINI] News Briefing Generated:', {
+        console.log('📰 [BRIEFING] News Briefing Generated:', {
           airports: briefingResult.briefing.airports.length,
           traffic: briefingResult.briefing.traffic_construction.length,
           events: briefingResult.briefing.major_events.length,
