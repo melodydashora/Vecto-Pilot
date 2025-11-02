@@ -49,6 +49,44 @@ function systemPrompt({ snapshot, strategy }) {
     `${snapshot.airport_context.airport_code} airport ${snapshot.airport_context.distance_miles} miles away - ${snapshot.airport_context.delay_minutes} min delays` : 
     null;
 
+  // Extract temporal context (day of week, hour, day part)
+  const dow = snapshot?.dow;
+  const hour = snapshot?.hour;
+  const dayPartKey = snapshot?.day_part_key;
+  
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayPartLabels = {
+    'overnight': 'overnight (12 AM - 5 AM)',
+    'morning': 'morning (5 AM - 12 PM)',
+    'late_morning_noon': 'midday (12 PM - 3 PM)',
+    'afternoon': 'afternoon (3 PM - 5 PM)',
+    'early_evening': 'early evening (5 PM - 9 PM)',
+    'evening': 'evening (9 PM - 12 AM)'
+  };
+  
+  const dayOfWeek = dow !== null && dow !== undefined ? dayNames[dow] : 'unknown';
+  const dayPart = dayPartKey ? dayPartLabels[dayPartKey] || dayPartKey : 'unknown';
+  const isWeekend = dow === 0 || dow === 6;
+  
+  // Format current time in local timezone
+  let timeStr = 'unknown';
+  if (when && tz) {
+    try {
+      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric'
+      });
+      timeStr = timeFormatter.format(new Date(when));
+    } catch {
+      timeStr = when;
+    }
+  }
+
   return [
     {
       role: "system",
@@ -63,7 +101,9 @@ function systemPrompt({ snapshot, strategy }) {
       role: "system",
       content:
         `Snapshot:
-- when: ${when ?? "unknown"} (${tz})
+- current_time: ${timeStr} (${tz})
+- day_of_week: ${dayOfWeek}${isWeekend ? ' [WEEKEND]' : ''}
+- time_period: ${dayPart}
 - place: ${city ?? "?"}, ${state ?? "?"}
 - coords: ${lat ?? "?"}, ${lng ?? "?"}
 - weather: ${weather ?? "?"}
