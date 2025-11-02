@@ -142,7 +142,7 @@ export default function BriefingPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MapPin className="w-5 h-5 text-purple-600" />
-            Strategist Output (Claude Sonnet 4.5)
+            Strategist Output
           </CardTitle>
         </CardHeader>
         <CardContent className="bg-white">
@@ -161,7 +161,7 @@ export default function BriefingPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-green-600" />
-            Briefer Intelligence: Venues & Events (Gemini 2.5 Pro)
+            Briefer Intelligence: Venues & Events
           </CardTitle>
         </CardHeader>
         <CardContent className="bg-white">
@@ -203,7 +203,7 @@ export default function BriefingPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Radio className="w-5 h-5 text-orange-600" />
-            Briefer Intelligence: Traffic (Gemini 2.5 Pro)
+            Briefer Intelligence: Traffic
           </CardTitle>
         </CardHeader>
         <CardContent className="bg-white">
@@ -229,7 +229,7 @@ export default function BriefingPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Newspaper className="w-5 h-5 text-indigo-600" />
-            Briefer Intelligence: News & Alerts (Gemini 2.5 Pro)
+            Briefer Intelligence: News & Alerts
           </CardTitle>
         </CardHeader>
         <CardContent className="bg-white">
