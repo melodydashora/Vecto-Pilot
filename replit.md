@@ -25,7 +25,7 @@ The platform employs a **role-based, model-agnostic architecture** with configur
 
 **Frontend Architecture**:
 A **React + TypeScript Single Page Application (SPA)**, built with Vite, uses Radix UI, TailwindCSS, and React Query.
--   **UI Layout**: Features a Strategy Section for consolidated strategies, Smart Blocks for ranked venue recommendations (with event badges, earnings, drive time, and value grades within a 15-minute perimeter), and an AI Coach. A Debug Briefing Tab displays raw database outputs from the AI pipeline.
+-   **UI Layout**: Features a Strategy Section for consolidated strategies, Smart Blocks for ranked venue recommendations (with event badges, earnings, drive time, and value grades within a 15-minute perimeter), and an AI Strategy Coach with full data access. A Rideshare Briefing Tab displays practical intelligence organized by topic.
 
 **Data Storage**:
 A **PostgreSQL Database** with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It includes enhanced memory systems and uses unique indexes for data integrity.
@@ -190,3 +190,32 @@ STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
 - Clean, user-friendly layout focused on practical rideshare intelligence
 - Better organization by topic instead of AI pipeline stage
 - Removed all technical AI/model references from UI
+
+### AI Coach Data Access Layer (CoachDAL)
+**Implementation**: Created read-only Data Access Layer for AI Strategy Coach with snapshot-scoped access.
+
+**Access Contract**:
+- **Read-Only**: Coach consumes data only, never mutates
+- **Snapshot-Scoped**: All reads scoped by user_id and snapshot_id
+- **Null-Safe**: Missing data returns null/"pending" states, not errors
+- **Temporal Alignment**: Trusts snapshot day/time as ground truth
+
+**Data Sources** (via `server/lib/coach-dal.js`):
+- `getHeaderSnapshot()` - Timezone, DST, day-of-week, day-part, location display
+- `getLatestStrategy()` - Consolidated strategy, timestamps, context day
+- `getBriefing()` - Events, traffic, news, holidays from strategy.briefing JSONB
+- `getSmartBlocks()` - Location cards with navigation metadata from ranking_candidates
+- `getCompleteContext()` - Combined snapshot + strategy + briefing + blocks
+- `formatContextForPrompt()` - Null-safe formatting with clear "pending" states
+
+**Tables with Read Access**:
+- `snapshots` - Location context, weather, air quality, airports
+- `strategies` - Consolidated strategy, holiday, briefing JSONB
+- `ranking_candidates` - Smart blocks (venue recommendations)
+- `rankings` - Ranking metadata
+
+**Result**:
+- AI Coach has complete visibility into driver context
+- Temporal awareness (day of week, exact time, weekend flag)
+- Rich context includes strategy, briefing data, and venue recommendations
+- Graceful handling of pending/missing data states
