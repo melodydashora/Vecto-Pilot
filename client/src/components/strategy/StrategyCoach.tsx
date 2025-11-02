@@ -68,7 +68,7 @@ export function StrategyCoach({ snapshotId }: { snapshotId?: string }) {
 }
 
 function CoachBody({ min, consolidated }: { min?: string; consolidated?: string }) {
-  // Prefer consolidated strategy (final output from GPT-5)
+  // Prefer consolidated strategy (final output from AI consolidator)
   const text = consolidated || min || '';
   
   if (!text) {

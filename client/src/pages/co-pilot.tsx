@@ -278,14 +278,14 @@ const CoPilot: React.FC = () => {
       console.log('[blocks-query] Starting blocks fetch for snapshot:', lastSnapshotId);
       if (!coords) throw new Error('No GPS coordinates');
       
-      // 3min 50s timeout for Triad orchestrator (Claude 15s + GPT-5 120s + Gemini 20s + buffer)
+      // 3min 50s timeout for Triad orchestrator (AI processing with buffer)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 230000); // 230s = 3min 50s with buffer
       
       try {
         const headers: HeadersInit = lastSnapshotId ? { 'X-Snapshot-Id': lastSnapshotId } : {};
         
-        // PRODUCTION AUTO-ROUTER: Use merged strategy (GPT-5 → Gemini → Claude)
+        // PRODUCTION AUTO-ROUTER: Use merged strategy from configured AI models
         // TEST MODE: Use manual model selection
         if (selectedModel) {
           // Manual testing: /api/test-blocks with specific model
@@ -396,7 +396,7 @@ const CoPilot: React.FC = () => {
       } catch (err: any) {
         clearTimeout(timeoutId);
         if (err.name === 'AbortError') {
-          throw new Error('Request timed out - Claude is taking longer than expected');
+          throw new Error('Request timed out - AI is taking longer than expected');
         }
         throw err;
       }
