@@ -1025,4 +1025,34 @@ router.post('/news-briefing', async (req, res) => {
   }
 });
 
+// GET /api/snapshots/:snapshotId
+// Fetch snapshot data including airport context
+router.get('/snapshots/:snapshotId', async (req, res) => {
+  try {
+    const { snapshotId } = req.params;
+    
+    if (!snapshotId) {
+      return res.status(400).json({ error: 'snapshot_id_required' });
+    }
+    
+    const [snapshot] = await db
+      .select()
+      .from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId))
+      .limit(1);
+    
+    if (!snapshot) {
+      return res.status(404).json({ error: 'snapshot_not_found' });
+    }
+    
+    res.json(snapshot);
+  } catch (err) {
+    console.error('[location] snapshot fetch error:', err);
+    res.status(500).json({ 
+      error: 'fetch_failed',
+      message: String(err?.message || err)
+    });
+  }
+});
+
 export default router;
