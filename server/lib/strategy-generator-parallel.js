@@ -283,17 +283,30 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
     
     console.log(`[runSimpleStrategyPipeline] 📊 Consolidation inputs: minstrategy=${hasMin}, briefing=${hasBriefing}`);
     
-    // Run consolidation if both fields exist
+    // Run consolidation if both fields exist (event-driven: consolidator fetches from DB)
     if (hasMin && hasBriefing) {
-      console.log(`[runSimpleStrategyPipeline] 🤖 Running GPT-5 consolidation...`);
-      const { consolidateStrategy } = await import('./strategy-generator-parallel.js');
-      await consolidateStrategy({
-        snapshotId,
-        claudeStrategy: strategyRow.minstrategy,
-        briefing: strategyRow.briefing,
-        snapshot,
-        user: { userId, userAddress, city, state, lat, lng }
-      });
+      console.log(`[runSimpleStrategyPipeline] 🤖 Running consolidator (fetches strategist + briefer from DB)...`);
+      const { runConsolidator } = await import('./providers/consolidator.js');
+      
+      try {
+        await runConsolidator(snapshotId);
+        console.log(`[runSimpleStrategyPipeline] ✅ Consolidation complete`);
+      } catch (consolidatorErr) {
+        console.error(`[runSimpleStrategyPipeline] ❌ Consolidator failed:`, consolidatorErr.message);
+        
+        // Synthesize fallback if consolidator fails
+        const { synthesizeFallback } = await import('./strategy-utils.js');
+        const fallbackStrategy = synthesizeFallback(strategyRow.minstrategy, strategyRow.briefing);
+        
+        await db.update(strategies).set({
+          consolidated_strategy: fallbackStrategy,
+          status: 'ok_partial',
+          error_message: `Fallback used: ${consolidatorErr.message}`,
+          updated_at: new Date()
+        }).where(eq(strategies.snapshot_id, snapshotId));
+        
+        console.log(`[runSimpleStrategyPipeline] ⚠️ Fallback strategy synthesized`);
+      }
     } else {
       console.warn(`[runSimpleStrategyPipeline] ⚠️ Skipping consolidation - missing data (minstrategy=${hasMin}, briefing=${hasBriefing})`);
       await db.update(strategies).set({
