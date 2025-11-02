@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
+import { coachDAL } from '../lib/coach-dal.js';
 
 const router = Router();
 
@@ -15,17 +16,17 @@ router.get('/context/:snapshotId', async (req, res) => {
   console.log('[coach] Fetching context for snapshot:', snapshotId);
   
   try {
-    // Use v_coach_strategy_context view for complete snapshot context
-    const result = await db.execute(sql`
-      SELECT * FROM v_coach_strategy_context 
-      WHERE active_snapshot_id = ${snapshotId}::uuid
-      ORDER BY rank;
-    `);
+    // Use CoachDAL for read-only access
+    const context = await coachDAL.getCompleteContext(snapshotId);
     
     res.json({
       snapshot_id: snapshotId,
-      items: result.rows || [],
-      count: result.rows?.length || 0
+      status: context.status,
+      snapshot: context.snapshot,
+      strategy: context.strategy,
+      briefing: context.briefing,
+      smart_blocks: context.smartBlocks,
+      count: context.smartBlocks.length,
     });
   } catch (error) {
     console.error('[coach] Context fetch failed:', error.message);
@@ -49,78 +50,41 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'message required' });
   }
 
-  console.log('[chat] User:', userId || 'anonymous', '| Message:', message.substring(0, 100));
+  console.log('[chat] User:', userId || 'anonymous', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
 
   try {
-    // Get user's latest snapshot and strategy for context
+    // Use CoachDAL for read-only, snapshot-scoped data access
     let contextInfo = '';
     
     try {
-      const latestSnapshot = await db
-        .select()
-        .from(snapshots)
-        .where(userId ? eq(snapshots.user_id, userId) : undefined)
-        .orderBy(desc(snapshots.created_at))
-        .limit(1);
-
-      if (latestSnapshot.length > 0) {
-        const snap = latestSnapshot[0];
-        
-        // Try to get strategy for this snapshot
-        const strategyData = await db
-          .select()
-          .from(strategies)
-          .where(eq(strategies.snapshot_id, snap.snapshot_id))
-          .orderBy(desc(strategies.created_at))
+      // If snapshotId provided, use it; otherwise get latest
+      let activeSnapshotId = snapshotId;
+      
+      if (!activeSnapshotId && userId) {
+        const [latestSnap] = await db
+          .select({ snapshot_id: snapshots.snapshot_id })
+          .from(snapshots)
+          .where(eq(snapshots.user_id, userId))
+          .orderBy(desc(snapshots.created_at))
           .limit(1);
-
-        // Build rich context from snapshot
-        const weather = snap.weather ? ` ${snap.weather.tempF}°F, ${snap.weather.conditions}` : 'unknown';
-        const airQuality = snap.air ? `AQI ${snap.air.aqi} (${snap.air.category})` : 'unknown';
-        const airport = snap.airport_context ? 
-          `${snap.airport_context.name} (${snap.airport_context.code}) - ${snap.airport_context.driving_status}` : 
-          'None nearby';
-
-        contextInfo = `\n\nCurrent Driver Context:\n- Location: ${snap.city || 'Unknown'}, ${snap.state || ''} (${snap.timezone || 'unknown timezone'})\n- Time: ${snap.day_part_key || 'unknown'}, ${snap.hour}:00\n- Weather:${weather}\n- Air Quality: ${airQuality}\n- Airport: ${airport}`;
-
-        // Add news briefing if available (Gemini 60-min briefing)
-        if (snap.news_briefing) {
-          const nb = snap.news_briefing;
-          if (nb.airports) contextInfo += `\n- Airport Intel (0:15): ${nb.airports.substring(0, 150)}...`;
-          if (nb.traffic) contextInfo += `\n- Traffic (0:30): ${nb.traffic.substring(0, 150)}...`;
-          if (nb.events) contextInfo += `\n- Events (0:45): ${nb.events.substring(0, 150)}...`;
-          if (nb.policy) contextInfo += `\n- Policy (1:00): ${nb.policy.substring(0, 150)}...`;
+        
+        if (latestSnap) {
+          activeSnapshotId = latestSnap.snapshot_id;
         }
+      }
 
-        // Add full strategy if available
-        if (strategyData.length > 0) {
-          if (strategyData[0].strategy_for_now) {
-            contextInfo += `\n\n--- FULL TACTICAL STRATEGY (GPT-5) ---\n${strategyData[0].strategy_for_now}`;
-          } else if (strategyData[0].strategy) {
-            contextInfo += `\n\n--- CURRENT STRATEGY (Claude) ---\n${strategyData[0].strategy.substring(0, 500)}...`;
-          }
-        }
-
-        // Add blocks with event details if provided
-        if (blocks && blocks.length > 0) {
-          contextInfo += `\n\n--- CURRENT RECOMMENDATIONS (${blocks.length} venues) ---`;
-          blocks.slice(0, 5).forEach((b, i) => {
-            contextInfo += `\n${i+1}. ${b.name}${b.category ? ` (${b.category})` : ''}`;
-            if (b.address) contextInfo += ` - ${b.address}`;
-            if (b.estimated_distance_miles) contextInfo += ` - ${b.estimated_distance_miles} mi`;
-            if (b.driveTimeMinutes) contextInfo += `, ${b.driveTimeMinutes} min`;
-            if (b.estimated_earnings) contextInfo += `, $${b.estimated_earnings}/ride`;
-            if (b.hasEvent && b.eventSummary) {
-              contextInfo += `\n   🎉 EVENT: ${b.eventSummary.substring(0, 200)}...`;
-            }
-            if (b.proTips && b.proTips.length > 0) {
-              contextInfo += `\n   💡 TIP: ${b.proTips[0]}`;
-            }
-          });
-        }
+      // Get complete context using CoachDAL
+      if (activeSnapshotId) {
+        const context = await coachDAL.getCompleteContext(activeSnapshotId);
+        contextInfo = coachDAL.formatContextForPrompt(context);
+        
+        console.log(`[chat] Context loaded for snapshot ${activeSnapshotId} - Status: ${context.status}`);
+      } else {
+        contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
     } catch (err) {
       console.warn('[chat] Could not fetch context:', err.message);
+      contextInfo = '\n\n⚠️ Context temporarily unavailable';
     }
 
     const systemPrompt = `You are an AI companion and assistant for rideshare drivers using Vecto Pilot. You're here to help with:
