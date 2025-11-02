@@ -34,6 +34,9 @@ const GlobalHeader: React.FC = () => {
   const [airQuality, setAirQuality] = useState<{aqi: number; category: string} | null>(null);
   const [aqLoading, setAqLoading] = useState(false);
   const [snapshotReady, setSnapshotReady] = useState(false);
+  const [latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
+  const [strategyStatus, setStrategyStatus] = useState<'idle' | 'pending' | 'ok'>('idle');
+  const [strategyProgress, setStrategyProgress] = useState<{ timeElapsedMs: number; waitFor?: string[] } | null>(null);
 
   // location from context, supporting both shapes
   // PRIORITY: Use override coords if available (manual city search), otherwise use GPS
@@ -77,14 +80,51 @@ const GlobalHeader: React.FC = () => {
     return () => clearInterval(id);
   }, []);
 
-  // Listen for snapshot saved event to update indicator
+  // Listen for snapshot saved event to update indicator and start strategy polling
   useEffect(() => {
-    const handleSnapshotSaved = () => {
-      setSnapshotReady(true);
+    const handleSnapshotSaved = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const snapshotId = customEvent.detail?.snapshotId;
+      if (snapshotId) {
+        setSnapshotReady(true);
+        setLatestSnapshotId(snapshotId);
+        setStrategyStatus('pending');
+      }
     };
-    window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved);
-    return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved);
+    window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
+    return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
   }, []);
+
+  // Poll strategy status when snapshot is ready
+  useEffect(() => {
+    if (!latestSnapshotId || strategyStatus === 'ok') return;
+
+    const pollStrategy = async () => {
+      try {
+        const response = await fetch(`/api/blocks/strategy/${latestSnapshotId}`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        if (data.status === 'ok' || data.status === 'ok_partial') {
+          setStrategyStatus('ok');
+          setStrategyProgress(null);
+        } else {
+          setStrategyStatus('pending');
+          setStrategyProgress({
+            timeElapsedMs: data.timeElapsedMs || 0,
+            waitFor: data.waitFor
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to poll strategy status:', err);
+      }
+    };
+
+    // Poll immediately then every 2 seconds
+    pollStrategy();
+    const intervalId = setInterval(pollStrategy, 2000);
+    return () => clearInterval(intervalId);
+  }, [latestSnapshotId, strategyStatus]);
 
   // Compute local time fields for display with timezone
   useEffect(() => {
@@ -558,6 +598,38 @@ const GlobalHeader: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Strategy Progress Bar - Shows when strategy is being generated */}
+      {strategyStatus === 'pending' && strategyProgress && (
+        <div className="bg-black/20 backdrop-blur-sm border-t border-white/10">
+          <div className="max-w-7xl mx-auto px-4 py-2">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin flex-shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center justify-between text-xs text-white/90 mb-1">
+                  <span className="font-medium">AI Strategy Generating...</span>
+                  <span className="font-mono">
+                    {Math.round(strategyProgress.timeElapsedMs / 1000)}s / 60s
+                  </span>
+                </div>
+                <div className="w-full bg-white/20 rounded-full h-1.5 overflow-hidden">
+                  <div 
+                    className="bg-white h-1.5 rounded-full transition-all duration-500 ease-out"
+                    style={{ 
+                      width: `${Math.min((strategyProgress.timeElapsedMs / 60000) * 100, 100)}%`
+                    }}
+                  />
+                </div>
+                {strategyProgress.waitFor && strategyProgress.waitFor.length > 0 && (
+                  <p className="text-[10px] text-white/70 mt-1">
+                    Waiting for: {strategyProgress.waitFor.join(', ')}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
