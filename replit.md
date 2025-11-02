@@ -144,28 +144,49 @@ STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
 
 ## Recent Fixes (Nov 2, 2025)
 
-### Temporal Context for Consolidator
-**Problem**: Consolidator was receiving only user address, missing date/time context, causing incorrect day-of-week references.
+### Timezone/DST Bug Fixed
+**Problem**: Strategy output was showing wrong day of week (Saturday instead of Sunday) due to timezone/DST conversion issues.
 
-**Solution**: Enhanced consolidator.js to extract and send complete temporal context:
+**Root Cause**: Using `toLocaleString()` + `new Date()` doesn't preserve timezone properly, causing DST offset errors.
+
+**Solution**: Use `Intl.DateTimeFormat` with proper timezone option to extract day of week in user's local timezone.
+
+**Result**: Strategies now show correct day of week and temporal context.
+
+### AI Coach Temporal Context
+**Problem**: AI Coach was missing temporal context, providing generic advice without knowing current day/time.
+
+**Solution**: Enhanced coach chat endpoint to receive complete temporal data:
 - Day of week (Sunday, Monday, etc.)
-- Weekend flag ([WEEKEND] marker)
-- Full local timestamp
+- Weekend flag
+- Full timestamp
 - Day part (morning, afternoon, etc.)
 
-**Result**: Consolidator now knows exact date/time and generates time-aware strategies.
+**Result**: AI Coach now provides time-aware guidance based on actual day and time.
 
-### Holiday Banner Persistence & Early Detection
-**Problem**: "Happy Día de los Muertos!" banner appeared briefly then disappeared.
+### Holiday Banner Immediate Display
+**Problem**: Holiday banner waited for full strategy generation (30-60s) instead of appearing immediately.
 
-**Root Cause**: Briefing provider wrote holidays to `briefing.holidays` JSONB array but NOT to the dedicated `holiday` text column that the UI reads.
+**Root Cause**: `getStrategyFast` only returned holiday data when status was 'ok', not during 'pending' status.
 
-**Solution**: 
-1. Updated briefing.js to write `briefing.holidays[0]` to `strategies.holiday` column
-2. Added Perplexity-powered fast holiday checker that runs in parallel with strategist/briefer
-3. Holiday check completes in 1-2 seconds, writing to `strategies.holiday` immediately
+**Solution**: Modified `server/routes/blocks-fast.js` to include holiday data in 'pending' responses, allowing UI to display banner as soon as Perplexity check completes (1-2s).
 
 **Result**: 
-- Holiday banners now persist across refreshes and display consistently
-- Banner appears within 1-2 seconds while main AI processing continues
-- Beautiful user experience showing activity during strategy generation
+- Holiday banners now appear within 1-2 seconds
+- Beautiful early feedback during strategy generation
+- Users see immediate activity while AI processes
+
+### Briefing Page Restructure
+**Problem**: Page showed "raw AI outputs" with technical language, not user-friendly.
+
+**Solution**: Restructured BriefingPage.tsx from technical debug view to practical "Rideshare Briefing":
+- **Rideshare News** - Industry news and alerts
+- **Local Traffic** - Traffic conditions and delays
+- **Local Events** - Events and holidays (combined)
+- **Airport Conditions** - FAA data (moved to bottom)
+- Removed: Strategist Output (already shown on Co-Pilot as consolidated strategy)
+
+**Result**: 
+- Clean, user-friendly layout focused on practical rideshare intelligence
+- Better organization by topic instead of AI pipeline stage
+- Removed all technical AI/model references from UI
