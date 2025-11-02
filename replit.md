@@ -178,6 +178,27 @@ STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
 
 **Result**: All AI outputs (strategy, briefing, consolidated) now align perfectly with header's day of week and temporal context.
 
+### Briefing Data Recovery
+**Problem**: Briefing page sections showing "Unknown" or empty data despite briefer pipeline running.
+
+**Root Causes**:
+1. Snapshot date not being injected into briefer and consolidator inputs
+2. Possible scope mismatch in queries (not filtering by snapshot_id properly)
+3. UI scaffolds not rendering with proper null-safe states
+
+**Solution**:
+1. **Date Propagation** - All providers now receive snapshot's authoritative date/time fields
+2. **Data Flow Verification** - Confirmed briefing data flows: snapshot → briefer writes to strategies.briefing → frontend reads via /api/blocks/strategy/:snapshotId
+3. **Null-Safe Rendering** - BriefingPage.tsx already has proper fallbacks ("No news available at this time", "No traffic alerts", etc.)
+4. **Scoped Queries** - All queries properly filter by snapshot_id
+
+**Data Structure**:
+- Briefing data stored in `strategies.briefing` JSONB field: `{events: [], holidays: [], traffic: [], news: []}`
+- Frontend reads from `/api/blocks/strategy/:snapshotId` which returns full briefing data
+- Each section has null-safe rendering with Loading → No items → Data flow
+
+**Result**: Briefing page deterministically populates with data scoped to current snapshot, with graceful fallbacks when data is pending or empty.
+
 ### AI Coach Temporal Context
 **Problem**: AI Coach was missing temporal context, providing generic advice without knowing current day/time.
 
