@@ -121,6 +121,27 @@ STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
 - **Consistent Errors**: All adapters return {ok, output}; failures tracked
 - **Dynamic Model Names**: DB stores actual model chain (e.g., `claude-sonnet-4-5→gemini-2.5-pro→gpt-5`)
 
+## Recent Changes (Nov 2, 2025)
+
+### Co-Pilot Page Restructure
+**Problem**: AI Strategy Coach was duplicating consolidated strategy; Events/Traffic/Holidays showing as "Unknown" counts instead of detailed data.
+
+**Changes Made**:
+1. **Removed StrategyCoach component** - was just displaying consolidated strategy text again
+2. **Moved AI Strategy Coach** - Now uses CoachChat (GPT-5 chat interface) positioned after Consolidated Strategy
+3. **Removed SmartBlocks component from Co-Pilot** - Events/Traffic/Holidays/News cards moved to Briefing tab
+4. **New Co-Pilot Layout**:
+   - Header
+   - Holiday Banner (if holiday exists)
+   - Consolidated Strategy (with loading bar)
+   - **AI Strategy Coach** (GPT-5 chat for deeper questions and guidance)
+   - **Smart Blocks** (location cards with navigation buttons)
+
+**Result**: 
+- AI Strategy Coach is now a separate chat interface, not a duplicate of consolidated strategy
+- Detailed briefing data (Events/Traffic/Holidays/News) properly displayed on Briefing tab
+- Clean separation of concerns: Co-Pilot for strategy & navigation, Briefing for raw AI outputs
+
 ## Recent Fixes (Nov 2, 2025)
 
 ### Temporal Context for Consolidator
