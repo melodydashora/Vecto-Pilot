@@ -217,13 +217,23 @@ const CoPilot: React.FC = () => {
       if (!response.ok) return null;
       
       const data = await response.json();
+      console.log(`[strategy-poll] Status: ${data.status}, Time elapsed: ${data.timeElapsedMs}ms`);
       // Attach the snapshot ID to the response for validation
       return { ...data, _snapshotId: lastSnapshotId };
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     refetchInterval: (query) => {
-      // Poll every 5 seconds if we don't have a strategy yet (light polling)
-      return query.state.data?.hasStrategy ? false : 5000;
+      // Poll every 2 seconds if strategy is still pending (was checking wrong field!)
+      const status = query.state.data?.status;
+      const isReady = status === 'ok' || status === 'ok_partial';
+      
+      if (isReady) {
+        console.log('[strategy-poll] ✅ Strategy ready, stopping poll');
+        return false; // Stop polling
+      }
+      
+      console.log(`[strategy-poll] ⏳ Status: ${status}, continuing poll...`);
+      return 2000; // Poll every 2 seconds
     },
     // Critical: Prevent stale data from previous snapshots
     staleTime: 0,
@@ -891,9 +901,31 @@ const CoPilot: React.FC = () => {
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
                   <RefreshCw className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0 mt-0.5" />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-semibold text-blue-900 mb-1">AI Strategy Generating...</p>
-                    <p className="text-xs text-blue-700">Claude and GPT-5 are analyzing your location and conditions</p>
+                    <p className="text-xs text-blue-700 mb-3">Claude and GPT-5 are analyzing your location and conditions</p>
+                    {strategyData?.timeElapsedMs && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs text-blue-700">
+                          <span>Time Elapsed</span>
+                          <span className="font-mono">{Math.round(strategyData.timeElapsedMs / 1000)}s / 60s</span>
+                        </div>
+                        <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+                            style={{ 
+                              width: `${Math.min((strategyData.timeElapsedMs / 60000) * 100, 100)}%` 
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-blue-600 italic">
+                          {strategyData.waitFor && strategyData.waitFor.length > 0 
+                            ? `Waiting for: ${strategyData.waitFor.join(', ')}`
+                            : 'Processing...'
+                          }
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
