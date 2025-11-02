@@ -109,7 +109,11 @@ export async function runConsolidator(snapshotId) {
     const systemPrompt = `You are a rideshare strategy consolidator.
 Merge the strategist's initial plan with the briefer's real-time intelligence into one final actionable strategy.
 Keep it 3–5 sentences, urgent, time-aware, and specific.
-CRITICAL: Use the exact day of week and time provided in the user prompt - do not infer or recompute dates.`;
+CRITICAL: Use the exact day of week and time provided in the user prompt - do not infer or recompute dates.
+IMPORTANT: Do NOT include full street addresses in your output. Reference only city/area (e.g., "${ctx.city || 'your area'}")`;
+
+    // Extract city without street address for display
+    const cityDisplay = ctx.city || 'your area';
 
     const userPrompt = `CRITICAL DATE & TIME (from snapshot - AUTHORITATIVE, do not recompute):
 Day of Week: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : ''}
@@ -117,8 +121,9 @@ Date & Time: ${localTime}
 Day Part: ${dayPart}
 Hour: ${ctx.hour}:00
 
-USER LOCATION:
-${userAddress}
+USER LOCATION (for context only - do NOT include street address in output):
+City/Area: ${cityDisplay}
+Full Address (internal only): ${userAddress}
 
 STRATEGIST OUTPUT:
 ${minstrategy}
@@ -126,7 +131,11 @@ ${minstrategy}
 BRIEFER OUTPUT:
 ${briefingStr}
 
-Task: Merge these into a final consolidated strategy for this location. CRITICAL: Use the exact day of week (${dayOfWeek}) provided above - this is authoritative.`;
+Task: Merge these into a final consolidated strategy for ${cityDisplay}. 
+CRITICAL REQUIREMENTS:
+1. Use the exact day of week (${dayOfWeek}) provided above - this is authoritative
+2. Start with the day and time context (e.g., "${dayOfWeek} ${dayPart} in ${cityDisplay}")
+3. Do NOT include full street addresses - reference only "${cityDisplay}"`;
 
     const promptSize = systemPrompt.length + userPrompt.length;
     console.log(`[consolidator] 📝 Prompt size: ${promptSize} chars`);
