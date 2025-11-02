@@ -67,9 +67,10 @@ export async function runConsolidator(snapshotId) {
     const ctx = await getSnapshotContext(snapshotId);
     const userAddress = ctx.formatted_address || 'Unknown location';
     
-    // Extract date/time context from snapshot
-    const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][ctx.dow] || 'Unknown';
-    const isWeekend = ctx.dow === 0 || ctx.dow === 6;
+    // CRITICAL: Extract AUTHORITATIVE date/time from snapshot (never recompute)
+    // This is the single source of truth for all temporal context
+    const dayOfWeek = ctx.day_of_week; // Authoritative from snapshot
+    const isWeekend = ctx.is_weekend; // Authoritative from snapshot
     const localTime = ctx.local_iso ? new Date(ctx.local_iso).toLocaleString('en-US', { 
       timeZone: ctx.timezone || 'America/Chicago',
       weekday: 'long',
@@ -89,24 +90,32 @@ export async function runConsolidator(snapshotId) {
       strategist_length: minstrategy.length,
       briefer_length: briefingStr.length,
       user_address: userAddress,
-      day_of_week: dayOfWeek,
-      is_weekend: isWeekend,
-      local_time: localTime,
-      day_part: dayPart,
+      // CRITICAL: Authoritative temporal context from snapshot
+      snapshot_day_of_week: dayOfWeek, // Trusting snapshot, not recomputing
+      snapshot_dow: ctx.dow, // Raw day number from snapshot
+      snapshot_is_weekend: isWeekend,
+      snapshot_hour: ctx.hour,
+      snapshot_local_time: localTime,
+      snapshot_day_part: dayPart,
+      snapshot_timezone: ctx.timezone,
       strategist_model: process.env.STRATEGY_STRATEGIST || 'unknown',
       briefer_model: process.env.STRATEGY_BRIEFER || 'unknown',
       consolidator_model: process.env.STRATEGY_CONSOLIDATOR || 'unknown'
     };
     
-    console.log(`[consolidator] 📊 Inputs ready:`, inputMetrics);
+    console.log(`[consolidator] 📊 Inputs ready (temporal context from snapshot - AUTHORITATIVE):`, inputMetrics);
     
     // Step 3: Build prompts for consolidation
     const systemPrompt = `You are a rideshare strategy consolidator.
 Merge the strategist's initial plan with the briefer's real-time intelligence into one final actionable strategy.
-Keep it 3–5 sentences, urgent, time-aware, and specific.`;
+Keep it 3–5 sentences, urgent, time-aware, and specific.
+CRITICAL: Use the exact day of week and time provided in the user prompt - do not infer or recompute dates.`;
 
-    const userPrompt = `CURRENT DATE & TIME:
-${localTime} (${dayOfWeek}, ${dayPart})${isWeekend ? ' [WEEKEND]' : ''}
+    const userPrompt = `CRITICAL DATE & TIME (from snapshot - AUTHORITATIVE, do not recompute):
+Day of Week: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : ''}
+Date & Time: ${localTime}
+Day Part: ${dayPart}
+Hour: ${ctx.hour}:00
 
 USER LOCATION:
 ${userAddress}
@@ -117,7 +126,7 @@ ${minstrategy}
 BRIEFER OUTPUT:
 ${briefingStr}
 
-Task: Merge these into a final consolidated strategy for this location. Use the exact day of week and time provided above.`;
+Task: Merge these into a final consolidated strategy for this location. CRITICAL: Use the exact day of week (${dayOfWeek}) provided above - this is authoritative.`;
 
     const promptSize = systemPrompt.length + userPrompt.length;
     console.log(`[consolidator] 📝 Prompt size: ${promptSize} chars`);
