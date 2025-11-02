@@ -120,14 +120,20 @@ Generate real-time intelligence briefing for the next 60 minutes in the 15-mile 
     
     console.log(`[briefing] Final briefing: events=${briefing.events.length}, holidays=${briefing.holidays.length}, traffic=${briefing.traffic.length}, news=${briefing.news.length}`);
 
-    // Write to single JSONB field
+    // Extract first holiday for the dedicated holiday column (for UI banner)
+    const holidayName = briefing.holidays && briefing.holidays.length > 0 
+      ? briefing.holidays[0] 
+      : null;
+
+    // Write to single JSONB field AND dedicated holiday column
     await db.update(strategies).set({
       briefing,
+      holiday: holidayName,  // Write first holiday to dedicated column for UI banner
       strategy_timestamp: new Date(),
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    console.log(`[briefing] ✅ Complete for ${snapshotId} (events:${briefing.events?.length || 0}, holidays:${briefing.holidays?.length || 0}, traffic:${briefing.traffic?.length || 0}, news:${briefing.news?.length || 0})`);
+    console.log(`[briefing] ✅ Complete for ${snapshotId} (events:${briefing.events?.length || 0}, holidays:${briefing.holidays?.length || 0}, traffic:${briefing.traffic?.length || 0}, news:${briefing.news?.length || 0}, holiday column:${holidayName || 'none'})`);
   } catch (error) {
     console.error(`[briefing] ❌ Error for ${snapshotId}:`, error.message);
     throw error;
