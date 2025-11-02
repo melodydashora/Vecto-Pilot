@@ -36,12 +36,10 @@ RESPONSE FORMAT (JSON only):
 
 Return empty arrays [] if no intelligence for that category.`;
 
-    // Format date/time prominently so Gemini recognizes holidays
-    const currentTime = new Date(ctx.created_at);
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    // CRITICAL: Use snapshot's authoritative day_of_week (NOT recomputed from created_at)
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     
-    const dayName = dayNames[currentTime.getDay()];
+    const currentTime = new Date(ctx.created_at);
     const monthName = monthNames[currentTime.getMonth()];
     const dayNum = currentTime.getDate();
     const year = currentTime.getFullYear();
@@ -54,17 +52,23 @@ Return empty arrays [] if no intelligence for that category.`;
       timeZone: ctx.timezone || 'America/Chicago'
     });
     
-    const formattedDateTime = `${dayName}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
+    // Use snapshot's authoritative day_of_week, not recomputed
+    const formattedDateTime = `${ctx.day_of_week}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
 
-    const userPrompt = `SNAPSHOT CONTEXT:
-Location: ${ctx.formatted_address}
-City/State: ${ctx.city}, ${ctx.state}
-Current Date & Time: ${formattedDateTime}
+    const userPrompt = `CRITICAL DATE & TIME (from snapshot - authoritative):
+Day of Week: ${ctx.day_of_week} ${ctx.is_weekend ? '[WEEKEND]' : ''}
+Date & Time: ${formattedDateTime}
 Day Part: ${ctx.day_part_key}
+
+LOCATION:
+${ctx.formatted_address}
+${ctx.city}, ${ctx.state}
+
+CONDITIONS:
 Weather: ${ctx.weather?.tempF || '?'}°F, ${ctx.weather?.conditions || 'unknown'}
 Airport: ${ctx.airport_context?.airport_code || 'none'} ${ctx.airport_context?.has_delays ? `(${ctx.airport_context.delay_minutes} min delays)` : ''}
 
-Generate real-time intelligence briefing for the next 60 minutes in the 15-mile radius. Return JSON only.`;
+Generate real-time intelligence briefing for the next 60 minutes in the 15-mile radius. Use the exact day of week provided above. Return JSON only.`;
 
     // Call model-agnostic briefer role
     const result = await callModel("briefer", {

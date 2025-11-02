@@ -22,7 +22,14 @@ export async function getSnapshotContext(snapshotId) {
     throw new Error(`Snapshot ${snapshotId} not found`);
   }
 
-  // Return full context with all fields providers need
+  // CRITICAL: Compute day_of_week string from dow number for date propagation
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const day_of_week = snapshot.dow != null ? dayNames[snapshot.dow] : 'Unknown';
+  const is_weekend = snapshot.dow === 0 || snapshot.dow === 6;
+
+  // Return full context with ALL fields providers need
+  // CRITICAL DATE PROPAGATION: dow, day_of_week, hour, local_iso, iso_timestamp
+  // These fields are authoritative and must be passed to all providers
   return {
     snapshot_id: snapshot.snapshot_id,
     formatted_address: snapshot.formatted_address,
@@ -32,10 +39,19 @@ export async function getSnapshotContext(snapshotId) {
     lat: snapshot.lat,
     lng: snapshot.lng,
     timezone: snapshot.timezone,
-    day_part_key: snapshot.day_part_key,
+    
+    // CRITICAL: Date/time fields (authority for all downstream providers)
+    dow: snapshot.dow, // 0=Sunday, 1=Monday, etc. (authoritative)
+    day_of_week, // Computed string: "Sunday", "Monday", etc.
+    is_weekend, // Computed flag
+    hour: snapshot.hour, // Hour of day (0-23)
+    day_part_key: snapshot.day_part_key, // "morning", "afternoon", "evening", "night"
+    local_iso: snapshot.local_iso, // Local timestamp without timezone
+    iso_timestamp: snapshot.created_at?.toISOString(), // ISO timestamp with timezone
+    created_at: snapshot.created_at, // Full timestamp object
+    
     weather: snapshot.weather,
     airport_context: snapshot.airport_context,
-    created_at: snapshot.created_at,
     news_briefing: snapshot.news_briefing // includes holiday from Gemini
   };
 }

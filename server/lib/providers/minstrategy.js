@@ -20,15 +20,33 @@ export async function runMinStrategy(snapshotId) {
     
     const systemPrompt = `You are a rideshare strategy analyst. Analyze the driver's current location, time, weather, and conditions to provide a brief strategic assessment (2-3 sentences). Focus on positioning opportunities and demand patterns.`;
     
-    const userPrompt = `SNAPSHOT CONTEXT:
-Location: ${ctx.formatted_address}
-City/State: ${ctx.city}, ${ctx.state}
-Time: ${new Date(ctx.created_at).toLocaleString('en-US', { timeZone: ctx.timezone })}
+    // CRITICAL: Use snapshot's authoritative date/time fields
+    const localTime = ctx.local_iso ? new Date(ctx.local_iso).toLocaleString('en-US', { 
+      timeZone: ctx.timezone || 'America/Chicago',
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }) : new Date(ctx.created_at).toLocaleString('en-US', { timeZone: ctx.timezone });
+    
+    const userPrompt = `CRITICAL DATE & TIME (from snapshot - authoritative):
+Day of Week: ${ctx.day_of_week} ${ctx.is_weekend ? '[WEEKEND]' : ''}
+Date & Time: ${localTime}
 Day Part: ${ctx.day_part_key}
+Hour: ${ctx.hour}:00
+
+LOCATION:
+${ctx.formatted_address}
+${ctx.city}, ${ctx.state}
+
+CONDITIONS:
 Weather: ${ctx.weather?.tempF || '?'}°F, ${ctx.weather?.conditions || 'unknown'}
 Airport: ${ctx.airport_context?.airport_code || 'none'} ${ctx.airport_context?.distance_miles ? `(${ctx.airport_context.distance_miles} mi)` : ''}
 
-Provide a brief strategic assessment of positioning opportunities for the next hour.`;
+Provide a brief strategic assessment of positioning opportunities for the next hour. Use the exact day of week provided above.`;
 
     // Call model-agnostic strategist role
     const result = await callModel("strategist", {
