@@ -25,7 +25,9 @@ import {
   ThumbsDown,
   MessageSquare,
   Info,
-  PartyPopper
+  PartyPopper,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
@@ -786,26 +788,60 @@ const CoPilot: React.FC = () => {
           </Button>
         </div>
 
-        {/* Holiday Banner */}
-        {strategyData?.strategy?.holiday && (
-          <Card className="mb-6 border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 shadow-lg" data-testid="holiday-banner">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-100">
-                  <PartyPopper className="w-6 h-6 text-amber-600" />
+        {/* Greeting/Holiday Banner - Always visible with fallback */}
+        {(() => {
+          const hasHoliday = strategyData?.strategy?.holiday;
+          const hour = new Date().getHours();
+          const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+          
+          if (hasHoliday) {
+            return (
+              <Card className="mb-6 border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 shadow-lg" data-testid="holiday-banner">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-100">
+                      <PartyPopper className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-amber-900 text-lg">
+                        🎉 Happy {strategyData.strategy.holiday}!
+                      </p>
+                      <p className="text-sm text-amber-800">
+                        Holiday demand patterns in effect - expect increased airport traffic and surge pricing opportunities
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }
+          
+          return (
+            <Card className="mb-6 border-2 border-blue-300 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 shadow-md" data-testid="greeting-banner">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-100">
+                    {hour < 12 ? (
+                      <Sun className="w-6 h-6 text-blue-600" />
+                    ) : hour < 18 ? (
+                      <Sun className="w-6 h-6 text-orange-500" />
+                    ) : (
+                      <Moon className="w-6 h-6 text-indigo-600" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-900 text-lg">
+                      {greeting}, driver! 👋
+                    </p>
+                    <p className="text-sm text-gray-700">
+                      Your AI strategy is analyzing real-time conditions to maximize your earnings
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-bold text-amber-900 text-lg">
-                    🎉 Happy {strategyData.strategy.holiday}!
-                  </p>
-                  <p className="text-sm text-amber-800">
-                    Holiday demand patterns in effect - expect increased airport traffic and surge pricing opportunities
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Selection Controls */}
         {selectedBlocks.size > 0 && (
