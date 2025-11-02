@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { ensureStrategyRow } from '../lib/strategy-utils.js';
 import { runMinStrategy } from '../lib/providers/minstrategy.js';
 import { runBriefing } from '../lib/providers/briefing.js';
+import { runHolidayCheck } from '../lib/providers/holiday-checker.js';
 import { safeElapsedMs } from './utils/safeElapsedMs.js';
 
 export const router = Router();
@@ -79,7 +80,9 @@ router.post('/strategy/run/:snapshotId', async (req, res) => {
     await ensureStrategyRow(snapshotId);
 
     // Kick providers in parallel; consolidation will be triggered by NOTIFY
+    // IMPORTANT: Holiday check runs FIRST to show banner immediately
     Promise.allSettled([
+      runHolidayCheck(snapshotId),    // FAST: writes strategies.holiday (1-2s)
       runMinStrategy(snapshotId),     // writes strategies.minstrategy
       runBriefing(snapshotId)         // writes strategies.briefing_news/events/traffic
     ]).catch(() => { /* handled in provider logs */ });
@@ -87,7 +90,7 @@ router.post('/strategy/run/:snapshotId', async (req, res) => {
     res.status(202).json({ 
       status: 'pending', 
       snapshot_id: snapshotId, 
-      kicked: ['minstrategy', 'briefing'] 
+      kicked: ['holiday', 'minstrategy', 'briefing'] 
     });
   } catch (error) {
     console.error(`[strategy] Run error:`, error);

@@ -39,3 +39,6 @@ author = 43532959
 task = "shell.exec"
 args = "set -a && . mono-mode.env && set +a && npm run start:replit"
 
+[agent]
+integrations = ["perplexity_v0:1.0.0"]
+
