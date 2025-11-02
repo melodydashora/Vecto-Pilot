@@ -1,11 +1,11 @@
 // server/lib/providers/minstrategy.js
-// Claude provider for initial strategic analysis (model-agnostic naming)
+// Strategist provider - model-agnostic (uses callModel adapter)
 
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
-import { createAnthropicClient } from '../anthropic-extended.js';
+import { callModel } from '../adapters/index.js';
 
 /**
  * Run minimal strategy generation using Claude
@@ -17,9 +17,6 @@ export async function runMinStrategy(snapshotId) {
   
   try {
     const ctx = await getSnapshotContext(snapshotId);
-    
-    // Call Claude for initial strategic analysis with full snapshot context
-    const claude = createAnthropicClient(process.env.ANTHROPIC_API_KEY);
     
     const systemPrompt = `You are a rideshare strategy analyst. Analyze the driver's current location, time, weather, and conditions to provide a brief strategic assessment (2-3 sentences). Focus on positioning opportunities and demand patterns.`;
     
@@ -33,23 +30,17 @@ Airport: ${ctx.airport_context?.airport_code || 'none'} ${ctx.airport_context?.d
 
 Provide a brief strategic assessment of positioning opportunities for the next hour.`;
 
-    const strategistModel = process.env.STRATEGY_STRATEGIST;
-    if (!strategistModel) {
-      throw new Error('Missing STRATEGY_STRATEGIST environment variable');
-    }
-    
-    const maxTokens = parseInt(process.env.STRATEGY_STRATEGIST_MAX_TOKENS || '1024', 10);
-    const temperature = parseFloat(process.env.STRATEGY_STRATEGIST_TEMPERATURE || '0.2');
-    
-    const response = await claude.messages.create({
-      model: strategistModel,
-      max_tokens: maxTokens,
-      temperature: temperature,
+    // Call model-agnostic strategist role
+    const result = await callModel("strategist", {
       system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }]
+      user: userPrompt
     });
 
-    const text = response.content?.[0]?.text || null;
+    if (!result.ok) {
+      throw new Error('Strategist model call failed');
+    }
+    
+    const text = result.output;
     
     // Write to model-agnostic field
     await db.update(strategies).set({

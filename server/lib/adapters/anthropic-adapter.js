@@ -26,9 +26,9 @@ export async function callAnthropic({ model, system, user, maxTokens, temperatur
 
     return output
       ? { ok: true, output }
-      : { ok: false, output: "" };
+      : { ok: false, output: "", error: "Empty response from Anthropic" };
   } catch (err) {
     console.error("[model/anthropic] error:", err?.message || err);
-    return { ok: false, output: "" };
+    return { ok: false, output: "", error: err?.message || String(err) };
   }
 }

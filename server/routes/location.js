@@ -903,34 +903,33 @@ router.post('/snapshot', async (req, res) => {
     });
     
     if (snapshotV1.resolved?.formattedAddress || snapshotV1.resolved?.city) {
-      console.log(`[location] 🚀 Triggering automatic strategy generation for ${snapshotV1.snapshot_id}...`);
+      console.log(`[location] 🚀 Triggering strategy pipeline (strategist → briefer → consolidator) for ${snapshotV1.snapshot_id}...`);
       
-      const { runParallelProviders } = await import('../lib/strategy-generator-parallel.js');
+      const { runSimpleStrategyPipeline } = await import('../lib/strategy-generator-parallel.js');
       
       // Fire-and-forget with comprehensive error logging
-      runParallelProviders({
+      runSimpleStrategyPipeline({
         snapshotId: snapshotV1.snapshot_id,
-        user: {
-          lat: snapshotV1.coord.lat,
-          lng: snapshotV1.coord.lng,
-          city: snapshotV1.resolved?.city,
-          state: snapshotV1.resolved?.state,
-          user_address: snapshotV1.resolved?.formattedAddress,
-          user_id: snapshotV1.user_id
-        },
+        userId: snapshotV1.user_id,
+        userAddress: snapshotV1.resolved?.formattedAddress,
+        city: snapshotV1.resolved?.city,
+        state: snapshotV1.resolved?.state,
+        lat: snapshotV1.coord.lat,
+        lng: snapshotV1.coord.lng,
         snapshot: {
           day_part_key: snapshotV1.time_context?.day_part_key,
           dow: snapshotV1.time_context?.dow,
           weather: snapshotV1.weather,
-          air: snapshotV1.air
+          air: snapshotV1.air,
+          airport_context: airportContext // FAA information (delays, weather) within 30 miles
         }
       }).then(() => {
-        console.log(`[location] ✅ Strategy generation COMPLETED for ${snapshotV1.snapshot_id}`);
+        console.log(`[location] ✅ Strategy pipeline COMPLETED for ${snapshotV1.snapshot_id}`);
       }).catch(err => {
-        console.error(`[location] ❌ Strategy generation FAILED for ${snapshotV1.snapshot_id}:`, err.message, err.stack);
+        console.error(`[location] ❌ Strategy pipeline FAILED for ${snapshotV1.snapshot_id}:`, err.message, err.stack);
       });
       
-      console.log(`[location] ✅ Parallel providers INITIATED for snapshot ${snapshotV1.snapshot_id}`);
+      console.log(`[location] ✅ Strategy pipeline INITIATED for snapshot ${snapshotV1.snapshot_id}`);
     } else {
       console.warn(`[location] ⚠️  Skipping strategy generation - no address or city for snapshot ${snapshotV1.snapshot_id}`);
     }
