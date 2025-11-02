@@ -13,9 +13,15 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
 
     const body = {
       model,
-      messages,
-      max_tokens: maxTokens
+      messages
     };
+
+    // o1 models use max_completion_tokens, other models use max_tokens
+    if (model.startsWith("o1-") || model === "gpt-5") {
+      body.max_completion_tokens = maxTokens;
+    } else {
+      body.max_tokens = maxTokens;
+    }
 
     // Add temperature or reasoning_effort (not both for o1 models)
     if (reasoningEffort) {
