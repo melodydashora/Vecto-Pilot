@@ -134,11 +134,17 @@ STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
 
 **Result**: Consolidator now knows exact date/time and generates time-aware strategies.
 
-### Holiday Banner Persistence
+### Holiday Banner Persistence & Early Detection
 **Problem**: "Happy Día de los Muertos!" banner appeared briefly then disappeared.
 
 **Root Cause**: Briefing provider wrote holidays to `briefing.holidays` JSONB array but NOT to the dedicated `holiday` text column that the UI reads.
 
-**Solution**: Updated briefing.js to write `briefing.holidays[0]` to `strategies.holiday` column.
+**Solution**: 
+1. Updated briefing.js to write `briefing.holidays[0]` to `strategies.holiday` column
+2. Added Perplexity-powered fast holiday checker that runs in parallel with strategist/briefer
+3. Holiday check completes in 1-2 seconds, writing to `strategies.holiday` immediately
 
-**Result**: Holiday banners now persist across refreshes and display consistently.
+**Result**: 
+- Holiday banners now persist across refreshes and display consistently
+- Banner appears within 1-2 seconds while main AI processing continues
+- Beautiful user experience showing activity during strategy generation
