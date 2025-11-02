@@ -38,9 +38,9 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
 
     return output
       ? { ok: true, output }
-      : { ok: false, output: "" };
+      : { ok: false, output: "", error: "Empty response from OpenAI" };
   } catch (err) {
     console.error("[model/openai] error:", err?.message || err);
-    return { ok: false, output: "" };
+    return { ok: false, output: "", error: err?.message || String(err) };
   }
 }

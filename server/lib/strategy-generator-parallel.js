@@ -147,7 +147,9 @@ Task: Merge these into a final consolidated strategy for this location.`;
     });
 
     if (!result.ok) {
-      return { ok: false, reason: 'consolidator_failed' };
+      const errorMsg = result.error || 'consolidator_failed';
+      console.error(`[CONSOLIDATOR] ❌ Model call failed:`, errorMsg);
+      return { ok: false, reason: errorMsg };
     }
 
     return {

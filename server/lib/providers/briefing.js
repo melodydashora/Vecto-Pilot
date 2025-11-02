@@ -1,11 +1,11 @@
 // server/lib/providers/briefing.js
-// Gemini provider for city briefing (model-agnostic naming)
+// Briefer provider - model-agnostic (uses callModel adapter)
 
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
-import { callGemini } from '../adapters/google-gemini.js';
+import { callModel } from '../adapters/index.js';
 import { normalizeBriefingShape } from '../strategy-utils.js';
 
 /**
@@ -64,29 +64,32 @@ Day Part: ${ctx.day_part_key}
 Weather: ${ctx.weather?.tempF || '?'}°F, ${ctx.weather?.conditions || 'unknown'}
 Airport: ${ctx.airport_context?.airport_code || 'none'} ${ctx.airport_context?.has_delays ? `(${ctx.airport_context.delay_minutes} min delays)` : ''}
 
-Generate real-time intelligence briefing for the next 60 minutes in the 15-mile radius.`;
+Generate real-time intelligence briefing for the next 60 minutes in the 15-mile radius. Return JSON only.`;
 
-    const response = await callGemini({
-      systemInstruction,
-      user: userPrompt,
-      max_output_tokens: 4000,
-      responseMimeType: 'application/json'
+    // Call model-agnostic briefer role
+    const result = await callModel("briefer", {
+      system: systemInstruction,
+      user: userPrompt
     });
 
-    // Parse JSON response - with responseMimeType, Gemini returns clean JSON
+    if (!result.ok) {
+      throw new Error('Briefer model call failed');
+    }
+
+    // Parse JSON response
     let briefing = null;
     let parsed = null;
     
     // Defensive parsing with multiple fallback strategies
     try {
-      // Strategy 1: Direct parse (when responseMimeType: application/json)
-      parsed = typeof response === 'string' ? JSON.parse(response) : response;
+      // Strategy 1: Direct parse
+      parsed = typeof result.output === 'string' ? JSON.parse(result.output) : result.output;
       console.log(`[briefing] ✅ Direct JSON parse successful`);
     } catch (parseError) {
       console.warn(`[briefing] Direct JSON parse failed, trying extraction...`);
       
       // Strategy 2: Extract JSON substring between first '{' and last '}'
-      const responseStr = String(response);
+      const responseStr = String(result.output);
       const start = responseStr.indexOf('{');
       const end = responseStr.lastIndexOf('}');
       
