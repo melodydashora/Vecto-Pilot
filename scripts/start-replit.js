@@ -17,30 +17,52 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load mono-mode.env
-try {
-  const envFile = readFileSync('mono-mode.env', 'utf-8');
-  envFile.split('\n').forEach(line => {
-    line = line.trim();
-    // Skip comments and empty lines
-    if (!line || line.startsWith('#')) return;
+// Helper function to load env files
+function loadEnvFile(filename) {
+  try {
+    const envFile = readFileSync(filename, 'utf-8');
+    envFile.split('\n').forEach(line => {
+      line = line.trim();
+      // Skip comments and empty lines
+      if (!line || line.startsWith('#')) return;
 
-    // Remove 'export ' prefix if present
-    if (line.startsWith('export ')) {
-      line = line.substring(7);
-    }
+      // Remove 'export ' prefix if present
+      if (line.startsWith('export ')) {
+        line = line.substring(7);
+      }
 
-    // Parse KEY=value
-    if (line.includes('=')) {
-      const [key, ...valueParts] = line.split('=');
-      const value = valueParts.join('=').replace(/^["']|["']$/g, '');
-      process.env[key.trim()] = value.trim();
-    }
-  });
-  console.log('[boot] ✅ Loaded mono-mode.env');
-} catch (err) {
-  console.warn('[boot] ⚠️  Could not load mono-mode.env:', err.message);
+      // Parse KEY=value
+      if (line.includes('=')) {
+        const [key, ...valueParts] = line.split('=');
+        const trimmedKey = key.trim();
+        const value = valueParts.join('=').replace(/^["']|["']$/g, '').trim();
+        
+        // Skip if key already exists (preserves Replit Secrets)
+        if (process.env[trimmedKey]) {
+          return;
+        }
+        
+        // Skip variable references like ${VAR_NAME}
+        if (value.startsWith('${') && value.endsWith('}')) {
+          return;
+        }
+        
+        process.env[trimmedKey] = value;
+      }
+    });
+    console.log(`[boot] ✅ Loaded ${filename}`);
+    return true;
+  } catch (err) {
+    console.warn(`[boot] ⚠️  Could not load ${filename}:`, err.message);
+    return false;
+  }
 }
+
+// Load .env first (contains AI model configs)
+loadEnvFile('.env');
+
+// Load mono-mode.env (overrides deployment-specific settings)
+loadEnvFile('mono-mode.env');
 
 // Ensure deterministic env and port
 process.env.PORT = process.env.PORT || '5000';
