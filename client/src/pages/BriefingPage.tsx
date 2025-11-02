@@ -78,99 +78,84 @@ export default function BriefingPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Intelligence Briefing</h1>
-        <p className="text-sm text-gray-600">Raw AI pipeline outputs: FAA data, Strategist analysis, and Briefer intelligence</p>
-        {data.status && (
-          <Badge 
-            variant={data.status === 'ok' ? 'default' : data.status === 'ok_partial' ? 'secondary' : 'destructive'}
-            className="mt-2"
-          >
-            Status: {data.status}
-          </Badge>
-        )}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Rideshare Briefing</h1>
+        <p className="text-sm text-gray-600">Real-time intelligence for DFW rideshare drivers - events, traffic, and local conditions</p>
       </div>
 
-      {/* FAA Airport Data Section */}
-      {airportContext && (
-        <Card data-testid="section-airport-data" className="border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Plane className="w-5 h-5 text-blue-600" />
-              FAA Airport Data (30-mile radius)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {airportContext.airports && airportContext.airports.length > 0 ? (
-              <div className="space-y-4">
-                {airportContext.airports.map((airport: any, index: number) => (
-                  <div key={index} className="bg-white p-4 rounded-lg border border-blue-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-gray-900">{airport.name} ({airport.code})</h4>
-                      <Badge variant={airport.delays || airport.closures ? 'destructive' : 'default'}>
-                        {airport.delays || airport.closures ? 'Active Issues' : 'Normal Operations'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">Distance: {airport.distance_miles?.toFixed(1)} miles</p>
-                    {airport.weather && (
-                      <p className="text-sm text-gray-700 mb-1">
-                        <span className="font-medium">Weather:</span> {airport.weather}
-                      </p>
-                    )}
-                    {airport.delays && (
-                      <p className="text-sm text-orange-700 mb-1">
-                        <span className="font-medium">Delays:</span> {airport.delays}
-                      </p>
-                    )}
-                    {airport.closures && (
-                      <p className="text-sm text-red-700">
-                        <span className="font-medium">Closures:</span> {airport.closures}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-600 text-sm italic">No airports within 30 miles or no FAA data available</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Strategist Output Section */}
-      <Card data-testid="section-strategist-output" className="border-purple-200 bg-purple-50">
+      {/* Rideshare News Section */}
+      <Card data-testid="section-news" className="border-indigo-200 bg-indigo-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-purple-600" />
-            Strategist Output
+            <Newspaper className="w-5 h-5 text-indigo-600" />
+            Rideshare News
           </CardTitle>
         </CardHeader>
         <CardContent className="bg-white">
-          {strategy.min ? (
-            <div className="prose prose-sm max-w-none">
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{strategy.min}</p>
-            </div>
+          {news.length > 0 ? (
+            <ul className="space-y-3">
+              {news.map((item: any, index: number) => (
+                <li key={index} className="flex items-start gap-3 pb-3 border-b last:border-b-0 border-gray-100" data-testid={`news-item-${index}`}>
+                  <TrendingUp className="w-4 h-4 text-indigo-600 mt-1 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-gray-800 leading-relaxed">
+                      {typeof item === 'string' ? item : item.title || item.summary || JSON.stringify(item)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           ) : (
-            <p className="text-gray-400 text-sm italic">No strategist output available</p>
+            <p className="text-gray-400 text-sm italic">No news available at this time</p>
           )}
         </CardContent>
       </Card>
 
-      {/* Briefer Intelligence Section - Events */}
-      <Card data-testid="section-venues" className="border-green-200 bg-green-50">
+      {/* Local Traffic Section */}
+      <Card data-testid="section-traffic" className="border-orange-200 bg-orange-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Radio className="w-5 h-5 text-orange-600" />
+            Local Traffic
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="bg-white">
+          {traffic.length > 0 ? (
+            <ul className="space-y-3">
+              {traffic.map((item: any, index: number) => (
+                <li key={index} className="flex items-start gap-3 pb-3 border-b last:border-b-0 border-gray-100" data-testid={`traffic-item-${index}`}>
+                  <AlertCircle className="w-4 h-4 text-orange-600 mt-1 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-gray-800 leading-relaxed">
+                      {typeof item === 'string' ? item : item.summary || item.note || JSON.stringify(item)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-400 text-sm italic">No traffic alerts at this time</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Local Events Section */}
+      <Card data-testid="section-events" className="border-green-200 bg-green-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-green-600" />
-            Briefer Intelligence: Venues & Events
+            Local Events
           </CardTitle>
         </CardHeader>
         <CardContent className="bg-white">
           {holidays.length > 0 && (
-            <div className="mb-4">
-              <h4 className="font-semibold text-sm text-gray-700 mb-2">Holidays</h4>
+            <div className="mb-4 pb-4 border-b border-gray-100">
+              <h4 className="font-semibold text-sm text-gray-700 mb-3 flex items-center gap-2">
+                <span>🎉</span> Holidays
+              </h4>
               <div className="flex flex-wrap gap-2">
                 {holidays.map((holiday: any, index: number) => (
-                  <Badge key={index} variant="secondary" data-testid={`holiday-${index}`}>
+                  <Badge key={index} variant="secondary" className="bg-amber-100 text-amber-900 border-amber-300" data-testid={`holiday-${index}`}>
                     {typeof holiday === 'string' ? holiday : holiday.name || JSON.stringify(holiday)}
                   </Badge>
                 ))}
@@ -180,96 +165,78 @@ export default function BriefingPage() {
           
           {events.length > 0 ? (
             <div>
-              <h4 className="font-semibold text-sm text-gray-700 mb-2">Events</h4>
-              <ul className="space-y-2">
+              <h4 className="font-semibold text-sm text-gray-700 mb-3 flex items-center gap-2">
+                <Calendar className="w-4 h-4" /> Events
+              </h4>
+              <ul className="space-y-3">
                 {events.map((item: any, index: number) => (
-                  <li key={index} className="flex items-start gap-2" data-testid={`event-item-${index}`}>
-                    <span className="text-green-600 mt-1">•</span>
-                    <span className="text-gray-700">
-                      {typeof item === 'string' ? item : item.title || item.name || item.summary || JSON.stringify(item)}
-                    </span>
+                  <li key={index} className="flex items-start gap-3 pb-3 border-b last:border-b-0 border-gray-100" data-testid={`event-item-${index}`}>
+                    <MapPin className="w-4 h-4 text-green-600 mt-1 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-gray-800 leading-relaxed">
+                        {typeof item === 'string' ? item : item.title || item.name || item.summary || JSON.stringify(item)}
+                      </p>
+                    </div>
                   </li>
                 ))}
               </ul>
             </div>
           ) : (
-            !holidays.length && <p className="text-gray-400 text-sm italic">No venue or event data available</p>
+            !holidays.length && <p className="text-gray-400 text-sm italic">No events scheduled at this time</p>
           )}
         </CardContent>
       </Card>
 
-      {/* Briefer Intelligence Section - Traffic */}
-      <Card data-testid="section-traffic" className="border-orange-200 bg-orange-50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Radio className="w-5 h-5 text-orange-600" />
-            Briefer Intelligence: Traffic
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="bg-white">
-          {traffic.length > 0 ? (
-            <ul className="space-y-2">
-              {traffic.map((item: any, index: number) => (
-                <li key={index} className="flex items-start gap-2" data-testid={`traffic-item-${index}`}>
-                  <span className="text-orange-600 mt-1">•</span>
-                  <span className="text-gray-700">
-                    {typeof item === 'string' ? item : item.summary || item.note || JSON.stringify(item)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-gray-400 text-sm italic">No traffic data available</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Briefer Intelligence Section - News */}
-      <Card data-testid="section-news" className="border-indigo-200 bg-indigo-50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Newspaper className="w-5 h-5 text-indigo-600" />
-            Briefer Intelligence: News & Alerts
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="bg-white">
-          {news.length > 0 ? (
-            <ul className="space-y-2">
-              {news.map((item: any, index: number) => (
-                <li key={index} className="flex items-start gap-2" data-testid={`news-item-${index}`}>
-                  <span className="text-indigo-600 mt-1">•</span>
-                  <span className="text-gray-700">
-                    {typeof item === 'string' ? item : item.title || item.summary || JSON.stringify(item)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-gray-400 text-sm italic">No news available</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {data.error_message && (
-        <Card className="border-red-200 bg-red-50">
+      {/* Airport Conditions Section */}
+      {airportContext && airportContext.airports && airportContext.airports.length > 0 && (
+        <Card data-testid="section-airport-data" className="border-blue-200 bg-blue-50">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700">
-              <AlertCircle className="w-5 h-5" />
-              Error Details
+            <CardTitle className="flex items-center gap-2">
+              <Plane className="w-5 h-5 text-blue-600" />
+              Airport Conditions
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-red-600 font-mono">{data.error_message}</p>
+            <div className="space-y-3">
+              {airportContext.airports.map((airport: any, index: number) => (
+                <div key={index} className="bg-white p-4 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-gray-900">{airport.name} ({airport.code})</h4>
+                    <Badge variant={airport.delays || airport.closures ? 'destructive' : 'default'}>
+                      {airport.delays || airport.closures ? 'Active Issues' : 'Normal'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">{airport.distance_miles?.toFixed(1)} miles away</p>
+                  {airport.weather && (
+                    <p className="text-sm text-gray-700 mb-1">
+                      <span className="font-medium">Weather:</span> {airport.weather}
+                    </p>
+                  )}
+                  {airport.delays && (
+                    <p className="text-sm text-orange-700 mb-1">
+                      <span className="font-medium">Delays:</span> {airport.delays}
+                    </p>
+                  )}
+                  {airport.closures && (
+                    <p className="text-sm text-red-700">
+                      <span className="font-medium">Closures:</span> {airport.closures}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
 
-      <div className="text-center text-xs text-gray-500 pb-8">
-        <p>Snapshot ID: {data.snapshot_id}</p>
-        {strategy.user?.address && (
-          <p className="mt-1">Location: {strategy.user.address}</p>
-        )}
-      </div>
+      {strategy.user?.address && (
+        <div className="text-center text-sm text-gray-500 pb-8 pt-4 border-t border-gray-200">
+          <p className="flex items-center justify-center gap-2">
+            <MapPin className="w-4 h-4" />
+            {strategy.user.address}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
