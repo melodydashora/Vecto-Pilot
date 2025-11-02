@@ -902,28 +902,26 @@ const CoPilot: React.FC = () => {
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-blue-900 mb-1">AI Strategy Generating...</p>
                     <p className="text-xs text-blue-700 mb-3">analyzing your location and conditions</p>
-                    {strategyData?.timeElapsedMs && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs text-blue-700">
-                          <span>Time Elapsed</span>
-                          <span className="font-mono">{Math.round(strategyData.timeElapsedMs / 1000)}s / 60s</span>
-                        </div>
-                        <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
-                            style={{ 
-                              width: `${Math.min((strategyData.timeElapsedMs / 60000) * 100, 100)}%` 
-                            }}
-                          />
-                        </div>
-                        <p className="text-xs text-blue-600 italic">
-                          {strategyData.waitFor && strategyData.waitFor.length > 0 
-                            ? `Waiting for: ${strategyData.waitFor.join(', ')}`
-                            : 'Processing...'
-                          }
-                        </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs text-blue-700">
+                        <span>Time Elapsed</span>
+                        <span className="font-mono">{strategyData?.timeElapsedMs ? Math.round(strategyData.timeElapsedMs / 1000) : 0}s / 60s</span>
                       </div>
-                    )}
+                      <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+                          style={{ 
+                            width: strategyData?.timeElapsedMs ? `${Math.min((strategyData.timeElapsedMs / 60000) * 100, 100)}%` : '0%'
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-blue-600 italic">
+                        {strategyData?.waitFor && strategyData.waitFor.length > 0 
+                          ? `Waiting for: ${strategyData.waitFor.join(', ')}`
+                          : 'Processing...'
+                        }
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
