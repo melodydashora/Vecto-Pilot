@@ -89,6 +89,11 @@ const GlobalHeader: React.FC = () => {
         setSnapshotReady(true);
         setLatestSnapshotId(snapshotId);
         setStrategyStatus('pending');
+        // Initialize progress immediately so bar shows right away (sync with strategy spinner)
+        setStrategyProgress({
+          timeElapsedMs: 0,
+          waitFor: ['strategist', 'briefer', 'consolidator']
+        });
       }
     };
     window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
@@ -600,7 +605,7 @@ const GlobalHeader: React.FC = () => {
       </div>
 
       {/* Strategy Progress Bar - Shows when strategy is being generated */}
-      {strategyStatus === 'pending' && strategyProgress && (
+      {strategyStatus === 'pending' && (
         <div className="bg-black/20 backdrop-blur-sm border-t border-white/10">
           <div className="max-w-7xl mx-auto px-4 py-2">
             <div className="flex items-center gap-3">
@@ -609,18 +614,18 @@ const GlobalHeader: React.FC = () => {
                 <div className="flex items-center justify-between text-xs text-white/90 mb-1">
                   <span className="font-medium">AI Strategy Generating...</span>
                   <span className="font-mono">
-                    {Math.round(strategyProgress.timeElapsedMs / 1000)}s / 60s
+                    {Math.round((strategyProgress?.timeElapsedMs || 0) / 1000)}s / 60s
                   </span>
                 </div>
                 <div className="w-full bg-white/20 rounded-full h-1.5 overflow-hidden">
                   <div 
                     className="bg-white h-1.5 rounded-full transition-all duration-500 ease-out"
                     style={{ 
-                      width: `${Math.min((strategyProgress.timeElapsedMs / 60000) * 100, 100)}%`
+                      width: `${Math.min(((strategyProgress?.timeElapsedMs || 0) / 60000) * 100, 100)}%`
                     }}
                   />
                 </div>
-                {strategyProgress.waitFor && strategyProgress.waitFor.length > 0 && (
+                {strategyProgress?.waitFor && strategyProgress.waitFor.length > 0 && (
                   <p className="text-[10px] text-white/70 mt-1">
                     Waiting for: {strategyProgress.waitFor.join(', ')}
                   </p>
