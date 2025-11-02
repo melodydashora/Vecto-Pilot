@@ -14,7 +14,7 @@ export async function generateNewsBriefing(snapshot) {
   const startTime = Date.now();
   
   try {
-    console.log(`[gemini-briefing] Generating 60-min briefing for snapshot ${snapshot.snapshot_id}`);
+    console.log(`[briefer] Generating 60-min briefing for snapshot ${snapshot.snapshot_id}`);
     
     // Validate required fields
     if (!snapshot.formatted_address || !snapshot.city || !snapshot.state) {
@@ -131,7 +131,7 @@ Generate the briefing now, strictly for the next 60 minutes.`
       }
     });
     
-    console.log(`[gemini-briefing] Requesting briefing:`, {
+    console.log(`[briefer] Requesting briefing:`, {
       time: formattedTime,
       timezone: tzAbbrev,
       address: snapshot.formatted_address,
@@ -148,24 +148,24 @@ Generate the briefing now, strictly for the next 60 minutes.`
     const response = result.response;
     const text = response.text();
     
-    console.log(`[gemini-briefing] Raw response:`, text.substring(0, 200));
+    console.log(`[briefer] Raw response:`, text.substring(0, 200));
     
     // Parse JSON response with aggressive extraction
     let briefing;
     try {
       briefing = JSON.parse(text);
     } catch (parseError) {
-      console.warn(`[gemini-briefing] Initial parse failed: ${parseError.message}`);
-      console.warn(`[gemini-briefing] Raw text: ${text}`);
+      console.warn(`[briefer] Initial parse failed: ${parseError.message}`);
+      console.warn(`[briefer] Raw text: ${text}`);
       
       // Strategy 1: Extract from markdown code blocks
       let extracted = text.match(/```json\s*([\s\S]*?)\s*```/);
       if (extracted) {
         try {
           briefing = JSON.parse(extracted[1]);
-          console.log(`[gemini-briefing] ✅ Extracted from markdown code block`);
+          console.log(`[briefer] ✅ Extracted from markdown code block`);
         } catch (e) {
-          console.warn(`[gemini-briefing] Markdown block extraction failed`);
+          console.warn(`[briefer] Markdown block extraction failed`);
         }
       }
       
@@ -175,9 +175,9 @@ Generate the briefing now, strictly for the next 60 minutes.`
         if (match) {
           try {
             briefing = JSON.parse(match[0]);
-            console.log(`[gemini-briefing] ✅ Extracted first JSON object`);
+            console.log(`[briefer] ✅ Extracted first JSON object`);
           } catch (e) {
-            console.warn(`[gemini-briefing] JSON object extraction failed`);
+            console.warn(`[briefer] JSON object extraction failed`);
           }
         }
       }
@@ -208,9 +208,9 @@ Generate the briefing now, strictly for the next 60 minutes.`
           
           try {
             briefing = JSON.parse(fixed);
-            console.log(`[gemini-briefing] ✅ Repaired truncated JSON`);
+            console.log(`[briefer] ✅ Repaired truncated JSON`);
           } catch (e) {
-            console.warn(`[gemini-briefing] JSON repair failed`);
+            console.warn(`[briefer] JSON repair failed`);
           }
         }
       }
@@ -230,12 +230,12 @@ Generate the briefing now, strictly for the next 60 minutes.`
     
     // Validate driver_takeaway has 3 items
     if (!Array.isArray(briefing.driver_takeaway) || briefing.driver_takeaway.length !== 3) {
-      console.warn(`[gemini-briefing] driver_takeaway should have exactly 3 items, got ${briefing.driver_takeaway?.length}`);
+      console.warn(`[briefer] driver_takeaway should have exactly 3 items, got ${briefing.driver_takeaway?.length}`);
     }
     
     const duration = Date.now() - startTime;
     
-    console.log(`[gemini-briefing] ✅ Briefing generated in ${duration}ms:`, {
+    console.log(`[briefer] ✅ Briefing generated in ${duration}ms:`, {
       holiday: briefing.holiday || 'none',
       airports: briefing.airports.length,
       traffic: briefing.traffic_construction.length,
@@ -253,7 +253,7 @@ Generate the briefing now, strictly for the next 60 minutes.`
     
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(`[gemini-briefing] ❌ Failed after ${duration}ms:`, error.message);
+    console.error(`[briefer] ❌ Failed after ${duration}ms:`, error.message);
     
     return {
       ok: false,
