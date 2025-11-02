@@ -790,10 +790,13 @@ const CoPilot: React.FC = () => {
 
         {/* Greeting/Holiday Banner - Always visible with fallback */}
         {(() => {
+          // Check for holiday from strategy data (always preserve holiday if found)
           const hasHoliday = strategyData?.strategy?.holiday;
           const hour = new Date().getHours();
           const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+          const greetingIcon = hour < 12 ? '☀️' : hour < 18 ? '🌅' : '🌙';
           
+          // Always show holiday banner if we have holiday data
           if (hasHoliday) {
             return (
               <Card className="mb-6 border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 shadow-lg" data-testid="holiday-banner">
@@ -816,6 +819,7 @@ const CoPilot: React.FC = () => {
             );
           }
           
+          // Fallback to time-based greeting (always visible)
           return (
             <Card className="mb-6 border-2 border-blue-300 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 shadow-md" data-testid="greeting-banner">
               <CardContent className="p-4">
@@ -831,7 +835,7 @@ const CoPilot: React.FC = () => {
                   </div>
                   <div className="flex-1">
                     <p className="font-bold text-gray-900 text-lg">
-                      {greeting}, driver! 👋
+                      {greetingIcon} {greeting}, driver!
                     </p>
                     <p className="text-sm text-gray-700">
                       Your AI strategy is analyzing real-time conditions to maximize your earnings
