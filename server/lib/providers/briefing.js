@@ -22,7 +22,7 @@ export async function runBriefing(snapshotId) {
     // Extract holiday from news_briefing if present
     const holiday = ctx.news_briefing?.briefing?.holiday || null;
     
-    const systemInstruction = `You are a rideshare intelligence briefing analyst for the Dallas-Fort Worth area. Analyze the current date/time and location to generate real-time intelligence for the next 60 minutes within a 15-mile radius.
+    const systemInstruction = `You are a rideshare intelligence briefing analyst. Analyze the current date/time and location to generate real-time intelligence for the next 60 minutes within a 15-mile radius.
 
 CRITICAL: Identify any holidays based on the date provided (e.g., October 31 = Halloween, December 31 = New Year's Eve, July 4 = Independence Day).
 

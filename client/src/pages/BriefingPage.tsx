@@ -80,7 +80,7 @@ export default function BriefingPage() {
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Rideshare Briefing</h1>
-        <p className="text-sm text-gray-600">Real-time intelligence for DFW rideshare drivers - events, traffic, and local conditions</p>
+        <p className="text-sm text-gray-600">Real-time intelligence for rideshare drivers - events, traffic, and local conditions</p>
       </div>
 
       {/* Rideshare News Section */}

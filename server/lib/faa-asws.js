@@ -245,56 +245,66 @@ function mergeAllAirportData(publicData, authData) {
 }
 
 export async function getMajorUSAirports() {
+  // Alphabetically ordered to avoid location bias
   return [
-    { code: 'DFW', name: 'Dallas/Fort Worth International' },
-    { code: 'DAL', name: 'Dallas Love Field' },
-    { code: 'ORD', name: "Chicago O'Hare International" },
-    { code: 'MDW', name: 'Chicago Midway International' },
     { code: 'ATL', name: 'Hartsfield-Jackson Atlanta International' },
-    { code: 'LAX', name: 'Los Angeles International' },
-    { code: 'JFK', name: 'John F. Kennedy International' },
-    { code: 'LGA', name: 'LaGuardia' },
-    { code: 'EWR', name: 'Newark Liberty International' },
-    { code: 'SFO', name: 'San Francisco International' },
-    { code: 'SEA', name: 'Seattle-Tacoma International' },
-    { code: 'LAS', name: 'Harry Reid International' },
-    { code: 'MCO', name: 'Orlando International' },
-    { code: 'MIA', name: 'Miami International' },
-    { code: 'PHX', name: 'Phoenix Sky Harbor International' },
-    { code: 'IAH', name: 'George Bush Intercontinental' },
-    { code: 'DEN', name: 'Denver International' },
     { code: 'BOS', name: 'Logan International' },
+    { code: 'DAL', name: 'Dallas Love Field' },
+    { code: 'DEN', name: 'Denver International' },
+    { code: 'DFW', name: 'Dallas/Fort Worth International' },
+    { code: 'DTW', name: 'Detroit Metropolitan Wayne County' },
+    { code: 'EWR', name: 'Newark Liberty International' },
+    { code: 'IAH', name: 'George Bush Intercontinental' },
+    { code: 'JFK', name: 'John F. Kennedy International' },
+    { code: 'LAS', name: 'Harry Reid International' },
+    { code: 'LAX', name: 'Los Angeles International' },
+    { code: 'LGA', name: 'LaGuardia' },
+    { code: 'MCO', name: 'Orlando International' },
+    { code: 'MDW', name: 'Chicago Midway International' },
+    { code: 'MIA', name: 'Miami International' },
     { code: 'MSP', name: 'Minneapolis-St. Paul International' },
-    { code: 'DTW', name: 'Detroit Metropolitan Wayne County' }
+    { code: 'ORD', name: "Chicago O'Hare International" },
+    { code: 'PHX', name: 'Phoenix Sky Harbor International' },
+    { code: 'SEA', name: 'Seattle-Tacoma International' },
+    { code: 'SFO', name: 'San Francisco International' }
   ];
 }
 
+/**
+ * Find nearest major airport within rideshare-relevant proximity
+ * @param {number} latitude - User's current latitude
+ * @param {number} longitude - User's current longitude
+ * @param {number} maxDistanceMiles - Maximum straight-line distance in miles (default 50)
+ * @returns {Object|null} Nearest airport with distance, or null if none within range
+ */
 export async function getNearestMajorAirport(latitude, longitude, maxDistanceMiles = 50) {
   const airports = await getMajorUSAirports();
   
+  // Alphabetically ordered to match airport list - no location preference
   const airportCoordinates = {
-    'DFW': { lat: 32.8968, lon: -97.0380 },
-    'DAL': { lat: 32.8471, lon: -96.8518 },
-    'ORD': { lat: 41.9742, lon: -87.9073 },
-    'MDW': { lat: 41.7868, lon: -87.7522 },
     'ATL': { lat: 33.6407, lon: -84.4277 },
-    'LAX': { lat: 33.9416, lon: -118.4085 },
-    'JFK': { lat: 40.6413, lon: -73.7781 },
-    'LGA': { lat: 40.7769, lon: -73.8740 },
-    'EWR': { lat: 40.6895, lon: -74.1745 },
-    'SFO': { lat: 37.6213, lon: -122.3790 },
-    'SEA': { lat: 47.4502, lon: -122.3088 },
-    'LAS': { lat: 36.0840, lon: -115.1537 },
-    'MCO': { lat: 28.4312, lon: -81.3081 },
-    'MIA': { lat: 25.7959, lon: -80.2870 },
-    'PHX': { lat: 33.4352, lon: -112.0101 },
-    'IAH': { lat: 29.9902, lon: -95.3368 },
-    'DEN': { lat: 39.8561, lon: -104.6737 },
     'BOS': { lat: 42.3656, lon: -71.0096 },
+    'DAL': { lat: 32.8471, lon: -96.8518 },
+    'DEN': { lat: 39.8561, lon: -104.6737 },
+    'DFW': { lat: 32.8968, lon: -97.0380 },
+    'DTW': { lat: 42.2162, lon: -83.3554 },
+    'EWR': { lat: 40.6895, lon: -74.1745 },
+    'IAH': { lat: 29.9902, lon: -95.3368 },
+    'JFK': { lat: 40.6413, lon: -73.7781 },
+    'LAS': { lat: 36.0840, lon: -115.1537 },
+    'LAX': { lat: 33.9416, lon: -118.4085 },
+    'LGA': { lat: 40.7769, lon: -73.8740 },
+    'MCO': { lat: 28.4312, lon: -81.3081 },
+    'MDW': { lat: 41.7868, lon: -87.7522 },
+    'MIA': { lat: 25.7959, lon: -80.2870 },
     'MSP': { lat: 44.8848, lon: -93.2223 },
-    'DTW': { lat: 42.2162, lon: -83.3554 }
+    'ORD': { lat: 41.9742, lon: -87.9073 },
+    'PHX': { lat: 33.4352, lon: -112.0101 },
+    'SEA': { lat: 47.4502, lon: -122.3088 },
+    'SFO': { lat: 37.6213, lon: -122.3790 }
   };
 
+  // Calculate distance to ALL airports, then filter and sort by proximity
   const distances = airports.map(airport => {
     const coords = airportCoordinates[airport.code];
     if (!coords) return null;
@@ -303,6 +313,7 @@ export async function getNearestMajorAirport(latitude, longitude, maxDistanceMil
     return { ...airport, distance };
   }).filter(a => a && a.distance <= maxDistanceMiles);
 
+  // Sort by distance (nearest first) - truly location-agnostic
   distances.sort((a, b) => a.distance - b.distance);
   
   return distances[0] || null;

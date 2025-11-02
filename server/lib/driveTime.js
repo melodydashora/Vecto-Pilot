@@ -29,7 +29,7 @@ function speedFor(tz, dow, hour) {
  */
 function predictDriveMinutesHaversine(user, block, ctx) {
   const straightLineKm = haversineKm(user, block);
-  const roadKm = straightLineKm * 1.25; // DFW road factor
+  const roadKm = straightLineKm * 1.25; // Urban grid road factor (accounts for street layout vs straight-line distance)
   const kmh = speedFor(ctx.tz, ctx.dow, ctx.hour);
   const minutes = (roadKm / kmh) * 60;
   return Math.round(minutes);

@@ -470,7 +470,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "America/Chicago") {
 
 /**
  * Calculate similarity between two venue names (0-1 scale)
- * Uses simple word overlap - accounts for variations like "Frisco Square" vs "Cinemark Frisco Square"
+ * Uses simple word overlap - accounts for variations like "City Square" vs "Cinemark City Square"
  * @param {string} name1 - GPT-5 venue name
  * @param {string} name2 - Google venue name
  * @returns {number} Similarity score 0-1 (0=no match, 1=perfect match)
