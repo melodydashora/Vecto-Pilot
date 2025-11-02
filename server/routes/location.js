@@ -560,27 +560,27 @@ router.post('/snapshot', async (req, res) => {
         timezone: resolved.timeZone
       };
       
-      // Add time context
-      // Use proper timezone conversion instead of locale string parsing
-      const localTimeStr = now.toLocaleString('en-US', { 
+      // Add time context with proper timezone handling
+      // Extract hour using Intl.DateTimeFormat with the target timezone
+      const hourFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: resolved.timeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
+        hour: 'numeric',
         hour12: false
       });
+      const hour = parseInt(hourFormatter.format(now));
       
-      // Extract the hour directly from the locale string
-      const [datePart, timePart] = localTimeStr.split(', ');
-      const [hour] = timePart.split(':').map(Number);
-      const localDow = new Date(now.toLocaleString('en-US', { timeZone: resolved.timeZone })).getDay() || now.getDay();
+      // Extract day of week using Intl.DateTimeFormat with the target timezone
+      const dayFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: resolved.timeZone,
+        weekday: 'long'
+      });
+      const dayName = dayFormatter.format(now);
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const localDow = dayNames.indexOf(dayName);
       
       snapshotV1.time_context = {
-        local_iso: now.toISOString(), // Use the actual ISO timestamp
-        dow: localDow,
+        local_iso: now.toISOString(),
+        dow: localDow >= 0 ? localDow : now.getDay(), // Fallback to UTC day if parse fails
         hour: hour,
         day_part_key: getDayPartKey(hour)
       };
