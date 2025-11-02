@@ -144,14 +144,39 @@ STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
 
 ## Recent Fixes (Nov 2, 2025)
 
-### Timezone/DST Bug Fixed
-**Problem**: Strategy output was showing wrong day of week (Saturday instead of Sunday) due to timezone/DST conversion issues.
+### Snapshot Date Propagation (Critical Fix)
+**Problem**: Strategy, briefing, and consolidator outputs were showing wrong day of week (e.g., header shows Sunday, strategy says Saturday) due to date recomputation and timezone/DST conversion issues.
 
-**Root Cause**: Using `toLocaleString()` + `new Date()` doesn't preserve timezone properly, causing DST offset errors.
+**Root Cause**: 
+1. `getSnapshotContext` was missing critical date fields (`dow`, `day_of_week`, `hour`, `local_iso`)
+2. AI providers were recomputing dates from `created_at` instead of using snapshot's authoritative date
+3. Consolidator wasn't receiving or logging snapshot's temporal context prominently
 
-**Solution**: Use `Intl.DateTimeFormat` with proper timezone option to extract day of week in user's local timezone.
+**Solution**: 
+1. **Enhanced `getSnapshotContext`** - Now returns authoritative date fields:
+   - `dow` (0-6, Sunday=0)
+   - `day_of_week` ("Sunday", "Monday", etc.)
+   - `is_weekend` (boolean flag)
+   - `hour` (0-23)
+   - `local_iso` (local timestamp)
+   - `iso_timestamp` (ISO format)
 
-**Result**: Strategies now show correct day of week and temporal context.
+2. **Updated All Providers** - Strategist, Briefer, and Consolidator now:
+   - Use `ctx.day_of_week` directly (NEVER recompute from timestamps)
+   - Display date prominently in prompts as "CRITICAL DATE & TIME (from snapshot - authoritative)"
+   - Log snapshot's temporal context for auditability
+
+3. **Consolidator Logging** - Explicitly logs:
+   - `snapshot_day_of_week`, `snapshot_dow`, `snapshot_hour`, `snapshot_is_weekend`
+   - Labels as "temporal context from snapshot - AUTHORITATIVE"
+
+**Contract**:
+- Snapshot date/time fields are the single source of truth
+- All providers must trust and use snapshot's `day_of_week`, never recompute
+- Consolidator must log and surface these fields explicitly
+- Date is more prominent than address in all prompts
+
+**Result**: All AI outputs (strategy, briefing, consolidated) now align perfectly with header's day of week and temporal context.
 
 ### AI Coach Temporal Context
 **Problem**: AI Coach was missing temporal context, providing generic advice without knowing current day/time.
