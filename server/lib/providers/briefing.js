@@ -27,9 +27,11 @@ Research and report on these specific categories. Return your response as JSON w
   "local_traffic": "Local traffic, construction, incidents, road closures",
   "weather_impacts": "Weather affecting travel",
   "events_nearby": "Events within 50 miles",
-  "holidays": "Today's holiday if any, otherwise empty string",
+  "holidays": "Name of the holiday if today is a holiday (e.g., 'Thanksgiving', 'Independence Day'), otherwise empty string. Use the EXACT date/time and timezone provided in the user's request.",
   "rideshare_intel": "Rideshare-specific intelligence (surge zones, airport activity, demand patterns)"
 }
+
+CRITICAL: For the 'holidays' field, use the exact date, time, and timezone provided in the request to determine if today is a holiday in that specific location.
 
 Be thorough and factual. Use live web search for current information.`;
 
@@ -52,11 +54,13 @@ Be thorough and factual. Use live web search for current information.`;
 
     const userPrompt = `RESEARCH REQUEST - Comprehensive Travel Intelligence Briefing
 
-CURRENT DATE & TIME:
-${formattedDateTime}
+⏰ CURRENT DATE & TIME (USE THIS FOR HOLIDAY DETECTION):
+Date: ${formattedDateTime}
 Timezone: ${ctx.timezone}
+Day of Week: ${ctx.day_of_week}
+Country: ${ctx.country}
 
-DRIVER LOCATION:
+📍 DRIVER LOCATION:
 Coordinates: ${ctx.lat}, ${ctx.lng} (±${ctx.accuracy_m || '?'}m)
 Address: ${ctx.formatted_address}
 City: ${ctx.city}, ${ctx.state}, ${ctx.country}
@@ -70,7 +74,7 @@ Please research and provide a comprehensive briefing covering:
    - Global weather systems affecting the region
    
 2. DOMESTIC/NATIONAL TRAVEL CONDITIONS for ${ctx.country}
-   - National holidays (Is today a holiday?)
+   - **CRITICAL: Is ${formattedDateTime} (${ctx.timezone}) a holiday in ${ctx.country}? If yes, provide the holiday name in the 'holidays' field.**
    - Nationwide events affecting travel
    - Major transportation disruptions
    
