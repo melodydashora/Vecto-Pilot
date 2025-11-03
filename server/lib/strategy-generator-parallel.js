@@ -242,50 +242,32 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
       });
     }
     
-    // Import providers
+    // Import provider
     const { runMinStrategy } = await import('./providers/minstrategy.js');
-    const { runBriefing } = await import('./providers/briefing.js');
     
-    // Run both providers in parallel
-    console.log(`[runSimpleStrategyPipeline] 🚀 Running minstrategy + briefing in parallel...`);
-    const [minResult, briefingResult] = await Promise.allSettled([
-      runMinStrategy(snapshotId),
-      runBriefing(snapshotId)
-    ]);
+    // Run strategist only (consolidator will do briefing research itself)
+    console.log(`[runSimpleStrategyPipeline] 🚀 Running minstrategy (consolidator will handle briefing)...`);
+    const minResult = await runMinStrategy(snapshotId).catch(err => ({ status: 'rejected', reason: err }));
     
     if (minResult.status === 'rejected') {
       console.error(`[runSimpleStrategyPipeline] ❌ Minstrategy failed:`, minResult.reason?.message || minResult.reason);
+      throw new Error('Strategist provider failed');
     } else {
       console.log(`[runSimpleStrategyPipeline] ✅ Minstrategy complete`);
     }
     
-    if (briefingResult.status === 'rejected') {
-      console.error(`[runSimpleStrategyPipeline] ❌ Briefing failed:`, briefingResult.reason?.message || briefingResult.reason);
-    } else {
-      console.log(`[runSimpleStrategyPipeline] ✅ Briefing complete`);
-    }
-    
-    // Check if at least one succeeded
-    if (minResult.status === 'rejected' && briefingResult.status === 'rejected') {
-      throw new Error('Both minstrategy and briefing providers failed');
-    }
-    
-    // Fetch updated strategy row to get provider outputs
+    // Fetch updated strategy row to get strategist output
     const [strategyRow] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
     
-    // Import validation helper
-    const { hasRenderableBriefing } = await import('./strategy-utils.js');
-    
-    // Check if we have valid data for consolidation
+    // Check if we have strategist output for consolidation
     const hasMin = !!strategyRow.minstrategy && strategyRow.minstrategy.length > 0;
-    const hasBriefing = hasRenderableBriefing(strategyRow.briefing);
     
-    console.log(`[runSimpleStrategyPipeline] 📊 Consolidation inputs: minstrategy=${hasMin}, briefing=${hasBriefing}`);
+    console.log(`[runSimpleStrategyPipeline] 📊 Consolidation input: minstrategy=${hasMin}`);
     
-    // Run consolidation if both fields exist (event-driven: consolidator fetches from DB)
-    if (hasMin && hasBriefing) {
-      console.log(`[runSimpleStrategyPipeline] 🤖 Running consolidator (fetches strategist + briefer from DB)...`);
+    // Run consolidation if strategist output exists (consolidator will do briefing research itself)
+    if (hasMin) {
+      console.log(`[runSimpleStrategyPipeline] 🤖 Running consolidator (will do briefing research + consolidation)...`);
       const { runConsolidator } = await import('./providers/consolidator.js');
       
       try {
@@ -294,24 +276,21 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
       } catch (consolidatorErr) {
         console.error(`[runSimpleStrategyPipeline] ❌ Consolidator failed:`, consolidatorErr.message);
         
-        // Synthesize fallback if consolidator fails
-        const { synthesizeFallback } = await import('./strategy-utils.js');
-        const fallbackStrategy = synthesizeFallback(strategyRow.minstrategy, strategyRow.briefing);
-        
+        // Use strategist output as fallback if consolidator fails
         await db.update(strategies).set({
-          consolidated_strategy: fallbackStrategy,
+          consolidated_strategy: strategyRow.minstrategy,
           status: 'ok_partial',
           error_message: `Fallback used: ${consolidatorErr.message}`,
           updated_at: new Date()
         }).where(eq(strategies.snapshot_id, snapshotId));
         
-        console.log(`[runSimpleStrategyPipeline] ⚠️ Fallback strategy synthesized`);
+        console.log(`[runSimpleStrategyPipeline] ⚠️ Using strategist output as fallback`);
       }
     } else {
-      console.warn(`[runSimpleStrategyPipeline] ⚠️ Skipping consolidation - missing data (minstrategy=${hasMin}, briefing=${hasBriefing})`);
+      console.warn(`[runSimpleStrategyPipeline] ⚠️ Skipping consolidation - missing strategist data`);
       await db.update(strategies).set({
         status: 'running',
-        error_message: `Waiting for ${!hasMin ? 'minstrategy' : 'briefing'} data`,
+        error_message: `Waiting for strategist data`,
         updated_at: new Date()
       }).where(eq(strategies.snapshot_id, snapshotId));
     }
