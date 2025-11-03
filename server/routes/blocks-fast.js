@@ -372,8 +372,34 @@ router.post('/', async (req, res) => {
     const enrichmentMs = Date.now() - enrichmentStart;
     console.log(`✅ [${correlationId}] Enriched ${enrichedVenues.length} venues in ${enrichmentMs}ms`);
 
-    // Use GPT-5 venues as final output (no reranking needed)
-    const finalVenues = enrichedVenues;
+    // CRITICAL: Enrich with business hours from Places API
+    const { enrichVenues } = await import('../lib/venue-enrichment.js');
+    const hoursEnrichmentStart = Date.now();
+    
+    const fullyEnrichedVenues = await enrichVenues(
+      enrichedVenues.map(v => ({
+        name: v.name,
+        lat: v.lat,
+        lng: v.lng,
+        pro_tips: v.pro_tips,
+        staging_tips: v.staging_tips,
+        closed_reasoning: v.closed_reasoning
+      })),
+      { lat, lng },
+      fullSnapshot
+    );
+    
+    const hoursEnrichmentMs = Date.now() - hoursEnrichmentStart;
+    console.log(`✅ [${correlationId}] Business hours enriched in ${hoursEnrichmentMs}ms`);
+
+    // Merge enriched data back
+    const finalVenues = enrichedVenues.map((v, i) => ({
+      ...v,
+      placeId: fullyEnrichedVenues[i]?.placeId || null,
+      businessHours: fullyEnrichedVenues[i]?.businessHours || null,
+      isOpen: fullyEnrichedVenues[i]?.isOpen || false,
+      businessStatus: fullyEnrichedVenues[i]?.businessStatus || null
+    }));
     
     // Enrichment audit: count successful enrichments
     const enrichmentStats = {
@@ -548,8 +574,9 @@ router.post('/', async (req, res) => {
             value_grade: venue.value_grade,
             not_worth: venue.not_worth,
             est_earnings_per_ride: venue.est_earnings_per_ride,
-            // Will be enriched later by reverse geo, Places API (new), Routes API (new)
-            place_id: null,
+            // Business hours from Places API
+            place_id: venue.placeId || null,
+            business_hours: venue.businessHours || null,
             snapshot_id: isValidSnapshotId ? snapshotId : null
           });
         }
