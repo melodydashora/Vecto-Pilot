@@ -6,8 +6,8 @@ const app = express();
 app.use(express.json({ limit: "5mb" }));
 
 // Fast-path health probes
-app.get('/health', (_req, res) => res.status(200).send('OK'));
-app.get('/ready', (_req, res) => res.status(200).send('READY'));
+app.get('/health', (_req: Request, res: Response) => res.status(200).send('OK'));
+app.get('/ready', (_req: Request, res: Response) => res.status(200).send('READY'));
 
 const {
   CLAUDE_MODEL = "claude-sonnet-4-5-20250929",
@@ -111,7 +111,7 @@ app.post("/assistant/*", async (req: Request, res: Response) => {
 });
 
 // Operational verbs redirected to Agent (kept separate so we never blur "brain" and "hands")
-app.post("/ops/:verb", async (req, res) => {
+app.post("/ops/:verb", async (req: Request, res: Response) => {
   if (req.headers.authorization !== `Bearer ${AGENT_TOKEN}`) return FAIL(res, 401, "UNAUTHORIZED");
   const verb = req.params.verb;
   const allow = new Set(["fs.read", "fs.write", "shell.exec", "sql.query"]);
