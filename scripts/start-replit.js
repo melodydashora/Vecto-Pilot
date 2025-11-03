@@ -64,10 +64,6 @@ loadEnvFile('.env');
 // Load mono-mode.env (overrides deployment-specific settings)
 loadEnvFile('mono-mode.env');
 
-// Validate required STRATEGY_* environment variables (fail-fast on missing config)
-const { validateStrategyEnv } = await import('../server/lib/validate-strategy-env.js');
-validateStrategyEnv();
-
 // Ensure deterministic env and port
 process.env.PORT = process.env.PORT || '5000';
 
@@ -81,32 +77,40 @@ if (process.env.FORCE_DEV === '1') {
 process.env.WORKER_ID = process.env.WORKER_ID || `replit:${process.pid}`;
 
 const PORT = process.env.PORT;
+const isCloudRun = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
 
-// Kill any existing process on port 5000 to prevent conflicts
-try {
-  execSync(`lsof -ti:${PORT} | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
-  console.log(`[boot] ✅ Cleared port ${PORT}`);
-} catch (err) {
-  // Port already free, continue
+// Skip expensive checks in Cloud Run/Autoscale (need fast startup for health checks)
+if (!isCloudRun) {
+  // Validate required STRATEGY_* environment variables (fail-fast on missing config)
+  const { validateStrategyEnv } = await import('../server/lib/validate-strategy-env.js');
+  validateStrategyEnv();
+  
+  // Kill any existing process on port 5000 to prevent conflicts
+  try {
+    execSync(`lsof -ti:${PORT} | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
+    console.log(`[boot] ✅ Cleared port ${PORT}`);
+  } catch (err) {
+    // Port already free, continue
+  }
+  
+  // Verify client build exists
+  const clientDistPath = path.join(__dirname, '..', 'client', 'dist', 'index.html');
+  if (!existsSync(clientDistPath)) {
+    console.error('❌ [boot] Client build missing! Building now...');
+    try {
+      execSync('cd client && npm install && npm run build', { stdio: 'inherit' });
+      console.log('✅ [boot] Client build complete');
+    } catch (err) {
+      console.error('❌ [boot] Client build failed:', err.message);
+      process.exit(1);
+    }
+  }
 }
 
 console.log('[boot] Starting Vecto Pilot in MONO mode...');
 console.log(`[boot] PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`[boot] ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}`);
 console.log(`[boot] REPL_ID=${process.env.REPL_ID ? 'set' : 'not set'}`);
-
-// Verify client build exists
-const clientDistPath = path.join(__dirname, '..', 'client', 'dist', 'index.html');
-if (!existsSync(clientDistPath)) {
-  console.error('❌ [boot] Client build missing! Building now...');
-  try {
-    execSync('cd client && npm install && npm run build', { stdio: 'inherit' });
-    console.log('✅ [boot] Client build complete');
-  } catch (err) {
-    console.error('❌ [boot] Client build failed:', err.message);
-    process.exit(1);
-  }
-}
 
 // Start gateway server
 const server = spawn('node', ['gateway-server.js'], {
