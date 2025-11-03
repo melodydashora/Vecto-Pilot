@@ -83,10 +83,11 @@ export const strategies = pgTable("strategies", {
   consolidated_strategy: text("consolidated_strategy"), // Final consolidated strategy from third provider (GPT-5)
 });
 
-// Perplexity comprehensive travel briefing (structured fields for Briefing page UI)
+// Perplexity comprehensive travel briefing + GPT-5 tactical 30-min intelligence
 export const briefings = pgTable("briefings", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  // Perplexity comprehensive research (background context)
   global_travel: text("global_travel"), // Global conditions affecting this region
   domestic_travel: text("domestic_travel"), // National/domestic travel conditions
   local_traffic: text("local_traffic"), // Local traffic, construction, incidents
@@ -95,8 +96,13 @@ export const briefings = pgTable("briefings", {
   holidays: text("holidays"), // If today is a holiday
   rideshare_intel: text("rideshare_intel"), // Rideshare-specific intelligence
   citations: jsonb("citations"), // Perplexity source URLs
+  // GPT-5 tactical 30-minute intelligence (next 30 min only)
+  tactical_traffic: text("tactical_traffic"), // Traffic/incidents for next 30 minutes
+  tactical_closures: text("tactical_closures"), // Closures/construction for next 30 minutes
+  tactical_enforcement: text("tactical_enforcement"), // Enforcement activity for next 30 minutes
+  tactical_sources: text("tactical_sources"), // Sources checked by GPT-5
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const rankings = pgTable("rankings", {
