@@ -26,7 +26,7 @@ const statusConfig = {
   complete: {
     icon: CheckCircle2,
     label: 'Complete',
-    variant: 'success' as const,
+    variant: 'default' as const,
     className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
   },
   failed: {
@@ -38,7 +38,7 @@ const statusConfig = {
   write_failed: {
     icon: AlertTriangle,
     label: 'Write Failed',
-    variant: 'warning' as const,
+    variant: 'secondary' as const,
     className: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
   }
 };
