@@ -14,7 +14,7 @@ try {
 import http from 'node:http';
 
 function getArg(name){const p=`--${name}=`, a=process.argv.find(s=>s.startsWith(p)); return a? a.slice(p.length):undefined;}
-const PORT = Number(getArg('port') || process.env.EIDOLON_PORT || 3101);
+const PORT = Number(getArg('port') || process.env.EIDOLON_PORT || process.env.PORT || 5000); // No 3101 fallback
 const HOST = getArg('host') || process.env.HOST || '0.0.0.0';
 
 // Log port/host immediately (removed process.env.PORT to prevent binding to gateway's port)
