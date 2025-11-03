@@ -59,11 +59,8 @@ function spawnChild(name, command, args, env) {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const distDir = path.join(__dirname, "client", "dist");
 
-  app.use("/app", express.static(distDir));
-  app.get("/", (_req, res) => res.redirect("/app"));
-  app.get("/app/*", (_req, res) => res.sendFile(path.join(distDir, "index.html")));
-
-  // Health endpoints
+  // Health endpoints - MUST be fast for Cloud Run health checks
+  app.get("/", (_req, res) => res.status(200).send("OK"));
   app.get("/health", (_req, res) => res.status(200).send("OK"));
   app.get("/healthz", (_req, res) => {
     const indexPath = path.join(distDir, "index.html");
@@ -73,18 +70,31 @@ function spawnChild(name, command, args, env) {
     return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
   });
 
+  // Serve SPA
+  app.use("/app", express.static(distDir));
+  app.get("/app", (_req, res) => res.sendFile(path.join(distDir, "index.html")));
+  app.get("/app/*", (_req, res) => res.sendFile(path.join(distDir, "index.html")));
+
   // Start HTTP server
   const server = http.createServer(app);
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`[ready] Server listening on 0.0.0.0:${PORT}`);
   });
 
-  // Start LISTEN-only consolidation listener
-  if (!global.__CONSOLIDATION_LISTENER_STARTED__) {
+  // Start LISTEN-only consolidation listener (skip on Cloud Run/Autoscale to avoid blocking event loop)
+  const isCloudRun = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
+  const enableWorker = process.env.ENABLE_BACKGROUND_WORKER !== "false" && !isCloudRun;
+  
+  if (enableWorker && !global.__CONSOLIDATION_LISTENER_STARTED__) {
     global.__CONSOLIDATION_LISTENER_STARTED__ = true;
+    console.log("[gateway] 🎧 Starting consolidation listener (background worker enabled)");
     startConsolidationListener()
-      .then(() => console.log("[gateway] 🎧 Consolidation listener started"))
+      .then(() => console.log("[gateway] ✅ Consolidation listener ready"))
       .catch((err) => console.error("[gateway] ❌ Listener failed:", err?.message || err));
+  } else if (isCloudRun) {
+    console.log("[gateway] ⏩ Skipping background worker (Cloud Run/Autoscale detected)");
+  } else {
+    console.log("[gateway] ⏩ Background worker disabled (ENABLE_BACKGROUND_WORKER=false)");
   }
 
   // Mount middleware and routes after server is listening
