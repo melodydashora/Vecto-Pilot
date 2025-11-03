@@ -114,16 +114,8 @@ export default function createSdkRouter(opts = {}) {
     });
   });
   
-  // Strategy and ranking stubs (from attached doc requirements)
-  r.post('/strategy', express.json(), (req, res) => {
-    const { snapshotId } = req.query;
-    res.json({ ok: true, snapshotId, strategy: 'Generated via MONO mode', timestamp: new Date().toISOString() });
-  });
-
-  r.get('/strategy/:snapshotId', (req, res) => {
-    const { snapshotId } = req.params;
-    res.json({ ok: true, snapshotId, strategy: 'Retrieved via MONO mode', timestamp: new Date().toISOString() });
-  });
+  // Strategy routes handled by server/routes/strategy.js (mounted above at line 105)
+  // Removed stub routes that were blocking real strategy data
 
   r.get('/ranking', (req, res) => {
     const { snapshotId } = req.query;
