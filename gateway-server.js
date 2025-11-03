@@ -52,33 +52,39 @@ function spawnChild(name, command, args, env) {
 
 // Main bootstrap
 (async function main() {
-  const app = express();
-  app.set("trust proxy", 1);
+  try {
+    const app = express();
+    app.set("trust proxy", 1);
 
-  // Serve SPA early
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const distDir = path.join(__dirname, "client", "dist");
+    // Serve SPA early
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const distDir = path.join(__dirname, "client", "dist");
 
-  // Health endpoints - MUST be fast for Cloud Run health checks
-  // Registered BEFORE any DB/middleware/heavy imports
-  app.get("/health", (_req, res) => res.status(200).send("OK"));
-  app.head("/health", (_req, res) => res.status(200).end());
-  app.get("/healthz", (_req, res) => {
-    const indexPath = path.join(distDir, "index.html");
-    if (fs.existsSync(indexPath)) {
-      return res.json({ ok: true, spa: "ready", mode: isDev ? "dev" : "prod", ts: Date.now() });
-    }
-    return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
-  });
+    // Health endpoints - MUST be fast for Cloud Run health checks
+    // Registered BEFORE any DB/middleware/heavy imports
+    app.get("/health", (_req, res) => res.status(200).send("OK"));
+    app.head("/health", (_req, res) => res.status(200).end());
+    app.get("/healthz", (_req, res) => {
+      const indexPath = path.join(distDir, "index.html");
+      if (fs.existsSync(indexPath)) {
+        return res.json({ ok: true, spa: "ready", mode: isDev ? "dev" : "prod", ts: Date.now() });
+      }
+      return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
+    });
 
-  // Serve SPA static assets
-  app.use(express.static(distDir));
+    // Serve SPA static assets (includes index.html for / route)
+    app.use(express.static(distDir));
 
-  // Start HTTP server
-  const server = http.createServer(app);
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`[ready] Server listening on 0.0.0.0:${PORT}`);
-  });
+    // Start HTTP server
+    const server = http.createServer(app);
+    server.on('error', (err) => {
+      console.error('[gateway] ❌ Server error:', err);
+      process.exit(1);
+    });
+    
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`[ready] Server listening on 0.0.0.0:${PORT}`);
+    });
 
   // NOTE: In mono mode, consolidation listener runs in separate strategy-generator.js process
   // Gateway should NOT start an inline listener to avoid conflicts with separate worker
@@ -131,15 +137,19 @@ function spawnChild(name, command, args, env) {
     });
   });
 
-  // Graceful shutdown
-  process.on("SIGINT", () => {
-    console.log("[signal] SIGINT received, shutting down...");
-    children.forEach((c) => c.kill("SIGINT"));
-    server.close(() => process.exit(0));
-  });
-  process.on("SIGTERM", () => {
-    console.log("[signal] SIGTERM received, shutting down...");
-    children.forEach((c) => c.kill("SIGTERM"));
-    server.close(() => process.exit(0));
-  });
+    // Graceful shutdown
+    process.on("SIGINT", () => {
+      console.log("[signal] SIGINT received, shutting down...");
+      children.forEach((c) => c.kill("SIGINT"));
+      server.close(() => process.exit(0));
+    });
+    process.on("SIGTERM", () => {
+      console.log("[signal] SIGTERM received, shutting down...");
+      children.forEach((c) => c.kill("SIGTERM"));
+      server.close(() => process.exit(0));
+    });
+  } catch (err) {
+    console.error('[gateway] ❌ Fatal startup error:', err);
+    process.exit(1);
+  }
 })();
