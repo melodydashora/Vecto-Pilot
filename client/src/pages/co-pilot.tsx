@@ -319,7 +319,7 @@ const CoPilot: React.FC = () => {
         } else {
           // Production: Use Fast Tactical Path with GET to retrieve existing blocks
           // POST would trigger regeneration, GET retrieves snapshot-scoped blocks
-          const endpoint = '/api/blocks/fast';
+          const endpoint = '/api/blocks-fast';
           
           // First try GET to retrieve existing blocks (snapshot-first pattern)
           const response = await fetch(`${endpoint}?snapshotId=${lastSnapshotId}`, {
