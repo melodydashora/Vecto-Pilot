@@ -73,13 +73,17 @@ function spawnChild(name, command, args, env) {
     // AUTOSCALE MODE (opt-in only): Raw HTTP server, skip Express entirely
     if (isAutoscale) {
       const server = http.createServer((req, res) => {
+        console.log(`[health] ${req.method} ${req.url} from ${req.socket.remoteAddress}`);
+        
         // Handle GET and HEAD on / and health endpoints reliably
         if (req.url === '/' || req.url === '/health' || req.url === '/ready') {
           if (req.method === 'HEAD') {
+            console.log(`[health] ✅ HEAD ${req.url} -> 200`);
             res.statusCode = 200;
             res.end();
             return;
           }
+          console.log(`[health] ✅ GET ${req.url} -> 200 OK`);
           res.statusCode = 200;
           res.setHeader('Content-Type', 'text/plain');
           res.setHeader('Connection', 'keep-alive');
@@ -87,6 +91,7 @@ function spawnChild(name, command, args, env) {
           return;
         }
         // All other requests also return OK
+        console.log(`[health] ✅ ${req.method} ${req.url} -> 200 OK (catchall)`);
         res.statusCode = 200;
         res.setHeader('Content-Type', 'text/plain');
         res.setHeader('Connection', 'keep-alive');
@@ -99,17 +104,24 @@ function spawnChild(name, command, args, env) {
       server.requestTimeout = 5000;
 
       server.on('error', (err) => {
-        console.error(`[gateway] ❌ FATAL:`, err.code);
+        console.error(`[gateway] ❌ FATAL:`, err.code, err.message);
+        process.exit(1);
+      });
+
+      server.on('listening', () => {
+        const addr = server.address();
+        console.log(`[ready] ✅ Server bound to ${addr.address}:${addr.port}`);
+        console.log(`[ready] 🚀 AUTOSCALE MODE - Health endpoints ready`);
+        console.log(`[ready] 📡 Waiting for Cloud Run health checks on /`);
       });
 
       process.on('SIGTERM', () => {
+        console.log('[gateway] 🛑 SIGTERM received, shutting down gracefully');
         server.close(() => process.exit(0));
       });
 
-      server.listen(PORT, '0.0.0.0', () => {
-        console.log(`[ready] ✅ LISTENING on 0.0.0.0:${PORT}`);
-        console.log(`[ready] 🚀 READY FOR HEALTH CHECKS`);
-      });
+      console.log(`[gateway] 🎯 Starting autoscale server on 0.0.0.0:${PORT}...`);
+      server.listen(PORT, '0.0.0.0');
 
       return;
     }
