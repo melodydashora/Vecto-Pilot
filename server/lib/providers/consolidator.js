@@ -1,6 +1,7 @@
 // server/lib/providers/consolidator.js
-// Consolidator provider - model-agnostic (uses callModel adapter)
-// ROLE-PURE: Only receives strategist + briefer outputs + user address
+// Consolidator provider - GPT-5 with reasoning + web search
+// NEW ARCHITECTURE: Does briefing research AND consolidation in one step
+// Takes strategist output + full snapshot context, does web research, consolidates
 
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
@@ -9,23 +10,24 @@ import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 import { callModel } from '../adapters/index.js';
 
 /**
- * Run consolidation using configured consolidator model
- * Fetches strategist + briefer outputs from DB, then consolidates
+ * Run consolidation using GPT-5 reasoning mode with web search
+ * Fetches strategist output from DB, does briefing research, consolidates
  * Writes to strategies.consolidated_strategy
  * 
- * ARCHITECTURE: Event-driven, idempotent, role-pure
+ * NEW ARCHITECTURE: 2-step pipeline
  * - Input: { snapshotId } only
- * - DB reads: strategies table (strategist + briefer) + snapshots table (address)
+ * - DB reads: strategies table (strategist) + snapshots table (full context)
+ * - AI does: Briefing research (traffic/news/construction) + consolidation
  * - Output: consolidated_strategy + metadata
  * 
  * @param {string} snapshotId - UUID of snapshot
  */
 export async function runConsolidator(snapshotId) {
   const startTime = Date.now();
-  console.log(`[consolidator] 🚀 Starting for snapshot ${snapshotId}`);
+  console.log(`[consolidator] 🚀 Starting GPT-5 reasoning + web search for snapshot ${snapshotId}`);
   
   try {
-    // Step 1: Fetch strategy row to get strategist + briefer outputs
+    // Step 1: Fetch strategy row to get strategist output
     const [strategyRow] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
     
@@ -40,9 +42,8 @@ export async function runConsolidator(snapshotId) {
     }
     
     const minstrategy = strategyRow.minstrategy;
-    const briefing = strategyRow.briefing;
     
-    // PREREQUISITE VALIDATION: Check that both inputs exist
+    // PREREQUISITE VALIDATION: Check that strategist output exists
     if (!minstrategy || minstrategy.trim().length === 0) {
       console.warn(`[consolidator] ⚠️  Missing strategist output for ${snapshotId}`);
       await db.update(strategies).set({
@@ -53,24 +54,14 @@ export async function runConsolidator(snapshotId) {
       throw new Error('Missing strategist output (minstrategy field is empty)');
     }
     
-    if (!briefing) {
-      console.warn(`[consolidator] ⚠️  Missing briefer output for ${snapshotId}`);
-      await db.update(strategies).set({
-        status: 'missing_prereq',
-        error_message: 'Briefer output (briefing) is missing',
-        updated_at: new Date()
-      }).where(eq(strategies.snapshot_id, snapshotId));
-      throw new Error('Missing briefer output (briefing field is null)');
-    }
-    
-    // Step 2: Fetch snapshot to get user address + date/time context (role-pure: location + temporal metadata)
+    // Step 2: Fetch snapshot to get full context for briefing research
     const ctx = await getSnapshotContext(snapshotId);
     const userAddress = ctx.formatted_address || 'Unknown location';
+    const cityDisplay = ctx.city || 'your area';
     
     // CRITICAL: Extract AUTHORITATIVE date/time from snapshot (never recompute)
-    // This is the single source of truth for all temporal context
-    const dayOfWeek = ctx.day_of_week; // Authoritative from snapshot
-    const isWeekend = ctx.is_weekend; // Authoritative from snapshot
+    const dayOfWeek = ctx.day_of_week;
+    const isWeekend = ctx.is_weekend;
     const localTime = ctx.local_iso ? new Date(ctx.local_iso).toLocaleString('en-US', { 
       timeZone: ctx.timezone || 'America/Chicago',
       weekday: 'long',
@@ -83,59 +74,69 @@ export async function runConsolidator(snapshotId) {
     }) : 'Unknown time';
     const dayPart = ctx.day_part_key || 'unknown';
     
-    // OBSERVABILITY: Log input sizes and metadata for auditability
-    const briefingStr = JSON.stringify(briefing, null, 2);
+    // OBSERVABILITY: Log input sizes and metadata
     const inputMetrics = {
       snapshot_id: snapshotId,
       strategist_length: minstrategy.length,
-      briefer_length: briefingStr.length,
       user_address: userAddress,
-      // CRITICAL: Authoritative temporal context from snapshot
-      snapshot_day_of_week: dayOfWeek, // Trusting snapshot, not recomputing
-      snapshot_dow: ctx.dow, // Raw day number from snapshot
+      snapshot_day_of_week: dayOfWeek,
+      snapshot_dow: ctx.dow,
       snapshot_is_weekend: isWeekend,
       snapshot_hour: ctx.hour,
       snapshot_local_time: localTime,
       snapshot_day_part: dayPart,
       snapshot_timezone: ctx.timezone,
+      weather: ctx.weather,
+      air_quality: ctx.air,
       strategist_model: process.env.STRATEGY_STRATEGIST || 'unknown',
-      briefer_model: process.env.STRATEGY_BRIEFER || 'unknown',
       consolidator_model: process.env.STRATEGY_CONSOLIDATOR || 'unknown'
     };
     
-    console.log(`[consolidator] 📊 Inputs ready (temporal context from snapshot - AUTHORITATIVE):`, inputMetrics);
+    console.log(`[consolidator] 📊 GPT-5 will do briefing research + consolidation:`, inputMetrics);
     
-    // Step 3: Build prompts for consolidation
-    const systemPrompt = `You are a rideshare strategy consolidator.
-Merge the strategist's initial plan with the briefer's real-time intelligence into one final actionable strategy.
-Keep it 3–5 sentences, urgent, time-aware, and specific.
-CRITICAL: Use the exact day of week and time provided in the user prompt - do not infer or recompute dates.
-IMPORTANT: Do NOT include full street addresses in your output. Reference only city/area (e.g., "${ctx.city || 'your area'}")`;
+    // Step 3: Build prompts for GPT-5 reasoning + web search
+    const systemPrompt = `You are an expert rideshare strategy consolidator with web search capabilities.
 
-    // Extract city without street address for display
-    const cityDisplay = ctx.city || 'your area';
+Your task is to:
+1. Take the strategist's initial assessment
+2. Research current traffic, construction, incidents, news, and events via live web search
+3. Consolidate both into a final actionable 30-minute strategy
+
+Focus briefing research on: traffic conditions, road closures, construction, enforcement, incidents, and local news/events affecting rideshare drivers.
+
+CRITICAL: Use the exact day of week and time provided in the user prompt - do not infer or recompute dates.
+IMPORTANT: Do NOT include full street addresses in your output. Reference only city/area (e.g., "${cityDisplay}")`;
 
     const userPrompt = `CRITICAL DATE & TIME (from snapshot - AUTHORITATIVE, do not recompute):
 Day of Week: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : ''}
 Date & Time: ${localTime}
 Day Part: ${dayPart}
 Hour: ${ctx.hour}:00
+Timezone: ${ctx.timezone}
 
-USER LOCATION (for context only - do NOT include street address in output):
+DRIVER LOCATION (for context - do NOT include street address in final output):
 City/Area: ${cityDisplay}
-Full Address (internal only): ${userAddress}
+Internal Address: ${userAddress}
+Coordinates: ${ctx.lat}, ${ctx.lng}
 
-STRATEGIST OUTPUT:
+CURRENT CONDITIONS:
+Weather: ${ctx.weather?.tempF || 'unknown'}°F, ${ctx.weather?.conditions || 'unknown'}
+Air Quality: AQI ${ctx.air?.aqi || 'unknown'}
+
+STRATEGIST'S INITIAL ASSESSMENT:
 ${minstrategy}
 
-BRIEFER OUTPUT:
-${briefingStr}
+YOUR TASK:
+1. Use live web search to find current traffic conditions, construction, incidents, road closures, enforcement, and news/events affecting rideshare drivers in ${cityDisplay} right now
+2. Focus on the next 30 minutes - driver is leaving NOW
+3. Merge the strategist's assessment with your real-time briefing research
+4. Produce a consolidated 3-5 sentence strategy
 
-Task: Merge these into a final consolidated strategy for ${cityDisplay}. 
 CRITICAL REQUIREMENTS:
-1. Use the exact day of week (${dayOfWeek}) provided above - this is authoritative
-2. Start with the day and time context (e.g., "${dayOfWeek} ${dayPart} in ${cityDisplay}")
-3. Do NOT include full street addresses - reference only "${cityDisplay}"`;
+- Use exact day of week (${dayOfWeek}) provided above - this is authoritative
+- Start with day and time context (e.g., "${dayOfWeek} ${dayPart} in ${cityDisplay}")
+- Do NOT include full street addresses - reference only "${cityDisplay}"
+- Focus on actionable intelligence for the next 30 minutes`;
 
     const promptSize = systemPrompt.length + userPrompt.length;
     console.log(`[consolidator] 📝 Prompt size: ${promptSize} chars`);
@@ -161,8 +162,8 @@ CRITICAL REQUIREMENTS:
       throw new Error('Consolidator returned empty output');
     }
     
-    // METADATA TRACKING: Build model chain for traceability
-    const modelChain = `${inputMetrics.strategist_model}→${inputMetrics.briefer_model}→${inputMetrics.consolidator_model}`;
+    // METADATA TRACKING: Build model chain for traceability (2-step pipeline)
+    const modelChain = `${inputMetrics.strategist_model}→${inputMetrics.consolidator_model}`;
     const totalDuration = Date.now() - startTime;
     
     // Step 5: Write consolidated strategy + metadata to DB
