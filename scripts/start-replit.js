@@ -91,27 +91,35 @@ function loadEnvFile(filename) {
 }
 
 // CRITICAL: Check for autoscale deployment FIRST before any heavy setup
-const isAutoscale = process.env.REPLIT_DEPLOYMENT === "1";
+// Check multiple deployment indicators
+const isAutoscale = 
+  process.env.REPLIT_DEPLOYMENT === "1" || 
+  process.env.REPLIT_DEPLOYMENT === "true" ||
+  process.env.REPL_DEPLOYMENT === "1" ||
+  Boolean(process.env.HOSTNAME); // Cloud Run / Replit deployments set HOSTNAME
+
+// Debug logging for deployment detection
+console.log('[boot] 🔍 Deployment detection:');
+console.log('[boot]   REPLIT_DEPLOYMENT:', process.env.REPLIT_DEPLOYMENT);
+console.log('[boot]   REPL_DEPLOYMENT:', process.env.REPL_DEPLOYMENT);
+console.log('[boot]   HOSTNAME:', process.env.HOSTNAME);
+console.log('[boot]   isAutoscale:', isAutoscale);
 
 if (isAutoscale) {
-  // AUTOSCALE MODE: Immediately delegate to gateway-server.js with minimal env loading
-  // gateway-server.js has its own autoscale detection and will skip all routes/middleware/DB
-  console.log('[boot] ⚡ Autoscale deployment detected - delegating to health-only gateway');
+  // AUTOSCALE MODE: Immediately start health-only server
+  // Skip ALL file loading - use only environment variables from deployment
+  console.log('[boot] ⚡ Autoscale deployment detected - starting health-only server');
+  console.log('[boot] ⏱️ Timestamp:', new Date().toISOString());
   
-  // Load ONLY the minimal env needed for gateway startup
-  loadEnvFile('.env');
-  loadEnvFile('mono-mode.env');
+  // Minimal env setup - no file loading to avoid delays
   process.env.PORT = process.env.PORT || '5000';
   process.env.NODE_ENV = 'production';
   
-  // Exec (replace process) instead of spawn - no wrapper overhead
-  const { execFileSync } = await import('node:child_process');
-  execFileSync('node', ['gateway-server.js'], {
-    stdio: 'inherit',
-    env: { ...process.env }
-  });
+  // Import and run gateway directly (no exec overhead)
+  await import('../gateway-server.js');
   
-  // execFileSync only returns if the process exits
+  // Gateway will handle everything and stay running
+  // This code never executes if gateway runs successfully
   process.exit(1);
 }
 

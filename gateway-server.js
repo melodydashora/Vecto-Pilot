@@ -49,55 +49,66 @@ function spawnChild(name, command, args, env) {
 (async function main() {
   try {
     console.log(`[gateway] Starting bootstrap (PID: ${process.pid})`);
-    console.log(`[gateway] REPLIT_DEPLOYMENT=${process.env.REPLIT_DEPLOYMENT}`);
-    console.log(`[gateway] PORT=${PORT}`);
-    console.log(`[gateway] NODE_ENV=${process.env.NODE_ENV}`);
+    console.log(`[gateway] 🔍 Environment detection:`);
+    console.log(`[gateway]   REPLIT_DEPLOYMENT=${process.env.REPLIT_DEPLOYMENT}`);
+    console.log(`[gateway]   REPL_DEPLOYMENT=${process.env.REPL_DEPLOYMENT}`);
+    console.log(`[gateway]   HOSTNAME=${process.env.HOSTNAME}`);
+    console.log(`[gateway]   PORT=${PORT}`);
+    console.log(`[gateway]   NODE_ENV=${process.env.NODE_ENV}`);
     
     const app = express();
     app.set("trust proxy", 1);
 
     // Detect Replit autoscale deployment environment
-    const isAutoscale = process.env.REPLIT_DEPLOYMENT === "1";
+    // Check multiple indicators since REPLIT_DEPLOYMENT might not be set
+    const isAutoscale = 
+      process.env.REPLIT_DEPLOYMENT === "1" || 
+      process.env.REPLIT_DEPLOYMENT === "true" ||
+      process.env.REPL_DEPLOYMENT === "1" ||
+      Boolean(process.env.HOSTNAME); // Cloud Run / Replit deployments set HOSTNAME
+    
+    console.log(`[gateway] 🎯 isAutoscale: ${isAutoscale}`);
     
     // AUTOSCALE MODE: Health check only, no routes/middleware
     if (isAutoscale) {
-      console.log("[gateway] ⚡ Autoscale mode - health-only server");
-      console.log("[gateway] Creating minimal Express app...");
+      console.log("[gateway] ⚡ AUTOSCALE MODE - health-only server");
+      console.log("[gateway] ⏱️ Start time:", new Date().toISOString());
+      console.log("[gateway] 🚀 Creating ultra-minimal Express app...");
       
-      // Minimal health endpoints
+      // Ultra-minimal health endpoints - respond immediately
       app.get("/", (_req, res) => {
-        console.log("[health] GET / - responding OK");
         res.status(200).send("OK");
       });
       app.head("/", (_req, res) => {
-        console.log("[health] HEAD / - responding OK");
         res.status(200).end();
       });
       app.get("/health", (_req, res) => {
-        console.log("[health] GET /health - responding OK");
         res.status(200).send("OK");
       });
       app.head("/health", (_req, res) => {
-        console.log("[health] HEAD /health - responding OK");
         res.status(200).end();
       });
       
-      // Start server immediately - no routes, no middleware, no delays
-      console.log(`[gateway] Binding to 0.0.0.0:${PORT}...`);
+      // Start server IMMEDIATELY - no delays, no validation, no middleware
+      console.log(`[gateway] 📡 Binding to 0.0.0.0:${PORT}...`);
       const server = http.createServer(app);
       
       server.on('error', (err) => {
-        console.error(`[gateway] ❌ Server error:`, err);
+        console.error(`[gateway] ❌ FATAL: Server error:`, err);
         console.error(`[gateway] Error code: ${err.code}`);
-        console.error(`[gateway] Error stack:`, err.stack);
+        console.error(`[gateway] Port: ${PORT}`);
         process.exit(1);
       });
       
-      server.listen(PORT, "0.0.0.0", () => {
-        console.log(`[ready] Health-only server listening on 0.0.0.0:${PORT}`);
-        console.log(`[ready] Autoscale mode active - ready for health checks`);
-        console.log(`[ready] Timestamp: ${new Date().toISOString()}`);
+      server.on('listening', () => {
+        const addr = server.address();
+        console.log(`[ready] ✅ LISTENING on ${addr.address}:${addr.port}`);
+        console.log(`[ready] ⏱️ Ready time: ${new Date().toISOString()}`);
+        console.log(`[ready] 🎯 Health endpoints: /, /health`);
+        console.log(`[ready] 🚀 READY FOR HEALTH CHECKS`);
       });
+      
+      server.listen(PORT, "0.0.0.0");
       
       // Exit - don't load anything else in autoscale
       return;
