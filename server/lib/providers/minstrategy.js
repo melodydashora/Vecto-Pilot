@@ -37,6 +37,7 @@ Day of Week: ${ctx.day_of_week} ${ctx.is_weekend ? '[WEEKEND]' : ''}
 Date & Time: ${localTime}
 Day Part: ${ctx.day_part_key}
 Hour: ${ctx.hour}:00
+${ctx.is_holiday ? `🎉 HOLIDAY: ${ctx.holiday}` : ''}
 
 LOCATION:
 ${ctx.formatted_address}
@@ -46,7 +47,7 @@ CONDITIONS:
 Weather: ${ctx.weather?.tempF || '?'}°F, ${ctx.weather?.conditions || 'unknown'}
 Airport: ${ctx.airport_context?.airport_code || 'none'} ${ctx.airport_context?.distance_miles ? `(${ctx.airport_context.distance_miles} mi)` : ''}
 
-Provide a brief strategic assessment of positioning opportunities for the next hour. Use the exact day of week provided above.`;
+Provide a brief strategic assessment of positioning opportunities for the next hour. Use the exact day of week provided above.${ctx.is_holiday ? ` Factor in holiday-specific demand patterns for ${ctx.holiday}.` : ''}`;
 
     // Call model-agnostic strategist role
     const result = await callModel("strategist", {
