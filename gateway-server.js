@@ -76,55 +76,36 @@ function spawnChild(name, command, args, env) {
     
     // AUTOSCALE MODE: Raw HTTP server, skip Express entirely
     if (isAutoscale) {
-      console.log("[gateway] ⚡ AUTOSCALE MODE - raw HTTP health-only server");
-      console.log("[gateway] ⏱️ Start time:", new Date().toISOString());
-      console.log("[gateway] 🚀 Skipping Express - using raw http.createServer");
-      
-      // Raw Node.js HTTP server - zero middleware overhead
+      // Raw Node.js HTTP server - zero middleware overhead, zero logging
       const server = http.createServer((req, res) => {
-        console.log(`[health] 📥 ${req.method} ${req.url}`);
-        
-        // Respond to ALL requests with 200 OK
+        // No logging - every console.log adds latency to health checks
         res.writeHead(200, {
           'Content-Type': 'text/plain',
           'Connection': 'close'
         });
-        res.end('OK'); // Send and close in one call
+        res.end('OK');
       });
       
       // Request timeout to prevent hanging
-      server.timeout = 5000; // 5 second timeout
-      
-      // Keep-alive settings for Cloud Run
+      server.timeout = 5000;
       server.keepAliveTimeout = 5000;
       server.headersTimeout = 6000;
       
-      // Error handling
+      // Error handling (only for fatal errors)
       server.on('error', (err) => {
-        console.error(`[gateway] ❌ FATAL: Server error:`, err);
-        console.error(`[gateway] Error code: ${err.code}`);
+        console.error(`[gateway] ❌ FATAL:`, err.code);
       });
       
-      // Success callback
-      server.on('listening', () => {
-        const addr = server.address();
-        console.log(`[ready] ✅ LISTENING on ${addr.address}:${addr.port}`);
-        console.log(`[ready] ⏱️ Ready time: ${new Date().toISOString()}`);
-        console.log(`[ready] 🚀 READY FOR HEALTH CHECKS`);
-      });
-      
-      // Graceful shutdown for Cloud Run
+      // Graceful shutdown
       process.on('SIGTERM', () => {
-        console.log('[gateway] 🛑 SIGTERM received, closing server...');
-        server.close(() => {
-          console.log('[gateway] ✅ Server closed');
-          process.exit(0);
-        });
+        server.close(() => process.exit(0));
       });
       
-      // Bind synchronously - no await, no delays
-      console.log(`[gateway] 📡 Binding to 0.0.0.0:${PORT}...`);
-      server.listen(PORT, '0.0.0.0');
+      // CRITICAL: Bind IMMEDIATELY - no logs, no delays
+      server.listen(PORT, '0.0.0.0', () => {
+        // Log AFTER listening completes (optimization #1)
+        console.log("[gateway] ⚡ AUTOSCALE MODE listening on 0.0.0.0:" + PORT);
+      });
       
       // Exit - don't load anything else in autoscale
       return;
