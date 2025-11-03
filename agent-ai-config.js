@@ -32,9 +32,11 @@ export const GATEWAY_CONFIG = {
   service: 'gateway'
 };
 
-// Log configuration once on import
-console.log('[ai-config] Loaded unified AI parameters:', {
-  temperature: AGENT_AI_CONFIG.temperature,
-  reasoning: AGENT_AI_CONFIG.reasoning_depth,
-  mode: AGENT_AI_CONFIG.execution_mode
-});
+// Log configuration once on import (skip in autoscale deployment)
+if (process.env.REPLIT_DEPLOYMENT !== "1") {
+  console.log('[ai-config] Loaded unified AI parameters:', {
+    temperature: AGENT_AI_CONFIG.temperature,
+    reasoning: AGENT_AI_CONFIG.reasoning_depth,
+    mode: AGENT_AI_CONFIG.execution_mode
+  });
+}
