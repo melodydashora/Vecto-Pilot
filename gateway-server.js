@@ -73,29 +73,28 @@ function spawnChild(name, command, args, env) {
     // AUTOSCALE MODE (opt-in only): Raw HTTP server, skip Express entirely
     if (isAutoscale) {
       const server = http.createServer((req, res) => {
-        console.log(`[health] ${req.method} ${req.url} from ${req.socket.remoteAddress}`);
+        // Skip logging for health checks to minimize latency
         
         // Handle GET and HEAD on / and health endpoints reliably
         if (req.url === '/' || req.url === '/health' || req.url === '/ready') {
           if (req.method === 'HEAD') {
-            console.log(`[health] ✅ HEAD ${req.url} -> 200`);
             res.statusCode = 200;
+            res.setHeader('Content-Length', '0');
             res.end();
             return;
           }
-          console.log(`[health] ✅ GET ${req.url} -> 200 OK`);
+          const body = 'OK';
           res.statusCode = 200;
           res.setHeader('Content-Type', 'text/plain');
-          res.setHeader('Connection', 'keep-alive');
-          res.end('OK');
+          res.setHeader('Content-Length', body.length.toString());
+          res.setHeader('Connection', 'close');
+          res.end(body);
           return;
         }
-        // All other requests also return OK
-        console.log(`[health] ✅ ${req.method} ${req.url} -> 200 OK (catchall)`);
-        res.statusCode = 200;
+        // Return 404 for non-health endpoints
+        res.statusCode = 404;
         res.setHeader('Content-Type', 'text/plain');
-        res.setHeader('Connection', 'keep-alive');
-        res.end('OK');
+        res.end('Not Found');
       });
 
       // Cloud Run compatible timeouts
@@ -121,7 +120,10 @@ function spawnChild(name, command, args, env) {
       });
 
       console.log(`[gateway] 🎯 Starting autoscale server on 0.0.0.0:${PORT}...`);
-      server.listen(PORT, '0.0.0.0');
+      // Add 100ms startup delay to ensure server is fully ready
+      server.listen(PORT, '0.0.0.0', async () => {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      });
 
       return;
     }
