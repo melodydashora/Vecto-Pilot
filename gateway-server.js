@@ -74,73 +74,57 @@ function spawnChild(name, command, args, env) {
     console.log(`[gateway] 🎯 isAutoscale: ${isAutoscale}`);
     console.log(`[gateway] 🎯 CLOUD_RUN_AUTOSCALE: ${process.env.CLOUD_RUN_AUTOSCALE}`);
     
-    // AUTOSCALE MODE: Health check only, no routes/middleware
+    // AUTOSCALE MODE: Raw HTTP server, skip Express entirely
     if (isAutoscale) {
-      console.log("[gateway] ⚡ AUTOSCALE MODE - health-only server");
+      console.log("[gateway] ⚡ AUTOSCALE MODE - raw HTTP health-only server");
       console.log("[gateway] ⏱️ Start time:", new Date().toISOString());
-      console.log("[gateway] 🚀 Creating ultra-minimal Express app...");
+      console.log("[gateway] 🚀 Skipping Express - using raw http.createServer");
       
-      // CRITICAL: Health endpoints FIRST, before ANY middleware
-      // Add explicit response flushing and timeout as per Replit AI suggestion
-      app.get("/", (_req, res) => {
-        console.log("[health] ✅ GET /");
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.write("OK");
-        res.end(); // Explicit flush
-      });
-      app.head("/", (_req, res) => {
-        console.log("[health] ✅ HEAD /");
-        res.writeHead(200);
-        res.end(); // Explicit flush
-      });
-      app.get("/health", (_req, res) => {
-        console.log("[health] ✅ GET /health");
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.write("OK");
-        res.end(); // Explicit flush
-      });
-      app.head("/health", (_req, res) => {
-        console.log("[health] ✅ HEAD /health");
-        res.writeHead(200);
-        res.end(); // Explicit flush
-      });
-      app.get("/healthz", (_req, res) => {
-        console.log("[health] ✅ GET /healthz");
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.write("OK");
-        res.end(); // Explicit flush
-      });
-      app.get("/ready", (_req, res) => {
-        console.log("[health] ✅ GET /ready");
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.write("OK");
-        res.end(); // Explicit flush
+      // Raw Node.js HTTP server - zero middleware overhead
+      const server = http.createServer((req, res) => {
+        console.log(`[health] 📥 ${req.method} ${req.url}`);
+        
+        // Respond to ALL requests with 200 OK
+        res.writeHead(200, {
+          'Content-Type': 'text/plain',
+          'Connection': 'close'
+        });
+        res.end('OK'); // Send and close in one call
       });
       
-      // Start server IMMEDIATELY - no delays, no validation, no middleware
-      console.log(`[gateway] 📡 Binding to 0.0.0.0:${PORT}...`);
-      const server = http.createServer(app);
+      // Request timeout to prevent hanging
+      server.timeout = 5000; // 5 second timeout
       
+      // Keep-alive settings for Cloud Run
+      server.keepAliveTimeout = 5000;
+      server.headersTimeout = 6000;
+      
+      // Error handling
       server.on('error', (err) => {
         console.error(`[gateway] ❌ FATAL: Server error:`, err);
         console.error(`[gateway] Error code: ${err.code}`);
-        console.error(`[gateway] Port: ${PORT}`);
-        process.exit(1);
       });
       
+      // Success callback
       server.on('listening', () => {
         const addr = server.address();
         console.log(`[ready] ✅ LISTENING on ${addr.address}:${addr.port}`);
         console.log(`[ready] ⏱️ Ready time: ${new Date().toISOString()}`);
-        console.log(`[ready] 🎯 Health endpoints: /, /health`);
         console.log(`[ready] 🚀 READY FOR HEALTH CHECKS`);
       });
       
-      // Configure server timeouts for Cloud Run
-      server.keepAliveTimeout = 65000; // Slightly higher than Cloud Run's 60s
-      server.headersTimeout = 66000; // Must be higher than keepAliveTimeout
+      // Graceful shutdown for Cloud Run
+      process.on('SIGTERM', () => {
+        console.log('[gateway] 🛑 SIGTERM received, closing server...');
+        server.close(() => {
+          console.log('[gateway] ✅ Server closed');
+          process.exit(0);
+        });
+      });
       
-      server.listen(PORT, "0.0.0.0");
+      // Bind synchronously - no await, no delays
+      console.log(`[gateway] 📡 Binding to 0.0.0.0:${PORT}...`);
+      server.listen(PORT, '0.0.0.0');
       
       // Exit - don't load anything else in autoscale
       return;
