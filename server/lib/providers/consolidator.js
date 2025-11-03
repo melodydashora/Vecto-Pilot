@@ -101,23 +101,24 @@ export async function runConsolidator(snapshotId) {
 
 Your task:
 1. Use live web search to research current conditions for rideshare drivers
-2. Split your research into tactical details and actionable summary
-3. Return structured JSON
+2. Split your research into tactical details AND actionable summary
+3. Return structured JSON with ALL 5 fields (summary is REQUIRED)
 
-Format your response as JSON with these fields:
+Format your response as JSON with these fields IN THIS EXACT ORDER:
 {
-  "tactical_traffic": "Traffic/incidents for next 30 minutes",
-  "tactical_closures": "Closures/construction for next 30 minutes", 
-  "tactical_enforcement": "Enforcement activity for next 30 minutes",
+  "tactical_traffic": "Traffic/incidents for next 30 minutes (detailed)",
+  "tactical_closures": "Closures/construction for next 30 minutes (detailed)", 
+  "tactical_enforcement": "Enforcement activity for next 30 minutes (detailed)",
   "tactical_sources": "Sources checked (website names/URLs)",
-  "summary": "Actionable summary (3-5 sentences) for driver leaving NOW"
+  "summary": "REQUIRED - Actionable 3-5 sentence summary consolidating ALL above details for driver leaving NOW"
 }
 
-Focus strictly on: traffic conditions, incidents, closures, enforcement, construction.
-
-Do NOT list venues or curb locations.
-
-CRITICAL: Use the exact day of week and time provided - do not recompute dates.`;
+CRITICAL REQUIREMENTS:
+- Focus strictly on: traffic conditions, incidents, closures, enforcement, construction
+- Do NOT list venues or curb locations
+- The "summary" field is MANDATORY - it consolidates tactical details into actionable guidance
+- Use the exact day of week and time provided - do not recompute dates
+- Return ONLY valid JSON with all 5 fields`;
 
     const userPrompt = `SNAPSHOT DATA (AUTHORITATIVE - from driver's GPS):
 Day of Week: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : ''}
@@ -138,20 +139,26 @@ STRATEGIST'S ASSESSMENT:
 ${minstrategy}
 
 YOUR TASK:
-Research current conditions in ${cityDisplay} and return structured JSON:
+Research current conditions in ${cityDisplay} and return structured JSON with ALL 5 FIELDS:
 
-1. tactical_traffic: Traffic/incidents for next 30 minutes
-2. tactical_closures: Closures/construction for next 30 minutes  
-3. tactical_enforcement: Enforcement activity (checkpoints, patrols)
-4. tactical_sources: Sources checked (list websites/URLs)
-5. summary: Actionable summary (3-5 sentences) consolidating strategist's assessment with your research
+1. tactical_traffic: Traffic/incidents for next 30 minutes (detailed)
+2. tactical_closures: Closures/construction for next 30 minutes (detailed)
+3. tactical_enforcement: Enforcement activity (checkpoints, patrols, detailed)
+4. tactical_sources: Sources checked (list websites/URLs you searched)
+5. summary: MANDATORY - Actionable 3-5 sentence summary that:
+   - Consolidates ALL tactical details above
+   - Integrates strategist's assessment
+   - Tells driver exactly what to do in next 30 minutes
+   - Ends with specific recommendation (go now, wait, focus on X area)
 
 CRITICAL REQUIREMENTS:
+- ALL 5 FIELDS ARE REQUIRED - especially "summary"
 - Prioritize next 30 minutes only
 - Use exact day/time: ${dayOfWeek}, ${localTime}
 ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
 - Reference only "${cityDisplay}" (no full street addresses)
-- Return valid JSON only`;
+- Return ONLY valid JSON with all 5 fields
+- The "summary" field MUST be present and actionable`;
 
     const promptSize = systemPrompt.length + userPrompt.length;
     console.log(`[consolidator] 📝 Prompt size: ${promptSize} chars`);
