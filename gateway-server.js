@@ -60,12 +60,10 @@ function spawnChild(name, command, args, env) {
     app.set("trust proxy", 1);
 
     // Detect Replit autoscale deployment environment
-    // Check multiple indicators since REPLIT_DEPLOYMENT might not be set
+    // CRITICAL: Only match actual deployments, not dev containers!
     const isAutoscale = 
       process.env.REPLIT_DEPLOYMENT === "1" || 
-      process.env.REPLIT_DEPLOYMENT === "true" ||
-      process.env.REPL_DEPLOYMENT === "1" ||
-      Boolean(process.env.HOSTNAME); // Cloud Run / Replit deployments set HOSTNAME
+      process.env.REPLIT_DEPLOYMENT === "true"
     
     console.log(`[gateway] 🎯 isAutoscale: ${isAutoscale}`);
     
