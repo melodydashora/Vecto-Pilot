@@ -6,11 +6,16 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 
 export default function BriefingPage() {
-  const [snapshotId, setSnapshotId] = useState<string | null>(null);
+  const [snapshotId, setSnapshotId] = useState<string | null>(() => {
+    // Load snapshot ID from localStorage on mount
+    return localStorage.getItem('vecto_strategy_snapshot_id') || null;
+  });
   
   useEffect(() => {
     const handleSnapshot = (e: any) => {
-      setSnapshotId(e.detail.snapshotId);
+      const newSnapshotId = e.detail.snapshotId;
+      setSnapshotId(newSnapshotId);
+      localStorage.setItem('vecto_strategy_snapshot_id', newSnapshotId);
     };
     
     window.addEventListener('vecto-snapshot-saved', handleSnapshot);
