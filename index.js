@@ -60,6 +60,13 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// CLI argument parser (supervisor-friendly)
+function getCliArg(name) {
+  const prefix = `--${name}=`;
+  const arg = process.argv.find(a => a.startsWith(prefix));
+  return arg ? arg.slice(prefix.length) : undefined;
+}
+
 // Log AI config on boot
 console.log('[SDK/Eidolon] AI Config:', EIDOLON_CONFIG);
 
@@ -68,6 +75,18 @@ const app = express();
 // CRITICAL: Trust proxy MUST be set FIRST, before ANY middleware
 app.set('trust proxy', 1);
 process.noDeprecation = true;
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Fast-path health probes (BEFORE other middleware for instant response)
+// ───────────────────────────────────────────────────────────────────────────────
+app.get('/health', (_req, res) => res.status(200).send('OK'));
+app.get('/ready', (_req, res) => res.status(200).send('READY'));
+app.use((req, _res, next) => {
+  if (req.path === '/health' || req.path === '/ready' || req.path === '/healthz') {
+    console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
+  }
+  next();
+});
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Core middleware (order matters!)
@@ -312,9 +331,9 @@ app.get("/api/copilot", (_req, res) => {
 // Ports & env
 // ───────────────────────────────────────────────────────────────────────────────
 function getPortConfig() {
-  // SDK should use EIDOLON_PORT first, then PORT (set by gateway spawn), then default 3002
-  // This prevents conflict with gateway's PORT
-  const mainPort = Number(process.env.EIDOLON_PORT || process.env.PORT || 3002);
+  // CLI first (supervisor can pass --port=3101), then env, then default 3101
+  const cliPort = getCliArg('port');
+  const mainPort = Number(cliPort || process.env.EIDOLON_PORT || process.env.PORT || 3101);
   const agentPort = Number(
     process.env.AGENT_PORT || process.env.DEFAULT_AGENT_PORT || 43717,
   );
@@ -327,7 +346,7 @@ function getPortConfig() {
   return { mainPort, agentPort };
 }
 const { mainPort: PORT, agentPort: AGENT_PORT } = getPortConfig();
-const HOST = process.env.HOST || "127.0.0.1";
+const HOST = getCliArg('host') || process.env.HOST || "0.0.0.0";
 const AGENT_BASE_URL =
   process.env.AGENT_BASE_URL || `http://127.0.0.1:${AGENT_PORT}`;
 const AGENT_TOKEN = process.env.AGENT_TOKEN;
@@ -1572,6 +1591,11 @@ function startEidolonServer() {
         `[eidolon] Gateway Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`,
       );
     }
+    
+    // Set server timeouts to prevent probe hangs
+    serverInstance.requestTimeout = 10000;   // 10s to receive full request
+    serverInstance.headersTimeout = 11000;   // must exceed requestTimeout
+    serverInstance.keepAliveTimeout = 5000;  // avoid long-lived idle sockets
     // Agent server is optional - only needed for advanced file operations
     // Don't spawn agent if we're being run by the gateway (it spawns agent separately)
     // Check if we're a child process spawned by gateway
