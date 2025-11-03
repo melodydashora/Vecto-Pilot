@@ -114,12 +114,15 @@ function spawnChild(name, command, args, env) {
     app.use("/agent", express.json({ limit: "1mb" }));
 
     // Mount SSE strategy events endpoint (before SDK/Agent routes)
-    try {
-      const strategyEvents = (await import("./server/strategy-events.js")).default;
-      app.use("/", strategyEvents);
-      console.log("[gateway] ✅ SSE strategy events endpoint mounted");
-    } catch (e) {
-      console.error("[gateway] ❌ SSE events failed:", e?.message);
+    // Don't mount at "/" in autoscale to avoid overriding health check
+    if (!isCloudRun) {
+      try {
+        const strategyEvents = (await import("./server/strategy-events.js")).default;
+        app.use("/", strategyEvents);
+        console.log("[gateway] ✅ SSE strategy events endpoint mounted");
+      } catch (e) {
+        console.error("[gateway] ❌ SSE events failed:", e?.message);
+      }
     }
 
     if (MODE === "mono") {
