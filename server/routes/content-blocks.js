@@ -16,7 +16,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
-    console.log(`[content-blocks] Fetching blocks for snapshot ${snapshotId}`);
+    console.log(`[content-blocks] Fetching strategy for snapshot ${snapshotId}`);
     
     // Fetch strategy and snapshot data
     const [strategy] = await db.select()
@@ -25,9 +25,10 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       .limit(1);
     
     if (!strategy) {
-      return res.status(404).json({ 
-        error: 'strategy_not_found',
-        snapshot_id: snapshotId 
+      return res.json({ 
+        status: 'missing',
+        snapshot_id: snapshotId,
+        timeElapsedMs: 0
       });
     }
     
@@ -36,18 +37,44 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       .where(eq(snapshots.snapshot_id, snapshotId))
       .limit(1);
     
-    // Generate structured blocks from strategy content
-    const blocks = generateBlocks(strategy, snapshot);
+    // Calculate elapsed time
+    const startedAt = strategy.strategy_timestamp ?? strategy.created_at ?? null;
+    const timeElapsedMs = startedAt ? Date.now() - new Date(startedAt).getTime() : 0;
     
+    // Check if consolidated strategy is ready
+    const hasConsolidated = !!(strategy.consolidated_strategy && strategy.consolidated_strategy.trim().length);
+    
+    if (!hasConsolidated) {
+      // Strategy pending - return pending status with timeElapsedMs
+      return res.json({
+        status: 'pending',
+        snapshot_id: snapshotId,
+        timeElapsedMs,
+        waitFor: ['strategy'],
+        strategy: {
+          holiday: snapshot?.holiday || null
+        }
+      });
+    }
+    
+    // Strategy ready - return complete data
     res.json({
+      status: 'ok',
       snapshot_id: snapshotId,
-      blocks
+      timeElapsedMs,
+      strategy: {
+        min: strategy.minstrategy || '',
+        consolidated: strategy.consolidated_strategy || '',
+        holiday: snapshot?.holiday || null
+      }
     });
   } catch (error) {
     console.error(`[content-blocks] Error:`, error);
     res.status(500).json({ 
+      status: 'error',
       error: 'internal_error', 
-      message: error.message 
+      message: error.message,
+      timeElapsedMs: 0
     });
   }
 });
