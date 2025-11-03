@@ -242,18 +242,32 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
       });
     }
     
-    // Import provider
+    // Import providers
     const { runMinStrategy } = await import('./providers/minstrategy.js');
+    const { runBriefing } = await import('./providers/briefing.js');
     
-    // Run strategist only (consolidator will do briefing research itself)
-    console.log(`[runSimpleStrategyPipeline] 🚀 Running minstrategy (consolidator will handle briefing)...`);
-    const minResult = await runMinStrategy(snapshotId).catch(err => ({ status: 'rejected', reason: err }));
+    // Run both providers in parallel
+    console.log(`[runSimpleStrategyPipeline] 🚀 Running minstrategy + briefing (Perplexity) in parallel...`);
+    const [minResult, briefingResult] = await Promise.allSettled([
+      runMinStrategy(snapshotId),
+      runBriefing(snapshotId)
+    ]);
     
     if (minResult.status === 'rejected') {
       console.error(`[runSimpleStrategyPipeline] ❌ Minstrategy failed:`, minResult.reason?.message || minResult.reason);
-      throw new Error('Strategist provider failed');
     } else {
       console.log(`[runSimpleStrategyPipeline] ✅ Minstrategy complete`);
+    }
+    
+    if (briefingResult.status === 'rejected') {
+      console.error(`[runSimpleStrategyPipeline] ❌ Briefing failed:`, briefingResult.reason?.message || briefingResult.reason);
+    } else {
+      console.log(`[runSimpleStrategyPipeline] ✅ Briefing complete`);
+    }
+    
+    // Check if at least one succeeded
+    if (minResult.status === 'rejected' && briefingResult.status === 'rejected') {
+      throw new Error('Both minstrategy and briefing providers failed');
     }
     
     // Fetch updated strategy row to get strategist output
