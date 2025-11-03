@@ -1326,13 +1326,47 @@ const CoPilot: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Metrics Row */}
+                      {/* Priority Badge & Metrics Row */}
                       <div className="grid grid-cols-3 gap-4 mb-3">
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-green-600">
-                            ${Number(block.estimatedEarningsPerRide ?? block.estimated_earnings ?? block.potential ?? 0).toFixed(2)}/ride
-                          </div>
-                          <div className="text-xs text-gray-500">Potential</div>
+                          {(() => {
+                            const distance = Number(block.estimated_distance_miles ?? 0);
+                            const isNearby = distance <= 5;
+                            
+                            if (index <= 1) {
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <div className="text-2xl mb-1">🔥</div>
+                                  <div className="text-sm font-bold text-orange-600">HIGH VALUE</div>
+                                  <div className="text-xs text-gray-500">Top ranked</div>
+                                </div>
+                              );
+                            } else if (index <= 3) {
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <div className="text-2xl mb-1">⭐</div>
+                                  <div className="text-sm font-bold text-yellow-600">GOOD OPPORTUNITY</div>
+                                  <div className="text-xs text-gray-500">Recommended</div>
+                                </div>
+                              );
+                            } else if (isNearby) {
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <div className="text-2xl mb-1">📍</div>
+                                  <div className="text-sm font-bold text-blue-600">NEARBY OPTION</div>
+                                  <div className="text-xs text-gray-500">Close proximity</div>
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <div className="text-2xl mb-1">💡</div>
+                                  <div className="text-sm font-bold text-purple-600">STRATEGIC</div>
+                                  <div className="text-xs text-gray-500">Consider timing</div>
+                                </div>
+                              );
+                            }
+                          })()}
                         </div>
                         <div className="text-center">
                           <div className="text-2xl font-bold text-gray-700">
