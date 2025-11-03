@@ -198,8 +198,9 @@ process.on('unhandledRejection', (reason, promise) => {
     console.log("[gateway] ✅ Middleware configured");
 
     // Mount SSE strategy events endpoint (before SDK/Agent routes)
-    // Don't mount at "/" in autoscale to avoid overriding health check
-    if (!isCloudRun) {
+    // Enable SSE in all modes EXCEPT autoscale (Reserved VM supports SSE, autoscale doesn't)
+    const isAutoscaleDeploy = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === "1";
+    if (!isAutoscaleDeploy) {
       try {
         console.log("[gateway] Loading SSE strategy events...");
         const strategyEvents = (await import("./server/strategy-events.js")).default;
@@ -208,6 +209,8 @@ process.on('unhandledRejection', (reason, promise) => {
       } catch (e) {
         console.error("[gateway] ❌ SSE events failed:", e?.message);
       }
+    } else {
+      console.log("[gateway] ⏩ SSE disabled (autoscale mode - use polling)");
     }
 
     if (MODE === "mono") {
