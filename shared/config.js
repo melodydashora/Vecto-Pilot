@@ -54,7 +54,7 @@ try {
 // Port configuration
 export const PORTS = {
   GATEWAY: config.GATEWAY_PORT || config.PORT,
-  SDK: config.SDK_PORT || config.EIDOLON_PORT || 3101,
+  SDK: config.SDK_PORT || config.EIDOLON_PORT, // No fallback - SDK not used in deployment
   AGENT: config.AGENT_PORT,
   VITE: config.VITE_PORT || 5173,
   POSTGRES: parseInt(process.env.PGPORT || '5432', 10)

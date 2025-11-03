@@ -249,28 +249,9 @@ server.on('exit', (code) => {
   process.exit(code || 1);
 });
 
-// Start SDK server on port 3101 (health shim for supervisor probes)
-console.log('[boot] ⚡ Starting SDK server on port 3101...');
-const sdk = spawn('node', ['index.js', '--port=3101', '--host=0.0.0.0'], {
-  stdio: 'inherit',
-  env: { 
-    ...process.env,
-    EIDOLON_PORT: '3101',
-    SKIP_AGENT: 'true'  // Gateway manages the agent
-  }
-});
-
-sdk.on('error', (err) => {
-  console.error('[boot:sdk:error] Failed to spawn SDK:', err.message);
-  // Don't exit - SDK is optional, gateway can run without it
-});
-
-sdk.on('exit', (code) => {
-  console.warn(`[boot:sdk:exit] SDK exited with code ${code}`);
-  // Don't exit - SDK is optional
-});
-
-console.log('[boot] ✅ SDK server started on port 3101');
+// SDK server disabled - all routes embedded in gateway via sdk-embed.js
+// No separate SDK process needed in mono mode
+console.log('[boot] ⏩ SDK routes embedded in gateway (no separate SDK process)');
 
 // Start triad worker (only if enabled AND not on Cloud Run)
 // Cloud Run/Autoscale environments should NOT run background workers
