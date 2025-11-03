@@ -446,7 +446,11 @@ const CoPilot: React.FC = () => {
       
       return shouldEnable;
     })(), // Auto-start when coordinates, snapshot, and DB-confirmed strategy are available
-    refetchInterval: false, // No periodic auto-refresh (only on demand)
+    // Poll every 3 seconds if blocks are empty (waiting for Smart Blocks generation)
+    refetchInterval: (query) => {
+      const blocks = query.state.data?.blocks || [];
+      return blocks.length === 0 ? 3000 : false;
+    },
     retry: (failureCount, error: any) => {
       // Stop retrying if we got a timeout (504)
       if (error?.message?.includes('504') || error?.message?.includes('timeout')) {
