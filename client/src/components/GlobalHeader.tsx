@@ -35,6 +35,8 @@ const GlobalHeader: React.FC = () => {
   const [aqLoading, setAqLoading] = useState(false);
   const [snapshotReady, setSnapshotReady] = useState(false);
   const [latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
+  const [holiday, setHoliday] = useState<string | null>(null);
+  const [isHoliday, setIsHoliday] = useState(false);
 
   // location from context, supporting both shapes
   // PRIORITY: Use override coords if available (manual city search), otherwise use GPS

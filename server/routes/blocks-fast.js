@@ -713,13 +713,22 @@ router.post('/', async (req, res) => {
  * Always returns 200 with clean JSON using GENERIC model-agnostic columns
  */
 export async function getStrategyFast({ snapshotId }) {
-  const [row] = await db.select().from(strategies)
+  // Join with snapshots to get holiday data
+  const rows = await db.select({
+    strategy: strategies,
+    snapshot: snapshots
+  })
+    .from(strategies)
+    .leftJoin(snapshots, eq(strategies.snapshot_id, snapshots.snapshot_id))
     .where(eq(strategies.snapshot_id, snapshotId))
     .limit(1);
 
-  if (!row) {
+  if (!rows || rows.length === 0 || !rows[0].strategy) {
     return { status: 'missing', snapshot_id: snapshotId, timeElapsedMs: 0 };
   }
+
+  const row = rows[0].strategy;
+  const snapshot = rows[0].snapshot;
 
   // SIMPLIFIED: Only check consolidated_strategy (Gemini → GPT-5 pipeline)
   const waitFor = [];
@@ -727,9 +736,8 @@ export async function getStrategyFast({ snapshotId }) {
 
   const timeElapsedMs = safeElapsedMs(row);
 
-  // Extract briefing for early holiday display
-  const briefing = row.briefing || {};
-  const holidayData = row.holiday || (briefing.holidays?.length > 0 ? briefing.holidays[0] : null);
+  // Get holiday from snapshot (authoritative source from Perplexity during snapshot creation)
+  const holidayData = snapshot?.holiday || null;
 
   if (waitFor.length) {
     return {
