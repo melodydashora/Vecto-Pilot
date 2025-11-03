@@ -52,17 +52,31 @@ A read-only Data Access Layer provides the AI Strategy Coach with snapshot-scope
 
 ## Recent Changes (Nov 3, 2025)
 
-### Smart Blocks Bug Fixes
-Fixed 6 critical bugs preventing Smart Blocks generation after briefing table migration:
-1. **Worker data fetching**: Updated `triad-worker.js` to fetch briefing from separate `briefings` table instead of deprecated `row.briefing` column
-2. **Gateway duplicate listener**: Removed inline consolidation listener from `gateway-server.js` to prevent conflicts with separate worker process
-3. **Worker logic flow**: Refactored notification handler to always generate Smart Blocks if consolidated strategy exists (previously skipped if already consolidated)
-4. **DB client cleanup**: Removed automatic LISTEN and conflicting notification handler from `db-client.js` - now only worker subscribes to channels
-5. **Schema validation**: Updated `hasRenderableBriefing()` to support new briefing table structure (text fields: `global_travel`, `domestic_travel`, etc.) instead of old arrays
-6. **Logging**: Updated Smart Blocks logging to work with new briefing structure
+### Worker Database Connection Fix ✅ RESOLVED
+Fixed critical issue preventing Smart Blocks generation - worker couldn't establish LISTEN connection to database.
 
-### Known Issue
-Worker process (`strategy-generator.js`) runs but doesn't establish database connection when started via `start-mono.sh`. Works correctly when run manually. Root cause TBD.
+**Root Cause:** Neon's pooled connection (`DATABASE_URL` with `-pooler` suffix) uses pgBouncer which does NOT support LISTEN/NOTIFY.
+
+**Solution:**
+1. Modified `db-client.js` to use `DATABASE_URL_UNPOOLED` for LISTEN connections (removes pgBouncer intermediary)
+2. Added worker output redirection to `/tmp/worker-output.log` in `scripts/start-replit.js` for debugging
+3. Added unbuffered console output and error handlers in `strategy-generator.js`
+
+**Verification:**
+- Worker establishes dedicated connection with `application_name='triad-listener'`
+- Successfully executes `LISTEN strategy_ready` command
+- Receives NOTIFY events and triggers Smart Blocks generation
+- GPT-5 venue planner pipeline confirmed working
+
+### Smart Blocks Bug Fixes (Completed)
+Fixed 7 critical bugs preventing Smart Blocks generation after briefing table migration:
+1. **Worker data fetching**: Updated `triad-worker.js` to fetch briefing from separate `briefings` table
+2. **Gateway duplicate listener**: Removed inline consolidation listener from `gateway-server.js`
+3. **Worker logic flow**: Refactored notification handler to always generate Smart Blocks when consolidated strategy exists
+4. **DB client cleanup**: Removed automatic LISTEN and conflicting notification handler from `db-client.js`
+5. **Schema validation**: Updated `hasRenderableBriefing()` to support new briefing table structure
+6. **Logging**: Updated Smart Blocks logging for new briefing structure
+7. **Database connection**: Fixed LISTEN/NOTIFY support by using unpooled connection (see above)
 
 ## External Dependencies
 
