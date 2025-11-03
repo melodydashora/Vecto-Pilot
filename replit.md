@@ -50,6 +50,20 @@ API access is gated until a strategy is ready. The pipeline involves parallel ex
 **AI Coach Data Access Layer (CoachDAL)**:
 A read-only Data Access Layer provides the AI Strategy Coach with snapshot-scoped, null-safe access to comprehensive driver context, including temporal data, strategy, briefing information, and venue recommendations. Consolidated strategy outputs prioritize city-level references over full street addresses for privacy.
 
+## Recent Changes (Nov 3, 2025)
+
+### Smart Blocks Bug Fixes
+Fixed 6 critical bugs preventing Smart Blocks generation after briefing table migration:
+1. **Worker data fetching**: Updated `triad-worker.js` to fetch briefing from separate `briefings` table instead of deprecated `row.briefing` column
+2. **Gateway duplicate listener**: Removed inline consolidation listener from `gateway-server.js` to prevent conflicts with separate worker process
+3. **Worker logic flow**: Refactored notification handler to always generate Smart Blocks if consolidated strategy exists (previously skipped if already consolidated)
+4. **DB client cleanup**: Removed automatic LISTEN and conflicting notification handler from `db-client.js` - now only worker subscribes to channels
+5. **Schema validation**: Updated `hasRenderableBriefing()` to support new briefing table structure (text fields: `global_travel`, `domestic_travel`, etc.) instead of old arrays
+6. **Logging**: Updated Smart Blocks logging to work with new briefing structure
+
+### Known Issue
+Worker process (`strategy-generator.js`) runs but doesn't establish database connection when started via `start-mono.sh`. Works correctly when run manually. Root cause TBD.
+
 ## External Dependencies
 
 ### Third-Party APIs

@@ -170,15 +170,39 @@ export function compressText(text, maxLength) {
 export function hasRenderableBriefing(briefing) {
   if (!briefing || typeof briefing !== 'object') return false;
   
-  const { events, holidays, traffic, news } = briefing;
+  // Support NEW briefing table structure (text fields)
+  const {
+    global_travel,
+    domestic_travel,
+    local_traffic,
+    weather_impacts,
+    events_nearby,
+    holidays,
+    rideshare_intel
+  } = briefing;
   
-  return (
+  // Check if any text field has meaningful content (> 10 chars to avoid trivial/empty content)
+  const hasContent = [
+    global_travel,
+    domestic_travel,
+    local_traffic,
+    weather_impacts,
+    events_nearby,
+    holidays,
+    rideshare_intel
+  ].some(field => typeof field === 'string' && field.trim().length > 10);
+  
+  // Also support OLD structure (events/holidays/traffic/news arrays) for backward compatibility
+  const { events, traffic, news } = briefing;
+  const hasOldFormat = (
     (Array.isArray(events) && events.length > 0) ||
     (Array.isArray(holidays) && holidays.length > 0) ||
     (Array.isArray(news) && news.length > 0) ||
     (Array.isArray(traffic) && traffic.length > 0) ||
     (traffic && typeof traffic === 'object' && Object.keys(traffic).length > 0)
   );
+  
+  return hasContent || hasOldFormat;
 }
 
 /**
