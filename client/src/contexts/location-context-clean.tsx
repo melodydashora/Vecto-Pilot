@@ -491,7 +491,12 @@ export function LocationProvider({ children }: LocationProviderProps) {
               airQuality: airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'none',
             });
           } catch (err) {
-            console.warn("Failed to save context snapshot:", err);
+            console.error("❌ Failed to save context snapshot:", {
+              error: err,
+              message: err instanceof Error ? err.message : String(err),
+              name: err instanceof Error ? err.name : 'Unknown',
+              stack: err instanceof Error ? err.stack : undefined
+            });
           }
 
           // Update location state ONCE with both coordinates and resolved name
