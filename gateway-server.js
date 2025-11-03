@@ -151,15 +151,19 @@ function spawnChild(name, command, args, env) {
 
   // Mount middleware and routes after server is listening
   setImmediate(async () => {
+    console.log("[gateway] Starting middleware and route mounting...");
+    
     app.use(helmet({ contentSecurityPolicy: false }));
     app.use(cors({ origin: true, credentials: true }));
     app.use("/api", express.json({ limit: "1mb" }));
     app.use("/agent", express.json({ limit: "1mb" }));
+    console.log("[gateway] ✅ Middleware configured");
 
     // Mount SSE strategy events endpoint (before SDK/Agent routes)
     // Don't mount at "/" in autoscale to avoid overriding health check
     if (!isCloudRun) {
       try {
+        console.log("[gateway] Loading SSE strategy events...");
         const strategyEvents = (await import("./server/strategy-events.js")).default;
         app.use("/", strategyEvents);
         console.log("[gateway] ✅ SSE strategy events endpoint mounted");
@@ -170,16 +174,21 @@ function spawnChild(name, command, args, env) {
 
     if (MODE === "mono") {
       try {
+        console.log("[gateway] Loading SDK embed...");
         const createSdkRouter = (await import("./sdk-embed.js")).default;
-        app.use(process.env.API_PREFIX || "/api", createSdkRouter({}));
+        const sdkRouter = createSdkRouter({});
+        app.use(process.env.API_PREFIX || "/api", sdkRouter);
+        console.log("[gateway] ✅ SDK routes mounted at /api");
       } catch (e) {
-        console.error("[mono] SDK embed failed:", e?.message);
+        console.error("[mono] SDK embed failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading Agent embed...");
         const { mountAgent } = await import("./server/agent/embed.js");
         mountAgent({ app, basePath: process.env.AGENT_PREFIX || "/agent", wsPath: "/agent/ws", server });
+        console.log("[gateway] ✅ Agent mounted at /agent");
       } catch (e) {
-        console.error("[mono] Agent embed failed:", e?.message);
+        console.error("[mono] Agent embed failed:", e?.message, e?.stack);
       }
     }
 

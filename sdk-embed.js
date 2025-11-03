@@ -73,7 +73,7 @@ export default function createSdkRouter(opts = {}) {
   // Mount all SDK routes
   r.use('/health', healthRoutes);
   r.use('/healthz', healthRoutes);
-  r.use('/blocks/fast', blocksFastRoutes); // Fast tactical path (mounted before generic blocks)
+  r.use('/blocks-fast', blocksFastRoutes); // Fast tactical path (mounted before generic blocks)
   r.use('/blocks', contentBlocksRoutes); // Structured content blocks (GET /blocks/strategy/:snapshotId)
   // Async blocks retired - all blocks use fast synchronous path now
   
