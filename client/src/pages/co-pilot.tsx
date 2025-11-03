@@ -35,7 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
 import { subscribeStrategyReady } from '@/services/strategyEvents';
-import { StrategyHistoryPanel } from '@/components/StrategyHistoryPanel';
+import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 import {
   Tooltip,
   TooltipContent,
@@ -1073,11 +1073,17 @@ const CoPilot: React.FC = () => {
             </Button>
           )}
 
-          {/* Strategy History Panel */}
+          {/* Smart Blocks Pipeline Status */}
           {coords && (
-            <StrategyHistoryPanel 
-              userId={localStorage.getItem('vecto_user_id') || 'default'}
-              currentSnapshotId={lastSnapshotId}
+            <SmartBlocksStatus
+              strategyStatus={strategyData?.status}
+              strategyReady={strategyData?.status === 'ok'}
+              isStrategyFetching={isStrategyFetching}
+              hasBlocks={blocks.length > 0}
+              isBlocksLoading={isLoading}
+              blocksError={error as Error | null}
+              timeElapsedMs={strategyData?.timeElapsedMs}
+              snapshotId={lastSnapshotId}
             />
           )}
         </div>
