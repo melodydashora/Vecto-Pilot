@@ -148,7 +148,8 @@ export async function startConsolidationListener() {
           console.log(`[consolidation-listener] 🎯 Generating enhanced smart blocks for ${snapshotId}...`);
           await generateEnhancedSmartBlocks({
             snapshotId,
-            strategy: updatedRow.consolidated_strategy,
+            consolidated: updatedRow.consolidated_strategy,  // Fixed: was 'strategy'
+            briefing: updatedRow.briefing || { events: [], holidays: [], traffic: [], news: [] },  // Added missing briefing
             snapshot: {
               ...snap,
               formatted_address: updatedRow.user_address || snap?.formatted_address,
