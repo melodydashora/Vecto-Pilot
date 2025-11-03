@@ -250,9 +250,8 @@ ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
         tactical_traffic: parsedOutput.tactical_traffic || '',
         tactical_closures: parsedOutput.tactical_closures || '',
         tactical_enforcement: parsedOutput.tactical_enforcement || '',
-        tactical_sources: parsedOutput.tactical_sources || '',
-        created_at: new Date(),
-        updated_at: new Date()
+        tactical_sources: parsedOutput.tactical_sources || ''
+        // created_at and updated_at are set automatically via .defaultNow()
       });
       console.log(`[consolidator] ✅ Created briefing with tactical intelligence`);
     }

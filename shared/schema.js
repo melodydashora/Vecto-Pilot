@@ -103,7 +103,7 @@ export const briefings = pgTable("briefings", {
   tactical_enforcement: text("tactical_enforcement"), // Enforcement activity for next 30 minutes
   tactical_sources: text("tactical_sources"), // Sources checked by GPT-5
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const rankings = pgTable("rankings", {
