@@ -53,17 +53,21 @@ export async function detectHoliday(context) {
 Timezone: ${context.timezone}
 Location: ${context.city}, ${context.state}, ${context.country}
 
-Use web search to find the MOST SIGNIFICANT holiday observed on ${formattedDateTime} in ${context.country} and specifically in ${context.state}.
+Is there a SIGNIFICANT HOLIDAY observed on ${formattedDateTime} in ${context.country}, specifically in ${context.state}?
 
-Priority order (return the highest priority match):
-1. Federal/National holidays (e.g., Independence Day, Thanksgiving, Christmas)
-2. Major state holidays or observances
-3. Widely-observed religious holidays (e.g., Easter, Rosh Hashanah, Eid, Diwali)
-4. Major cultural celebrations (e.g., Día de los Muertos, Lunar New Year)
+ONLY consider these as holidays:
+1. Federal/National holidays (e.g., Independence Day, Thanksgiving, Christmas, New Year's Day, Memorial Day, Labor Day, Presidents Day, Veterans Day)
+2. Major state holidays with government/business closures
+3. Widely-observed religious holidays (e.g., Easter, Good Friday, Rosh Hashanah, Yom Kippur, Eid al-Fitr, Diwali)
+4. Major cultural celebrations that impact traffic patterns (e.g., Día de los Muertos, Mardi Gras, Lunar New Year)
 
-EXCLUDE minor observances, quirky "national days" (e.g., National Sandwich Day, National Donut Day), and commercial pseudo-holidays.
+DO NOT RETURN:
+- Time changes (e.g., "Daylight Saving Time Ends", "Spring Forward")
+- Minor observances or awareness days (e.g., "National Sandwich Day", "National Donut Day")
+- Commercial pseudo-holidays
+- Election days (unless it's a major national election)
 
-Return ONLY the single most significant holiday name for rideshare drivers, or empty string if no significant holiday exists today.`
+Return ONLY the holiday name if one exists, otherwise return empty string.`
           }
         ],
         max_tokens: 100,
