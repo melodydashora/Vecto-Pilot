@@ -35,6 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
 import { subscribeStrategyReady } from '@/services/strategyEvents';
+import { StrategyHistoryPanel } from '@/components/StrategyHistoryPanel';
 import {
   Tooltip,
   TooltipContent,
@@ -464,6 +465,60 @@ const CoPilot: React.FC = () => {
       });
     }
   }, [error, toast]);
+
+  // Retry strategy generation with same location context
+  const [isRetrying, setIsRetrying] = useState(false);
+  const retryStrategy = async () => {
+    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') {
+      toast({
+        title: 'Cannot Retry',
+        description: 'No strategy to retry. Please wait for initial strategy to generate.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsRetrying(true);
+    try {
+      console.log(`[retry] Retrying strategy for snapshot ${lastSnapshotId}`);
+      const response = await fetch(`/api/strategy/${lastSnapshotId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Retry failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[retry] New snapshot created: ${data.new_snapshot_id}`);
+      
+      // Update to new snapshot
+      setLastSnapshotId(data.new_snapshot_id);
+      setPersistentStrategy(null);
+      setStrategySnapshotId(null);
+      localStorage.removeItem('vecto_persistent_strategy');
+      localStorage.removeItem('vecto_strategy_snapshot_id');
+      
+      // Invalidate queries to trigger refresh
+      queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/strategy/history'] });
+
+      toast({
+        title: 'Strategy Retry Started',
+        description: 'Generating a new strategy with updated AI analysis...',
+      });
+    } catch (err) {
+      console.error('[retry] Failed:', err);
+      toast({
+        title: 'Retry Failed',
+        description: err instanceof Error ? err.message : 'Unable to retry strategy',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   // Log action to backend with idempotency key
   const logAction = async (action: string, blockId?: string, dwellMs?: number, fromRank?: number) => {
@@ -897,7 +952,7 @@ const CoPilot: React.FC = () => {
           <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">Strategy</h2>
+              <h2 className="text-lg font-semibold text-gray-800">Current Strategy</h2>
             </div>
             {/* Static Feedback Button - Always Visible & Clickable */}
             <Button
@@ -911,6 +966,8 @@ const CoPilot: React.FC = () => {
               Give Feedback
             </Button>
           </div>
+
+          {/* Current Strategy Card */}
           {!coords ? (
             <Card className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 border-gray-300 shadow-md" data-testid="strategy-needs-gps">
               <CardContent className="p-5">
@@ -924,22 +981,34 @@ const CoPilot: React.FC = () => {
               </CardContent>
             </Card>
           ) : persistentStrategy ? (
-            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="persistent-strategy-card">
+            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="strategy-complete-card">
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
                   <div className="p-2 rounded-lg bg-purple-100">
-                    <Sparkles className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-semibold text-purple-900">Strategic Overview</p>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
-                          Auto-Generated
-                        </Badge>
-                      </div>
+                      <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
+                        ✅ Complete
+                      </Badge>
                     </div>
                     <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : strategyData?.status === 'failed' ? (
+            <Card className="bg-gradient-to-br from-red-50 via-pink-50 to-red-50 border-red-300 shadow-md" data-testid="strategy-failed-card">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-red-100">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-900 mb-1">❌ Strategy Generation Failed</p>
+                    <p className="text-xs text-red-700">We couldn't generate a strategy this time. Please try again.</p>
                   </div>
                 </div>
               </CardContent>
@@ -948,9 +1017,14 @@ const CoPilot: React.FC = () => {
             <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-300 shadow-md" data-testid="strategy-pending-card">
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
-                  <RefreshCw className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0 mt-0.5" />
+                  <Clock className="w-5 h-5 text-blue-600 animate-pulse flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-blue-900 mb-1">AI Strategy Generating...</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-semibold text-blue-900">⏳ Generating your strategy...</p>
+                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                        Pending
+                      </Badge>
+                    </div>
                     <p className="text-xs text-blue-700 mb-3">analyzing your location and conditions</p>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs text-blue-700">
@@ -976,6 +1050,28 @@ const CoPilot: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Retry Button - Enabled when strategy is complete or failed */}
+          {coords && lastSnapshotId && lastSnapshotId !== 'live-snapshot' && (
+            <Button
+              onClick={retryStrategy}
+              disabled={isRetrying || (!persistentStrategy && strategyData?.status !== 'failed')}
+              variant="outline"
+              className="w-full"
+              data-testid="button-retry-strategy"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRetrying ? 'animate-spin' : ''}`} />
+              {isRetrying ? 'Retrying...' : 'Retry Strategy'}
+            </Button>
+          )}
+
+          {/* Strategy History Panel */}
+          {coords && (
+            <StrategyHistoryPanel 
+              userId={localStorage.getItem('vecto_user_id') || 'default'}
+              currentSnapshotId={lastSnapshotId}
+            />
           )}
         </div>
 
