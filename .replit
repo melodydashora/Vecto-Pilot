@@ -15,7 +15,7 @@ channel = "stable-25_05"
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
 # ✅ Source env for deployment too
-run = ["sh","-c","set -a && . ./mono-mode.env && set +a && node gateway-server.js"]
+run = ["node", "gateway-server.js"]
 
 [[ports]]
 localPort = 5000
