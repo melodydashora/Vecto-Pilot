@@ -27,11 +27,8 @@ Research and report on these specific categories. Return your response as JSON w
   "local_traffic": "Local traffic, construction, incidents, road closures",
   "weather_impacts": "Weather affecting travel",
   "events_nearby": "Events within 50 miles",
-  "holidays": "Primary holiday name if today is a holiday, otherwise empty string. Include federal holidays, state holidays, religious observances, and culturally significant celebrations (e.g., 'Día de los Muertos', 'Thanksgiving', 'Independence Day'). Return ONLY the most culturally relevant holiday name for the region.",
   "rideshare_intel": "Rideshare-specific intelligence (surge zones, airport activity, demand patterns)"
 }
-
-CRITICAL: For the 'holidays' field, use live web search to verify ALL holidays and observances for the exact date provided. Be comprehensive - check federal, state, religious, and cultural holidays. Use the exact date, time, and timezone provided in the request.
 
 Be thorough and factual. Use live web search for current information.`;
 
@@ -74,9 +71,9 @@ Please research and provide a comprehensive briefing covering:
    - Global weather systems affecting the region
    
 2. DOMESTIC/NATIONAL TRAVEL CONDITIONS for ${ctx.country}
-   - **CRITICAL: Use web search to research what holiday or holidays are observed on ${formattedDateTime} (${ctx.timezone}) in ${ctx.country} and specifically in ${ctx.state}. Include federal holidays, state holidays, religious observances, and cultural celebrations (e.g., Day of the Dead / Día de los Muertos). Return the most culturally significant holiday for this region in the 'holidays' field.**
    - Nationwide events affecting travel
    - Major transportation disruptions
+   - Airline/airport issues
    
 3. LOCAL AREA CONDITIONS (${ctx.city}, ${ctx.state})
    - Current traffic conditions and incidents
@@ -154,7 +151,6 @@ Use live web search to find current, factual information. Be comprehensive and o
         local_traffic: briefingText,
         weather_impacts: '',
         events_nearby: '',
-        holidays: '',
         rideshare_intel: ''
       };
     }
@@ -171,7 +167,6 @@ Use live web search to find current, factual information. Be comprehensive and o
         local_traffic: briefingData.local_traffic || '',
         weather_impacts: briefingData.weather_impacts || '',
         events_nearby: briefingData.events_nearby || '',
-        holidays: briefingData.holidays || '',
         rideshare_intel: briefingData.rideshare_intel || '',
         citations: citations,
         updated_at: new Date()
@@ -187,7 +182,6 @@ Use live web search to find current, factual information. Be comprehensive and o
         local_traffic: briefingData.local_traffic || '',
         weather_impacts: briefingData.weather_impacts || '',
         events_nearby: briefingData.events_nearby || '',
-        holidays: briefingData.holidays || '',
         rideshare_intel: briefingData.rideshare_intel || '',
         citations: citations,
         created_at: new Date(),
@@ -197,7 +191,7 @@ Use live web search to find current, factual information. Be comprehensive and o
       console.log(`[briefing] ✅ Created briefing for ${snapshotId}`);
     }
     
-    console.log(`[briefing] 📊 Structured data: global=${!!briefingData.global_travel}, domestic=${!!briefingData.domestic_travel}, local=${!!briefingData.local_traffic}, weather=${!!briefingData.weather_impacts}, events=${!!briefingData.events_nearby}, holidays="${briefingData.holidays}"`);
+    console.log(`[briefing] 📊 Structured data: global=${!!briefingData.global_travel}, domestic=${!!briefingData.domestic_travel}, local=${!!briefingData.local_traffic}, weather=${!!briefingData.weather_impacts}, events=${!!briefingData.events_nearby}, rideshare=${!!briefingData.rideshare_intel}`);
   } catch (error) {
     console.error(`[briefing] ❌ Error for ${snapshotId}:`, error.message);
     throw error;
