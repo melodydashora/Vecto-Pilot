@@ -14,7 +14,7 @@ export default defineConfig(async () => {
   const projectRoot = process.cwd();
 
   return {
-    base: '/app/',
+    base: '/',
     root: path.resolve(projectRoot, "client"),
     plugins: [
       react(),
