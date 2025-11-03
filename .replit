@@ -17,6 +17,10 @@ build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
 run = ["node", "gateway-server.js"]
 
 [[ports]]
+localPort = 3101
+externalPort = 3000
+
+[[ports]]
 localPort = 5000
 externalPort = 80
 
