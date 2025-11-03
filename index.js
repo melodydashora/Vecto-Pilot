@@ -1,5 +1,7 @@
 // index.js — Health-first shim with lazy module loading
 // CRITICAL: Minimal imports at top to ensure instant startup (<1 second)
+console.log('[index] BOOT v2.0.0 @', new Date().toISOString(), 'cwd=', process.cwd());
+
 import "dotenv/config";
 import express from "express";
 import http from "node:http";
