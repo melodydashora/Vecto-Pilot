@@ -3,6 +3,18 @@
 ## Overview
 This test suite validates the Block Schema Contract ensuring consistency between backend API responses and frontend rendering.
 
+## Quick Start (Seed + Test)
+
+### Run seed + tests (recommended)
+```bash
+./scripts/test-with-seed.sh
+```
+
+This script:
+1. Seeds test data (snapshot, strategy, briefing)
+2. Runs all block schema tests against seeded data
+3. Validates contract compliance
+
 ## Running the Tests
 
 ### Run all tests
@@ -12,7 +24,7 @@ NODE_OPTIONS='--experimental-vm-modules' npx jest
 
 ### Run block schema tests only
 ```bash
-NODE_OPTIONS='--experimental-vm-modules' npx jest tests/blocksApi.test.js
+TEST_SNAPSHOT_ID=test-snapshot-001 NODE_OPTIONS='--experimental-vm-modules' npx jest tests/blocksApi.test.js
 ```
 
 ### Run tests in watch mode
@@ -23,6 +35,24 @@ NODE_OPTIONS='--experimental-vm-modules' npx jest --watch
 ### Run with coverage
 ```bash
 NODE_OPTIONS='--experimental-vm-modules' npx jest --coverage
+```
+
+## Seeding Test Data
+
+### Seed development database
+```bash
+node scripts/seed-dev.js
+```
+
+This creates:
+- **Snapshot**: `test-snapshot-001` with San Francisco location
+- **Strategy**: Complete with consolidated text for block generation
+- **Briefing**: Perplexity research data
+
+After seeding, test endpoints:
+```bash
+GET /api/strategy/test-snapshot-001
+GET /api/blocks/strategy/test-snapshot-001
 ```
 
 ## Test Coverage

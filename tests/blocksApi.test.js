@@ -69,49 +69,45 @@ function validateBlock(block) {
 
 describe("Blocks API Contract", () => {
   describe("GET /api/blocks/strategy/:snapshotId", () => {
-    it("returns valid blocks structure", async () => {
-      // This test requires a seeded snapshot in your test database
-      // Skip if no test data available
-      const testSnapshotId = process.env.TEST_SNAPSHOT_ID || "test-snapshot-id";
+    it("returns valid blocks structure with seeded data", async () => {
+      // Use seeded snapshot ID from environment
+      const testSnapshotId = process.env.TEST_SNAPSHOT_ID || "test-snapshot-001";
       
       const res = await request(app)
         .get(`/api/blocks/strategy/${testSnapshotId}`)
         .set('Accept', 'application/json');
 
-      // Should return 200 or 404 (if snapshot doesn't exist)
-      expect([200, 404]).toContain(res.status);
+      // Should return 200 with seeded data
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('snapshot_id');
+      expect(res.body.snapshot_id).toBe(testSnapshotId);
+      expect(res.body).toHaveProperty('blocks');
+      expect(Array.isArray(res.body.blocks)).toBe(true);
+      expect(res.body.blocks.length).toBeGreaterThan(0);
 
-      // If snapshot exists, validate blocks
-      if (res.status === 200) {
-        expect(res.body).toHaveProperty('snapshot_id');
-        expect(res.body).toHaveProperty('blocks');
-        expect(Array.isArray(res.body.blocks)).toBe(true);
+      // Validate each block against schema
+      res.body.blocks.forEach((block) => {
+        expect(() => validateBlock(block)).not.toThrow();
+      });
 
-        // Validate each block against schema
-        res.body.blocks.forEach((block) => {
-          expect(() => validateBlock(block)).not.toThrow();
-        });
+      // Blocks should be ordered
+      const orders = res.body.blocks.map(b => b.order);
+      const sortedOrders = [...orders].sort((a, b) => a - b);
+      expect(orders).toEqual(sortedOrders);
 
-        // Blocks should be ordered
-        const orders = res.body.blocks.map(b => b.order);
-        const sortedOrders = [...orders].sort((a, b) => a - b);
-        expect(orders).toEqual(sortedOrders);
-
-        // All block IDs should be unique
-        const ids = res.body.blocks.map(b => b.id);
-        const uniqueIds = new Set(ids);
-        expect(uniqueIds.size).toBe(ids.length);
-      }
+      // All block IDs should be unique
+      const ids = res.body.blocks.map(b => b.id);
+      const uniqueIds = new Set(ids);
+      expect(uniqueIds.size).toBe(ids.length);
     });
 
-    it("rejects invalid snapshot ID format", async () => {
+    it("returns 404 for non-existent snapshot", async () => {
       const res = await request(app)
-        .get('/api/blocks/strategy/invalid-id')
+        .get('/api/blocks/strategy/00000000-0000-0000-0000-000000000000')
         .set('Accept', 'application/json');
 
       expect(res.status).toBe(404);
     });
-  });
 
   describe("Block validation function", () => {
     it("validates header block with all required fields", () => {
