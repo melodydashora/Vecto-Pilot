@@ -45,6 +45,20 @@ function spawnChild(name, command, args, env) {
   return child;
 }
 
+// Global error handlers - prevent crashes from unhandled errors
+process.on('uncaughtException', (err) => {
+  console.error('[gateway] ❌ Uncaught exception:', err);
+  // Don't exit in production - log and continue
+  if (process.env.NODE_ENV !== 'production') {
+    process.exit(1);
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[gateway] ❌ Unhandled rejection at:', promise, 'reason:', reason);
+  // Don't exit in production - log and continue
+});
+
 // Main bootstrap
 (async function main() {
   try {
@@ -115,7 +129,17 @@ function spawnChild(name, command, args, env) {
 
     // CRITICAL: Health endpoints FIRST (before any middleware or imports)
     // This ensures instant responses to deployment health checks
-    // Note: Don't register "/" here - let SPA handle it to avoid blocking the app
+    // Cloud Run checks "/" by default, so we need to handle it immediately
+    app.get('/', (_req, res) => {
+      // In deployment, return OK for health checks
+      // SPA will be mounted later as catch-all which won't override this
+      if (isDeployment) {
+        return res.status(200).send('OK');
+      }
+      // In dev, this will be overridden by SPA catch-all
+      res.status(200).send('OK');
+    });
+    app.head('/', (_req, res) => res.status(200).end());
     app.get('/health', (_req, res) => res.status(200).send('OK'));
     app.head('/health', (_req, res) => res.status(200).end());
     app.get('/ready', (_req, res) => res.status(200).send('OK'));
