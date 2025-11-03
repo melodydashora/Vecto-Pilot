@@ -3,13 +3,14 @@
 
 import { Router } from 'express';
 import { db } from '../db/drizzle.js';
-import { strategies, briefings } from '../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { strategies, briefings, snapshots } from '../../shared/schema.js';
+import { eq, desc } from 'drizzle-orm';
 import { ensureStrategyRow } from '../lib/strategy-utils.js';
 import { runMinStrategy } from '../lib/providers/minstrategy.js';
 import { runBriefing } from '../lib/providers/briefing.js';
 import { runHolidayCheck } from '../lib/providers/holiday-checker.js';
 import { safeElapsedMs } from './utils/safeElapsedMs.js';
+import crypto from 'crypto';
 
 export const router = Router();
 
@@ -142,6 +143,125 @@ router.get('/strategy/briefing/:snapshotId', async (req, res) => {
     });
   } catch (error) {
     console.error(`[strategy] GET briefing error:`, error);
+    res.status(500).json({ error: 'internal_error', message: error.message });
+  }
+});
+
+/** POST /api/strategy/:snapshotId/retry - Retry strategy generation with same location context */
+router.post('/strategy/:snapshotId/retry', async (req, res) => {
+  const { snapshotId } = req.params;
+  
+  try {
+    console.log(`[strategy] POST /api/strategy/${snapshotId}/retry - Retrying strategy generation...`);
+    
+    // Fetch the original snapshot and strategy
+    const [originalSnapshot] = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    
+    if (!originalSnapshot) {
+      return res.status(404).json({ error: 'original_snapshot_not_found', snapshot_id: snapshotId });
+    }
+    
+    // Create new snapshot with same location data but new timestamp
+    const newSnapshotId = crypto.randomUUID();
+    const now = new Date();
+    
+    await db.insert(snapshots).values({
+      snapshot_id: newSnapshotId,
+      created_at: now,
+      user_id: originalSnapshot.user_id,
+      device_id: originalSnapshot.device_id,
+      session_id: originalSnapshot.session_id,
+      lat: originalSnapshot.lat,
+      lng: originalSnapshot.lng,
+      accuracy_m: originalSnapshot.accuracy_m,
+      coord_source: originalSnapshot.coord_source,
+      city: originalSnapshot.city,
+      state: originalSnapshot.state,
+      country: originalSnapshot.country,
+      formatted_address: originalSnapshot.formatted_address,
+      timezone: originalSnapshot.timezone,
+      local_iso: originalSnapshot.local_iso,
+      dow: originalSnapshot.dow,
+      hour: originalSnapshot.hour,
+      day_part_key: originalSnapshot.day_part_key,
+      h3_r8: originalSnapshot.h3_r8,
+      weather: originalSnapshot.weather,
+      air: originalSnapshot.air,
+      airport_context: originalSnapshot.airport_context,
+      local_news: originalSnapshot.local_news,
+      news_briefing: originalSnapshot.news_briefing,
+      device: originalSnapshot.device,
+      permissions: originalSnapshot.permissions,
+      extras: originalSnapshot.extras,
+      trigger_reason: 'retry',
+      holiday: originalSnapshot.holiday,
+      is_holiday: originalSnapshot.is_holiday
+    });
+    
+    // Create strategy row and trigger generation
+    await ensureStrategyRow(newSnapshotId);
+    
+    // Kick providers in parallel
+    Promise.allSettled([
+      runHolidayCheck(newSnapshotId),
+      runMinStrategy(newSnapshotId),
+      runBriefing(newSnapshotId)
+    ]).catch(() => {});
+    
+    console.log(`[strategy] ✅ Retry triggered: new snapshot ${newSnapshotId}`);
+    
+    res.status(202).json({ 
+      ok: true,
+      new_snapshot_id: newSnapshotId,
+      original_snapshot_id: snapshotId,
+      status: 'pending'
+    });
+  } catch (error) {
+    console.error(`[strategy] Retry error:`, error);
+    res.status(500).json({ error: 'internal_error', message: error.message });
+  }
+});
+
+/** GET /api/strategy/history?user_id=X - Get all strategy attempts for a user */
+router.get('/strategy/history', async (req, res) => {
+  const { user_id } = req.query;
+  
+  if (!user_id) {
+    return res.status(400).json({ error: 'user_id_required' });
+  }
+  
+  try {
+    console.log(`[strategy] GET /api/strategy/history?user_id=${user_id}`);
+    
+    const attempts = await db.select({
+      snapshot_id: strategies.snapshot_id,
+      status: strategies.status,
+      created_at: strategies.created_at,
+      updated_at: strategies.updated_at,
+      has_consolidated: strategies.consolidated_strategy,
+      has_minstrategy: strategies.minstrategy,
+      error_message: strategies.error_message
+    })
+      .from(strategies)
+      .where(eq(strategies.user_id, user_id))
+      .orderBy(desc(strategies.created_at))
+      .limit(50);
+    
+    // Map database status to UI status
+    const mappedAttempts = attempts.map(a => ({
+      snapshot_id: a.snapshot_id,
+      status: a.has_consolidated ? 'complete' : 
+              a.status === 'failed' ? 'failed' : 
+              a.error_message ? 'write_failed' : 
+              'pending',
+      created_at: a.created_at,
+      updated_at: a.updated_at
+    }));
+    
+    res.json({ ok: true, attempts: mappedAttempts });
+  } catch (error) {
+    console.error(`[strategy] GET history error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
