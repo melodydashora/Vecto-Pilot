@@ -141,17 +141,13 @@ function spawnChild(name, command, args, env) {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const distDir = path.join(__dirname, "client", "dist");
 
-    // Probe logging (for visibility into health checks)
-    app.use((req, _res, next) => {
-      if (req.path === '/health' || req.path === '/healthz' || req.path === '/ready') {
-        console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
-      }
-      next();
-    });
-
-    // Health endpoints
+    // CRITICAL: Health endpoints FIRST (before any middleware)
+    // This ensures supervisor probes get instant 200 OK responses
+    app.get('/', (_req, res) => res.status(200).send('OK'));
+    app.head('/', (_req, res) => res.status(200).end());
     app.get("/health", (_req, res) => res.status(200).send("OK"));
     app.head("/health", (_req, res) => res.status(200).end());
+    app.get('/ready', (_req, res) => res.status(200).send('READY'));
     app.get("/healthz", (_req, res) => {
       const indexPath = path.join(distDir, "index.html");
       if (fs.existsSync(indexPath)) {
@@ -160,16 +156,24 @@ function spawnChild(name, command, args, env) {
       return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
     });
 
+    // Probe logging (after health routes so they're already answered)
+    app.use((req, _res, next) => {
+      if (req.path === '/health' || req.path === '/healthz' || req.path === '/ready' || req.path === '/') {
+        console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
+      }
+      next();
+    });
+
     // Serve SPA static assets
     app.use(express.static(distDir));
 
-    // Start HTTP server
+    // Start HTTP server (wrap Express with http.createServer for timeout control)
     const server = http.createServer(app);
     
-    // Set server timeouts (consistent with autoscale mode)
-    server.requestTimeout = 10000;   // 10s to receive full request
-    server.headersTimeout = 11000;   // must exceed requestTimeout
-    server.keepAliveTimeout = 5000;  // avoid long-lived idle sockets
+    // Set strict server timeouts (prevent probe hangs)
+    server.requestTimeout = 5000;    // 5s max to receive full request
+    server.headersTimeout = 6000;    // 6s max for headers (must exceed requestTimeout)
+    server.keepAliveTimeout = 5000;  // 5s keep-alive to avoid long-lived idle sockets
     
     server.on('error', (err) => {
       console.error('[gateway] ❌ Server error:', err);

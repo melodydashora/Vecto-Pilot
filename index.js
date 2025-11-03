@@ -1,54 +1,43 @@
-// CRITICAL: Force unbuffered stdout for supervisor visibility
-if (process.stdout.isTTY === false) {
-  process.stdout._handle.setBlocking(true);
+// BOOT PROOF — must appear in supervisor logs (ESM version)
+try {
+  console.log('[index] BOOT MARK', new Date().toISOString(), {
+    cwd: process.cwd(),
+    path: import.meta.url,
+    argv: process.argv,
+    node: process.version,
+    pid: process.pid,
+  });
+} catch (e) {
+  console.log('[index] BOOT MARK (fallback)', new Date().toISOString(), e?.message);
 }
-if (process.stderr.isTTY === false) {
-  process.stderr._handle.setBlocking(true);
-}
-
-// BOOT MARKER - must appear immediately
-const bootMsg = '[index] BOOT ' + new Date().toISOString() + ' pid=' + process.pid + '\n';
-process.stdout.write(bootMsg);
-process.stderr.write(bootMsg);
 
 import http from 'node:http';
 
-function getArg(name){ const p=`--${name}=`; const a=process.argv.find(s=>s.startsWith(p)); return a ? a.slice(p.length) : undefined; }
+function getArg(name){const p=`--${name}=`, a=process.argv.find(s=>s.startsWith(p)); return a? a.slice(p.length):undefined;}
 const PORT = Number(getArg('port') || process.env.EIDOLON_PORT || process.env.PORT || 3101);
 const HOST = getArg('host') || process.env.HOST || '0.0.0.0';
 
-process.stdout.write('[index] PORT=' + PORT + ' HOST=' + HOST + '\n');
+// Log port/host immediately
+console.log('[index] CONFIG:', { PORT, HOST, EIDOLON_PORT: process.env.EIDOLON_PORT });
 
-// Ensure downstream sees the right values
-process.env.PORT = String(PORT);
-process.env.EIDOLON_PORT = String(PORT);
-process.env.HOST = HOST;
-
-const BASE_DIR = process.env.BASE_DIR || "/home/runner/workspace";
-const EIDOLON_VERSION = process.env.EIDOLON_VERSION || "2.0.0";
-
-// Minimal, immediate responder for the supervisor probe
-function healthResponder(req, res) {
+function responder(req, res) {
   const u = req.url || '/';
-  if (req.method === 'HEAD' && (u === '/' || u === '/health')) {
-    res.statusCode = 200; res.end(); return;
-  }
-  if (req.method === 'GET' && (u === '/' || u === '/health' || u === '/ready')) {
+  if (req.method === 'HEAD' && (u === '/' || u === '/health')) { res.statusCode = 200; res.end(); return; }
+  if (req.method === 'GET'  && (u === '/' || u === '/health' || u === '/ready')) {
     res.statusCode = 200; res.setHeader('Content-Type','text/plain'); res.end('OK'); return;
   }
-  // Be permissive during boot — keep the probe happy
   res.statusCode = 200; res.setHeader('Content-Type','text/plain'); res.end('OK');
 }
 
-const server = http.createServer(healthResponder);
+const server = http.createServer(responder);
+server.requestTimeout = 5000;
+server.headersTimeout  = 6000;
+server.keepAliveTimeout = 5000;
 
 server.on('error', (err) => {
-  const errMsg = '[index] LISTEN ERROR: ' + err.code + ' ' + err.message + '\n';
-  process.stderr.write(errMsg);
   console.error('[index] LISTEN ERROR:', err.code, err.message);
-  
   if (err.code === 'EADDRINUSE') {
-    process.stderr.write('[index] Port ' + PORT + ' already in use - exiting\n');
+    console.error('[index] Port', PORT, 'already in use - FATAL');
     process.exit(1);
   }
 });
@@ -56,23 +45,12 @@ server.on('error', (err) => {
 server.on('listening', () => {
   const a = server.address();
   const where = a && typeof a === 'object' ? `${a.address}:${a.port}` : String(a);
-  // Force immediate stdout/stderr for supervisor (both streams)
-  const listenMsg = '[index] LISTENING ' + where + '\n';
-  process.stdout.write(listenMsg);
-  process.stderr.write(listenMsg);
-  console.log(`🧠 Eidolon ${EIDOLON_VERSION} - Health shim active`);
-  console.log(`[eidolon] Workspace: ${BASE_DIR}`);
+  console.log('[index] LISTENING', where);
+  console.log('[index] ✅ Health probe ready - answering GET/HEAD on /, /health, /ready');
 });
 
-// Tight timeouts so sockets never hang the probe
-server.requestTimeout = 5000;
-server.headersTimeout = 6000;
-server.keepAliveTimeout = 5000;
-
+console.log('[index] About to listen on', HOST, PORT);
 server.listen(PORT, HOST);
-
-// Global state for shutdown coordination
-let isShuttingDown = false;
 
 // Defer heavy stuff; swap to real app after we're listening
 setImmediate(async () => {
@@ -95,7 +73,7 @@ setImmediate(async () => {
     app.use((req, _res, next) => {
       if ((req.method === 'GET' || req.method === 'HEAD') && 
           (req.path === '/' || req.path === '/health' || req.path === '/ready')) {
-        console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
+        console.log(`[probe] ${req.method} ${req.path}`);
       }
       next();
     });
@@ -185,17 +163,6 @@ setImmediate(async () => {
     server.removeAllListeners('request');
     server.on('request', app);
     console.log('[index] SWAPPED to Express handler');
-    
-    // Agent spawn is skipped (gateway manages it)
-    console.log("[eidolon] agent spawn skipped (gateway manages it)");
-    console.log("[eidolon] ✅ Ready for gateway proxy connections");
-    
-    if (process.env.REPL_ID) {
-      console.log(
-        `[eidolon] Gateway Preview: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`,
-      );
-    }
-    
     console.log('[index] ✅ Full application loaded and ready');
     
   } catch (e) {
@@ -207,9 +174,9 @@ setImmediate(async () => {
 // Graceful shutdown
 function gracefulShutdown(signal) {
   console.log(`[index] ${signal} received, shutting down gracefully...`);
-  isShuttingDown = true;
   if (server) {
     server.close(() => {
+      console.log('[index] Server closed');
       process.exit(0);
     });
   } else {
