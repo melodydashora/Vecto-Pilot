@@ -186,11 +186,11 @@ function waitHealth(url, timeoutMs = 15000) {
   });
 }
 
-const healthUrl = `http://localhost:${PORT}/api/health`;
+const healthUrl = `http://localhost:${PORT}/health`;
 
 waitHealth(healthUrl)
   .then(() => {
-    console.log(`[boot] ✅ Server ready at http://localhost:${PORT}`);
+    console.log(`[boot] ✅ Server ready at http://0.0.0.0:${PORT}`);
   })
   .catch((e) => {
     console.error('[boot] ❌ Health check failed:', e.message);
