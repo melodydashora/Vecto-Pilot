@@ -38,7 +38,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
   
   console.log(`[ENHANCED-BLOCKS] ✅ Input validation passed`);
   console.log(`[ENHANCED-BLOCKS] Strategy preview: "${consolidated.slice(0, 100)}..."`);
-  console.log(`[ENHANCED-BLOCKS] Briefing: events=${briefing.events?.length || 0}, holidays=${briefing.holidays?.length || 0}, traffic=${briefing.traffic?.length || 0}, news=${briefing.news?.length || 0}`);
+  console.log(`[ENHANCED-BLOCKS] Briefing fields: ${Object.keys(briefing).filter(k => briefing[k]).join(', ')}`);
   console.log(`[ENHANCED-BLOCKS] Location: ${snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`}`);
   
   try {
