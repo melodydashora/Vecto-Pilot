@@ -1,11 +1,23 @@
-// --- BOOT MARKERS (must appear in supervisor logs) ---
-console.log('[index] BOOT A', new Date().toISOString(), 'cwd=', process.cwd(), 'url=', import.meta.url);
+// CRITICAL: Force unbuffered stdout for supervisor visibility
+if (process.stdout.isTTY === false) {
+  process.stdout._handle.setBlocking(true);
+}
+if (process.stderr.isTTY === false) {
+  process.stderr._handle.setBlocking(true);
+}
+
+// BOOT MARKER - must appear immediately
+const bootMsg = '[index] BOOT ' + new Date().toISOString() + ' pid=' + process.pid + '\n';
+process.stdout.write(bootMsg);
+process.stderr.write(bootMsg);
 
 import http from 'node:http';
 
 function getArg(name){ const p=`--${name}=`; const a=process.argv.find(s=>s.startsWith(p)); return a ? a.slice(p.length) : undefined; }
 const PORT = Number(getArg('port') || process.env.EIDOLON_PORT || process.env.PORT || 3101);
 const HOST = getArg('host') || process.env.HOST || '0.0.0.0';
+
+process.stdout.write('[index] PORT=' + PORT + ' HOST=' + HOST + '\n');
 
 // Ensure downstream sees the right values
 process.env.PORT = String(PORT);
@@ -31,9 +43,12 @@ function healthResponder(req, res) {
 const server = http.createServer(healthResponder);
 
 server.on('error', (err) => {
+  const errMsg = '[index] LISTEN ERROR: ' + err.code + ' ' + err.message + '\n';
+  process.stderr.write(errMsg);
   console.error('[index] LISTEN ERROR:', err.code, err.message);
+  
   if (err.code === 'EADDRINUSE') {
-    console.error(`[index] Port ${PORT} is already in use. Exiting...`);
+    process.stderr.write('[index] Port ' + PORT + ' already in use - exiting\n');
     process.exit(1);
   }
 });
@@ -41,7 +56,10 @@ server.on('error', (err) => {
 server.on('listening', () => {
   const a = server.address();
   const where = a && typeof a === 'object' ? `${a.address}:${a.port}` : String(a);
-  console.log('[index] LISTENING', where); // <-- must appear within ~1s
+  // Force immediate stdout/stderr for supervisor (both streams)
+  const listenMsg = '[index] LISTENING ' + where + '\n';
+  process.stdout.write(listenMsg);
+  process.stderr.write(listenMsg);
   console.log(`🧠 Eidolon ${EIDOLON_VERSION} - Health shim active`);
   console.log(`[eidolon] Workspace: ${BASE_DIR}`);
 });
