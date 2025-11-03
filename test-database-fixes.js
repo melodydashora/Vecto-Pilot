@@ -97,7 +97,9 @@ async function runTests() {
     const memoryTables = ['agent_memory', 'assistant_memory', 'eidolon_memory', 'cross_thread_memory'];
     for (const table of memoryTables) {
       try {
-        await db.execute(sql.raw(`SELECT 1 FROM ${table} LIMIT 1`));
+        // Table names from hardcoded whitelist are safe to use
+        const query = `SELECT 1 FROM ${table} LIMIT 1`;
+        await db.execute(sql.raw(query));
         logTest(`${table} table`, true);
       } catch (err) {
         logTest(`${table} table`, false, err.message);
@@ -109,7 +111,9 @@ async function runTests() {
     const mlTables = ['snapshots', 'strategies', 'rankings', 'actions'];
     for (const table of mlTables) {
       try {
-        await db.execute(sql.raw(`SELECT 1 FROM ${table} LIMIT 1`));
+        // Table names from hardcoded whitelist are safe to use
+        const query = `SELECT 1 FROM ${table} LIMIT 1`;
+        await db.execute(sql.raw(query));
         logTest(`${table} table`, true);
       } catch (err) {
         logTest(`${table} table`, false, err.message);
