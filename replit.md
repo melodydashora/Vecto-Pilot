@@ -1,82 +1,63 @@
 # Vecto Pilot™ - Rideshare Intelligence Platform
 
 ## Overview
-Vecto Pilot is an AI-powered rideshare intelligence platform for drivers globally. Its primary purpose is to maximize driver earnings through real-time, data-driven strategic briefings, providing a significant market advantage through advanced AI and data analytics. The platform integrates various data sources (location, events, traffic, weather, air quality) and utilizes a multi-AI pipeline to generate actionable strategies.
+Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximize rideshare driver earnings. It achieves this by providing real-time, data-driven strategic briefings, leveraging advanced AI and data analytics. The platform integrates diverse data sources such as location, events, traffic, weather, and air quality to generate actionable strategies for drivers.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
-Vecto Pilot is a full-stack Node.js application designed with a multi-service architecture, supporting both monolithic and split deployments.
+Vecto Pilot is a full-stack Node.js application built with a multi-service architecture, supporting both monolithic and split deployments.
 
 **Core Services**:
--   **Gateway Server**: Manages client traffic, serves the React SPA, routes requests, and handles child processes.
+-   **Gateway Server**: Handles client traffic, serves the React SPA, routes requests, and manages child processes.
 -   **SDK Server**: Provides business logic via a REST API for data services (location, venue, weather, air quality) and the ML data pipeline.
--   **Agent Server**: Delivers workspace intelligence, including secure, token-based access.
+-   **Agent Server**: Delivers workspace intelligence with secure, token-based access.
 
 **AI Configuration**:
-The platform employs a **role-based, model-agnostic architecture** with configurable AI models.
--   **Strategy Generation Pipeline**: An event-driven 3-step pipeline:
-    1. **Strategist** (Claude): Generates strategic overview → writes to `strategies.minstrategy`
-    2. **Briefer** (Perplexity): Comprehensive travel research (global/domestic/local + holidays + events within 50mi) → writes to structured `briefings` table
-    3. **Consolidator** (GPT-5 with reasoning): Reads strategist output, performs own web research, consolidates → writes to `strategies.consolidated_strategy`
--   **Briefing Data Structure**: Dedicated `briefings` table with structured fields: `global_travel`, `domestic_travel`, `local_traffic`, `weather_impacts`, `events_nearby`, `holidays`, `rideshare_intel`, and `citations`
--   **Model-Agnostic Schema**: Database columns and environment variables use generic role names to prevent provider-specific coupling.
--   **Event-Driven Architecture**: PostgreSQL LISTEN/NOTIFY is used for real-time updates.
+The platform uses a role-based, model-agnostic architecture with configurable AI models.
+-   **Strategy Generation Pipeline**: An event-driven, three-step pipeline:
+    1.  **Strategist** (Claude): Generates a strategic overview.
+    2.  **Briefer** (Perplexity): Conducts comprehensive travel research (global, domestic, local, holidays, nearby events).
+    3.  **Consolidator** (GPT-5 with reasoning): Consolidates strategist output with additional web research.
+-   **Briefing Data Structure**: Dedicated `briefings` table with structured fields for various intelligence categories and citations.
+-   **Model-Agnostic Schema**: Database and environment variables use generic role names to avoid provider-specific coupling.
+-   **Event-Driven Architecture**: PostgreSQL LISTEN/NOTIFY for real-time updates.
 
 **Frontend Architecture**:
-A **React + TypeScript Single Page Application (SPA)**, built with Vite, uses Radix UI, TailwindCSS, and React Query.
--   **UI Layout**: Features a Strategy Section for consolidated strategies, Smart Blocks for ranked venue recommendations, an AI Strategy Coach, and a Rideshare Briefing Tab for practical intelligence. Key updates include a restructured Co-Pilot page with a dedicated AI Strategy Coach chat interface and a consistently visible holiday/greeting banner.
--   **Strategy Retry & History**: Implements immutable strategy history with retry workflow. Users can retry strategy generation (creates new snapshot with same location context), and view all past attempts with status-specific UI (pending, complete, failed, write_failed). History panel shows timestamps, status icons, and snapshot IDs for audit trail.
+A React + TypeScript Single Page Application (SPA), built with Vite, uses Radix UI, TailwindCSS, and React Query. The UI features a Strategy Section, Smart Blocks for venue recommendations, an AI Strategy Coach, and a Rideshare Briefing Tab. It includes immutable strategy history with a retry workflow and status-specific UI.
 
 **Data Storage**:
-A **PostgreSQL Database** with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It includes enhanced memory systems and uses unique indexes for data integrity.
+A PostgreSQL Database with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes for data integrity and enhanced memory systems.
 
 **Authentication & Security**:
-Uses **JWT with RS256 Asymmetric Keys**, with security middleware for rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.
+Employs JWT with RS256 Asymmetric Keys, with security middleware for rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.
 
 **Deployment & Reliability**:
-Supports **Mono Mode** and **Split Mode**. Reliability features include health-gated entry points, unified port binding, proxy gating, WebSocket protection, and process discipline.
+Supports Mono Mode and Split Mode, with reliability features like health-gated entry points, unified port binding, proxy gating, WebSocket protection, and process discipline.
 
 **Data Integrity**:
 Geographic computations use snapshot coordinates. Strategy refresh is triggered by location movement, day part changes, or manual refresh. Strategies have explicit validity windows and an auto-invalidation mechanism, with snapshot date/time fields as the single source of truth for all AI outputs.
 
 **Process Management**:
-In Mono Mode, the **Gateway Server** and the **Triad Worker** (background job processor for strategy generation) run as separate processes.
+In Mono Mode, the Gateway Server and the Triad Worker (background job processor for strategy generation) run as separate processes.
 
 **Strategy-First Gating & Pipeline**:
 API access is gated until a strategy is ready. The pipeline involves parallel execution of AI models, followed by consolidation.
 
 **AI Coach Data Access Layer (CoachDAL)**:
-A read-only Data Access Layer provides the AI Strategy Coach with snapshot-scoped, null-safe access to comprehensive driver context, including temporal data, strategy, briefing information, and venue recommendations. Consolidated strategy outputs prioritize city-level references over full street addresses for privacy.
+A read-only Data Access Layer provides the AI Strategy Coach with snapshot-scoped, null-safe access to comprehensive driver context, including temporal data, strategy, briefing information, and venue recommendations. Consolidated strategy outputs prioritize city-level references for privacy.
 
-## Recent Changes (Nov 3, 2025)
+**Environment Files Structure**:
+Uses a hierarchical environment configuration system: `.env` (base config), `mono-mode.env` (deployment overrides), and Replit Secrets (API keys, highest priority).
 
-### Worker Database Connection Fix ✅ RESOLVED
-Fixed critical issue preventing Smart Blocks generation - worker couldn't establish LISTEN connection to database.
+**Database Schema Highlights**:
+Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking_candidates`, and `venue_events`, linked by relationships. JSONB is used for flexible storage of features, business hours, and venue events.
 
-**Root Cause:** Neon's pooled connection (`DATABASE_URL` with `-pooler` suffix) uses pgBouncer which does NOT support LISTEN/NOTIFY.
-
-**Solution:**
-1. Modified `db-client.js` to use `DATABASE_URL_UNPOOLED` for LISTEN connections (removes pgBouncer intermediary)
-2. Added worker output redirection to `/tmp/worker-output.log` in `scripts/start-replit.js` for debugging
-3. Added unbuffered console output and error handlers in `strategy-generator.js`
-
-**Verification:**
-- Worker establishes dedicated connection with `application_name='triad-listener'`
-- Successfully executes `LISTEN strategy_ready` command
-- Receives NOTIFY events and triggers Smart Blocks generation
-- GPT-5 venue planner pipeline confirmed working
-
-### Smart Blocks Bug Fixes (Completed)
-Fixed 7 critical bugs preventing Smart Blocks generation after briefing table migration:
-1. **Worker data fetching**: Updated `triad-worker.js` to fetch briefing from separate `briefings` table
-2. **Gateway duplicate listener**: Removed inline consolidation listener from `gateway-server.js`
-3. **Worker logic flow**: Refactored notification handler to always generate Smart Blocks when consolidated strategy exists
-4. **DB client cleanup**: Removed automatic LISTEN and conflicting notification handler from `db-client.js`
-5. **Schema validation**: Updated `hasRenderableBriefing()` to support new briefing table structure
-6. **Logging**: Updated Smart Blocks logging for new briefing structure
-7. **Database connection**: Fixed LISTEN/NOTIFY support by using unpooled connection (see above)
+**API Routes Architecture**:
+-   **Strategy Pipeline**: `POST /api/strategy/request` to trigger AI pipeline; `GET /api/strategy/:snapshotId` to fetch.
+-   **Smart Blocks**: `GET /api/blocks-fast` to fetch; `POST /api/blocks-fast` to generate. Strategy-first gating returns HTTP 202 until strategy is ready.
+-   **AI Coach**: `POST /api/coach/chat` for context-aware chat via CoachDAL.
 
 ## External Dependencies
 
@@ -86,10 +67,12 @@ Fixed 7 critical bugs preventing Smart Blocks generation after briefing table mi
 -   **Weather and Air Quality**: Configurable via environment variables.
 
 ### Database
--   **PostgreSQL**: Primary data store, managed by Drizzle ORM.
+-   **PostgreSQL (Neon)**: Primary data store, managed by Drizzle ORM.
+-   **Connection Modes**: Pooled (`DATABASE_URL`) for queries, Unpooled (`DATABASE_URL_UNPOOLED`) for LISTEN/NOTIFY.
 
 ### Infrastructure
 -   **Replit Platform**: Deployment, Nix environment, `.replit` configuration.
+-   **Port Configuration**: Single port (5000) for autoscale health checks.
 
 ### Frontend Libraries
 -   **UI Components**: Radix UI, Chart.js.
