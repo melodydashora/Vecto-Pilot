@@ -15,29 +15,24 @@ export async function detectHoliday(context) {
       return { holiday: null, is_holiday: false };
     }
 
-    // Format date/time for prompt
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const currentTime = new Date(context.created_at);
-    const monthName = monthNames[currentTime.getMonth()];
-    const dayNum = currentTime.getDate();
-    const year = currentTime.getFullYear();
+    // Format date/time for prompt (CRITICAL: Convert UTC to local timezone)
+    const utcTime = new Date(context.created_at);
+    const userTimezone = context.timezone || 'America/Chicago';
     
-    const timeStr = currentTime.toLocaleTimeString('en-US', {
+    // Get all components in user's local timezone
+    const dateFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: userTimezone,
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'long',
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
-      timeZoneName: 'short',
-      timeZone: context.timezone || 'America/Chicago'
+      timeZoneName: 'short'
     });
     
-    // Get day of week
-    const dayFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: context.timezone || 'America/Chicago',
-      weekday: 'long'
-    });
-    const dayOfWeek = dayFormatter.format(currentTime);
-    
-    const formattedDateTime = `${dayOfWeek}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
+    const formattedDateTime = dateFormatter.format(utcTime);
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
