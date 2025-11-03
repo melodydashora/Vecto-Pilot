@@ -21,7 +21,34 @@ export function subscribeStrategyReady(onReady: (snapshotId: string) => void) {
   });
   
   return () => {
-    console.log('[SSE] Closing connection');
+    console.log('[SSE] Closing strategy events connection');
+    es.close();
+  };
+}
+
+export function subscribeBlocksReady(onReady: (data: { ranking_id: string; snapshot_id: string }) => void) {
+  const es = new EventSource('/events/blocks');
+  
+  es.addEventListener('blocks_ready', (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data);
+      console.log('[SSE] Blocks ready event received:', data);
+      onReady(data);
+    } catch (err) {
+      console.error('[SSE] Failed to parse blocks_ready event:', err);
+    }
+  });
+  
+  es.addEventListener('open', () => {
+    console.log('[SSE] Connected to blocks events');
+  });
+  
+  es.addEventListener('error', (err) => {
+    console.error('[SSE] EventSource error:', err);
+  });
+  
+  return () => {
+    console.log('[SSE] Closing blocks events connection');
     es.close();
   };
 }
