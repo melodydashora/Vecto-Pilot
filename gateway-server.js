@@ -141,6 +141,14 @@ function spawnChild(name, command, args, env) {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const distDir = path.join(__dirname, "client", "dist");
 
+    // Probe logging (for visibility into health checks)
+    app.use((req, _res, next) => {
+      if (req.path === '/health' || req.path === '/healthz' || req.path === '/ready') {
+        console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
+      }
+      next();
+    });
+
     // Health endpoints
     app.get("/health", (_req, res) => res.status(200).send("OK"));
     app.head("/health", (_req, res) => res.status(200).end());
@@ -157,6 +165,12 @@ function spawnChild(name, command, args, env) {
 
     // Start HTTP server
     const server = http.createServer(app);
+    
+    // Set server timeouts (consistent with autoscale mode)
+    server.requestTimeout = 10000;   // 10s to receive full request
+    server.headersTimeout = 11000;   // must exceed requestTimeout
+    server.keepAliveTimeout = 5000;  // avoid long-lived idle sockets
+    
     server.on('error', (err) => {
       console.error('[gateway] ❌ Server error:', err);
       process.exit(1);
