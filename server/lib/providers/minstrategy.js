@@ -62,18 +62,29 @@ Provide a brief strategic assessment of positioning opportunities for the next h
     const text = result.output;
     
     // Write to model-agnostic field
-    await db.update(strategies).set({
-      minstrategy: text,
-      user_resolved_address: ctx.formatted_address,
-      user_resolved_city: ctx.city,
-      user_resolved_state: ctx.state,
-      strategy_timestamp: new Date(),
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId));
+    try {
+      await db.update(strategies).set({
+        minstrategy: text,
+        user_resolved_address: ctx.formatted_address,
+        user_resolved_city: ctx.city,
+        user_resolved_state: ctx.state,
+        strategy_timestamp: new Date(),
+        updated_at: new Date()
+      }).where(eq(strategies.snapshot_id, snapshotId));
+    } catch (dbError) {
+      console.error(`[minstrategy] ❌ Database UPDATE failed for ${snapshotId}:`, {
+        error: dbError.message,
+        code: dbError.code,
+        detail: dbError.detail,
+        hint: dbError.hint,
+        stack: dbError.stack
+      });
+      throw dbError;
+    }
 
     console.log(`[minstrategy] ✅ Complete for ${snapshotId} (${text?.length || 0} chars)`);
   } catch (error) {
-    console.error(`[minstrategy] ❌ Error for ${snapshotId}:`, error.message);
+    console.error(`[minstrategy] ❌ Error for ${snapshotId}:`, error.message, error.stack);
     throw error;
   }
 }
