@@ -14,8 +14,8 @@ channel = "stable-25_05"
 # Deployment settings (CI-like build/start)
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
-run = ["node", "gateway-server.js"]
-
+# ✅ Source env for deployment too
+run = ["sh","-c","set -a && . ./mono-mode.env && set +a && node gateway-server.js"]
 
 [[ports]]
 localPort = 5000
@@ -36,4 +36,3 @@ args = "set -a && . mono-mode.env && set +a && npm run start:replit"
 
 [agent]
 integrations = ["perplexity_v0:1.0.0"]
-
