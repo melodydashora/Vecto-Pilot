@@ -19,6 +19,7 @@ interface SmartBlocksStatusProps {
   blocksError?: Error | null;
   timeElapsedMs?: number;
   snapshotId?: string | null;
+  venueLoadingProgress?: number;
 }
 
 export function SmartBlocksStatus({
@@ -29,7 +30,8 @@ export function SmartBlocksStatus({
   isBlocksLoading,
   blocksError,
   timeElapsedMs,
-  snapshotId
+  snapshotId,
+  venueLoadingProgress = 0
 }: SmartBlocksStatusProps) {
   // Determine pipeline stage
   const getPipelineStage = () => {
@@ -74,18 +76,12 @@ export function SmartBlocksStatus({
                     ? `Generating... ${timeElapsedMs ? `${Math.round(timeElapsedMs / 1000)}s elapsed` : ''}` 
                     : 'Waiting for strategy...'}
               </p>
-              {strategyStatus && (
+              {strategyReady && (
                 <Badge 
                   variant="outline" 
-                  className={`mt-1 text-xs ${
-                    strategyStatus === 'ok' || strategyStatus === 'complete'
-                      ? 'border-green-500 text-green-700 bg-green-50' 
-                      : strategyStatus === 'pending'
-                      ? 'border-blue-500 text-blue-700 bg-blue-50'
-                      : 'border-red-500 text-red-700 bg-red-50'
-                  }`}
+                  className="mt-1 text-xs border-green-500 text-green-700 bg-green-50"
                 >
-                  {strategyStatus}
+                  ok
                 </Badge>
               )}
             </div>
@@ -112,23 +108,23 @@ export function SmartBlocksStatus({
                   : blocksError 
                     ? `Error: ${blocksError.message}`
                     : isBlocksLoading 
-                      ? 'GPT-5 analyzing venues and enriching with Google APIs...'
+                      ? 'Enrichment beginning...'
                       : !strategyReady
                         ? 'Waiting for strategy to complete...'
                         : 'Waiting for worker to generate venues...'}
               </p>
-              {isBlocksLoading && (
+              {(isBlocksLoading || (strategyReady && !hasBlocks && venueLoadingProgress > 0)) && (
                 <div className="mt-2">
                   <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
                     <div 
-                      className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 rounded-full"
+                      className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 rounded-full transition-all duration-500"
                       style={{
-                        animation: 'progressBar 120s linear forwards',
+                        width: `${venueLoadingProgress}%`,
                       }}
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    This may take up to 2 minutes
+                    Venues can take up to 3 minutes to load
                   </p>
                 </div>
               )}

@@ -270,6 +270,10 @@ const CoPilot: React.FC = () => {
   // Subscribe to SSE blocks_ready events (event-driven, no polling!)
   const [blocksReadyForSnapshot, setBlocksReadyForSnapshot] = useState<string | null>(null);
   
+  // Venue loading state with 2-minute progress bar
+  const [venueLoadingStartTime, setVenueLoadingStartTime] = useState<number | null>(null);
+  const [venueLoadingProgress, setVenueLoadingProgress] = useState(0);
+  
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
     
@@ -278,6 +282,7 @@ const CoPilot: React.FC = () => {
       if (data.snapshot_id === lastSnapshotId) {
         console.log('🎉 Blocks ready for current snapshot! Fetching now...');
         setBlocksReadyForSnapshot(data.snapshot_id);
+        setVenueLoadingProgress(100); // Complete the loading bar
         // Invalidate blocks query to trigger fetch
         queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
       }
@@ -285,6 +290,58 @@ const CoPilot: React.FC = () => {
     
     return unsubscribe;
   }, [lastSnapshotId]);
+  
+  // Start venue loading timer when strategy becomes ready
+  useEffect(() => {
+    const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
+    const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
+    
+    if (strategyReady && snapshotMatches && !venueLoadingStartTime && !blocksReadyForSnapshot) {
+      const now = Date.now();
+      console.log('⏰ Strategy ready - starting venue loading timer (2-3 minutes)');
+      setVenueLoadingStartTime(now);
+      setVenueLoadingProgress(0);
+    }
+    
+    // Reset when snapshot changes
+    if (lastSnapshotId && strategyData?._snapshotId !== lastSnapshotId) {
+      setVenueLoadingStartTime(null);
+      setVenueLoadingProgress(0);
+    }
+  }, [strategyData, lastSnapshotId, venueLoadingStartTime, blocksReadyForSnapshot]);
+  
+  // Update progress bar every second (simulate 2-minute loading, max 3 minutes)
+  useEffect(() => {
+    if (!venueLoadingStartTime || blocksReadyForSnapshot) return;
+    
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - venueLoadingStartTime;
+      const twoMinutes = 120000; // 2 minutes
+      const threeMinutes = 180000; // 3 minutes max
+      
+      // Progress to 90% at 2 minutes, then slow to 100% at 3 minutes
+      let progress;
+      if (elapsed < twoMinutes) {
+        progress = (elapsed / twoMinutes) * 90;
+      } else if (elapsed < threeMinutes) {
+        const remainingTime = elapsed - twoMinutes;
+        const remainingProgress = (remainingTime / (threeMinutes - twoMinutes)) * 10;
+        progress = 90 + remainingProgress;
+      } else {
+        progress = 100;
+      }
+      
+      setVenueLoadingProgress(Math.min(100, progress));
+      
+      // Auto-complete after 3 minutes
+      if (elapsed >= threeMinutes) {
+        setBlocksReadyForSnapshot(lastSnapshotId);
+        queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [venueLoadingStartTime, blocksReadyForSnapshot, lastSnapshotId]);
 
   // Update persistent strategy when new strategy arrives
   useEffect(() => {
@@ -1575,6 +1632,7 @@ const CoPilot: React.FC = () => {
               blocksError={error as Error | null}
               timeElapsedMs={strategyData?.timeElapsedMs}
               snapshotId={lastSnapshotId}
+              venueLoadingProgress={venueLoadingProgress}
             />
           </div>
         )}
