@@ -1,5 +1,4 @@
 
-#!/usr/bin/env node
 /**
  * Duplicate Code Finder with File Age Detection
  * 
