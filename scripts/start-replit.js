@@ -132,8 +132,13 @@ const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true' && !is
 let worker = null;
 if (shouldStartWorker) {
   console.log('[boot] ⚡ Starting triad worker...');
+  
+  // Open log file for worker output
+  const { openSync } = await import('node:fs');
+  const workerLogFd = openSync('/tmp/worker-output.log', 'a');
+  
   worker = spawn('node', ['strategy-generator.js'], {
-    stdio: 'inherit',
+    stdio: ['ignore', workerLogFd, workerLogFd],
     env: { ...process.env } // ensure explicit env propagation
   });
 
@@ -146,6 +151,7 @@ if (shouldStartWorker) {
   });
 
   console.log(`[boot] ✅ Triad worker started (PID: ${worker.pid})`);
+  console.log(`[boot] 📋 Worker logs: /tmp/worker-output.log`);
 } else if (isCloudRun) {
   console.log('[boot] ⏩ Skipping background worker (Cloud Run/Autoscale detected)');
 } else {
