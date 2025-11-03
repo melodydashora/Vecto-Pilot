@@ -6,8 +6,12 @@ import GlobalHeader from './components/GlobalHeader';
 import ErrorBoundary from './components/ErrorBoundary';
 import CoPilot from './pages/co-pilot';
 import BriefingPage from './pages/BriefingPage';
+import SafeScaffold from './pages/SafeScaffold';
 
 import './index.css';
+
+// Feature flag to hide navigation during stabilization
+const FF_HIDE_NAV = import.meta.env.VITE_FF_HIDE_NAV === 'true';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,6 +24,11 @@ const queryClient = new QueryClient({
 
 function NavigationTabs() {
   const [location] = useLocation();
+  
+  // Hide navigation if feature flag is enabled
+  if (FF_HIDE_NAV) {
+    return null;
+  }
   
   return (
     <div className="border-b border-gray-200 bg-white">
@@ -55,7 +64,7 @@ function NavigationTabs() {
 
 function App() {
   return (
-    <ErrorBoundary>
+    <ErrorBoundary fallback={<SafeScaffold />}>
       <QueryClientProvider client={queryClient}>
         <LocationProvider>
           <div className="App min-h-screen bg-gray-50">
@@ -64,8 +73,12 @@ function App() {
             
             <main className="main-content-with-header">
               <Switch>
-                <Route path="/briefing" component={BriefingPage} />
-                <Route path="/:rest*" component={CoPilot} />
+                {!FF_HIDE_NAV && <Route path="/briefing" component={BriefingPage} />}
+                <Route path="/:rest*">
+                  <ErrorBoundary fallback={<SafeScaffold />}>
+                    <CoPilot />
+                  </ErrorBoundary>
+                </Route>
               </Switch>
             </main>
 
