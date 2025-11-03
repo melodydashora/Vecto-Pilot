@@ -43,7 +43,7 @@ export async function runConsolidator(snapshotId) {
     
     const minstrategy = strategyRow.minstrategy;
     
-    // PREREQUISITE VALIDATION: Check that strategist output exists
+    // PREREQUISITE VALIDATION: Only strategist output required (briefing is for UI only)
     if (!minstrategy || minstrategy.trim().length === 0) {
       console.warn(`[consolidator] ⚠️  Missing strategist output for ${snapshotId}`);
       await db.update(strategies).set({
@@ -53,6 +53,8 @@ export async function runConsolidator(snapshotId) {
       }).where(eq(strategies.snapshot_id, snapshotId));
       throw new Error('Missing strategist output (minstrategy field is empty)');
     }
+    
+    console.log(`[consolidator] ✅ Strategist output ready (briefing field not used by consolidator)`);
     
     // Step 2: Fetch snapshot to get full context for briefing research
     const ctx = await getSnapshotContext(snapshotId);
