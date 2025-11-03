@@ -11,7 +11,7 @@ import fs from "fs";
 
 const { createProxyServer } = httpProxy;
 import { GATEWAY_CONFIG } from "./agent-ai-config.js";
-import { startConsolidationListener } from "./server/jobs/triad-worker.js";
+// Lazy-load triad-worker to avoid DB pool creation before server is ready
 
 // Mode detection
 const MODE = (process.env.APP_MODE || "mono").toLowerCase();
@@ -60,7 +60,9 @@ function spawnChild(name, command, args, env) {
   const distDir = path.join(__dirname, "client", "dist");
 
   // Health endpoints - MUST be fast for Cloud Run health checks
+  // Registered BEFORE any DB/middleware/heavy imports
   app.get("/", (_req, res) => res.status(200).send("OK"));
+  app.head("/", (_req, res) => res.status(200).end());
   app.get("/health", (_req, res) => res.status(200).send("OK"));
   app.get("/healthz", (_req, res) => {
     const indexPath = path.join(distDir, "index.html");
@@ -82,15 +84,22 @@ function spawnChild(name, command, args, env) {
   });
 
   // Start LISTEN-only consolidation listener (skip on Cloud Run/Autoscale to avoid blocking event loop)
+  // Import asynchronously to avoid DB pool creation before server is ready
   const isCloudRun = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
   const enableWorker = process.env.ENABLE_BACKGROUND_WORKER !== "false" && !isCloudRun;
   
   if (enableWorker && !global.__CONSOLIDATION_LISTENER_STARTED__) {
     global.__CONSOLIDATION_LISTENER_STARTED__ = true;
     console.log("[gateway] 🎧 Starting consolidation listener (background worker enabled)");
-    startConsolidationListener()
-      .then(() => console.log("[gateway] ✅ Consolidation listener ready"))
-      .catch((err) => console.error("[gateway] ❌ Listener failed:", err?.message || err));
+    setImmediate(async () => {
+      try {
+        const { startConsolidationListener } = await import("./server/jobs/triad-worker.js");
+        await startConsolidationListener();
+        console.log("[gateway] ✅ Consolidation listener ready");
+      } catch (err) {
+        console.error("[gateway] ❌ Listener failed:", err?.message || err);
+      }
+    });
   } else if (isCloudRun) {
     console.log("[gateway] ⏩ Skipping background worker (Cloud Run/Autoscale detected)");
   } else {
