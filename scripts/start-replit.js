@@ -91,12 +91,10 @@ function loadEnvFile(filename) {
 }
 
 // CRITICAL: Check for autoscale deployment FIRST before any heavy setup
-// Check multiple deployment indicators
+// ONLY match actual deployments, not dev containers!
 const isAutoscale = 
   process.env.REPLIT_DEPLOYMENT === "1" || 
-  process.env.REPLIT_DEPLOYMENT === "true" ||
-  process.env.REPL_DEPLOYMENT === "1" ||
-  Boolean(process.env.HOSTNAME); // Cloud Run / Replit deployments set HOSTNAME
+  process.env.REPLIT_DEPLOYMENT === "true"
 
 // Debug logging for deployment detection
 console.log('[boot] 🔍 Deployment detection:');
