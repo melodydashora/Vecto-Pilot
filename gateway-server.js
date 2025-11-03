@@ -80,27 +80,14 @@ function spawnChild(name, command, args, env) {
     console.log(`[ready] Server listening on 0.0.0.0:${PORT}`);
   });
 
-  // Start LISTEN-only consolidation listener (skip on Cloud Run/Autoscale to avoid blocking event loop)
-  // Import asynchronously to avoid DB pool creation before server is ready
+  // NOTE: In mono mode, consolidation listener runs in separate strategy-generator.js process
+  // Gateway should NOT start an inline listener to avoid conflicts with separate worker
   const isCloudRun = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
-  const enableWorker = process.env.ENABLE_BACKGROUND_WORKER !== "false" && !isCloudRun;
   
-  if (enableWorker && !global.__CONSOLIDATION_LISTENER_STARTED__) {
-    global.__CONSOLIDATION_LISTENER_STARTED__ = true;
-    console.log("[gateway] 🎧 Starting consolidation listener (background worker enabled)");
-    setImmediate(async () => {
-      try {
-        const { startConsolidationListener } = await import("./server/jobs/triad-worker.js");
-        await startConsolidationListener();
-        console.log("[gateway] ✅ Consolidation listener ready");
-      } catch (err) {
-        console.error("[gateway] ❌ Listener failed:", err?.message || err);
-      }
-    });
-  } else if (isCloudRun) {
-    console.log("[gateway] ⏩ Skipping background worker (Cloud Run/Autoscale detected)");
+  if (isCloudRun) {
+    console.log("[gateway] ⏩ Background worker disabled (Cloud Run/Autoscale detected)");
   } else {
-    console.log("[gateway] ⏩ Background worker disabled (ENABLE_BACKGROUND_WORKER=false)");
+    console.log("[gateway] ⏩ Consolidation listener runs in separate worker process");
   }
 
   // Mount middleware and routes after server is listening

@@ -14,11 +14,7 @@ export async function getListenClient() {
 
   try {
     await pgClient.connect();
-    console.log('[db-client] LISTEN client connected');
-    
-    // Subscribe to strategy_ready channel
-    await pgClient.query('LISTEN strategy_ready');
-    console.log('[db-client] Subscribed to strategy_ready channel');
+    console.log('[db-client] LISTEN client connected (caller must subscribe to channels)');
     
     pgClient.on('error', (err) => {
       console.error('[db-client] Unexpected pg client error:', err);
@@ -28,10 +24,6 @@ export async function getListenClient() {
     pgClient.on('end', () => {
       console.warn('[db-client] pg client connection ended');
       pgClient = null;
-    });
-
-    pgClient.on('notification', (msg) => {
-      console.log('[db-client] Received notification:', msg.channel, msg.payload);
     });
 
     return pgClient;
