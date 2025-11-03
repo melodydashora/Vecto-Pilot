@@ -124,9 +124,13 @@ server.on('exit', (code) => {
   process.exit(code || 1);
 });
 
-// Start triad worker (only if enabled)
+// Start triad worker (only if enabled AND not on Cloud Run)
+// Cloud Run/Autoscale environments should NOT run background workers
+const isCloudRun = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
+const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true' && !isCloudRun;
+
 let worker = null;
-if (process.env.ENABLE_BACKGROUND_WORKER === 'true') {
+if (shouldStartWorker) {
   console.log('[boot] ⚡ Starting triad worker...');
   worker = spawn('node', ['strategy-generator.js'], {
     stdio: 'inherit',
@@ -142,8 +146,10 @@ if (process.env.ENABLE_BACKGROUND_WORKER === 'true') {
   });
 
   console.log(`[boot] ✅ Triad worker started (PID: ${worker.pid})`);
+} else if (isCloudRun) {
+  console.log('[boot] ⏩ Skipping background worker (Cloud Run/Autoscale detected)');
 } else {
-  console.log('[boot] ⏸️  Background worker disabled');
+  console.log('[boot] ⏸️  Background worker disabled (ENABLE_BACKGROUND_WORKER not set)');
 }
 
 // Health gate: Wait for server to be ready before declaring success
