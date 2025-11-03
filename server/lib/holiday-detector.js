@@ -58,9 +58,17 @@ export async function detectHoliday(context) {
 Timezone: ${context.timezone}
 Location: ${context.city}, ${context.state}, ${context.country}
 
-Use web search to find what holiday or holidays are observed on ${formattedDateTime} in ${context.country} and specifically in ${context.state}. Include federal holidays, state holidays, religious observances, and culturally significant celebrations (e.g., Día de los Muertos, Thanksgiving, Independence Day).
+Use web search to find the MOST SIGNIFICANT holiday observed on ${formattedDateTime} in ${context.country} and specifically in ${context.state}.
 
-Return ONLY the most culturally relevant holiday name for this region, or empty string if not a holiday.`
+Priority order (return the highest priority match):
+1. Federal/National holidays (e.g., Independence Day, Thanksgiving, Christmas)
+2. Major state holidays or observances
+3. Widely-observed religious holidays (e.g., Easter, Rosh Hashanah, Eid, Diwali)
+4. Major cultural celebrations (e.g., Día de los Muertos, Lunar New Year)
+
+EXCLUDE minor observances, quirky "national days" (e.g., National Sandwich Day, National Donut Day), and commercial pseudo-holidays.
+
+Return ONLY the single most significant holiday name for rideshare drivers, or empty string if no significant holiday exists today.`
           }
         ],
         max_tokens: 100,
