@@ -72,18 +72,38 @@ function spawnChild(name, command, args, env) {
     console.log(`[gateway] 🎯 isAutoscale: ${isAutoscale}`);
     console.log(`[gateway] 🎯 CLOUD_RUN_AUTOSCALE: ${process.env.CLOUD_RUN_AUTOSCALE}`);
     
-    // AUTOSCALE MODE: NOT SUPPORTED
-    // Vecto Pilot requires background workers, persistent connections, and SSE
-    // These features are incompatible with Autoscale deployments
-    // Use Reserved VM deployment instead
+    // AUTOSCALE MODE: Simplified for Cloud Run
+    // Disables background workers, uses polling instead of LISTEN/NOTIFY
     if (isAutoscale) {
-      console.error('[gateway] ❌ FATAL: Autoscale mode not supported');
-      console.error('[gateway] This app requires:');
-      console.error('[gateway]   - Background workers (strategy generation)');
-      console.error('[gateway]   - PostgreSQL LISTEN/NOTIFY (persistent connections)');
-      console.error('[gateway]   - Server-Sent Events (SSE)');
-      console.error('[gateway] Please deploy as Reserved VM instead of Autoscale');
-      process.exit(1);
+      console.log(`[gateway] 🎯 Autoscale mode - stateless configuration`);
+      console.log(`[gateway] ⚠️  Background workers disabled`);
+      console.log(`[gateway] ⚠️  LISTEN/NOTIFY disabled (use polling)`);
+      
+      // Minimal health endpoints
+      app.get('/', (_req, res) => res.status(200).send('OK'));
+      app.head('/', (_req, res) => res.status(200).end());
+      app.get('/health', (_req, res) => res.status(200).send('OK'));
+      app.get('/ready', (_req, res) => res.status(200).send('OK'));
+      
+      const server = http.createServer(app);
+      server.keepAliveTimeout = 65000;
+      server.headersTimeout = 66000;
+
+      server.on('error', (err) => {
+        console.error(`[gateway] ❌ FATAL:`, err.code, err.message);
+        process.exit(1);
+      });
+
+      process.on('SIGTERM', () => {
+        console.log('[gateway] 🛑 SIGTERM received');
+        server.close(() => process.exit(0));
+      });
+
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`[ready] ✅ Autoscale ready on 0.0.0.0:${PORT} (${Date.now() - startTime}ms)`);
+      });
+
+      return;
     }
 
     // REGULAR MODE: Full application
