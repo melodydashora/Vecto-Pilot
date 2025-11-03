@@ -16,7 +16,11 @@ Vecto Pilot is a full-stack Node.js application designed with a multi-service ar
 
 **AI Configuration**:
 The platform employs a **role-based, model-agnostic architecture** with configurable AI models.
--   **Strategy Generation Pipeline**: An event-driven pipeline with three roles: Strategist, Briefer, and Consolidator.
+-   **Strategy Generation Pipeline**: An event-driven 3-step pipeline:
+    1. **Strategist** (Claude): Generates strategic overview → writes to `strategies.minstrategy`
+    2. **Briefer** (Perplexity): Comprehensive travel research (global/domestic/local + holidays + events within 50mi) → writes to structured `briefings` table
+    3. **Consolidator** (GPT-5 with reasoning): Reads strategist output, performs own web research, consolidates → writes to `strategies.consolidated_strategy`
+-   **Briefing Data Structure**: Dedicated `briefings` table with structured fields: `global_travel`, `domestic_travel`, `local_traffic`, `weather_impacts`, `events_nearby`, `holidays`, `rideshare_intel`, and `citations`
 -   **Model-Agnostic Schema**: Database columns and environment variables use generic role names to prevent provider-specific coupling.
 -   **Event-Driven Architecture**: PostgreSQL LISTEN/NOTIFY is used for real-time updates.
 
