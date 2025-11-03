@@ -48,18 +48,13 @@ router.get('/', async (req, res) => {
       });
     }
     
-    // Fetch strategy row for briefing bundle
+    // Fetch strategy row (model-agnostic columns)
     const [strategyRow] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
     
     const briefing = strategyRow ? {
-      claude_strategy: strategyRow.claude_strategy || null,
-      gemini: {
-        news: strategyRow.gemini_news || [],
-        events: strategyRow.gemini_events || [],
-        traffic: strategyRow.gemini_traffic || []
-      },
-      gpt5_consolidated: strategyRow.gpt5_consolidated || null
+      minstrategy: strategyRow.minstrategy || null,
+      consolidated_strategy: strategyRow.consolidated_strategy || null
     } : null;
     
     // GATE 2: Find ranking for this snapshot
@@ -760,10 +755,11 @@ export async function getStrategyFast({ snapshotId }) {
       consolidated: row.consolidated_strategy || '',
       holiday: holidayData,
       briefing: {
-        news: briefing.news ?? [],
-        events: briefing.events ?? [],
-        traffic: briefing.traffic ?? [],
-        holidays: briefing.holidays ?? []
+        // Briefing data now in separate briefings table
+        news: [],
+        events: [],
+        traffic: [],
+        holidays: []
       },
       user: {
         address: row.user_resolved_address || row.user_address || '',
