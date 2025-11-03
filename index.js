@@ -1581,7 +1581,7 @@ function startEidolonServer() {
   printRoutes(app);
   console.log('[SDK] Starting server...');
 
-  serverInstance = app.listen(PORT, HOST, async () => {
+  serverInstance = app.listen(PORT, HOST, () => {
     console.log(`🧠 Eidolon ${EIDOLON_VERSION}`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`[eidolon] Internal SDK Server running on ${HOST}:${PORT}`);
@@ -1597,31 +1597,36 @@ function startEidolonServer() {
     serverInstance.requestTimeout = 5000;   // 5s to receive full request
     serverInstance.headersTimeout = 6000;   // must exceed requestTimeout
     serverInstance.keepAliveTimeout = 5000;  // avoid long-lived idle sockets
-    // Agent server is optional - only needed for advanced file operations
-    // Don't spawn agent if we're being run by the gateway (it spawns agent separately)
-    // Check if we're a child process spawned by gateway
-    const isGatewayChild = process.env.EIDOLON_PORT !== undefined || 
-                          process.ppid !== 1; // Not PID 1 = we have a parent process
-    const skipAgent = process.env.SKIP_AGENT === "true" || 
-                     process.env.NODE_ENV === "production" || 
-                     isGatewayChild;
     
-    if (!skipAgent) {
-      try {
-        await ensureAgentUp();
-        console.log("[eidolon] agent healthy");
-      } catch (e) {
-        console.log("[eidolon] agent unavailable (optional):", e?.message || e);
+    // CRITICAL: Run heavy initialization in background AFTER server is listening
+    // This ensures health checks pass immediately (<1 second response)
+    setImmediate(async () => {
+      // Agent server is optional - only needed for advanced file operations
+      // Don't spawn agent if we're being run by the gateway (it spawns agent separately)
+      // Check if we're a child process spawned by gateway
+      const isGatewayChild = process.env.EIDOLON_PORT !== undefined || 
+                            process.ppid !== 1; // Not PID 1 = we have a parent process
+      const skipAgent = process.env.SKIP_AGENT === "true" || 
+                       process.env.NODE_ENV === "production" || 
+                       isGatewayChild;
+      
+      if (!skipAgent) {
+        try {
+          await ensureAgentUp();
+          console.log("[eidolon] agent healthy");
+        } catch (e) {
+          console.log("[eidolon] agent unavailable (optional):", e?.message || e);
+        }
+      } else {
+        console.log("[eidolon] agent spawn skipped (gateway manages it)");
       }
-    } else {
-      console.log("[eidolon] agent spawn skipped (gateway manages it)");
-    }
-    try {
-      await contextManager.analyzeWorkspace();
-      console.log("[eidolon] ✅ Ready for gateway proxy connections");
-    } catch (e) {
-      console.error("[eidolon] workspace analysis failed:", e?.message || e);
-    }
+      try {
+        await contextManager.analyzeWorkspace();
+        console.log("[eidolon] ✅ Ready for gateway proxy connections");
+      } catch (e) {
+        console.error("[eidolon] workspace analysis failed:", e?.message || e);
+      }
+    });
 
     // NOTE: Triad worker runs in strategy-generator.js (separate process)
     // Removed duplicate worker import to prevent multiple polling loops
