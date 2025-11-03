@@ -58,6 +58,34 @@ function loadEnvFile(filename) {
   }
 }
 
+// CRITICAL: Check for autoscale deployment FIRST before any heavy setup
+const isAutoscale = process.env.REPLIT_DEPLOYMENT === "1";
+
+if (isAutoscale) {
+  // AUTOSCALE MODE: Immediately delegate to gateway-server.js with minimal env loading
+  // gateway-server.js has its own autoscale detection and will skip all routes/middleware/DB
+  console.log('[boot] ⚡ Autoscale deployment detected - delegating to health-only gateway');
+  
+  // Load ONLY the minimal env needed for gateway startup
+  loadEnvFile('.env');
+  loadEnvFile('mono-mode.env');
+  process.env.PORT = process.env.PORT || '5000';
+  process.env.NODE_ENV = 'production';
+  
+  // Exec (replace process) instead of spawn - no wrapper overhead
+  const { execFileSync } = await import('node:child_process');
+  execFileSync('node', ['gateway-server.js'], {
+    stdio: 'inherit',
+    env: { ...process.env }
+  });
+  
+  // execFileSync only returns if the process exits
+  process.exit(1);
+}
+
+// REGULAR MODE: Full mono-mode bootstrap with worker process
+console.log('[boot] Local development mode - full bootstrap');
+
 // Load .env first (contains AI model configs)
 loadEnvFile('.env');
 
@@ -77,7 +105,7 @@ if (process.env.FORCE_DEV === '1') {
 process.env.WORKER_ID = process.env.WORKER_ID || `replit:${process.pid}`;
 
 const PORT = process.env.PORT;
-const isCloudRun = process.env.REPLIT_DEPLOYMENT === "1";
+const isCloudRun = false; // Already checked above
 
 // Skip expensive checks in Cloud Run/Autoscale (need fast startup for health checks)
 if (!isCloudRun) {
