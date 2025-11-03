@@ -37,23 +37,29 @@ Employs JWT with RS256 Asymmetric Keys, with security middleware for rate limiti
 Supports Mono Mode and Split Mode, with reliability features like health-gated entry points, unified port binding, proxy gating, WebSocket protection, and process discipline.
 
 **Replit Autoscale Deployment**:
-The platform uses a health-only autoscale mode for Replit deployments to pass strict health check requirements (<5 second response time).
+The platform supports optional autoscale mode via opt-in environment variable.
 
--   **Environment Detection**: Uses `process.env.REPLIT_DEPLOYMENT === "1"` to detect Replit autoscale deployments (NOT `K_SERVICE` or `CLOUD_RUN_SERVICE` which are Google Cloud-specific).
--   **Health-Only Mode**: When autoscale is detected, the gateway server:
-    -   Registers only root `/` and `/health` endpoints (returns "OK" in <1 second)
+-   **Environment Detection**: Uses `process.env.REPLIT_DEPLOYMENT === "1"` to detect Replit deployments.
+-   **Autoscale Mode (Opt-In)**: Only enabled when `CLOUD_RUN_AUTOSCALE=1` is explicitly set. When active:
+    -   Uses raw HTTP server (no Express) for minimal overhead
+    -   Responds to `/`, `/health`, `/ready` with 200 OK instantly
+    -   Cloud Run compatible timeouts (keepAlive: 65s, headers: 66s)
     -   Skips all route loading (SDK, Agent, SSE events)
     -   Skips database connection initialization
-    -   Skips middleware mounting
-    -   Exits immediately after binding to port 5000
+-   **Regular Deployment Mode (Default)**: When `CLOUD_RUN_AUTOSCALE` is unset:
+    -   Runs full Express application with all features
+    -   Health endpoints (`/health`, `/ready`, `/healthz`) registered FIRST
+    -   Server listens IMMEDIATELY before loading heavy modules
+    -   Middleware/routes loaded in `setImmediate()` after server binds
+    -   Static assets served from `client/dist`
 -   **Worker Behavior**: Background worker automatically disabled in autoscale (stateless requirement), enabled in local development via `ENABLE_BACKGROUND_WORKER=true` in `mono-mode.env`.
 -   **Implementation Files**:
-    -   `gateway-server.js`: Autoscale detection and health-only mode
+    -   `gateway-server.js`: Autoscale detection (opt-in) and dual-mode support
     -   `scripts/start-replit.js`: Worker skip logic
-    -   `server/db/pool-lazy.js`: DB pool autoscale tuning
-    -   `server/routes/diagnostics.js`: Environment diagnostics
--   **Testing Pattern**: Always test with `REPLIT_DEPLOYMENT=1` locally before publishing to verify instant health check response.
--   **Deployment Philosophy**: Fix blockers first (health checks), then app logic second. Don't add complexity that slows startup.
+    -   `mono-mode.env`: Port configuration (EIDOLON_PORT commented out)
+    -   `.replit`: Single-port configuration (5000→80 only)
+-   **Port Configuration**: **CRITICAL for autoscale** - Replit autoscale requires exactly ONE external port. Port 3101 was removed from all configuration files to prevent auto-detection. Never reference ports in env files that aren't actually used in deployment.
+-   **Deployment Philosophy**: Run full Express app by default. Health endpoints respond in <10ms by registering first and listening immediately.
 
 **Data Integrity**:
 Geographic computations use snapshot coordinates. Strategy refresh is triggered by location movement, day part changes, or manual refresh. Strategies have explicit validity windows and an auto-invalidation mechanism, with snapshot date/time fields as the single source of truth for all AI outputs.
