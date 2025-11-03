@@ -56,8 +56,8 @@ function spawnChild(name, command, args, env) {
     const app = express();
     app.set("trust proxy", 1);
 
-    // Detect autoscale environment
-    const isAutoscale = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
+    // Detect Replit autoscale deployment environment
+    const isAutoscale = process.env.REPLIT_DEPLOYMENT === "1";
     
     // AUTOSCALE MODE: Health check only, no routes/middleware
     if (isAutoscale) {
@@ -110,7 +110,7 @@ function spawnChild(name, command, args, env) {
 
   // NOTE: In mono mode, consolidation listener runs in separate strategy-generator.js process
   // Gateway should NOT start an inline listener to avoid conflicts with separate worker
-  const isCloudRun = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
+  const isCloudRun = process.env.REPLIT_DEPLOYMENT === "1";
   
   if (isCloudRun) {
     console.log("[gateway] ⏩ Background worker disabled (Cloud Run/Autoscale detected)");

@@ -280,14 +280,15 @@ router.get('/worker-status', async (req, res) => {
       env: {
         ENABLE_BACKGROUND_WORKER: process.env.ENABLE_BACKGROUND_WORKER,
         REPL_ID: !!process.env.REPL_ID,
+        REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT,
         K_SERVICE: !!process.env.K_SERVICE,
         CLOUD_RUN_AUTOSCALE: process.env.CLOUD_RUN_AUTOSCALE
       },
       computed: {
         isReplit: !!process.env.REPL_ID,
-        isCloudRun: !!(process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1'),
-        isAutoscale: !!(process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1') && !process.env.REPL_ID,
-        shouldEnableWorker: process.env.ENABLE_BACKGROUND_WORKER === 'true' && (!((process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1') && !process.env.REPL_ID))
+        isCloudRun: process.env.REPLIT_DEPLOYMENT === "1",
+        isAutoscale: process.env.REPLIT_DEPLOYMENT === "1",
+        shouldEnableWorker: process.env.ENABLE_BACKGROUND_WORKER === 'true' && process.env.REPLIT_DEPLOYMENT !== "1"
       }
     };
     
