@@ -27,6 +27,7 @@ The platform employs a **role-based, model-agnostic architecture** with configur
 **Frontend Architecture**:
 A **React + TypeScript Single Page Application (SPA)**, built with Vite, uses Radix UI, TailwindCSS, and React Query.
 -   **UI Layout**: Features a Strategy Section for consolidated strategies, Smart Blocks for ranked venue recommendations, an AI Strategy Coach, and a Rideshare Briefing Tab for practical intelligence. Key updates include a restructured Co-Pilot page with a dedicated AI Strategy Coach chat interface and a consistently visible holiday/greeting banner.
+-   **Strategy Retry & History**: Implements immutable strategy history with retry workflow. Users can retry strategy generation (creates new snapshot with same location context), and view all past attempts with status-specific UI (pending, complete, failed, write_failed). History panel shows timestamps, status icons, and snapshot IDs for audit trail.
 
 **Data Storage**:
 A **PostgreSQL Database** with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It includes enhanced memory systems and uses unique indexes for data integrity.
