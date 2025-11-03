@@ -3,7 +3,7 @@
 
 import { Router } from 'express';
 import { db } from '../db/drizzle.js';
-import { strategies } from '../../shared/schema.js';
+import { strategies, briefings } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { ensureStrategyRow } from '../lib/strategy-utils.js';
 import { runMinStrategy } from '../lib/providers/minstrategy.js';
@@ -94,6 +94,54 @@ router.post('/strategy/run/:snapshotId', async (req, res) => {
     });
   } catch (error) {
     console.error(`[strategy] Run error:`, error);
+    res.status(500).json({ error: 'internal_error', message: error.message });
+  }
+});
+
+/** GET /api/strategy/briefing/:snapshotId - Fetch briefing data from briefings table */
+router.get('/strategy/briefing/:snapshotId', async (req, res) => {
+  const { snapshotId } = req.params;
+  
+  try {
+    console.log(`[strategy] GET /api/strategy/briefing/${snapshotId} - Fetching briefing...`);
+    const [briefingRow] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+
+    if (!briefingRow) {
+      console.log(`[strategy] ❌ Briefing not found for snapshot ${snapshotId}`);
+      return res.status(404).json({ 
+        error: 'not_found', 
+        snapshot_id: snapshotId,
+        message: 'No briefing data available. Create a snapshot to generate briefing data.' 
+      });
+    }
+    
+    console.log(`[strategy] ✅ Briefing found for ${snapshotId}`);
+
+    res.json({
+      ok: true,
+      snapshot_id: snapshotId,
+      briefing: {
+        // Perplexity comprehensive research
+        global_travel: briefingRow.global_travel || '',
+        domestic_travel: briefingRow.domestic_travel || '',
+        local_traffic: briefingRow.local_traffic || '',
+        weather_impacts: briefingRow.weather_impacts || '',
+        events_nearby: briefingRow.events_nearby || '',
+        holidays: briefingRow.holidays || '',
+        rideshare_intel: briefingRow.rideshare_intel || '',
+        citations: briefingRow.citations || [],
+        // GPT-5 tactical 30-minute intelligence
+        tactical_traffic: briefingRow.tactical_traffic || '',
+        tactical_closures: briefingRow.tactical_closures || '',
+        tactical_enforcement: briefingRow.tactical_enforcement || '',
+        tactical_sources: briefingRow.tactical_sources || ''
+      },
+      created_at: briefingRow.created_at,
+      updated_at: briefingRow.updated_at
+    });
+  } catch (error) {
+    console.error(`[strategy] GET briefing error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
