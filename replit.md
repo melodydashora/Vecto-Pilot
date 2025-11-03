@@ -36,6 +36,25 @@ Employs JWT with RS256 Asymmetric Keys, with security middleware for rate limiti
 **Deployment & Reliability**:
 Supports Mono Mode and Split Mode, with reliability features like health-gated entry points, unified port binding, proxy gating, WebSocket protection, and process discipline.
 
+**Replit Autoscale Deployment**:
+The platform uses a health-only autoscale mode for Replit deployments to pass strict health check requirements (<5 second response time).
+
+-   **Environment Detection**: Uses `process.env.REPLIT_DEPLOYMENT === "1"` to detect Replit autoscale deployments (NOT `K_SERVICE` or `CLOUD_RUN_SERVICE` which are Google Cloud-specific).
+-   **Health-Only Mode**: When autoscale is detected, the gateway server:
+    -   Registers only root `/` and `/health` endpoints (returns "OK" in <1 second)
+    -   Skips all route loading (SDK, Agent, SSE events)
+    -   Skips database connection initialization
+    -   Skips middleware mounting
+    -   Exits immediately after binding to port 5000
+-   **Worker Behavior**: Background worker automatically disabled in autoscale (stateless requirement), enabled in local development via `ENABLE_BACKGROUND_WORKER=true` in `mono-mode.env`.
+-   **Implementation Files**:
+    -   `gateway-server.js`: Autoscale detection and health-only mode
+    -   `scripts/start-replit.js`: Worker skip logic
+    -   `server/db/pool-lazy.js`: DB pool autoscale tuning
+    -   `server/routes/diagnostics.js`: Environment diagnostics
+-   **Testing Pattern**: Always test with `REPLIT_DEPLOYMENT=1` locally before publishing to verify instant health check response.
+-   **Deployment Philosophy**: Fix blockers first (health checks), then app logic second. Don't add complexity that slows startup.
+
 **Data Integrity**:
 Geographic computations use snapshot coordinates. Strategy refresh is triggered by location movement, day part changes, or manual refresh. Strategies have explicit validity windows and an auto-invalidation mechanism, with snapshot date/time fields as the single source of truth for all AI outputs.
 
