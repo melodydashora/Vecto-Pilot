@@ -34,6 +34,7 @@ import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
+import { subscribeStrategyReady } from '@/services/strategyEvents';
 import {
   Tooltip,
   TooltipContent,
@@ -209,7 +210,23 @@ const CoPilot: React.FC = () => {
     };
   }, []);
 
-  // Fetch strategy from database when we have a new snapshot
+  // Subscribe to SSE strategy_ready events
+  useEffect(() => {
+    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
+    
+    console.log('[SSE] Subscribing to strategy_ready events for snapshot:', lastSnapshotId);
+    const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
+      if (readySnapshotId === lastSnapshotId) {
+        console.log('[SSE] Strategy ready for current snapshot, fetching data');
+        // Refetch the strategy query
+        queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
+      }
+    });
+    
+    return unsubscribe;
+  }, [lastSnapshotId]);
+
+  // Fetch strategy from database when we have a new snapshot (one-time fetch, no polling)
   const { data: strategyData, isFetching: isStrategyFetching } = useQuery({
     queryKey: ['/api/blocks/strategy', lastSnapshotId],
     queryFn: async () => {
@@ -219,27 +236,16 @@ const CoPilot: React.FC = () => {
       if (!response.ok) return null;
       
       const data = await response.json();
-      console.log(`[strategy-poll] Status: ${data.status}, Time elapsed: ${data.timeElapsedMs}ms`);
+      console.log(`[strategy-fetch] Status: ${data.status}, Time elapsed: ${data.timeElapsedMs}ms`);
       // Attach the snapshot ID to the response for validation
       return { ...data, _snapshotId: lastSnapshotId };
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    refetchInterval: (query) => {
-      // Poll every 2 seconds if strategy is still pending (was checking wrong field!)
-      const status = query.state.data?.status;
-      const isReady = status === 'ok' || status === 'ok_partial';
-      
-      if (isReady) {
-        console.log('[strategy-poll] ✅ Strategy ready, stopping poll');
-        return false; // Stop polling
-      }
-      
-      console.log(`[strategy-poll] ⏳ Status: ${status}, continuing poll...`);
-      return 2000; // Poll every 2 seconds
-    },
-    // Critical: Prevent stale data from previous snapshots
-    staleTime: 0,
-    gcTime: 0,
+    // No polling - SSE will trigger refetch when ready
+    refetchInterval: false,
+    // Cache for 5 minutes to avoid refetching
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   // Clear strategy if snapshot ID changes
@@ -745,21 +751,6 @@ const CoPilot: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24" data-testid="copilot-page">
-      <div style={{
-        position: 'fixed',
-        top: '100px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        backgroundColor: 'red',
-        color: 'white',
-        padding: '20px',
-        fontSize: '24px',
-        fontWeight: 'bold',
-        zIndex: 99999,
-        border: '5px solid yellow'
-      }}>
-        🚨 DEBUG: CoPilot Component is Rendering! 🚨
-      </div>
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pt-6 pb-6">
         {/* Live Status Banner */}
