@@ -130,7 +130,6 @@ server.on('exit', (code) => {
 
 // Start triad worker (only if enabled AND not on Cloud Run)
 // Cloud Run/Autoscale environments should NOT run background workers
-const isCloudRun = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
 const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true' && !isCloudRun;
 
 let worker = null;
