@@ -61,9 +61,8 @@ function spawnChild(name, command, args, env) {
 
   // Health endpoints - MUST be fast for Cloud Run health checks
   // Registered BEFORE any DB/middleware/heavy imports
-  app.get("/", (_req, res) => res.status(200).send("OK"));
-  app.head("/", (_req, res) => res.status(200).end());
   app.get("/health", (_req, res) => res.status(200).send("OK"));
+  app.head("/health", (_req, res) => res.status(200).end());
   app.get("/healthz", (_req, res) => {
     const indexPath = path.join(distDir, "index.html");
     if (fs.existsSync(indexPath)) {
@@ -72,10 +71,8 @@ function spawnChild(name, command, args, env) {
     return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
   });
 
-  // Serve SPA
-  app.use("/app", express.static(distDir));
-  app.get("/app", (_req, res) => res.sendFile(path.join(distDir, "index.html")));
-  app.get("/app/*", (_req, res) => res.sendFile(path.join(distDir, "index.html")));
+  // Serve SPA static assets
+  app.use(express.static(distDir));
 
   // Start HTTP server
   const server = http.createServer(app);
@@ -127,6 +124,11 @@ function spawnChild(name, command, args, env) {
         console.error("[mono] Agent embed failed:", e?.message);
       }
     }
+
+    // Serve SPA for all other routes (catch-all must be LAST)
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(distDir, "index.html"));
+    });
   });
 
   // Graceful shutdown
