@@ -2,6 +2,10 @@
 // strategy-generator.js - Triad Worker Entry Point
 // Runs the consolidation listener only (LISTEN mode, no hot polling)
 
+// Force unbuffered console output for child process
+if (process.stdout._handle) process.stdout._handle.setBlocking(true);
+if (process.stderr._handle) process.stderr._handle.setBlocking(true);
+
 console.log('[strategy-generator] 🚀 Triad worker starting (LISTEN-only mode)...');
 console.log('[strategy-generator] Environment:');
 console.log(`  NODE_ENV=${process.env.NODE_ENV}`);
@@ -34,6 +38,19 @@ try {
   console.error(err.stack);
   process.exit(1);
 }
+
+// Top-level error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[strategy-generator] ❌ UNHANDLED REJECTION:', reason);
+  console.error('Promise:', promise);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[strategy-generator] ❌ UNCAUGHT EXCEPTION:', error);
+  console.error(error.stack);
+  process.exit(1);
+});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

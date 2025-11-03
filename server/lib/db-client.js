@@ -7,8 +7,22 @@ export async function getListenClient() {
     return pgClient;
   }
 
+  // CRITICAL: Use unpooled connection for LISTEN/NOTIFY
+  // Neon's pooler (pgBouncer) does not support LISTEN/NOTIFY
+  const connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+  
+  if (!connectionString) {
+    throw new Error('[db-client] No DATABASE_URL or DATABASE_URL_UNPOOLED found');
+  }
+  
+  // Warn if using pooled connection (won't work with LISTEN)
+  if (connectionString.includes('pooler') && !process.env.DATABASE_URL_UNPOOLED) {
+    console.warn('[db-client] ⚠️  WARNING: Using pooled connection for LISTEN - this may not work!');
+    console.warn('[db-client] ⚠️  Set DATABASE_URL_UNPOOLED for reliable LISTEN/NOTIFY support');
+  }
+
   pgClient = new pg.Client({
-    connectionString: process.env.DATABASE_URL,
+    connectionString,
     application_name: 'triad-listener',
   });
 
