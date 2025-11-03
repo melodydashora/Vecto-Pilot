@@ -63,6 +63,7 @@ function NavigationTabs() {
 }
 
 function App() {
+  console.log('[App] Rendering App component');
   return (
     <ErrorBoundary fallback={<SafeScaffold />}>
       <QueryClientProvider client={queryClient}>
@@ -72,14 +73,7 @@ function App() {
             <NavigationTabs />
             
             <main className="main-content-with-header">
-              <Switch>
-                {!FF_HIDE_NAV && <Route path="/briefing" component={BriefingPage} />}
-                <Route path="/:rest*">
-                  <ErrorBoundary fallback={<SafeScaffold />}>
-                    <CoPilot />
-                  </ErrorBoundary>
-                </Route>
-              </Switch>
+              <CoPilot />
             </main>
 
             <Toaster />

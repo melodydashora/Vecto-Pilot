@@ -113,6 +113,7 @@ interface BlocksResponse {
 }
 
 const CoPilot: React.FC = () => {
+  console.log('[CoPilot] Component rendering');
   const locationContext = useLocation();
   const { toast } = useToast();
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
