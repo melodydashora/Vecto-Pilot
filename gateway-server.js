@@ -56,20 +56,34 @@ function spawnChild(name, command, args, env) {
     const app = express();
     app.set("trust proxy", 1);
 
-    // Serve SPA early
+    // Detect autoscale environment
+    const isAutoscale = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
+    
+    // AUTOSCALE MODE: Health check only, no routes/middleware
+    if (isAutoscale) {
+      console.log("[gateway] ⚡ Autoscale mode - health-only server");
+      
+      // Minimal health endpoints
+      app.get("/", (_req, res) => res.status(200).send("OK"));
+      app.head("/", (_req, res) => res.status(200).end());
+      app.get("/health", (_req, res) => res.status(200).send("OK"));
+      app.head("/health", (_req, res) => res.status(200).end());
+      
+      // Start server immediately - no routes, no middleware, no delays
+      const server = http.createServer(app);
+      server.listen(PORT, "0.0.0.0", () => {
+        console.log(`[ready] Health-only server listening on 0.0.0.0:${PORT}`);
+      });
+      
+      // Exit - don't load anything else in autoscale
+      return;
+    }
+
+    // REGULAR MODE: Full application
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const distDir = path.join(__dirname, "client", "dist");
 
-    // Health endpoints - MUST be fast for Cloud Run health checks
-    // Registered BEFORE any DB/middleware/heavy imports
-    const isAutoscale = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
-    
-    // Root health check for autoscale (Replit checks "/" by default)
-    if (isAutoscale) {
-      app.get("/", (_req, res) => res.status(200).send("OK"));
-      app.head("/", (_req, res) => res.status(200).end());
-    }
-    
+    // Health endpoints
     app.get("/health", (_req, res) => res.status(200).send("OK"));
     app.head("/health", (_req, res) => res.status(200).end());
     app.get("/healthz", (_req, res) => {
@@ -80,10 +94,8 @@ function spawnChild(name, command, args, env) {
       return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
     });
 
-    // Serve SPA static assets (only in non-autoscale environments where we serve the UI)
-    if (!isAutoscale) {
-      app.use(express.static(distDir));
-    }
+    // Serve SPA static assets
+    app.use(express.static(distDir));
 
     // Start HTTP server
     const server = http.createServer(app);
