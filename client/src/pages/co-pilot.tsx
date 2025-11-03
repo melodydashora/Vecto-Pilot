@@ -227,7 +227,7 @@ const CoPilot: React.FC = () => {
     return unsubscribe;
   }, [lastSnapshotId]);
 
-  // Fetch strategy from database when we have a new snapshot (one-time fetch, no polling)
+  // Fetch strategy from database when we have a new snapshot (polling fallback if SSE fails)
   const { data: strategyData, isFetching: isStrategyFetching } = useQuery({
     queryKey: ['/api/blocks/strategy', lastSnapshotId],
     queryFn: async () => {
@@ -242,8 +242,11 @@ const CoPilot: React.FC = () => {
       return { ...data, _snapshotId: lastSnapshotId };
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    // No polling - SSE will trigger refetch when ready
-    refetchInterval: false,
+    // Poll every 3 seconds if strategy is pending (fallback when SSE fails)
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'pending' ? 3000 : false;
+    },
     // Cache for 5 minutes to avoid refetching
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
