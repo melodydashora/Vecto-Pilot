@@ -36,8 +36,10 @@ export async function getSnapshotContext(snapshotId) {
     user_address: snapshot.formatted_address, // alias for compatibility
     city: snapshot.city,
     state: snapshot.state,
+    country: snapshot.country,
     lat: snapshot.lat,
     lng: snapshot.lng,
+    accuracy_m: snapshot.accuracy_m,
     timezone: snapshot.timezone,
     
     // CRITICAL: Date/time fields (authority for all downstream providers)
@@ -49,6 +51,10 @@ export async function getSnapshotContext(snapshotId) {
     local_iso: snapshot.local_iso, // Local timestamp without timezone
     iso_timestamp: snapshot.created_at?.toISOString(), // ISO timestamp with timezone
     created_at: snapshot.created_at, // Full timestamp object
+    
+    // Holiday information (populated by Perplexity briefing)
+    holiday: snapshot.holiday, // Holiday name if today is a holiday (e.g., "Thanksgiving")
+    is_holiday: snapshot.is_holiday, // Boolean: true if today is a holiday
     
     weather: snapshot.weather,
     airport_context: snapshot.airport_context,

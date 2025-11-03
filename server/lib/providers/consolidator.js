@@ -115,6 +115,7 @@ Date & Time: ${localTime}
 Day Part: ${dayPart}
 Hour: ${ctx.hour}:00
 Timezone: ${ctx.timezone}
+${ctx.is_holiday ? `🎉 HOLIDAY: ${ctx.holiday}` : ''}
 
 DRIVER LOCATION (for context - do NOT include street address in final output):
 City/Area: ${cityDisplay}
@@ -136,6 +137,7 @@ YOUR TASK:
 
 CRITICAL REQUIREMENTS:
 - Use exact day of week (${dayOfWeek}) provided above - this is authoritative
+${ctx.is_holiday ? `- Factor in holiday-specific demand patterns for ${ctx.holiday}` : ''}
 - Start with day and time context (e.g., "${dayOfWeek} ${dayPart} in ${cityDisplay}")
 - Do NOT include full street addresses - reference only "${cityDisplay}"
 - Focus on actionable intelligence for the next 30 minutes`;
