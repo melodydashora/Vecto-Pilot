@@ -177,23 +177,48 @@ ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
       throw new Error('Consolidator returned empty output');
     }
     
-    // Step 5: Parse JSON response
+    // Step 5: Parse JSON response or extract from plain text
     let parsedOutput;
     try {
       // Try to extract JSON from markdown code blocks if present
       const jsonMatch = consolidatedStrategy.match(/```json\s*([\s\S]*?)\s*```/) || consolidatedStrategy.match(/\{[\s\S]*\}/);
       const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : consolidatedStrategy;
       parsedOutput = JSON.parse(jsonStr);
+      console.log(`[consolidator] ✅ Parsed JSON response`);
     } catch (parseErr) {
-      console.warn(`[consolidator] ⚠️  Failed to parse JSON, using full text as summary:`, parseErr.message);
-      // Fallback: Store entire response as summary only
+      console.warn(`[consolidator] ⚠️  Failed to parse JSON, attempting plain text extraction:`, parseErr.message);
+      
+      // Fallback: Parse plain text format
+      // Expected format:
+      // - Traffic/incidents: ...
+      // - Closures/construction: ...
+      // - Enforcement: ...
+      // Sources checked: ...
+      // Summary/How to operationalize: ...
+      
+      const trafficMatch = consolidatedStrategy.match(/[-•]\s*Traffic[/\s]incidents?:\s*([^\n]+(?:\n(?![-•]\s*[A-Z])[^\n]+)*)/i);
+      const closuresMatch = consolidatedStrategy.match(/[-•]\s*Closures[/\s]construction:\s*([^\n]+(?:\n(?![-•]\s*[A-Z])[^\n]+)*)/i);
+      const enforcementMatch = consolidatedStrategy.match(/[-•]\s*Enforcement:\s*([^\n]+(?:\n(?![-•]\s*[A-Z])[^\n]+)*)/i);
+      const sourcesMatch = consolidatedStrategy.match(/Sources checked:\s*([^\n]+(?:\n(?![A-Z])[^\n]+)*)/i);
+      
+      // Extract summary (everything after sources or "How to operationalize")
+      const summaryMatch = consolidatedStrategy.match(/(?:Summary|How to operationalize)[^:]*:\s*([\s\S]+)/i);
+      
       parsedOutput = {
-        tactical_traffic: '',
-        tactical_closures: '',
-        tactical_enforcement: '',
-        tactical_sources: '',
-        summary: consolidatedStrategy
+        tactical_traffic: trafficMatch ? trafficMatch[1].trim() : '',
+        tactical_closures: closuresMatch ? closuresMatch[1].trim() : '',
+        tactical_enforcement: enforcementMatch ? enforcementMatch[1].trim() : '',
+        tactical_sources: sourcesMatch ? sourcesMatch[1].trim() : '',
+        summary: summaryMatch ? summaryMatch[1].trim() : consolidatedStrategy
       };
+      
+      console.log(`[consolidator] 📝 Extracted from plain text:`, {
+        traffic_chars: parsedOutput.tactical_traffic.length,
+        closures_chars: parsedOutput.tactical_closures.length,
+        enforcement_chars: parsedOutput.tactical_enforcement.length,
+        sources_chars: parsedOutput.tactical_sources.length,
+        summary_chars: parsedOutput.summary.length
+      });
     }
     
     // Step 6: Write tactical sections to briefings table
