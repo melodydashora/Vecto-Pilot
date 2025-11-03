@@ -129,17 +129,12 @@ process.on('unhandledRejection', (reason, promise) => {
 
     // CRITICAL: Health endpoints FIRST (before any middleware or imports)
     // This ensures instant responses to deployment health checks
-    // Cloud Run checks "/" by default, so we need to handle it immediately
-    app.get('/', (_req, res) => {
-      // In deployment, return OK for health checks
-      // SPA will be mounted later as catch-all which won't override this
-      if (isDeployment) {
-        return res.status(200).send('OK');
-      }
-      // In dev, this will be overridden by SPA catch-all
-      res.status(200).send('OK');
-    });
-    app.head('/', (_req, res) => res.status(200).end());
+    // In deployment, Cloud Run checks "/" - return OK immediately
+    // In dev/preview, let SPA handle "/" (don't register it here)
+    if (isDeployment) {
+      app.get('/', (_req, res) => res.status(200).send('OK'));
+      app.head('/', (_req, res) => res.status(200).end());
+    }
     app.get('/health', (_req, res) => res.status(200).send('OK'));
     app.head('/health', (_req, res) => res.status(200).end());
     app.get('/ready', (_req, res) => res.status(200).send('OK'));
