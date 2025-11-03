@@ -745,6 +745,21 @@ const CoPilot: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24" data-testid="copilot-page">
+      <div style={{
+        position: 'fixed',
+        top: '100px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        backgroundColor: 'red',
+        color: 'white',
+        padding: '20px',
+        fontSize: '24px',
+        fontWeight: 'bold',
+        zIndex: 99999,
+        border: '5px solid yellow'
+      }}>
+        🚨 DEBUG: CoPilot Component is Rendering! 🚨
+      </div>
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pt-6 pb-6">
         {/* Live Status Banner */}
