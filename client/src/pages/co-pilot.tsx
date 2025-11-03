@@ -412,7 +412,7 @@ const CoPilot: React.FC = () => {
     enabled: (() => {
       const hasCoords = !!coords;
       const hasSnapshot = !!lastSnapshotId;
-      const strategyReady = strategyData?.status === 'ok';
+      const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
       const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
       
       const shouldEnable = hasCoords && hasSnapshot && !isStrategyFetching && strategyReady && snapshotMatches;
