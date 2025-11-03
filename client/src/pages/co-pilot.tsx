@@ -317,29 +317,15 @@ const CoPilot: React.FC = () => {
           }
           return response.json();
         } else {
-          // Production: Choose between Fast Tactical Path or Full Triad
-          const useFastPath = fastTacticalMode;
-          const endpoint = useFastPath ? '/api/blocks/fast' : '/api/blocks';
+          // Production: Use Fast Tactical Path with GET to retrieve existing blocks
+          // POST would trigger regeneration, GET retrieves snapshot-scoped blocks
+          const endpoint = '/api/blocks/fast';
           
-          // Deterministic idempotency key per snapshot to collapse duplicate requests
-          const idemKey = lastSnapshotId ? `POST:${endpoint}:${lastSnapshotId}` : undefined;
-          
-          // Uses fetch for AbortController timeout + custom headers (x-idempotency-key, X-Snapshot-Id)
-          const response = await fetch(endpoint, {
-            method: 'POST',
+          // First try GET to retrieve existing blocks (snapshot-first pattern)
+          const response = await fetch(`${endpoint}?snapshotId=${lastSnapshotId}`, {
+            method: 'GET',
             signal: controller.signal,
-            headers: {
-              'Content-Type': 'application/json',
-              ...(idemKey ? { 'x-idempotency-key': idemKey } : {}),
-              ...headers
-            },
-            body: JSON.stringify({
-              userId: localStorage.getItem('vecto_user_id') || 'default',
-              origin: {
-                lat: coords.latitude,
-                lng: coords.longitude
-              }
-            })
+            headers
           });
           clearTimeout(timeoutId);
           
