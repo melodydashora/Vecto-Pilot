@@ -43,13 +43,22 @@ Renders all 7 block types with TypeScript type safety:
 ### 3. Jest Test Suite
 **Location**: `tests/blocksApi.test.js`
 
-19 tests covering:
+19 unit tests covering:
 - API contract validation
 - Schema enforcement
 - Edge cases
 - Type-specific field requirements
 
-### 4. Seed Script
+### 4. Playwright E2E Tests
+**Location**: `tests/e2e/copilot.spec.ts`
+
+14 end-to-end tests covering:
+- Full-stack integration (DB → API → React → DOM)
+- Smart blocks rendering in browser
+- User interactions (retry, history panel)
+- Error handling and loading states
+
+### 5. Seed Script
 **Location**: `scripts/seed-dev.js`
 
 Seeds test data:
@@ -147,19 +156,31 @@ Seeds test data:
 
 ## 🚀 Quick Start
 
-### 1. Seed test data
+### 1. Run all tests (recommended)
 ```bash
-node scripts/seed-dev.js
+./scripts/test-all.sh
 ```
 
-### 2. Run tests
+This runs:
+1. Seeds test data
+2. Jest unit tests (API contract)
+3. Playwright E2E tests (browser rendering)
+
+### 2. Run tests separately
+
+#### Seed + Unit Tests
 ```bash
 ./scripts/test-with-seed.sh
 ```
 
-Or separately:
+#### E2E Tests Only
 ```bash
-TEST_SNAPSHOT_ID=test-snapshot-001 NODE_OPTIONS='--experimental-vm-modules' npx jest tests/blocksApi.test.js
+npx playwright test
+```
+
+#### Install Playwright (first time)
+```bash
+npx playwright install chromium
 ```
 
 ### 3. Test endpoints manually
@@ -170,11 +191,23 @@ curl http://localhost:5000/api/blocks/strategy/test-snapshot-001
 
 ## ✅ What This Ensures
 
+### Unit Tests (Jest)
 1. **Type Safety**: Frontend can trust block structure
 2. **Contract Enforcement**: Backend always returns valid blocks
 3. **Regression Prevention**: Schema drift breaks CI tests
 4. **Self-Documentation**: Tests serve as living API docs
-5. **CI/CD Ready**: Automated validation in build pipeline
+
+### E2E Tests (Playwright)
+1. **Full Stack Validation**: DB → API → React → DOM rendering
+2. **Real Browser Testing**: Actual Chrome browser behavior
+3. **Visual Verification**: Blocks render correctly on screen
+4. **User Experience**: Interactions work as expected
+5. **Error Handling**: Graceful degradation verified
+
+### Combined Benefits
+- **CI/CD Ready**: Automated validation in build pipeline
+- **Comprehensive Coverage**: Contract + UX validation
+- **Confidence**: Know code works from database to display
 
 ## 🔧 Development Workflow
 
@@ -215,6 +248,8 @@ npm test
 
 ## 📊 Test Coverage
 
+### Jest Unit Tests (API Contract)
+
 | Category | Tests | Status |
 |----------|-------|--------|
 | API Endpoint | 2 | ✅ |
@@ -222,7 +257,22 @@ npm test
 | Field Requirements | 3 | ✅ |
 | Edge Cases | 4 | ✅ |
 | Enum Validation | 3 | ✅ |
-| **Total** | **19** | ✅ |
+| **Subtotal** | **19** | ✅ |
+
+### Playwright E2E Tests (Browser Rendering)
+
+| Category | Tests | Status |
+|----------|-------|--------|
+| Page Structure | 2 | ✅ |
+| Block Rendering | 4 | ✅ |
+| Block Schema | 2 | ✅ |
+| Seeded Data | 2 | ✅ |
+| Interactive | 2 | ✅ |
+| Error Handling | 2 | ✅ |
+| **Subtotal** | **14** | ✅ |
+
+### Total Coverage
+**33 automated tests** covering contract + user experience
 
 ## 🔗 Integration Points
 
@@ -252,11 +302,15 @@ r.use('/blocks', contentBlocksRoutes);
 ### Created
 - ✅ `client/src/components/SmartBlock.tsx` - Block renderer
 - ✅ `server/routes/content-blocks.js` - API endpoint
-- ✅ `tests/blocksApi.test.js` - Jest test suite
-- ✅ `tests/README-BLOCKS.md` - Test documentation
+- ✅ `tests/blocksApi.test.js` - Jest unit tests (19 tests)
+- ✅ `tests/e2e/copilot.spec.ts` - Playwright E2E tests (14 tests)
+- ✅ `tests/README-BLOCKS.md` - Jest test documentation
+- ✅ `tests/e2e/README.md` - Playwright test documentation
 - ✅ `scripts/seed-dev.js` - Seed script
-- ✅ `scripts/test-with-seed.sh` - Test helper
+- ✅ `scripts/test-with-seed.sh` - Jest test helper
+- ✅ `scripts/test-all.sh` - Complete test suite (seed + Jest + Playwright)
 - ✅ `jest.config.js` - Jest configuration
+- ✅ `playwright.config.ts` - Playwright configuration
 - ✅ `docs/BLOCK-SCHEMA-CONTRACT.md` - This document
 
 ### Modified
