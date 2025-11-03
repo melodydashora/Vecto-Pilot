@@ -81,8 +81,9 @@ process.noDeprecation = true;
 // ───────────────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.status(200).send('OK'));
 app.get('/ready', (_req, res) => res.status(200).send('READY'));
+app.get('/', (_req, res) => res.status(200).send('OK')); // Some supervisors probe root
 app.use((req, _res, next) => {
-  if (req.path === '/health' || req.path === '/ready' || req.path === '/healthz') {
+  if (req.path === '/health' || req.path === '/ready' || req.path === '/healthz' || req.path === '/') {
     console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
   }
   next();
@@ -1593,8 +1594,8 @@ function startEidolonServer() {
     }
     
     // Set server timeouts to prevent probe hangs
-    serverInstance.requestTimeout = 10000;   // 10s to receive full request
-    serverInstance.headersTimeout = 11000;   // must exceed requestTimeout
+    serverInstance.requestTimeout = 5000;   // 5s to receive full request
+    serverInstance.headersTimeout = 6000;   // must exceed requestTimeout
     serverInstance.keepAliveTimeout = 5000;  // avoid long-lived idle sockets
     // Agent server is optional - only needed for advanced file operations
     // Don't spawn agent if we're being run by the gateway (it spawns agent separately)

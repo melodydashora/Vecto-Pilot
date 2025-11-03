@@ -43,7 +43,7 @@ const execFileAsync = promisify(execFile);
 // ─────────────────────────────────────────────────────────────────────────────
 const BASE_DIR = process.env.BASE_DIR || "/home/runner/workspace";
 const PORT = Number(process.env.AGENT_PORT || process.env.DEFAULT_AGENT_PORT || 43717);
-const HOST = process.env.AGENT_HOST || "127.0.0.1"; // loopback by default
+const HOST = process.env.AGENT_HOST || "0.0.0.0"; // bind to all interfaces for supervisor access
 const TOKEN = process.env.AGENT_TOKEN || null;
 const IS_REPLIT = process.env.REPL_ID !== undefined;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
@@ -192,6 +192,10 @@ const app = express();
 // CRITICAL: Trust proxy MUST be set FIRST before creating any middleware
 app.set('trust proxy', 1);
 process.noDeprecation = true;
+
+// Fast-path health probes (BEFORE other middleware for instant response)
+app.get('/health', (_req, res) => res.status(200).send('OK'));
+app.get('/ready', (_req, res) => res.status(200).send('READY'));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Middleware
@@ -659,6 +663,11 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`[agent] Environment: ${IS_REPLIT ? "REPLIT" : "LOCAL"} ${IS_PRODUCTION ? "PROD" : "DEV"}`);
   if (TOKEN) console.log(`[agent] Token auth: enabled`);
 });
+
+// Keep health probes snappy and avoid socket buildup
+server.requestTimeout = 5000;
+server.headersTimeout = 6000;
+server.keepAliveTimeout = 5000;
 
 // Handle port conflicts gracefully
 server.on('error', (err) => {

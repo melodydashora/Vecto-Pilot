@@ -5,6 +5,10 @@ import type { Request, Response } from "express";
 const app = express();
 app.use(express.json({ limit: "5mb" }));
 
+// Fast-path health probes
+app.get('/health', (_req, res) => res.status(200).send('OK'));
+app.get('/ready', (_req, res) => res.status(200).send('READY'));
+
 const {
   CLAUDE_MODEL = "claude-sonnet-4-5-20250929",
   ANTHROPIC_API_KEY = "",
@@ -121,4 +125,12 @@ app.post("/ops/:verb", async (req, res) => {
 });
 
 const port = Number(process.env.GATEWAY_PORT || 5000);
-app.listen(port, () => console.log(`[gateway] assistant override on :${port}`));
+const host = process.env.HOST || '0.0.0.0';
+const server = app.listen(port, host, () =>
+  console.log(`[gateway] assistant listening on ${host}:${port}`)
+);
+
+// Tighten timeouts to prevent hung probes
+(server as any).requestTimeout = 5000;
+(server as any).headersTimeout = 6000;
+(server as any).keepAliveTimeout = 5000;
