@@ -34,7 +34,7 @@ import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
-import { subscribeStrategyReady } from '@/services/strategyEvents';
+import { subscribeStrategyReady, subscribeBlocksReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 import {
   Tooltip,
@@ -267,33 +267,24 @@ const CoPilot: React.FC = () => {
     }
   }, [lastSnapshotId, strategySnapshotId]);
 
-  // Track when strategy becomes ready (for 60-second blocks delay)
-  // And set up a timer to trigger re-render after 60 seconds
-  const [blocksTimerExpired, setBlocksTimerExpired] = useState(false);
+  // Subscribe to SSE blocks_ready events (event-driven, no polling!)
+  const [blocksReadyForSnapshot, setBlocksReadyForSnapshot] = useState<string | null>(null);
   
   useEffect(() => {
-    const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
-    if (strategyReady && !strategyReadyTime) {
-      const now = Date.now();
-      console.log(`⏰ Strategy ready at ${new Date(now).toISOString()}, blocks query will start in 60 seconds`);
-      setStrategyReadyTime(now);
-      setBlocksTimerExpired(false);
-      
-      // Set up timer to enable blocks query after 60 seconds
-      const timerId = setTimeout(() => {
-        console.log('⏰ 60 seconds elapsed - enabling blocks query NOW');
-        setBlocksTimerExpired(true);
-      }, 60000);
-      
-      return () => clearTimeout(timerId);
-    }
+    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
     
-    // Reset timer when snapshot changes
-    if (lastSnapshotId && strategyData?._snapshotId !== lastSnapshotId) {
-      setStrategyReadyTime(null);
-      setBlocksTimerExpired(false);
-    }
-  }, [strategyData, lastSnapshotId, strategyReadyTime]);
+    console.log('[SSE] Subscribing to blocks_ready events for snapshot:', lastSnapshotId);
+    const unsubscribe = subscribeBlocksReady((data) => {
+      if (data.snapshot_id === lastSnapshotId) {
+        console.log('🎉 Blocks ready for current snapshot! Fetching now...');
+        setBlocksReadyForSnapshot(data.snapshot_id);
+        // Invalidate blocks query to trigger fetch
+        queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
+      }
+    });
+    
+    return unsubscribe;
+  }, [lastSnapshotId]);
 
   // Update persistent strategy when new strategy arrives
   useEffect(() => {
@@ -446,45 +437,27 @@ const CoPilot: React.FC = () => {
       const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
       const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
       
-      // Wait 60 seconds after strategy becomes ready before polling for blocks
-      // This avoids wasteful API calls during worker processing time
-      // Use blocksTimerExpired state which triggers automatic re-render after 60s
-      const has60SecondsPassed = blocksTimerExpired;
+      // EVENT-DRIVEN: Only enable when blocks_ready event is received for this snapshot
+      // No polling, no timers - just pure LISTEN/NOTIFY architecture!
+      const blocksReadyForThisSnapshot = blocksReadyForSnapshot === lastSnapshotId;
       
-      const shouldEnable = hasCoords && hasSnapshot && !isStrategyFetching && strategyReady && snapshotMatches && has60SecondsPassed;
+      const shouldEnable = hasCoords && hasSnapshot && blocksReadyForThisSnapshot;
       
-      console.log('[blocks-query] 🔍 GATING CHECK:', {
+      console.log('[blocks-query] 🔍 GATING CHECK (Event-Driven):', {
         hasCoords,
         hasSnapshot,
         lastSnapshotId,
-        isStrategyFetching,
-        strategyStatus: strategyData?.status,
-        strategyReady,
-        strategySnapshotId: strategyData?._snapshotId,
-        snapshotMatches,
-        has60SecondsPassed,
-        secondsRemaining: strategyReadyTime ? Math.max(0, Math.ceil((60000 - (Date.now() - strategyReadyTime)) / 1000)) : 0,
-        '⚠️ BLOCKED_REASON': !shouldEnable ? (!hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : isStrategyFetching ? 'STRATEGY_FETCHING' : !strategyReady ? 'STRATEGY_NOT_READY' : !snapshotMatches ? 'SNAPSHOT_MISMATCH' : !has60SecondsPassed ? 'WAITING_60_SECONDS' : 'UNKNOWN') : 'NONE',
+        blocksReadyForSnapshot,
+        blocksReadyForThisSnapshot,
+        '⚠️ BLOCKED_REASON': !shouldEnable ? (!hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : !blocksReadyForThisSnapshot ? 'WAITING_FOR_BLOCKS_READY_EVENT' : 'UNKNOWN') : 'NONE',
         shouldEnable
       });
       
       return shouldEnable;
-    })(), // Auto-start when coordinates, snapshot, and DB-confirmed strategy are available
-    // Smart polling: Wait for worker to generate blocks, then stop
-    // Worker typically generates blocks 5-30 seconds after strategy completion
-    refetchInterval: (query) => {
-      const blocks = query.state.data?.blocks || [];
-      const error = query.state.data?.error;
-      
-      // Stop polling if blocks are loaded OR if we got NOT_FOUND error (blocks not generated yet)
-      if (blocks.length > 0 || error === 'NOT_FOUND') {
-        return false;
-      }
-      
-      // Poll every 5 seconds for first minute (12 attempts), then stop to avoid infinite loop
-      const attemptCount = query.state.dataUpdateCount || 0;
-      return attemptCount < 12 ? 5000 : false;
-    },
+    })(), // Auto-start when blocks_ready event is received
+    // NO POLLING: Event-driven architecture using PostgreSQL LISTEN/NOTIFY
+    // Blocks query only runs ONCE when blocks_ready SSE event is received
+    refetchInterval: false, // Disabled - we use SSE events instead
     retry: (failureCount, error: any) => {
       // Stop retrying if we got a timeout (504)
       if (error?.message?.includes('504') || error?.message?.includes('timeout')) {
