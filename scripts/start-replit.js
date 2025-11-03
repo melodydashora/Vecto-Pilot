@@ -118,9 +118,12 @@ if (isAutoscale) {
   // Import and run gateway directly (no exec overhead)
   await import('../gateway-server.js');
   
-  // Gateway will handle everything and stay running
-  // This code never executes if gateway runs successfully
-  process.exit(1);
+  // Gateway server is now running and will keep the process alive
+  // Don't exit - let the server run indefinitely
+  console.log('[boot] ✅ Gateway server started, process will stay alive');
+  
+  // Keep the process alive by waiting forever
+  await new Promise(() => {});
 }
 
 // REGULAR MODE: Full mono-mode bootstrap with worker process
