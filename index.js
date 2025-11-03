@@ -14,8 +14,8 @@ try {
 import http from 'node:http';
 
 function getArg(name){const p=`--${name}=`, a=process.argv.find(s=>s.startsWith(p)); return a? a.slice(p.length):undefined;}
-const PORT = Number(getArg('port') || process.env.EIDOLON_PORT || process.env.PORT || 5000); // No 3101 fallback
-const HOST = getArg('host') || process.env.HOST || '0.0.0.0';
+const PORT = Number(getArg('port') || process.env.EIDOLON_PORT || process.env.SDK_PORT || 3102); // SDK port, NOT 5000
+const HOST = getArg('host') || process.env.HOST || '0.0.0.0'; // CRITICAL: Must be 0.0.0.0 for Cloud Run
 
 // Log port/host immediately (removed process.env.PORT to prevent binding to gateway's port)
 console.log('[index] CONFIG:', { PORT, HOST, EIDOLON_PORT: process.env.EIDOLON_PORT, 'process.env.PORT': process.env.PORT });
