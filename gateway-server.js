@@ -141,10 +141,7 @@ function spawnChild(name, command, args, env) {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const distDir = path.join(__dirname, "client", "dist");
 
-    // CRITICAL: Health endpoints FIRST (before any middleware)
-    // This ensures supervisor probes get instant 200 OK responses
-    app.get('/', (_req, res) => res.status(200).send('OK'));
-    app.head('/', (_req, res) => res.status(200).end());
+    // Health endpoints (NOT on root path - that's for the SPA)
     app.get("/health", (_req, res) => res.status(200).send("OK"));
     app.head("/health", (_req, res) => res.status(200).end());
     app.get('/ready', (_req, res) => res.status(200).send('READY'));
@@ -156,9 +153,9 @@ function spawnChild(name, command, args, env) {
       return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
     });
 
-    // Probe logging (after health routes so they're already answered)
+    // Probe logging
     app.use((req, _res, next) => {
-      if (req.path === '/health' || req.path === '/healthz' || req.path === '/ready' || req.path === '/') {
+      if (req.path === '/health' || req.path === '/healthz' || req.path === '/ready') {
         console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
       }
       next();
