@@ -60,54 +60,59 @@ function spawnChild(name, command, args, env) {
     app.set("trust proxy", 1);
 
     // Detect Replit autoscale deployment environment
-    // CRITICAL: Only match actual deployments, not dev containers!
-    // Allow override via CLOUD_RUN_AUTOSCALE environment variable
     const isDeployment = 
       process.env.REPLIT_DEPLOYMENT === "1" || 
       process.env.REPLIT_DEPLOYMENT === "true";
     
+    // 🔒 Only enable autoscale mode if EXPLICITLY requested (opt-in, not opt-out)
     const isAutoscale = 
-      isDeployment && 
-      process.env.CLOUD_RUN_AUTOSCALE !== "0"; // Allow disabling autoscale mode
+      isDeployment && process.env.CLOUD_RUN_AUTOSCALE === "1";
     
     console.log(`[gateway] 🎯 isDeployment: ${isDeployment}`);
     console.log(`[gateway] 🎯 isAutoscale: ${isAutoscale}`);
     console.log(`[gateway] 🎯 CLOUD_RUN_AUTOSCALE: ${process.env.CLOUD_RUN_AUTOSCALE}`);
     
-    // AUTOSCALE MODE: Raw HTTP server, skip Express entirely
+    // AUTOSCALE MODE (opt-in only): Raw HTTP server, skip Express entirely
     if (isAutoscale) {
-      // Raw Node.js HTTP server - zero middleware overhead, zero logging
       const server = http.createServer((req, res) => {
-        // No logging - every console.log adds latency to health checks
-        res.writeHead(200, {
-          'Content-Type': 'text/plain',
-          'Connection': 'close'
-        });
+        // Handle GET and HEAD on / and health endpoints reliably
+        if (req.url === '/' || req.url === '/health' || req.url === '/ready') {
+          if (req.method === 'HEAD') {
+            res.statusCode = 200;
+            res.end();
+            return;
+          }
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'text/plain');
+          res.setHeader('Connection', 'keep-alive');
+          res.end('OK');
+          return;
+        }
+        // All other requests also return OK
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Connection', 'keep-alive');
         res.end('OK');
       });
-      
-      // Request timeout to prevent hanging
-      server.timeout = 5000;
-      server.keepAliveTimeout = 5000;
-      server.headersTimeout = 6000;
-      
-      // Error handling (only for fatal errors)
+
+      // Cloud Run compatible timeouts
+      server.keepAliveTimeout = 65000; // must be < headersTimeout
+      server.headersTimeout = 66000;
+      server.requestTimeout = 5000;
+
       server.on('error', (err) => {
         console.error(`[gateway] ❌ FATAL:`, err.code);
       });
-      
-      // Graceful shutdown
+
       process.on('SIGTERM', () => {
         server.close(() => process.exit(0));
       });
-      
-      // CRITICAL: Bind IMMEDIATELY - no logs, no delays
+
       server.listen(PORT, '0.0.0.0', () => {
-        // Log AFTER listening completes (optimization #1)
-        console.log("[gateway] ⚡ AUTOSCALE MODE listening on 0.0.0.0:" + PORT);
+        console.log(`[ready] ✅ LISTENING on 0.0.0.0:${PORT}`);
+        console.log(`[ready] 🚀 READY FOR HEALTH CHECKS`);
       });
-      
-      // Exit - don't load anything else in autoscale
+
       return;
     }
 
@@ -115,17 +120,19 @@ function spawnChild(name, command, args, env) {
     console.log(`[gateway] PID: ${process.pid}`);
     console.log(`[gateway] Mode: ${MODE.toUpperCase()}`);
     
-    // Load AI config only in regular mode (not in autoscale)
-    const { GATEWAY_CONFIG } = await import("./agent-ai-config.js");
-    console.log("[gateway] AI Config:", GATEWAY_CONFIG);
-    
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const distDir = path.join(__dirname, "client", "dist");
 
-    // Health endpoints (NOT on root path - that's for the SPA)
-    app.get("/health", (_req, res) => res.status(200).send("OK"));
-    app.head("/health", (_req, res) => res.status(200).end());
-    app.get('/ready', (_req, res) => res.status(200).send('READY'));
+    // Load AI config only in regular mode (not in autoscale)
+    const { GATEWAY_CONFIG } = await import("./agent-ai-config.js");
+    console.log("[gateway] AI Config:", GATEWAY_CONFIG);
+
+    // CRITICAL: Health endpoints FIRST (before any middleware)
+    // This ensures instant responses to deployment health checks
+    app.get('/health', (_req, res) => res.status(200).send('OK'));
+    app.head('/health', (_req, res) => res.status(200).end());
+    app.get('/ready', (_req, res) => res.status(200).send('OK'));
+    app.head('/ready', (_req, res) => res.status(200).end());
     app.get("/healthz", (_req, res) => {
       const indexPath = path.join(distDir, "index.html");
       if (fs.existsSync(indexPath)) {
@@ -134,24 +141,16 @@ function spawnChild(name, command, args, env) {
       return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
     });
 
-    // Probe logging
-    app.use((req, _res, next) => {
-      if (req.path === '/health' || req.path === '/healthz' || req.path === '/ready') {
-        console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
-      }
-      next();
-    });
-
-    // Serve SPA static assets
+    // Serve SPA static assets immediately (before setImmediate)
     app.use(express.static(distDir));
 
-    // Start HTTP server (wrap Express with http.createServer for timeout control)
+    // Start HTTP server IMMEDIATELY (before loading heavy modules)
     const server = http.createServer(app);
     
-    // Set strict server timeouts (prevent probe hangs)
-    server.requestTimeout = 5000;    // 5s max to receive full request
-    server.headersTimeout = 6000;    // 6s max for headers (must exceed requestTimeout)
-    server.keepAliveTimeout = 5000;  // 5s keep-alive to avoid long-lived idle sockets
+    // Cloud Run compatible timeouts
+    server.keepAliveTimeout = 65000; // must be < headersTimeout
+    server.headersTimeout = 66000;
+    server.requestTimeout = 5000;
     
     server.on('error', (err) => {
       console.error('[gateway] ❌ Server error:', err);
