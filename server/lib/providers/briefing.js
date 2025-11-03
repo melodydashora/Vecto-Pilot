@@ -2,14 +2,14 @@
 // Briefer provider - Uses Perplexity API for comprehensive travel research
 
 import { db } from '../../db/drizzle.js';
-import { strategies } from '../../../shared/schema.js';
+import { briefings } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 
 /**
  * Run briefing generation using Perplexity API
  * Comprehensive travel research: global/domestic/local + holidays + events within 50mi
- * Writes to strategies.briefing (JSONB field for Briefing page display)
+ * Writes to briefings table (structured fields for Briefing page display)
  * @param {string} snapshotId - UUID of snapshot
  */
 export async function runBriefing(snapshotId) {
@@ -18,20 +18,18 @@ export async function runBriefing(snapshotId) {
   try {
     const ctx = await getSnapshotContext(snapshotId);
     
-    // Extract holiday from news_briefing if present
-    const holiday = ctx.news_briefing?.briefing?.holiday || null;
-    
     const systemInstruction = `You are a comprehensive travel intelligence researcher. Provide detailed briefings covering all factors affecting travel and rideshare operations.
 
-Research and report on:
-1. Global travel conditions affecting this region
-2. Domestic (national) travel conditions 
-3. Local area conditions
-4. Current holidays (if today is a holiday)
-5. Major events within 50 miles (80 km) of the driver's location
-6. Traffic incidents, construction, road closures
-7. Weather impacts on travel
-8. Any other factors affecting rideshare operations
+Research and report on these specific categories. Return your response as JSON with these exact fields:
+{
+  "global_travel": "Global conditions affecting this region",
+  "domestic_travel": "National/domestic travel conditions",
+  "local_traffic": "Local traffic, construction, incidents, road closures",
+  "weather_impacts": "Weather affecting travel",
+  "events_nearby": "Events within 50 miles",
+  "holidays": "Today's holiday if any, otherwise empty string",
+  "rideshare_intel": "Rideshare-specific intelligence (surge zones, airport activity, demand patterns)"
+}
 
 Be thorough and factual. Use live web search for current information.`;
 
@@ -128,31 +126,74 @@ Use live web search to find current, factual information. Be comprehensive and o
 
     const result = await response.json();
     const briefingText = result.choices?.[0]?.message?.content?.trim() || '';
+    const citations = result.citations || [];
     
     if (!briefingText) {
       throw new Error('Perplexity returned empty response');
     }
     
-    console.log(`[briefing] 📝 Perplexity response: ${briefingText.length} chars, ${result.citations?.length || 0} citations`);
+    console.log(`[briefing] 📝 Perplexity response: ${briefingText.length} chars, ${citations.length} citations`);
     
-    // Store as JSONB with text field for compatibility
-    const briefing = {
-      text: briefingText,
-      type: 'paragraph',
-      generated_at: new Date().toISOString()
-    };
+    // Parse JSON response from Perplexity
+    let briefingData;
+    try {
+      // Try to extract JSON from markdown code blocks if present
+      const jsonMatch = briefingText.match(/```json\s*([\s\S]*?)\s*```/) || briefingText.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : briefingText;
+      briefingData = JSON.parse(jsonStr);
+    } catch (parseErr) {
+      console.warn(`[briefing] ⚠️  Failed to parse JSON, using fallback structure:`, parseErr.message);
+      // Fallback: Store entire response as local_traffic
+      briefingData = {
+        global_travel: '',
+        domestic_travel: '',
+        local_traffic: briefingText,
+        weather_impacts: '',
+        events_nearby: '',
+        holidays: '',
+        rideshare_intel: ''
+      };
+    }
+
+    // Check if briefing already exists
+    const [existing] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+
+    if (existing) {
+      // Update existing
+      await db.update(briefings).set({
+        global_travel: briefingData.global_travel || '',
+        domestic_travel: briefingData.domestic_travel || '',
+        local_traffic: briefingData.local_traffic || '',
+        weather_impacts: briefingData.weather_impacts || '',
+        events_nearby: briefingData.events_nearby || '',
+        holidays: briefingData.holidays || '',
+        rideshare_intel: briefingData.rideshare_intel || '',
+        citations: citations,
+        updated_at: new Date()
+      }).where(eq(briefings.snapshot_id, snapshotId));
+      
+      console.log(`[briefing] ✅ Updated briefing for ${snapshotId}`);
+    } else {
+      // Insert new
+      await db.insert(briefings).values({
+        snapshot_id: snapshotId,
+        global_travel: briefingData.global_travel || '',
+        domestic_travel: briefingData.domestic_travel || '',
+        local_traffic: briefingData.local_traffic || '',
+        weather_impacts: briefingData.weather_impacts || '',
+        events_nearby: briefingData.events_nearby || '',
+        holidays: briefingData.holidays || '',
+        rideshare_intel: briefingData.rideshare_intel || '',
+        citations: citations,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+      
+      console.log(`[briefing] ✅ Created briefing for ${snapshotId}`);
+    }
     
-    console.log(`[briefing] Strategic paragraph: ${briefingText.slice(0, 150)}...`);
-
-    // Write to single JSONB field (keep holiday from news_briefing if present)
-    await db.update(strategies).set({
-      briefing,
-      holiday: holiday,  // Write holiday from news_briefing to dedicated column for UI banner
-      strategy_timestamp: new Date(),
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId));
-
-    console.log(`[briefing] ✅ Complete for ${snapshotId} (${briefingText.length} chars, holiday column:${holiday || 'none'})`);
+    console.log(`[briefing] 📊 Structured data: global=${!!briefingData.global_travel}, domestic=${!!briefingData.domestic_travel}, local=${!!briefingData.local_traffic}, weather=${!!briefingData.weather_impacts}, events=${!!briefingData.events_nearby}, holidays="${briefingData.holidays}"`);
   } catch (error) {
     console.error(`[briefing] ❌ Error for ${snapshotId}:`, error.message);
     throw error;
