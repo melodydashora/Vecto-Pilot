@@ -125,8 +125,12 @@ function spawnChild(name, command, args, env) {
       }
     }
 
-    // Serve SPA for all other routes (catch-all must be LAST)
-    app.get("*", (_req, res) => {
+    // Serve SPA for all other routes (catch-all must be LAST, excludes /api and /agent)
+    app.get("*", (req, res, next) => {
+      // Don't intercept API or agent routes
+      if (req.path.startsWith('/api/') || req.path.startsWith('/agent/')) {
+        return next();
+      }
       res.sendFile(path.join(distDir, "index.html"));
     });
   });
