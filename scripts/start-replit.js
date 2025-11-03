@@ -17,6 +17,38 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// SIMULATION MODE: Run workflow simulation and exit
+// This must be checked FIRST, before any server setup
+if (process.env.SIMULATE === '1') {
+  console.log('[boot] 📊 Simulation mode detected - running workflow simulation');
+  
+  const simulationEnv = {
+    ...process.env,
+    LOG_FILE: process.env.LOG_FILE || '/tmp/workflow.ndjson',
+    SNAPSHOT_ID: process.env.SNAPSHOT_ID || 'sim-0001',
+    CLIENT_ID: process.env.CLIENT_ID || 'client-dev',
+    SIM_DELAY_MS: process.env.SIM_DELAY_MS || '300',
+  };
+
+  const child = spawn('node', ['scripts/simulate-workflow.js'], {
+    stdio: 'inherit',
+    env: simulationEnv
+  });
+
+  child.on('exit', (code) => {
+    process.exit(code || 0);
+  });
+
+  child.on('error', (err) => {
+    console.error('[boot:simulation:error]', err.message);
+    process.exit(1);
+  });
+
+  // Exit early - simulation handles its own lifecycle
+  // We use a dummy Promise to prevent the rest of the script from executing
+  await new Promise(() => {});
+}
+
 // Helper function to load env files
 function loadEnvFile(filename) {
   try {
