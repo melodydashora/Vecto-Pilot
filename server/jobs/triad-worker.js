@@ -3,7 +3,7 @@
 // Removes hot polling, infinite loops, and adds graceful shutdown.
 
 import { db } from '../db/drizzle.js';
-import { strategies, snapshots } from '../../shared/schema.js';
+import { strategies, snapshots, briefings } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 // Optional: environment flags (kept for consistency, not used for polling anymore)
@@ -85,56 +85,77 @@ export async function startConsolidationListener() {
           return;
         }
 
-        // Gate: all GENERIC provider fields present AND not already consolidated
-        const hasStrategy = row.minstrategy != null && row.minstrategy.length > 0;
-        const hasBriefing = hasRenderableBriefing(row.briefing);
-        const alreadyConsolidated = row.consolidated_strategy != null;
-        const ready = hasStrategy && hasBriefing && !alreadyConsolidated;
+        // Fetch briefing from separate table
+        const [briefingRow] = await db.select()
+          .from(briefings)
+          .where(eq(briefings.snapshot_id, snapshotId))
+          .limit(1);
 
-        console.log(`[consolidation-listener] Gate for ${snapshotId}:`, {
+        // Check if data is ready
+        const hasStrategy = row.minstrategy != null && row.minstrategy.length > 0;
+        const hasBriefing = briefingRow != null;
+        const alreadyConsolidated = row.consolidated_strategy != null;
+        const needsConsolidation = hasStrategy && hasBriefing && !alreadyConsolidated;
+
+        console.log(`[consolidation-listener] Status for ${snapshotId}:`, {
           hasStrategy,
           hasBriefing,
-          briefingData: hasBriefing ? {
-            events: row.briefing?.events?.length || 0,
-            holidays: row.briefing?.holidays?.length || 0,
-            traffic: row.briefing?.traffic?.length || 0,
-            news: row.briefing?.news?.length || 0
-          } : null,
           alreadyConsolidated,
-          ready
+          needsConsolidation
         });
 
-        if (!ready) return;
-
-        // Consolidate
-        const result = await consolidateStrategy({
-          snapshotId,
-          claudeStrategy: row.minstrategy,
-          briefing: row.briefing,
-          user: {
-            lat: row.lat,
-            lng: row.lng,
-            user_address: row.user_resolved_address || row.user_address || '',
-            city: row.user_resolved_city || row.city || '',
-            state: row.user_resolved_state || row.state || ''
-          }
-        });
-
-        if (!result.ok) {
-          console.error(`[consolidation-listener] ❌ Consolidation failed for ${snapshotId}:`, result.reason);
+        // Early exit if basic data isn't ready
+        if (!hasStrategy || !hasBriefing) {
+          console.log(`[consolidation-listener] ⏭️ Skipping ${snapshotId} - missing strategy or briefing`);
           return;
         }
 
-        console.log(`[consolidation-listener] ✅ Consolidation complete for ${snapshotId}`);
+        // Run consolidation if needed
+        if (needsConsolidation) {
+          console.log(`[consolidation-listener] 🔄 Running consolidation for ${snapshotId}...`);
+          
+          // Build briefing object from briefing table row
+          const briefingData = briefingRow ? {
+            global_travel: briefingRow.global_travel,
+            domestic_travel: briefingRow.domestic_travel,
+            local_traffic: briefingRow.local_traffic,
+            weather_impacts: briefingRow.weather_impacts,
+            events_nearby: briefingRow.events_nearby,
+            holidays: briefingRow.holidays,
+            rideshare_intel: briefingRow.rideshare_intel
+          } : {};
 
-        // Fetch updated strategy and snapshot
+          const result = await consolidateStrategy({
+            snapshotId,
+            claudeStrategy: row.minstrategy,
+            briefing: briefingData,
+            user: {
+              lat: row.lat,
+              lng: row.lng,
+              user_address: row.user_resolved_address || row.user_address || '',
+              city: row.user_resolved_city || row.city || '',
+              state: row.user_resolved_state || row.state || ''
+            }
+          });
+
+          if (!result.ok) {
+            console.error(`[consolidation-listener] ❌ Consolidation failed for ${snapshotId}:`, result.reason);
+            return;
+          }
+
+          console.log(`[consolidation-listener] ✅ Consolidation complete for ${snapshotId}`);
+        } else {
+          console.log(`[consolidation-listener] ⏭️ Consolidation already done for ${snapshotId}, proceeding to Smart Blocks`);
+        }
+
+        // Fetch current strategy state (whether just consolidated or already done)
         const [updatedRow] = await db.select()
           .from(strategies)
           .where(eq(strategies.snapshot_id, snapshotId))
           .limit(1);
 
         if (!updatedRow?.consolidated_strategy) {
-          console.warn(`[consolidation-listener] ⚠️ No consolidated_strategy present after consolidation for ${snapshotId}`);
+          console.warn(`[consolidation-listener] ⚠️ No consolidated_strategy present for ${snapshotId}`);
           return;
         }
 
@@ -143,13 +164,19 @@ export async function startConsolidationListener() {
           .where(eq(snapshots.snapshot_id, snapshotId))
           .limit(1);
 
+        // Fetch updated briefing from table
+        const [updatedBriefing] = await db.select()
+          .from(briefings)
+          .where(eq(briefings.snapshot_id, snapshotId))
+          .limit(1);
+
         // Generate enhanced smart blocks
         try {
           console.log(`[consolidation-listener] 🎯 Generating enhanced smart blocks for ${snapshotId}...`);
           await generateEnhancedSmartBlocks({
             snapshotId,
-            consolidated: updatedRow.consolidated_strategy,  // Fixed: was 'strategy'
-            briefing: updatedRow.briefing || { events: [], holidays: [], traffic: [], news: [] },  // Added missing briefing
+            consolidated: updatedRow.consolidated_strategy,
+            briefing: updatedBriefing || { events: [], holidays: [], traffic: [], news: [] },
             snapshot: {
               ...snap,
               formatted_address: updatedRow.user_address || snap?.formatted_address,

@@ -16,8 +16,6 @@ channel = "stable-25_05"
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
 run = ["sh", "-c", "set -a && . ./mono-mode.env && set +a && node scripts/start-replit.js"]
 
-
-# Port mappings
 [[ports]]
 localPort = 5000
 externalPort = 80
