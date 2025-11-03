@@ -97,19 +97,20 @@ export async function runConsolidator(snapshotId) {
     console.log(`[consolidator] 📊 GPT-5 will do briefing research + consolidation:`, inputMetrics);
     
     // Step 3: Build prompts for GPT-5 reasoning + web search
-    const systemPrompt = `You are an expert rideshare strategy consolidator with web search capabilities.
+    const systemPrompt = `You are an expert rideshare intelligence analyst with live web search capabilities.
 
-Your task is to:
-1. Take the strategist's initial assessment
-2. Research current traffic, construction, incidents, news, and events via live web search
-3. Consolidate both into a final actionable 30-minute strategy
+Your task:
+1. Use live web search to research current conditions for rideshare drivers
+2. Consolidate your research with the strategist's assessment
+3. Provide a strategic rideshare briefing so the driver can make the most money in the next 30 minutes
 
-Focus briefing research on: traffic conditions, road closures, construction, enforcement, incidents, and local news/events affecting rideshare drivers.
+Focus strictly on: traffic conditions, incidents, closures, enforcement, construction, and news/events affecting rideshare drivers.
 
-CRITICAL: Use the exact day of week and time provided in the user prompt - do not infer or recompute dates.
-IMPORTANT: Do NOT include full street addresses in your output. Reference only city/area (e.g., "${cityDisplay}")`;
+Do NOT list venues or curb locations.
 
-    const userPrompt = `CRITICAL DATE & TIME (from snapshot - AUTHORITATIVE, do not recompute):
+CRITICAL: Use the exact day of week and time provided - do not recompute dates.`;
+
+    const userPrompt = `SNAPSHOT DATA (AUTHORITATIVE - from driver's GPS):
 Day of Week: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : ''}
 Date & Time: ${localTime}
 Day Part: ${dayPart}
@@ -117,30 +118,32 @@ Hour: ${ctx.hour}:00
 Timezone: ${ctx.timezone}
 ${ctx.is_holiday ? `🎉 HOLIDAY: ${ctx.holiday}` : ''}
 
-DRIVER LOCATION (for context - do NOT include street address in final output):
-City/Area: ${cityDisplay}
-Internal Address: ${userAddress}
+Location: ${cityDisplay}
 Coordinates: ${ctx.lat}, ${ctx.lng}
 
-CURRENT CONDITIONS:
 Weather: ${ctx.weather?.tempF || 'unknown'}°F, ${ctx.weather?.conditions || 'unknown'}
 Air Quality: AQI ${ctx.air?.aqi || 'unknown'}
+${ctx.airport_context?.airport_code ? `Airport: ${ctx.airport_context.airport_code} (${ctx.airport_context.distance_miles} mi away)` : ''}
 
-STRATEGIST'S INITIAL ASSESSMENT:
+STRATEGIST'S ASSESSMENT:
 ${minstrategy}
 
 YOUR TASK:
-1. Use live web search to find current traffic conditions, construction, incidents, road closures, enforcement, and news/events affecting rideshare drivers in ${cityDisplay} right now
-2. Focus on the next 30 minutes - driver is leaving NOW
-3. Merge the strategist's assessment with your real-time briefing research
-4. Produce a consolidated 3-5 sentence strategy
+1. Use live web search to research current conditions in ${cityDisplay} for rideshare drivers
+   - Traffic conditions, incidents, closures
+   - Enforcement activity (speed traps, DUI checkpoints)
+   - Construction and road work
+   - News/events affecting rideshare demand
+2. Consolidate your research with the strategist's assessment
+3. Provide a summary paragraph (3-5 sentences) for a driver leaving NOW
 
 CRITICAL REQUIREMENTS:
-- Use exact day of week (${dayOfWeek}) provided above - this is authoritative
-${ctx.is_holiday ? `- Factor in holiday-specific demand patterns for ${ctx.holiday}` : ''}
-- Start with day and time context (e.g., "${dayOfWeek} ${dayPart} in ${cityDisplay}")
-- Do NOT include full street addresses - reference only "${cityDisplay}"
-- Focus on actionable intelligence for the next 30 minutes`;
+- Prioritize the driver leaving now (next 30 minutes)
+- Use exact day of week (${dayOfWeek}) - this is authoritative
+${ctx.is_holiday ? `- Factor in holiday-specific demand for ${ctx.holiday}` : ''}
+- Focus strictly on traffic, incidents, closures, enforcement, construction, news/events
+- Do NOT list venues or curb locations
+- Reference only "${cityDisplay}" (no full street addresses)`;
 
     const promptSize = systemPrompt.length + userPrompt.length;
     console.log(`[consolidator] 📝 Prompt size: ${promptSize} chars`);
