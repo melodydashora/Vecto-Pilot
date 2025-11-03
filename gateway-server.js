@@ -75,17 +75,27 @@ function spawnChild(name, command, args, env) {
       console.log("[gateway] ⏱️ Start time:", new Date().toISOString());
       console.log("[gateway] 🚀 Creating ultra-minimal Express app...");
       
+      // Log ALL incoming requests to debug health checks
+      app.use((req, res, next) => {
+        console.log(`[health] 📥 ${req.method} ${req.url} from ${req.ip}`);
+        next();
+      });
+      
       // Ultra-minimal health endpoints - respond immediately
       app.get("/", (_req, res) => {
+        console.log("[health] ✅ Responding to GET /");
         res.status(200).send("OK");
       });
       app.head("/", (_req, res) => {
+        console.log("[health] ✅ Responding to HEAD /");
         res.status(200).end();
       });
       app.get("/health", (_req, res) => {
+        console.log("[health] ✅ Responding to GET /health");
         res.status(200).send("OK");
       });
       app.head("/health", (_req, res) => {
+        console.log("[health] ✅ Responding to HEAD /health");
         res.status(200).end();
       });
       
