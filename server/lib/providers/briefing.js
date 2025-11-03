@@ -183,9 +183,8 @@ Use live web search to find current, factual information. Be comprehensive and o
         weather_impacts: briefingData.weather_impacts || '',
         events_nearby: briefingData.events_nearby || '',
         rideshare_intel: briefingData.rideshare_intel || '',
-        citations: citations,
-        created_at: new Date(),
-        updated_at: new Date()
+        citations: citations
+        // created_at and updated_at are set automatically via .defaultNow()
       });
       
       console.log(`[briefing] ✅ Created briefing for ${snapshotId}`);
