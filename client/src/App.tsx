@@ -64,8 +64,8 @@ function App() {
             
             <main className="main-content-with-header">
               <Switch>
-                <Route path="/" component={CoPilot} />
                 <Route path="/briefing" component={BriefingPage} />
+                <Route path="/:rest*" component={CoPilot} />
               </Switch>
             </main>
 
