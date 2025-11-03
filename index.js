@@ -50,15 +50,20 @@ process.noDeprecation = true;
 
 // ───────────────────────────────────────────────────────────────────────────────
 // CRITICAL: Fast-path health probes (BEFORE any middleware or heavy imports)
+// Handle both GET and HEAD methods (many platform probes use HEAD)
 // ───────────────────────────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.status(200).send('OK'));
+app.head('/', (_req, res) => res.status(200).end());
 app.get('/health', (_req, res) => res.status(200).send('OK'));
+app.head('/health', (_req, res) => res.status(200).end());
 app.get('/ready', (_req, res) => res.status(200).send('READY'));
 
-// Probe logging middleware
+// Probe logging middleware (logs both GET and HEAD)
 app.use((req, _res, next) => {
-  if (req.path === '/' || req.path === '/health' || req.path === '/ready' || req.path === '/healthz') {
-    console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    if (req.path === '/' || req.path === '/health' || req.path === '/ready' || req.path === '/healthz') {
+      console.log(`[probe] ${req.method} ${req.path} @ ${new Date().toISOString()}`);
+    }
   }
   next();
 });
