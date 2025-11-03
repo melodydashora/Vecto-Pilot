@@ -3,7 +3,7 @@
 
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 import { callModel } from '../adapters/index.js';
 
@@ -61,16 +61,19 @@ Provide a brief strategic assessment of positioning opportunities for the next h
     
     const text = result.output;
     
-    // Write to model-agnostic field
+    // Write to model-agnostic field using raw SQL (Drizzle ORM was failing mysteriously)
     try {
-      await db.update(strategies).set({
-        minstrategy: text,
-        user_resolved_address: ctx.formatted_address,
-        user_resolved_city: ctx.city,
-        user_resolved_state: ctx.state,
-        strategy_timestamp: new Date(),
-        updated_at: new Date()
-      }).where(eq(strategies.snapshot_id, snapshotId));
+      await db.execute(sql`
+        UPDATE strategies 
+        SET 
+          minstrategy = ${text},
+          user_resolved_address = ${ctx.formatted_address},
+          user_resolved_city = ${ctx.city},
+          user_resolved_state = ${ctx.state},
+          strategy_timestamp = NOW(),
+          updated_at = NOW()
+        WHERE snapshot_id = ${snapshotId}
+      `);
     } catch (dbError) {
       console.error(`[minstrategy] ❌ Database UPDATE failed for ${snapshotId}:`, {
         error: dbError.message,
