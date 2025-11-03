@@ -716,54 +716,9 @@ router.post('/snapshot', async (req, res) => {
       is_holiday: holidayInfo.is_holiday
     });
 
-    // Fetch rideshare news briefing using Gemini (60-minute actionable intel)
-    console.log('[snapshot] Generating news briefing with Gemini...');
+    // BRIEFING: Disabled old Gemini briefing (now using Perplexity via strategy pipeline)
+    // New architecture: briefing runs via runBriefing provider → writes to 'briefings' table
     let localNews = null;
-    
-    try {
-      // Build temporary snapshot object for briefing (needs formatted_address, city, state, timezone, created_at, airport_context)
-      const tempSnapshot = {
-        snapshot_id: snapshotV1.snapshot_id,
-        formatted_address: snapshotV1.resolved?.formattedAddress || null,
-        city: snapshotV1.resolved?.city || null,
-        state: snapshotV1.resolved?.state || null,
-        timezone: snapshotV1.resolved?.timezone || null,
-        created_at: snapshotV1.created_at,
-        airport_context: airportContext
-      };
-      
-      const briefingResult = await generateNewsBriefing(tempSnapshot);
-      
-      if (briefingResult.ok) {
-        localNews = {
-          briefing: briefingResult.briefing,
-          fetched_at: new Date().toISOString(),
-          latency_ms: briefingResult.latency_ms,
-          model: briefingResult.model,
-          type: 'gemini_structured'
-        };
-        console.log('📰 [BRIEFING] News Briefing Generated:', {
-          airports: briefingResult.briefing.airports.length,
-          traffic: briefingResult.briefing.traffic_construction.length,
-          events: briefingResult.briefing.major_events.length,
-          policy: briefingResult.briefing.policy_safety.length,
-          takeaways: briefingResult.briefing.driver_takeaway.length,
-          latency_ms: briefingResult.latency_ms
-        });
-      } else {
-        // Store fallback briefing
-        localNews = {
-          briefing: briefingResult.briefing,
-          fetched_at: new Date().toISOString(),
-          error: briefingResult.error,
-          model: 'gemini_fallback',
-          type: 'gemini_structured'
-        };
-        console.warn('[snapshot] Gemini briefing failed (non-blocking), using fallback:', briefingResult.error);
-      }
-    } catch (newsErr) {
-      console.warn('[snapshot] News briefing generation failed (non-blocking):', newsErr.message);
-    }
 
     // Transform SnapshotV1 to Postgres schema
     // Helper to safely parse dates, returning null for invalid dates
