@@ -191,6 +191,14 @@ export async function startConsolidationListener() {
             user_id: updatedRow.user_id || snap?.user_id
           });
           console.log(`[consolidation-listener] ✅ Enhanced smart blocks generated for ${snapshotId}`);
+          
+          // CRITICAL: Notify SSE listeners that blocks are ready
+          try {
+            await pgClient.query(`NOTIFY blocks_ready, '${snapshotId}'`);
+            console.log(`[consolidation-listener] 📢 NOTIFY blocks_ready sent for ${snapshotId}`);
+          } catch (notifyErr) {
+            console.error(`[consolidation-listener] ⚠️ Failed to send NOTIFY:`, notifyErr.message);
+          }
         } catch (blocksErr) {
           console.error(`[consolidation-listener] ⚠️ Blocks generation failed (non-blocking):`, blocksErr.message);
         }
