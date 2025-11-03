@@ -33,6 +33,12 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
     : content;
 
   const client = await pool.connect();
+  
+  // Add error handler to prevent unhandled errors crashing the process
+  client.on('error', (err) => {
+    console.error('[memory:put] Client error:', err.message);
+  });
+  
   try {
     // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
     if (user_id_val) {
@@ -60,6 +66,12 @@ export async function memoryGet({ table, scope, key, userId }) {
   const user_id_val = normalizeUserId(userId);
 
   const client = await pool.connect();
+  
+  // Add error handler to prevent unhandled errors crashing the process
+  client.on('error', (err) => {
+    console.error('[memory:get] Client error:', err.message);
+  });
+  
   try {
     // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
     if (user_id_val) {
@@ -94,6 +106,12 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
   const lim = Math.max(1, Math.min(200, limit));
 
   const client = await pool.connect();
+  
+  // Add error handler to prevent unhandled errors crashing the process
+  client.on('error', (err) => {
+    console.error('[memory:query] Client error:', err.message);
+  });
+  
   try {
     // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
     if (user_id_val) {

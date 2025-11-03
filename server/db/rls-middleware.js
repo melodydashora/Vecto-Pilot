@@ -23,6 +23,11 @@ export async function queryWithRLS({ userId = null, sessionId = null, query, val
 
   const client = await pool.connect();
   
+  // Add error handler to prevent unhandled errors crashing the process
+  client.on('error', (err) => {
+    console.error('[RLS] Client error:', err.message);
+  });
+  
   try {
     // Set RLS session variables
     if (userId) {
@@ -65,6 +70,11 @@ export async function transactionWithRLS({ userId = null, sessionId = null, call
   }
 
   const client = await pool.connect();
+  
+  // Add error handler to prevent unhandled errors crashing the process
+  client.on('error', (err) => {
+    console.error('[RLS] Transaction client error:', err.message);
+  });
   
   try {
     await client.query('BEGIN');

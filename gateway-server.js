@@ -59,14 +59,12 @@ function spawnChild(name, command, args, env) {
     const app = express();
     app.set("trust proxy", 1);
 
-    // Detect Replit autoscale deployment environment
-    const isDeployment = 
-      process.env.REPLIT_DEPLOYMENT === "1" || 
-      process.env.REPLIT_DEPLOYMENT === "true";
+    // Autoscale is opt-in only
+    const isAutoscale =
+      (process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true") &&
+      process.env.CLOUD_RUN_AUTOSCALE === "1";
     
-    // 🔒 Only enable autoscale mode if EXPLICITLY requested (opt-in, not opt-out)
-    const isAutoscale = 
-      isDeployment && process.env.CLOUD_RUN_AUTOSCALE === "1";
+    const isDeployment = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
     
     console.log(`[gateway] 🎯 isDeployment: ${isDeployment}`);
     console.log(`[gateway] 🎯 isAutoscale: ${isAutoscale}`);
