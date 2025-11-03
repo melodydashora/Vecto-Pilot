@@ -101,10 +101,19 @@ export async function runConsolidator(snapshotId) {
 
 Your task:
 1. Use live web search to research current conditions for rideshare drivers
-2. Consolidate your research with the strategist's assessment
-3. Provide a strategic rideshare briefing so the driver can make the most money in the next 30 minutes
+2. Split your research into tactical details and actionable summary
+3. Return structured JSON
 
-Focus strictly on: traffic conditions, incidents, closures, enforcement, construction, and news/events affecting rideshare drivers.
+Format your response as JSON with these fields:
+{
+  "tactical_traffic": "Traffic/incidents for next 30 minutes",
+  "tactical_closures": "Closures/construction for next 30 minutes", 
+  "tactical_enforcement": "Enforcement activity for next 30 minutes",
+  "tactical_sources": "Sources checked (website names/URLs)",
+  "summary": "Actionable summary (3-5 sentences) for driver leaving NOW"
+}
+
+Focus strictly on: traffic conditions, incidents, closures, enforcement, construction.
 
 Do NOT list venues or curb locations.
 
@@ -129,21 +138,20 @@ STRATEGIST'S ASSESSMENT:
 ${minstrategy}
 
 YOUR TASK:
-1. Use live web search to research current conditions in ${cityDisplay} for rideshare drivers
-   - Traffic conditions, incidents, closures
-   - Enforcement activity (speed traps, DUI checkpoints)
-   - Construction and road work
-   - News/events affecting rideshare demand
-2. Consolidate your research with the strategist's assessment
-3. Provide a summary paragraph (3-5 sentences) for a driver leaving NOW
+Research current conditions in ${cityDisplay} and return structured JSON:
+
+1. tactical_traffic: Traffic/incidents for next 30 minutes
+2. tactical_closures: Closures/construction for next 30 minutes  
+3. tactical_enforcement: Enforcement activity (checkpoints, patrols)
+4. tactical_sources: Sources checked (list websites/URLs)
+5. summary: Actionable summary (3-5 sentences) consolidating strategist's assessment with your research
 
 CRITICAL REQUIREMENTS:
-- Prioritize the driver leaving now (next 30 minutes)
-- Use exact day of week (${dayOfWeek}) - this is authoritative
-${ctx.is_holiday ? `- Factor in holiday-specific demand for ${ctx.holiday}` : ''}
-- Focus strictly on traffic, incidents, closures, enforcement, construction, news/events
-- Do NOT list venues or curb locations
-- Reference only "${cityDisplay}" (no full street addresses)`;
+- Prioritize next 30 minutes only
+- Use exact day/time: ${dayOfWeek}, ${localTime}
+${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
+- Reference only "${cityDisplay}" (no full street addresses)
+- Return valid JSON only`;
 
     const promptSize = systemPrompt.length + userPrompt.length;
     console.log(`[consolidator] 📝 Prompt size: ${promptSize} chars`);
@@ -169,13 +177,64 @@ ${ctx.is_holiday ? `- Factor in holiday-specific demand for ${ctx.holiday}` : ''
       throw new Error('Consolidator returned empty output');
     }
     
+    // Step 5: Parse JSON response
+    let parsedOutput;
+    try {
+      // Try to extract JSON from markdown code blocks if present
+      const jsonMatch = consolidatedStrategy.match(/```json\s*([\s\S]*?)\s*```/) || consolidatedStrategy.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : consolidatedStrategy;
+      parsedOutput = JSON.parse(jsonStr);
+    } catch (parseErr) {
+      console.warn(`[consolidator] ⚠️  Failed to parse JSON, using full text as summary:`, parseErr.message);
+      // Fallback: Store entire response as summary only
+      parsedOutput = {
+        tactical_traffic: '',
+        tactical_closures: '',
+        tactical_enforcement: '',
+        tactical_sources: '',
+        summary: consolidatedStrategy
+      };
+    }
+    
+    // Step 6: Write tactical sections to briefings table
+    const { briefings } = await import('../../../shared/schema.js');
+    const [existingBriefing] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    
+    if (existingBriefing) {
+      // Update existing briefing with tactical sections
+      await db.update(briefings).set({
+        tactical_traffic: parsedOutput.tactical_traffic || '',
+        tactical_closures: parsedOutput.tactical_closures || '',
+        tactical_enforcement: parsedOutput.tactical_enforcement || '',
+        tactical_sources: parsedOutput.tactical_sources || '',
+        updated_at: new Date()
+      }).where(eq(briefings.snapshot_id, snapshotId));
+      console.log(`[consolidator] ✅ Updated briefing with tactical intelligence`);
+    } else {
+      // Create briefing with tactical sections only
+      await db.insert(briefings).values({
+        snapshot_id: snapshotId,
+        tactical_traffic: parsedOutput.tactical_traffic || '',
+        tactical_closures: parsedOutput.tactical_closures || '',
+        tactical_enforcement: parsedOutput.tactical_enforcement || '',
+        tactical_sources: parsedOutput.tactical_sources || '',
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+      console.log(`[consolidator] ✅ Created briefing with tactical intelligence`);
+    }
+    
+    // Step 7: Write only summary to consolidated_strategy (Co-Pilot page)
+    const summary = parsedOutput.summary || consolidatedStrategy;
+    
     // METADATA TRACKING: Build model chain for traceability (2-step pipeline)
     const modelChain = `${inputMetrics.strategist_model}→${inputMetrics.consolidator_model}`;
     const totalDuration = Date.now() - startTime;
     
-    // Step 5: Write consolidated strategy + metadata to DB
+    // Step 8: Write summary + metadata to strategies table
     await db.update(strategies).set({
-      consolidated_strategy: consolidatedStrategy,
+      consolidated_strategy: summary,
       status: 'ok',
       model_name: modelChain,
       updated_at: new Date()
@@ -184,7 +243,11 @@ ${ctx.is_holiday ? `- Factor in holiday-specific demand for ${ctx.holiday}` : ''
     // OBSERVABILITY: Emit completion event with full metrics
     console.log(`[consolidator] ✅ Complete for ${snapshotId}`, {
       model_chain: modelChain,
-      output_length: consolidatedStrategy.length,
+      summary_length: summary.length,
+      tactical_traffic_length: parsedOutput.tactical_traffic?.length || 0,
+      tactical_closures_length: parsedOutput.tactical_closures?.length || 0,
+      tactical_enforcement_length: parsedOutput.tactical_enforcement?.length || 0,
+      tactical_sources_length: parsedOutput.tactical_sources?.length || 0,
       model_call_ms: modelCallDuration,
       total_ms: totalDuration,
       prompt_size: promptSize
@@ -192,10 +255,16 @@ ${ctx.is_holiday ? `- Factor in holiday-specific demand for ${ctx.holiday}` : ''
     
     return { 
       ok: true, 
-      strategy: consolidatedStrategy,
+      strategy: summary,
+      tactical: {
+        traffic: parsedOutput.tactical_traffic || '',
+        closures: parsedOutput.tactical_closures || '',
+        enforcement: parsedOutput.tactical_enforcement || '',
+        sources: parsedOutput.tactical_sources || ''
+      },
       metrics: {
         modelChain,
-        outputLength: consolidatedStrategy.length,
+        summaryLength: summary.length,
         durationMs: totalDuration
       }
     };
