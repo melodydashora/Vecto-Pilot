@@ -253,21 +253,25 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
       runBriefing(snapshotId)
     ]);
     
-    if (minResult.status === 'rejected') {
+    // Check results
+    const minFailed = minResult?.status === 'rejected';
+    const briefingFailed = briefingResult?.status === 'rejected';
+    
+    if (minFailed) {
       console.error(`[runSimpleStrategyPipeline] ❌ Minstrategy failed:`, minResult.reason?.message || minResult.reason);
     } else {
       console.log(`[runSimpleStrategyPipeline] ✅ Minstrategy complete`);
     }
     
-    if (briefingResult.status === 'rejected') {
-      console.error(`[runSimpleStrategyPipeline] ❌ Briefing failed:`, briefingResult.reason?.message || briefingResult.reason);
+    if (briefingFailed) {
+      console.error(`[runSimpleStrategyPipeline] ❌ Briefing (Perplexity) failed:`, briefingResult.reason?.message || briefingResult.reason);
     } else {
-      console.log(`[runSimpleStrategyPipeline] ✅ Briefing complete`);
+      console.log(`[runSimpleStrategyPipeline] ✅ Briefing (Perplexity) complete`);
     }
     
-    // Check if at least one succeeded
-    if (minResult.status === 'rejected' && briefingResult.status === 'rejected') {
-      throw new Error('Both minstrategy and briefing providers failed');
+    // Strategist is required, briefing is optional (for UI only)
+    if (minFailed) {
+      throw new Error('Strategist provider failed (required for pipeline)');
     }
     
     // Fetch updated strategy row to get strategist output
