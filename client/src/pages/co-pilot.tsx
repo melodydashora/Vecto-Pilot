@@ -96,6 +96,7 @@ interface BlocksResponse {
   ranking_id?: string;
   path_taken?: string;
   refined?: boolean;
+  error?: string; // e.g., "NOT_FOUND" when blocks not yet generated
   timing?: {
     scoring_ms?: number;
     planner_ms?: number;
@@ -103,7 +104,7 @@ interface BlocksResponse {
     timed_out?: boolean;
     budget_ms?: number;
   };
-  metadata: {
+  metadata?: {
     totalBlocks: number;
     processingTimeMs: number;
     modelRoute?: string;
