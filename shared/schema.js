@@ -76,11 +76,12 @@ export const strategies = pgTable("strategies", {
   user_resolved_city: text("user_resolved_city"),
   user_resolved_state: text("user_resolved_state"),
   // Model-agnostic provider outputs (generic columns for parallel multi-model pipeline)
-  minstrategy: text("minstrategy"), // Short strategy from first provider (Claude)
-  briefing_news: jsonb("briefing_news"), // News feed from second provider (Gemini) - DEPRECATED
-  briefing_events: jsonb("briefing_events"), // Events feed from second provider (Gemini) - DEPRECATED
-  briefing_traffic: jsonb("briefing_traffic"), // Traffic feed from second provider (Gemini) - DEPRECATED
-  consolidated_strategy: text("consolidated_strategy"), // Final consolidated strategy from third provider (GPT-5)
+  minstrategy: text("minstrategy"), // Strategic overview from strategist provider (Claude)
+  consolidated_strategy: text("consolidated_strategy"), // Actionable summary for Co-Pilot from consolidator (GPT-5)
+  // DEPRECATED COLUMNS (Perplexity now writes to briefings table instead)
+  briefing_news: jsonb("briefing_news"), 
+  briefing_events: jsonb("briefing_events"),
+  briefing_traffic: jsonb("briefing_traffic")
 });
 
 // Perplexity comprehensive travel briefing + GPT-5 tactical 30-min intelligence
