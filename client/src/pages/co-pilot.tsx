@@ -136,6 +136,7 @@ const CoPilot: React.FC = () => {
   const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(() => {
     return localStorage.getItem('vecto_strategy_snapshot_id');
   });
+  const [strategyReadyTime, setStrategyReadyTime] = useState<number | null>(null); // Track when strategy became ready
   const [enrichedReasonings, setEnrichedReasonings] = useState<Map<string, string>>(new Map());
   
   // Feedback modal state
@@ -265,6 +266,21 @@ const CoPilot: React.FC = () => {
       queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
     }
   }, [lastSnapshotId, strategySnapshotId]);
+
+  // Track when strategy becomes ready (for 60-second blocks delay)
+  useEffect(() => {
+    const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
+    if (strategyReady && !strategyReadyTime) {
+      const now = Date.now();
+      console.log(`⏰ Strategy ready at ${new Date(now).toISOString()}, blocks query will start in 60 seconds`);
+      setStrategyReadyTime(now);
+    }
+    
+    // Reset timer when snapshot changes
+    if (lastSnapshotId && strategyData?._snapshotId !== lastSnapshotId) {
+      setStrategyReadyTime(null);
+    }
+  }, [strategyData, lastSnapshotId, strategyReadyTime]);
 
   // Update persistent strategy when new strategy arrives
   useEffect(() => {
@@ -409,6 +425,7 @@ const CoPilot: React.FC = () => {
     // 1. Strategy must be written to DB with status='ok' (not 'pending', 'failed', etc.)
     // 2. Strategy must be for the CURRENT snapshot ID (prevent stale data races)
     // 3. Don't run while strategy is fetching (initial load OR polling)
+    // 4. Wait 60 seconds after strategy ready (blocks typically take 60-80s to generate)
     // This ensures blocks query ONLY runs after strategy is persisted in DB with proper foreign key
     enabled: (() => {
       const hasCoords = !!coords;
@@ -416,7 +433,11 @@ const CoPilot: React.FC = () => {
       const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
       const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
       
-      const shouldEnable = hasCoords && hasSnapshot && !isStrategyFetching && strategyReady && snapshotMatches;
+      // Wait 60 seconds after strategy becomes ready before polling for blocks
+      // This avoids wasteful API calls during worker processing time
+      const has60SecondsPassed = strategyReadyTime !== null && (Date.now() - strategyReadyTime >= 60000);
+      
+      const shouldEnable = hasCoords && hasSnapshot && !isStrategyFetching && strategyReady && snapshotMatches && has60SecondsPassed;
       
       console.log('[blocks-query] 🔍 GATING CHECK:', {
         hasCoords,
@@ -427,7 +448,9 @@ const CoPilot: React.FC = () => {
         strategyReady,
         strategySnapshotId: strategyData?._snapshotId,
         snapshotMatches,
-        '⚠️ BLOCKED_REASON': !shouldEnable ? (!hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : isStrategyFetching ? 'STRATEGY_FETCHING' : !strategyReady ? 'STRATEGY_NOT_READY' : !snapshotMatches ? 'SNAPSHOT_MISMATCH' : 'UNKNOWN') : 'NONE',
+        has60SecondsPassed,
+        secondsRemaining: strategyReadyTime ? Math.max(0, Math.ceil((60000 - (Date.now() - strategyReadyTime)) / 1000)) : 0,
+        '⚠️ BLOCKED_REASON': !shouldEnable ? (!hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : isStrategyFetching ? 'STRATEGY_FETCHING' : !strategyReady ? 'STRATEGY_NOT_READY' : !snapshotMatches ? 'SNAPSHOT_MISMATCH' : !has60SecondsPassed ? 'WAITING_60_SECONDS' : 'UNKNOWN') : 'NONE',
         shouldEnable
       });
       
