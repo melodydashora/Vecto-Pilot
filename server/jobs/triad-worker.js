@@ -60,7 +60,17 @@ export async function startConsolidationListener() {
     // Notification handler
     pgClient.on('notification', async (msg) => {
       if (msg.channel !== 'strategy_ready' || !msg.payload) return;
-      const snapshotId = msg.payload;
+      
+      // Parse JSON payload from trigger
+      let snapshotId;
+      try {
+        const payload = JSON.parse(msg.payload);
+        snapshotId = payload.snapshot_id;
+      } catch (e) {
+        // Fallback to raw string if not JSON
+        snapshotId = msg.payload;
+      }
+      
       console.log(`[consolidation-listener] 📢 Notification: strategy_ready -> ${snapshotId}`);
 
       try {

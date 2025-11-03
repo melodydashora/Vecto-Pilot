@@ -21,7 +21,7 @@ router.get('/events/strategy', async (req, res) => {
       if (msg.channel !== 'strategy_ready') return;
       console.log('[SSE] Broadcasting strategy_ready:', msg.payload);
       res.write(`event: strategy_ready\n`);
-      res.write(`data: ${msg.payload}\n\n`);
+      res.write(`data: ${msg.payload}\n\n`); // Forward JSON payload as-is
     };
 
     dbClient.on('notification', onNotify);
