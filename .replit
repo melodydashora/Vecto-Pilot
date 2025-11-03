@@ -20,10 +20,6 @@ run = ["sh", "-c", "set -a && . ./mono-mode.env && set +a && node scripts/start-
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 5173
-externalPort = 5173
-
 # Workflows
 [workflows]
 runButton = "Run App"
