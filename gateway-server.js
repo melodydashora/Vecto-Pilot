@@ -115,8 +115,7 @@ function spawnChild(name, command, args, env) {
 
     // CRITICAL: Health endpoints FIRST (before any middleware or imports)
     // This ensures instant responses to deployment health checks
-    app.get('/', (_req, res) => res.status(200).send('OK'));
-    app.head('/', (_req, res) => res.status(200).end());
+    // Note: Don't register "/" here - let SPA handle it to avoid blocking the app
     app.get('/health', (_req, res) => res.status(200).send('OK'));
     app.head('/health', (_req, res) => res.status(200).end());
     app.get('/ready', (_req, res) => res.status(200).send('OK'));
