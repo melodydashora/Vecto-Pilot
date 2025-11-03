@@ -48,6 +48,7 @@ function spawnChild(name, command, args, env) {
 // Main bootstrap
 (async function main() {
   try {
+    const startTime = Date.now();
     console.log(`[gateway] Starting bootstrap (PID: ${process.pid})`);
     console.log(`[gateway] 🔍 Environment detection:`);
     console.log(`[gateway]   REPLIT_DEPLOYMENT=${process.env.REPLIT_DEPLOYMENT}`);
@@ -58,6 +59,7 @@ function spawnChild(name, command, args, env) {
     
     const app = express();
     app.set("trust proxy", 1);
+    console.log(`[gateway] Express loaded in ${Date.now() - startTime}ms`);
 
     // Autoscale is opt-in only
     const isAutoscale =
@@ -120,9 +122,8 @@ function spawnChild(name, command, args, env) {
       });
 
       console.log(`[gateway] 🎯 Starting autoscale server on 0.0.0.0:${PORT}...`);
-      // Add 100ms startup delay to ensure server is fully ready
-      server.listen(PORT, '0.0.0.0', async () => {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`[ready] ✅ Autoscale server ready in ${Date.now() - startTime}ms`);
       });
 
       return;
@@ -135,12 +136,10 @@ function spawnChild(name, command, args, env) {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const distDir = path.join(__dirname, "client", "dist");
 
-    // Load AI config only in regular mode (not in autoscale)
-    const { GATEWAY_CONFIG } = await import("./agent-ai-config.js");
-    console.log("[gateway] AI Config:", GATEWAY_CONFIG);
-
-    // CRITICAL: Health endpoints FIRST (before any middleware)
+    // CRITICAL: Health endpoints FIRST (before any middleware or imports)
     // This ensures instant responses to deployment health checks
+    app.get('/', (_req, res) => res.status(200).send('OK'));
+    app.head('/', (_req, res) => res.status(200).end());
     app.get('/health', (_req, res) => res.status(200).send('OK'));
     app.head('/health', (_req, res) => res.status(200).end());
     app.get('/ready', (_req, res) => res.status(200).send('OK'));
@@ -152,9 +151,6 @@ function spawnChild(name, command, args, env) {
       }
       return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
     });
-
-    // Serve SPA static assets immediately (before setImmediate)
-    app.use(express.static(distDir));
 
     // Start HTTP server IMMEDIATELY (before loading heavy modules)
     const server = http.createServer(app);
@@ -170,7 +166,8 @@ function spawnChild(name, command, args, env) {
     });
     
     server.listen(PORT, "0.0.0.0", () => {
-      console.log(`[ready] Server listening on 0.0.0.0:${PORT}`);
+      console.log(`[ready] ✅ Server listening on 0.0.0.0:${PORT} in ${Date.now() - startTime}ms`);
+      console.log(`[ready] 🚀 Health endpoints ready - accepting requests`);
     });
 
   // NOTE: In mono mode, consolidation listener runs in separate strategy-generator.js process
@@ -178,14 +175,21 @@ function spawnChild(name, command, args, env) {
   const isCloudRun = process.env.REPLIT_DEPLOYMENT === "1";
   
   if (isCloudRun) {
-    console.log("[gateway] ⏩ Background worker disabled (Cloud Run/Autoscale detected)");
+    console.log("[gateway] ⏩ Background worker disabled (Cloud Run detected)");
   } else {
     console.log("[gateway] ⏩ Consolidation listener runs in separate worker process");
   }
 
   // Mount middleware and routes after server is listening
   setImmediate(async () => {
-    console.log("[gateway] Starting middleware and route mounting...");
+    console.log("[gateway] Loading heavy modules and mounting routes...");
+    
+    // Load AI config after server is bound
+    const { GATEWAY_CONFIG } = await import("./agent-ai-config.js");
+    console.log("[gateway] AI Config:", GATEWAY_CONFIG);
+    
+    // Serve static assets
+    app.use(express.static(distDir));
     
     app.use(helmet({ contentSecurityPolicy: false }));
     app.use(cors({ origin: true, credentials: true }));
