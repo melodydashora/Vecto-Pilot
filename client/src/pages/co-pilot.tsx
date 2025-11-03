@@ -936,15 +936,8 @@ const CoPilot: React.FC = () => {
           const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
           const greetingIcon = hour < 12 ? '☀️' : hour < 18 ? '🌅' : '🌙';
           
-          // Check if snapshot is from today (holiday should only show on the actual day)
-          const isSnapshotToday = snapshot ? (() => {
-            const snapshotDate = new Date(snapshot.created_at);
-            const today = new Date();
-            return snapshotDate.toDateString() === today.toDateString();
-          })() : false;
-          
-          // Only show holiday banner if we have holiday data AND snapshot is from today
-          if (hasHoliday && isSnapshotToday) {
+          // Only show holiday banner if we have holiday data
+          if (hasHoliday) {
             return (
               <Card className="mb-6 border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 shadow-lg" data-testid="holiday-banner">
                 <CardContent className="p-4">
