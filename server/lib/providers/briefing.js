@@ -27,11 +27,11 @@ Research and report on these specific categories. Return your response as JSON w
   "local_traffic": "Local traffic, construction, incidents, road closures",
   "weather_impacts": "Weather affecting travel",
   "events_nearby": "Events within 50 miles",
-  "holidays": "Name of the holiday if today is a holiday (e.g., 'Thanksgiving', 'Independence Day'), otherwise empty string. Use the EXACT date/time and timezone provided in the user's request.",
+  "holidays": "Primary holiday name if today is a holiday, otherwise empty string. Include federal holidays, state holidays, religious observances, and culturally significant celebrations (e.g., 'Día de los Muertos', 'Thanksgiving', 'Independence Day'). Return ONLY the most culturally relevant holiday name for the region.",
   "rideshare_intel": "Rideshare-specific intelligence (surge zones, airport activity, demand patterns)"
 }
 
-CRITICAL: For the 'holidays' field, use the exact date, time, and timezone provided in the request to determine if today is a holiday in that specific location.
+CRITICAL: For the 'holidays' field, use live web search to verify ALL holidays and observances for the exact date provided. Be comprehensive - check federal, state, religious, and cultural holidays. Use the exact date, time, and timezone provided in the request.
 
 Be thorough and factual. Use live web search for current information.`;
 
@@ -74,7 +74,7 @@ Please research and provide a comprehensive briefing covering:
    - Global weather systems affecting the region
    
 2. DOMESTIC/NATIONAL TRAVEL CONDITIONS for ${ctx.country}
-   - **CRITICAL: Is ${formattedDateTime} (${ctx.timezone}) a holiday in ${ctx.country}? If yes, provide the holiday name in the 'holidays' field.**
+   - **CRITICAL: Use web search to research what holiday or holidays are observed on ${formattedDateTime} (${ctx.timezone}) in ${ctx.country} and specifically in ${ctx.state}. Include federal holidays, state holidays, religious observances, and cultural celebrations (e.g., Day of the Dead / Día de los Muertos). Return the most culturally significant holiday for this region in the 'holidays' field.**
    - Nationwide events affecting travel
    - Major transportation disruptions
    
