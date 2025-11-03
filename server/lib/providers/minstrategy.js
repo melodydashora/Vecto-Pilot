@@ -63,12 +63,14 @@ Provide a brief strategic assessment of positioning opportunities for the next h
     
     const text = result.output;
     
-    // Write to model-agnostic field using raw SQL (Drizzle ORM was failing mysteriously)
+    // Write to model-agnostic field using raw SQL (ensures trigger fires)
+    // CRITICAL: Setting status='complete' triggers NOTIFY strategy_ready
     try {
       await db.execute(sql`
         UPDATE strategies 
         SET 
           minstrategy = ${text},
+          status = 'complete',
           user_resolved_address = ${ctx.formatted_address},
           user_resolved_city = ${ctx.city},
           user_resolved_state = ${ctx.state},
@@ -76,6 +78,7 @@ Provide a brief strategic assessment of positioning opportunities for the next h
           updated_at = NOW()
         WHERE snapshot_id = ${snapshotId}
       `);
+      console.log(`[minstrategy] ✅ Trigger fired - NOTIFY strategy_ready should broadcast to SSE clients`);
     } catch (dbError) {
       console.error(`[minstrategy] ❌ Database UPDATE failed for ${snapshotId}:`, {
         error: dbError.message,
@@ -84,6 +87,18 @@ Provide a brief strategic assessment of positioning opportunities for the next h
         hint: dbError.hint,
         stack: dbError.stack
       });
+      // Mark as write_failed for debugging
+      try {
+        await db.execute(sql`
+          UPDATE strategies
+          SET status = 'write_failed',
+              error_message = ${dbError.message},
+              updated_at = NOW()
+          WHERE snapshot_id = ${snapshotId}
+        `);
+      } catch (e) {
+        console.error(`[minstrategy] Failed to mark as write_failed:`, e);
+      }
       throw dbError;
     }
 
