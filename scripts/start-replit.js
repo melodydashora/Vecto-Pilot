@@ -106,23 +106,44 @@ console.log('[boot]   HOSTNAME:', process.env.HOSTNAME);
 console.log('[boot]   isAutoscale:', isAutoscale);
 
 if (isAutoscale) {
-  // AUTOSCALE MODE: Immediately start health-only server
-  // Skip ALL file loading - use only environment variables from deployment
-  console.log('[boot] ⚡ Autoscale deployment detected - starting health-only server');
+  // AUTOSCALE MODE: Start ultra-minimal health server inline
+  // Don't import anything - create server right here
+  console.log('[boot] ⚡ Autoscale deployment detected - inline health-only server');
   console.log('[boot] ⏱️ Timestamp:', new Date().toISOString());
   
-  // Minimal env setup - no file loading to avoid delays
-  process.env.PORT = process.env.PORT || '5000';
-  process.env.NODE_ENV = 'production';
+  const PORT = process.env.PORT || 5000;
   
-  // Import and run gateway directly (no exec overhead)
-  await import('../gateway-server.js');
+  // Create the absolute minimal HTTP server
+  const server = http.createServer((req, res) => {
+    // Health check endpoints - respond instantly
+    if (req.url === '/' || req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('OK');
+      return;
+    }
+    
+    // Everything else gets 404
+    res.writeHead(404);
+    res.end('Not Found');
+  });
   
-  // Gateway server is now running and will keep the process alive
-  // Don't exit - let the server run indefinitely
-  console.log('[boot] ✅ Gateway server started, process will stay alive');
+  // Start listening
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log('[boot] ✅ Health server LISTENING on 0.0.0.0:' + PORT);
+    console.log('[boot] 🚀 Ready for health checks at /, /health');
+    console.log('[boot] ⏱️ Ready time:', new Date().toISOString());
+  });
   
-  // Keep the process alive by waiting forever
+  // Handle errors
+  server.on('error', (err) => {
+    console.error('[boot] ❌ Server error:', err);
+    process.exit(1);
+  });
+  
+  // Process stays alive - server keeps it running
+  console.log('[boot] 💚 Process staying alive, server running...');
+  
+  // This never resolves - keeps process alive forever
   await new Promise(() => {});
 }
 
