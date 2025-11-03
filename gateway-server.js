@@ -72,58 +72,32 @@ function spawnChild(name, command, args, env) {
     console.log(`[gateway] 🎯 isAutoscale: ${isAutoscale}`);
     console.log(`[gateway] 🎯 CLOUD_RUN_AUTOSCALE: ${process.env.CLOUD_RUN_AUTOSCALE}`);
     
-    // AUTOSCALE MODE (opt-in only): Raw HTTP server, skip Express entirely
+    // AUTOSCALE MODE: Minimal Express with only health endpoints
     if (isAutoscale) {
-      const server = http.createServer((req, res) => {
-        // Skip logging for health checks to minimize latency
-        
-        // Handle GET and HEAD on / and health endpoints reliably
-        if (req.url === '/' || req.url === '/health' || req.url === '/ready') {
-          if (req.method === 'HEAD') {
-            res.statusCode = 200;
-            res.setHeader('Content-Length', '0');
-            res.end();
-            return;
-          }
-          const body = 'OK';
-          res.statusCode = 200;
-          res.setHeader('Content-Type', 'text/plain');
-          res.setHeader('Content-Length', body.length.toString());
-          res.setHeader('Connection', 'close');
-          res.end(body);
-          return;
-        }
-        // Return 404 for non-health endpoints
-        res.statusCode = 404;
-        res.setHeader('Content-Type', 'text/plain');
-        res.end('Not Found');
-      });
-
-      // Cloud Run compatible timeouts
-      server.keepAliveTimeout = 65000; // must be < headersTimeout
+      console.log(`[gateway] 🎯 Autoscale mode - minimal setup`);
+      
+      // Minimal health endpoints only
+      app.get('/', (_req, res) => res.status(200).send('OK'));
+      app.head('/', (_req, res) => res.status(200).end());
+      app.get('/health', (_req, res) => res.status(200).send('OK'));
+      app.get('/ready', (_req, res) => res.status(200).send('OK'));
+      
+      const server = http.createServer(app);
+      server.keepAliveTimeout = 65000;
       server.headersTimeout = 66000;
-      server.requestTimeout = 5000;
 
       server.on('error', (err) => {
         console.error(`[gateway] ❌ FATAL:`, err.code, err.message);
         process.exit(1);
       });
 
-      server.on('listening', () => {
-        const addr = server.address();
-        console.log(`[ready] ✅ Server bound to ${addr.address}:${addr.port}`);
-        console.log(`[ready] 🚀 AUTOSCALE MODE - Health endpoints ready`);
-        console.log(`[ready] 📡 Waiting for Cloud Run health checks on /`);
-      });
-
       process.on('SIGTERM', () => {
-        console.log('[gateway] 🛑 SIGTERM received, shutting down gracefully');
+        console.log('[gateway] 🛑 SIGTERM received');
         server.close(() => process.exit(0));
       });
 
-      console.log(`[gateway] 🎯 Starting autoscale server on 0.0.0.0:${PORT}...`);
       server.listen(PORT, '0.0.0.0', () => {
-        console.log(`[ready] ✅ Autoscale server ready in ${Date.now() - startTime}ms`);
+        console.log(`[ready] ✅ Autoscale listening on 0.0.0.0:${PORT} (${Date.now() - startTime}ms)`);
       });
 
       return;
