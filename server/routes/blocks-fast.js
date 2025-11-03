@@ -78,7 +78,6 @@ router.get('/', async (req, res) => {
     
     const allBlocks = candidates.map(c => ({
       name: c.name,
-      address: c.features?.address || "Unknown",
       coordinates: { lat: c.lat, lng: c.lng },
       placeId: c.place_id,
       estimated_distance_miles: c.distance_miles,
