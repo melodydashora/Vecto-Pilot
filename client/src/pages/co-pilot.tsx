@@ -1058,20 +1058,6 @@ const CoPilot: React.FC = () => {
               {isRetrying ? 'Retrying...' : 'Retry Strategy'}
             </Button>
           )}
-
-          {/* Smart Blocks Pipeline Status */}
-          {coords && (
-            <SmartBlocksStatus
-              strategyStatus={strategyData?.status}
-              strategyReady={strategyData?.status === 'ok'}
-              isStrategyFetching={isStrategyFetching}
-              hasBlocks={blocks.length > 0}
-              isBlocksLoading={isLoading}
-              blocksError={error as Error | null}
-              timeElapsedMs={strategyData?.timeElapsedMs}
-              snapshotId={lastSnapshotId}
-            />
-          )}
         </div>
 
         {/* AI Strategy Coach - GPT-5 Chat Interface */}
@@ -1094,6 +1080,22 @@ const CoPilot: React.FC = () => {
                 blocks={blocks}
               />
             </div>
+          </div>
+        )}
+
+        {/* Smart Blocks Pipeline Status - Shows after Coach */}
+        {coords && (
+          <div className="mb-6">
+            <SmartBlocksStatus
+              strategyStatus={strategyData?.status}
+              strategyReady={strategyData?.status === 'ok'}
+              isStrategyFetching={isStrategyFetching}
+              hasBlocks={blocks.length > 0}
+              isBlocksLoading={isLoading}
+              blocksError={error as Error | null}
+              timeElapsedMs={strategyData?.timeElapsedMs}
+              snapshotId={lastSnapshotId}
+            />
           </div>
         )}
 
