@@ -268,17 +268,30 @@ const CoPilot: React.FC = () => {
   }, [lastSnapshotId, strategySnapshotId]);
 
   // Track when strategy becomes ready (for 60-second blocks delay)
+  // And set up a timer to trigger re-render after 60 seconds
+  const [blocksTimerExpired, setBlocksTimerExpired] = useState(false);
+  
   useEffect(() => {
     const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
     if (strategyReady && !strategyReadyTime) {
       const now = Date.now();
       console.log(`⏰ Strategy ready at ${new Date(now).toISOString()}, blocks query will start in 60 seconds`);
       setStrategyReadyTime(now);
+      setBlocksTimerExpired(false);
+      
+      // Set up timer to enable blocks query after 60 seconds
+      const timerId = setTimeout(() => {
+        console.log('⏰ 60 seconds elapsed - enabling blocks query NOW');
+        setBlocksTimerExpired(true);
+      }, 60000);
+      
+      return () => clearTimeout(timerId);
     }
     
     // Reset timer when snapshot changes
     if (lastSnapshotId && strategyData?._snapshotId !== lastSnapshotId) {
       setStrategyReadyTime(null);
+      setBlocksTimerExpired(false);
     }
   }, [strategyData, lastSnapshotId, strategyReadyTime]);
 
@@ -435,7 +448,8 @@ const CoPilot: React.FC = () => {
       
       // Wait 60 seconds after strategy becomes ready before polling for blocks
       // This avoids wasteful API calls during worker processing time
-      const has60SecondsPassed = strategyReadyTime !== null && (Date.now() - strategyReadyTime >= 60000);
+      // Use blocksTimerExpired state which triggers automatic re-render after 60s
+      const has60SecondsPassed = blocksTimerExpired;
       
       const shouldEnable = hasCoords && hasSnapshot && !isStrategyFetching && strategyReady && snapshotMatches && has60SecondsPassed;
       
