@@ -86,15 +86,20 @@ Return ONLY the holiday name if one exists, otherwise return empty string.`
     const holidayText = data.choices?.[0]?.message?.content?.trim() || '';
     
     // Clean up response - remove extra text, just get the holiday name
-    const cleanHoliday = holidayText
+    let cleanHoliday = holidayText
       .replace(/^(The primary holiday|Today is|November \d+, \d+ is)\s*/i, '')
       .replace(/\.$/, '')
       .replace(/\[.*?\]/g, '') // Remove citations like [2]
+      .replace(/^["']+|["']+$/g, '') // Remove surrounding quotes
       .trim();
     
+    // Filter out non-holiday responses
     const isHoliday = cleanHoliday.length > 0 && 
+                     cleanHoliday.length < 100 && // Reject overly long responses
                      !cleanHoliday.toLowerCase().includes('no') &&
-                     !cleanHoliday.toLowerCase().includes('not a holiday');
+                     !cleanHoliday.toLowerCase().includes('not a holiday') &&
+                     !cleanHoliday.toLowerCase().includes('empty string') &&
+                     !/^["'\s]+$/.test(cleanHoliday); // Reject only quotes/whitespace
 
     console.log(`[holiday-detector] 🎉 Holiday detection: "${cleanHoliday}" (is_holiday=${isHoliday})`);
     
