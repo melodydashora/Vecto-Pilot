@@ -92,8 +92,9 @@ Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking
 -   **Weather and Air Quality**: Configurable via environment variables.
 
 ### Database
--   **PostgreSQL (Neon)**: Primary data store, managed by Drizzle ORM.
+-   **PostgreSQL (External - Non-Replit Hosted)**: Primary data store hosted externally (Neon), managed by Drizzle ORM.
 -   **Connection Modes**: Pooled (`DATABASE_URL`) for queries, Unpooled (`DATABASE_URL_UNPOOLED`) for LISTEN/NOTIFY.
+-   **Important**: Database is NOT hosted on Replit infrastructure - it's an external Neon PostgreSQL instance. Schema changes must be applied via `npm run db:push` from development environment.
 
 ### Infrastructure
 -   **Replit Platform**: Deployment, Nix environment, `.replit` configuration.
