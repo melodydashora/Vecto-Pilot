@@ -28,7 +28,10 @@ router.get('/events/strategy', async (req, res) => {
     
     req.on('close', () => {
       console.log('[SSE] Client disconnected from strategy events');
-      dbClient.off('notification', onNotify);
+      // Remove listener only if dbClient still exists
+      if (dbClient) {
+        dbClient.off('notification', onNotify);
+      }
     });
   } catch (err) {
     console.error('[SSE] Failed to setup strategy listener:', err);
@@ -65,7 +68,15 @@ router.get('/events/blocks', async (req, res) => {
     req.on('close', async () => {
       console.log('[SSE] Client disconnected from blocks events');
       dbClient.off('notification', onNotify);
-      try { await dbClient.query('UNLISTEN blocks_ready'); } catch (e) {}
+      // Only UNLISTEN if connection is still alive
+      if (dbClient && !dbClient._ending && !dbClient._ended) {
+        try { 
+          await dbClient.query('UNLISTEN blocks_ready'); 
+          console.log('[SSE] Unsubscribed from blocks_ready');
+        } catch (e) {
+          console.warn('[SSE] Failed to UNLISTEN (connection may be closed):', e.message);
+        }
+      }
     });
   } catch (err) {
     console.error('[SSE] Failed to setup blocks listener:', err);

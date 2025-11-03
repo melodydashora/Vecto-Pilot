@@ -26,24 +26,35 @@ export async function getListenClient() {
     application_name: 'triad-listener',
   });
 
+  // CRITICAL: Attach error handlers BEFORE connecting to prevent unhandled errors
+  pgClient.on('error', (err) => {
+    console.error('[db-client] ❌ PostgreSQL client error:', err.message);
+    console.error('[db-client] Connection will be reset on next request');
+    // Don't null out immediately - let cleanup happen gracefully
+    if (pgClient) {
+      pgClient.removeAllListeners();
+      pgClient = null;
+    }
+  });
+
+  pgClient.on('end', () => {
+    console.warn('[db-client] ⚠️  PostgreSQL client connection ended');
+    if (pgClient) {
+      pgClient.removeAllListeners();
+      pgClient = null;
+    }
+  });
+
   try {
     await pgClient.connect();
-    console.log('[db-client] LISTEN client connected (caller must subscribe to channels)');
-    
-    pgClient.on('error', (err) => {
-      console.error('[db-client] Unexpected pg client error:', err);
-      pgClient = null;
-    });
-
-    pgClient.on('end', () => {
-      console.warn('[db-client] pg client connection ended');
-      pgClient = null;
-    });
-
+    console.log('[db-client] ✅ LISTEN client connected');
     return pgClient;
   } catch (err) {
-    console.error('[db-client] Failed to connect LISTEN client:', err);
-    pgClient = null;
+    console.error('[db-client] ❌ Failed to connect LISTEN client:', err.message);
+    if (pgClient) {
+      pgClient.removeAllListeners();
+      pgClient = null;
+    }
     throw err;
   }
 }
