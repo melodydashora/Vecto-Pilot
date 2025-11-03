@@ -1060,45 +1060,6 @@ const CoPilot: React.FC = () => {
           )}
         </div>
 
-        {/* AI Strategy Coach - GPT-5 Chat Interface */}
-        {coords && persistentStrategy && (
-          <div className="mb-6" data-testid="ai-coach-section">
-            <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-purple-600" />
-                <h2 className="text-lg font-semibold text-gray-800">AI Strategy Coach</h2>
-              </div>
-              <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
-                Live Chat
-              </Badge>
-            </div>
-            <div className="mt-4">
-              <CoachChat 
-                userId={localStorage.getItem('vecto_user_id') || 'default'}
-                snapshotId={lastSnapshotId || undefined}
-                strategy={persistentStrategy}
-                blocks={blocks}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Smart Blocks Pipeline Status - Shows after Coach */}
-        {coords && (
-          <div className="mb-6">
-            <SmartBlocksStatus
-              strategyStatus={strategyData?.status}
-              strategyReady={strategyData?.status === 'ok'}
-              isStrategyFetching={isStrategyFetching}
-              hasBlocks={blocks.length > 0}
-              isBlocksLoading={isLoading}
-              blocksError={error as Error | null}
-              timeElapsedMs={strategyData?.timeElapsedMs}
-              snapshotId={lastSnapshotId}
-            />
-          </div>
-        )}
-
         {/* Smart Blocks - Only render when we have data */}
         {blocks.length > 0 && (
           <div className="mb-6" id="blocks-section">
@@ -1551,6 +1512,45 @@ const CoPilot: React.FC = () => {
               })}
             </div>
             )}
+          </div>
+        )}
+
+        {/* AI Strategy Coach - GPT-5 Chat Interface */}
+        {coords && persistentStrategy && (
+          <div className="mb-6" data-testid="ai-coach-section">
+            <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-purple-600" />
+                <h2 className="text-lg font-semibold text-gray-800">AI Strategy Coach</h2>
+              </div>
+              <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
+                Live Chat
+              </Badge>
+            </div>
+            <div className="mt-4">
+              <CoachChat 
+                userId={localStorage.getItem('vecto_user_id') || 'default'}
+                snapshotId={lastSnapshotId || undefined}
+                strategy={persistentStrategy}
+                blocks={blocks}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Smart Blocks Pipeline Status - Shows after Coach */}
+        {coords && (
+          <div className="mb-6">
+            <SmartBlocksStatus
+              strategyStatus={strategyData?.status}
+              strategyReady={strategyData?.status === 'ok'}
+              isStrategyFetching={isStrategyFetching}
+              hasBlocks={blocks.length > 0}
+              isBlocksLoading={isLoading}
+              blocksError={error as Error | null}
+              timeElapsedMs={strategyData?.timeElapsedMs}
+              snapshotId={lastSnapshotId}
+            />
           </div>
         )}
 
