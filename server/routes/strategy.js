@@ -84,7 +84,7 @@ router.post('/strategy/run/:snapshotId', async (req, res) => {
     Promise.allSettled([
       runHolidayCheck(snapshotId),    // FAST: writes strategies.holiday (1-2s)
       runMinStrategy(snapshotId),     // writes strategies.minstrategy
-      runBriefing(snapshotId)         // writes strategies.briefing_news/events/traffic
+      runBriefing(snapshotId)         // writes briefings table (Perplexity comprehensive research)
     ]).catch(() => { /* handled in provider logs */ });
 
     res.status(202).json({ 
