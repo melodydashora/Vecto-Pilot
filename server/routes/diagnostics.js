@@ -232,20 +232,21 @@ router.post('/migrate', async (req, res) => {
     for (const tableName of memoryTables) {
       try {
         const constraintName = `${tableName}_scope_key_user_id_key`;
-        const checkConstraint = await db.execute(sql.raw(`
+        
+        // Use parameterized query to prevent SQL injection
+        const checkConstraint = await db.execute(sql`
           SELECT constraint_name 
           FROM information_schema.table_constraints 
-          WHERE table_name = '${tableName}' 
+          WHERE table_name = ${tableName}
             AND constraint_type = 'UNIQUE'
-            AND constraint_name = '${constraintName}'
-        `));
+            AND constraint_name = ${constraintName}
+        `);
         
         if (checkConstraint.rows.length === 0) {
-          await db.execute(sql.raw(`
-            ALTER TABLE ${tableName} 
-            ADD CONSTRAINT ${constraintName} 
-            UNIQUE (scope, key, user_id)
-          `));
+          // Table names can't be parameterized, but we validate against whitelist above
+          // This is safe because tableName is from a hardcoded array
+          const alterQuery = `ALTER TABLE ${tableName} ADD CONSTRAINT ${constraintName} UNIQUE (scope, key, user_id)`;
+          await db.execute(sql.raw(alterQuery));
           results.push({ table: tableName, constraint: constraintName, action: 'added' });
         } else {
           results.push({ table: tableName, constraint: constraintName, action: 'exists' });
