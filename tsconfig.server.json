@@ -17,7 +17,6 @@
     "moduleResolution": "NodeNext",
     "noEmit": true,
     "verbatimModuleSyntax": true,
-    "types": ["node"],
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["./shared/*"]
