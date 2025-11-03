@@ -432,10 +432,20 @@ const CoPilot: React.FC = () => {
       
       return shouldEnable;
     })(), // Auto-start when coordinates, snapshot, and DB-confirmed strategy are available
-    // Poll every 3 seconds if blocks are empty (waiting for Smart Blocks generation)
+    // Smart polling: Wait for worker to generate blocks, then stop
+    // Worker typically generates blocks 5-30 seconds after strategy completion
     refetchInterval: (query) => {
       const blocks = query.state.data?.blocks || [];
-      return blocks.length === 0 ? 3000 : false;
+      const error = query.state.data?.error;
+      
+      // Stop polling if blocks are loaded OR if we got NOT_FOUND error (blocks not generated yet)
+      if (blocks.length > 0 || error === 'NOT_FOUND') {
+        return false;
+      }
+      
+      // Poll every 5 seconds for first minute (12 attempts), then stop to avoid infinite loop
+      const attemptCount = query.state.dataUpdateCount || 0;
+      return attemptCount < 12 ? 5000 : false;
     },
     retry: (failureCount, error: any) => {
       // Stop retrying if we got a timeout (504)
@@ -443,10 +453,14 @@ const CoPilot: React.FC = () => {
         console.error('[co-pilot] Strategy generation timed out, stopping retries');
         return false;
       }
-      // Otherwise retry up to 12 times (max ~60 seconds total with backoff)
-      return failureCount < 12;
+      // Stop retrying if blocks aren't ready yet (NOT_FOUND) - refetchInterval will handle periodic checks
+      if (error?.message?.includes('NOT_FOUND')) {
+        return false;
+      }
+      // Otherwise retry up to 6 times (max ~30 seconds with backoff)
+      return failureCount < 6;
     },
-    retryDelay: (attemptIndex) => Math.min(2000 * 2 ** attemptIndex, 10000), // Exponential backoff: 2s, 4s, 8s, 10s max
+    retryDelay: (attemptIndex) => Math.min(3000 * 2 ** attemptIndex, 10000), // Exponential backoff: 3s, 6s, 10s max
   });
 
   useEffect(() => {
