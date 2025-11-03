@@ -78,8 +78,23 @@ export const strategies = pgTable("strategies", {
   briefing_news: jsonb("briefing_news"), // News feed from second provider (Gemini) - DEPRECATED
   briefing_events: jsonb("briefing_events"), // Events feed from second provider (Gemini) - DEPRECATED
   briefing_traffic: jsonb("briefing_traffic"), // Traffic feed from second provider (Gemini) - DEPRECATED
-  briefing: jsonb("briefing"), // Single JSONB field for Gemini briefing {events, holidays, traffic, news}
   consolidated_strategy: text("consolidated_strategy"), // Final consolidated strategy from third provider (GPT-5)
+});
+
+// Perplexity comprehensive travel briefing (structured fields for Briefing page UI)
+export const briefings = pgTable("briefings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  global_travel: text("global_travel"), // Global conditions affecting this region
+  domestic_travel: text("domestic_travel"), // National/domestic travel conditions
+  local_traffic: text("local_traffic"), // Local traffic, construction, incidents
+  weather_impacts: text("weather_impacts"), // Weather affecting travel
+  events_nearby: text("events_nearby"), // Events within 50 miles
+  holidays: text("holidays"), // If today is a holiday
+  rideshare_intel: text("rideshare_intel"), // Rideshare-specific intelligence
+  citations: jsonb("citations"), // Perplexity source URLs
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const rankings = pgTable("rankings", {

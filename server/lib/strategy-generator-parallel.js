@@ -277,11 +277,11 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
     // Check if we have strategist output for consolidation
     const hasMin = !!strategyRow.minstrategy && strategyRow.minstrategy.length > 0;
     
-    console.log(`[runSimpleStrategyPipeline] 📊 Consolidation input: minstrategy=${hasMin}`);
+    console.log(`[runSimpleStrategyPipeline] 📊 Consolidation input: minstrategy=${hasMin} (briefing not required for consolidation)`);
     
-    // Run consolidation if strategist output exists (consolidator will do briefing research itself)
+    // Run consolidation if strategist output exists (consolidator does own research)
     if (hasMin) {
-      console.log(`[runSimpleStrategyPipeline] 🤖 Running consolidator (will do briefing research + consolidation)...`);
+      console.log(`[runSimpleStrategyPipeline] 🤖 Running consolidator (GPT-5 will do own research + consolidation)...`);
       const { runConsolidator } = await import('./providers/consolidator.js');
       
       try {
