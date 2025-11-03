@@ -240,7 +240,7 @@ router.post('/', async (req, res) => {
         .where(eq(strategies.snapshot_id, snapshotId))
         .limit(1);
       
-      if (!strategyRow || !strategyRow.strategy_for_now) {
+      if (!strategyRow || !strategyRow.consolidated_strategy) {
         return sendOnce(202, {
           ok: false,
           reason: 'strategy_pending',
@@ -248,7 +248,7 @@ router.post('/', async (req, res) => {
         });
       }
 
-      const consolidatedStrategy = strategyRow.strategy_for_now;
+      const consolidatedStrategy = strategyRow.consolidated_strategy;
       const currentTime = new Date(fullSnapshot.local_iso || new Date()).toLocaleString('en-US', {
         timeZone: fullSnapshot.timezone || 'America/Chicago'
       });
@@ -347,7 +347,7 @@ router.post('/', async (req, res) => {
         else if (parseFloat(valuePerMin) >= 0.6) valueGrade = 'B';
         
         return {
-          name: v.location_name,
+          name: v.name,
           lat: v.location_lat,
           lng: v.location_lng,
           staging_name: v.staging_name,
@@ -477,7 +477,7 @@ router.post('/', async (req, res) => {
         staging_lat: venue.staging_lat,
         staging_lng: venue.staging_lng,
         // GPT-5 tactical outputs
-        pro_tips: venue.pro_tips ? [venue.pro_tips] : null,
+        pro_tips: venue.pro_tips || null,
         staging_tips: venue.staging_tips,
         closed_reasoning: venue.closed_reasoning,
         // Calculated metrics
@@ -677,7 +677,7 @@ router.post('/', async (req, res) => {
         modelRoute: 'gpt-5-venue-generator',
         statusCounts
       },
-      audit: auditTrail
+      audit
     };
 
     console.log(`✅ [${correlationId}] Fast blocks complete in ${totalMs}ms (gpt5-generated): ${blocksWithinPerimeter.length}/${blocks.length} venues within 15-min perimeter`);
