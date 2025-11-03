@@ -22,19 +22,14 @@ export async function runBriefing(snapshotId) {
     // Extract holiday from news_briefing if present
     const holiday = ctx.news_briefing?.briefing?.holiday || null;
     
-    const systemInstruction = `You are a rideshare intelligence briefing analyst. Analyze the current date/time and location to generate real-time intelligence for the next 60 minutes within a 15-mile radius.
+    const systemInstruction = `You are a traffic, news and events controller. Provide strategic rideshare briefings to help drivers maximize earnings.
 
-CRITICAL: Identify any holidays based on the date provided (e.g., October 31 = Halloween, December 31 = New Year's Eve, July 4 = Independence Day).
+Focus strictly on traffic conditions, incidents, closures, enforcement, construction, and news/events affecting rideshare drivers. 
+Do not list venues or curb locations.
+Use live web search to get current information.
+Prioritize driver leaving now.
 
-RESPONSE FORMAT (JSON only):
-{
-  "events": ["concerts ending at 10pm", "game starting at 8pm", "bar crawls in Uptown"],
-  "holidays": ["Halloween", "New Year's Eve"],
-  "traffic": ["I-35 construction", "downtown closures", "event-related congestion"],
-  "news": ["airport delays", "weather alerts", "major incidents"]
-}
-
-Return empty arrays [] if no intelligence for that category.`;
+Return a strategic paragraph summary for the next 30 minutes.`;
 
     // CRITICAL: Use snapshot's authoritative day_of_week (NOT recomputed from created_at)
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -55,20 +50,38 @@ Return empty arrays [] if no intelligence for that category.`;
     // Use snapshot's authoritative day_of_week, not recomputed
     const formattedDateTime = `${ctx.day_of_week}, ${monthName} ${dayNum}, ${year} at ${timeStr}`;
 
-    const userPrompt = `CRITICAL DATE & TIME (from snapshot - authoritative):
-Day of Week: ${ctx.day_of_week} ${ctx.is_weekend ? '[WEEKEND]' : ''}
-Date & Time: ${formattedDateTime}
-Day Part: ${ctx.day_part_key}
+    const userPrompt = `snapshot_id: ${ctx.snapshot_id}
+created_at: ${ctx.created_at} (UTC)
 
-LOCATION:
-${ctx.formatted_address}
-${ctx.city}, ${ctx.state}
+GPS Location:
+lat: ${ctx.lat}
+lng: ${ctx.lng}
+accuracy_m: ${ctx.accuracy_m || 'unknown'} meters
+coord_source: ${ctx.coord_source || 'gps'}
 
-CONDITIONS:
-Weather: ${ctx.weather?.tempF || '?'}°F, ${ctx.weather?.conditions || 'unknown'}
-Airport: ${ctx.airport_context?.airport_code || 'none'} ${ctx.airport_context?.has_delays ? `(${ctx.airport_context.delay_minutes} min delays)` : ''}
+Address Resolution:
+formatted_address: "${ctx.formatted_address}"
+city: ${ctx.city}
+state: ${ctx.state}
+country: ${ctx.country}
 
-Generate real-time intelligence briefing for the next 60 minutes in the 15-mile radius. Use the exact day of week provided above. Return JSON only.`;
+Temporal Data (Authoritative):
+timezone: ${ctx.timezone}
+local_iso: ${ctx.local_iso} (local time)
+dow: ${ctx.dow} (${ctx.day_of_week})
+hour: ${ctx.hour} (${ctx.hour % 12 || 12} ${ctx.hour >= 12 ? 'PM' : 'AM'} local)
+day_part_key: ${ctx.day_part_key}
+
+Weather Data:
+${JSON.stringify(ctx.weather, null, 2)}
+
+Air Quality:
+${JSON.stringify(ctx.air, null, 2)}
+
+Airport Context (${ctx.airport_context?.distance_miles || '?'} miles away):
+${JSON.stringify(ctx.airport_context, null, 2)}
+
+Provide me a strategic rideshare briefing so that I can make the most money in the next 30-min as a summary paragraph use live web search. Focus strictly on traffic conditions, incidents, closures, enforcement, construction, and news/events affecting rideshare drivers. Do not list venues or curb locations. (Prioritize driver leaving now)`;
 
     // Call model-agnostic briefer role
     const result = await callModel("briefer", {
@@ -80,64 +93,27 @@ Generate real-time intelligence briefing for the next 60 minutes in the 15-mile 
       throw new Error('Briefer model call failed');
     }
 
-    // Parse JSON response
-    let briefing = null;
-    let parsed = null;
+    // Store paragraph text (GPT-5 returns strategic paragraph, not JSON)
+    const briefingText = typeof result.output === 'string' ? result.output.trim() : String(result.output).trim();
     
-    // Defensive parsing with multiple fallback strategies
-    try {
-      // Strategy 1: Direct parse
-      parsed = typeof result.output === 'string' ? JSON.parse(result.output) : result.output;
-      console.log(`[briefing] ✅ Direct JSON parse successful`);
-    } catch (parseError) {
-      console.warn(`[briefing] Direct JSON parse failed, trying extraction...`);
-      
-      // Strategy 2: Extract JSON substring between first '{' and last '}'
-      const responseStr = String(result.output);
-      const start = responseStr.indexOf('{');
-      const end = responseStr.lastIndexOf('}');
-      
-      if (start !== -1 && end !== -1 && end > start) {
-        const candidate = responseStr.slice(start, end + 1);
-        try {
-          parsed = JSON.parse(candidate);
-          console.log(`[briefing] ✅ Extracted JSON parse successful`);
-        } catch (extractError) {
-          console.error(`[briefing] ❌ Extraction parse failed:`, extractError.message);
-        }
-      }
-    }
+    // Store as JSONB with text field for compatibility
+    const briefing = {
+      text: briefingText,
+      type: 'paragraph',
+      generated_at: new Date().toISOString()
+    };
     
-    // Normalize parsed data to ensure consistent shape
-    if (parsed) {
-      briefing = normalizeBriefingShape(parsed);
-      // Add fallback holiday if present
-      if (holiday && (!briefing.holidays || briefing.holidays.length === 0)) {
-        briefing.holidays = [holiday];
-      }
-    } else {
-      // Last resort: Return default shape with holiday if available
-      briefing = normalizeBriefingShape({});
-      if (holiday) briefing.holidays = [holiday];
-      console.warn(`[briefing] ⚠️ Using default empty shape with holiday=${holiday || 'none'}`);
-    }
-    
-    console.log(`[briefing] Final briefing: events=${briefing.events.length}, holidays=${briefing.holidays.length}, traffic=${briefing.traffic.length}, news=${briefing.news.length}`);
+    console.log(`[briefing] Strategic paragraph: ${briefingText.slice(0, 150)}...`);
 
-    // Extract first holiday for the dedicated holiday column (for UI banner)
-    const holidayName = briefing.holidays && briefing.holidays.length > 0 
-      ? briefing.holidays[0] 
-      : null;
-
-    // Write to single JSONB field AND dedicated holiday column
+    // Write to single JSONB field (keep holiday from news_briefing if present)
     await db.update(strategies).set({
       briefing,
-      holiday: holidayName,  // Write first holiday to dedicated column for UI banner
+      holiday: holiday,  // Write holiday from news_briefing to dedicated column for UI banner
       strategy_timestamp: new Date(),
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    console.log(`[briefing] ✅ Complete for ${snapshotId} (events:${briefing.events?.length || 0}, holidays:${briefing.holidays?.length || 0}, traffic:${briefing.traffic?.length || 0}, news:${briefing.news?.length || 0}, holiday column:${holidayName || 'none'})`);
+    console.log(`[briefing] ✅ Complete for ${snapshotId} (${briefingText.length} chars, holiday column:${holiday || 'none'})`);
   } catch (error) {
     console.error(`[briefing] ❌ Error for ${snapshotId}:`, error.message);
     throw error;
