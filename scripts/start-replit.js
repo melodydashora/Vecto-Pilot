@@ -77,7 +77,7 @@ if (process.env.FORCE_DEV === '1') {
 process.env.WORKER_ID = process.env.WORKER_ID || `replit:${process.pid}`;
 
 const PORT = process.env.PORT;
-const isCloudRun = process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE || process.env.AUTOSCALE_DEPLOYMENT;
+const isCloudRun = process.env.REPLIT_DEPLOYMENT === "1";
 
 // Skip expensive checks in Cloud Run/Autoscale (need fast startup for health checks)
 if (!isCloudRun) {

@@ -11,7 +11,7 @@ let poolCreationPromise = null;
 /**
  * Environment detection for autoscale optimization
  */
-const isAutoscale = !!(process.env.K_SERVICE || process.env.CLOUD_RUN_AUTOSCALE === '1');
+const isAutoscale = process.env.REPLIT_DEPLOYMENT === "1";
 const isProduction = process.env.NODE_ENV === 'production';
 
 /**
