@@ -61,11 +61,18 @@ function spawnChild(name, command, args, env) {
 
     // Detect Replit autoscale deployment environment
     // CRITICAL: Only match actual deployments, not dev containers!
-    const isAutoscale = 
+    // Allow override via CLOUD_RUN_AUTOSCALE environment variable
+    const isDeployment = 
       process.env.REPLIT_DEPLOYMENT === "1" || 
-      process.env.REPLIT_DEPLOYMENT === "true"
+      process.env.REPLIT_DEPLOYMENT === "true";
     
+    const isAutoscale = 
+      isDeployment && 
+      process.env.CLOUD_RUN_AUTOSCALE !== "0"; // Allow disabling autoscale mode
+    
+    console.log(`[gateway] 🎯 isDeployment: ${isDeployment}`);
     console.log(`[gateway] 🎯 isAutoscale: ${isAutoscale}`);
+    console.log(`[gateway] 🎯 CLOUD_RUN_AUTOSCALE: ${process.env.CLOUD_RUN_AUTOSCALE}`);
     
     // AUTOSCALE MODE: Health check only, no routes/middleware
     if (isAutoscale) {
@@ -74,29 +81,40 @@ function spawnChild(name, command, args, env) {
       console.log("[gateway] 🚀 Creating ultra-minimal Express app...");
       
       // CRITICAL: Health endpoints FIRST, before ANY middleware
+      // Add explicit response flushing and timeout as per Replit AI suggestion
       app.get("/", (_req, res) => {
         console.log("[health] ✅ GET /");
-        res.status(200).send("OK");
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.write("OK");
+        res.end(); // Explicit flush
       });
       app.head("/", (_req, res) => {
         console.log("[health] ✅ HEAD /");
-        res.status(200).end();
+        res.writeHead(200);
+        res.end(); // Explicit flush
       });
       app.get("/health", (_req, res) => {
         console.log("[health] ✅ GET /health");
-        res.status(200).send("OK");
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.write("OK");
+        res.end(); // Explicit flush
       });
       app.head("/health", (_req, res) => {
         console.log("[health] ✅ HEAD /health");
-        res.status(200).end();
+        res.writeHead(200);
+        res.end(); // Explicit flush
       });
       app.get("/healthz", (_req, res) => {
         console.log("[health] ✅ GET /healthz");
-        res.status(200).send("OK");
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.write("OK");
+        res.end(); // Explicit flush
       });
       app.get("/ready", (_req, res) => {
         console.log("[health] ✅ GET /ready");
-        res.status(200).send("OK");
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.write("OK");
+        res.end(); // Explicit flush
       });
       
       // Start server IMMEDIATELY - no delays, no validation, no middleware
@@ -117,6 +135,10 @@ function spawnChild(name, command, args, env) {
         console.log(`[ready] 🎯 Health endpoints: /, /health`);
         console.log(`[ready] 🚀 READY FOR HEALTH CHECKS`);
       });
+      
+      // Configure server timeouts for Cloud Run
+      server.keepAliveTimeout = 65000; // Slightly higher than Cloud Run's 60s
+      server.headersTimeout = 66000; // Must be higher than keepAliveTimeout
       
       server.listen(PORT, "0.0.0.0");
       
