@@ -70,7 +70,7 @@ export const MODELS_DICTIONARY = {
     context_window: 272000,
     max_output_tokens: 128000,
     api_endpoint: 'https://api.openai.com/v1/chat/completions',
-    timeout_ms: 120000, // 2 minutes
+    timeout_ms: 300000, // 5 minutes (GPT-5 with high reasoning effort needs more time)
     parameters: {
       reasoning_effort: 'high', // GPT-5 specific
       max_completion_tokens: 32000,
