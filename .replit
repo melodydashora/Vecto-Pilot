@@ -14,7 +14,7 @@ channel = "stable-25_05"
 # Deployment settings (CI-like build/start)
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
-run = ["node", "scripts/start-replit.js"]
+run = ["node", "gateway-server.js"]
 
 [[ports]]
 localPort = 5000
