@@ -612,12 +612,19 @@ router.post('/snapshot', async (req, res) => {
     // Calculate H3 geohash at resolution 8 (~0.46 km² hexagons)
     const h3_r8 = latLngToCell(snapshotV1.coord.lat, snapshotV1.coord.lng, 8);
 
-    // Check for nearby airport disruptions
-    console.log('[snapshot] Fetching airport context...');
+    // Fetch holiday and airport context in parallel (both are fast enrichments)
+    console.log('[snapshot] Fetching airport context and holiday info in parallel...');
     const { getNearestMajorAirport, fetchFAADelayData } = await import('../lib/faa-asws.js');
+    const { detectHoliday } = await import('../lib/holiday-detector.js');
+    
     let airportContext = null;
+    let holidayInfo = { holiday: null, is_holiday: false };
 
-    try {
+    // Run airport and holiday detection in parallel
+    const [airportResult, holidayResult] = await Promise.allSettled([
+      // Airport detection
+      (async () => {
+        try {
       console.log('[Airport API] 🛫 Searching for nearby airports within 25 miles...');
       const nearbyAirport = await getNearestMajorAirport(
         snapshotV1.coord.lat, 
@@ -679,9 +686,35 @@ router.post('/snapshot', async (req, res) => {
       } else {
         console.log('[Airport API] ℹ️ No airports found within 25 miles');
       }
-    } catch (airportErr) {
-      console.warn('[snapshot] Airport context fetch failed:', airportErr.message);
+          return airportContext;
+        } catch (airportErr) {
+          console.warn('[snapshot] Airport context fetch failed:', airportErr.message);
+          return null;
+        }
+      })(),
+      // Holiday detection
+      detectHoliday({
+        created_at: snapshotV1.created_at,
+        city: snapshotV1.resolved?.city,
+        state: snapshotV1.resolved?.state,
+        country: snapshotV1.resolved?.country || 'United States',
+        timezone: snapshotV1.resolved?.timezone
+      })
+    ]);
+
+    // Extract results from parallel promises
+    if (airportResult.status === 'fulfilled') {
+      airportContext = airportResult.value;
     }
+    if (holidayResult.status === 'fulfilled') {
+      holidayInfo = holidayResult.value;
+    }
+    
+    console.log('[snapshot] ✅ Parallel enrichment complete:', {
+      airport: airportContext ? `${airportContext.airport_code} (${airportContext.distance_miles}mi)` : 'none',
+      holiday: holidayInfo.holiday || 'none',
+      is_holiday: holidayInfo.is_holiday
+    });
 
     // Fetch rideshare news briefing using Gemini (60-minute actionable intel)
     console.log('[snapshot] Generating news briefing with Gemini...');
@@ -771,6 +804,8 @@ router.post('/snapshot', async (req, res) => {
       } : null,
       airport_context: airportContext,
       news_briefing: localNews, // Gemini-generated 60-minute briefing
+      holiday: holidayInfo.holiday, // Holiday name from Perplexity (e.g., "Día de los Muertos")
+      is_holiday: holidayInfo.is_holiday, // Boolean flag
       device: snapshotV1.device || null,
       permissions: snapshotV1.permissions || null,
       extras: snapshotV1.extras || null,

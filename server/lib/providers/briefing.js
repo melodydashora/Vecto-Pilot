@@ -2,7 +2,7 @@
 // Briefer provider - Uses Perplexity API for comprehensive travel research
 
 import { db } from '../../db/drizzle.js';
-import { briefings, snapshots } from '../../../shared/schema.js';
+import { briefings } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 
@@ -159,10 +159,6 @@ Use live web search to find current, factual information. Be comprehensive and o
       };
     }
 
-    // Extract holiday name and determine if it's a holiday
-    const holidayName = (briefingData.holidays || '').trim();
-    const isHoliday = holidayName.length > 0;
-    
     // Check if briefing already exists
     const [existing] = await db.select().from(briefings)
       .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
@@ -175,7 +171,7 @@ Use live web search to find current, factual information. Be comprehensive and o
         local_traffic: briefingData.local_traffic || '',
         weather_impacts: briefingData.weather_impacts || '',
         events_nearby: briefingData.events_nearby || '',
-        holidays: holidayName,
+        holidays: briefingData.holidays || '',
         rideshare_intel: briefingData.rideshare_intel || '',
         citations: citations,
         updated_at: new Date()
@@ -191,7 +187,7 @@ Use live web search to find current, factual information. Be comprehensive and o
         local_traffic: briefingData.local_traffic || '',
         weather_impacts: briefingData.weather_impacts || '',
         events_nearby: briefingData.events_nearby || '',
-        holidays: holidayName,
+        holidays: briefingData.holidays || '',
         rideshare_intel: briefingData.rideshare_intel || '',
         citations: citations,
         created_at: new Date(),
@@ -201,14 +197,7 @@ Use live web search to find current, factual information. Be comprehensive and o
       console.log(`[briefing] ✅ Created briefing for ${snapshotId}`);
     }
     
-    // ALSO write holiday info to snapshots table for UI banner/greeting
-    await db.update(snapshots).set({
-      holiday: holidayName || null,
-      is_holiday: isHoliday
-    }).where(eq(snapshots.snapshot_id, snapshotId));
-    
-    console.log(`[briefing] 📊 Structured data: global=${!!briefingData.global_travel}, domestic=${!!briefingData.domestic_travel}, local=${!!briefingData.local_traffic}, weather=${!!briefingData.weather_impacts}, events=${!!briefingData.events_nearby}, holidays="${holidayName}" (is_holiday=${isHoliday})`);
-    console.log(`[briefing] 🎉 Holiday info written to snapshots table: holiday="${holidayName}", is_holiday=${isHoliday}`);
+    console.log(`[briefing] 📊 Structured data: global=${!!briefingData.global_travel}, domestic=${!!briefingData.domestic_travel}, local=${!!briefingData.local_traffic}, weather=${!!briefingData.weather_impacts}, events=${!!briefingData.events_nearby}, holidays="${briefingData.holidays}"`);
   } catch (error) {
     console.error(`[briefing] ❌ Error for ${snapshotId}:`, error.message);
     throw error;
