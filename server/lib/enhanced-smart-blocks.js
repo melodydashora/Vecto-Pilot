@@ -1,5 +1,5 @@
 // server/lib/enhanced-smart-blocks.js
-// Enhanced Smart Blocks: GPT-5 venue planner → rankings & candidates
+// Enhanced Smart Blocks: GPT-5 venue planner → Google APIs enrichment → rankings & candidates
 
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
@@ -7,6 +7,7 @@ import { rankings, ranking_candidates } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { generateTacticalPlan } from './gpt5-tactical-planner.js';
 import { hasRenderableBriefing } from './strategy-utils.js';
+import { enrichVenues } from './venue-enrichment.js';
 
 /**
  * Generate enhanced smart blocks using GPT-5 venue planner
@@ -56,7 +57,23 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
     
     console.log(`[ENHANCED-BLOCKS] ✅ GPT-5 planner returned ${venuesPlan.recommended_venues.length} venues in ${plannerMs}ms`);
     
-    // Step 2: Create ranking record
+    // Step 2: Enrich venues with Google APIs (Places, Routes, Geocoding)
+    const enrichmentStart = Date.now();
+    const driverLocation = {
+      lat: snapshot.lat,
+      lng: snapshot.lng
+    };
+    
+    const enrichedVenues = await enrichVenues(
+      venuesPlan.recommended_venues,
+      driverLocation,
+      snapshot
+    );
+    const enrichmentMs = Date.now() - enrichmentStart;
+    
+    console.log(`[ENHANCED-BLOCKS] ✅ Enriched ${enrichedVenues.length} venues with Google APIs in ${enrichmentMs}ms`);
+    
+    // Step 3: Create ranking record
     await db.insert(rankings).values({
       ranking_id: rankingId,
       snapshot_id: snapshotId,
@@ -75,53 +92,72 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
     
     console.log(`[ENHANCED-BLOCKS] ✅ Ranking record created: ${rankingId}`);
     
-    // Step 3: Insert ranking candidates for each venue
-    const candidates = venuesPlan.recommended_venues.map((venue, index) => ({
-      id: randomUUID(),
-      ranking_id: rankingId,
-      snapshot_id: snapshotId,
-      block_id: `venue-${index + 1}`,
-      name: venue.name,
-      lat: venue.lat,
-      lng: venue.lng,
-      rank: venue.rank || index + 1,
-      place_id: null,  // Will be enriched later by Google Places API
-      distance_miles: null,  // Will be calculated later
-      drive_minutes: null,  // Will be calculated later
-      value_per_min: null,  // Will be calculated later
-      value_grade: null,  // Will be calculated later
-      not_worth: false,
-      pro_tips: venue.pro_tips || [],
-      staging_tips: venue.staging_name || null,
-      staging_name: venue.staging_name || null,
-      staging_lat: venue.staging_lat || null,
-      staging_lng: venue.staging_lng || null,
-      venue_events: null,  // Will be enriched later
-      business_hours: null,  // Will be enriched later
-      closed_reasoning: venue.strategic_timing || null,
+    // Step 4: Insert ranking candidates with enriched Google data
+    const candidates = enrichedVenues.map((enriched, index) => {
+      // Calculate value metrics
+      const distanceMiles = parseFloat(enriched.distanceMiles) || 0;
+      const driveMinutes = enriched.driveTimeMinutes || 0;
+      const estimatedEarnings = distanceMiles * 1.50; // $1.50/mile estimate
+      const valuePerMin = driveMinutes > 0 ? estimatedEarnings / driveMinutes : 0;
       
-      // Legacy fields for compatibility
-      drive_time_min: null,
-      straight_line_km: null,
-      est_earnings_per_ride: null,
-      model_score: 1.0 - (index * 0.1),  // Simple scoring: rank 1 = 1.0, rank 2 = 0.9, etc.
-      exploration_policy: 'greedy',
-      epsilon: 0.0,
-      was_forced: false,
-      propensity: 1.0,
-      features: {
-        category: venue.category,
-        pro_tips: venue.pro_tips,
-        strategic_timing: venue.strategic_timing
-      },
-      h3_r8: null,
-      estimated_distance_miles: null,
-      drive_time_minutes: null,
-      distance_source: 'gpt5-coords',
-      rate_per_min_used: null,
-      trip_minutes_used: null,
-      wait_minutes_used: null
-    }));
+      // Grade venues: A = $1+/min, B = $0.50-$1/min, C = <$0.50/min
+      let valueGrade = 'C';
+      if (valuePerMin >= 1.0) valueGrade = 'A';
+      else if (valuePerMin >= 0.50) valueGrade = 'B';
+      
+      return {
+        id: randomUUID(),
+        ranking_id: rankingId,
+        snapshot_id: snapshotId,
+        block_id: `venue-${index + 1}`,
+        name: enriched.name,
+        lat: enriched.lat,
+        lng: enriched.lng,
+        rank: enriched.rank || index + 1,
+        
+        // ✅ ENRICHED DATA from Google APIs
+        place_id: enriched.placeId,
+        distance_miles: distanceMiles,
+        drive_minutes: driveMinutes,
+        value_per_min: valuePerMin,
+        value_grade: valueGrade,
+        not_worth: valuePerMin < 0.30, // Flag low-value venues
+        
+        // Venue details
+        pro_tips: enriched.pro_tips || [],
+        staging_tips: enriched.staging_name || null,
+        staging_name: enriched.staging_name || null,
+        staging_lat: enriched.staging_lat || null,
+        staging_lng: enriched.staging_lng || null,
+        venue_events: null,
+        business_hours: enriched.businessHours,
+        closed_reasoning: enriched.strategic_timing || null,
+        
+        // Legacy fields for compatibility
+        drive_time_min: driveMinutes,
+        straight_line_km: distanceMiles * 1.60934,
+        est_earnings_per_ride: estimatedEarnings,
+        model_score: 1.0 - (index * 0.1),
+        exploration_policy: 'greedy',
+        epsilon: 0.0,
+        was_forced: false,
+        propensity: 1.0,
+        features: {
+          category: enriched.category,
+          pro_tips: enriched.pro_tips,
+          strategic_timing: enriched.strategic_timing,
+          isOpen: enriched.isOpen,
+          address: enriched.address
+        },
+        h3_r8: null,
+        estimated_distance_miles: distanceMiles,
+        drive_time_minutes: driveMinutes,
+        distance_source: enriched.distanceSource || 'google_routes_api',
+        rate_per_min_used: 1.50,
+        trip_minutes_used: driveMinutes,
+        wait_minutes_used: 0
+      };
+    });
     
     await db.insert(ranking_candidates).values(candidates);
     
