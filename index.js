@@ -14,11 +14,11 @@ try {
 import http from 'node:http';
 
 function getArg(name){const p=`--${name}=`, a=process.argv.find(s=>s.startsWith(p)); return a? a.slice(p.length):undefined;}
-const PORT = Number(getArg('port') || process.env.EIDOLON_PORT || process.env.PORT || 3101);
+const PORT = Number(getArg('port') || process.env.EIDOLON_PORT || 3101);
 const HOST = getArg('host') || process.env.HOST || '0.0.0.0';
 
-// Log port/host immediately
-console.log('[index] CONFIG:', { PORT, HOST, EIDOLON_PORT: process.env.EIDOLON_PORT });
+// Log port/host immediately (removed process.env.PORT to prevent binding to gateway's port)
+console.log('[index] CONFIG:', { PORT, HOST, EIDOLON_PORT: process.env.EIDOLON_PORT, 'process.env.PORT': process.env.PORT });
 
 function responder(req, res) {
   const u = req.url || '/';
