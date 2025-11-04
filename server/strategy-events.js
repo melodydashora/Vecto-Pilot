@@ -17,6 +17,10 @@ router.get('/events/strategy', async (req, res) => {
   try {
     const dbClient = await getListenClient();
     
+    // Subscribe to strategy_ready channel
+    await dbClient.query('LISTEN strategy_ready');
+    console.log('[SSE] Subscribed to strategy_ready channel');
+    
     const onNotify = (msg) => {
       if (msg.channel !== 'strategy_ready') return;
       console.log('[SSE] Broadcasting strategy_ready:', msg.payload);
@@ -26,11 +30,17 @@ router.get('/events/strategy', async (req, res) => {
 
     dbClient.on('notification', onNotify);
     
-    req.on('close', () => {
+    req.on('close', async () => {
       console.log('[SSE] Client disconnected from strategy events');
-      // Remove listener only if dbClient still exists
-      if (dbClient) {
-        dbClient.off('notification', onNotify);
+      dbClient.off('notification', onNotify);
+      // Only UNLISTEN if connection is still alive
+      if (dbClient && !dbClient._ending && !dbClient._ended) {
+        try { 
+          await dbClient.query('UNLISTEN strategy_ready'); 
+          console.log('[SSE] Unsubscribed from strategy_ready');
+        } catch (e) {
+          console.warn('[SSE] Failed to UNLISTEN (connection may be closed):', e.message);
+        }
       }
     });
   } catch (err) {
