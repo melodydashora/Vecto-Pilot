@@ -20,11 +20,6 @@ interface SmartBlocksStatusProps {
   timeElapsedMs?: number;
   snapshotId?: string | null;
   venueLoadingProgress?: number;
-  strategyProgress?: {
-    progress: number;
-    phase: string;
-    statusText: string;
-  } | null;
 }
 
 export function SmartBlocksStatus({
@@ -36,8 +31,7 @@ export function SmartBlocksStatus({
   blocksError,
   timeElapsedMs,
   snapshotId,
-  venueLoadingProgress = 0,
-  strategyProgress
+  venueLoadingProgress = 0
 }: SmartBlocksStatusProps) {
   // Determine pipeline stage
   const getPipelineStage = () => {
@@ -68,7 +62,7 @@ export function SmartBlocksStatus({
               <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
             ) : (
               <div className="relative mt-0.5">
-                <RefreshCw className={`w-5 h-5 text-blue-600 flex-shrink-0 ${isStrategyFetching || strategyProgress ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 text-blue-600 flex-shrink-0 ${isStrategyFetching ? 'animate-spin' : ''}`} />
               </div>
             )}
             <div className="flex-1">
@@ -78,28 +72,10 @@ export function SmartBlocksStatus({
               <p className="text-xs text-gray-600">
                 {strategyReady 
                   ? '✓ Strategy ready' 
-                  : strategyProgress 
-                    ? strategyProgress.statusText
-                    : isStrategyFetching 
-                      ? `Generating... ${timeElapsedMs ? `${Math.round(timeElapsedMs / 1000)}s elapsed` : ''}` 
-                      : 'Waiting for strategy...'}
+                  : isStrategyFetching 
+                    ? `Generating... ${timeElapsedMs ? `${Math.round(timeElapsedMs / 1000)}s elapsed` : ''}` 
+                    : 'Waiting for strategy...'}
               </p>
-              {/* Strategy Progress Bar */}
-              {!strategyReady && strategyProgress && strategyProgress.progress > 0 && (
-                <div className="mt-2">
-                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 rounded-full transition-all duration-700"
-                      style={{
-                        width: `${strategyProgress.progress}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {strategyProgress.phase} - {strategyProgress.progress}%
-                  </p>
-                </div>
-              )}
               {strategyReady && (
                 <Badge 
                   variant="outline" 
