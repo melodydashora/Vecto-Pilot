@@ -70,6 +70,7 @@ process.on('unhandledRejection', (reason, promise) => {
     console.log(`[gateway]   HOSTNAME=${process.env.HOSTNAME}`);
     console.log(`[gateway]   PORT=${PORT}`);
     console.log(`[gateway]   NODE_ENV=${process.env.NODE_ENV}`);
+    console.log(`[gateway]   ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}`);
     
     const app = express();
     app.set("trust proxy", 1);
@@ -194,6 +195,48 @@ process.on('unhandledRejection', (reason, promise) => {
         console.log("[gateway] ✅ Agent mounted at /agent");
       } catch (e) {
         console.error("[mono] Agent embed failed:", e?.message, e?.stack);
+      }
+      
+      // Start background worker in production if enabled
+      const isProduction = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
+      const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true';
+      
+      if (isProduction && shouldStartWorker) {
+        console.log("[gateway] 🚀 Starting background worker for production...");
+        try {
+          const { openSync } = await import('node:fs');
+          const workerLogFd = openSync('/tmp/worker-production.log', 'a');
+          
+          const worker = spawn('node', ['strategy-generator.js'], {
+            stdio: ['ignore', workerLogFd, workerLogFd],
+            env: { ...process.env }
+          });
+          
+          worker.on('error', (err) => {
+            console.error('[gateway:worker:error] Failed to spawn worker:', err.message);
+          });
+          
+          worker.on('exit', (code) => {
+            console.error(`[gateway:worker:exit] Worker exited with code ${code}, restarting...`);
+            // Auto-restart worker after 5 seconds
+            setTimeout(() => {
+              console.log('[gateway] Restarting worker after crash...');
+              const newWorker = spawn('node', ['strategy-generator.js'], {
+                stdio: ['ignore', workerLogFd, workerLogFd],
+                env: { ...process.env }
+              });
+              children.set('strategy-worker', newWorker);
+            }, 5000);
+          });
+          
+          children.set('strategy-worker', worker);
+          console.log(`[gateway] ✅ Production worker started (PID: ${worker.pid})`);
+          console.log(`[gateway] 📋 Worker logs: /tmp/worker-production.log`);
+        } catch (e) {
+          console.error('[gateway] ❌ Failed to start production worker:', e?.message);
+        }
+      } else if (isProduction) {
+        console.log('[gateway] ⏸️  Production worker disabled (ENABLE_BACKGROUND_WORKER not true)');
       }
     }
 
