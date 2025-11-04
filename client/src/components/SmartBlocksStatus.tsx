@@ -148,7 +148,7 @@ export function SmartBlocksStatus({
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Venues can take up to 3 minutes to load
+                    Venue generation in progress (110 seconds after strategy)
                   </p>
                 </div>
               )}
