@@ -73,6 +73,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
     
     console.log(`[ENHANCED-BLOCKS] ✅ Enriched ${enrichedVenues.length} venues with Google APIs in ${enrichmentMs}ms`);
     
+    // CRITICAL: Limit to exactly 3 high-priority venues for production
+    const topVenues = enrichedVenues.slice(0, 3);
+    console.log(`[ENHANCED-BLOCKS] 🎯 Limited to TOP 3 priority venues (was ${enrichedVenues.length})`);
+    
     // Step 3: Create ranking record
     await db.insert(rankings).values({
       ranking_id: rankingId,
@@ -92,8 +96,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
     
     console.log(`[ENHANCED-BLOCKS] ✅ Ranking record created: ${rankingId}`);
     
-    // Step 4: Insert ranking candidates with enriched Google data
-    const candidates = enrichedVenues.map((enriched, index) => {
+    // Step 4: Insert ranking candidates with enriched Google data (limited to top 3)
+    const candidates = topVenues.map((enriched, index) => {
       // Calculate value metrics
       const distanceMiles = parseFloat(enriched.distanceMiles) || 0;
       const driveMinutes = enriched.driveTimeMinutes || 0;

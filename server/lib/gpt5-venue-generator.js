@@ -15,6 +15,7 @@ import { callGPT5 } from './adapters/openai-gpt5.js';
  * @param {string} params.currentTime - Current time context
  * @param {string} params.weather - Weather conditions
  * @param {number} params.maxDistance - Maximum distance in miles (default: 15)
+ * @param {Object} params.snapshotData - Complete snapshot context data
  * @returns {Promise<Array>} Array of venue objects with coords, names, pro_tips, staging, etc.
  */
 export async function generateVenueCoordinates({
@@ -25,27 +26,37 @@ export async function generateVenueCoordinates({
   state,
   currentTime,
   weather,
-  maxDistance = 15
+  maxDistance = 15,
+  snapshotData = {}
 }) {
-  console.log(`[GPT-5 Venue Generator] Generating venues within ${maxDistance} miles of ${city}, ${state}...`);
+  console.log(`[GPT-5 Venue Generator] Generating TOP 3 priority venues aligned with strategy...`);
   
-  const systemPrompt = `You are a rideshare venue intelligence system. Generate specific venue recommendations with precise GPS coordinates.
+  const systemPrompt = `You are a rideshare venue intelligence system. Generate ONLY the TOP 3 HIGHEST PRIORITY venue recommendations that directly align with the consolidated strategy.
 
 CRITICAL REQUIREMENTS:
-1. All venues MUST be within ${maxDistance} miles of the driver's location
-2. Provide TWO sets of coordinates for each venue:
+1. ONLY 3 VENUES MAXIMUM - Choose the absolute highest priority locations
+2. Venues MUST directly support the strategy's directive and timing
+3. All venues MUST be within ${maxDistance} miles of the driver's location
+4. Provide TWO sets of coordinates for each venue:
    - LOCATION coords: The actual venue/destination coordinates
    - STAGING coords: Safe pickup/waiting spot near the venue
-3. Provide NAMES for both location and staging for Google Places API verification
-4. Pro tips: Why go to this venue right now (specific to current conditions)
-5. Staging tips: Where exactly to park/wait for pickups
-6. Closed reasoning: If venue is outside business hours, explain why it's still valuable
-7. EXACTLY 8 venues, no more, no less - prioritized by earnings potential
+5. Provide NAMES for both location and staging for Google Places API verification
+6. Priority ranking: Rank 1-3 by immediate strategic value
+7. Pro tips: Why this venue is a TOP PRIORITY right now
+8. Staging tips: Where exactly to park/wait for pickups
+
+PRIORITIZATION CRITERIA:
+- Direct alignment with consolidated strategy directive
+- Immediate earnings potential (next 30-60 minutes)
+- Current demand level based on time/conditions
+- Minimal dead time between rides
+- Strategic positioning for follow-up rides
 
 OUTPUT FORMAT (strict JSON):
 {
   "venues": [
     {
+      "priority_rank": 1,
       "location_name": "Exact venue name for Google Places API",
       "location_lat": 33.1234,
       "location_lng": -96.5678,
@@ -53,11 +64,12 @@ OUTPUT FORMAT (strict JSON):
       "staging_lat": 33.1235,
       "staging_lng": -96.5679,
       "category": "restaurant|entertainment|shopping|airport|stadium|hotel|bar|event_venue",
-      "pro_tips": "Why go here NOW? Specific tactical advice for current time/conditions.",
+      "pro_tips": "Why this is TOP PRIORITY NOW - specific strategic value.",
       "staging_tips": "Exactly where to park/wait for best pickup access.",
       "closed_reasoning": "Strategic value if outside business hours (null if currently open)",
       "estimated_earnings": 25.50,
-      "demand_level": "high|medium|low"
+      "demand_level": "high|medium|low",
+      "strategy_alignment": "How this directly supports the strategy"
     }
   ]
 }`;
@@ -69,12 +81,24 @@ Current Time: ${currentTime}
 Weather: ${weather}
 Maximum Distance: ${maxDistance} miles
 
+SNAPSHOT CONTEXT:
+Day Part: ${snapshotData.day_part || 'unknown'}
+Day of Week: ${snapshotData.day_of_week || 'unknown'} ${snapshotData.is_weekend ? '(WEEKEND)' : ''}
+Hour: ${snapshotData.hour || 'unknown'}:00
+${snapshotData.is_holiday ? `Holiday: ${snapshotData.holiday}` : ''}
+${snapshotData.airport_context ? `Airport: ${snapshotData.airport_context.airport_code} (${snapshotData.airport_context.distance_miles} miles)` : ''}
+
 CONSOLIDATED STRATEGY:
 ${consolidatedStrategy}
 
-Generate EXACTLY 8 venue recommendations with precise coordinates. Focus on venues mentioned in the strategy plus high-value locations based on current conditions.
+CRITICAL INSTRUCTIONS:
+1. Generate ONLY 3 venues - the absolute HIGHEST PRIORITY locations
+2. Each venue MUST directly support the strategy's directive
+3. Rank them 1-3 by immediate tactical value (next 30-60 minutes)
+4. Focus on venues that minimize dead time and maximize earnings
+5. Consider snapshot context (time, day, weather) for demand patterns
 
-CRITICAL: Return exactly 8 venues in the JSON array, no more, no less.
+Return EXACTLY 3 venues in priority order.
 Return JSON only - no markdown, no explanation.`;
 
   try {
@@ -145,6 +169,7 @@ Return JSON only - no markdown, no explanation.`;
       }
 
       return {
+        priority_rank: v.priority_rank || idx + 1, // Use provided rank or default to order
         location_name: v.location_name.trim(),
         location_lat: parseFloat(v.location_lat),
         location_lng: parseFloat(v.location_lng),
@@ -156,14 +181,16 @@ Return JSON only - no markdown, no explanation.`;
         staging_tips: v.staging_tips || v.staging_tip || null, // Support both field names
         closed_reasoning: v.closed_reasoning || null,
         estimated_earnings: v.estimated_earnings || null,
-        demand_level: v.demand_level || 'medium'
+        demand_level: v.demand_level || 'medium',
+        strategy_alignment: v.strategy_alignment || null // New field for strategy alignment
       };
     }).filter(Boolean); // Remove nulls
 
-    // CRITICAL: Cap at exactly 8 venues (16 coords: 8 location + 8 staging)
-    const cappedVenues = venues.slice(0, 8);
+    // CRITICAL: Cap at exactly 3 priority venues (6 coords: 3 location + 3 staging)
+    const cappedVenues = venues.slice(0, 3);
 
-    console.log(`[GPT-5 Venue Generator] ✅ Generated ${cappedVenues.length} venues (${cappedVenues.length * 2} coordinates)`);
+    console.log(`[GPT-5 Venue Generator] ✅ Generated ${cappedVenues.length} HIGH-PRIORITY venues (${cappedVenues.length * 2} coordinates)`);
+    console.log(`[GPT-5 Venue Generator] Priorities:`, cappedVenues.map(v => `#${v.priority_rank}: ${v.location_name}`).join(', '));
     
     return {
       venues: cappedVenues,
