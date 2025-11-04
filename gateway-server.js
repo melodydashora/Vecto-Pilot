@@ -130,12 +130,18 @@ process.on('unhandledRejection', (reason, promise) => {
 
   // NOTE: In mono mode, consolidation listener runs in separate strategy-generator.js process
   // Gateway should NOT start an inline listener to avoid conflicts with separate worker
-  const isCloudRun = process.env.REPLIT_DEPLOYMENT === "1";
+  // Replit Reserved VMs support background workers, only disable for explicit autoscale mode
+  const isAutoscaleMode = process.env.CLOUD_RUN_AUTOSCALE === "1";
   
-  if (isCloudRun) {
-    console.log("[gateway] ⏩ Background worker disabled (Cloud Run detected)");
+  if (isAutoscaleMode) {
+    console.log("[gateway] ⏩ Background worker disabled (Autoscale mode detected)");
   } else {
     console.log("[gateway] ⏩ Consolidation listener runs in separate worker process");
+    // Start the strategy generator worker for Reserved VM deployments
+    if (!DISABLE_SPAWN_SDK && !DISABLE_SPAWN_AGENT && MODE === "mono") {
+      console.log("[gateway] 🚀 Starting strategy generator worker...");
+      spawnChild("strategy-generator", "node", ["strategy-generator.js"], {});
+    }
   }
 
   // Mount middleware and routes after server is listening
