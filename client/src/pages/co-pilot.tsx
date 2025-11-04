@@ -246,10 +246,10 @@ const CoPilot: React.FC = () => {
       }
     });
     
-    // Start polling in production or if SSE hasn't fired after 5 seconds
-    const pollingTimeout = setTimeout(() => {
-      if (!sseReceived && (isProduction || true)) { // Always use polling as backup
-        console.log('[polling] Starting strategy polling (SSE backup)');
+    // Always start polling immediately as primary mechanism (SSE is backup)
+    const startPolling = () => {
+      if (!sseReceived) {
+        console.log('[polling] Starting strategy polling immediately');
         pollStrategyStatus(
           lastSnapshotId,
           (status) => {
@@ -271,10 +271,12 @@ const CoPilot: React.FC = () => {
           }
         });
       }
-    }, isProduction ? 1000 : 5000); // Start polling faster in production
+    };
+    
+    // Start polling immediately (no delay)
+    startPolling();
     
     return () => {
-      clearTimeout(pollingTimeout);
       abortController.abort();
       unsubscribe();
     };
