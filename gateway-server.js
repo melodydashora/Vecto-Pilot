@@ -129,9 +129,12 @@ process.on('unhandledRejection', (reason, promise) => {
 
     // CRITICAL: Health endpoints FIRST (before any middleware or imports)
     // This ensures instant responses to deployment health checks
-    // In deployment, Cloud Run checks "/" - return OK immediately
-    // In dev/preview, let SPA handle "/" (don't register it here)
-    if (isDeployment) {
+    // Cloud Run/Replit checks "/" by default - must return 200 OK
+    // Autoscale mode: Simple OK response for health probe
+    // Reserved VM: Let SPA handle after static files mounted
+    // Dev/Preview: Let SPA handle for normal experience
+    const isAutoscaleDeploy = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === "1";
+    if (isAutoscaleDeploy) {
       app.get('/', (_req, res) => res.status(200).send('OK'));
       app.head('/', (_req, res) => res.status(200).end());
     }
