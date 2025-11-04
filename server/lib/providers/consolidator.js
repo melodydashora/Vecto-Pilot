@@ -97,28 +97,42 @@ export async function runConsolidator(snapshotId) {
     console.log(`[consolidator] 📊 GPT-5 will do briefing research + consolidation:`, inputMetrics);
     
     // Step 3: Build prompts for GPT-5 reasoning + web search
-    const systemPrompt = `You are an expert rideshare intelligence analyst with live web search capabilities.
+    const systemPrompt = `You are the Consolidator.
 
-Your task:
-1. Use live web search to research current conditions for rideshare drivers
-2. Split your research into tactical details AND actionable summary
-3. Return structured JSON with ALL 5 fields (summary is REQUIRED)
+Context & allowances
+- Input may be large (mini_strategy, snapshot, user_context, holiday calendar, FAA/airport ops, traffic, construction, closures, weather).
+- You may use extended internal reasoning and web search.
+- Do NOT expose sources, citations, numbers, or raw data. Do NOT mirror or restate the input.
+- Location rule: use the provided runtime lat/lng (and any reverse-geocoded area). Never assume or hardcode defaults. If location is missing/invalid, treat it as unknown and gate your decision.
 
-Format your response as JSON with these fields IN THIS EXACT ORDER:
+Core objective
+- With all context considered (location, traffic, construction, holiday effects, FAA programs/ops, weather), tell the end user exactly **where to go right now**, with the **best route** and **where to stage** (if staging is relevant).
+- Prioritize: (1) live traffic/closures and legality of access, (2) FAA/airport viability (ground stops, GDPs, major disruptions), (3) holiday surge patterns and event impacts, (4) high-severity construction.
+
+Decision rubric (internal—do not output these steps)
+1) From viable destinations in the strategy, choose ONE immediate target that is actually reachable now from the user's current location (penalize closed segments, severe incidents, FAA-constrained terminals).
+2) Select ONE best route that minimizes ETA and operational risk; prefer authorized access roads; avoid choke points flagged by holiday/incident data.
+3) Choose ONE staging location (e.g., cell lot, rideshare lot, designated curb/door) that is legal, open, and tactically useful given flow control; include terminal/door if applicable.
+4) If airport viability is degraded (FAA ground programs, mass cancellations) and the strategy allows an alternative, divert to the next best target or stage away until viable.
+5) If required inputs for a safe decision are missing or ambiguous, return UNAVAILABLE.
+
+User-visible output (STRICT: JSON only; no prose, no markdown, no code fences; do not echo input)
 {
-  "tactical_traffic": "Traffic/incidents for next 30 minutes (detailed)",
-  "tactical_closures": "Closures/construction for next 30 minutes (detailed)", 
-  "tactical_enforcement": "Enforcement activity for next 30 minutes (detailed)",
-  "tactical_sources": "Sources checked (website names/URLs)",
-  "summary": "REQUIRED - Actionable 3-5 sentence summary consolidating ALL above details for driver leaving NOW"
+  "go_now": string,        // exact instruction on where to go now (destination/terminal/door if relevant)
+  "route":  string,        // single-line best route summary (e.g., "I-90 W → Exit 79B → Bessie Coleman Dr")
+  "stage_at": string,      // where to stage or hold (e.g., "Cell Lot A" / "Rideshare Lot, Zone H")
+  "avoid":  [string, ...], // up to 6 specific roads/incidents to avoid
+  "why":    string         // ≤140 chars; terse reason (e.g., "holiday surge + ground delay; closures on I-190 EB")
 }
 
-CRITICAL REQUIREMENTS:
-- Focus strictly on: traffic conditions, incidents, closures, enforcement, construction
-- Do NOT list venues or curb locations
-- The "summary" field is MANDATORY - it consolidates tactical details into actionable guidance
-- Use the exact day of week and time provided - do not recompute dates
-- Return ONLY valid JSON with all 5 fields`;
+Constraints
+- Output must fit the schema above and remain minimal. No stats, no data dumps, no source names, no times/percents unless essential to the instruction.
+- If location or strategy is insufficient for a safe decision:
+  { "go_now":"UNAVAILABLE", "route":"", "stage_at":"", "avoid":[], "why":"Awaiting complete strategy/location" }
+
+Reminder
+- You may think/search extensively, but **only** return the JSON directive (destination now, best route, where to stage, what to avoid, why).
+- The full briefing will be delivered elsewhere; do not include it here.`;
 
     const userPrompt = `SNAPSHOT DATA (AUTHORITATIVE - from driver's GPS):
 Day of Week: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : ''}
@@ -184,86 +198,104 @@ ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
       throw new Error('Consolidator returned empty output');
     }
     
-    // Step 5: Parse JSON response or extract from plain text
+    // Step 5: Parse JSON response for new directive format
     let parsedOutput;
     try {
       // Try to extract JSON from markdown code blocks if present
       const jsonMatch = consolidatedStrategy.match(/```json\s*([\s\S]*?)\s*```/) || consolidatedStrategy.match(/\{[\s\S]*\}/);
       const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : consolidatedStrategy;
       parsedOutput = JSON.parse(jsonStr);
-      console.log(`[consolidator] ✅ Parsed JSON response`);
-    } catch (parseErr) {
-      console.warn(`[consolidator] ⚠️  Failed to parse JSON, attempting plain text extraction:`, parseErr.message);
       
-      // Fallback: Parse plain text format
-      // Expected format:
-      // - Traffic/incidents: ...
-      // - Closures/construction: ...
-      // - Enforcement: ...
-      // Sources checked: ...
-      // Summary/How to operationalize: ...
+      // Validate required fields
+      if (!parsedOutput.go_now || !parsedOutput.route || !parsedOutput.stage_at || !parsedOutput.why) {
+        throw new Error('Missing required directive fields');
+      }
       
-      const trafficMatch = consolidatedStrategy.match(/[-•]\s*Traffic[/\s]incidents?:\s*([^\n]+(?:\n(?![-•]\s*[A-Z])[^\n]+)*)/i);
-      const closuresMatch = consolidatedStrategy.match(/[-•]\s*Closures[/\s]construction:\s*([^\n]+(?:\n(?![-•]\s*[A-Z])[^\n]+)*)/i);
-      const enforcementMatch = consolidatedStrategy.match(/[-•]\s*Enforcement:\s*([^\n]+(?:\n(?![-•]\s*[A-Z])[^\n]+)*)/i);
-      const sourcesMatch = consolidatedStrategy.match(/Sources checked:\s*([^\n]+(?:\n(?![A-Z])[^\n]+)*)/i);
+      // Ensure avoid is an array
+      if (!Array.isArray(parsedOutput.avoid)) {
+        parsedOutput.avoid = [];
+      }
       
-      // Extract summary (everything after sources or "How to operationalize")
-      const summaryMatch = consolidatedStrategy.match(/(?:Summary|How to operationalize)[^:]*:\s*([\s\S]+)/i);
-      
-      parsedOutput = {
-        tactical_traffic: trafficMatch ? trafficMatch[1].trim() : '',
-        tactical_closures: closuresMatch ? closuresMatch[1].trim() : '',
-        tactical_enforcement: enforcementMatch ? enforcementMatch[1].trim() : '',
-        tactical_sources: sourcesMatch ? sourcesMatch[1].trim() : '',
-        summary: summaryMatch ? summaryMatch[1].trim() : consolidatedStrategy
-      };
-      
-      console.log(`[consolidator] 📝 Extracted from plain text:`, {
-        traffic_chars: parsedOutput.tactical_traffic.length,
-        closures_chars: parsedOutput.tactical_closures.length,
-        enforcement_chars: parsedOutput.tactical_enforcement.length,
-        sources_chars: parsedOutput.tactical_sources.length,
-        summary_chars: parsedOutput.summary.length
+      console.log(`[consolidator] ✅ Parsed directive JSON:`, {
+        go_now: parsedOutput.go_now,
+        route_length: parsedOutput.route.length,
+        stage_at: parsedOutput.stage_at,
+        avoid_count: parsedOutput.avoid.length,
+        why_length: parsedOutput.why.length
       });
+    } catch (parseErr) {
+      console.error(`[consolidator] ❌ Failed to parse directive JSON:`, parseErr.message);
+      
+      // If parsing fails, return unavailable directive
+      parsedOutput = {
+        go_now: "UNAVAILABLE",
+        route: "",
+        stage_at: "",
+        avoid: [],
+        why: "Failed to parse consolidator response"
+      };
     }
     
-    // Step 6: Write tactical sections to briefings table
+    // Step 6: Format consolidated directive as readable text
+    // Create a human-readable version of the directive for the Co-Pilot page
+    let formattedDirective = '';
+    
+    if (parsedOutput.go_now === "UNAVAILABLE") {
+      formattedDirective = "Strategy processing - awaiting complete location and context data.";
+    } else {
+      // Build formatted directive text
+      formattedDirective = `📍 Go Now: ${parsedOutput.go_now}\n`;
+      formattedDirective += `🛣️ Route: ${parsedOutput.route}\n`;
+      formattedDirective += `📍 Stage At: ${parsedOutput.stage_at}`;
+      
+      if (parsedOutput.avoid && parsedOutput.avoid.length > 0) {
+        formattedDirective += `\n⚠️ Avoid: ${parsedOutput.avoid.join(', ')}`;
+      }
+      
+      if (parsedOutput.why) {
+        formattedDirective += `\n💡 Why: ${parsedOutput.why}`;
+      }
+    }
+    
+    // Step 7: Store directive components in briefings table for future reference
     const { briefings } = await import('../../../shared/schema.js');
     const [existingBriefing] = await db.select().from(briefings)
       .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     
+    // Store directive components as JSON in tactical fields
+    const directiveJson = JSON.stringify(parsedOutput);
+    
     if (existingBriefing) {
-      // Update existing briefing with tactical sections
+      // Update existing briefing with directive data
       await db.update(briefings).set({
-        tactical_traffic: parsedOutput.tactical_traffic || '',
-        tactical_closures: parsedOutput.tactical_closures || '',
-        tactical_enforcement: parsedOutput.tactical_enforcement || '',
-        tactical_sources: parsedOutput.tactical_sources || '',
+        tactical_traffic: parsedOutput.route || '',
+        tactical_closures: parsedOutput.avoid ? parsedOutput.avoid.join(', ') : '',
+        tactical_enforcement: parsedOutput.stage_at || '',
+        tactical_sources: directiveJson, // Store full directive as JSON for reference
         updated_at: new Date()
       }).where(eq(briefings.snapshot_id, snapshotId));
-      console.log(`[consolidator] ✅ Updated briefing with tactical intelligence`);
+      console.log(`[consolidator] ✅ Updated briefing with navigation directive`);
     } else {
-      // Create briefing with tactical sections only
+      // Create briefing with directive data
       await db.insert(briefings).values({
         snapshot_id: snapshotId,
-        tactical_traffic: parsedOutput.tactical_traffic || '',
-        tactical_closures: parsedOutput.tactical_closures || '',
-        tactical_enforcement: parsedOutput.tactical_enforcement || '',
-        tactical_sources: parsedOutput.tactical_sources || ''
+        tactical_traffic: parsedOutput.route || '',
+        tactical_closures: parsedOutput.avoid ? parsedOutput.avoid.join(', ') : '',
+        tactical_enforcement: parsedOutput.stage_at || '',
+        tactical_sources: directiveJson // Store full directive as JSON
         // created_at and updated_at are set automatically via .defaultNow()
       });
-      console.log(`[consolidator] ✅ Created briefing with tactical intelligence`);
+      console.log(`[consolidator] ✅ Created briefing with navigation directive`);
     }
     
-    // Step 7: Write only summary to consolidated_strategy (Co-Pilot page)
-    const summary = parsedOutput.summary || consolidatedStrategy;
+    // Step 8: Use formatted directive as the consolidated strategy
+    const summary = formattedDirective;
     
     // METADATA TRACKING: Build model chain for traceability (2-step pipeline)
     const modelChain = `${inputMetrics.strategist_model}→${inputMetrics.consolidator_model}`;
     const totalDuration = Date.now() - startTime;
     
-    // Step 8: Write summary + metadata to strategies table
+    // Step 9: Write summary + metadata to strategies table
     await db.update(strategies).set({
       consolidated_strategy: summary,
       status: 'ok',
@@ -275,10 +307,11 @@ ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
     console.log(`[consolidator] ✅ Complete for ${snapshotId}`, {
       model_chain: modelChain,
       summary_length: summary.length,
-      tactical_traffic_length: parsedOutput.tactical_traffic?.length || 0,
-      tactical_closures_length: parsedOutput.tactical_closures?.length || 0,
-      tactical_enforcement_length: parsedOutput.tactical_enforcement?.length || 0,
-      tactical_sources_length: parsedOutput.tactical_sources?.length || 0,
+      go_now: parsedOutput.go_now,
+      route_length: parsedOutput.route?.length || 0,
+      stage_at: parsedOutput.stage_at,
+      avoid_count: parsedOutput.avoid?.length || 0,
+      why_length: parsedOutput.why?.length || 0,
       model_call_ms: modelCallDuration,
       total_ms: totalDuration,
       prompt_size: promptSize
@@ -287,11 +320,12 @@ ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
     return { 
       ok: true, 
       strategy: summary,
-      tactical: {
-        traffic: parsedOutput.tactical_traffic || '',
-        closures: parsedOutput.tactical_closures || '',
-        enforcement: parsedOutput.tactical_enforcement || '',
-        sources: parsedOutput.tactical_sources || ''
+      directive: {
+        go_now: parsedOutput.go_now,
+        route: parsedOutput.route,
+        stage_at: parsedOutput.stage_at,
+        avoid: parsedOutput.avoid || [],
+        why: parsedOutput.why
       },
       metrics: {
         modelChain,
