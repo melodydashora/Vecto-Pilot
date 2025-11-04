@@ -75,50 +75,11 @@ process.on('unhandledRejection', (reason, promise) => {
     app.set("trust proxy", 1);
     console.log(`[gateway] Express loaded in ${Date.now() - startTime}ms`);
 
-    // Autoscale is opt-in only
-    const isAutoscale =
-      (process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true") &&
-      process.env.CLOUD_RUN_AUTOSCALE === "1";
-    
+    // Reserved VM deployment - always run full application
     const isDeployment = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
     
     console.log(`[gateway] 🎯 isDeployment: ${isDeployment}`);
-    console.log(`[gateway] 🎯 isAutoscale: ${isAutoscale}`);
-    console.log(`[gateway] 🎯 CLOUD_RUN_AUTOSCALE: ${process.env.CLOUD_RUN_AUTOSCALE}`);
-    
-    // AUTOSCALE MODE: Simplified for Cloud Run
-    // Disables background workers, uses polling instead of LISTEN/NOTIFY
-    if (isAutoscale) {
-      console.log(`[gateway] 🎯 Autoscale mode - stateless configuration`);
-      console.log(`[gateway] ⚠️  Background workers disabled`);
-      console.log(`[gateway] ⚠️  LISTEN/NOTIFY disabled (use polling)`);
-      
-      // Minimal health endpoints
-      app.get('/', (_req, res) => res.status(200).send('OK'));
-      app.head('/', (_req, res) => res.status(200).end());
-      app.get('/health', (_req, res) => res.status(200).send('OK'));
-      app.get('/ready', (_req, res) => res.status(200).send('OK'));
-      
-      const server = http.createServer(app);
-      server.keepAliveTimeout = 65000;
-      server.headersTimeout = 66000;
-
-      server.on('error', (err) => {
-        console.error(`[gateway] ❌ FATAL:`, err.code, err.message);
-        process.exit(1);
-      });
-
-      process.on('SIGTERM', () => {
-        console.log('[gateway] 🛑 SIGTERM received');
-        server.close(() => process.exit(0));
-      });
-
-      server.listen(PORT, '0.0.0.0', () => {
-        console.log(`[ready] ✅ Autoscale ready on 0.0.0.0:${PORT} (${Date.now() - startTime}ms)`);
-      });
-
-      return;
-    }
+    console.log(`[gateway] 🎯 Reserved VM mode - full application with background workers`);
 
     // REGULAR MODE: Full application
     console.log(`[gateway] PID: ${process.pid}`);
