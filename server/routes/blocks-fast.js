@@ -869,6 +869,7 @@ export async function getBlocksFast({ snapshotId, req }) {
     };
     const blocks = candidates
       .filter(c => within15Min(c.drive_minutes || c.drive_time_minutes))
+      .slice(0, 3) // Limit to exactly 3 venues for cached rankings
       .map(c => ({
         name: c.name,
         coordinates: { lat: c.lat, lng: c.lng },
