@@ -95,10 +95,9 @@ process.on('unhandledRejection', (reason, promise) => {
     // Reserved VM: Let SPA handle after static files mounted
     // Dev/Preview: Let SPA handle for normal experience
     const isAutoscaleDeploy = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === "1";
-    if (isAutoscaleDeploy) {
-      app.get('/', (_req, res) => res.status(200).send('OK'));
-      app.head('/', (_req, res) => res.status(200).end());
-    }
+    // IMPORTANT: Removed the root "/" override for autoscale mode
+    // The root "/" should serve the actual app, not just "OK"
+    // Only health endpoints should return simple responses
     app.get('/health', (_req, res) => res.status(200).send('OK'));
     app.head('/health', (_req, res) => res.status(200).end());
     app.get('/ready', (_req, res) => res.status(200).send('OK'));
