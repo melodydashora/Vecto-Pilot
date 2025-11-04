@@ -194,7 +194,13 @@ export async function startConsolidationListener() {
           
           // CRITICAL: Notify SSE listeners that blocks are ready
           try {
-            await pgClient.query(`NOTIFY blocks_ready, '${snapshotId}'`);
+            // Send JSON payload consistent with database trigger format
+            const payload = JSON.stringify({ 
+              snapshot_id: snapshotId,
+              ranking_id: null, // Optional - set by trigger when rankings are created
+              timestamp: new Date().toISOString()
+            });
+            await pgClient.query(`NOTIFY blocks_ready, '${payload}'`);
             console.log(`[consolidation-listener] 📢 NOTIFY blocks_ready sent for ${snapshotId}`);
           } catch (notifyErr) {
             console.error(`[consolidation-listener] ⚠️ Failed to send NOTIFY:`, notifyErr.message);

@@ -9,16 +9,27 @@ export async function getListenClient() {
 
   // CRITICAL: Use unpooled connection for LISTEN/NOTIFY
   // Neon's pooler (pgBouncer) does not support LISTEN/NOTIFY
-  const connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+  let connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
   
   if (!connectionString) {
     throw new Error('[db-client] No DATABASE_URL or DATABASE_URL_UNPOOLED found');
   }
   
-  // Warn if using pooled connection (won't work with LISTEN)
-  if (connectionString.includes('pooler') && !process.env.DATABASE_URL_UNPOOLED) {
-    console.warn('[db-client] ⚠️  WARNING: Using pooled connection for LISTEN - this may not work!');
-    console.warn('[db-client] ⚠️  Set DATABASE_URL_UNPOOLED for reliable LISTEN/NOTIFY support');
+  // AUTO-DERIVE UNPOOLED URL: If we have a pooled Neon URL and no explicit unpooled URL,
+  // automatically derive it by removing the -pooler suffix from the subdomain
+  if (connectionString.includes('-pooler.') && !process.env.DATABASE_URL_UNPOOLED) {
+    // Convert pooled URL to unpooled by removing -pooler from subdomain
+    // Example: postgres://user:pass@ep-xxx-pooler.region.aws.neon.tech/db
+    // Becomes: postgres://user:pass@ep-xxx.region.aws.neon.tech/db
+    connectionString = connectionString.replace('-pooler.', '.');
+    console.log('[db-client] 🔧 Auto-derived unpooled URL from pooled DATABASE_URL');
+    console.log('[db-client] 🔧 Removed -pooler suffix for LISTEN/NOTIFY support');
+  }
+  
+  // Warn if still using pooled connection (won't work with LISTEN)
+  if (connectionString.includes('pooler')) {
+    console.warn('[db-client] ⚠️  WARNING: Still using pooled connection for LISTEN - this will not work!');
+    console.warn('[db-client] ⚠️  LISTEN/NOTIFY requires an unpooled connection');
   }
 
   pgClient = new pg.Client({

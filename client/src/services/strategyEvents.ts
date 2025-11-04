@@ -31,7 +31,20 @@ export function subscribeBlocksReady(onReady: (data: { ranking_id: string; snaps
   
   es.addEventListener('blocks_ready', (e: MessageEvent) => {
     try {
-      const data = JSON.parse(e.data);
+      // Handle both JSON object and plain string formats for backward compatibility
+      let data;
+      try {
+        data = JSON.parse(e.data);
+      } catch {
+        // If parsing fails, assume it's a plain snapshot ID string
+        data = { snapshot_id: e.data, ranking_id: null };
+      }
+      
+      // Ensure we have the expected format
+      if (typeof data === 'string') {
+        data = { snapshot_id: data, ranking_id: null };
+      }
+      
       console.log('[SSE] Blocks ready event received:', data);
       onReady(data);
     } catch (err) {
