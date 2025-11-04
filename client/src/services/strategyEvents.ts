@@ -84,8 +84,6 @@ export async function pollStrategyStatus(
   let lastProgress = 0;
   let stuckCounter = 0;
   
-  console.log(`[pollStrategyStatus] Starting polling for snapshot: ${snapshotId}`);
-  
   // Track actual strategy progress milestones
   const milestones = {
     created: false,
@@ -98,76 +96,67 @@ export async function pollStrategyStatus(
 
   while (attempts < maxAttempts) {
     if (signal?.aborted) {
-      console.log('[pollStrategyStatus] Polling aborted by signal');
       throw new Error("Polling aborted");
     }
 
     try {
-      console.log(`[pollStrategyStatus] Attempt ${attempts + 1}: Fetching /api/blocks/strategy/${snapshotId}`);
-      const response = await fetch(`/api/blocks/strategy/${snapshotId}`, { signal });
-      if (!response.ok) {
-        console.error(`[pollStrategyStatus] HTTP error: ${response.status}`);
-        throw new Error(`HTTP ${response.status}`);
-      }
+      const response = await fetch(`/api/strategy/${snapshotId}`, { signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
       const data = await response.json();
-      console.log(`[pollStrategyStatus] Response status: ${data.status}, timeElapsed: ${data.timeElapsedMs}ms`);
       
       // Calculate actual progress based on real strategy state
       let progress = 5; // Base progress for created
       let phase = 'initializing';
       let statusText = 'Starting strategy generation...';
       
-      // Track real milestones based on API response structure
+      // Track real milestones
+      if (data.created_at) {
+        milestones.created = true;
+        progress = 10;
+      }
+      
+      if (data.status === 'pending' || data.status === 'processing') {
+        milestones.analyzing = true;
+        progress = Math.max(15, progress);
+        phase = 'analyzing';
+        statusText = 'Analyzing market dynamics...';
+        
+        // Add time-based progress for pending state (up to 30%)
+        if (attempts > 5) progress = Math.max(20, progress);
+        if (attempts > 10) progress = Math.max(25, progress);
+        if (attempts > 15) progress = Math.max(30, progress);
+      }
+      
+      if (data.minstrategy) {
+        milestones.minstrategy = true;
+        progress = 40;
+        phase = 'consolidating';
+        statusText = 'Processing strategy insights...';
+      }
+      
+      if (data.consolidated_strategy) {
+        milestones.consolidated = true;
+        progress = 65;
+        phase = 'enhancing';
+        statusText = 'Generating tactical recommendations...';
+      }
+      
+      if (data.briefing || data.briefing_available) {
+        milestones.briefing = true;
+        progress = 85;
+        phase = 'finalizing';
+        statusText = 'Preparing your briefing...';
+      }
+      
       if (data.status === 'ok') {
-        // Strategy is complete with data
         milestones.complete = true;
         progress = 100;
         phase = 'complete';
         statusText = 'Strategy ready!';
-        
-        // Check for specific strategy components
-        if (data.strategy?.min) {
-          milestones.minstrategy = true;
-        }
-        if (data.strategy?.consolidated) {
-          milestones.consolidated = true;
-        }
-        if (data.strategy?.briefing) {
-          milestones.briefing = true;
-        }
-      } else if (data.status === 'pending') {
-        milestones.analyzing = true;
-        phase = 'analyzing';
-        statusText = 'Generating strategy insights...';
-        
-        // Progressive updates based on waitFor array
-        if (data.waitFor?.includes('strategy')) {
-          progress = Math.max(15, progress);
-          statusText = 'Processing strategy data...';
-          
-          // Add time-based progress for pending state (up to 60%)
-          if (attempts > 5) progress = Math.max(25, progress);
-          if (attempts > 10) progress = Math.max(35, progress);
-          if (attempts > 20) progress = Math.max(45, progress);
-          if (attempts > 30) progress = Math.max(55, progress);
-        } else {
-          // If waitFor doesn't include strategy, we're closer to done
-          progress = Math.max(75, progress);
-          statusText = 'Finalizing strategy...';
-        }
-        
-        // Add elapsed time indication
-        if (data.timeElapsedMs > 10000) {
-          statusText += ` (${Math.round(data.timeElapsedMs / 1000)}s)`;
-        }
-      } else if (data.status === 'missing') {
-        phase = 'initializing';
-        statusText = 'Waiting for strategy generation...';
-        progress = 5;
-      } else if (data.status === 'error' || data.status === 'failed') {
+      } else if (data.status === 'failed') {
         phase = 'error';
-        statusText = data.error || data.message || 'Strategy generation failed';
+        statusText = data.error || 'Strategy generation failed';
         progress = 0;
       }
       

@@ -246,10 +246,10 @@ const CoPilot: React.FC = () => {
       }
     });
     
-    // Always start polling immediately as primary mechanism (SSE is backup)
-    const startPolling = () => {
-      if (!sseReceived) {
-        console.log('[polling] Starting strategy polling immediately');
+    // Start polling in production or if SSE hasn't fired after 5 seconds
+    const pollingTimeout = setTimeout(() => {
+      if (!sseReceived && (isProduction || true)) { // Always use polling as backup
+        console.log('[polling] Starting strategy polling (SSE backup)');
         pollStrategyStatus(
           lastSnapshotId,
           (status) => {
@@ -271,12 +271,10 @@ const CoPilot: React.FC = () => {
           }
         });
       }
-    };
-    
-    // Start polling immediately (no delay)
-    startPolling();
+    }, isProduction ? 1000 : 5000); // Start polling faster in production
     
     return () => {
+      clearTimeout(pollingTimeout);
       abortController.abort();
       unsubscribe();
     };
@@ -297,8 +295,11 @@ const CoPilot: React.FC = () => {
       return { ...data, _snapshotId: lastSnapshotId };
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    // Disabled React Query polling - using pollStrategyStatus instead to avoid duplicates
-    refetchInterval: false,
+    // Poll every 3 seconds if strategy is pending (fallback when SSE fails)
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'pending' ? 3000 : false;
+    },
     // Cache for 5 minutes to avoid refetching
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
