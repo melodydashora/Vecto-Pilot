@@ -73,7 +73,7 @@ export interface StrategyStatus {
   message?: string;
 }
 
-// Production-ready polling function with smart progress tracking
+// Production-ready polling function with smart progress tracking (70 seconds for strategy)
 export async function pollStrategyStatus(
   snapshotId: string,
   onStatusUpdate: (status: StrategyStatus) => void,
@@ -83,6 +83,7 @@ export async function pollStrategyStatus(
   let attempts = 0;
   let lastProgress = 0;
   let stuckCounter = 0;
+  const startTime = Date.now();
   
   console.log(`[pollStrategyStatus] Starting polling for snapshot: ${snapshotId}`);
   
@@ -141,16 +142,25 @@ export async function pollStrategyStatus(
         phase = 'analyzing';
         statusText = 'Generating strategy insights...';
         
-        // Progressive updates based on waitFor array
+        // Calculate progress based on 70 seconds target
+        const elapsedMs = Date.now() - startTime;
+        const targetMs = 70000; // 70 seconds
+        
+        // Progressive updates based on waitFor array AND time elapsed
         if (data.waitFor?.includes('strategy')) {
-          progress = Math.max(15, progress);
+          // Map elapsed time to progress (0-95% over 70 seconds)
+          const timeProgress = Math.min((elapsedMs / targetMs) * 95, 95);
+          progress = Math.max(15, timeProgress);
           statusText = 'Processing strategy data...';
           
-          // Add time-based progress for pending state (up to 60%)
-          if (attempts > 5) progress = Math.max(25, progress);
-          if (attempts > 10) progress = Math.max(35, progress);
-          if (attempts > 20) progress = Math.max(45, progress);
-          if (attempts > 30) progress = Math.max(55, progress);
+          // Update status text based on progress
+          if (progress > 60) {
+            statusText = 'Finalizing strategy analysis...';
+          } else if (progress > 40) {
+            statusText = 'Consolidating insights...';
+          } else if (progress > 20) {
+            statusText = 'Analyzing data patterns...';
+          }
         } else {
           // If waitFor doesn't include strategy, we're closer to done
           progress = Math.max(75, progress);
@@ -158,8 +168,8 @@ export async function pollStrategyStatus(
         }
         
         // Add elapsed time indication
-        if (data.timeElapsedMs > 10000) {
-          statusText += ` (${Math.round(data.timeElapsedMs / 1000)}s)`;
+        if (elapsedMs > 10000) {
+          statusText += ` (${Math.round(elapsedMs / 1000)}s)`;
         }
       } else if (data.status === 'missing') {
         phase = 'initializing';

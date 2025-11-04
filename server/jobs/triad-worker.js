@@ -170,9 +170,13 @@ export async function startConsolidationListener() {
           .where(eq(briefings.snapshot_id, snapshotId))
           .limit(1);
 
+        // Wait 110 seconds before generating smart blocks to allow strategy to be fully processed
+        console.log(`[consolidation-listener] ⏰ Waiting 110 seconds before generating smart blocks for ${snapshotId}...`);
+        await new Promise(resolve => setTimeout(resolve, 110000)); // 110 seconds delay
+        
         // Generate enhanced smart blocks
         try {
-          console.log(`[consolidation-listener] 🎯 Generating enhanced smart blocks for ${snapshotId}...`);
+          console.log(`[consolidation-listener] 🎯 Generating enhanced smart blocks for ${snapshotId} (after 110s delay)...`);
           await generateEnhancedSmartBlocks({
             snapshotId,
             consolidated: updatedRow.consolidated_strategy,
