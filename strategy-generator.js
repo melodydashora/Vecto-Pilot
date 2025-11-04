@@ -7,10 +7,6 @@ if (process.stdout._handle) process.stdout._handle.setBlocking(true);
 if (process.stderr._handle) process.stderr._handle.setBlocking(true);
 
 console.log('[strategy-generator] 🚀 Triad worker starting (LISTEN-only mode)...');
-console.log('[strategy-generator] Process identification:');
-console.log(`  Worker PID: ${process.pid}`);
-console.log(`  Parent PID: ${process.ppid}`);
-console.log(`  WORKER_ID: ${process.env.WORKER_ID || 'not set'}`);
 console.log('[strategy-generator] Environment:');
 console.log(`  NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`  DATABASE_URL=${process.env.DATABASE_URL ? '***configured***' : 'MISSING'}`);

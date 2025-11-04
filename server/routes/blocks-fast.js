@@ -192,11 +192,11 @@ router.post('/', async (req, res) => {
     // ============================================
     const dataLoadStart = Date.now();
     
-    // Check for existing ranking_candidates from snapshot - Get TOP 3 ONLY
+    // Check for existing ranking_candidates from snapshot
     const existingCandidates = await db.select().from(ranking_candidates)
       .where(eq(ranking_candidates.snapshot_id, snapshotId))
       .orderBy(ranking_candidates.rank)
-      .limit(3); // Only get top 3 priority venues
+      .limit(8);
     
     logAudit('snapshot_data', {
       existing_candidates: existingCandidates.length,
@@ -206,9 +206,9 @@ router.post('/', async (req, res) => {
     let rawVenues = [];
     let generationUsed = false;
 
-    // SNAPSHOT-FIRST PATTERN: Use existing data if available (3 venues sufficient)
-    if (existingCandidates.length >= 3) {
-      console.log(`✅ [${correlationId}] Using TOP ${existingCandidates.length} priority snapshot candidates`);
+    // SNAPSHOT-FIRST PATTERN: Use existing data if available
+    if (existingCandidates.length >= 4) {
+      console.log(`✅ [${correlationId}] Using ${existingCandidates.length} snapshot candidates (no generation needed)`);
       rawVenues = existingCandidates.map(c => ({
         name: c.name,
         location_lat: c.lat,
@@ -262,19 +262,10 @@ router.post('/', async (req, res) => {
           state: fullSnapshot.state,
           currentTime,
           weather: fullSnapshot.weather || '',
-          maxDistance: 15,
-          snapshotData: {
-            day_part: fullSnapshot.day_part_key,
-            day_of_week: fullSnapshot.day_of_week,
-            is_weekend: fullSnapshot.is_weekend,
-            hour: fullSnapshot.hour,
-            is_holiday: fullSnapshot.is_holiday,
-            holiday: fullSnapshot.holiday,
-            airport_context: fullSnapshot.airport_context
-          }
+          maxDistance: 15
         });
 
-        rawVenues = gpt5Result.venues.slice(0, 3); // Only take top 3 priority venues
+        rawVenues = gpt5Result.venues.slice(0, 8);
         
         logAudit('source', {
           type: 'generated',
@@ -302,8 +293,8 @@ router.post('/', async (req, res) => {
           });
         }
         
-        // Use what we have from snapshot (limit to top 3)
-        rawVenues = existingCandidates.slice(0, 3).map(c => ({
+        // Use what we have from snapshot
+        rawVenues = existingCandidates.map(c => ({
           name: c.name,
           location_lat: c.lat,
           location_lng: c.lng,
@@ -690,34 +681,12 @@ router.post('/', async (req, res) => {
     };
     logAudit('status', statusCounts);
 
-    // Fetch strategy data for briefing
-    let briefing = {
-      minstrategy: '',
-      consolidated_strategy: ''
-    };
-    
-    try {
-      const [strategyRow] = await db.select().from(strategies)
-        .where(eq(strategies.snapshot_id, snapshotId))
-        .limit(1);
-      
-      if (strategyRow) {
-        briefing = {
-          minstrategy: strategyRow.minstrategy || '',
-          consolidated_strategy: strategyRow.consolidated_strategy || ''
-        };
-      }
-    } catch (err) {
-      console.warn(`[${correlationId}] Could not fetch strategy for briefing:`, err.message);
-    }
-
     const response = {
       ok: true,
       correlationId,
       ranking_id,
       snapshot_id: fullSnapshot.snapshot_id,
       blocks: blocksWithinPerimeter, // CRITICAL: Only return blocks within 15-min perimeter
-      briefing, // Include briefing data for frontend
       userId,
       generatedAt: new Date().toISOString(),
       path_taken: 'gpt5-generated',
@@ -869,7 +838,6 @@ export async function getBlocksFast({ snapshotId, req }) {
     };
     const blocks = candidates
       .filter(c => within15Min(c.drive_minutes || c.drive_time_minutes))
-      .slice(0, 3) // Limit to exactly 3 venues for cached rankings
       .map(c => ({
         name: c.name,
         coordinates: { lat: c.lat, lng: c.lng },
