@@ -90,91 +90,18 @@ function loadEnvFile(filename) {
   }
 }
 
-// CRITICAL: Check for autoscale deployment FIRST before any heavy setup
-// ONLY match actual deployments, not dev containers!
-const isAutoscale = 
+// Reserved VM deployment - always run full application, never autoscale mode
+const isDeployment = 
   process.env.REPLIT_DEPLOYMENT === "1" || 
   process.env.REPLIT_DEPLOYMENT === "true"
 
 // Debug logging for deployment detection
 console.log('[boot] 🔍 Deployment detection:');
 console.log('[boot]   REPLIT_DEPLOYMENT:', process.env.REPLIT_DEPLOYMENT);
-console.log('[boot]   REPL_DEPLOYMENT:', process.env.REPL_DEPLOYMENT);
 console.log('[boot]   HOSTNAME:', process.env.HOSTNAME);
-console.log('[boot]   isAutoscale:', isAutoscale);
+console.log('[boot]   Reserved VM mode - running full application');
 
-if (isAutoscale) {
-  // AUTOSCALE MODE: Start ultra-minimal health server inline
-  console.log('[boot] ⚡ Autoscale deployment detected - inline health-only server');
-  console.log('[boot] ⏱️ Timestamp:', new Date().toISOString());
-  
-  const PORT = parseInt(process.env.PORT || '5000', 10);
-  console.log('[boot] 🔧 PORT:', PORT);
-  
-  try {
-    // Create the absolute minimal HTTP server
-    const server = http.createServer((req, res) => {
-      try {
-        // Health check endpoints - respond instantly
-        if (req.url === '/' || req.url === '/health' || req.url === '/healthz' || req.url === '/ready') {
-          res.writeHead(200, { 'Content-Type': 'text/plain' });
-          res.end('OK');
-          return;
-        }
-        
-        // Everything else gets 404
-        res.writeHead(404);
-        res.end('Not Found');
-      } catch (err) {
-        console.error('[boot] Request handler error:', err);
-        res.writeHead(500);
-        res.end('Error');
-      }
-    });
-    
-    // Prevent crashes from unhandled errors
-    server.on('error', (err) => {
-      console.error('[boot] ❌ FATAL Server error:', err);
-      console.error('[boot] Error code:', err.code);
-      console.error('[boot] Error message:', err.message);
-      // Don't exit - just log it
-    });
-    
-    // Start listening
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log('[boot] ✅ Health server LISTENING on 0.0.0.0:' + PORT);
-      console.log('[boot] 🚀 Ready for health checks at /, /health, /healthz, /ready');
-      console.log('[boot] ⏱️ Ready time:', new Date().toISOString());
-    });
-    
-    // Catch ANY unhandled rejections
-    process.on('unhandledRejection', (reason, promise) => {
-      console.error('[boot] ⚠️ Unhandled Rejection at:', promise, 'reason:', reason);
-      // Don't exit - just log
-    });
-    
-    // Catch ANY uncaught exceptions
-    process.on('uncaughtException', (err) => {
-      console.error('[boot] ⚠️ Uncaught Exception:', err);
-      // Don't exit - just log
-    });
-    
-    console.log('[boot] 💚 Server created, process staying alive...');
-    
-    // Keep process alive with setInterval (more reliable than Promise)
-    setInterval(() => {
-      // Just keep the event loop alive
-    }, 1000000);
-    
-    // Also use Promise as backup
-    await new Promise(() => {});
-    
-  } catch (err) {
-    console.error('[boot] ❌ FATAL: Failed to start health server:', err);
-    console.error('[boot] Stack:', err.stack);
-    process.exit(1);
-  }
-}
+// Skip autoscale mode entirely - always run the full app for Reserved VM
 
 // REGULAR MODE: Full mono-mode bootstrap with worker process
 console.log('[boot] Local development mode - full bootstrap');
