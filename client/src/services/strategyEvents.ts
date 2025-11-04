@@ -84,6 +84,8 @@ export async function pollStrategyStatus(
   let lastProgress = 0;
   let stuckCounter = 0;
   
+  console.log(`[pollStrategyStatus] Starting polling for snapshot: ${snapshotId}`);
+  
   // Track actual strategy progress milestones
   const milestones = {
     created: false,
@@ -96,14 +98,20 @@ export async function pollStrategyStatus(
 
   while (attempts < maxAttempts) {
     if (signal?.aborted) {
+      console.log('[pollStrategyStatus] Polling aborted by signal');
       throw new Error("Polling aborted");
     }
 
     try {
+      console.log(`[pollStrategyStatus] Attempt ${attempts + 1}: Fetching /api/blocks/strategy/${snapshotId}`);
       const response = await fetch(`/api/blocks/strategy/${snapshotId}`, { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        console.error(`[pollStrategyStatus] HTTP error: ${response.status}`);
+        throw new Error(`HTTP ${response.status}`);
+      }
       
       const data = await response.json();
+      console.log(`[pollStrategyStatus] Response status: ${data.status}, timeElapsed: ${data.timeElapsedMs}ms`);
       
       // Calculate actual progress based on real strategy state
       let progress = 5; // Base progress for created
