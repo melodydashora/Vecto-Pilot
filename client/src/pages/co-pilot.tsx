@@ -297,11 +297,8 @@ const CoPilot: React.FC = () => {
       return { ...data, _snapshotId: lastSnapshotId };
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    // Poll every 3 seconds if strategy is pending (fallback when SSE fails)
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === 'pending' ? 3000 : false;
-    },
+    // Disabled React Query polling - using pollStrategyStatus instead to avoid duplicates
+    refetchInterval: false,
     // Cache for 5 minutes to avoid refetching
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
