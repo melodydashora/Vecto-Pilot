@@ -690,12 +690,34 @@ router.post('/', async (req, res) => {
     };
     logAudit('status', statusCounts);
 
+    // Fetch strategy data for briefing
+    let briefing = {
+      minstrategy: '',
+      consolidated_strategy: ''
+    };
+    
+    try {
+      const [strategyRow] = await db.select().from(strategies)
+        .where(eq(strategies.snapshot_id, snapshotId))
+        .limit(1);
+      
+      if (strategyRow) {
+        briefing = {
+          minstrategy: strategyRow.minstrategy || '',
+          consolidated_strategy: strategyRow.consolidated_strategy || ''
+        };
+      }
+    } catch (err) {
+      console.warn(`[${correlationId}] Could not fetch strategy for briefing:`, err.message);
+    }
+
     const response = {
       ok: true,
       correlationId,
       ranking_id,
       snapshot_id: fullSnapshot.snapshot_id,
       blocks: blocksWithinPerimeter, // CRITICAL: Only return blocks within 15-min perimeter
+      briefing, // Include briefing data for frontend
       userId,
       generatedAt: new Date().toISOString(),
       path_taken: 'gpt5-generated',
