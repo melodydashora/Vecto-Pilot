@@ -114,7 +114,11 @@ export async function pollStrategyStatus(
       const data = await response.json();
       console.log(`[pollStrategyStatus] Response status: ${data.status}, timeElapsed: ${data.timeElapsedMs}ms`);
       
-      // Calculate actual progress based on real strategy state
+      // Calculate time-based progress (70 second animation)
+      const elapsedMs = Date.now() - startTime;
+      const targetMs = 70000; // 70 seconds target
+      const timeProgress = Math.min((elapsedMs / targetMs) * 100, 98); // Cap at 98% until complete
+      
       let progress = 5; // Base progress for created
       let phase = 'initializing';
       let statusText = 'Starting strategy generation...';
@@ -123,9 +127,18 @@ export async function pollStrategyStatus(
       if (data.status === 'ok') {
         // Strategy is complete with data
         milestones.complete = true;
-        progress = 100;
-        phase = 'complete';
-        statusText = 'Strategy ready!';
+        
+        // Only jump to 100% if 70 seconds have elapsed OR if we're past 95%
+        if (elapsedMs >= targetMs || timeProgress >= 95) {
+          progress = 100;
+          phase = 'complete';
+          statusText = 'Strategy ready!';
+        } else {
+          // Continue smooth animation to 70 seconds
+          progress = Math.max(timeProgress, 15);
+          phase = 'finalizing';
+          statusText = `Strategy complete! Preparing interface... (${Math.round(elapsedMs / 1000)}s)`;
+        }
         
         // Check for specific strategy components
         if (data.strategy?.min) {
@@ -140,36 +153,21 @@ export async function pollStrategyStatus(
       } else if (data.status === 'pending') {
         milestones.analyzing = true;
         phase = 'analyzing';
-        statusText = 'Generating strategy insights...';
         
-        // Calculate progress based on 70 seconds target
-        const elapsedMs = Date.now() - startTime;
-        const targetMs = 70000; // 70 seconds
+        // Use time-based progress for smooth 70-second animation
+        progress = Math.max(15, timeProgress);
         
-        // Progressive updates based on waitFor array AND time elapsed
-        if (data.waitFor?.includes('strategy')) {
-          // Map elapsed time to progress (0-95% over 70 seconds)
-          const timeProgress = Math.min((elapsedMs / targetMs) * 95, 95);
-          progress = Math.max(15, timeProgress);
-          statusText = 'Processing strategy data...';
-          
-          // Update status text based on progress
-          if (progress > 60) {
-            statusText = 'Finalizing strategy analysis...';
-          } else if (progress > 40) {
-            statusText = 'Consolidating insights...';
-          } else if (progress > 20) {
-            statusText = 'Analyzing data patterns...';
-          }
+        // Update status text based on progress
+        if (progress > 80) {
+          statusText = `Finalizing strategy analysis... (${Math.round(elapsedMs / 1000)}s)`;
+        } else if (progress > 60) {
+          statusText = `Consolidating insights... (${Math.round(elapsedMs / 1000)}s)`;
+        } else if (progress > 40) {
+          statusText = `Analyzing data patterns... (${Math.round(elapsedMs / 1000)}s)`;
+        } else if (progress > 20) {
+          statusText = `Processing strategy data... (${Math.round(elapsedMs / 1000)}s)`;
         } else {
-          // If waitFor doesn't include strategy, we're closer to done
-          progress = Math.max(75, progress);
-          statusText = 'Finalizing strategy...';
-        }
-        
-        // Add elapsed time indication
-        if (elapsedMs > 10000) {
-          statusText += ` (${Math.round(elapsedMs / 1000)}s)`;
+          statusText = `Generating strategy insights... (${Math.round(elapsedMs / 1000)}s)`;
         }
       } else if (data.status === 'missing') {
         phase = 'initializing';
