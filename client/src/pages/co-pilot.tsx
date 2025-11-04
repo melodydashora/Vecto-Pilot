@@ -236,9 +236,6 @@ const CoPilot: React.FC = () => {
     
     console.log('[SSE] Subscribing to strategy_ready events for snapshot:', lastSnapshotId);
     
-    // Start loading bar immediately when strategy generation begins
-    setStrategyProgress({ progress: 1, phase: 'initializing', statusText: 'Starting strategy generation...' });
-    
     // SSE subscription
     const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
       if (readySnapshotId === lastSnapshotId) {
@@ -249,10 +246,10 @@ const CoPilot: React.FC = () => {
       }
     });
     
-    // Always start polling immediately as primary mechanism (SSE is backup)
-    const startPolling = () => {
-      if (!sseReceived) {
-        console.log('[polling] Starting strategy polling immediately');
+    // Start polling in production or if SSE hasn't fired after 5 seconds
+    const pollingTimeout = setTimeout(() => {
+      if (!sseReceived && (isProduction || true)) { // Always use polling as backup
+        console.log('[polling] Starting strategy polling (SSE backup)');
         pollStrategyStatus(
           lastSnapshotId,
           (status) => {
@@ -274,12 +271,10 @@ const CoPilot: React.FC = () => {
           }
         });
       }
-    };
-    
-    // Start polling immediately (no delay)
-    startPolling();
+    }, isProduction ? 1000 : 5000); // Start polling faster in production
     
     return () => {
+      clearTimeout(pollingTimeout);
       abortController.abort();
       unsubscribe();
     };
@@ -300,8 +295,11 @@ const CoPilot: React.FC = () => {
       return { ...data, _snapshotId: lastSnapshotId };
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    // Disabled React Query polling - using pollStrategyStatus instead to avoid duplicates
-    refetchInterval: false,
+    // Poll every 3 seconds if strategy is pending (fallback when SSE fails)
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === 'pending' ? 3000 : false;
+    },
     // Cache for 5 minutes to avoid refetching
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -384,7 +382,7 @@ const CoPilot: React.FC = () => {
     
     if (strategyReady && snapshotMatches && !venueLoadingStartTime && !blocksReadyForSnapshot) {
       const now = Date.now();
-      console.log('⏰ Strategy ready - starting venue loading timer (110 seconds wait for smart blocks)');
+      console.log('⏰ Strategy ready - starting venue loading timer (2-3 minutes)');
       setVenueLoadingStartTime(now);
       setVenueLoadingProgress(0);
     }
@@ -396,31 +394,31 @@ const CoPilot: React.FC = () => {
     }
   }, [strategyData, lastSnapshotId, venueLoadingStartTime, blocksReadyForSnapshot]);
   
-  // Update progress bar every second (110 seconds for venues after strategy)
+  // Update progress bar every second (simulate 2-minute loading, max 3 minutes)
   useEffect(() => {
     if (!venueLoadingStartTime || blocksReadyForSnapshot) return;
     
     const interval = setInterval(() => {
       const elapsed = Date.now() - venueLoadingStartTime;
-      const oneHundredTenSeconds = 110000; // 110 seconds as specified
-      const maxTime = 150000; // 150 seconds max (2.5 minutes)
+      const twoMinutes = 120000; // 2 minutes
+      const threeMinutes = 180000; // 3 minutes max
       
-      // Progress to 95% at 110 seconds, then slow to 100% at 150 seconds
+      // Progress to 90% at 2 minutes, then slow to 100% at 3 minutes
       let progress;
-      if (elapsed < oneHundredTenSeconds) {
-        progress = (elapsed / oneHundredTenSeconds) * 95;
-      } else if (elapsed < maxTime) {
-        const remainingTime = elapsed - oneHundredTenSeconds;
-        const remainingProgress = (remainingTime / (maxTime - oneHundredTenSeconds)) * 5;
-        progress = 95 + remainingProgress;
+      if (elapsed < twoMinutes) {
+        progress = (elapsed / twoMinutes) * 90;
+      } else if (elapsed < threeMinutes) {
+        const remainingTime = elapsed - twoMinutes;
+        const remainingProgress = (remainingTime / (threeMinutes - twoMinutes)) * 10;
+        progress = 90 + remainingProgress;
       } else {
         progress = 100;
       }
       
       setVenueLoadingProgress(Math.min(100, progress));
       
-      // Auto-complete after max time
-      if (elapsed >= maxTime) {
+      // Auto-complete after 3 minutes
+      if (elapsed >= threeMinutes) {
         setBlocksReadyForSnapshot(lastSnapshotId);
         queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
       }

@@ -71,21 +71,21 @@ process.on('unhandledRejection', (reason, promise) => {
     console.log(`[gateway]   PORT=${PORT}`);
     console.log(`[gateway]   NODE_ENV=${process.env.NODE_ENV}`);
     console.log(`[gateway]   ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}`);
-
+    
     const app = express();
     app.set("trust proxy", 1);
     console.log(`[gateway] Express loaded in ${Date.now() - startTime}ms`);
 
     // Reserved VM deployment - always run full application
     const isDeployment = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
-
+    
     console.log(`[gateway] 🎯 isDeployment: ${isDeployment}`);
     console.log(`[gateway] 🎯 Reserved VM mode - full application with background workers`);
 
     // REGULAR MODE: Full application
     console.log(`[gateway] PID: ${process.pid}`);
     console.log(`[gateway] Mode: ${MODE.toUpperCase()}`);
-
+    
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const distDir = path.join(__dirname, "client", "dist");
 
@@ -101,15 +101,7 @@ process.on('unhandledRejection', (reason, promise) => {
     // Only health endpoints should return simple responses
     app.get('/health', (_req, res) => res.status(200).send('OK'));
     app.head('/health', (_req, res) => res.status(200).end());
-    app.get('/ready', async (_req, res) => {
-      try {
-        const { db } = await import('./server/db/drizzle.js');
-        await db.execute('SELECT 1');
-        res.status(200).json({ ok: true, mode: MODE, db: 'connected' });
-      } catch (err) {
-        res.status(503).json({ ok: false, error: 'db_unavailable' });
-      }
-    });
+    app.get('/ready', (_req, res) => res.status(200).send('OK'));
     app.head('/ready', (_req, res) => res.status(200).end());
     app.get("/healthz", (_req, res) => {
       const indexPath = path.join(distDir, "index.html");
@@ -121,38 +113,49 @@ process.on('unhandledRejection', (reason, promise) => {
 
     // Start HTTP server IMMEDIATELY (before loading heavy modules)
     const server = http.createServer(app);
-
+    
     // Cloud Run compatible timeouts
     server.keepAliveTimeout = 65000; // must be < headersTimeout
     server.headersTimeout = 66000;
     server.requestTimeout = 5000;
-
+    
     server.on('error', (err) => {
       console.error('[gateway] ❌ Server error:', err);
       process.exit(1);
     });
-
+    
     server.listen(PORT, "0.0.0.0", () => {
       console.log(`[ready] ✅ Server listening on 0.0.0.0:${PORT} in ${Date.now() - startTime}ms`);
       console.log(`[ready] 🚀 Health endpoints ready - accepting requests`);
     });
 
   // NOTE: In mono mode, consolidation listener runs in separate strategy-generator.js process
-  // Worker process is managed by start-replit.js - gateway should NOT spawn it
-  // This prevents duplicate workers competing for database locks
-  console.log("[gateway] ⏩ Background worker managed by start-replit.js (no duplicate spawn)");
+  // Gateway should NOT start an inline listener to avoid conflicts with separate worker
+  // Replit Reserved VMs support background workers, only disable for explicit autoscale mode
+  const isAutoscaleMode = process.env.CLOUD_RUN_AUTOSCALE === "1";
+  
+  if (isAutoscaleMode) {
+    console.log("[gateway] ⏩ Background worker disabled (Autoscale mode detected)");
+  } else {
+    console.log("[gateway] ⏩ Consolidation listener runs in separate worker process");
+    // Start the strategy generator worker for Reserved VM deployments
+    if (!DISABLE_SPAWN_SDK && !DISABLE_SPAWN_AGENT && MODE === "mono") {
+      console.log("[gateway] 🚀 Starting strategy generator worker...");
+      spawnChild("strategy-generator", "node", ["strategy-generator.js"], {});
+    }
+  }
 
   // Mount middleware and routes after server is listening
   setImmediate(async () => {
     console.log("[gateway] Loading heavy modules and mounting routes...");
-
+    
     // Load AI config after server is bound
     const { GATEWAY_CONFIG } = await import("./agent-ai-config.js");
     console.log("[gateway] AI Config:", GATEWAY_CONFIG);
-
+    
     // Serve static assets
     app.use(express.static(distDir));
-
+    
     app.use(helmet({ contentSecurityPolicy: false }));
     app.use(cors({ origin: true, credentials: true }));
     app.use("/api", express.json({ limit: "1mb" }));
@@ -193,26 +196,26 @@ process.on('unhandledRejection', (reason, promise) => {
       } catch (e) {
         console.error("[mono] Agent embed failed:", e?.message, e?.stack);
       }
-
+      
       // Start background worker in production if enabled
       const isProduction = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
       const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true';
-
+      
       if (isProduction && shouldStartWorker) {
         console.log("[gateway] 🚀 Starting background worker for production...");
         try {
           const { openSync } = await import('node:fs');
           const workerLogFd = openSync('/tmp/worker-production.log', 'a');
-
+          
           const worker = spawn('node', ['strategy-generator.js'], {
             stdio: ['ignore', workerLogFd, workerLogFd],
             env: { ...process.env }
           });
-
+          
           worker.on('error', (err) => {
             console.error('[gateway:worker:error] Failed to spawn worker:', err.message);
           });
-
+          
           worker.on('exit', (code) => {
             console.error(`[gateway:worker:exit] Worker exited with code ${code}, restarting...`);
             // Auto-restart worker after 5 seconds
@@ -225,7 +228,7 @@ process.on('unhandledRejection', (reason, promise) => {
               children.set('strategy-worker', newWorker);
             }, 5000);
           });
-
+          
           children.set('strategy-worker', worker);
           console.log(`[gateway] ✅ Production worker started (PID: ${worker.pid})`);
           console.log(`[gateway] 📋 Worker logs: /tmp/worker-production.log`);

@@ -27,7 +27,7 @@ const StagingLocationSchema = z.object({
 });
 
 const GPT5ResponseSchema = z.object({
-  recommended_venues: z.array(VenueRecommendationSchema).min(1).max(3), // Limited to 3 high-priority venues
+  recommended_venues: z.array(VenueRecommendationSchema).min(1).max(8),
   best_staging_location: StagingLocationSchema.optional(),
   tactical_summary: z.string().min(10).max(500)
 });
@@ -93,7 +93,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "1. EVERY venue MUST have TWO sets of coordinates:",
     "   - Venue coords (lat/lng): The actual destination/entrance",
     "   - Staging coords (staging_lat/staging_lng): Where to park/wait for this specific venue",
-    "2. Provide EXACTLY 3 HIGH-PRIORITY venue names (not districts or areas)",
+    "2. Provide 4-6 SPECIFIC venue names (not districts or areas)",
     "3. Include category + 2-3 tactical pro tips per venue (pickup zones, positioning, timing)",
     "4. Google APIs will handle addresses/distances - you only provide coords + strategy",
     "",
@@ -108,7 +108,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "",
     "STAGING LOCATIONS:",
     "- EACH venue needs its own staging coords (nearby parking lot, safe waiting spot)",
-    "- PLUS one central staging point (best_staging_location) within 2 min drive of ALL 3 venues",
+    "- PLUS one central staging point (best_staging_location) within 2 min drive of ALL venues",
     "- Prioritize free parking lots, gas stations, safe pull-offs, hotel front drives",
     "",
     "STRATEGIC TIMING:",
@@ -151,8 +151,6 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "",
     "DRIVER ADDRESS:",
     snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown',
-    "",
-    "Return EXACTLY 3 high-priority venues. No more, no less.",
     "",
     "What venues should the driver target right now? Return JSON with coords + category + tips + strategic timing."
   ].join("\n");

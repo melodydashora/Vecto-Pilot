@@ -273,7 +273,7 @@ Consolidate these into a single strategy that naturally integrates the news inte
     };
 
     const gpt5Start = Date.now();
-    const timeoutMs = Number(process.env.STRATEGIST_DEADLINE_MS) || 180000; // 3 minutes for production
+    const timeoutMs = Number(process.env.STRATEGIST_DEADLINE_MS) || 120000;
     
     const result = await callGPT5WithBudget(gpt5Payload, { 
       timeoutMs, 
