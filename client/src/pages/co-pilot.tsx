@@ -34,12 +34,7 @@ import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
-import { 
-  subscribeStrategyReady, 
-  subscribeBlocksReady,
-  pollStrategyStatus,
-  pollBlocksStatus
-} from '@/services/strategyEvents';
+import { subscribeStrategyReady, subscribeBlocksReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 import {
   Tooltip,
@@ -218,66 +213,20 @@ const CoPilot: React.FC = () => {
     };
   }, []);
 
-  // Track strategy processing progress
-  const [strategyProgress, setStrategyProgress] = useState<{
-    progress: number;
-    phase: string;
-    statusText: string;
-  } | null>(null);
-  
-  // Subscribe to SSE strategy_ready events AND use polling fallback for production
+  // Subscribe to SSE strategy_ready events
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
     
-    const isProduction = window.location.hostname.includes('.replit.app') || 
-                        window.location.hostname.includes('.repl.co');
-    const abortController = new AbortController();
-    let sseReceived = false;
-    
     console.log('[SSE] Subscribing to strategy_ready events for snapshot:', lastSnapshotId);
-    
-    // SSE subscription
     const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
       if (readySnapshotId === lastSnapshotId) {
         console.log('[SSE] Strategy ready for current snapshot, fetching data');
-        sseReceived = true;
-        setStrategyProgress({ progress: 100, phase: 'complete', statusText: 'Strategy ready!' });
+        // Refetch the strategy query
         queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
       }
     });
     
-    // Start polling in production or if SSE hasn't fired after 5 seconds
-    const pollingTimeout = setTimeout(() => {
-      if (!sseReceived && (isProduction || true)) { // Always use polling as backup
-        console.log('[polling] Starting strategy polling (SSE backup)');
-        pollStrategyStatus(
-          lastSnapshotId,
-          (status) => {
-            setStrategyProgress(status);
-            // Refresh strategy data when milestones are reached
-            if (status.progress >= 65 || status.phase === 'complete') {
-              queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
-            }
-          },
-          abortController.signal
-        ).then((result) => {
-          console.log('[polling] Strategy complete:', result.status);
-          setStrategyProgress({ progress: 100, phase: 'complete', statusText: 'Strategy ready!' });
-          queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
-        }).catch((err) => {
-          if (!abortController.signal.aborted) {
-            console.error('[polling] Strategy error:', err);
-            setStrategyProgress({ progress: 0, phase: 'error', statusText: 'Generation failed' });
-          }
-        });
-      }
-    }, isProduction ? 1000 : 5000); // Start polling faster in production
-    
-    return () => {
-      clearTimeout(pollingTimeout);
-      abortController.abort();
-      unsubscribe();
-    };
+    return unsubscribe;
   }, [lastSnapshotId]);
 
   // Fetch strategy from database when we have a new snapshot (polling fallback if SSE fails)
@@ -318,7 +267,7 @@ const CoPilot: React.FC = () => {
     }
   }, [lastSnapshotId, strategySnapshotId]);
 
-  // Subscribe to SSE blocks_ready events with polling fallback
+  // Subscribe to SSE blocks_ready events (event-driven, no polling!)
   const [blocksReadyForSnapshot, setBlocksReadyForSnapshot] = useState<string | null>(null);
   
   // Venue loading state with 2-minute progress bar
@@ -328,52 +277,19 @@ const CoPilot: React.FC = () => {
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
     
-    const isProduction = window.location.hostname.includes('.replit.app') || 
-                        window.location.hostname.includes('.repl.co');
-    const abortController = new AbortController();
-    let sseReceived = false;
-    
     console.log('[SSE] Subscribing to blocks_ready events for snapshot:', lastSnapshotId);
-    
-    // SSE subscription
     const unsubscribe = subscribeBlocksReady((data) => {
       if (data.snapshot_id === lastSnapshotId) {
         console.log('🎉 Blocks ready for current snapshot! Fetching now...');
-        sseReceived = true;
         setBlocksReadyForSnapshot(data.snapshot_id);
         setVenueLoadingProgress(100); // Complete the loading bar
+        // Invalidate blocks query to trigger fetch
         queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
       }
     });
     
-    // Start polling for blocks when strategy is complete
-    const checkStrategy = async () => {
-      const strategyComplete = strategyData?.status === 'ok' || strategyProgress?.phase === 'complete';
-      if (strategyComplete && !sseReceived && !blocksReadyForSnapshot) {
-        console.log('[polling] Starting blocks polling (SSE backup)');
-        pollBlocksStatus(
-          lastSnapshotId,
-          () => {
-            console.log('[polling] Blocks ready via polling!');
-            setBlocksReadyForSnapshot(lastSnapshotId);
-            setVenueLoadingProgress(100);
-            queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
-          },
-          abortController.signal
-        );
-      }
-    };
-    
-    // Check immediately and after a delay
-    checkStrategy();
-    const pollingTimeout = setTimeout(checkStrategy, isProduction ? 2000 : 10000);
-    
-    return () => {
-      clearTimeout(pollingTimeout);
-      abortController.abort();
-      unsubscribe();
-    };
-  }, [lastSnapshotId, strategyData?.status, strategyProgress?.phase]);
+    return unsubscribe;
+  }, [lastSnapshotId]);
   
   // Start venue loading timer when strategy becomes ready
   useEffect(() => {
@@ -1751,7 +1667,6 @@ const CoPilot: React.FC = () => {
               timeElapsedMs={strategyData?.timeElapsedMs}
               snapshotId={lastSnapshotId}
               venueLoadingProgress={venueLoadingProgress}
-              strategyProgress={strategyProgress}
             />
           </div>
         )}
