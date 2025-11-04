@@ -1751,6 +1751,7 @@ const CoPilot: React.FC = () => {
               timeElapsedMs={strategyData?.timeElapsedMs}
               snapshotId={lastSnapshotId}
               venueLoadingProgress={venueLoadingProgress}
+              strategyProgress={strategyProgress}
             />
           </div>
         )}
