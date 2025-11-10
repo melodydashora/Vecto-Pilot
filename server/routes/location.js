@@ -828,17 +828,28 @@ router.post('/snapshot', async (req, res) => {
       }
     }
 
-    // Also save to filesystem for backup/debugging
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const dataDir = path.join(process.cwd(), 'data', 'context-snapshots');
-    await fs.mkdir(dataDir, { recursive: true });
+    // Also save to filesystem for backup/debugging (optional, non-blocking)
+    // Only enabled when SNAPSHOT_FILESYSTEM_BACKUP=true
+    if (process.env.SNAPSHOT_FILESYSTEM_BACKUP === 'true') {
+      // Fire and forget - don't await to avoid blocking the response
+      (async () => {
+        try {
+          const fs = await import('fs/promises');
+          const path = await import('path');
+          const dataDir = path.join(process.cwd(), 'data', 'context-snapshots');
+          await fs.mkdir(dataDir, { recursive: true });
 
-    const filename = `snapshot_${snapshotV1.device_id}_${Date.now()}.json`;
-    await fs.writeFile(
-      path.join(dataDir, filename),
-      JSON.stringify(snapshotV1, null, 2)
-    );
+          const filename = `snapshot_${snapshotV1.device_id}_${Date.now()}.json`;
+          await fs.writeFile(
+            path.join(dataDir, filename),
+            JSON.stringify(snapshotV1, null, 2)
+          );
+          console.log(`[snapshot] 💾 Backup saved to filesystem: ${filename}`);
+        } catch (fsErr) {
+          console.warn('[snapshot] Filesystem backup failed (non-blocking):', fsErr.message);
+        }
+      })();
+    }
 
     // Convert dow to day name
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

@@ -15,6 +15,12 @@ const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
 const GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
+// Simple in-memory cache for reverse geocoding (prevents redundant API calls)
+// Cache key format: "lat,lng" rounded to 3 decimals (~110m precision)
+const geocodeCache = new Map();
+const GEOCODE_CACHE_TTL = 3600000; // 1 hour in milliseconds
+const GEOCODE_CACHE_MAX_SIZE = 1000; // Max cache entries
+
 /**
  * Enrich GPT-5 venue recommendations with Google API data
  * @param {Array} venues - GPT-5 output: [{name, lat, lng, category, pro_tips}]
@@ -132,6 +138,16 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
  * @returns {Promise<string>} Formatted address
  */
 async function reverseGeocode(lat, lng) {
+  // Create cache key (round to 3 decimals for ~110m precision)
+  const cacheKey = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  
+  // Check cache first
+  const cached = geocodeCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < GEOCODE_CACHE_TTL) {
+    console.log(`[Reverse Geocode] Cache hit for ${cacheKey}`);
+    return cached.address;
+  }
+
   try {
     const url = `${GEOCODE_URL}?latlng=${lat},${lng}&key=${GOOGLE_PLACES_API_KEY}`;
     const response = await fetch(url);
@@ -139,15 +155,30 @@ async function reverseGeocode(lat, lng) {
 
     if (data.status === "OK" && data.results?.length > 0) {
       // Filter out Plus Codes - look for proper street addresses
+      let address = null;
       for (const result of data.results) {
         const addr = result.formatted_address;
         // Skip Plus Codes (format: "XXXX+XX City, State, Country")
         if (!/^\w{4}\+\w{2}/.test(addr)) {
-          return addr;
+          address = addr;
+          break;
         }
       }
       // Fallback to first result if no street address found
-      return data.results[0].formatted_address;
+      if (!address) {
+        address = data.results[0].formatted_address;
+      }
+      
+      // Cache the result
+      geocodeCache.set(cacheKey, { address, timestamp: Date.now() });
+      
+      // Implement simple LRU eviction if cache grows too large
+      if (geocodeCache.size > GEOCODE_CACHE_MAX_SIZE) {
+        const firstKey = geocodeCache.keys().next().value;
+        geocodeCache.delete(firstKey);
+      }
+      
+      return address;
     }
 
     throw new Error(`Geocoding failed: ${data.status}`);
