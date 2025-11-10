@@ -11,6 +11,12 @@
 
 const ROUTES_API_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 
+// Simple in-memory cache for route calculations (prevents redundant API calls)
+// Cache key format: "lat1,lng1|lat2,lng2" rounded to 3 decimals (~110m precision)
+const routeCache = new Map();
+const ROUTE_CACHE_TTL = 600000; // 10 minutes (traffic changes frequently)
+const ROUTE_CACHE_MAX_SIZE = 500; // Max cache entries
+
 /**
  * Calculate traffic-aware distance and ETA using Routes API
  * @param {Object} origin - {lat, lng}
@@ -19,6 +25,16 @@ const ROUTES_API_URL = 'https://routes.googleapis.com/directions/v2:computeRoute
  * @returns {Promise<{distanceMeters, durationSeconds, durationInTrafficSeconds}>}
  */
 export async function getRouteWithTraffic(origin, destination, options = {}) {
+  // Create cache key (round to 3 decimals for ~110m precision)
+  const cacheKey = `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}|${destination.lat.toFixed(3)},${destination.lng.toFixed(3)}`;
+  
+  // Check cache first (with TTL check)
+  const cached = routeCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < ROUTE_CACHE_TTL) {
+    console.log(`[Routes API] Cache hit for ${cacheKey}`);
+    return cached.data;
+  }
+
   // Default to 30 seconds in the future (Routes API requires future timestamp)
   const futureTime = new Date(Date.now() + 30000).toISOString();
   
@@ -85,12 +101,23 @@ export async function getRouteWithTraffic(origin, destination, options = {}) {
     const durationSeconds = parseInt(route.duration?.replace('s', '') || '0');
     const staticDuration = parseInt(route.staticDuration?.replace('s', '') || durationSeconds);
 
-    return {
+    const result = {
       distanceMeters: route.distanceMeters || 0,
       durationSeconds, // With traffic
       staticDurationSeconds: staticDuration, // Without traffic
       trafficDelaySeconds: durationSeconds - staticDuration
     };
+    
+    // Cache the result
+    routeCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    
+    // Implement simple LRU eviction if cache grows too large
+    if (routeCache.size > ROUTE_CACHE_MAX_SIZE) {
+      const firstKey = routeCache.keys().next().value;
+      routeCache.delete(firstKey);
+    }
+    
+    return result;
   } catch (error) {
     console.error('[Routes API] Request failed:', error.message);
     throw error;
