@@ -1,8 +1,15 @@
 // server/lib/persist-ranking.js
+import { getSharedPool } from '../db/pool.js';
 import pg from "pg";
-const pool = new pg.Pool({
-  connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL
-});
+
+// Use shared pool if available, otherwise create dedicated pool
+let pool = getSharedPool();
+if (!pool) {
+  console.log('[persist-ranking] Creating dedicated pool (shared pool disabled)');
+  pool = new pg.Pool({
+    connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL
+  });
+}
 
 export async function persistRankingTx({ snapshot_id, user_id, city, model_name, correlation_id, venues }) {
   const client = await pool.connect();
@@ -22,32 +29,52 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
 
     if (venues?.length) {
       // UPSERT venues to catalog and bump metrics (atomic with ranking)
-      for (const v of venues) {
-        if (v.place_id) {
-          try {
-            // 1) Upsert to venue_catalog
-            await client.query(`
-              INSERT INTO venue_catalog (place_id, venue_name, address, lat, lng, category, city, metro, discovery_source, created_at)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'llm', NOW())
-              ON CONFLICT (place_id) DO UPDATE
-              SET venue_name = EXCLUDED.venue_name,
-                  address = EXCLUDED.address,
-                  lat = EXCLUDED.lat,
-                  lng = EXCLUDED.lng,
-                  category = EXCLUDED.category,
-                  city = EXCLUDED.city,
-                  metro = EXCLUDED.metro
-            `, [v.place_id, v.name, '', v.lat, v.lng, v.category || 'unknown', city || null, null]);
-
-            // 2) Upsert to venue_metrics (bump times_recommended)
-            await client.query(`
-              INSERT INTO venue_metrics (venue_id, times_recommended, times_chosen, positive_feedback, negative_feedback, reliability_score)
-              SELECT venue_id, 1, 0, 0, 0, 0.5 FROM venue_catalog WHERE place_id = $1
-              ON CONFLICT (venue_id) DO UPDATE SET times_recommended = venue_metrics.times_recommended + 1
-            `, [v.place_id]);
-          } catch (catalogErr) {
-            console.warn(`⚠️ [${correlation_id}] Catalog/metrics upsert skipped for ${v.name}:`, catalogErr.message);
+      // Batch all venue operations to avoid N+1 queries
+      const venuesWithPlaceId = venues.filter(v => v.place_id);
+      
+      if (venuesWithPlaceId.length > 0) {
+        try {
+          // Build batch upsert for venue_catalog
+          const catalogValues = [];
+          const catalogArgs = [];
+          let paramIndex = 1;
+          
+          for (const v of venuesWithPlaceId) {
+            catalogValues.push(
+              `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, 'llm', NOW())`
+            );
+            catalogArgs.push(v.place_id, v.name, '', v.lat, v.lng, v.category || 'unknown', city || null, null);
           }
+          
+          // 1) Batch upsert to venue_catalog
+          await client.query(`
+            INSERT INTO venue_catalog (place_id, venue_name, address, lat, lng, category, city, metro, discovery_source, created_at)
+            VALUES ${catalogValues.join(', ')}
+            ON CONFLICT (place_id) DO UPDATE
+            SET venue_name = EXCLUDED.venue_name,
+                address = EXCLUDED.address,
+                lat = EXCLUDED.lat,
+                lng = EXCLUDED.lng,
+                category = EXCLUDED.category,
+                city = EXCLUDED.city,
+                metro = EXCLUDED.metro
+          `, catalogArgs);
+
+          // 2) Batch upsert to venue_metrics (bump times_recommended)
+          // Use a single query with multiple place_ids
+          const placeIds = venuesWithPlaceId.map(v => v.place_id);
+          await client.query(`
+            INSERT INTO venue_metrics (venue_id, times_recommended, times_chosen, positive_feedback, negative_feedback, reliability_score)
+            SELECT venue_id, 1, 0, 0, 0, 0.5 
+            FROM venue_catalog 
+            WHERE place_id = ANY($1)
+            ON CONFLICT (venue_id) DO UPDATE 
+            SET times_recommended = venue_metrics.times_recommended + 1
+          `, [placeIds]);
+          
+          console.log(`✅ [${correlation_id}] Batch upserted ${venuesWithPlaceId.length} venues to catalog/metrics`);
+        } catch (catalogErr) {
+          console.warn(`⚠️ [${correlation_id}] Batch catalog/metrics upsert failed:`, catalogErr.message);
         }
       }
 
