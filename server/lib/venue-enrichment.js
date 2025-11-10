@@ -522,8 +522,9 @@ function calculateNameSimilarity(name1, name2) {
 
   if (words1.length === 0 || words2.length === 0) return 0;
 
-  // Count matching words
-  const matches = words1.filter((w) => words2.includes(w)).length;
+  // Count matching words - use Set for O(n) instead of O(n*m)
+  const words2Set = new Set(words2);
+  const matches = words1.filter((w) => words2Set.has(w)).length;
 
   // Similarity = (2 × matches) / (total words in both)
   return (2 * matches) / (words1.length + words2.length);

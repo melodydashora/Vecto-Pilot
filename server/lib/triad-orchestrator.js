@@ -91,8 +91,10 @@ export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
   } finally { clearTimeout(gptTimer); }
 
   // 3) Gemini — validate planner and add seed additions strictly from catalog not in shortlist
+  // Optimize: Use Set for O(1) lookups instead of O(n) find operations
+  const shortlistNames = new Set(shortlist.map(s => s.name));
   const notInShortlist = catalog
-    .filter(v => !shortlist.find(s => s.name === v.name))
+    .filter(v => !shortlistNames.has(v.name))
     .map(v => v.name);
 
   const gemSys = [
