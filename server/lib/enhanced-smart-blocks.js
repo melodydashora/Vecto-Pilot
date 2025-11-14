@@ -86,8 +86,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
       planner_ms: plannerMs,
       total_ms: 0,
       timed_out: false,
-      path_taken: 'enhanced-smart-blocks',
-      created_at: new Date()
+      path_taken: 'enhanced-smart-blocks'
     });
     
     console.log(`[ENHANCED-BLOCKS] ✅ Ranking record created: ${rankingId}`);
