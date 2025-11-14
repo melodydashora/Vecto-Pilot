@@ -4,29 +4,53 @@
 // Last updated: October 16, 2025
 
 export const MODELS_DICTIONARY = {
-  // ==========================================
-  // REPLIT AGENT ASSISTANT
-  // ==========================================
-  replit_agent: {
-    provider: 'anthropic',
-    model_id: 'claude-sonnet-4-5-20250514', // Current Replit Agent version
-    model_name: 'Claude Sonnet 4.5',
-    context_window: 200000,
-    max_output_tokens: 8192,
-    api_endpoint: 'https://api.anthropic.com/v1/messages',
-    parameters: {
-      temperature: 0.1,
-      max_tokens: 8192,
-      supports_thinking: false, // Standard Sonnet doesn't have extended thinking
-      supports_temperature: true,
-      supports_top_p: true
-    },
-    pricing: {
-      input_per_million: 3.00,
-      output_per_million: 15.00,
-      currency: 'USD'
-    }
+// ===== REPLIT AGENT ASSISTANT (Claude Sonnet 4.5) =====
+replit_agent: {
+  provider: 'anthropic',
+  model_id: 'claude-sonnet-4-5-20250929',
+  model_name: 'Claude Sonnet 4.5',
+  // 200k standard; 1M available via beta header (see notes below)
+  context_window: 200_000,
+  // Sonnet 4.5 supports up to ~64k output tokens; keep a safer default for UI agents
+  max_output_tokens: 16_384,
+  api_endpoint: 'https://api.anthropic.com/v1/messages',
+  parameters: {
+    // Low temp is best for coding/agent determinism
+    temperature: 0.2,
+    // Always set an explicit cap per call too
+    max_tokens: 16_384,
+    // Sampling controls supported by Anthropic
+    supports_temperature: true,
+    supports_top_p: true,
+    supports_top_k: true,
+    // Sonnet “thinking” is a separate model variant; standard Sonnet 4.5 doesn’t expose it
+    supports_thinking: false,
+    // Optional: expose tool choice if your router uses it
+    tool_choice: 'auto',
+    // Optional: service tier hint (Anthropic)
+    service_tier: 'auto'
   },
+  pricing: {
+    input_per_million: 3.00,
+    output_per_million: 15.00,
+    currency: 'USD'
+  },
+  // Platform-specific caveats
+  platform_notes: {
+    anthropic_api: {
+      // 1M-token context is in beta; requires enabling the beta header and tier eligibility
+      context_1m_beta: true
+    },
+    aws_bedrock: {
+      // Bedrock accepts EITHER temperature OR top_p on Sonnet 4.5 (not both)
+      mutually_exclusive_temp_top_p: true
+    },
+    vertex_ai: {
+      // Available on Vertex; use the 20250929 revision in Model Garden
+      available: true
+    }
+  }
+},
 
   // ==========================================
   // TRIAD PIPELINE - STAGE 1: STRATEGIST
