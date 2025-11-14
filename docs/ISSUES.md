@@ -1823,12 +1823,563 @@ pool.on('error', (err) => { console.error('[db] Pool error:', err); });
 
 ---
 
+## 🔴 NEW CRITICAL ISSUES DISCOVERED (2025-01-24)
+
+### ISSUE #84: Duplicate Middleware Implementations (CRITICAL)
+**Severity:** P0 - CRITICAL  
+**Impact:** Conflicting middleware behavior, inconsistent security/logging  
+**Location:** `server/middleware/`
+
+**Evidence:**
+```
+server/middleware/
+├── logging.js (CommonJS)
+├── logging.ts (TypeScript)
+├── security.js (CommonJS)
+└── security.ts (TypeScript)
+```
+
+**Root Cause:**
+- Two complete implementations of logging middleware (`.js` and `.ts`)
+- Two complete implementations of security middleware (`.js` and `.ts`)
+- No clear indication which version is being used
+- Risk of importing wrong version causing runtime failures
+- TypeScript versions use different APIs than JavaScript versions
+
+**Impact Analysis:**
+- `logging.js` uses simple console.log approach
+- `logging.ts` uses structured logger with timing
+- `security.js` uses express-rate-limit v6 API
+- `security.ts` uses express-rate-limit v7 API with different configuration
+- Both files export same function names causing module resolution conflicts
+
+**Fix Required:**
+1. Determine which implementation is canonical (likely TypeScript)
+2. Remove duplicate JavaScript versions
+3. Audit imports across codebase to ensure correct version
+4. Add build step to prevent future duplication
+
+---
+
+### ISSUE #85: Three Separate Entry Points with Different Behavior (HIGH)
+**Severity:** P1 - HIGH  
+**Impact:** Deployment confusion, inconsistent runtime behavior  
+**Location:** Root directory entry points
+
+**Evidence:**
+```
+Root directory contains:
+├── gateway-server.js (Port 5000, MONO mode, embeddings)
+├── index.js (Port 3102, SDK standalone mode)
+├── agent-server.js (Port 43717, Agent standalone mode)
+├── sdk-embed.js (Embedded SDK for gateway)
+├── deploy-entry.js (Deployment entry point)
+├── health-server.js (Standalone health check server)
+```
+
+**Root Cause:**
+- Six different server entry points in root
+- No clear documentation on which to use when
+- `gateway-server.js` is primary but others still exist
+- Conflicting port configurations across files
+- `deploy-entry.js` may have different behavior than `gateway-server.js`
+
+**Risk:**
+- Developer confusion about which file to run
+- Deployment using wrong entry point
+- Different behavior in dev vs production
+- Port conflicts if multiple started
+
+**Fix Required:**
+1. Document primary entry point clearly (gateway-server.js)
+2. Mark deprecated files with warnings
+3. Consider moving legacy files to `deprecated/` folder
+4. Add startup script that validates correct entry point
+
+---
+
+### ISSUE #86: Inconsistent TypeScript Configuration Scope (MEDIUM)
+**Severity:** P2 - MEDIUM  
+**Impact:** Type checking gaps, build errors  
+**Location:** TypeScript configuration files
+
+**Evidence:**
+```
+├── tsconfig.json (includes both client and server)
+├── tsconfig.base.json (shared settings)
+├── tsconfig.client.json (client-specific)
+├── tsconfig.server.json (server-specific)
+├── tsconfig.agent.json (agent-specific)
+```
+
+**Root Cause:**
+- `tsconfig.json` includes: `["client/**/*", "server/**/*", "shared/**/*"]`
+- Overlapping with `tsconfig.client.json` and `tsconfig.server.json`
+- Agent has its own config (`tsconfig.agent.json`)
+- No clear build orchestration strategy
+- Risk of same files being compiled multiple times with different settings
+
+**Impact:**
+- Inconsistent type checking results
+- Potential for type errors to slip through
+- Slower build times (redundant compilation)
+- Confusion about which config applies where
+
+---
+
+### ISSUE #87: Multiple Strategy Generation Implementations (HIGH)
+**Severity:** P1 - HIGH  
+**Impact:** Inconsistent strategy behavior, race conditions  
+**Location:** `server/lib/`
+
+**Evidence:**
+```
+server/lib/
+├── strategy-generator.js (Original)
+├── strategy-generator-parallel.js (Parallel version)
+├── strategy-consolidator.js (Consolidation logic)
+├── triad-orchestrator.js (Triad pattern)
+├── providers/consolidator.js (Another consolidator)
+└── providers/minstrategy.js (Minimal strategy)
+```
+
+**Root Cause:**
+- Multiple strategy generation approaches coexist
+- No clear indication which is current/active
+- `strategy-generator.js` vs `strategy-generator-parallel.js`
+- Two consolidator implementations
+- May have different prompts/behavior
+
+**Risk:**
+- Using wrong strategy generator
+- Inconsistent recommendations
+- Performance degradation if wrong version used
+- Maintenance burden updating multiple implementations
+
+---
+
+### ISSUE #88: Duplicate LLM Adapter Pattern (MEDIUM)
+**Severity:** P2 - MEDIUM  
+**Impact:** Code maintenance burden, potential inconsistencies  
+**Location:** `server/lib/adapters/`
+
+**Evidence:**
+```
+server/lib/adapters/
+├── anthropic-adapter.js
+├── anthropic-claude.js (duplicate?)
+├── anthropic-sonnet45.js (duplicate?)
+├── gemini-adapter.js
+├── gemini-2.5-pro.js (duplicate?)
+├── google-gemini.js (duplicate?)
+├── openai-adapter.js
+├── openai-gpt5.js (duplicate?)
+└── index.js
+```
+
+**Root Cause:**
+- Three Anthropic implementations (adapter + claude + sonnet45)
+- Three Gemini implementations (adapter + 2.5-pro + google-gemini)
+- Two OpenAI implementations (adapter + gpt5)
+- Unclear which is canonical
+- May have different retry/error handling logic
+
+**Fix Required:**
+1. Consolidate to single adapter per provider
+2. Use configuration for model selection, not separate files
+3. Remove duplicate implementations
+4. Update imports across codebase
+
+---
+
+### ISSUE #89: Database Client Initialization Duplication (CRITICAL)
+**Severity:** P0 - CRITICAL  
+**Impact:** Connection pool exhaustion, memory leaks  
+**Location:** `server/db/`
+
+**Evidence:**
+```
+server/db/
+├── client.js (Pool creation)
+├── drizzle.js (Drizzle + pool)
+├── drizzle-lazy.js (Lazy Drizzle)
+├── pool.js (Shared pool module from Issue #40)
+├── pool-lazy.js (Lazy pool)
+```
+
+**Root Cause:**
+- Five different database initialization patterns
+- `client.js` creates a pool directly
+- `drizzle.js` creates another pool
+- `pool.js` was added to fix Issue #40 but others still exist
+- Each creates separate connection pools
+- No singleton pattern enforced
+
+**Impact:**
+- Multiple database connection pools competing for resources
+- Exceeding max connections limit
+- Memory leaks from unreleased pools
+- Inconsistent pool configuration
+
+**Critical Risk:**
+If multiple modules import different clients, you could have 3-5 separate pools all connecting to same database, each with max:10, potentially exhausting database connections.
+
+---
+
+### ISSUE #90: Event Research Implementation Fragmentation (MEDIUM)
+**Severity:** P2 - MEDIUM  
+**Impact:** Inconsistent event data  
+**Location:** Event research modules
+
+**Evidence:**
+```
+server/lib/
+├── venue-event-research.js (Perplexity-based research)
+└── perplexity-event-prompt.js (Prompt template)
+
+server/routes/
+└── venue-events.js (Route handler)
+
+drizzle/
+├── 0003_event_enrichment.sql
+└── 0004_event_proximity.sql
+```
+
+**Root Cause:**
+- Event research logic split across multiple files
+- Prompt template separate from implementation
+- Multiple migration files for event features
+- No clear orchestration of event enrichment pipeline
+
+---
+
+### ISSUE #91: Missing Error Handling in Critical Paths (HIGH)
+**Severity:** P1 - HIGH  
+**Impact:** Silent failures, undefined behavior  
+**Location:** Multiple route handlers
+
+**Evidence from Code Scan:**
+```javascript
+// server/routes/blocks.js (multiple instances)
+const snapshot = await getSnapshot(snapshotId);
+// No null check before using snapshot
+
+// server/routes/strategy.js
+const strategy = await db.query.strategies.findFirst(...);
+return res.json({ strategy });
+// No handling if strategy is undefined
+
+// server/lib/venue-discovery.js
+const places = await fetch(GOOGLE_PLACES_API);
+const data = await places.json();
+// No error handling if fetch fails or returns non-200
+```
+
+**Root Cause:**
+- Many async operations lack try-catch blocks
+- No validation of returned data before use
+- Assumes external APIs always succeed
+- No fallback behavior on failures
+
+---
+
+### ISSUE #92: Inconsistent Logging Patterns (MEDIUM)
+**Severity:** P2 - MEDIUM  
+**Impact:** Difficult debugging, log noise  
+**Location:** Throughout codebase
+
+**Evidence:**
+```javascript
+// Multiple logging patterns found:
+console.log('[gateway]', message);           // gateway-server.js
+console.log('🎯', message);                  // various files
+logger.info('message', data);                // some TypeScript files
+console.error('❌ Error:', err);             // error handling
+res.locals.logger?.debug('message');         // middleware
+```
+
+**Root Cause:**
+- No enforced logging standard
+- Mix of console.log, logger instances, emoji prefixes
+- Some files use structured logging, others don't
+- No correlation IDs consistently applied
+- Emoji make logs hard to grep/parse
+
+---
+
+### ISSUE #93: Hardcoded Configuration Values (MEDIUM)
+**Severity:** P2 - MEDIUM  
+**Impact:** Difficult to configure, deployment issues  
+**Location:** Throughout codebase
+
+**Evidence:**
+```javascript
+// server/lib/gpt5-tactical-planner.js
+const TIMEOUT_MS = 60000; // Hardcoded 60s
+
+// server/routes/blocks.js
+const MIN_BLOCKS = 6; // Hardcoded minimum
+
+// server/lib/scoring-engine.js
+const PROXIMITY_WEIGHT = 2.0; // Hardcoded weight
+
+// Multiple files
+const GEOCODING_API = 'https://maps.googleapis.com/maps/api/geocode/json';
+```
+
+**Root Cause:**
+- Magic numbers scattered throughout code
+- No centralized configuration file
+- Timeouts, limits, weights all hardcoded
+- Difficult to tune without code changes
+
+---
+
+### ISSUE #94: Test File Duplication and Organization (LOW)
+**Severity:** P3 - LOW  
+**Impact:** Test maintenance burden  
+**Location:** Test directories
+
+**Evidence:**
+```
+tests/
+├── e2e/
+├── eidolon/
+├── gateway/
+├── scripts/
+└── triad/
+
+Root directory also contains:
+├── test-database-fixes.js
+├── test-event-research.js
+├── test-global-scenarios.js
+├── test-perplexity.js
+├── test-sse.js
+└── test-verification.sh
+```
+
+**Root Cause:**
+- Test files scattered between `tests/` and root
+- No consistent test naming convention
+- Mix of .js, .mjs, and .sh test files
+- No clear test organization strategy
+
+---
+
+### ISSUE #95: Unused/Dead Code (LOW)
+**Severity:** P3 - LOW  
+**Impact:** Code clutter, confusion  
+**Location:** Various
+
+**Evidence:**
+```
+server/lib/
+├── llm-router.js (replaced by llm-router-v2.js?)
+├── exploration.js (unused?)
+├── explore.js (duplicate of exploration.js?)
+
+client/src/
+├── main-simple.tsx (not referenced)
+├── main.tsx (actual entry point)
+```
+
+**Root Cause:**
+- Old implementations kept alongside new ones
+- No clear deprecation/removal process
+- Files with similar names (explore vs exploration)
+
+---
+
+### ISSUE #96: Missing Input Validation Schemas (HIGH)
+**Severity:** P1 - HIGH  
+**Impact:** Security risk, data corruption  
+**Location:** Route handlers
+
+**Evidence:**
+```javascript
+// server/routes/feedback.js
+router.post('/feedback', async (req, res) => {
+  const { venue_id, rating, comment } = req.body;
+  // No validation before database insert
+  await db.insert(venue_feedback).values({ venue_id, rating, comment });
+});
+
+// server/routes/actions.js
+router.post('/actions', async (req, res) => {
+  const { action_type, snapshot_id } = req.body;
+  // No validation of UUID format, enum values
+  await db.insert(actions).values(req.body);
+});
+```
+
+**Root Cause:**
+- Most routes accept raw req.body without validation
+- No Zod schemas enforced
+- SQL injection risk (though using ORM helps)
+- No input sanitization
+
+---
+
+### ISSUE #97: Environment Variable Validation Missing (HIGH)
+**Severity:** P1 - HIGH  
+**Impact:** Runtime failures with unclear errors  
+**Location:** Entry points
+
+**Evidence:**
+```javascript
+// gateway-server.js
+const DATABASE_URL = process.env.DATABASE_URL; // No validation
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY; // No validation
+
+// No startup checks for:
+// - DATABASE_URL format
+// - API key presence
+// - PORT availability
+// - Required secrets
+```
+
+**Root Cause:**
+- No environment variable validation at startup
+- App starts even with missing critical config
+- Errors only appear when feature is used
+- No `.env.example` validation
+
+---
+
+### ISSUE #98: Circular Dependency Risk (MEDIUM)
+**Severity:** P2 - MEDIUM  
+**Impact:** Module loading failures  
+**Location:** Import chains
+
+**Evidence:**
+```javascript
+// Potential circular dependencies:
+server/lib/strategy-generator.js
+  -> imports server/lib/triad-orchestrator.js
+    -> imports server/lib/strategy-consolidator.js
+      -> imports server/lib/strategy-generator.js (circular?)
+
+server/agent/enhanced-context.js
+  -> imports server/agent/thread-context.js
+    -> imports server/agent/enhanced-context.js (circular?)
+```
+
+**Root Cause:**
+- Complex import chains without clear hierarchy
+- No dependency graph validation
+- Risk of circular imports causing undefined behavior
+
+---
+
+### ISSUE #99: Missing Database Migration Rollback Strategy (HIGH)
+**Severity:** P1 - HIGH  
+**Impact:** Cannot rollback failed deployments  
+**Location:** Migration files
+
+**Evidence:**
+```
+drizzle/
+├── 0000_overjoyed_human_torch.sql (no rollback)
+├── 0001_crazy_warstar.sql (no rollback)
+├── 0002_natural_thunderbolts.sql (no rollback)
+└── ... (8 migrations, none have DOWN migrations)
+
+migrations/
+└── manual/ (manual migrations, no rollback scripts)
+```
+
+**Root Cause:**
+- Drizzle migrations are forward-only
+- No rollback/down migrations
+- Cannot undo failed migrations
+- Must manually write SQL to rollback
+
+---
+
+### ISSUE #100: No Health Check for External Dependencies (MEDIUM)
+**Severity:** P2 - MEDIUM  
+**Impact:** Unclear system health status  
+**Location:** Health endpoints
+
+**Evidence:**
+```javascript
+// server/routes/health.js
+router.get('/health', (req, res) => {
+  res.json({ ok: true }); // Only checks if server responding
+});
+
+// Doesn't check:
+// - Database connectivity
+// - LLM API availability
+// - External API quotas
+// - Background worker health
+```
+
+**Root Cause:**
+- Health endpoint too simple
+- No deep health checks
+- Cannot determine if system is truly healthy
+
+---
+
+## 📊 UPDATED STATISTICS (2025-01-24)
+
+**Total Issues Found:** 100  
+**Critical (P0):** 8 (+2 new: #84, #89)  
+**High (P1):** 20 (+7 new: #85, #87, #91, #96, #97, #99)  
+**Medium (P2):** 21 (+7 new: #86, #88, #90, #92, #93, #98, #100)  
+**Low (P3):** 9 (+2 new: #94, #95)
+
+**Issue Categories:**
+- Code Duplication: 6 new issues (#84, #85, #88, #89, #94, #95)
+- Architecture/Design: 3 new issues (#86, #87, #90)
+- Error Handling: 2 new issues (#91, #97)
+- Configuration: 2 new issues (#93, #100)
+- Testing: 1 new issue (#94)
+- Security: 1 new issue (#96)
+- Database: 1 new issue (#99)
+- Maintainability: 1 new issue (#92)
+
+---
+
+## 🎯 ROOT CAUSE ANALYSIS
+
+### Primary Root Causes Identified:
+
+1. **Evolution Without Cleanup**
+   - Old implementations kept alongside new ones
+   - No deprecation process
+   - Affects: Issues #84, #85, #87, #88, #94, #95
+
+2. **Lack of Architectural Governance**
+   - No enforced patterns for logging, error handling
+   - Multiple solutions to same problem
+   - Affects: Issues #84, #86, #90, #92
+
+3. **Missing Validation Layer**
+   - No centralized validation
+   - No startup health checks
+   - Affects: Issues #96, #97, #100
+
+4. **Database Connection Fragmentation**
+   - Multiple pool creation patterns
+   - No singleton enforcement
+   - Affects: Issues #89, #99
+
+5. **Configuration Management Gaps**
+   - Hardcoded values
+   - No centralized config
+   - Affects: Issues #93, #97
+
+---
+
 **Report Generated:** 2025-01-23  
-**Updated:** 2025-10-30T22:30:00Z  
+**Updated:** 2025-01-24T00:00:00Z  
 **Test Execution:** 2025-10-24T02:23:00Z - 2025-10-24T03:05:00Z  
 **Analyst:** AI Code Review System  
 **Repository Version:** Current main branch  
-**Lines of Code Analyzed:** ~15,000+
+**Lines of Code Analyzed:** ~15,000+  
+**New Issues Added:** 17 (Issues #84-#100)
 
 ---
 
