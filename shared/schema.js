@@ -423,4 +423,16 @@ export const venue_events = pgTable("venue_events", {
   idxStartsAt: sql`create index if not exists idx_venue_events_starts_at on ${table} (starts_at)`,
 }));
 
+export const agent_changes = pgTable("agent_changes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  change_type: text("change_type").notNull(),
+  description: text("description").notNull(),
+  file_path: text("file_path"),
+  details: jsonb("details"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxCreatedAt: sql`create index if not exists idx_agent_changes_created_at on ${table} (created_at desc)`,
+  idxChangeType: sql`create index if not exists idx_agent_changes_type on ${table} (change_type)`,
+}));
+
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
