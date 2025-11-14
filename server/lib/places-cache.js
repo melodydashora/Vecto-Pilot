@@ -1,8 +1,6 @@
 // server/lib/places-cache.js
-import pg from "pg";
-const pool = new pg.Pool({
-  connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL
-});
+import { getSharedPool } from '../db/pool.js';
+const pool = getSharedPool();
 
 /**
  * Upsert place coordinates and address into places_cache table

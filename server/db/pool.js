@@ -17,16 +17,10 @@ let sharedPool = null;
 
 /**
  * Get or create the singleton connection pool
+ * ALWAYS enabled - shared pool is mandatory for production stability
  */
 export function getSharedPool() {
   if (!sharedPool) {
-    const useSharedPool = process.env.PG_USE_SHARED_POOL === 'true';
-    
-    if (!useSharedPool) {
-      console.log('[pool] Shared pool disabled (PG_USE_SHARED_POOL=false)');
-      return null;
-    }
-
     if (!process.env.DATABASE_URL) {
       console.warn('[pool] DATABASE_URL not set, cannot create pool');
       return null;
@@ -102,9 +96,7 @@ export function getPoolStats() {
   if (!sharedPool) {
     return {
       enabled: false,
-      reason: process.env.PG_USE_SHARED_POOL !== 'true' 
-        ? 'Feature flag disabled' 
-        : 'Pool not initialized'
+      reason: 'Pool not initialized (DATABASE_URL missing or first access not yet made)'
     };
   }
 
