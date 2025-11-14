@@ -8,9 +8,13 @@ import httpProxy from "http-proxy";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { validateOrExit } from "./server/lib/validate-env.js";
 
 const { createProxyServer } = httpProxy;
 // Lazy-load triad-worker to avoid DB pool creation before server is ready
+
+// Validate environment before starting server (fast-fail for missing config)
+validateOrExit();
 
 // Mode detection
 const MODE = (process.env.APP_MODE || "mono").toLowerCase();
