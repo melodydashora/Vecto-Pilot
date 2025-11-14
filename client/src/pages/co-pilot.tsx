@@ -288,8 +288,21 @@ const CoPilot: React.FC = () => {
       }
     });
     
-    return unsubscribe;
-  }, [lastSnapshotId]);
+    // ISSUE #61 FIX: Fallback timeout in case blocks_ready event never arrives
+    // After 30 seconds, enable blocks query anyway (snapshot creation might have failed)
+    const fallbackTimeout = setTimeout(() => {
+      if (!blocksReadyForSnapshot || blocksReadyForSnapshot !== lastSnapshotId) {
+        console.warn('[SSE] ⏱️ Blocks ready event timeout after 30s - enabling fallback query');
+        setBlocksReadyForSnapshot(lastSnapshotId);
+        queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
+      }
+    }, 30000); // 30 seconds
+    
+    return () => {
+      unsubscribe();
+      clearTimeout(fallbackTimeout);
+    };
+  }, [lastSnapshotId, blocksReadyForSnapshot]);
   
   // Start venue loading timer when strategy becomes ready
   useEffect(() => {
