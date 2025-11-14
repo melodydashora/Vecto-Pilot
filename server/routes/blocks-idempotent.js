@@ -5,6 +5,10 @@ import { db } from '../db/drizzle.js';
 import { strategies, triad_jobs, snapshots } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { idempotency } from '../middleware/idempotency.js';
+import { ensureStrategyRow } from '../lib/strategy-utils.js';
+import { runMinStrategy } from '../lib/providers/minstrategy.js';
+import { runBriefing } from '../lib/providers/briefing.js';
+import { runHolidayCheck } from '../lib/providers/holiday-checker.js';
 
 const router = Router();
 
@@ -58,11 +62,28 @@ router.post('/api/blocks', idempotency({ ttlMs: 60000 }), async (req, res) => {
       });
     }
 
-    // Job successfully queued
+    // Job successfully queued - NOW TRIGGER THE PROVIDERS
+    // Fire-and-forget: kick providers in parallel
+    // Consolidation will be triggered by NOTIFY after all providers complete
+    console.log(`[blocks] 🚀 Triggering strategy generation for snapshot ${snapshotId}`);
+    
+    // Ensure strategy row exists first
+    await ensureStrategyRow(snapshotId);
+    
+    // Kick providers in parallel (fire-and-forget)
+    // IMPORTANT: Holiday check runs FIRST to show banner immediately
+    Promise.allSettled([
+      runHolidayCheck(snapshotId),    // FAST: writes strategies.holiday (1-2s)
+      runMinStrategy(snapshotId),     // writes strategies.minstrategy  
+      runBriefing(snapshotId)         // writes briefings table (Perplexity comprehensive research)
+    ]).catch(() => { /* handled in provider logs */ });
+
+    // Job successfully queued and providers kicked off
     return res.status(202).json({ 
       ok: true, 
       status: 'queued', 
-      snapshotId 
+      snapshotId,
+      kicked: ['holiday', 'minstrategy', 'briefing']
     });
   } catch (error) {
     console.error('[blocks] Enqueue error:', error);
