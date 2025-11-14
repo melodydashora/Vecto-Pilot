@@ -140,17 +140,74 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
       return sendOnce(400, { error: 'snapshot_required', message: 'snapshot_id is required' });
     }
 
-    // CRITICAL: Create triad_job to trigger provider pipeline
-    const { triad_jobs } = await import('../../shared/schema.js');
+    // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
+    const { triad_jobs, briefings } = await import('../../shared/schema.js');
     try {
-      await db.insert(triad_jobs).values({
+      const [job] = await db.insert(triad_jobs).values({
         snapshot_id: snapshotId,
         kind: 'triad',
         status: 'queued'
-      }).onConflictDoNothing();
-      console.log(`[blocks-fast POST] ✅ Triad job queued for ${snapshotId}`);
+      }).onConflictDoNothing().returning();
+      
+      if (job) {
+        // New job created - run full pipeline synchronously (no worker needed)
+        console.log(`[blocks-fast POST] 🚀 Running synchronous waterfall for ${snapshotId}`);
+        const { runMinStrategy } = await import('../lib/providers/minstrategy.js');
+        const { runBriefing } = await import('../lib/providers/briefing.js');
+        const { runHolidayCheck } = await import('../lib/providers/holiday-checker.js');
+        const { consolidateStrategy } = await import('../lib/strategy-generator-parallel.js');
+        const { generateEnhancedSmartBlocks } = await import('../lib/enhanced-smart-blocks.js');
+        const { ensureStrategyRow } = await import('../lib/strategy-utils.js');
+        
+        // Ensure strategy row exists
+        await ensureStrategyRow(snapshotId);
+        
+        // STEP 1: Run providers in parallel (10-15s)
+        console.log(`[blocks-fast POST] 📡 Step 1/4: Providers...`);
+        await Promise.all([
+          runHolidayCheck(snapshotId),
+          runMinStrategy(snapshotId),
+          runBriefing(snapshotId)
+        ]);
+        
+        // STEP 2: Fetch provider outputs
+        console.log(`[blocks-fast POST] 📚 Step 2/4: Fetching outputs...`);
+        const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+        const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+        const [briefing] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+        
+        if (snapshot && strategy?.minstrategy && briefing) {
+          // STEP 3: Run consolidation (15-20s)
+          console.log(`[blocks-fast POST] 🔄 Step 3/4: Consolidation...`);
+          await consolidateStrategy({
+            snapshotId,
+            claudeStrategy: strategy.minstrategy,
+            briefing: briefing,
+            user: null,
+            snapshot: snapshot,
+            holiday: strategy.holiday
+          });
+          
+          // STEP 4: Generate smart blocks (10-15s)
+          console.log(`[blocks-fast POST] 🎯 Step 4/4: Generating blocks...`);
+          const [consolidated] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+          
+          if (consolidated?.consolidated_strategy) {
+            await generateEnhancedSmartBlocks({
+              snapshotId,
+              consolidated: consolidated.consolidated_strategy,
+              briefing: briefing,
+              snapshot: snapshot,
+              user_id: null
+            });
+            console.log(`[blocks-fast POST] ✅ Synchronous waterfall complete`);
+          }
+        }
+      } else {
+        console.log(`[blocks-fast POST] Job already queued for ${snapshotId}`);
+      }
     } catch (jobErr) {
-      console.warn(`[blocks-fast POST] Job insertion skipped (may already exist):`, jobErr.message);
+      console.error(`[blocks-fast POST] Waterfall error:`, jobErr.message);
     }
 
     // ============================================
