@@ -14,10 +14,10 @@ import crypto from 'crypto';
 import { validateBody } from '../middleware/validate.js';
 import { strategyRequestSchema } from '../validation/schemas.js';
 
-export const router = Router();
+const router = Router();
 
 /** GET /api/strategy/:snapshotId */
-router.get('/strategy/:snapshotId', async (req, res) => {
+router.get('/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
@@ -59,7 +59,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
 });
 
 /** POST /api/strategy/seed  { snapshot_id } */
-router.post('/strategy/seed', validateBody(strategyRequestSchema), async (req, res) => {
+router.post('/seed', validateBody(strategyRequestSchema), async (req, res) => {
   const { snapshot_id } = req.body || {};
   
   if (!snapshot_id) {
@@ -76,7 +76,7 @@ router.post('/strategy/seed', validateBody(strategyRequestSchema), async (req, r
 });
 
 /** POST /api/strategy/run/:snapshotId  (fire-and-forget providers) */
-router.post('/strategy/run/:snapshotId', async (req, res) => {
+router.post('/run/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
 
   try {
@@ -102,7 +102,7 @@ router.post('/strategy/run/:snapshotId', async (req, res) => {
 });
 
 /** GET /api/strategy/briefing/:snapshotId - Fetch briefing data from briefings table */
-router.get('/strategy/briefing/:snapshotId', async (req, res) => {
+router.get('/briefing/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
@@ -150,7 +150,7 @@ router.get('/strategy/briefing/:snapshotId', async (req, res) => {
 });
 
 /** POST /api/strategy/:snapshotId/retry - Retry strategy generation with same location context */
-router.post('/strategy/:snapshotId/retry', async (req, res) => {
+router.post('/:snapshotId/retry', async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
@@ -226,7 +226,7 @@ router.post('/strategy/:snapshotId/retry', async (req, res) => {
 });
 
 /** GET /api/strategy/history?user_id=X - Get all strategy attempts for a user */
-router.get('/strategy/history', async (req, res) => {
+router.get('/history', async (req, res) => {
   const { user_id } = req.query;
   
   if (!user_id) {
