@@ -1,7 +1,5 @@
-/* Tailwind v3 imports */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4 imports */
+@import "tailwindcss";
 
 @keyframes progressBar {
   from {
@@ -10,12 +8,6 @@
   to {
     width: 100%;
   }
-}
-
-/* ---- Utilities / aliases ---- */
-@layer utilities {
-  /* shadcn-style alias */
-  .border-border { @apply border-gray-200 dark:border-gray-800; }
 }
 
 /* ---- Design tokens ---- */
@@ -75,7 +67,7 @@
 /* ---- Base layer ---- */
 @layer base {
   *, ::before, ::after {
-    @apply border-border;
+    @apply border-gray-200 dark:border-gray-800;
   }
   html, body, #root { 
     height: auto;

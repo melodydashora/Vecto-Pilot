@@ -116,7 +116,7 @@ export function StrategyHistoryPanel({ userId, currentSnapshotId }: StrategyHist
                   className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
                     isCurrent 
                       ? 'border-primary bg-primary/5' 
-                      : 'border-border hover:bg-muted/50'
+                      : 'border-gray-200 dark:border-gray-800 hover:bg-muted/50'
                   }`}
                 >
                   <div className="flex-shrink-0 mt-0.5">
