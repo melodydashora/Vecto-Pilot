@@ -16,8 +16,8 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
       messages
     };
 
-    // o1 models use max_completion_tokens, other models use max_tokens
-    if (model.startsWith("o1-") || model === "gpt-5") {
+    // o1 models and gpt-5 family use max_completion_tokens, other models use max_tokens
+    if (model.startsWith("o1-") || model.startsWith("gpt-5")) {
       body.max_completion_tokens = maxTokens;
     } else {
       body.max_tokens = maxTokens;
