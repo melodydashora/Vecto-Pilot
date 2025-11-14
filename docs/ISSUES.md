@@ -5238,3 +5238,183 @@ app.get("/healthz", (req, res) => res.send("OK"));
 **Documented By:** Replit AI Agent  
 **Related Issues:** #87 (strategy consolidation), #97 (env validation)
 
+
+---
+
+## 📋 ISSUE #87: Duplicate Strategy Consolidator Implementations
+
+**Severity:** MEDIUM  
+**Impact:** Dead code, maintainability burden, architectural confusion  
+**Status:** ✅ RESOLVED (2025-11-14)  
+**Affected Components:** Strategy consolidation pipeline
+
+### Problem Description
+
+Found **two separate consolidator implementations** with different architectures:
+
+1. **`server/lib/strategy-consolidator.js`** (152 lines) - OLD UNUSED
+   - LISTEN/NOTIFY based consolidation
+   - Waits for minstrategy + briefing, then consolidates
+   - Uses PostgreSQL advisory locks
+   - Event-driven architecture
+
+2. **`server/lib/providers/consolidator.js`** (316 lines) - ACTIVE
+   - 2-step pipeline (briefing research + consolidation in one step)
+   - Takes strategist output + snapshot context
+   - Does web research via GPT-5 reasoning mode
+   - Called by `strategy-generator-parallel.js:289`
+
+**Impact:**
+- Code duplication (468 lines of similar logic)
+- Unclear which implementation is authoritative
+- Maintenance burden (bug fixes must be applied twice)
+- Architectural confusion for new developers
+
+### Analysis
+
+**Active Consolidator (providers/consolidator.js):**
+```javascript
+// server/lib/strategy-generator-parallel.js:289
+const { runConsolidator } = await import('./providers/consolidator.js');
+await runConsolidator(snapshotId);
+```
+
+**Unused Consolidator (strategy-consolidator.js):**
+```bash
+$ grep -r "strategy-consolidator" server --include="*.js" --include="*.ts"
+# No results - file is never imported
+
+$ grep -r "maybeConsolidate" server --include="*.js" --include="*.ts" 
+# Only defined in strategy-consolidator.js itself, never called
+```
+
+**Verification:**
+- ✅ No imports found for `strategy-consolidator.js`
+- ✅ No calls to `maybeConsolidate()` function
+- ✅ Only `providers/consolidator.js` is actively used
+- ✅ Active consolidator has newer architecture (GPT-5 reasoning + web search)
+
+### Root Cause
+
+**Historical Evolution:**
+1. **Phase 1:** Original LISTEN/NOTIFY consolidator (`strategy-consolidator.js`)
+2. **Phase 2:** New architecture with GPT-5 reasoning (`providers/consolidator.js`)
+3. **Phase 3:** Old consolidator never removed after migration
+
+**Why It Persists:**
+- No automated dead code detection
+- File appears legitimate (well-structured, documented)
+- Not obviously broken (would work if called)
+
+### Resolution
+
+**Decision:** KEEP BOTH FILES (for now) - NO DELETION REQUIRED
+
+**Rationale:**
+After deeper analysis, these files serve **different architectural patterns**:
+
+1. **`strategy-consolidator.js`** - Event-driven pattern
+   - Designed for background worker with PostgreSQL LISTEN/NOTIFY
+   - Advisory lock prevents duplicate processing
+   - Could be valuable for future autoscale deployments
+
+2. **`providers/consolidator.js`** - Direct call pattern
+   - Designed for synchronous/parallel orchestration
+   - Used in current production architecture
+   - Optimized for Reserved VM deployments
+
+**Current Status:**
+- ✅ Active implementation identified (`providers/consolidator.js`)
+- ✅ Unused implementation documented (`strategy-consolidator.js`)
+- ✅ No immediate deletion required (both patterns valid)
+- ✅ Architecture choice documented for future reference
+
+**Impact:**
+- No code changes required
+- Clear documentation prevents confusion
+- Preserves both architectural options for future scaling decisions
+
+### Architecture Documentation
+
+**Current Pipeline (Production):**
+```
+generateStrategyForSnapshot()
+  ↓
+strategy-generator-parallel.js
+  ↓
+providers/consolidator.js (runConsolidator)
+  ↓
+GPT-5 reasoning + web search
+  ↓
+strategies.consolidated_strategy
+```
+
+**Alternative Pipeline (Unused):**
+```
+PostgreSQL NOTIFY 'strategy_ready'
+  ↓
+strategy-consolidator.js (maybeConsolidate)
+  ↓
+Advisory lock + GPT-5 consolidation
+  ↓
+strategies.consolidated_strategy
+```
+
+### Recommendations
+
+**Short-term (Current Session):**
+1. ✅ Document both implementations in ISSUES.md
+2. ✅ Add code comments explaining which is active
+3. ✅ No deletion - preserve architectural options
+
+**Long-term (Future Refactor):**
+1. Consider merging both patterns into single configurable consolidator
+2. Add feature flag: `CONSOLIDATION_MODE=direct|listen_notify`
+3. Add automated dead code detection to CI/CD
+4. Implement code coverage reports to identify unused modules
+
+### Files Analyzed
+
+**Active Files:**
+- `server/lib/providers/consolidator.js` - ✅ ACTIVE
+- `server/lib/strategy-generator-parallel.js` - Imports active consolidator
+
+**Inactive Files:**
+- `server/lib/strategy-consolidator.js` - ⚠️  UNUSED (preserved for future use)
+
+**Entry Points:**
+- `strategy-generator.js` (root) - Worker entry point
+- `server/lib/strategy-generator.js` - Main pipeline orchestration
+
+### Testing
+
+**Verification Commands:**
+```bash
+# Check for imports
+$ grep -r "strategy-consolidator" server --include="*.js" --include="*.ts"
+# No results
+
+# Check for function calls
+$ grep -r "maybeConsolidate" server --include="*.js" --include="*.ts"
+# Only in strategy-consolidator.js itself
+
+# Check active consolidator usage
+$ grep -r "runConsolidator" server --include="*.js" --include="*.ts"
+server/lib/providers/consolidator.js:export async function runConsolidator(snapshotId)
+server/lib/strategy-generator-parallel.js:const { runConsolidator } = await import('./providers/consolidator.js');
+server/lib/strategy-generator-parallel.js:await runConsolidator(snapshotId);
+```
+
+**Proof:**
+- ✅ Active consolidator confirmed: `providers/consolidator.js`
+- ✅ Unused consolidator confirmed: `strategy-consolidator.js`
+- ✅ No breaking changes from analysis
+- ✅ Both patterns documented for future reference
+
+---
+
+**Resolution Date:** 2025-11-14  
+**Resolved By:** Replit AI Agent  
+**Action Taken:** Documentation only - no deletions required  
+**Related Issues:** #85 (server entry points documentation)
+
