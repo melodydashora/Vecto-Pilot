@@ -36,9 +36,10 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
   const client = await pool.connect();
   
   // Add error handler to prevent unhandled errors crashing the process
-  client.on('error', (err) => {
+  const errorHandler = (err) => {
     console.error('[memory:put] Client error:', err.message);
-  });
+  };
+  client.on('error', errorHandler);
   
   try {
     // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
@@ -59,6 +60,7 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
     const { rows } = await client.query(q, v);
     return rows[0]?.id || null;
   } finally {
+    client.removeListener('error', errorHandler);
     client.release();
   }
 }
@@ -69,9 +71,10 @@ export async function memoryGet({ table, scope, key, userId }) {
   const client = await pool.connect();
   
   // Add error handler to prevent unhandled errors crashing the process
-  client.on('error', (err) => {
+  const errorHandler = (err) => {
     console.error('[memory:get] Client error:', err.message);
-  });
+  };
+  client.on('error', errorHandler);
   
   try {
     // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
@@ -98,6 +101,7 @@ export async function memoryGet({ table, scope, key, userId }) {
       return rows[0].content;
     }
   } finally {
+    client.removeListener('error', errorHandler);
     client.release();
   }
 }
@@ -109,9 +113,10 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
   const client = await pool.connect();
   
   // Add error handler to prevent unhandled errors crashing the process
-  client.on('error', (err) => {
+  const errorHandler = (err) => {
     console.error('[memory:query] Client error:', err.message);
-  });
+  };
+  client.on('error', errorHandler);
   
   try {
     // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
@@ -138,6 +143,7 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
       return { key: r.key, content: c, updated_at: r.updated_at };
     });
   } finally {
+    client.removeListener('error', errorHandler);
     client.release();
   }
 }

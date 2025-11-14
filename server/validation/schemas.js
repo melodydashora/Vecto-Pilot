@@ -30,20 +30,49 @@ const optionalUuidSchema = z.string()
   .optional()
   .nullable();
 
-// Snapshot creation validation (minimal mode)
-export const snapshotMinimalSchema = z.object({
-  lat: z.number()
-    .min(-90, 'Latitude must be >= -90')
-    .max(90, 'Latitude must be <= 90')
-    .finite('Latitude must be a finite number'),
-  lng: z.number()
-    .min(-180, 'Longitude must be >= -180')
-    .max(180, 'Longitude must be <= 180')
-    .finite('Longitude must be a finite number'),
-  userId: optionalUuidSchema,
-  device_id: optionalUuidSchema,
-  session_id: optionalUuidSchema
-}).passthrough(); // Allow other fields to pass through for full SnapshotV1 validation
+// Snapshot creation validation (supports both minimal and full SnapshotV1 formats)
+// Minimal format: {lat: 37.77, lng: -122.41}
+// Full SnapshotV1: {coord: {lat: 37.77, lng: -122.41}, resolved, time_context, ...}
+export const snapshotMinimalSchema = z.union([
+  // Format 1: Minimal mode - flat lat/lng (for curl tests)
+  z.object({
+    lat: z.number()
+      .min(-90, 'Latitude must be >= -90')
+      .max(90, 'Latitude must be <= 90')
+      .finite('Latitude must be a finite number'),
+    lng: z.number()
+      .min(-180, 'Longitude must be >= -180')
+      .max(180, 'Longitude must be <= 180')
+      .finite('Longitude must be a finite number'),
+    userId: optionalUuidSchema,
+    device_id: optionalUuidSchema,
+    session_id: optionalUuidSchema
+  }).passthrough(),
+  
+  // Format 2: Full SnapshotV1 - nested coord.lat/coord.lng (from frontend)
+  z.object({
+    coord: z.object({
+      lat: z.number()
+        .min(-90, 'Latitude must be >= -90')
+        .max(90, 'Latitude must be <= 90')
+        .finite('Latitude must be a finite number'),
+      lng: z.number()
+        .min(-180, 'Longitude must be >= -180')
+        .max(180, 'Longitude must be <= 180')
+        .finite('Longitude must be a finite number')
+    }).passthrough(),
+    user_id: optionalUuidSchema,
+    device_id: optionalUuidSchema,
+    session_id: optionalUuidSchema
+  }).passthrough()
+]).transform(data => {
+  // Normalize both formats to include top-level lat/lng for backward compatibility
+  if (data.coord) {
+    // Full SnapshotV1 format - add flat lat/lng for route handler
+    return { ...data, lat: data.coord.lat, lng: data.coord.lng };
+  }
+  return data; // Minimal format already has flat lat/lng
+});
 
 // Location resolve validation
 export const locationResolveSchema = z.object({
