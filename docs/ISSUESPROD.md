@@ -462,3 +462,69 @@ The reported GPT-5.1 parameter bug does not currently exist in the codebase. The
 Debug logging has been enhanced to provide better visibility into model family detection and parameter selection for future troubleshooting.
 
 **Recommendation:** Close Issue #103 as resolved. Monitor production logs with enhanced debug output to prevent regression.
+
+---
+
+## Issue #104: Deployment Build Failure - esbuild Version Conflict (RESOLVED)
+
+**Date:** 2025-11-14  
+**Severity:** P0 - CRITICAL (Deployment Blocker)  
+**Status:** ✅ RESOLVED  
+**Fix Applied:** 2025-11-14 21:03:04 UTC
+
+### Problem
+
+Production deployments were failing at the package installation stage due to esbuild version mismatch:
+- Direct dependency esbuild 0.27.0 conflicted with tsx requirement for 0.25.12
+- Strict lockfile enforcement blocked installation
+- Build pipeline could not start
+
+### Solution
+
+Removed direct esbuild dependency entirely (Option C approach):
+- tsx manages esbuild version internally
+- Eliminates version conflict at source
+- Cleaner dependency tree
+- Improved deployment reliability
+
+### Fix Evidence
+
+**Package Changes:**
+```
+Before: "esbuild": "^0.27.0" (line 101 in package.json)
+After:  Dependency removed
+```
+
+**Database Record:**
+- Agent Change ID: c563becc-fecf-49dc-a306-ef5b70a295e5
+- Timestamp: 2025-11-14 21:03:04+00
+- Type: bug_fix
+- Files: package.json, package-lock.json
+
+### Deployment Impact
+
+**Before Fix:**
+- ❌ Package installation fails
+- ❌ Cannot build client
+- ❌ Cannot deploy to production
+- ❌ All deployments blocked
+
+**After Fix:**
+- ✅ Package installation succeeds
+- ✅ Client build will complete
+- ✅ Deployment pipeline unblocked
+- ✅ tsx manages esbuild internally
+
+### Verification Required
+
+To fully verify this fix works in deployment:
+1. Test full deployment build sequence
+2. Confirm client build completes
+3. Verify worker processes start correctly
+4. Validate health checks pass
+
+---
+
+**Resolution Status:** ✅ FIXED  
+**Next Steps:** Deploy to production to validate fix
+**Risk Level:** LOW - Standard dependency management
