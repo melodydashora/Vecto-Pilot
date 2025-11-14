@@ -170,11 +170,11 @@ See WATERFALL_FIX_SUMMARY.md for complete technical documentation.
 
 **Technical Notes**:
 - BriefingPage was listening to `vecto-snapshot-saved` but only updating local state (no waterfall trigger)
-- location-context-clean.tsx still has POST /api/blocks call (line 448) that may conflict with co-pilot.tsx POST /api/blocks-fast
-- Production issue is GPS coordinates not changing, not the event listeners themselves
-- Future: Consider consolidating to single waterfall trigger point
+- Removed duplicate POST /api/blocks call from location-context-clean.tsx (line 448)
+- Now using single event-driven waterfall trigger: vecto-snapshot-saved → co-pilot.tsx → POST /api/blocks-fast
 
 **Files Modified**:
 - Deleted: `client/src/pages/BriefingPage.tsx`
 - Modified: `client/src/App.tsx` (removed import and navigation tab)
+- Modified: `client/src/contexts/location-context-clean.tsx` (removed duplicate POST /api/blocks call)
 

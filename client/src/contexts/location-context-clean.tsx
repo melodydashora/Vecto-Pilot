@@ -443,25 +443,11 @@ export function LocationProvider({ children }: LocationProviderProps) {
               const snapshotData = await snapshotResponse.json();
               const snapshotId = snapshotData.snapshot_id || snapshotV1.snapshot_id;
               
-              // CRITICAL: Create triad_job to start the strategy pipeline
-              try {
-                const jobResponse = await fetch("/api/blocks", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ snapshot_id: snapshotId }),
-                  signal,
-                });
-                
-                if (jobResponse.ok) {
-                  const jobData = await jobResponse.json();
-                  console.log("🎯 Co-Pilot: Strategy pipeline started for snapshot:", snapshotId);
-                  console.log("📋 Job status:", jobData.status);
-                } else {
-                  console.warn("⚠️ Failed to start strategy pipeline:", jobResponse.status);
-                }
-              } catch (jobErr) {
-                console.warn("⚠️ Error starting strategy pipeline:", jobErr);
-              }
+              // NOTE: Removed POST /api/blocks call (old background worker endpoint)
+              // The waterfall is now triggered via event-driven architecture:
+              // 1. vecto-snapshot-saved event dispatched below
+              // 2. co-pilot.tsx catches event and calls POST /api/blocks-fast (synchronous waterfall)
+              // This prevents duplicate waterfall execution and supports autoscale deployment
               
               // Dispatch event to notify UI that snapshot is complete and ready
               window.dispatchEvent(
