@@ -104,3 +104,28 @@ Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Recent Changes - November 14, 2025
+
+### Smart Blocks Waterfall Fix (Production Ready) ✅
+
+**Problem**: Smart Blocks were not appearing because the synchronous waterfall was never triggered.
+
+**Root Causes**:
+1. Frontend never called POST /api/blocks-fast to trigger the waterfall
+2. Database schema missing default value for rankings.created_at
+3. Code attempting to manually set created_at conflicted with schema
+
+**Solutions**:
+1. Frontend Fix (client/src/pages/co-pilot.tsx): Modified vecto-snapshot-saved event handler to trigger POST /api/blocks-fast
+2. Database Schema Fix (shared/schema.js): Added .defaultNow() to rankings.created_at field
+3. Code Cleanup (server/lib/enhanced-smart-blocks.js): Removed duplicate created_at assignment
+
+**Verified Working**:
+✅ Snapshot creation → POST trigger → waterfall executes → blocks appear in UI
+✅ No background worker required (autoscale compatible)
+✅ Health endpoints remain fast (<10ms)
+✅ Performance: Strategy 8-22s, Total waterfall 35-50s
+
+See WATERFALL_FIX_SUMMARY.md for complete technical documentation.
+
