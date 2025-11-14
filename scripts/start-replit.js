@@ -185,16 +185,17 @@ console.log('[boot] ⏩ SDK routes embedded in gateway (no separate SDK process)
 const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true' && !isCloudRun;
 
 let worker = null;
-if (shouldStartWorker) {
-  console.log('[boot] ⚡ Starting triad worker...');
-  
-  // Open log file for worker output
+let workerRestartCount = 0;
+const MAX_WORKER_RESTARTS = 10;
+const RESTART_BACKOFF_MS = 5000;
+
+async function startWorker() {
   const { openSync } = await import('node:fs');
   const workerLogFd = openSync('/tmp/worker-output.log', 'a');
   
   worker = spawn('node', ['strategy-generator.js'], {
     stdio: ['ignore', workerLogFd, workerLogFd],
-    env: { ...process.env } // ensure explicit env propagation
+    env: { ...process.env }
   });
 
   worker.on('error', (err) => {
@@ -204,7 +205,7 @@ if (shouldStartWorker) {
   worker.on('exit', async (code) => {
     console.error(`[boot:worker:exit] Worker exited with code ${code}`);
     
-    // If worker crashed, show the last 20 lines of the log file for debugging
+    // Show last 20 lines of log for debugging
     if (code !== 0 && code !== null) {
       try {
         const { readFileSync } = await import('node:fs');
@@ -218,10 +219,32 @@ if (shouldStartWorker) {
         console.error('[boot:worker:crash] Could not read worker log:', err.message);
       }
     }
+
+    // Auto-restart logic
+    if (code !== 0 && code !== null && workerRestartCount < MAX_WORKER_RESTARTS) {
+      workerRestartCount++;
+      console.log(`[boot:worker:restart] Restarting worker (attempt ${workerRestartCount}/${MAX_WORKER_RESTARTS}) in ${RESTART_BACKOFF_MS}ms...`);
+      
+      setTimeout(() => {
+        console.log('[boot:worker:restart] Spawning new worker process...');
+        startWorker();
+      }, RESTART_BACKOFF_MS);
+    } else if (workerRestartCount >= MAX_WORKER_RESTARTS) {
+      console.error('[boot:worker:restart] ❌ Max restart attempts reached, worker will not restart');
+      console.error('[boot:worker:restart] ❌ Strategy generation is OFFLINE - manual intervention required');
+    } else {
+      console.log('[boot:worker:exit] Worker exited gracefully (code 0), not restarting');
+    }
   });
 
   console.log(`[boot] ✅ Triad worker started (PID: ${worker.pid})`);
   console.log(`[boot] 📋 Worker logs: /tmp/worker-output.log`);
+  console.log(`[boot] 🔄 Auto-restart enabled (max ${MAX_WORKER_RESTARTS} attempts)`);
+}
+
+if (shouldStartWorker) {
+  console.log('[boot] ⚡ Starting triad worker with auto-restart...');
+  await startWorker();
 } else if (isCloudRun) {
   console.log('[boot] ⏩ Skipping background worker (Cloud Run/Autoscale detected)');
 } else {
