@@ -107,19 +107,42 @@ Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking
 
 ## Recent Changes - November 14, 2025
 
-### Smart Blocks Waterfall Fix (Production Ready) ✅
+### Smart Blocks Drizzle ORM INSERT Fix (Production Ready) ✅
+
+**Problem**: Smart Blocks waterfall was failing with database INSERT error: `Failed query: insert into "rankings" (..., "created_at", ...) values ($1, default, $2, ...)`
+
+**Root Cause**:
+Drizzle ORM was trying to explicitly insert the SQL keyword `DEFAULT` as a bound parameter when `.defaultNow()` was present in the schema. This generated invalid SQL because PostgreSQL expects `DEFAULT` as a keyword, not a parameter value.
+
+**Solution**:
+1. **Removed `.defaultNow()` from rankings.created_at** in `shared/schema.js` (line 111)
+   - Changed from: `created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()`
+   - Changed to: `created_at: timestamp("created_at", { withTimezone: true }).notNull()`
+2. Database already has `DEFAULT NOW()` constraint, so omitting the column from INSERT lets PostgreSQL handle it automatically
+3. Required server restart to clear Drizzle's cached schema
+
+**Technical Details**:
+- Database constraint: `ALTER TABLE rankings ALTER COLUMN created_at SET DEFAULT NOW();` (already applied)
+- Drizzle behavior: When column has `.defaultNow()`, it tries to INSERT `default` as a value instead of omitting the column
+- Fix: Remove `.defaultNow()` so Drizzle omits the column entirely, letting database default apply
+
+**Verified Working**:
+✅ Smart Blocks waterfall completes successfully  
+✅ Rankings INSERT without errors
+✅ created_at automatically populated by database DEFAULT NOW()
+✅ Production tested with multiple successful waterfalls
+
+### Smart Blocks Waterfall Architecture (Production Ready) ✅
 
 **Problem**: Smart Blocks were not appearing because the synchronous waterfall was never triggered.
 
 **Root Causes**:
 1. Frontend never called POST /api/blocks-fast to trigger the waterfall
-2. Database schema missing default value for rankings.created_at
-3. Code attempting to manually set created_at conflicted with schema
+2. Code attempting to manually set created_at conflicted with schema
 
 **Solutions**:
 1. Frontend Fix (client/src/pages/co-pilot.tsx): Modified vecto-snapshot-saved event handler to trigger POST /api/blocks-fast
-2. Database Schema Fix (shared/schema.js): Added .defaultNow() to rankings.created_at field
-3. Code Cleanup (server/lib/enhanced-smart-blocks.js): Removed duplicate created_at assignment
+2. Code Cleanup (server/lib/enhanced-smart-blocks.js): Removed duplicate created_at assignment
 
 **Verified Working**:
 ✅ Snapshot creation → POST trigger → waterfall executes → blocks appear in UI
