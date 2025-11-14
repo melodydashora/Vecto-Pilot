@@ -7,18 +7,18 @@
 
 ## 🎯 Verified Production Models
 
-### OpenAI GPT-5
-**Status**: ✅ Production (October 2025)
+### OpenAI GPT-5.1 (RECOMMENDED)
+**Status**: ✅ Production (November 2025)
 
 ```env
-OPENAI_MODEL=gpt-5
-OPENAI_REASONING_EFFORT=high
+OPENAI_MODEL=gpt-5.1
+OPENAI_REASONING_EFFORT=medium
 OPENAI_MAX_COMPLETION_TOKENS=32000
 ```
 
 **API Details**:
 - **Endpoint**: `POST https://api.openai.com/v1/chat/completions`
-- **Model ID**: `gpt-5` (flagship reasoning model)
+- **Model ID**: `gpt-5.1` (flagship reasoning model with improved efficiency)
 - **Context Window**: 200K tokens (272K input / 128K output)
 - **Headers**:
   - `Authorization: Bearer <API_KEY>`
@@ -27,9 +27,9 @@ OPENAI_MAX_COMPLETION_TOKENS=32000
 **Supported Parameters** (⚠️ BREAKING CHANGES from GPT-4):
 ```javascript
 {
-  "model": "gpt-5",
+  "model": "gpt-5.1",
   "messages": [...],
-  "reasoning_effort": "minimal" | "low" | "medium" | "high",  // ✅ USE THIS
+  "reasoning_effort": "none" | "minimal" | "low" | "medium" | "high",  // ✅ USE THIS
   "max_completion_tokens": 32000,
   "stream": true,
   "stop": [...],
@@ -37,28 +37,65 @@ OPENAI_MAX_COMPLETION_TOKENS=32000
 }
 ```
 
-**❌ DEPRECATED PARAMETERS** (GPT-5 does NOT support):
+**❌ DEPRECATED PARAMETERS** (GPT-5/5.1 do NOT support):
 - `temperature` → Use `reasoning_effort` instead
 - `top_p` → Use `reasoning_effort` instead
 - `frequency_penalty` → Not supported
 - `presence_penalty` → Not supported
 
-**Reasoning Effort Values**:
-- `minimal`: Fastest, no extended thinking
-- `low`: Light reasoning
-- `medium`: Balanced (default)
-- `high`: Deep analysis, slower but more thorough
+**Reasoning Effort Values** (GPT-5.1 adds "none" option):
+- `none`: **NEW** - No reasoning overhead, fastest response (use for simple queries)
+- `minimal`: Very light reasoning, near-instant
+- `low`: Light reasoning with minimal latency
+- `medium`: Balanced reasoning and speed (**RECOMMENDED DEFAULT**)
+- `high`: Deep analysis, slower but most thorough
 
-**Token Usage** (special for GPT-5):
+**Token Usage** (special for GPT-5/5.1):
 - Input tokens: Standard
 - Reasoning tokens: Internal chain-of-thought (counted separately, not billed)
 - Output tokens: Final response
 
 **Pricing**: $1.25 input / $10 output per million tokens
 
+**Use Cases**:
+- `none`: Simple tasks, classification, formatting
+- `minimal`: Quick summaries, basic analysis
+- `low`: Standard chat, simple reasoning
+- `medium`: Strategic planning, tactical analysis (**Vecto Pilot default**)
+- `high`: Complex research, multi-step reasoning
+
 ---
 
-### Anthropic Claude Sonnet 4.5
+### OpenAI GPT-4.1 (Cost-Effective Alternative)
+**Status**: ✅ Production (November 2025)
+
+```env
+OPENAI_MODEL=gpt-4.1
+OPENAI_REASONING_EFFORT=medium
+```
+
+**API Details**:
+- **Model ID**: `gpt-4.1` (cost-effective GPT-4 successor)
+- **Context Window**: 128K tokens
+- **Pricing**: $0.50 input / $2.50 output per million tokens (60% cheaper than GPT-5.1)
+
+**When to Use**:
+- Budget-conscious deployments
+- High-volume requests where GPT-5.1 reasoning overhead not needed
+- Testing and development environments
+
+**Supported Parameters**: Same as GPT-5.1
+
+---
+
+### OpenAI GPT-5 (Legacy)
+**Status**: ⚠️ Use GPT-5.1 instead (October 2025)
+
+GPT-5.1 is a drop-in replacement with improved efficiency. Original GPT-5 supported but not recommended for new deployments.
+
+---
+
+### Anthropic Claude Sonnet 4.5 (RECOMMENDED)
 **Status**: ✅ Production (October 26, 2025)
 
 ```env
@@ -98,6 +135,28 @@ ANTHROPIC_TIMEOUT_MS=60000
 - **Vertex AI**: `claude-sonnet-4-5@20250929` (different format)
 - **AWS Bedrock**: `anthropic.claude-sonnet-4-5-20250929-v1:0` (global prefix)
 - **Native Anthropic**: `claude-sonnet-4-5-20250929` ✅ Use this
+
+---
+
+### Anthropic Claude Haiku 4.5 (Fast & Cheap)
+**Status**: ✅ Production (November 2025)
+
+```env
+ANTHROPIC_MODEL=claude-haiku-4-5-20251114
+```
+
+**API Details**:
+- **Model ID**: `claude-haiku-4-5-20251114`
+- **Context Window**: 200K tokens
+- **Pricing**: $0.80 input / $4.00 output per million tokens (95% cheaper than Sonnet 4.5)
+
+**When to Use**:
+- High-volume, low-latency tasks
+- Simple classification, formatting, validation
+- Cost-sensitive deployments
+- Real-time chat where speed > reasoning depth
+
+**Supported Parameters**: Same as Sonnet 4.5 (temperature, system prompt, tools)
 
 ---
 
@@ -177,10 +236,10 @@ GEMINI_API_KEY=<your_key>
 # Core Model Config
 # ===============================
 
-# OpenAI GPT-5
-OPENAI_MODEL=gpt-5
+# OpenAI GPT-5.1 (RECOMMENDED)
+OPENAI_MODEL=gpt-5.1
 OPENAI_API_KEY=<your_key>
-OPENAI_REASONING_EFFORT=high
+OPENAI_REASONING_EFFORT=medium
 OPENAI_MAX_COMPLETION_TOKENS=32000
 GPT5_TIMEOUT_MS=120000
 
@@ -216,10 +275,10 @@ VALIDATOR_DEADLINE_MS=60000
 **Code Pattern** (ALWAYS use env variables):
 ```javascript
 // ✅ CORRECT - Use environment variable
-const model = process.env.OPENAI_MODEL || "gpt-5";
+const model = process.env.OPENAI_MODEL || "gpt-5.1";
 
 // ❌ WRONG - Never hardcode
-const model = "gpt-5";
+const model = "gpt-5.1";
 ```
 
 ---
@@ -237,11 +296,11 @@ const model = "gpt-5";
 }
 ```
 
-**New (GPT-5)**:
+**New (GPT-5.1)**:
 ```javascript
 {
-  model: process.env.OPENAI_MODEL || "gpt-5",
-  reasoning_effort: process.env.OPENAI_REASONING_EFFORT || "high",
+  model: process.env.OPENAI_MODEL || "gpt-5.1",
+  reasoning_effort: process.env.OPENAI_REASONING_EFFORT || "medium",
   max_completion_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '32000')
 }
 ```
@@ -290,13 +349,13 @@ curl -X POST "https://api.anthropic.com/v1/messages" \
   }'
 ```
 
-**Test OpenAI GPT-5**:
+**Test OpenAI GPT-5.1**:
 ```bash
 curl -X POST "https://api.openai.com/v1/chat/completions" \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gpt-5",
+    "model": "gpt-5.1",
     "messages": [{"role": "user", "content": "Respond with: VERIFIED"}],
     "reasoning_effort": "medium",
     "max_completion_tokens": 100
