@@ -7,12 +7,12 @@ const { Pool } = pkg;
 
 // ROOT CAUSE FIX: The original Proxy approach broke Drizzle's synchronous method chaining
 // Drizzle expects: db.select().from().where() - all methods are synchronous builders
-// Solution: Use shared pool if enabled, otherwise create dedicated pool
+// Solution: Use shared pool (always enabled for production stability)
 let pool = getSharedPool();
 
 if (!pool) {
-  // Shared pool disabled - create dedicated pool for Drizzle
-  console.log('[drizzle] Creating dedicated pool (shared pool disabled)');
+  // Fallback: Only used if DATABASE_URL not set (development/testing edge case)
+  console.warn('[drizzle] Shared pool unavailable - creating fallback pool');
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 10,

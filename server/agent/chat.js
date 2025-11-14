@@ -2,12 +2,12 @@
 // Streaming chat endpoint for on-shift rideshare strategy coaching
 import express from "express";
 import { OpenAI } from "openai";
-import pg from "pg";
+import { getSharedPool } from '../db/pool.js';
 
 export const chatRouter = express.Router();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = getSharedPool();
 
 async function loadContext(userId) {
   // 1) latest snapshot (time/zone, gps, weather, aqi, airport, etc.)

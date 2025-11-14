@@ -7,7 +7,8 @@ if (!dsn) throw new Error("DATABASE_URL not set");
 let pool = getSharedPool();
 
 if (!pool) {
-  console.log('[memory] Using local pool (shared pool disabled)');
+  // Fallback: Only used if DATABASE_URL not set (development/testing edge case)
+  console.warn('[memory] Shared pool unavailable - creating fallback pool');
   pool = new Pool({
     connectionString: dsn,
     max: 20,

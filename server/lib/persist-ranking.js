@@ -1,8 +1,6 @@
 // server/lib/persist-ranking.js
-import pg from "pg";
-const pool = new pg.Pool({
-  connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL
-});
+import { getSharedPool } from '../db/pool.js';
+const pool = getSharedPool();
 
 export async function persistRankingTx({ snapshot_id, user_id, city, model_name, correlation_id, venues }) {
   const client = await pool.connect();
