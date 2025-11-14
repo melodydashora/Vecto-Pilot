@@ -17,7 +17,11 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
     };
 
     // o1 models and gpt-5 family use max_completion_tokens, other models use max_tokens
-    if (model.startsWith("o1-") || model.startsWith("gpt-5")) {
+    const isGPT5Family = model.startsWith("gpt-5");
+    const isO1Family = model.startsWith("o1-");
+    const useCompletionTokens = isGPT5Family || isO1Family;
+    
+    if (useCompletionTokens) {
       body.max_completion_tokens = maxTokens;
     } else {
       body.max_tokens = maxTokens;
@@ -30,7 +34,8 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
       body.temperature = temperature;
     }
 
-    console.log(`[model/openai] calling ${model} with max_tokens=${maxTokens}`);
+    const tokenParam = useCompletionTokens ? 'max_completion_tokens' : 'max_tokens';
+    console.log(`[model/openai] calling ${model} with ${tokenParam}=${maxTokens} (gpt-5-family=${isGPT5Family}, o1-family=${isO1Family})`);
 
     const res = await client.chat.completions.create(body);
 
