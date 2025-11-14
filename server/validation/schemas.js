@@ -106,11 +106,14 @@ export const newsBriefingSchema = z.object({
 
 // Helper: Format Zod errors into user-friendly messages
 export function formatZodError(error) {
-  if (!error?.errors) {
+  // Zod v4 uses 'issues', older versions used 'errors'
+  const issues = error?.issues || error?.errors || [];
+  
+  if (issues.length === 0) {
     return 'Validation failed';
   }
 
-  const messages = error.errors.map(err => {
+  const messages = issues.map(err => {
     const field = err.path.join('.');
     return `${field}: ${err.message}`;
   });
@@ -123,10 +126,11 @@ export function validateRequest(schema, data) {
   const result = schema.safeParse(data);
   
   if (!result.success) {
+    const issues = result.error?.issues || result.error?.errors || [];
     return {
       ok: false,
       error: formatZodError(result.error),
-      details: result.error.errors
+      details: issues
     };
   }
   
