@@ -5,7 +5,6 @@ import { Toaster } from '@/components/ui/toaster';
 import GlobalHeader from './components/GlobalHeader';
 import ErrorBoundary from './components/ErrorBoundary';
 import CoPilot from './pages/co-pilot';
-import BriefingPage from './pages/BriefingPage';
 import SafeScaffold from './pages/SafeScaffold';
 
 import './index.css';
@@ -44,17 +43,6 @@ function NavigationTabs() {
             data-testid="tab-copilot"
           >
             Copilot
-          </Link>
-          <Link
-            href="/briefing"
-            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              location === '/briefing'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-            data-testid="tab-briefing"
-          >
-            Briefing
           </Link>
         </nav>
       </div>
