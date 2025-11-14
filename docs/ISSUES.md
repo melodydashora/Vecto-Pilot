@@ -6313,3 +6313,122 @@ Test 4: Invalid UUID
 **Lines Added:** ~220  
 **Tests Passed:** 4/4 (validation logic working, response format issue noted)
 
+
+---
+
+## 📋 ISSUE #99: Database Migration Rollback Strategy
+
+**Severity:** LOW  
+**Impact:** Development workflow, disaster recovery  
+**Status:** ✅ DOCUMENTED (2025-11-14)  
+**Affected Components:** Database schema management
+
+### Current Approach
+
+**Schema Management:**
+- Using Drizzle ORM with `db:push` strategy (not migration files)
+- Schema defined in `shared/schema.ts`
+- Command: `npm run db:push` syncs schema to database
+- Force sync: `npm run db:push --force` for breaking changes
+
+**Rollback Strategy:**
+Vecto Pilot uses **Replit's built-in rollback system** instead of manual migration rollbacks:
+
+1. **Automatic Checkpoints**: Replit creates checkpoints during development
+2. **Database State**: Checkpoints include database snapshots
+3. **Code + DB Rollback**: Rolling back restores both code AND database state
+4. **User Control**: Rollback initiated via Replit UI
+
+### Why No Manual Migrations?
+
+**Advantages of Current Approach:**
+1. **Simplicity**: No migration file management
+2. **Speed**: Instant schema changes with `db:push`
+3. **Safety**: Replit checkpoints provide rollback capability
+4. **Integration**: Code and DB stay in sync via checkpoints
+
+**When This Works Well:**
+- Rapid development iterations
+- Small team (1-3 developers)
+- Replit-hosted infrastructure
+- Non-production database
+
+### Rollback Procedures
+
+**Scenario 1: Recent Bad Change (< 1 hour)**
+```bash
+# User clicks "View Checkpoints" in Replit UI
+# Selects checkpoint before bad change
+# Replit restores code + database state
+```
+
+**Scenario 2: Need to Revert Schema**
+```bash
+# Edit shared/schema.ts to previous state
+# Run: npm run db:push --force
+# Database schema reverted
+```
+
+**Scenario 3: Data Corruption**
+```bash
+# Use Replit rollback to restore database snapshot
+# Code automatically restored to matching state
+```
+
+### Future Recommendations
+
+**For Production Deployment:**
+1. Implement Drizzle migrations (`drizzle-kit generate`)
+2. Create `down` migrations for each schema change
+3. Store migrations in version control
+4. Test rollback procedures in staging
+5. Document critical migration points
+
+**Migration File Example:**
+```sql
+-- UP migration
+ALTER TABLE snapshots ADD COLUMN new_field VARCHAR(255);
+
+-- DOWN migration
+ALTER TABLE snapshots DROP COLUMN new_field;
+```
+
+**Production Rollback Process:**
+```bash
+# Generate migration
+npm run db:generate
+
+# Apply migration
+npm run db:migrate
+
+# Rollback (if needed)
+drizzle-kit drop --count=1
+```
+
+### Current Database State
+
+**External Database**: Neon PostgreSQL (non-Replit hosted)
+- Primary: Pooled connection (`DATABASE_URL`)
+- LISTEN/NOTIFY: Unpooled connection (`DATABASE_URL_UNPOOLED`)
+- Schema changes: Via `npm run db:push` from development environment
+- Production schema: Manually synced
+
+**Risk Assessment:**
+- ⚠️ No automated rollback for production database
+- ✅ Development database protected by Replit checkpoints
+- ⚠️ Schema changes require manual coordination
+
+### Resolution
+
+**Current State:** Development workflow uses Replit checkpoints for rollback. Production requires manual intervention.
+
+**Action Taken:** Documented rollback strategy and future migration recommendations.
+
+**Status:** DOCUMENTED (no code changes required)
+
+---
+
+**Documentation Date:** 2025-11-14  
+**Recommended Timeline for Migrations:** Before first production deployment  
+**Priority:** LOW (covered by Replit checkpoints in development)
+
