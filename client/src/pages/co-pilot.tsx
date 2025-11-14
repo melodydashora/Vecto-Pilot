@@ -167,13 +167,34 @@ const CoPilot: React.FC = () => {
   // Use override coords if available, otherwise GPS
   const coords = overrideCoords || gpsCoords;
   
-  // Listen for snapshot-saved event to gate blocks query
+  // Listen for snapshot-saved event to trigger waterfall and gate blocks query
   useEffect(() => {
-    const handleSnapshotSaved = (e: any) => {
+    const handleSnapshotSaved = async (e: any) => {
       const snapshotId = e.detail?.snapshotId;
       if (snapshotId) {
-        console.log("🎯 Co-Pilot: Snapshot ready, enabling blocks query:", snapshotId);
+        console.log("🎯 Co-Pilot: Snapshot ready, triggering waterfall:", snapshotId);
         setLastSnapshotId(snapshotId);
+        
+        // Trigger synchronous waterfall: providers → consolidation → blocks
+        // This POST blocks until all steps complete (35-50s total)
+        try {
+          console.log("🚀 Triggering POST /api/blocks-fast waterfall...");
+          const response = await fetch('/api/blocks-fast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ snapshotId })
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            console.error("❌ Waterfall failed:", error);
+          } else {
+            const result = await response.json();
+            console.log("✅ Waterfall complete:", result);
+          }
+        } catch (err) {
+          console.error("❌ Waterfall error:", err);
+        }
       }
     };
     window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
