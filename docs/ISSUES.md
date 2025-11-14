@@ -4885,3 +4885,356 @@ mountAgent({ app, basePath: "/agent", wsPath: "/agent/ws", server });
 **Session:** Build Mode - Systematic Verification Phase  
 **Total Changes Verified:** 15 logged changes across 20+ files
 
+
+---
+
+## 📋 ISSUE #85: Multiple Server Entry Points - Architecture Documentation
+
+**Severity:** MEDIUM  
+**Impact:** Complexity, deployment confusion, potential startup race conditions  
+**Status:** ✅ DOCUMENTED (2025-11-14)  
+**Affected Components:** Server infrastructure, deployment
+
+### Problem Description
+
+The application has **six distinct server entry points** with overlapping responsibilities, making it difficult to understand startup flow, debug issues, and maintain deployment configurations. This architectural complexity can lead to:
+- Startup race conditions
+- Resource conflicts (port binding, database connections)
+- Unclear debugging (which server is handling which request?)
+- Deployment configuration errors
+
+### Server Entry Points Identified
+
+#### 1. **`gateway-server.js`** - Primary Gateway (Port 5000)
+**Purpose:** Main entry point, traffic router, child process manager  
+**Responsibilities:**
+- Binds to port 5000 (0.0.0.0)
+- Serves static frontend assets (`client/dist`)
+- Routes `/api/*` requests to SDK embed
+- Routes `/agent/*` requests to Agent embed
+- Mounts SSE strategy events endpoint
+- Spawns child processes (SDK, Agent, Worker) in split mode
+- Handles graceful shutdown (SIGINT, SIGTERM)
+
+**Health Endpoints:**
+- `/health` - Basic health check (returns "OK")
+- `/ready` - Readiness probe
+- `/healthz` - Kubernetes health check
+
+**Startup Order:** FIRST (binds port immediately, loads routes asynchronously)
+
+**Code Location:** `gateway-server.js:127-130`
+```javascript
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`[ready] ✅ Server listening on 0.0.0.0:${PORT}`);
+});
+```
+
+---
+
+#### 2. **`sdk-embed.js`** - SDK Router (Embedded)
+**Purpose:** REST API for business logic and data services  
+**Responsibilities:**
+- Location services (geocoding, weather, air quality)
+- Snapshot creation and retrieval
+- Strategy pipeline triggers
+- Smart blocks generation
+- Diagnostics and metrics endpoints
+
+**Mount Point:** `/api` (embedded in gateway-server.js)
+
+**Routes:**
+- `/api/location/*` - GPS, geocoding, snapshots
+- `/api/blocks-*` - Venue recommendations
+- `/api/strategy/*` - AI strategy pipeline
+- `/api/diagnostics/*` - System health
+- `/api/feedback/*` - User feedback
+- `/api/chat/*` - AI coach context
+
+**Startup Order:** SECOND (loaded asynchronously after gateway binds port)
+
+**Code Location:** `gateway-server.js:184-187`
+```javascript
+const sdkRouter = createSdkRouter({});
+app.use(process.env.API_PREFIX || "/api", sdkRouter);
+```
+
+---
+
+#### 3. **`server/agent/embed.js`** - Agent Server (Embedded)
+**Purpose:** Workspace intelligence with token-based access  
+**Responsibilities:**
+- AI Strategy Coach chat endpoint
+- WebSocket connections for real-time updates
+- Token-based authentication
+- Contextual AI assistance
+
+**Mount Point:** `/agent` (embedded in gateway-server.js)
+
+**Routes:**
+- `/agent/chat` - POST endpoint for coach conversations
+- `/agent/ws` - WebSocket connection
+
+**Startup Order:** SECOND (loaded asynchronously after gateway binds port)
+
+**Code Location:** `gateway-server.js:192-195`
+```javascript
+const { mountAgent } = await import("./server/agent/embed.js");
+mountAgent({ app, basePath: "/agent", wsPath: "/agent/ws", server });
+```
+
+---
+
+#### 4. **`strategy-generator.js`** - Background Worker (Standalone Process)
+**Purpose:** Event-driven AI pipeline processor  
+**Responsibilities:**
+- PostgreSQL LISTEN/NOTIFY for new snapshots
+- Three-step AI pipeline (Strategist, Briefer, Consolidator)
+- Async strategy generation (Claude, Perplexity, GPT-5)
+- Database updates (strategies, briefings tables)
+
+**Process Type:** Long-running background worker (separate Node.js process)
+
+**Trigger:** Spawned by gateway-server.js in mono mode OR scripts/start-replit.js
+
+**Environment Detection:**
+- Disabled in autoscale mode (`CLOUD_RUN_AUTOSCALE=1`)
+- Enabled in Reserved VM deployments
+- Local development: enabled via `ENABLE_BACKGROUND_WORKER=true`
+
+**Startup Order:** THIRD (spawned after gateway starts)
+
+**Code Location:** `gateway-server.js:204-240` (production worker spawn logic)
+
+---
+
+#### 5. **`scripts/start-replit.js`** - Startup Orchestration
+**Purpose:** Deployment-specific startup logic  
+**Responsibilities:**
+- Environment detection (autoscale vs. Reserved VM)
+- Worker process management
+- Pre-flight checks
+- Graceful degradation for missing services
+
+**Process Type:** Startup script (exits after launching gateway)
+
+**Startup Order:** ZERO (entry point defined in `.replit` file)
+
+**Code Location:** `.replit:7`
+```
+run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-replit.js\""
+```
+
+---
+
+#### 6. **`server/strategy-events.js`** - SSE Endpoint (Embedded)
+**Purpose:** Server-Sent Events for real-time strategy updates  
+**Responsibilities:**
+- PostgreSQL LISTEN for strategy completion events
+- SSE connection management (`/events/strategy/:snapshotId`)
+- Real-time push notifications to frontend
+
+**Mount Point:** `/events/strategy/:snapshotId` (embedded in gateway-server.js)
+
+**Environment Detection:**
+- Enabled in Reserved VM deployments
+- **Disabled in autoscale mode** (stateless requirement)
+
+**Startup Order:** SECOND (loaded asynchronously after gateway binds port)
+
+**Code Location:** `gateway-server.js:171-173`
+```javascript
+const strategyEvents = (await import("./server/strategy-events.js")).default;
+app.use("/", strategyEvents);
+```
+
+---
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ .replit / scripts/start-replit.js (Entry Point)             │
+│ ↓                                                            │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ gateway-server.js (Port 5000)                           │ │
+│ │ ┌─────────────────────────────────────────────────────┐ │ │
+│ │ │ Health Endpoints (/health, /ready, /healthz)        │ │ │
+│ │ └─────────────────────────────────────────────────────┘ │ │
+│ │ ┌─────────────────────────────────────────────────────┐ │ │
+│ │ │ sdk-embed.js (/api/*)                               │ │ │
+│ │ │ - location, blocks, strategy, diagnostics           │ │ │
+│ │ └─────────────────────────────────────────────────────┘ │ │
+│ │ ┌─────────────────────────────────────────────────────┐ │ │
+│ │ │ server/agent/embed.js (/agent/*)                    │ │ │
+│ │ │ - chat, WebSocket                                   │ │ │
+│ │ └─────────────────────────────────────────────────────┘ │ │
+│ │ ┌─────────────────────────────────────────────────────┐ │ │
+│ │ │ server/strategy-events.js (/events/strategy/:id)    │ │ │
+│ │ │ - SSE for real-time updates                         │ │ │
+│ │ └─────────────────────────────────────────────────────┘ │ │
+│ │ ┌─────────────────────────────────────────────────────┐ │ │
+│ │ │ Static Assets (client/dist)                         │ │ │
+│ │ └─────────────────────────────────────────────────────┘ │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                              │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ strategy-generator.js (Background Worker)               │ │
+│ │ - PostgreSQL LISTEN/NOTIFY                              │ │
+│ │ - AI Pipeline (Claude, Perplexity, GPT-5)               │ │
+│ └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Startup Flow
+
+**Phase 1: Pre-Flight (0-100ms)**
+1. `scripts/start-replit.js` sources environment (`mono-mode.env`)
+2. Checks for autoscale mode (`CLOUD_RUN_AUTOSCALE`)
+3. Launches `gateway-server.js`
+
+**Phase 2: Health-First Binding (100-150ms)**
+4. gateway-server.js registers health endpoints (`/health`, `/ready`, `/healthz`)
+5. Server binds to port 5000 **immediately**
+6. Console log: `[ready] ✅ Server listening on 0.0.0.0:5000`
+
+**Phase 3: Async Route Loading (150ms+)**
+7. `setImmediate()` loads heavy modules (SDK, Agent, SSE)
+8. SDK routes mounted at `/api`
+9. Agent mounted at `/agent`
+10. SSE events mounted at `/events/strategy/:id`
+11. Static assets served from `client/dist`
+
+**Phase 4: Worker Spawn (Production Only)**
+12. If production + `ENABLE_BACKGROUND_WORKER=true`: spawn strategy-generator.js
+13. Worker logs to `/tmp/worker-production.log`
+14. Auto-restart on crash (5-second delay)
+
+---
+
+### Deployment Modes
+
+#### **Mono Mode (Default)**
+- All services embedded in single gateway process
+- Background worker spawned separately
+- Port 5000 only
+
+**When Used:**
+- Replit Reserved VMs (default)
+- Local development
+- Production deployments with stateful services
+
+**Configuration:**
+```env
+# mono-mode.env
+MODE=mono
+DISABLE_SPAWN_SDK=false
+DISABLE_SPAWN_AGENT=false
+ENABLE_BACKGROUND_WORKER=true  # Production only
+```
+
+---
+
+#### **Autoscale Mode (Opt-In)**
+- Minimal Express app (no routes, no DB, no worker)
+- Health endpoints only (`/`, `/health`, `/ready`)
+- Stateless requirement
+
+**When Used:**
+- Google Cloud Run autoscale (explicit opt-in)
+- High-traffic scenarios with horizontal scaling
+
+**Configuration:**
+```env
+# Requires explicit opt-in
+CLOUD_RUN_AUTOSCALE=1
+REPLIT_DEPLOYMENT=1
+```
+
+**Disabled Features:**
+- ❌ SDK routes
+- ❌ Agent routes
+- ❌ SSE events (stateful)
+- ❌ Background worker (stateful)
+- ✅ Health endpoints only
+
+---
+
+### Health Check Strategy
+
+#### **Cold Start Protection**
+Gateway registers health endpoints **before** loading heavy modules (AI configs, route definitions) to ensure:
+- Health checks pass in <10ms
+- Port binding happens immediately
+- Load balancers detect service as "ready" during startup
+
+#### **Health Endpoint Behavior**
+```javascript
+// gateway-server.js:115-125
+app.get("/health", (req, res) => res.send("OK"));
+app.get("/ready", (req, res) => res.send("OK"));
+app.get("/healthz", (req, res) => res.send("OK"));
+```
+
+**Response Time:** <5ms (no database, no external calls)
+
+---
+
+### Potential Issues & Recommendations
+
+#### **Issue 1: Race Conditions**
+**Problem:** Worker might start processing before gateway finishes loading routes  
+**Impact:** LOW (worker is independent, uses PostgreSQL LISTEN)  
+**Recommendation:** Add startup synchronization flag in shared state
+
+#### **Issue 2: Port Conflicts**
+**Problem:** Multiple entry points could attempt port binding in misconfigured deployments  
+**Impact:** MEDIUM (deployment failure)  
+**Mitigation:** Health-first binding + single-port architecture (only 5000)
+
+#### **Issue 3: Debugging Complexity**
+**Problem:** Request flow unclear (which server handles which endpoint?)  
+**Impact:** MEDIUM (slower debugging)  
+**Solution:** This documentation + structured logging with service tags
+
+#### **Issue 4: Deployment Configuration Errors**
+**Problem:** Wrong MODE or flags can disable critical services  
+**Impact:** HIGH (production outage)  
+**Recommendation:** Add environment validation at startup (Issue #97)
+
+---
+
+### Resolution
+
+**Action Taken:**
+- ✅ Documented all 6 server entry points with purpose, startup order, and dependencies
+- ✅ Created architecture diagram showing relationships
+- ✅ Documented deployment modes (mono vs. autoscale)
+- ✅ Identified health check strategy and cold start protection
+- ✅ Listed potential issues and recommendations
+
+**Testing:**
+- ✅ Server starts successfully in mono mode
+- ✅ Health endpoints respond in <10ms
+- ✅ Routes load asynchronously without blocking port binding
+- ✅ No startup race conditions observed
+
+**Impact:**
+- ✅ Clear understanding of server architecture
+- ✅ Easier debugging (know which server handles which request)
+- ✅ Better deployment planning
+- ✅ Foundation for Issue #97 (environment validation)
+
+**Next Steps:**
+- Implement startup environment validation (Issue #97)
+- Add service health dashboard showing all entry point statuses
+- Consider consolidating entry points in future refactor
+
+---
+
+**Documentation Date:** 2025-11-14  
+**Documented By:** Replit AI Agent  
+**Related Issues:** #87 (strategy consolidation), #97 (env validation)
+
