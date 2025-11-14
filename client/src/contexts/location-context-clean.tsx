@@ -474,6 +474,24 @@ export function LocationProvider({ children }: LocationProviderProps) {
                 })
               );
               console.log("✅ Snapshot complete and ready! ID:", snapshotId);
+            } else {
+              // ISSUE #62 FIX: Handle snapshot creation failure
+              const errorData = await snapshotResponse.json().catch(() => ({ error: 'unknown' }));
+              console.error("❌ Snapshot creation failed:", {
+                status: snapshotResponse.status,
+                error: errorData
+              });
+              
+              // Set error state to prevent GPS refresh loop
+              setLocationState((prev: any) => ({
+                ...prev,
+                isUpdating: false,
+                isLoading: false,
+                error: `Snapshot creation failed: ${errorData.message || errorData.error || 'Unknown error'}`
+              }));
+              
+              // Stop further processing - don't dispatch events or start strategy pipeline
+              return;
             }
             
             // Broadcast snapshot event for other components
