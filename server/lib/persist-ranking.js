@@ -4,6 +4,13 @@ const pool = getSharedPool();
 
 export async function persistRankingTx({ snapshot_id, user_id, city, model_name, correlation_id, venues }) {
   const client = await pool.connect();
+  
+  // Add error handler to prevent unhandled errors crashing the process
+  const errorHandler = (err) => {
+    console.error(`[persist-ranking] Client error (${correlation_id}):`, err.message);
+  };
+  client.on('error', errorHandler);
+  
   try {
     await client.query("BEGIN");
     console.log(`🔐 [${correlation_id}] BEGIN TRANSACTION`);
@@ -97,6 +104,7 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
     console.error(`❌ [${correlation_id}] ROLLBACK - Transaction failed:`, e.message);
     throw e;
   } finally {
+    client.removeListener('error', errorHandler);
     client.release();
   }
 }
