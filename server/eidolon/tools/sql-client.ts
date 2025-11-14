@@ -32,6 +32,13 @@ export class SQLClient {
 
   async query(sql: string, params?: any[]): Promise<QueryResult> {
     const client = await this.pool.connect();
+    
+    // Add error handler to prevent unhandled errors crashing the process
+    const errorHandler = (err: Error) => {
+      console.error('[sql-client] Client error:', err.message);
+    };
+    client.on('error', errorHandler);
+    
     try {
       const result = await client.query(sql, params);
       return {
@@ -40,6 +47,7 @@ export class SQLClient {
         command: result.command
       };
     } finally {
+      client.removeListener('error', errorHandler);
       client.release();
     }
   }
