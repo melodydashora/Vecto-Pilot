@@ -201,15 +201,62 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
               user_id: null
             });
             console.log(`[blocks-fast POST] ✅ Synchronous waterfall complete`);
+            
+            // Return success immediately after waterfall completes
+            return sendOnce(200, {
+              status: 'ok',
+              snapshot_id: snapshotId,
+              blocks: [],
+              message: 'Smart blocks generated successfully'
+            });
+          } else {
+            console.error(`[blocks-fast POST] ❌ Consolidation failed - no consolidated_strategy`);
+            return sendOnce(500, {
+              error: 'consolidation_failed',
+              message: 'Strategy consolidation did not produce output'
+            });
           }
+        } else {
+          console.error(`[blocks-fast POST] ❌ Providers failed - missing required data`);
+          return sendOnce(500, {
+            error: 'providers_failed',
+            message: 'One or more AI providers did not complete successfully'
+          });
         }
       } else {
-        console.log(`[blocks-fast POST] Job already queued for ${snapshotId}`);
+        // Job already exists - check if blocks are ready
+        console.log(`[blocks-fast POST] Job already queued for ${snapshotId}, checking for existing blocks...`);
+        
+        const [existing] = await db.select().from(ranking_candidates)
+          .where(eq(ranking_candidates.snapshot_id, snapshotId))
+          .limit(1);
+        
+        if (existing) {
+          return sendOnce(200, {
+            status: 'ok',
+            snapshot_id: snapshotId,
+            blocks: [],
+            message: 'Smart Blocks ready - use GET /api/blocks-fast to retrieve'
+          });
+        } else {
+          return sendOnce(202, {
+            status: 'pending',
+            snapshot_id: snapshotId,
+            blocks: [],
+            message: 'Smart Blocks generating - they will appear automatically when ready'
+          });
+        }
       }
     } catch (jobErr) {
       console.error(`[blocks-fast POST] Waterfall error:`, jobErr.message);
+      return sendOnce(500, {
+        error: 'waterfall_failed',
+        message: jobErr.message,
+        details: process.env.NODE_ENV === 'development' ? jobErr.stack : undefined
+      });
     }
 
+    // OLD CODE BELOW - NEVER REACHED (waterfall returns above)
     // ============================================
     // STEP 1: Load snapshot (REQUIRED for origin coords)
     // ============================================
