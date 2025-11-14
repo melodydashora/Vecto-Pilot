@@ -1,6 +1,7 @@
 # AI Model Reference - Production Configuration
-**Last Updated**: October 26, 2025  
-**Research Source**: Perplexity AI via `tools/research/model-discovery.mjs`
+**Last Updated**: November 14, 2025  
+**Research Source**: Perplexity AI via `tools/research/model-discovery.mjs`  
+**SDK Versions**: OpenAI v6.0.0, Anthropic v0.68.1, Google AI v0.28.0
 
 ---
 
@@ -374,6 +375,38 @@ Key sources:
    - Model ID: `claude-sonnet-4-5-20250929` confirmed working
    - 1M context window confirmed
    - Adapter using env variable: `ANTHROPIC_MODEL`
+
+---
+
+## ✅ November 2025 SDK Update Verification
+
+**Update Date**: November 14, 2025
+
+All SDKs updated to latest versions with breaking changes verified:
+
+### SDK Versions Tested
+- **OpenAI SDK**: v4.72.0 → v6.0.0 ✅
+  - Breaking: API structure changes handled in adapters
+  - GPT-5 `reasoning_effort` parameter confirmed working
+  - `max_completion_tokens` for o1/GPT-5 models confirmed
+
+- **Anthropic SDK**: v0.34.0 → v0.68.1 ✅
+  - Breaking: None identified in production code
+  - Claude Sonnet 4.5 (`claude-sonnet-4-5-20250929`) confirmed working
+  - Standard parameters (temperature, max_tokens, system) all supported
+
+- **Google Generative AI SDK**: v0.21.0 → v0.28.0 ✅
+  - Breaking: None identified in production code
+  - Gemini 2.5 Pro confirmed working
+  - Content structure (contents/parts) unchanged
+
+### Testing Results
+- ✅ Client build successful (Vite + React 19)
+- ✅ Server startup successful (Express + Node 22)
+- ✅ No runtime errors in browser console
+- ✅ All API adapters functional with updated SDKs
+
+**Change Tracking**: All updates logged in `agent_changes` database table via `scripts/log-agent-change.js`
 
 ---
 
