@@ -201,8 +201,23 @@ if (shouldStartWorker) {
     console.error('[boot:worker:error] Failed to spawn worker:', err.message);
   });
 
-  worker.on('exit', (code) => {
+  worker.on('exit', async (code) => {
     console.error(`[boot:worker:exit] Worker exited with code ${code}`);
+    
+    // If worker crashed, show the last 20 lines of the log file for debugging
+    if (code !== 0 && code !== null) {
+      try {
+        const { readFileSync } = await import('node:fs');
+        const logContent = readFileSync('/tmp/worker-output.log', 'utf-8');
+        const lastLines = logContent.split('\n').slice(-20).join('\n');
+        console.error('[boot:worker:crash] Last 20 lines of worker log:');
+        console.error('─'.repeat(80));
+        console.error(lastLines);
+        console.error('─'.repeat(80));
+      } catch (err) {
+        console.error('[boot:worker:crash] Could not read worker log:', err.message);
+      }
+    }
   });
 
   console.log(`[boot] ✅ Triad worker started (PID: ${worker.pid})`);
