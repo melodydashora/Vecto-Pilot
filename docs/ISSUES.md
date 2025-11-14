@@ -2485,12 +2485,278 @@ router.get('/health', (req, res) => {
 ---
 
 **Report Generated:** 2025-01-23  
-**Updated:** 2025-01-24T00:00:00Z  
+**Updated:** 2025-11-14T16:45:00Z  
 **Test Execution:** 2025-10-24T02:23:00Z - 2025-10-24T03:05:00Z  
 **Analyst:** AI Code Review System  
 **Repository Version:** Current main branch  
 **Lines of Code Analyzed:** ~15,000+  
-**New Issues Added:** 17 (Issues #84-#100)
+**New Issues Added:** 18 (Issues #84-#100, #104)
+
+---
+
+## 🔴 NEW CRITICAL ISSUE - DEPLOYMENT BUILD FAILURE
+
+### ISSUE #104: Deployment Build Failure - esbuild Version Conflict (CRITICAL)
+
+**Severity:** P0 - CRITICAL (Blocks Production Deployment)  
+**Impact:** Cannot deploy to production, builds fail at package installation stage  
+**Status:** 🔴 ACTIVE - Blocking all deployments  
+**Discovered:** 2025-11-14T16:30:00Z  
+**Category:** Build System / Dependency Management
+
+#### Problem Description
+
+The deployment build process fails during the `npm ci` step due to an esbuild version mismatch between direct dependencies and sub-dependencies.
+
+**Deployment Error Message:**
+```
+npm install failed due to esbuild version mismatch: 
+tsx package expects esbuild 0.25.12 but got 0.27.0
+
+The build command 'npm ci --omit=dev && npm run build:client' 
+cannot complete because package installation fails during the 'npm ci' step
+
+Dependency resolution conflict in node_modules/tsx/node_modules/esbuild 
+prevents successful installation
+```
+
+**Build Command That Failed:**
+```bash
+npm ci --omit=dev && npm run build:client
+```
+
+#### Root Cause Analysis
+
+**1. Version Conflict in package.json:**
+- Direct dependency: `"esbuild": "^0.27.0"`
+- tsx sub-dependency requires: `esbuild@0.25.12`
+- These versions are incompatible
+
+**2. package-lock.json State:**
+- Lockfile was generated with esbuild 0.27.0
+- tsx installation requires exact version 0.25.12
+- `npm ci` enforces strict lockfile adherence (unlike `npm install`)
+
+**3. Deployment vs Local Environment:**
+- **Local:** `npm install` may resolve conflicts with workarounds
+- **Deployment:** `npm ci` is stricter and requires exact lockfile match
+- `npm ci` deletes node_modules and does fresh install from lockfile only
+
+**4. tsx Package Constraint:**
+```json
+// tsx's package.json (implicit requirement)
+"peerDependencies": {
+  "esbuild": "0.25.12"  // or similar constraint
+}
+```
+
+#### Evidence
+
+**From package.json:**
+```json
+{
+  "devDependencies": {
+    "tsx": "^4.20.6",  // requires esbuild 0.25.12
+    "typescript": "^5.9.2",
+    "esbuild": "^0.27.0"  // conflicts with tsx requirement
+  }
+}
+```
+
+**From Deployment Logs:**
+- Build fails at `npm ci` step before reaching `npm run build:client`
+- No client bundle created
+- Deployment cannot proceed
+
+#### Impact Assessment
+
+**Deployment Impact:**
+- ❌ All production deployments fail immediately
+- ❌ Cannot build client bundle
+- ❌ Cannot run deployment health checks
+- ❌ No way to push code to production
+- ❌ Users cannot access new features/fixes
+
+**Development Impact:**
+- ⚠️ Local development may work (using `npm install`)
+- ⚠️ Inconsistency between dev and prod environments
+- ⚠️ Developers may not detect issue until deployment
+
+#### Why Standard Fixes Don't Work
+
+**1. Cannot use `npm install` in deployment:**
+- Deployment requires `npm ci` for reproducibility
+- `npm install` would work locally but deployment enforces `npm ci`
+
+**2. Cannot edit package-lock.json manually:**
+- Must be generated programmatically
+- Manual edits break npm's integrity checks
+- Deployment will reject manually edited lockfiles
+
+**3. Cannot skip version checks:**
+- `npm ci` enforces strict version matching
+- No `--legacy-peer-deps` flag will help with direct dependency conflict
+- Deployment build system doesn't support override flags
+
+**4. Cache clearing doesn't help:**
+- Agent suggested: `npm cache clean --force && npm ci`
+- This won't fix the core version conflict
+- Root cause is package.json/lockfile mismatch, not cache corruption
+
+#### Resolution Options
+
+**Option A: Downgrade esbuild to match tsx requirement (RECOMMENDED)**
+```json
+// package.json
+"devDependencies": {
+  "esbuild": "^0.25.12",  // changed from 0.27.0
+  "tsx": "^4.20.6",
+  "typescript": "^5.9.2"
+}
+```
+
+**Rationale:**
+- tsx is actively used (tsconfig.agent.json, agent build scripts)
+- esbuild 0.25.12 is stable and well-tested
+- Minimal risk of breaking other dependencies
+- Clear dependency tree
+
+**Steps to implement:**
+1. Edit package.json: change esbuild from ^0.27.0 to ^0.25.12
+2. Delete package-lock.json
+3. Run `npm install` to regenerate lockfile
+4. Commit both package.json and package-lock.json
+5. Push and deploy
+
+---
+
+**Option B: Upgrade tsx to version compatible with esbuild 0.27.0**
+```json
+// package.json  
+"devDependencies": {
+  "tsx": "^5.0.0",  // hypothetical newer version
+  "esbuild": "^0.27.0"
+}
+```
+
+**Risks:**
+- tsx 5.x may not exist or may have breaking changes
+- Would need to verify tsx 5.x supports esbuild 0.27.0
+- May require code changes for API compatibility
+
+---
+
+**Option C: Remove direct esbuild dependency**
+```json
+// package.json - remove esbuild line
+"devDependencies": {
+  "tsx": "^4.20.6",  // let tsx manage esbuild version
+  "typescript": "^5.9.2"
+}
+```
+
+**Risks:**
+- esbuild may be used directly elsewhere in codebase
+- Loss of explicit version control
+- Implicit dependency on tsx's esbuild choice
+
+---
+
+**Option D: Use npm overrides (npm 8.3.0+)**
+```json
+// package.json
+"overrides": {
+  "esbuild": "0.25.12"
+}
+```
+
+**Risks:**
+- Requires npm 8.3.0 or higher
+- May not be supported in all deployment environments
+- Can mask underlying compatibility issues
+
+#### Files Affected
+
+- `package.json` - Contains conflicting esbuild version specification
+- `package-lock.json` - Locked to incompatible dependency state
+- Deployment build pipeline - Fails before reaching build step
+- All production deployments - Blocked until resolved
+
+#### Verification Steps (Post-Fix)
+
+To verify the fix works:
+1. ✅ Run `npm ci --omit=dev` locally - should complete without errors
+2. ✅ Run `npm run build:client` - should complete successfully
+3. ✅ Trigger deployment - build should succeed
+4. ✅ Application starts in production environment
+5. ✅ No esbuild-related errors in deployment logs
+
+#### Prevention Strategies
+
+**Immediate:**
+1. Add pre-commit hook to validate `npm ci` works
+2. Document deployment build requirements
+3. Test deployment build locally before pushing
+
+**Long-term:**
+1. Use exact versions (no ^) for critical build dependencies
+2. Add CI check that runs `npm ci` before allowing merges
+3. Implement deployment preview environment for testing
+4. Add automated dependency conflict detection
+
+#### Technical Details
+
+**Why This Wasn't Caught Earlier:**
+
+1. **Local Development Masks Issue:**
+   - `npm install` can work around conflicts with nested dependencies
+   - Existing node_modules may contain compatible versions
+   - Developers don't use `npm ci` regularly
+
+2. **Lockfile Committed in Broken State:**
+   - package-lock.json was generated with incompatible versions
+   - Version control accepted the inconsistent state
+   - No pre-commit validation of lockfile integrity
+
+3. **Deployment Environment Difference:**
+   - Deployment uses `npm ci` (strict mode)
+   - Development uses `npm install` (flexible mode)
+   - Different dependency resolution algorithms
+
+**Why `npm ci` is Stricter:**
+
+- `npm ci` removes existing node_modules entirely
+- Installs exactly what's in package-lock.json (no updates)
+- Fails if package.json and package-lock.json are out of sync
+- Used in CI/CD for reproducible builds
+
+**Deployment Build Sequence:**
+```bash
+# 1. Cache clean (doesn't fix version conflicts)
+npm cache clean --force
+
+# 2. Install dependencies (FAILS HERE)
+npm ci --omit=dev
+
+# 3. Build client (never reached)
+npm run build:client
+```
+
+#### Summary
+
+**Issue Type:** Dependency Version Conflict  
+**Blocking:** All Production Deployments  
+**Root Cause:** esbuild 0.27.0 incompatible with tsx's esbuild 0.25.12 requirement  
+**Required Action:** Regenerate package-lock.json with compatible versions  
+**Recommended Fix:** Option A (downgrade esbuild to 0.25.12)  
+**Estimated Fix Time:** 5 minutes  
+**Risk Level:** LOW (straightforward dependency fix)  
+**Priority:** IMMEDIATE (blocking production)
+
+**Status:** 🔴 UNFIXED - Awaiting approval to implement resolution  
+**Next Action:** Apply Option A fix and verify deployment succeeds
+
+---
 
 ---
 
