@@ -11,6 +11,8 @@ import { runBriefing } from '../lib/providers/briefing.js';
 import { runHolidayCheck } from '../lib/providers/holiday-checker.js';
 import { safeElapsedMs } from './utils/safeElapsedMs.js';
 import crypto from 'crypto';
+import { validateBody } from '../middleware/validate.js';
+import { strategyRequestSchema } from '../validation/schemas.js';
 
 export const router = Router();
 
@@ -57,7 +59,7 @@ router.get('/strategy/:snapshotId', async (req, res) => {
 });
 
 /** POST /api/strategy/seed  { snapshot_id } */
-router.post('/strategy/seed', async (req, res) => {
+router.post('/strategy/seed', validateBody(strategyRequestSchema), async (req, res) => {
   const { snapshot_id } = req.body || {};
   
   if (!snapshot_id) {

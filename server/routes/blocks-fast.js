@@ -12,6 +12,8 @@ import { rerankCandidates } from '../lib/fast-tactical-reranker.js';
 import { persistRankingTx } from '../lib/persist-ranking.js';
 import { generateVenueCoordinates } from '../lib/gpt5-venue-generator.js';
 import { isStrategyReady } from '../lib/strategy-utils.js';
+import { validateBody, validateQuery } from '../middleware/validate.js';
+import { blocksRequestSchema, snapshotIdQuerySchema } from '../validation/schemas.js';
 
 const router = Router();
 
@@ -110,7 +112,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
   const wallClockStart = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
   
