@@ -265,7 +265,7 @@ ${geminiNewsAvailable ? `GEMINI NEWS BRIEFING:\n${geminiBriefingStr}` : 'No news
 Consolidate these into a single strategy that naturally integrates the news intelligence (if any) into Claude's strategic analysis. Keep the same opening format and tone.`;
 
     const gpt5Payload = {
-      model: process.env.OPENAI_MODEL || "gpt-5",
+      model: process.env.OPENAI_MODEL || "gpt-5.1",
       system: gpt5SystemPrompt,
       user: gpt5UserPrompt,
       max_completion_tokens: 2000,

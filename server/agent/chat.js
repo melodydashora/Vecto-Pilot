@@ -146,7 +146,7 @@ chatRouter.post("/api/chat", async (req, res) => {
     res.setHeader("connection", "keep-alive");
 
     const stream = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || process.env.GPT_MODEL || "gpt-5",
+      model: process.env.OPENAI_MODEL || process.env.GPT_MODEL || "gpt-5.1",
       max_completion_tokens: 1024,
       stream: true,
       messages,

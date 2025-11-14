@@ -16,7 +16,7 @@ const OPENAI_URL    = "https://api.openai.com/v1/chat/completions";
 const GEMINI_URL    = (m) => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
 
 const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929";
-const GPT5_MODEL   = process.env.OPENAI_MODEL || "gpt-5";
+const GPT5_MODEL   = process.env.OPENAI_MODEL || "gpt-5.1";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-pro";
 
 router.post("/api/blocks-triad", async (req, res) => {
