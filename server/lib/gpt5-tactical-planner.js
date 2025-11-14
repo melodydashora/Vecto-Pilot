@@ -220,7 +220,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
       best_staging_location: validated.best_staging_location || null,
       tactical_summary: validated.tactical_summary,
       metadata: {
-        model: process.env.OPENAI_MODEL || "gpt-5",
+        model: process.env.OPENAI_MODEL || "gpt-5.1",
         duration_ms: duration,
         venues_recommended: validated.recommended_venues.length,
         validation_passed: true
