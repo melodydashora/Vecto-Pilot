@@ -26,17 +26,18 @@ export function validate(schema, source = 'body') {
 
     if (!result.success) {
       const errorMessage = formatZodError(result.error);
-      const errors = result.error?.errors || [];
+      // Zod v4 uses 'issues', older versions used 'errors'
+      const issues = result.error?.issues || result.error?.errors || [];
       
       console.warn(`[validation] ${req.method} ${req.path} failed:`, {
         source,
-        errors
+        issues
       });
 
       return res.status(400).json({
         error: 'validation_failed',
         message: errorMessage,
-        field_errors: errors.map(err => ({
+        field_errors: issues.map(err => ({
           field: err.path.join('.'),
           message: err.message,
           code: err.code
