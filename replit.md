@@ -152,3 +152,29 @@ Drizzle ORM was trying to explicitly insert the SQL keyword `DEFAULT` as a bound
 
 See WATERFALL_FIX_SUMMARY.md for complete technical documentation.
 
+### BriefingPage Removal & Event Listener Cleanup ✅
+
+**Problem**: Production showing old Smart Blocks data, waterfall not triggering for new snapshots.
+
+**Investigation Findings**:
+1. **Duplicate Event Listener**: BriefingPage.tsx had its own `vecto-snapshot-saved` listener that competed with co-pilot.tsx
+2. **Duplicate POST Calls**: Two separate triggers for the pipeline:
+   - location-context-clean.tsx line 448: `POST /api/blocks` (old endpoint)
+   - co-pilot.tsx line 182: `POST /api/blocks-fast` (new endpoint)
+3. **Root Cause**: No new snapshots being created in production because GPS coordinates not updating
+
+**Solution**:
+1. **Removed BriefingPage.tsx** entirely - eliminates duplicate event listener and unnecessary complexity
+2. **Removed briefing tab** from navigation in App.tsx
+3. Briefing data is already part of the strategy response, no need for separate page
+
+**Technical Notes**:
+- BriefingPage was listening to `vecto-snapshot-saved` but only updating local state (no waterfall trigger)
+- location-context-clean.tsx still has POST /api/blocks call (line 448) that may conflict with co-pilot.tsx POST /api/blocks-fast
+- Production issue is GPS coordinates not changing, not the event listeners themselves
+- Future: Consider consolidating to single waterfall trigger point
+
+**Files Modified**:
+- Deleted: `client/src/pages/BriefingPage.tsx`
+- Modified: `client/src/App.tsx` (removed import and navigation tab)
+
