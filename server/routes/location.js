@@ -11,6 +11,8 @@ import { uuidOrNull } from '../util/uuid.js';
 import { makeCircuit } from '../util/circuit.js';
 import { jobQueue } from '../lib/job-queue.js';
 import { generateNewsBriefing } from '../lib/gemini-news-briefing.js';
+import { validateBody, validateQuery } from '../middleware/validate.js';
+import { snapshotMinimalSchema, locationResolveSchema, newsBriefingSchema } from '../validation/schemas.js';
 
 const router = Router();
 
@@ -504,7 +506,7 @@ router.get('/airquality', async (req, res) => {
 // POST /api/location/snapshot
 // Save a context snapshot for ML/analytics (SnapshotV1 format)
 // Supports minimal mode: if only lat/lng provided, resolves city/timezone server-side
-router.post('/snapshot', async (req, res) => {
+router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) => {
   const reqId = crypto.randomUUID();
   res.setHeader('x-req-id', reqId);
 
@@ -963,7 +965,7 @@ router.get('/snapshot/latest', async (req, res) => {
 
 // POST /api/location/news-briefing
 // Generate local news briefing for rideshare drivers
-router.post('/news-briefing', async (req, res) => {
+router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res) => {
   try {
     const { latitude, longitude, address, city, state, radius = 10 } = req.body;
     
