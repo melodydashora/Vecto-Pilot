@@ -435,4 +435,17 @@ export const agent_changes = pgTable("agent_changes", {
   idxChangeType: sql`create index if not exists idx_agent_changes_type on ${table} (change_type)`,
 }));
 
+export const connection_audit = pgTable("connection_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  occurred_at: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  event: text("event").notNull(),
+  backend_pid: integer("backend_pid"),
+  application_name: text("application_name"),
+  reason: text("reason"),
+  deploy_mode: text("deploy_mode"),
+  details: jsonb("details"),
+}, (table) => ({
+  idxEventTime: sql`create index if not exists idx_connection_audit_event_time on ${table} (event, occurred_at desc)`,
+}));
+
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
