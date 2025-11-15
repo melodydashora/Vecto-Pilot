@@ -89,9 +89,7 @@ export async function runConsolidator(snapshotId) {
       snapshot_day_part: dayPart,
       snapshot_timezone: ctx.timezone,
       weather: ctx.weather,
-      air_quality: ctx.air,
-      strategist_model: process.env.STRATEGY_STRATEGIST || 'unknown',
-      consolidator_model: process.env.STRATEGY_CONSOLIDATOR || 'unknown'
+      air_quality: ctx.air
     };
     
     console.log(`[consolidator] 📊 GPT-5 will do briefing research + consolidation:`, inputMetrics);
@@ -259,21 +257,20 @@ ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
     // Step 7: Write only summary to consolidated_strategy (Co-Pilot page)
     const summary = parsedOutput.summary || consolidatedStrategy;
     
-    // METADATA TRACKING: Build model chain for traceability (2-step pipeline)
-    const modelChain = `${inputMetrics.strategist_model}→${inputMetrics.consolidator_model}`;
+    // METADATA TRACKING: model_name already set during strategy row creation
+    // DO NOT overwrite - it contains the full 3-step chain (strategist→briefer→consolidator)
     const totalDuration = Date.now() - startTime;
     
-    // Step 8: Write summary + metadata to strategies table
+    // Step 8: Write summary + status to strategies table (preserve model_name)
     await db.update(strategies).set({
       consolidated_strategy: summary,
       status: 'ok',
-      model_name: modelChain,
+      // REMOVED: model_name - already set during INSERT, must preserve full chain
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
     // OBSERVABILITY: Emit completion event with full metrics
     console.log(`[consolidator] ✅ Complete for ${snapshotId}`, {
-      model_chain: modelChain,
       summary_length: summary.length,
       tactical_traffic_length: parsedOutput.tactical_traffic?.length || 0,
       tactical_closures_length: parsedOutput.tactical_closures?.length || 0,
@@ -294,7 +291,6 @@ ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
         sources: parsedOutput.tactical_sources || ''
       },
       metrics: {
-        modelChain,
         summaryLength: summary.length,
         durationMs: totalDuration
       }
