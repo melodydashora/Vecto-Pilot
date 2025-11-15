@@ -5,6 +5,18 @@ Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximiz
 
 ## Recent Changes
 
+### November 15, 2025 - Neon Connection Resilience Pattern
+- **IMPLEMENTED**: Comprehensive Neon connection resilience to survive admin-terminated connections, autoscale events, and pool saturation
+- **Components Added**:
+  - `server/db/connection-manager.js`: Wraps pg.Pool with degradation state and auto-reconnect logic
+  - `server/logger/ndjson.js`: Structured NDJSON logging for connection lifecycle events
+  - `server/middleware/error-handler.js`: Express middleware for 503 responses during degradation
+  - `shared/schema.js`: Added `connection_audit` table for observability
+- **Health Endpoints Updated**: `/health` and `/ready` now check degradation state and return 503 during outages
+- **Pool Configuration**: Updated drizzle.js and pool.js to use wrapped pool from connection manager
+- **Error Handling**: Neon admin-terminated connections (error code 57P01) trigger exponential backoff retry (2s, 4s, 8s, 16s with jitter)
+- **Graceful Degradation**: Returns 503 responses during database outages, auto-recovers when connections restored
+
 ### November 15, 2025 - Production Venue Generation Fix
 - **FIXED**: Venue generation failing with "insert into rankings (created_at) values (default)" error
 - **Root Cause**: Outdated drizzle-orm package generating incorrect SQL for `.defaultNow()` timestamps
@@ -123,6 +135,18 @@ Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking
 ### Database
 -   **PostgreSQL (External - Non-Replit Hosted)**: Primary data store hosted externally (Neon), managed by Drizzle ORM.
 -   **Connection Modes**: Pooled (`DATABASE_URL`) for queries, Unpooled (`DATABASE_URL_UNPOOLED`) for LISTEN/NOTIFY.
+-   **Connection Resilience Pattern** (Added Nov 15, 2025):
+    - **Connection Manager**: Wraps pg.Pool with admin-termination detection and auto-reconnect logic (`server/db/connection-manager.js`)
+    - **Degradation State**: Graceful degradation with 503 responses during database outages (exponential backoff: 2s, 4s, 8s, 16s with jitter)
+    - **Health Endpoints**: `/health` and `/ready` return 503 when database is degraded, auto-recover when connections restored
+    - **Error Middleware**: Express middleware (`server/middleware/error-handler.js`) converts database errors to 503 responses
+    - **NDJSON Logging**: Structured logs for connection lifecycle events (error, reconnect, recover, degrade) via `server/logger/ndjson.js`
+    - **Observability**: `connection_audit` table tracks admin-terminated connections and reconnection events
+    - **Pool Configuration** (Environment Variables):
+      - `PG_MAX`: Maximum pool size (default: 10, recommended: 20 for Reserved VM with background worker)
+      - `PG_MIN`: Minimum pool size (default: 2, recommended: 5 for Reserved VM with background worker)
+      - `PG_IDLE_TIMEOUT_MS`: Idle connection timeout in milliseconds (default: 30000)
+    - **Neon-Specific Handling**: Detects Neon admin-terminated connections (error code 57P01) and retries with exponential backoff
 
 ### Infrastructure
 -   **Replit Platform**: Deployment, Nix environment, `.replit` configuration.
