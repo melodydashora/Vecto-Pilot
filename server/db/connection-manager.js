@@ -20,11 +20,55 @@ const cfg = {
   query_timeout: Number(process.env.DB__QUERY_TIMEOUT_MS || 4000), // pg client-side timeout
 };
 
-let pool = new Pool(cfg);
+let rawPool = new Pool(cfg);
 let degraded = false;
 let lastEvent = null;
 let reconnecting = false; // CRITICAL: Prevent race conditions
 let poolAlive = true; // CRITICAL: Prevent "Called end on pool more than once"
+
+// Wrap pool.connect() to add degradation checks for Drizzle ORM
+const originalConnect = rawPool.connect.bind(rawPool);
+rawPool.connect = async function() {
+  ndjson('pool.connect.intercepted', {
+    degraded,
+    poolAlive
+  });
+  
+  // CRITICAL: Fast-fail if degraded or pool is dead
+  if (degraded || !poolAlive) {
+    ndjson('pool.connect.rejected', { reason: degraded ? 'degraded' : 'pool_dead' });
+    const err = new Error('db_degraded');
+    err.status = 503;
+    throw err;
+  }
+  
+  ndjson('pool.connect.proceeding', {});
+  return originalConnect();
+};
+
+// Wrap pool.query() as well (for non-Drizzle queries)
+const originalQuery = rawPool.query.bind(rawPool);
+rawPool.query = function(text, params, callback) {
+  ndjson('pool.query.intercepted', {
+    degraded,
+    poolAlive
+  });
+  
+  if (degraded || !poolAlive) {
+    ndjson('pool.query.rejected', { reason: degraded ? 'degraded' : 'pool_dead' });
+    const err = new Error('db_degraded');
+    err.status = 503;
+    if (callback) {
+      callback(err);
+      return;
+    }
+    return Promise.reject(err);
+  }
+  return originalQuery(text, params, callback);
+};
+
+// Create pool reference (used throughout connection manager)
+let pool = rawPool;
 
 // CRITICAL: Catch errors on idle connections (Neon admin terminations)
 pool.on('error', (err, client) => {
@@ -118,7 +162,40 @@ async function reconnectWithBackoff() {
     ndjson('db.reconnect.attempt', { attempt, delay_ms: delay });
     await new Promise(r => setTimeout(r, delay));
     try {
-      pool = new Pool(cfg);
+      rawPool = new Pool(cfg);
+      
+      // Wrap pool.connect() for Drizzle ORM
+      const originalConnect = rawPool.connect.bind(rawPool);
+      rawPool.connect = async function() {
+        ndjson('pool.connect.intercepted', { degraded, poolAlive });
+        if (degraded || !poolAlive) {
+          ndjson('pool.connect.rejected', { reason: degraded ? 'degraded' : 'pool_dead' });
+          const err = new Error('db_degraded');
+          err.status = 503;
+          throw err;
+        }
+        ndjson('pool.connect.proceeding', {});
+        return originalConnect();
+      };
+      
+      // Wrap pool.query() for non-Drizzle queries
+      const originalQuery = rawPool.query.bind(rawPool);
+      rawPool.query = function(text, params, callback) {
+        ndjson('pool.query.intercepted', { degraded, poolAlive });
+        if (degraded || !poolAlive) {
+          ndjson('pool.query.rejected', { reason: degraded ? 'degraded' : 'pool_dead' });
+          const err = new Error('db_degraded');
+          err.status = 503;
+          if (callback) {
+            callback(err);
+            return;
+          }
+          return Promise.reject(err);
+        }
+        return originalQuery(text, params, callback);
+      };
+      
+      pool = rawPool;
       poolAlive = true; // Mark new pool as alive
       
       // Re-attach error handler to new pool instance
@@ -226,11 +303,19 @@ export async function safeQuery(text, params) {
 }
 
 export function getPool() {
+  // CRITICAL: Return the actual pool instance for Drizzle ORM
+  // Drizzle needs the real pool, not a wrapper object
+  // Fast-fail timeouts are configured in pool config (statement_timeout, query_timeout)
+  return pool;
+}
+
+export function getPoolWrapper() {
+  // Legacy wrapper for manual queries - use safeQuery() instead
   return {
     query: (text, params) => safeQuery(text, params),
     connect: async () => {
       // CRITICAL: Check degradation BEFORE attempting to connect
-      // This prevents Drizzle ORM from hanging when database is down
+      // This prevents manual queries from hanging when database is down
       if (degraded) {
         ndjson('pool.connect.rejected', {
           reason: 'degraded',
