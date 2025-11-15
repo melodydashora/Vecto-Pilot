@@ -102,14 +102,22 @@ export function healthRoutes(app) {
         timestamp: new Date().toISOString()
       });
     }
-    
-    // TEMPORARY: Skip database probe to allow server startup
-    // TODO: Fix pool.query() hanging issue
-    return res.json({ 
-      ok: true,
-      status: 'ready',
-      timestamp: new Date().toISOString(),
-      note: 'Database probe temporarily disabled'
-    });
+    try {
+      const pool = getSharedPool();
+      const result = await pool.query('SELECT 1');
+      
+      return res.json({ 
+        ok: true,
+        status: 'ready',
+        timestamp: new Date().toISOString()
+      });
+    } catch (e) {
+      return res.status(503).json({ 
+        status: 'not_ready',
+        reason: 'database_error',
+        error: e.message,
+        timestamp: new Date().toISOString()
+      });
+    }
   });
 }
