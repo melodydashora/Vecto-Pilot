@@ -106,11 +106,13 @@ process.on('unhandledRejection', (reason, promise) => {
     const isAutoscaleDeploy = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === "1";
     // IMPORTANT: Removed the root "/" override for autoscale mode
     // The root "/" should serve the actual app, not just "OK"
-    // Only health endpoints should return simple responses
-    app.get('/health', (_req, res) => res.status(200).send('OK'));
+    // Health endpoints with connection degradation detection
+    console.log("[gateway] Loading health endpoints with connection manager...");
+    const { healthRoutes } = await import("./server/routes/health.js");
+    healthRoutes(app);
     app.head('/health', (_req, res) => res.status(200).end());
-    app.get('/ready', (_req, res) => res.status(200).send('OK'));
     app.head('/ready', (_req, res) => res.status(200).end());
+    console.log("[gateway] ✅ Health endpoints configured");
     app.get("/healthz", (_req, res) => {
       const indexPath = path.join(distDir, "index.html");
       if (fs.existsSync(indexPath)) {
