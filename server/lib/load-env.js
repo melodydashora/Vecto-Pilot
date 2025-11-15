@@ -107,20 +107,31 @@ export function loadEnvironment() {
   // New contract-driven approach
   console.log(`[env-loader] DEPLOY_MODE=${deployMode}`);
 
-  // Step 1: Load shared.env (common variables)
+  // Step 1: Load shared.env (common variables - loaded FIRST as baseline)
   const sharedPath = path.join(rootDir, 'env/shared.env');
   if (loadEnvFile(sharedPath)) {
-    console.log('[env-loader] ✅ Loaded: env/shared.env');
+    console.log('[env-loader] ✅ Loaded: env/shared.env (baseline)');
   } else {
     console.error('[env-loader] ❌ FATAL: env/shared.env not found');
     process.exit(1);
   }
 
-  // Step 2: Load mode-specific env file
+  // Step 2: Load mode-specific env file (OVERRIDES shared values)
   const modeFile = `env/${deployMode}.env`;
   const modePath = path.join(rootDir, modeFile);
+  
+  // Force mode-specific values to override shared.env
+  // Delete conflicting keys before loading mode-specific file
+  const modeSpecificOverrides = ['PG_MAX', 'PG_MIN', 'PG_IDLE_TIMEOUT_MS', 'PG_CONNECTION_TIMEOUT_MS'];
+  const modeContent = fs.readFileSync(modePath, 'utf-8');
+  modeSpecificOverrides.forEach(key => {
+    if (modeContent.includes(`${key}=`)) {
+      delete process.env[key]; // Clear so mode-specific value can override
+    }
+  });
+  
   if (loadEnvFile(modePath)) {
-    console.log(`[env-loader] ✅ Loaded: ${modeFile}`);
+    console.log(`[env-loader] ✅ Loaded: ${modeFile} (overrides shared.env)`);
   } else {
     console.error(`[env-loader] ❌ FATAL: ${modeFile} not found`);
     console.error(`[env-loader]    Valid modes: webservice, worker`);
