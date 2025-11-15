@@ -2,17 +2,28 @@
 
 ## Critical Issues Fixed (Nov 2025)
 
-### 🔧 Venue Generation Database Bug
-**Issue**: Venue generation failing with `insert into "rankings" (created_at) values (default)` error in production.
+### 🔧 Production Deployment Configuration (Nov 15, 2025)
+**Issue**: Production deployment returning 404 - was using `mono-mode.env` instead of webservice mode.
 
-**Root Cause**: Outdated `drizzle-orm` package generating incorrect SQL for `.defaultNow()` timestamps. The ORM was trying to explicitly insert `DEFAULT` keyword instead of letting PostgreSQL use the column's default value.
+**Root Cause**: `.replit` deployment configuration was using local development settings (mono-mode with background workers) which is incompatible with Cloud Run autoscale.
 
 **Fix Applied**:
-1. Updated `drizzle-kit` to latest version: `npm install drizzle-kit@latest`
-2. This automatically updated `drizzle-orm` which fixed the `.defaultNow()` bug
-3. Removed duplicate route `POST /api/diagnostics/test-claude/:snapshotId` from `diagnostics.js` (kept the cleaner version in `diagnostics-strategy.js`)
+1. Updated `.replit` deployment run command to: `DEPLOY_MODE=webservice node gateway-server.js`
+2. Added missing Google API environment variables to `env/shared.env`
+3. Verified all Replit Secrets are configured (DATABASE_URL, AI keys, Google APIs)
+4. Confirmed `env/webservice.env` has correct autoscale settings (ENABLE_BACKGROUND_WORKER=false)
 
-**Verification**: Production venue generation now working - verified via browser console logs showing 6 blocks generated successfully.
+**Verification**: Local test with webservice mode shows correct environment loading and contract validation.
+
+### 🔧 Venue Generation Database Bug (Nov 15, 2025)
+**Issue**: Venue generation failing with `insert into "rankings" (created_at) values (default)` error.
+
+**Root Cause**: Outdated `drizzle-orm` package generating incorrect SQL for `.defaultNow()` timestamps.
+
+**Fix Applied**:
+1. Updated `drizzle-kit` to latest version
+2. This automatically updated `drizzle-orm` which fixed the `.defaultNow()` bug
+3. Removed duplicate route `POST /api/diagnostics/test-claude/:snapshotId` from `diagnostics.js`
 
 ---
 
