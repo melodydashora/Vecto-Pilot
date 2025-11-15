@@ -789,9 +789,14 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     console.log('  → local_news:', dbSnapshot.local_news ? dbSnapshot.local_news.summary?.slice(0, 100) + '...' : 'none');
     console.log('  → news_briefing:', dbSnapshot.news_briefing ? JSON.stringify(dbSnapshot.news_briefing.briefing?.driver_takeaway || dbSnapshot.news_briefing.briefing).slice(0, 150) + '...' : 'none');
     
-    await db.insert(snapshots).values(dbSnapshot);
-    
-    console.log('[Snapshot DB] ✅ Snapshot successfully written to database');
+    try {
+      await db.insert(snapshots).values(dbSnapshot);
+      console.log('[Snapshot DB] ✅ Snapshot successfully written to database');
+    } catch (dbError) {
+      console.error('[Snapshot DB] ❌ Database insert failed:', dbError);
+      console.error('[Snapshot DB] Failed snapshot data:', JSON.stringify(dbSnapshot, null, 2));
+      throw dbError;
+    }
 
     // Log travel disruptions for airports with delays (non-blocking)
     if (airportContext && airportContext.airport_code && (airportContext.delay_minutes || airportContext.closure_status !== 'open')) {
