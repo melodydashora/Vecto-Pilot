@@ -55,19 +55,20 @@ function loadEnvFile(filePath) {
  */
 function validateEnvContract() {
   const mode = process.env.DEPLOY_MODE || 'mono';
+  const isAutoscale = process.env.CLOUD_RUN_AUTOSCALE === '1';
   
-  // Webservice mode validation
-  if (mode === 'webservice') {
+  // Autoscale-specific validation (only applies when CLOUD_RUN_AUTOSCALE=1)
+  if (mode === 'webservice' && isAutoscale) {
     if (process.env.ENABLE_BACKGROUND_WORKER === 'true') {
-      console.error('❌ ENV CONTRACT VIOLATION: ENABLE_BACKGROUND_WORKER=true in webservice mode');
-      console.error('   Autoscale deployments cannot run background workers.');
-      console.error('   Use DEPLOY_MODE=worker for background processing.');
+      console.error('❌ ENV CONTRACT VIOLATION: ENABLE_BACKGROUND_WORKER=true in autoscale mode');
+      console.error('   Cloud Run Autoscale deployments cannot run background workers.');
+      console.error('   Use Reserved VM deployment or DEPLOY_MODE=worker for background processing.');
       process.exit(1);
     }
     
     if (process.env.USE_LISTEN_MODE === 'true') {
-      console.error('❌ ENV CONTRACT VIOLATION: USE_LISTEN_MODE=true in webservice mode');
-      console.error('   Webservice mode should not use LISTEN mode.');
+      console.error('❌ ENV CONTRACT VIOLATION: USE_LISTEN_MODE=true in autoscale mode');
+      console.error('   Autoscale mode should not use LISTEN mode.');
       process.exit(1);
     }
   }
