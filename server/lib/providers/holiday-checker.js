@@ -41,6 +41,8 @@ export async function runHolidayCheck(snapshotId) {
     console.log(`[holiday-check] 📅 Checking date: ${formattedDate}`);
     
     // Call Perplexity with focused holiday question
+    const model = process.env.STRATEGY_HOLIDAY_CHECKER || 'llama-3.1-sonar-small-128k-online';
+    
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -48,7 +50,7 @@ export async function runHolidayCheck(snapshotId) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.1-sonar-small-128k-online',
+        model: model,
         messages: [
           {
             role: 'system',
