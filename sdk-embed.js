@@ -1,8 +1,6 @@
 import express from "express";
 import healthRoutes from "./server/routes/health.js";
-import blocksRoutes from "./server/routes/blocks.js";
 import blocksFastRoutes from "./server/routes/blocks-fast.js";
-import blocksDiscoveryRoutes from "./server/routes/blocks-discovery.js";
 import locationRoutes from "./server/routes/location.js";
 import actionsRoutes from "./server/routes/actions.js";
 import researchRoutes from "./server/routes/research.js";
@@ -73,20 +71,8 @@ export default function createSdkRouter(opts = {}) {
   // Mount all SDK routes
   r.use('/health', healthRoutes);
   r.use('/healthz', healthRoutes);
-  r.use('/blocks-fast', blocksFastRoutes); // Fast tactical path (mounted before generic blocks)
+  r.use('/blocks-fast', blocksFastRoutes); // Fast tactical path (synchronous waterfall)
   r.use('/blocks', contentBlocksRoutes); // Structured content blocks (GET /blocks/strategy/:snapshotId)
-  // Async blocks retired - all blocks use fast synchronous path now
-  
-  // Force async blocks redirect (until client fully migrated to fast path)
-  r.post('/blocks', (req, res, next) => {
-    if (process.env.FORCE_ASYNC_BLOCKS === '1') {
-      return res.redirect(307, '/api/blocks/async');
-    }
-    next();
-  });
-  
-  r.use('/blocks', blocksRoutes); // Original synchronous POST /blocks (backward compat)
-  r.use('/blocks/discovery', blocksDiscoveryRoutes);
   r.use('/location', locationRoutes);
   r.use('/resolve', locationRoutes);
   r.use('/geocode', locationRoutes);
