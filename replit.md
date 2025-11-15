@@ -19,6 +19,15 @@ Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximiz
 
 ## Recent Changes
 
+### November 15, 2025 - Venue Sorting & Model-Agnostic Fixes
+- **FIXED**: Empty string `user_id` causing database insert failures (converted to `null`)
+- **FIXED**: Venue filtering changed from 15-minute perimeter to 25-mile perimeter (preserves airport recommendations)
+- **FIXED**: Venue sorting: highest value closest first → highest value furthest last (value DESC, distance ASC)
+- **FIXED**: Removed hardcoded "15-20 miles" constraint from GPT-5 prompt (changed to "within 25 miles")
+- **FIXED**: GPT-5 generating venues at strategy's suggested destination instead of driver's current location
+- **MODEL-AGNOSTIC**: Removed character limits from validation schemas (`strategic_timing`, `reason`, `tactical_notes`) to allow GPT-5.1 medium reasoning full output capacity
+- **DEV DATABASE**: Set up separate dev database with full schema replication to prevent production pollution
+
 ### November 15, 2025 - Neon Connection Resilience Pattern
 - **IMPLEMENTED**: Comprehensive Neon connection resilience to survive admin-terminated connections, autoscale events, and pool saturation
 - **Components Added**:
