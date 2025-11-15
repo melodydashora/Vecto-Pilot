@@ -760,7 +760,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         category: snapshotV1.air.category
       } : null,
       airport_context: airportContext,
-      news_briefing: localNews, // Gemini-generated 60-minute briefing
+      local_news: null, // Perplexity daily local news (deprecated - now in strategy pipeline)
+      news_briefing: localNews, // Gemini-generated 60-minute briefing (deprecated - now in briefings table)
       holiday: holidayInfo.holiday, // Holiday name from Perplexity (e.g., "Día de los Muertos")
       is_holiday: holidayInfo.is_holiday, // Boolean flag
       device: snapshotV1.device || null,

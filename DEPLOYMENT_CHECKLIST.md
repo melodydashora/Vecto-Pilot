@@ -41,6 +41,17 @@ The original environment loader loaded `shared.env` first, then `webservice.env`
 - Deploy and check that app starts without database errors
 - Connection pool logs should report `max=2` in webservice mode
 
+### 🔧 Snapshot INSERT Failure - Missing Field (Nov 15, 2025)
+**Issue**: Production snapshot creation failing with `DrizzleQueryError` - INSERT using `default` for `local_news` field.
+
+**Root Cause**: The `dbSnapshot` object in `server/routes/location.js` was missing the `local_news` field. When Drizzle generated the INSERT query, it tried to use `default` for the missing field, but `local_news` has no default value in the database schema.
+
+**Fix Applied**:
+1. Added `local_news: null` to the `dbSnapshot` object (line 766 in `server/routes/location.js`)
+2. This ensures all required fields are explicitly set, even if null
+
+**Verification**: Deploy and test snapshot creation. Should see `✅ Snapshot successfully written to database` in logs.
+
 ### 🔧 Venue Generation Database Bug (Nov 15, 2025)
 **Issue**: Venue generation failing with `insert into "rankings" (created_at) values (default)` error.
 
