@@ -307,23 +307,25 @@ export function LocationProvider({ children }: LocationProviderProps) {
       setLocationSessionId(prev => prev + 1);
       
       // Cancel any in-flight enrichment requests from previous GPS position
+      // IMPORTANT: Only abort enrichment APIs (weather, city, air), NOT snapshot POST
       if (enrichmentControllerRef.current) {
-        console.log("🚫 Aborting stale enrichment request");
+        console.log("🚫 Aborting stale enrichment requests (weather/city/air only)");
         enrichmentControllerRef.current.abort();
       }
       
-      // Create new AbortController for this GPS position
+      // Create new AbortController for enrichment APIs only
       enrichmentControllerRef.current = new AbortController();
-      const signal = enrichmentControllerRef.current.signal;
+      const enrichmentSignal = enrichmentControllerRef.current.signal;
       
       // DON'T update state yet - keep spinner active until location fully resolves
       // We'll update after we get city, state, and formattedAddress
 
       // Resolve ALL context data in parallel: location, weather, and air quality
+      // Use enrichmentSignal so these can be canceled if GPS updates before completion
       Promise.all([
-        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()),
-        fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()).catch(() => null),
-        fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()).catch(() => null),
+        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(r => r.json()),
+        fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(r => r.json()).catch(() => null),
+        fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(r => r.json()).catch(() => null),
       ])
         .then(async ([locationData, weatherData, airQualityData]) => {
           // NOW update state - location is fully resolved
@@ -431,17 +433,31 @@ export function LocationProvider({ children }: LocationProviderProps) {
           });
 
           // Save context snapshot for ML/analytics
+          // CRITICAL: Use separate AbortController with timeout for snapshot POST
+          // This prevents aborting the snapshot save when GPS updates
+          const snapshotController = new AbortController();
+          const snapshotTimeout = setTimeout(() => {
+            console.warn("⏱️ Snapshot POST timeout after 10 seconds");
+            snapshotController.abort();
+          }, 10000); // 10 second timeout for snapshot save
+          
           try {
             const snapshotResponse = await fetch("/api/location/snapshot", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { 
+                "Content-Type": "application/json",
+                "x-correlation-id": crypto.randomUUID() // Add correlation ID for tracing
+              },
               body: JSON.stringify(snapshotV1),
-              signal, // Use same AbortController to prevent stale snapshot saves
+              signal: snapshotController.signal, // Separate signal - won't be aborted by GPS updates
             });
+            
+            clearTimeout(snapshotTimeout); // Clear timeout on success
             
             if (snapshotResponse.ok) {
               const snapshotData = await snapshotResponse.json();
               const snapshotId = snapshotData.snapshot_id || snapshotV1.snapshot_id;
+              console.log("✅ Snapshot saved successfully:", snapshotId);
               
               // NOTE: Removed POST /api/blocks call (old background worker endpoint)
               // The waterfall is now triggered via event-driven architecture:
@@ -461,9 +477,10 @@ export function LocationProvider({ children }: LocationProviderProps) {
               );
               console.log("✅ Snapshot complete and ready! ID:", snapshotId);
             } else {
-              // ISSUE #62 FIX: Handle snapshot creation failure
+              clearTimeout(snapshotTimeout);
+              // Handle HTTP errors (500, 503, etc.)
               const errorData = await snapshotResponse.json().catch(() => ({ error: 'unknown' }));
-              console.error("❌ Snapshot creation failed:", {
+              console.error("❌ Snapshot creation failed (HTTP error):", {
                 status: snapshotResponse.status,
                 error: errorData
               });
@@ -473,7 +490,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
                 ...prev,
                 isUpdating: false,
                 isLoading: false,
-                error: `Snapshot creation failed: ${errorData.message || errorData.error || 'Unknown error'}`
+                error: `Snapshot creation failed: ${errorData.message || errorData.error || 'Server error'}`
               }));
               
               // Stop further processing - don't dispatch events or start strategy pipeline
@@ -494,13 +511,27 @@ export function LocationProvider({ children }: LocationProviderProps) {
               weather: weatherData?.available ? `${weatherData.temperature}°F` : 'none',
               airQuality: airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'none',
             });
-          } catch (err) {
-            console.error("❌ Failed to save context snapshot:", {
-              error: err,
-              message: err instanceof Error ? err.message : String(err),
-              name: err instanceof Error ? err.name : 'Unknown',
-              stack: err instanceof Error ? err.stack : undefined
-            });
+          } catch (err: any) {
+            clearTimeout(snapshotTimeout);
+            
+            // Handle AbortError separately - this is a timeout or user cancellation
+            if (err.name === 'AbortError') {
+              console.error("❌ Snapshot POST aborted (timeout or canceled):", err.message);
+              setLocationState((prev: any) => ({
+                ...prev,
+                isUpdating: false,
+                isLoading: false,
+                error: 'Snapshot save timed out. Please try refreshing your location.'
+              }));
+            } else {
+              console.error("❌ Snapshot POST network error:", err);
+              setLocationState((prev: any) => ({
+                ...prev,
+                isUpdating: false,
+                isLoading: false,
+                error: 'Network error while saving snapshot. Please check your connection.'
+              }));
+            }
           }
 
           // Update location state ONCE with both coordinates and resolved name
