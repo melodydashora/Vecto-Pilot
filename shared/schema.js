@@ -108,7 +108,7 @@ export const briefings = pgTable("briefings", {
 
 export const rankings = pgTable("rankings", {
   ranking_id: uuid("ranking_id").primaryKey(),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id),
   correlation_id: uuid("correlation_id"),
   user_id: uuid("user_id"),
