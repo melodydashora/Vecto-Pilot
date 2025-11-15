@@ -20,6 +20,7 @@ const cfg = {
 let pool = new Pool(cfg);
 let degraded = false;
 let lastEvent = null;
+let reconnecting = false; // CRITICAL: Prevent race conditions
 
 // CRITICAL: Catch errors on idle connections (Neon admin terminations)
 pool.on('error', (err, client) => {
@@ -33,7 +34,9 @@ pool.on('error', (err, client) => {
   });
   
   // If this is an admin termination, trigger degradation and reconnect
-  if (isTermination) {
+  // CRITICAL: Only one reconnection at a time to prevent "end on pool more than once"
+  if (isTermination && !reconnecting) {
+    reconnecting = true;
     degraded = true;
     lastEvent = 'db.terminated';
     
@@ -47,7 +50,8 @@ pool.on('error', (err, client) => {
     // Don't await - let it run in background
     drainPool()
       .then(() => reconnectWithBackoff())
-      .catch(e => ndjson('db.reconnect.loop.error', { error: String(e.message || e) }));
+      .catch(e => ndjson('db.reconnect.loop.error', { error: String(e.message || e) }))
+      .finally(() => { reconnecting = false; }); // Reset flag after reconnect completes
   }
 });
 
@@ -116,7 +120,9 @@ async function reconnectWithBackoff() {
           deploy_mode: process.env.DEPLOY_MODE
         });
         
-        if (isTermination) {
+        // CRITICAL: Only one reconnection at a time
+        if (isTermination && !reconnecting) {
+          reconnecting = true;
           degraded = true;
           lastEvent = 'db.terminated';
           
@@ -129,7 +135,8 @@ async function reconnectWithBackoff() {
           
           drainPool()
             .then(() => reconnectWithBackoff())
-            .catch(e => ndjson('db.reconnect.loop.error', { error: String(e.message || e) }));
+            .catch(e => ndjson('db.reconnect.loop.error', { error: String(e.message || e) }))
+            .finally(() => { reconnecting = false; });
         }
       });
       
@@ -240,6 +247,9 @@ function isPoolExhaustion(err) {
 }
 
 async function insertAudit(event, backend_pid, application_name, reason, deploy_mode, details) {
+  // OPTIONAL: Audit table may not exist yet - fail silently (just observability)
+  if (process.env.AUDIT__ENABLED !== 'true') return;
+  
   try {
     await pool.query(
       `INSERT INTO connection_audit (event, backend_pid, application_name, reason, deploy_mode, details)
@@ -247,7 +257,11 @@ async function insertAudit(event, backend_pid, application_name, reason, deploy_
       [event, backend_pid, application_name, reason, deploy_mode, details ? JSON.stringify(details) : null]
     );
   } catch (e) {
-    ndjson('audit.insert.error', { error: String(e.message || e), event });
+    // Fail silently - audit is nice-to-have, not critical
+    // Only log if it's NOT the "table doesn't exist" error
+    if (!e.message?.includes('does not exist')) {
+      ndjson('audit.insert.error', { error: String(e.message || e), event });
+    }
   }
 }
 
