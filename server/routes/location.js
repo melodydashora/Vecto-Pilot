@@ -733,7 +733,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     const dbSnapshot = {
       snapshot_id: snapshotV1.snapshot_id,
       created_at: safeDate(snapshotV1.created_at) || new Date(),
-      user_id: snapshotV1.user_id || null,
+      user_id: (snapshotV1.user_id && snapshotV1.user_id.trim() !== '') ? snapshotV1.user_id : null,
       device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
       lat: snapshotV1.coord.lat,
