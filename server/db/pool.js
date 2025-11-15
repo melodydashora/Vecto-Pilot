@@ -61,9 +61,20 @@ export function getSharedPool() {
 
     sharedPool = new Pool(config);
 
-    // Error handler
+    // Error handler - critical for autoscale where connections may be terminated
     sharedPool.on('error', (err) => {
-      console.error('[pool] Unexpected pool error:', err);
+      console.error('[pool] Pool error (non-fatal):', {
+        code: err.code,
+        message: err.message,
+        severity: err.severity
+      });
+      
+      // Don't crash the app on connection errors
+      // Cloud Run autoscale may hit connection limits temporarily
+      if (err.code === '57P01') {
+        console.error('[pool] Database connection terminated (likely connection limit)');
+        console.error('[pool] Retrying on next query...');
+      }
     });
 
     // Connect event (for monitoring)
