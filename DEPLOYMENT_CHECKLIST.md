@@ -30,7 +30,16 @@
 - Before: 10 instances × 10 connections = 100 connections ❌ (at limit)
 - After: 50 instances × 2 connections = 100 connections ✅ (sustainable)
 
-**Verification**: Deploy and check that app starts without database errors. Connection pool should report `max=2` in webservice mode.
+**Environment Loader Bug Fix (Critical)**:
+The original environment loader loaded `shared.env` first, then `webservice.env`, but only set values if they weren't already defined. This meant shared.env ALWAYS won, and mode-specific overrides were ignored.
+
+**Fix**: Modified `server/lib/load-env.js` to explicitly delete conflicting keys before loading mode-specific files, ensuring they can override shared values.
+
+**Verification**: 
+- Run `DEPLOY_MODE=webservice node -e "import('./server/lib/load-env.js').then(m => { m.loadEnvironment(); console.log('PG_MAX:', process.env.PG_MAX); })"`
+- Should show `PG_MAX: 2` (not 10)
+- Deploy and check that app starts without database errors
+- Connection pool logs should report `max=2` in webservice mode
 
 ### 🔧 Venue Generation Database Bug (Nov 15, 2025)
 **Issue**: Venue generation failing with `insert into "rankings" (created_at) values (default)` error.
