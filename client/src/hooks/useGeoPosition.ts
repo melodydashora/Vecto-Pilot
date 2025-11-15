@@ -24,6 +24,25 @@ export const useGeoPosition = (refreshIntervalMs = 0) => {
     console.log("[useGeoPosition] Starting GPS fetch...");
 
     try {
+      // Check permission status first to provide better feedback
+      if (navigator.permissions) {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+          console.log("[useGeoPosition] Permission status:", permissionStatus.state);
+          
+          if (permissionStatus.state === 'denied') {
+            throw new Error('Location access denied. Please enable location permission in your browser settings.');
+          }
+          
+          // If permission is "prompt", the browser will show its native dialog when we call getCurrentPosition
+          if (permissionStatus.state === 'prompt') {
+            console.log("[useGeoPosition] Permission not yet granted - browser will prompt user");
+          }
+        } catch (permErr) {
+          console.warn("[useGeoPosition] Permission API not fully supported, continuing anyway:", permErr);
+        }
+      }
+
       const browserPosition = await new Promise<GeoCoords | null>((resolve, reject) => {
         if (!("geolocation" in navigator)) {
           console.log("[useGeoPosition] Geolocation not available in browser");
@@ -50,12 +69,26 @@ export const useGeoPosition = (refreshIntervalMs = 0) => {
           (geoError) => {
             clearTimeout(timeoutId);
             console.warn("❌ Browser location failed:", geoError.code, geoError.message);
-            resolve(null);
+            
+            // Provide user-friendly error messages based on error code
+            let errorMessage = 'Unable to access location';
+            switch (geoError.code) {
+              case geoError.PERMISSION_DENIED:
+                errorMessage = 'Location access denied. Please enable location permission in your browser settings.';
+                break;
+              case geoError.POSITION_UNAVAILABLE:
+                errorMessage = 'Location information unavailable. Please check your device settings.';
+                break;
+              case geoError.TIMEOUT:
+                errorMessage = 'Location request timed out. Please try again.';
+                break;
+            }
+            reject(new Error(errorMessage));
           },
           { 
             enableHighAccuracy: true,  // Request most precise GPS
             timeout: 7000, 
-            maximumAge: 0  // Don't use cached position - always get fresh coordinates
+            maximumAge: 0  // CRITICAL: Always request fresh location, never use cached - this ensures permission prompt appears
           }
         );
       });
@@ -102,14 +135,16 @@ export const useGeoPosition = (refreshIntervalMs = 0) => {
   };
 
   useEffect(() => {
-    // Phase 13: Only fetch once on mount, not on every render
+    // Always request location permission on component mount (browser reopen/page refresh)
+    // This ensures users are prompted for location when they first open the app
     if (isFirstMount.current && !hasLoadedOnce.current) {
       isFirstMount.current = false;
       hasLoadedOnce.current = true;
       
       // Add a small delay to ensure DOM is ready before requesting GPS permission
+      // This gives the browser time to show its native permission dialog properly
       const initialTimeout = setTimeout(() => {
-        console.log("[useGeoPosition] Initial GPS request after DOM ready...");
+        console.log("[useGeoPosition] Initial GPS request - user will be prompted if permission not granted...");
         fetchPosition();
       }, 100); // 100ms delay to ensure DOM is ready
 
@@ -119,7 +154,7 @@ export const useGeoPosition = (refreshIntervalMs = 0) => {
     }
     
     // Note: We intentionally don't set up intervals anymore to prevent UI flicker
-    // Manual refresh is handled by the refresh function
+    // Manual refresh is handled by the refresh function which ALWAYS gets fresh location (maximumAge: 0)
   }, []); // Empty dependency array - only run once on mount
 
   return { coords, loading, error, refresh: fetchPosition };
