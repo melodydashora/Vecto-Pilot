@@ -73,7 +73,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
     
     console.log(`[ENHANCED-BLOCKS] ✅ Enriched ${enrichedVenues.length} venues with Google APIs in ${enrichmentMs}ms`);
     
-    // Step 3: Create ranking record
+    // Step 3: Create ranking record (use env var for model name)
+    const venuePlannerModel = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.1';
     await db.insert(rankings).values({
       ranking_id: rankingId,
       snapshot_id: snapshotId,
@@ -81,7 +82,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
       user_id: user_id || null,
       city: snapshot.city || null,
       ui: null,
-      model_name: 'gpt-5-venue-planner',
+      model_name: `${venuePlannerModel}-venue-planner`,
       scoring_ms: 0,
       planner_ms: plannerMs,
       total_ms: 0,
