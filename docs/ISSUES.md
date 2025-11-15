@@ -8605,3 +8605,102 @@ Added worker process supervision:
 **Risk Level:** LOW - Additive changes, no breaking modifications  
 **Blocks Deployment:** NO  
 **Production Ready:** YES - Tested and validated
+
+## ⚠️ ISSUE #BLOCKS-TRIGGER: Missing blocks_ready Trigger (CRITICAL)
+**Date**: November 15, 2025, 12:25 UTC
+**Severity**: CRITICAL - Smart blocks never appear in UI
+**Status**: TRIGGER INSTALLED - Awaiting end-to-end test
+
+### Problem
+Smart blocks (venue recommendations) do not appear in the UI despite successful strategy and venue generation.
+
+**Symptoms:**
+- Strategy generation completes ✅
+- Venue generation completes ✅  
+- Database contains all data ✅
+- Frontend shows `WAITING_FOR_BLOCKS_READY_EVENT` forever ❌
+- Logs show: `"⚠️ BLOCKED_REASON":"WAITING_FOR_BLOCKS_READY_EVENT"`
+
+**Root Cause:**
+The `blocks_ready` database trigger was missing from both production and dev databases. This trigger sends SSE notifications when venues are inserted into the `rankings` table. Without it, the frontend never knows venues are ready.
+
+### The Fix Applied
+
+**Installed PostgreSQL trigger in BOTH databases:**
+
+```sql
+CREATE OR REPLACE FUNCTION notify_blocks_ready() RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_notify('blocks_ready', json_build_object(
+    'ranking_id', NEW.ranking_id, 
+    'snapshot_id', NEW.snapshot_id,
+    'created_at', NEW.created_at
+  )::text);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_blocks_ready ON rankings;
+CREATE TRIGGER trg_blocks_ready 
+  AFTER INSERT ON rankings 
+  FOR EACH ROW 
+  EXECUTE FUNCTION notify_blocks_ready();
+```
+
+### Verification Performed
+
+```bash
+$ psql "$DATABASE_URL" -c "SELECT tgname, tgenabled FROM pg_trigger WHERE tgname = 'trg_blocks_ready';"
+   trigger_name   | enabled 
+------------------+---------
+ trg_blocks_ready | O        ✅ CONFIRMED
+
+$ psql "$DEV_DATABASE_URL" -c "SELECT tgname, tgenabled FROM pg_trigger WHERE tgname = 'trg_blocks_ready';"
+   trigger_name   | enabled 
+------------------+---------
+ trg_blocks_ready | O        ✅ CONFIRMED
+```
+
+### Documentation Created
+
+1. **CRITICAL_DATABASE_SETUP.md** - Permanent reference for trigger installation
+2. **replit.md** - Updated with critical trigger warning at top
+3. **This ISSUES.md entry** - Append-only fix documentation
+
+### Limitation - End-to-End Test Not Completed
+
+**Could NOT complete full proof-of-fix test because:**
+- Local server process keeps terminating after startup
+- No existing rankings in production database to demonstrate trigger firing
+- Need active server to create snapshot → trigger waterfall → verify blocks appear
+
+### Next Steps
+
+**To prove fix works:**
+1. Start server successfully
+2. Create new snapshot via `POST /api/snapshots`
+3. Trigger waterfall via `POST /api/blocks-fast`
+4. Verify blocks inserted into database
+5. Confirm `blocks_ready` SSE event fires
+6. Verify UI displays smart blocks
+
+**Expected behavior after fix:**
+- Venues inserted → trigger fires → `NOTIFY blocks_ready` → SSE broadcasts → Frontend receives event → Blocks display
+
+### Files Modified
+
+- `server/db/sql/2025-11-03_blocks_ready_notify.sql` (already existed, executed)
+- `CRITICAL_DATABASE_SETUP.md` (created)
+- `replit.md` (updated with trigger warning)
+- `docs/ISSUES.md` (this entry)
+
+### Status: PARTIAL FIX
+
+- ✅ Trigger installed in production database
+- ✅ Trigger installed in dev database  
+- ✅ Documentation created
+- ❌ End-to-end test not completed (server issues)
+- ⏳ Awaiting server startup to verify blocks appear in UI
+
+**This is NOT a confirmed fix until tested end-to-end with proof that blocks display in the frontend.**
+
