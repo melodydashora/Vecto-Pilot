@@ -6,26 +6,15 @@ import { strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
- * Ensure a strategy row exists for a snapshot
- * Creates one if missing, idempotent
+ * DEPRECATED: Strategy rows are now ONLY created by strategy-generator-parallel.js
+ * This function is kept for backwards compatibility but does NOT create placeholders
  * @param {string} snapshotId - UUID of snapshot
  * @returns {Promise<void>}
  */
 export async function ensureStrategyRow(snapshotId) {
-  const [existing] = await db
-    .select()
-    .from(strategies)
-    .where(eq(strategies.snapshot_id, snapshotId))
-    .limit(1);
-
-  if (existing) return;
-
-  await db.insert(strategies).values({
-    snapshot_id: snapshotId,
-    status: 'pending',
-    created_at: new Date(),
-    updated_at: new Date()
-  }).onConflictDoNothing();
+  // REMOVED: No longer creates placeholder strategy rows
+  // Strategy generator creates the single authoritative row with model_name
+  return;
 }
 
 /**
