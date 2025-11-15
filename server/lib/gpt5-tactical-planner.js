@@ -153,7 +153,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     `${snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown'}`,
     `Coordinates: ${snapshot?.lat}, ${snapshot?.lng}`,
     "",
-    "CRITICAL: Generate venues within 15-20 miles of the driver's CURRENT coordinates above.",
+    "CRITICAL: Generate venues near the driver's CURRENT coordinates above.",
     "Do NOT generate venues where the strategy suggests repositioning to - only near current location.",
     "The strategy may suggest moving to another area, but your job is to show tactical options from where they are NOW.",
     "",
