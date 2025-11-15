@@ -105,7 +105,46 @@ Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
 
-## Recent Changes - November 14, 2025
+## Recent Changes - November 15, 2025
+
+### Strategy Single-Row Architecture Fix (Production Ready) ✅
+
+**Problem**: Triple strategy INSERT causing race conditions where model_name attribution was lost due to partial UPDATEs overwriting critical fields.
+
+**Root Causes**:
+1. Multiple strategy creation points (routes/snapshot.js line 113, routes/location.js line 851, strategy-generator-parallel.js)
+2. Consolidator UPDATE (consolidator.js line 270) overwrote model_name with 2-step chain instead of preserving full 3-step chain
+3. Placeholder creation pattern causing incomplete strategy rows
+
+**Solution - Single Authoritative Strategy Row**:
+1. **Removed all placeholder creation**:
+   - routes/snapshot.js: Removed lines 113-119 (placeholder INSERT)
+   - routes/location.js: Removed lines 851-886 (placeholder with onConflictDoUpdate)
+   - strategy-utils.js: Disabled ensureStrategyRow() (no longer creates placeholders)
+   - strategy-generator.js: Skip if strategy already exists (prevents double creation)
+
+2. **Single strategy creation point** (strategy-generator-parallel.js line 226-233):
+   - runSimpleStrategyPipeline creates initial row with full model_name
+   - Uses onConflictDoNothing to handle race conditions (first writer wins)
+   - Sets complete model chain: `${strategist}→${briefer}→${consolidator}`
+
+3. **Preserved model_name in all UPDATEs**:
+   - consolidator.js: Removed model_name from UPDATE (line 270-275)
+   - All UPDATE statements now preserve the initial model_name attribution
+
+**Verified Architecture**:
+✅ Snapshot fully enriched (formatted_address, airport_context, holiday, weather, air, timezone, day_part) BEFORE strategy starts
+✅ Strategy row created ONCE with complete model_name in single atomic INSERT
+✅ All providers (minstrategy, briefing, consolidator) fetch complete snapshot via getSnapshotContext()
+✅ No UPDATE statements overwrite model_name
+✅ Strict 1:1 relationship enforced (strategies.snapshot_id UNIQUE constraint)
+
+**Data Flow**:
+1. Snapshot INSERT with ALL enriched data → routes/location.js line 791
+2. Strategy pipeline triggered → routes/location.js line 868
+3. Strategy row created with model_name → strategy-generator-parallel.js line 226
+4. Providers fetch complete snapshot → getSnapshotContext() provides all fields
+5. UPDATEs preserve model_name → No overwrites, attribution intact
 
 ### Smart Blocks Drizzle ORM INSERT Fix (Production Ready) ✅
 
