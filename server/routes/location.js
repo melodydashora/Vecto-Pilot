@@ -562,18 +562,51 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       const isValidUUID = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
       const validatedUserId = isValidUUID ? userId : null;
 
-      // Call internal resolver to get city/timezone
-      const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
-      const resolveUrl = `${baseUrl}/api/location/resolve?lat=${lat}&lng=${lng}`;
-      
-      const resolveRes = await fetch(resolveUrl);
-      if (!resolveRes.ok) {
-        return httpError(res, 502, 'resolve_failed', 'Failed to resolve location', reqId);
+      // CRITICAL: Call resolver logic directly instead of making internal HTTP request
+      // Internal HTTP requests can cause deadlocks when middleware is blocking
+      let resolved;
+      try {
+        // Get city/timezone from Google Geocoding API directly
+        const geocodeUrl = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+        geocodeUrl.searchParams.set('latlng', `${lat},${lng}`);
+        geocodeUrl.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+        
+        const geocodeRes = await googleMapsCircuit(async (signal) => {
+          const response = await fetch(geocodeUrl.toString(), { signal });
+          if (!response.ok) throw new Error(`Geocode API error: ${response.status}`);
+          return await response.json();
+        });
+        
+        if (geocodeRes.status !== 'OK' || !geocodeRes.results?.[0]) {
+          return httpError(res, 502, 'resolve_failed', 'Failed to resolve location', cid);
+        }
+        
+        const { city, state, country } = pickAddressParts(geocodeRes.results[0].address_components);
+        const formattedAddress = geocodeRes.results[0].formatted_address;
+        
+        // Get timezone
+        const tzUrl = new URL('https://maps.googleapis.com/maps/api/timezone/json');
+        tzUrl.searchParams.set('location', `${lat},${lng}`);
+        tzUrl.searchParams.set('timestamp', Math.floor(Date.now() / 1000).toString());
+        tzUrl.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+        
+        const tzRes = await googleMapsCircuit(async (signal) => {
+          const response = await fetch(tzUrl.toString(), { signal });
+          if (!response.ok) throw new Error(`Timezone API error: ${response.status}`);
+          return await response.json();
+        });
+        
+        const timeZone = tzRes.status === 'OK' ? tzRes.timeZoneId : 'America/Chicago';
+        
+        resolved = { city, state, country, formattedAddress, timeZone };
+        
+      } catch (err) {
+        console.error('[snapshot] Location resolution failed:', err.message);
+        return httpError(res, 502, 'resolve_failed', 'Failed to resolve location', cid);
       }
       
-      const resolved = await resolveRes.json();
       if (!resolved.timeZone || !(resolved.city || resolved.formattedAddress)) {
-        return httpError(res, 400, 'resolve_incomplete', 'Location resolution incomplete', reqId);
+        return httpError(res, 400, 'resolve_incomplete', 'Location resolution incomplete', cid);
       }
 
       // Build minimal SnapshotV1 with resolved data
