@@ -1,5 +1,13 @@
 # Vecto Pilot™ - Rideshare Intelligence Platform
 
+## ⚠️ CRITICAL: Required Database Trigger
+
+**Smart blocks will NOT appear without the `blocks_ready` trigger installed in BOTH databases.**
+
+See `CRITICAL_DATABASE_SETUP.md` for installation instructions.
+
+Status: ✅ Installed in prod and dev (Nov 15, 2025)
+
 ## Overview
 Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximize rideshare driver earnings. It provides real-time, data-driven strategic briefings by integrating diverse data sources (location, events, traffic, weather, air quality) and leveraging advanced AI and data analytics to generate actionable strategies for drivers. The platform aims to provide actionable strategies for drivers by focusing on data-driven insights.
 
