@@ -351,6 +351,178 @@ curl "http://localhost:5000/api/blocks-fast?snapshotId=6d7a1e38-e077-4655-9984-b
 
 ---
 
+## 🟡 ISSUE #107: Database Configuration Inconsistencies Between Prod/Dev (MEDIUM)
+
+**Severity:** P2 - MEDIUM  
+**Impact:** Dev environment may accidentally use production database  
+**Status:** 🟡 ACTIVE - Documentation only, no fix applied  
+**Discovered:** 2025-11-15 via manual audit
+
+### Problem Description
+
+After transitioning from using production database for dev testing to separate dev database (`DEV_DATABASE_URL`), several database access points have inconsistent behavior:
+
+**Inconsistent Files:**
+1. **`server/db/client.js`** (Line 22) - Fallback pool hard-coded to `DATABASE_URL`, ignores `DEV_DATABASE_URL`
+2. **`server/db/drizzle-lazy.js`** (Line 11) - Only checks `POSTGRES_URL` and `DATABASE_URL`, missing `DEV_DATABASE_URL`
+3. **`server/db/pool-lazy.js`** - Doesn't implement dev/prod detection
+
+**Consistent Files (Good Examples):**
+- ✅ `server/db/connection-manager.js` - Properly checks `isProduction` flag
+- ✅ `drizzle.config.js` - Properly checks `isProduction` flag
+- ✅ `scripts/init-dev-db.js` - Uses `DEV_DATABASE_URL` correctly
+
+### Root Cause Analysis
+
+**Timeline:**
+1. Initially: All code used `DATABASE_URL` (production only)
+2. Later: Added `DEV_DATABASE_URL` support to some files
+3. **Gap:** Not all database access points were updated consistently
+
+**Impact:**
+- If shared pool disabled or fails, fallback pool connects to production DB even in dev
+- Lazy-loaded database connections always use production
+- Risk of dev writes polluting production data
+
+### Evidence
+
+**Connection Manager (Correct):**
+```javascript
+// server/db/connection-manager.js:8-11
+const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
+const dbUrl = isProduction ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
+```
+
+**Client Fallback (Incorrect):**
+```javascript
+// server/db/client.js:22
+pool = new Pool({
+  connectionString: process.env.DATABASE_URL, // ❌ Hard-coded, should check isProduction
+  max: 20,
+  // ...
+});
+```
+
+**Lazy Pool (Incorrect):**
+```javascript
+// server/db/drizzle-lazy.js:11
+const DATABASE_URL = process.env.POSTGRES_URL || process.env.DATABASE_URL; // ❌ Missing DEV_DATABASE_URL
+```
+
+### Risk Assessment
+
+**Current Risk Level:** MEDIUM
+- Primary access path (`connection-manager.js`) is correct ✅
+- Fallback paths are incorrect but rarely used
+- Most development uses shared pool (correct path)
+
+**Potential Issues:**
+1. If shared pool fails in dev, falls back to production DB
+2. Lazy-loaded connections always use production
+3. Pool configuration differences between prod/dev not respected in fallback
+
+### Recommended Fix (Not Applied)
+
+**To fix `server/db/client.js`:**
+```javascript
+// BEFORE (Line 7-22):
+function getPool() {
+  if (pool) return pool;
+  
+  pool = getSharedPool();
+  if (pool) return pool;
+  
+  console.log('[db] Creating local pool (shared pool disabled)');
+  
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL, // ❌ Wrong
+    max: 20,
+    // ...
+  });
+}
+
+// AFTER:
+function getPool() {
+  if (pool) return pool;
+  
+  pool = getSharedPool();
+  if (pool) return pool;
+  
+  console.log('[db] Creating local pool (shared pool disabled)');
+  
+  const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
+  const dbUrl = isProduction ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
+  
+  pool = new Pool({
+    connectionString: dbUrl, // ✅ Correct
+    max: 20,
+    // ...
+  });
+}
+```
+
+**To fix `server/db/drizzle-lazy.js`:**
+```javascript
+// BEFORE (Line 11):
+const DATABASE_URL = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
+// AFTER:
+const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
+const DATABASE_URL = isProduction 
+  ? (process.env.POSTGRES_URL || process.env.DATABASE_URL)
+  : (process.env.DEV_DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL);
+```
+
+### Prevention
+
+**Going Forward:**
+1. Create shared helper function for database URL resolution
+2. Centralize `isProduction` logic in `shared/config.js`
+3. Add startup validation that verifies correct database being used
+4. Document database selection logic in `DATABASE_CONNECTION_GUIDE.md`
+
+### Files Affected
+
+**Need Updates:**
+- `server/db/client.js` (fallback pool)
+- `server/db/drizzle-lazy.js` (lazy connection)
+- `server/db/pool-lazy.js` (lazy pool)
+
+**Already Correct:**
+- `server/db/connection-manager.js` ✅
+- `drizzle.config.js` ✅
+- `scripts/init-dev-db.js` ✅
+
+### Verification Steps
+
+To verify which database is being used:
+
+```bash
+# Check current connection
+node -e "const isProduction = process.env.REPLIT_DEPLOYMENT === '1'; console.log('Mode:', isProduction ? 'PRODUCTION' : 'DEVELOPMENT'); console.log('Will use:', isProduction ? 'DATABASE_URL' : 'DEV_DATABASE_URL');"
+
+# Test shared pool path
+node -e "import('./server/db/connection-manager.js').then(m => console.log('Connection manager uses:', m.getPool().options.connectionString.includes('br-misty-pine') ? 'DEV DB ✅' : 'PROD DB ⚠️'));"
+
+# Test fallback pool path
+PG_USE_SHARED_POOL=false node -e "import('./server/db/client.js').then(m => console.log('Client fallback would use:', process.env.DATABASE_URL.includes('br-young-dust') ? 'PROD DB ⚠️' : 'DEV DB ✅'));"
+```
+
+### Related Documentation
+
+- `DATABASE_CONNECTION_GUIDE.md` - Connection setup guide
+- `CRITICAL_DATABASE_SETUP.md` - Critical setup requirements
+- `NEON_CONNECTION_RESILIENCE.md` - Connection manager implementation
+
+---
+
+**Status:** 🟡 DOCUMENTED - No fix applied per user request  
+**Priority:** P2 - MEDIUM (fallback paths rarely used)  
+**Risk:** LOW in normal operation, MEDIUM if shared pool fails  
+**Next Steps:** User decision on whether to apply fixes
+
+---
+
 ## 📋 ISSUE #40: PostgreSQL Connection Pool Configuration (RESOLVED)
 
 **Severity:** CRITICAL  
