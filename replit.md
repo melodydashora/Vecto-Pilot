@@ -1,5 +1,19 @@
 # Vecto Pilot™ - Rideshare Intelligence Platform
 
+## ⚠️ CRITICAL: DATABASE ENVIRONMENT RULES ⚠️
+
+**DATABASE_URL POINTS TO PRODUCTION - DO NOT POLLUTE WITH TEST DATA**
+
+Rules:
+1. **NEVER** run test queries against DATABASE_URL (production database)
+2. **NEVER** create test snapshots in production
+3. **NEVER** run curl commands that POST to production endpoints
+4. **ASK** the user for a separate dev database URL before any testing
+5. Production database queries are READ-ONLY for inspection purposes only
+6. All testing must happen locally or against a separate dev database
+
+If you need to test database operations, STOP and ask the user for dev database credentials first.
+
 ## Overview
 Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximize rideshare driver earnings. It provides real-time, data-driven strategic briefings by integrating diverse data sources (location, events, traffic, weather, air quality) and leveraging advanced AI and data analytics to generate actionable strategies for drivers.
 
