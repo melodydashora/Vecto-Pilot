@@ -176,6 +176,8 @@ async function saveStrategy(row) {
     const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'unknown';
     const modelName = `${strategist}→${briefer}→${consolidator}`;
 
+    // CRITICAL: Use onConflictDoNothing to preserve the FIRST insert with model_name
+    // If row already exists (race condition), don't overwrite - first writer wins
     await db.insert(strategies).values({
       snapshot_id: row.snapshot_id,
       user_id: row.user_id,
@@ -192,24 +194,7 @@ async function saveStrategy(row) {
       model_name: modelName,
       created_at: new Date(),
       updated_at: new Date()
-    }).onConflictDoUpdate({
-      target: strategies.snapshot_id,
-      set: {
-        user_id: row.user_id,
-        user_address: row.user_address,
-        city: row.city,
-        state: row.state,
-        lat: row.lat,
-        lng: row.lng,
-        events: row.events,
-        news: row.news,
-        traffic: row.traffic,
-        strategy_for_now: row.consolidated_strategy,
-        status: 'ok',
-        model_name: modelName,
-        updated_at: new Date()
-      }
-    });
+    }).onConflictDoNothing();
 
     return { ok: true };
   } catch (err) {
@@ -227,20 +212,8 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
   console.log(`[runSimpleStrategyPipeline] Starting for snapshot ${snapshotId}`);
   
   try {
-    // Ensure strategy row exists
-    const [existing] = await db.select().from(strategies)
-      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    
-    if (!existing) {
-      console.log(`[runSimpleStrategyPipeline] Creating initial strategy row for ${snapshotId}`);
-      await db.insert(strategies).values({
-        snapshot_id: snapshotId,
-        user_id: userId,
-        status: 'pending',
-        created_at: new Date(),
-        updated_at: new Date()
-      });
-    }
+    // REMOVED: No placeholder creation - saveStrategy() creates the single authoritative row
+    // with complete data including model_name in a single atomic operation
     
     // Import providers
     const { runMinStrategy } = await import('./providers/minstrategy.js');
