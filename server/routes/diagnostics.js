@@ -651,48 +651,6 @@ router.get('/workflow-dry-run', async (req, res) => {
   }
 });
 
-// POST /api/diagnostics/test-claude/:snapshotId - Manually kick Claude for a snapshot
-router.post('/test-claude/:snapshotId', async (req, res) => {
-  try {
-    const { snapshotId } = req.params;
-    
-    // Get snapshot data
-    const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    
-    if (!snap) {
-      return res.status(404).json({ error: 'Snapshot not found: ' + snapshotId });
-    }
-    
-    // Get strategy data for user_resolved_address (strategies table has the address, not snapshots)
-    const [strat] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    
-    // Import and call provider
-    const { runParallelProviders } = await import('../lib/strategy-generator-parallel.js');
-    
-    const providerResult = await runParallelProviders({
-      snapshotId,
-      user: {
-        lat: snap.lat,
-        lng: snap.lng,
-        city: snap.city,
-        state: snap.state,
-        user_address: strat?.user_resolved_address || strat?.user_address || snap.formatted_address || ''
-      },
-      snapshot: {
-        day_part_key: snap.day_part_key,
-        dow: snap.dow,
-        weather: snap.weather,
-        air: snap.air
-      }
-    });
-    
-    res.json({ ok: true, result: providerResult, snapshotId });
-  } catch (err) {
-    console.error('[diagnostics/test-claude] Error:', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
 // POST /api/diagnostics/test-consolidate/:snapshotId - Manually test consolidation logic
 router.post('/test-consolidate/:snapshotId', async (req, res) => {
   try {
