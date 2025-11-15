@@ -437,9 +437,9 @@ export function LocationProvider({ children }: LocationProviderProps) {
           // This prevents aborting the snapshot save when GPS updates
           const snapshotController = new AbortController();
           const snapshotTimeout = setTimeout(() => {
-            console.warn("⏱️ Snapshot POST timeout after 10 seconds");
+            console.warn("⏱️ Snapshot POST timeout after 30 seconds");
             snapshotController.abort();
-          }, 10000); // 10 second timeout for snapshot save
+          }, 30000); // 30 second timeout for snapshot save (production backend may be slow)
           
           try {
             const snapshotResponse = await fetch("/api/location/snapshot", {
