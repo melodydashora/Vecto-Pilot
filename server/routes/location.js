@@ -750,12 +750,12 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       hour: snapshotV1.time_context?.hour !== undefined ? snapshotV1.time_context.hour : null,
       day_part_key: snapshotV1.time_context?.day_part_key || null,
       h3_r8,
-      weather: snapshotV1.weather ? {
+      weather: (snapshotV1.weather && typeof snapshotV1.weather === 'object' && snapshotV1.weather.tempF !== undefined) ? {
         tempF: snapshotV1.weather.tempF,
         conditions: snapshotV1.weather.conditions,
         description: snapshotV1.weather.description
       } : null,
-      air: snapshotV1.air ? {
+      air: (snapshotV1.air && typeof snapshotV1.air === 'object' && snapshotV1.air.aqi !== undefined) ? {
         aqi: snapshotV1.air.aqi,
         category: snapshotV1.air.category
       } : null,
