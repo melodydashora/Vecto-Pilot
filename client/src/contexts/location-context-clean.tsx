@@ -532,6 +532,9 @@ export function LocationProvider({ children }: LocationProviderProps) {
                 error: 'Network error while saving snapshot. Please check your connection.'
               }));
             }
+            
+            // CRITICAL: Stop execution - don't try to access locationData below
+            return;
           }
 
           // Update location state ONCE with both coordinates and resolved name
