@@ -14,7 +14,7 @@ channel = "stable-25_05"
 # Deployment settings (CI-like build/start)
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
-run = ["sh", "-c", "set -a && . ./mono-mode.env && set +a && node scripts/start-replit.js"]
+run = ["sh", "-c", "DEPLOY_MODE=webservice node gateway-server.js"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
