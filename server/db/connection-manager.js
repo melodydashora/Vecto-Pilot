@@ -1,0 +1,157 @@
+import pkg from 'pg';
+import crypto from 'crypto';
+import { ndjson } from '../logger/ndjson.js';
+
+const { Pool } = pkg;
+
+const cfg = {
+  connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.PG_MAX || process.env.DB__POOL_MAX || 10),
+  min: Number(process.env.PG_MIN || 2),
+  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 120000),
+  connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 10000),
+  keepAlive: process.env.PG_KEEPALIVE !== 'false',
+  keepAliveInitialDelayMillis: Number(process.env.PG_KEEPALIVE_DELAY_MS || 30000),
+  maxUses: Number(process.env.PG_MAX_USES || 7500),
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  allowExitOnIdle: false
+};
+
+let pool = new Pool(cfg);
+let degraded = false;
+let lastEvent = null;
+
+function isAdminTermination(err) {
+  return err?.message?.includes('terminating connection due to administrator command')
+      || err?.code === '57P01';
+}
+
+async function getBackendPid(client) {
+  try {
+    const { rows } = await client.query('SELECT pg_backend_pid() AS pid');
+    return rows?.[0]?.pid ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function initPool() {
+  try {
+    const client = await pool.connect();
+    const pid = await getBackendPid(client);
+    ndjson('db.start', { 
+      deploy_mode: process.env.DEPLOY_MODE, 
+      pool_max: cfg.max, 
+      backend_pid: pid 
+    });
+    client.release();
+  } catch (e) {
+    ndjson('db.start.error', { error: String(e.message || e) });
+  }
+}
+
+async function drainPool() {
+  ndjson('db.drain.begin', {});
+  try { 
+    await pool.end(); 
+  } catch (e) {
+    ndjson('db.drain.error', { error: String(e.message || e) });
+  }
+  ndjson('db.drain.end', {});
+}
+
+async function reconnectWithBackoff() {
+  const maxAttempts = Number(process.env.DB__RETRY_MAX || 8);
+  const base = Number(process.env.DB__RETRY_BASE_MS || 250);
+  const cap = Number(process.env.DB__RETRY_MAX_MS || 5000);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const jitter = Math.floor(Math.random() * base);
+    const delay = Math.min(base * (2 ** (attempt - 1)) + jitter, cap);
+    ndjson('db.reconnect.attempt', { attempt, delay_ms: delay });
+    await new Promise(r => setTimeout(r, delay));
+    try {
+      pool = new Pool(cfg);
+      const client = await pool.connect();
+      const pid = await getBackendPid(client);
+      await client.query('SELECT 1');
+      client.release();
+      degraded = false;
+      lastEvent = 'db.reconnect.success';
+      ndjson('db.reconnect.success', { attempt, backend_pid: pid });
+      if (process.env.AUDIT__ENABLED === 'true') {
+        await insertAudit('db.reconnect.success', pid, 'pg-client', 'administrator_command', process.env.DEPLOY_MODE, { attempt });
+      }
+      return;
+    } catch (e) {
+      ndjson('db.reconnect.error', { attempt, error: String(e.message || e) });
+      try { await pool.end(); } catch {}
+    }
+  }
+  lastEvent = 'db.reconnect.exhausted';
+  ndjson('db.reconnect.exhausted', {});
+  if (process.env.AUDIT__ENABLED === 'true') {
+    await insertAudit('db.reconnect.exhausted', null, null, 'administrator_command', process.env.DEPLOY_MODE, {});
+  }
+}
+
+export async function safeQuery(text, params) {
+  if (degraded) {
+    ndjson('query.rejected', {
+      reason: 'degraded',
+      sql_hash: crypto.createHash('sha1').update(text).digest('hex'),
+    });
+    const err = new Error('db_degraded');
+    err.status = 503;
+    throw err;
+  }
+  const client = await pool.connect();
+  try {
+    return await client.query(text, params);
+  } catch (err) {
+    if (isAdminTermination(err)) {
+      const pid = await getBackendPid(client);
+      degraded = true;
+      lastEvent = 'db.terminated';
+      ndjson('db.terminated', {
+        reason: 'administrator_command',
+        backend_pid: pid,
+        deploy_mode: process.env.DEPLOY_MODE,
+      });
+      if (process.env.AUDIT__ENABLED === 'true') {
+        await insertAudit('db.terminated', pid, 'pg-client', 'administrator_command', process.env.DEPLOY_MODE, { code: err.code });
+      }
+      await drainPool();
+      reconnectWithBackoff().catch(e => ndjson('db.reconnect.loop.error', { error: String(e.message || e) }));
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export function getPool() {
+  return {
+    query: (text, params) => safeQuery(text, params),
+    connect: () => pool.connect(),
+    end: () => pool.end(),
+  };
+}
+
+export function getAgentState() {
+  return { degraded, lastEvent };
+}
+
+async function insertAudit(event, backend_pid, application_name, reason, deploy_mode, details) {
+  try {
+    await pool.query(
+      `INSERT INTO connection_audit (event, backend_pid, application_name, reason, deploy_mode, details)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [event, backend_pid, application_name, reason, deploy_mode, details ? JSON.stringify(details) : null]
+    );
+  } catch (e) {
+    ndjson('audit.insert.error', { error: String(e.message || e), event });
+  }
+}
+
+initPool().catch(e => ndjson('db.start.error', { error: String(e.message || e) }));
