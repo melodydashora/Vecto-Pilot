@@ -248,6 +248,16 @@ process.on('unhandledRejection', (reason, promise) => {
       }
     }
 
+    // Error middleware (must be after all routes)
+    try {
+      console.log("[gateway] Loading error middleware...");
+      const { errorTo503 } = await import("./server/middleware/error-handler.js");
+      app.use(errorTo503);
+      console.log("[gateway] ✅ Error middleware configured");
+    } catch (e) {
+      console.error("[gateway] ❌ Error middleware failed:", e?.message);
+    }
+
     // Serve SPA for all other routes (catch-all must be LAST, excludes /api and /agent)
     app.get("*", (req, res, next) => {
       // Don't intercept API or agent routes
