@@ -62,37 +62,18 @@ export async function generateStrategyForSnapshot(snapshot_id) {
       return null;
     }
     
-    // Create or update strategy record with pending status
-    // RUNTIME-FRESH SPEC: Set time windowing fields
-    const now = new Date();
-    const windowStart = now;
-    const windowEnd = new Date(now.getTime() + 60 * 60 * 1000); // +60 minutes (max window)
+    // DEPRECATED: Old sequential strategy path - use strategy-generator-parallel.js instead
+    // Check if strategy row already exists; if so, skip to avoid race conditions
+    const [existingStrategy] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshot_id)).limit(1);
     
-    await db.insert(strategies).values({
-      snapshot_id,
-      status: 'pending',
-      attempt: 1,
-      strategy_timestamp: now,
-      valid_window_start: windowStart,
-      valid_window_end: windowEnd,
-      lat: snap.lat,
-      lng: snap.lng,
-      city: snap.city,
-    }).onConflictDoUpdate({
-      target: strategies.snapshot_id,
-      set: {
-        status: 'pending',
-        error_code: null,
-        error_message: null,
-        updated_at: now,
-        strategy_timestamp: now,
-        valid_window_start: windowStart,
-        valid_window_end: windowEnd,
-        lat: snap.lat,
-        lng: snap.lng,
-        city: snap.city,
-      }
-    });
+    if (existingStrategy) {
+      console.log(`[triad] strategist.skip id=${snapshot_id} reason=strategy_already_exists ms=${Date.now() - startTime}`);
+      return null;
+    }
+    
+    // REMOVED: Placeholder creation moved to strategy-generator-parallel.js
+    // This prevents race conditions and ensures model_name attribution is preserved
     
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = snap.dow !== null && snap.dow !== undefined ? dayNames[snap.dow] : 'unknown day';
