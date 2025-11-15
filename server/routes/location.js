@@ -507,10 +507,35 @@ router.get('/airquality', async (req, res) => {
 // Save a context snapshot for ML/analytics (SnapshotV1 format)
 // Supports minimal mode: if only lat/lng provided, resolves city/timezone server-side
 router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) => {
-  const reqId = crypto.randomUUID();
-  res.setHeader('x-req-id', reqId);
+  const cid = req.cid || req.get('x-correlation-id') || crypto.randomUUID();
+  res.setHeader('x-correlation-id', cid);
 
-  console.log('[snapshot] handler ENTER', { url: req.originalUrl, method: req.method, hasBody: !!req.body, req_id: reqId });
+  // Import ndjson and getAgentState
+  const { ndjson } = await import('../logger/ndjson.js');
+  const { getAgentState } = await import('../db/connection-manager.js');
+  
+  ndjson('snapshot.req', { 
+    cid, 
+    path: req.path, 
+    deploy_mode: process.env.DEPLOY_MODE,
+    agent_state: getAgentState().degraded ? 'degraded' : 'healthy'
+  });
+
+  // Check if agent is degraded
+  const { degraded, currentBackoffDelay } = getAgentState();
+  if (degraded) {
+    const retryAfter = Math.ceil((currentBackoffDelay || 2000) / 1000);
+    ndjson('snapshot.rejected', { cid, reason: 'degraded', retry_after: retryAfter });
+    res.setHeader('Retry-After', String(retryAfter));
+    return res.status(503).json({ 
+      cid,
+      state: 'degraded',
+      error: 'Database temporarily unavailable. Please retry.',
+      retry_after: retryAfter
+    });
+  }
+
+  console.log('[snapshot] handler ENTER', { url: req.originalUrl, method: req.method, hasBody: !!req.body, cid });
   try {
     console.log('[snapshot] processing snapshot...');
     const snapshotV1 = req.body;
