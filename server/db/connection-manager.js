@@ -208,7 +208,20 @@ export async function safeQuery(text, params) {
 export function getPool() {
   return {
     query: (text, params) => safeQuery(text, params),
-    connect: () => pool.connect(),
+    connect: async () => {
+      // CRITICAL: Check degradation BEFORE attempting to connect
+      // This prevents Drizzle ORM from hanging when database is down
+      if (degraded) {
+        ndjson('pool.connect.rejected', {
+          reason: 'degraded',
+          backoff_delay: currentBackoffDelay
+        });
+        const err = new Error('db_degraded');
+        err.status = 503;
+        throw err;
+      }
+      return pool.connect();
+    },
     end: () => pool.end(),
   };
 }
