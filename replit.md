@@ -120,6 +120,11 @@ This architecture ensures **zero ambiguity** in deployment modes and prevents si
 **Database Schema Highlights**:
 Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking_candidates`, and `venue_events`, linked by relationships. JSONB is used for flexible storage of features, business hours, and venue events.
 
+**Query Conventions**:
+- **Snapshot Sorting**: All snapshot list queries use `DESC` (newest first) for optimal debugging and incident response UX. This ensures latest entries appear at the top for troubleshooting recent issues.
+- **Strategy History**: Sorted by `created_at DESC` to show most recent attempts first.
+- **Audit Tables**: Connection audit and other diagnostic tables use DESC ordering for recent-first review.
+
 **API Routes Architecture**:
 -   **Strategy Pipeline**: `POST /api/strategy/request` to trigger AI pipeline; `GET /api/strategy/:snapshotId` to fetch.
 -   **Smart Blocks**: `GET /api/blocks-fast` to fetch; `POST /api/blocks-fast` to generate. Strategy-first gating returns HTTP 202 until strategy is ready.
