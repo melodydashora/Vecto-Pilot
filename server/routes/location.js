@@ -578,7 +578,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         });
         
         if (geocodeRes.status !== 'OK' || !geocodeRes.results?.[0]) {
-          return httpError(res, 502, 'resolve_failed', 'Failed to resolve location', cid);
+          console.error('[snapshot] Geocoding API error:', geocodeRes.status, geocodeRes.error_message);
+          return httpError(res, 502, 'resolve_failed', `Google Maps API error: ${geocodeRes.error_message || geocodeRes.status}`, cid);
         }
         
         const { city, state, country } = pickAddressParts(geocodeRes.results[0].address_components);
