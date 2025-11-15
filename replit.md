@@ -48,8 +48,52 @@ API access is gated until a strategy is ready. The pipeline involves parallel ex
 **AI Coach Data Access Layer (CoachDAL)**:
 A read-only Data Access Layer provides the AI Strategy Coach with snapshot-scoped, null-safe access to comprehensive driver context, including temporal data, strategy, briefing information, and venue recommendations. Consolidated strategy outputs prioritize city-level references for privacy.
 
-**Environment Files Structure**:
-Uses a hierarchical environment configuration system: `.env` (base config), `mono-mode.env` (deployment overrides), and Replit Secrets (API keys, highest priority).
+**Environment Contract Architecture** (Updated Nov 2025):
+The platform uses a **contract-driven environment system** with mode-specific validation to prevent configuration drift and ensure Replit deployment compliance.
+
+**Contract Files**:
+- `env/shared.env` - Common variables (DB, API keys, AI models, pool config)
+- `env/webservice.env` - Autoscale webservice mode (PORT binding, NO background worker)
+- `env/worker.env` - Background worker mode (LISTEN/NOTIFY, NO HTTP server)
+- `mono-mode.env` - Legacy fallback (local development)
+
+**Mode Selection** via `DEPLOY_MODE` environment variable:
+- `DEPLOY_MODE=webservice` - Replit Autoscale deployment (HTTP/WebSocket only)
+  - Loads: `shared.env` + `webservice.env`
+  - Contract: `ENABLE_BACKGROUND_WORKER=false` (autoscale compatible)
+  - Binds: PORT 5000
+  - Use case: Production webservice on Replit Autoscale
+
+- `DEPLOY_MODE=worker` - Background worker deployment (Scheduled/Reserved VM)
+  - Loads: `shared.env` + `worker.env`
+  - Contract: `ENABLE_BACKGROUND_WORKER=true`, `USE_LISTEN_MODE=true`
+  - No HTTP server (LISTEN-only mode)
+  - Use case: Strategy generation worker (separate Repl or Reserved VM)
+
+- No `DEPLOY_MODE` set - Fallback to `mono-mode.env` (local development)
+  - Loads: `mono-mode.env` (all-in-one configuration)
+  - Use case: Local development with full application
+
+**Contract Validation**:
+The environment loader (`server/lib/load-env.js`) validates configurations and fails fast if incompatible flags are detected:
+- Webservice mode CANNOT have `ENABLE_BACKGROUND_WORKER=true` (violates autoscale contract)
+- Worker mode MUST have `ENABLE_BACKGROUND_WORKER=true`
+
+**Priority Order**: Replit Secrets > mode-specific.env > shared.env > fallback (mono-mode.env)
+
+**Deployment Examples**:
+```bash
+# Autoscale webservice (production)
+DEPLOY_MODE=webservice npm start
+
+# Background worker (separate deployment)
+DEPLOY_MODE=worker npm start
+
+# Local development (mono mode)
+npm start
+```
+
+This architecture ensures **zero ambiguity** in deployment modes and prevents silent drift where webservice deployments accidentally try to spawn background workers.
 
 **Database Schema Highlights**:
 Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking_candidates`, and `venue_events`, linked by relationships. JSONB is used for flexible storage of features, business hours, and venue events.
