@@ -98,6 +98,10 @@ Use live web search to find current, factual information. Be comprehensive and o
       throw new Error('PERPLEXITY_API_KEY environment variable not set');
     }
 
+    const model = process.env.STRATEGY_BRIEFER || 'sonar-pro';
+    const maxTokens = parseInt(process.env.STRATEGY_BRIEFER_MAX_TOKENS || '4000', 10);
+    const temperature = parseFloat(process.env.STRATEGY_BRIEFER_TEMPERATURE || '0.2');
+
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -105,13 +109,13 @@ Use live web search to find current, factual information. Be comprehensive and o
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'sonar-pro',
+        model: model,
         messages: [
           { role: 'system', content: systemInstruction },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 4000,
-        temperature: 0.2,
+        max_tokens: maxTokens,
+        temperature: temperature,
         top_p: 0.9,
         search_recency_filter: 'day',
         return_images: false,
