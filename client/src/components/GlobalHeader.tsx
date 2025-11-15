@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { MapPin, Clock, Settings, RefreshCw, Car, Droplet, Thermometer, CloudRain, Cloud, Sun, CloudSnow, CheckCircle2 } from "lucide-react";
+import { MapPin, Clock, Settings, RefreshCw, Car, Droplet, Thermometer, CloudRain, Cloud, Sun, CloudSnow, CheckCircle2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -435,6 +435,24 @@ const GlobalHeader: React.FC = () => {
     }
   }, [refreshGPS, toast, lastRefreshTime]);
 
+  // DEV ONLY: Force fresh session for testing
+  const handleForceFreshSession = useCallback(() => {
+    console.log("🧹 [DEV] Forcing fresh session - clearing all localStorage");
+    
+    // Clear all localStorage
+    localStorage.clear();
+    
+    toast({
+      title: "Fresh session initiated",
+      description: "All data cleared. Reloading...",
+    });
+    
+    // Reload page to trigger fresh location request
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  }, [toast]);
+
   return (
     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
       {/* Main Header Row */}
@@ -556,6 +574,7 @@ const GlobalHeader: React.FC = () => {
                       ? "Updating..."
                       : "Refresh location"
                 }
+                data-testid="button-refresh-location"
               >
                 <RefreshCw
                   className={`h-4 w-4 ${
@@ -563,6 +582,21 @@ const GlobalHeader: React.FC = () => {
                   }`}
                 />
               </Button>
+              
+              {/* DEV ONLY: Force fresh session button */}
+              {import.meta.env.DEV && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleForceFreshSession}
+                  className="text-white hover:bg-red-500/30 p-1 border border-white/20"
+                  aria-label="Force fresh session (clear all data)"
+                  title="DEV: Clear all localStorage and reload (simulates new user)"
+                  data-testid="button-force-fresh-session"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
         </div>
