@@ -548,7 +548,14 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       const { lat, lng, userId } = snapshotV1;
       
       if (!lat || !lng) {
-        return httpError(res, 400, 'missing_lat_lng', 'Coordinates required', reqId);
+        ndjson('snapshot.bad_payload', { cid, reason: 'missing_lat_lng' });
+        return httpError(res, 400, 'missing_lat_lng', 'Coordinates required', cid);
+      }
+      
+      // Validate coordinate ranges
+      if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        ndjson('snapshot.bad_payload', { cid, reason: 'invalid_coordinates', lat, lng });
+        return httpError(res, 400, 'invalid_coordinates', 'Coordinates out of valid range', cid);
       }
       
       // Validate userId is a valid UUID or null/undefined
