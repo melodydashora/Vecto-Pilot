@@ -8,67 +8,25 @@ const cfg = {
   connectionString: process.env.DATABASE_URL,
   max: Number(process.env.PG_MAX || process.env.DB__POOL_MAX || 10),
   min: Number(process.env.PG_MIN || 2),
-  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 10000), // Shorter idle timeout
-  connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 2000), // Fast-fail on connect
+  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 10000),
+  connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 5000),
   keepAlive: process.env.PG_KEEPALIVE !== 'false',
   keepAliveInitialDelayMillis: Number(process.env.PG_KEEPALIVE_DELAY_MS || 5000),
   maxUses: Number(process.env.PG_MAX_USES || 7500),
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   allowExitOnIdle: false,
-  // CRITICAL: Fast-fail timeouts for degraded state detection
-  statement_timeout: Number(process.env.DB__STATEMENT_TIMEOUT_MS || 4000), // Postgres server-side timeout
-  query_timeout: Number(process.env.DB__QUERY_TIMEOUT_MS || 4000), // pg client-side timeout
+  statement_timeout: 5000, // Postgres server-side timeout (5s)
+  query_timeout: 5000, // pg client-side timeout (5s)
 };
 
-let rawPool = new Pool(cfg);
+let pool = new Pool(cfg);
 let degraded = false;
 let lastEvent = null;
 let reconnecting = false; // CRITICAL: Prevent race conditions
 let poolAlive = true; // CRITICAL: Prevent "Called end on pool more than once"
 
-// Wrap pool.connect() to add degradation checks for Drizzle ORM
-const originalConnect = rawPool.connect.bind(rawPool);
-rawPool.connect = async function() {
-  ndjson('pool.connect.intercepted', {
-    degraded,
-    poolAlive
-  });
-  
-  // CRITICAL: Fast-fail if degraded or pool is dead
-  if (degraded || !poolAlive) {
-    ndjson('pool.connect.rejected', { reason: degraded ? 'degraded' : 'pool_dead' });
-    const err = new Error('db_degraded');
-    err.status = 503;
-    throw err;
-  }
-  
-  ndjson('pool.connect.proceeding', {});
-  return originalConnect();
-};
-
-// Wrap pool.query() as well (for non-Drizzle queries)
-const originalQuery = rawPool.query.bind(rawPool);
-rawPool.query = function(text, params, callback) {
-  ndjson('pool.query.intercepted', {
-    degraded,
-    poolAlive
-  });
-  
-  if (degraded || !poolAlive) {
-    ndjson('pool.query.rejected', { reason: degraded ? 'degraded' : 'pool_dead' });
-    const err = new Error('db_degraded');
-    err.status = 503;
-    if (callback) {
-      callback(err);
-      return;
-    }
-    return Promise.reject(err);
-  }
-  return originalQuery(text, params, callback);
-};
-
-// Create pool reference (used throughout connection manager)
-let pool = rawPool;
+// No pool wrappers - they cause queries to hang
+// Degradation checks are done at middleware level instead
 
 // CRITICAL: Catch errors on idle connections (Neon admin terminations)
 pool.on('error', (err, client) => {
@@ -162,40 +120,7 @@ async function reconnectWithBackoff() {
     ndjson('db.reconnect.attempt', { attempt, delay_ms: delay });
     await new Promise(r => setTimeout(r, delay));
     try {
-      rawPool = new Pool(cfg);
-      
-      // Wrap pool.connect() for Drizzle ORM
-      const originalConnect = rawPool.connect.bind(rawPool);
-      rawPool.connect = async function() {
-        ndjson('pool.connect.intercepted', { degraded, poolAlive });
-        if (degraded || !poolAlive) {
-          ndjson('pool.connect.rejected', { reason: degraded ? 'degraded' : 'pool_dead' });
-          const err = new Error('db_degraded');
-          err.status = 503;
-          throw err;
-        }
-        ndjson('pool.connect.proceeding', {});
-        return originalConnect();
-      };
-      
-      // Wrap pool.query() for non-Drizzle queries
-      const originalQuery = rawPool.query.bind(rawPool);
-      rawPool.query = function(text, params, callback) {
-        ndjson('pool.query.intercepted', { degraded, poolAlive });
-        if (degraded || !poolAlive) {
-          ndjson('pool.query.rejected', { reason: degraded ? 'degraded' : 'pool_dead' });
-          const err = new Error('db_degraded');
-          err.status = 503;
-          if (callback) {
-            callback(err);
-            return;
-          }
-          return Promise.reject(err);
-        }
-        return originalQuery(text, params, callback);
-      };
-      
-      pool = rawPool;
+      pool = new Pool(cfg);
       poolAlive = true; // Mark new pool as alive
       
       // Re-attach error handler to new pool instance
