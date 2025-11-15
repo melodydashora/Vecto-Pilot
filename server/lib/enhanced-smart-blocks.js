@@ -79,7 +79,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
       ranking_id: rankingId,
       snapshot_id: snapshotId,
       correlation_id: correlationId,
-      user_id: user_id || null,
+      user_id: user_id && user_id.trim() !== '' ? user_id : null,
       city: snapshot.city || null,
       ui: null,
       model_name: `${venuePlannerModel}-venue-planner`,
