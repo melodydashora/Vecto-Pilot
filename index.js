@@ -86,8 +86,6 @@ setImmediate(async () => {
       { loggingMiddleware },
       { securityMiddleware },
       { default: healthRoutes },
-      { default: blocksRoutes },
-      { default: blocksDiscoveryRoutes },
       { default: locationRoutes },
       { default: actionsRoutes },
       { default: researchRoutes },
@@ -103,8 +101,6 @@ setImmediate(async () => {
       import('./server/middleware/logging.js'),
       import('./server/middleware/security.js'),
       import('./server/routes/health.js'),
-      import('./server/routes/blocks.js'),
-      import('./server/routes/blocks-discovery.js'),
       import('./server/routes/location.js'),
       import('./server/routes/actions.js'),
       import('./server/routes/research.js'),
@@ -124,8 +120,6 @@ setImmediate(async () => {
     
     // Mount API routes
     app.use('/api/health', healthRoutes);
-    app.use('/api/blocks', blocksRoutes);
-    app.use('/api/blocks-discovery', blocksDiscoveryRoutes);
     app.use('/api/location', locationRoutes);
     app.use('/api/actions', actionsRoutes);
     app.use('/api/research', researchRoutes);
