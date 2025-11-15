@@ -8,19 +8,23 @@ const cfg = {
   connectionString: process.env.DATABASE_URL,
   max: Number(process.env.PG_MAX || process.env.DB__POOL_MAX || 10),
   min: Number(process.env.PG_MIN || 2),
-  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 120000),
-  connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 10000),
+  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 10000), // Shorter idle timeout
+  connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 2000), // Fast-fail on connect
   keepAlive: process.env.PG_KEEPALIVE !== 'false',
-  keepAliveInitialDelayMillis: Number(process.env.PG_KEEPALIVE_DELAY_MS || 30000),
+  keepAliveInitialDelayMillis: Number(process.env.PG_KEEPALIVE_DELAY_MS || 5000),
   maxUses: Number(process.env.PG_MAX_USES || 7500),
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  allowExitOnIdle: false
+  allowExitOnIdle: false,
+  // CRITICAL: Fast-fail timeouts for degraded state detection
+  statement_timeout: Number(process.env.DB__STATEMENT_TIMEOUT_MS || 4000), // Postgres server-side timeout
+  query_timeout: Number(process.env.DB__QUERY_TIMEOUT_MS || 4000), // pg client-side timeout
 };
 
 let pool = new Pool(cfg);
 let degraded = false;
 let lastEvent = null;
 let reconnecting = false; // CRITICAL: Prevent race conditions
+let poolAlive = true; // CRITICAL: Prevent "Called end on pool more than once"
 
 // CRITICAL: Catch errors on idle connections (Neon admin terminations)
 pool.on('error', (err, client) => {
@@ -85,6 +89,13 @@ async function initPool() {
 }
 
 async function drainPool() {
+  // CRITICAL: Only drain if pool is alive - prevents "Called end on pool more than once"
+  if (!poolAlive || !pool) {
+    ndjson('db.drain.skip', { reason: 'pool_already_drained' });
+    return;
+  }
+  
+  poolAlive = false; // Mark pool as dead BEFORE draining
   ndjson('db.drain.begin', {});
   try { 
     await pool.end(); 
@@ -108,6 +119,7 @@ async function reconnectWithBackoff() {
     await new Promise(r => setTimeout(r, delay));
     try {
       pool = new Pool(cfg);
+      poolAlive = true; // Mark new pool as alive
       
       // Re-attach error handler to new pool instance
       pool.on('error', (err, client) => {
@@ -164,9 +176,10 @@ async function reconnectWithBackoff() {
 }
 
 export async function safeQuery(text, params) {
-  if (degraded) {
+  // CRITICAL: Fast-fail if degraded OR pool is dead
+  if (degraded || !poolAlive) {
     ndjson('query.rejected', {
-      reason: 'degraded',
+      reason: degraded ? 'degraded' : 'pool_dead',
       sql_hash: crypto.createHash('sha1').update(text).digest('hex'),
     });
     const err = new Error('db_degraded');
@@ -237,7 +250,7 @@ let currentAttempt = 0;
 let currentBackoffDelay = 0;
 
 export function getAgentState() {
-  return { degraded, lastEvent, currentBackoffDelay };
+  return { degraded, poolAlive, lastEvent, currentBackoffDelay, reconnecting };
 }
 
 function isPoolExhaustion(err) {
