@@ -21,6 +21,36 @@ let pool = new Pool(cfg);
 let degraded = false;
 let lastEvent = null;
 
+// CRITICAL: Catch errors on idle connections (Neon admin terminations)
+pool.on('error', (err, client) => {
+  const isTermination = isAdminTermination(err);
+  
+  ndjson('db.pool.error', {
+    is_termination: isTermination,
+    code: err.code,
+    message: err.message,
+    deploy_mode: process.env.DEPLOY_MODE
+  });
+  
+  // If this is an admin termination, trigger degradation and reconnect
+  if (isTermination) {
+    degraded = true;
+    lastEvent = 'db.terminated';
+    
+    ndjson('db.terminated', {
+      reason: 'administrator_command_idle',
+      err_code: err.code,
+      err_message: err.message,
+      deploy_mode: process.env.DEPLOY_MODE,
+    });
+    
+    // Don't await - let it run in background
+    drainPool()
+      .then(() => reconnectWithBackoff())
+      .catch(e => ndjson('db.reconnect.loop.error', { error: String(e.message || e) }));
+  }
+});
+
 function isAdminTermination(err) {
   return err?.message?.includes('terminating connection due to administrator command')
       || err?.code === '57P01';
@@ -74,6 +104,35 @@ async function reconnectWithBackoff() {
     await new Promise(r => setTimeout(r, delay));
     try {
       pool = new Pool(cfg);
+      
+      // Re-attach error handler to new pool instance
+      pool.on('error', (err, client) => {
+        const isTermination = isAdminTermination(err);
+        
+        ndjson('db.pool.error', {
+          is_termination: isTermination,
+          code: err.code,
+          message: err.message,
+          deploy_mode: process.env.DEPLOY_MODE
+        });
+        
+        if (isTermination) {
+          degraded = true;
+          lastEvent = 'db.terminated';
+          
+          ndjson('db.terminated', {
+            reason: 'administrator_command_idle',
+            err_code: err.code,
+            err_message: err.message,
+            deploy_mode: process.env.DEPLOY_MODE,
+          });
+          
+          drainPool()
+            .then(() => reconnectWithBackoff())
+            .catch(e => ndjson('db.reconnect.loop.error', { error: String(e.message || e) }));
+        }
+      });
+      
       const client = await pool.connect();
       const pid = await getBackendPid(client);
       await client.query('SELECT 1');
