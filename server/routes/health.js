@@ -69,7 +69,15 @@ export function healthRoutes(app) {
       });
     }
     try {
-      await db.execute(sql`SELECT 1`);
+      // 250ms timeout probe for health check
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Health probe timeout')), 250)
+      );
+      const queryPromise = db.execute(sql`SELECT 1`);
+      
+      await Promise.race([queryPromise, timeoutPromise]);
+      
+      ndjson('health.ok', {});
       return res.status(200).json({ 
         state: 'healthy',
         timestamp: new Date().toISOString(),
@@ -96,7 +104,14 @@ export function healthRoutes(app) {
       });
     }
     try {
-      await db.execute(sql`SELECT 1`);
+      // 250ms timeout probe for readiness check
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Readiness probe timeout')), 250)
+      );
+      const queryPromise = db.execute(sql`SELECT 1`);
+      
+      await Promise.race([queryPromise, timeoutPromise]);
+      
       return res.json({ 
         status: 'ready',
         timestamp: new Date().toISOString()
@@ -105,6 +120,7 @@ export function healthRoutes(app) {
       return res.status(503).json({ 
         status: 'not_ready',
         reason: 'database_error',
+        error: e.message,
         timestamp: new Date().toISOString()
       });
     }

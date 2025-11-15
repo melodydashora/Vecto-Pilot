@@ -66,8 +66,10 @@ async function reconnectWithBackoff() {
   const cap = Number(process.env.DB__RETRY_MAX_MS || 5000);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    currentAttempt = attempt;
     const jitter = Math.floor(Math.random() * base);
     const delay = Math.min(base * (2 ** (attempt - 1)) + jitter, cap);
+    currentBackoffDelay = delay;
     ndjson('db.reconnect.attempt', { attempt, delay_ms: delay });
     await new Promise(r => setTimeout(r, delay));
     try {
@@ -109,17 +111,31 @@ export async function safeQuery(text, params) {
   try {
     return await client.query(text, params);
   } catch (err) {
-    if (isAdminTermination(err)) {
-      const pid = await getBackendPid(client);
+    const isTermination = isAdminTermination(err);
+    const isExhaustion = isPoolExhaustion(err);
+    
+    if (isTermination || isExhaustion) {
+      const pid = isTermination ? await getBackendPid(client) : null;
       degraded = true;
-      lastEvent = 'db.terminated';
-      ndjson('db.terminated', {
-        reason: 'administrator_command',
+      lastEvent = isTermination ? 'db.terminated' : 'db.pool.exhausted';
+      
+      ndjson(lastEvent, {
+        reason: isTermination ? 'administrator_command' : 'pool_exhausted',
+        err_code: err.code,
+        err_message: err.message,
         backend_pid: pid,
         deploy_mode: process.env.DEPLOY_MODE,
       });
+      
       if (process.env.AUDIT__ENABLED === 'true') {
-        await insertAudit('db.terminated', pid, 'pg-client', 'administrator_command', process.env.DEPLOY_MODE, { code: err.code });
+        await insertAudit(
+          lastEvent, 
+          pid, 
+          'pg-client', 
+          isTermination ? 'administrator_command' : 'pool_exhausted',
+          process.env.DEPLOY_MODE, 
+          { code: err.code, message: err.message }
+        );
       }
       await drainPool();
       reconnectWithBackoff().catch(e => ndjson('db.reconnect.loop.error', { error: String(e.message || e) }));
@@ -138,8 +154,17 @@ export function getPool() {
   };
 }
 
+let currentAttempt = 0;
+let currentBackoffDelay = 0;
+
 export function getAgentState() {
-  return { degraded, lastEvent };
+  return { degraded, lastEvent, currentBackoffDelay };
+}
+
+function isPoolExhaustion(err) {
+  return err?.message?.includes('Client has encountered a connection error')
+      || err?.message?.includes('timeout')
+      || err?.message?.includes('Connection terminated unexpectedly');
 }
 
 async function insertAudit(event, backend_pid, application_name, reason, deploy_mode, details) {
