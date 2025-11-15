@@ -3,6 +3,16 @@
 ## Overview
 Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximize rideshare driver earnings. It provides real-time, data-driven strategic briefings by integrating diverse data sources (location, events, traffic, weather, air quality) and leveraging advanced AI and data analytics to generate actionable strategies for drivers.
 
+## Recent Changes
+
+### November 15, 2025 - Production Venue Generation Fix
+- **FIXED**: Venue generation failing with "insert into rankings (created_at) values (default)" error
+- **Root Cause**: Outdated drizzle-orm package generating incorrect SQL for `.defaultNow()` timestamps
+- **Solution**: Updated drizzle-kit to latest version (which auto-updated drizzle-orm)
+- **Code Cleanup**: Removed duplicate route `POST /api/diagnostics/test-claude/:snapshotId` from diagnostics.js
+- **Documentation**: Created DEPLOYMENT_CHECKLIST.md with deployment procedures and troubleshooting
+- **Verification**: Production venue generation confirmed working (6 blocks generated successfully)
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
