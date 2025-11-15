@@ -168,6 +168,11 @@ process.on('unhandledRejection', (reason, promise) => {
     
     app.use(helmet({ contentSecurityPolicy: false }));
     app.use(cors({ origin: true, credentials: true }));
+    
+    // Correlation ID middleware (before JSON parsing)
+    const { correlationId } = await import("./server/middleware/correlation-id.js");
+    app.use(correlationId);
+    
     app.use("/api", express.json({ limit: "1mb" }));
     app.use("/agent", express.json({ limit: "1mb" }));
     console.log("[gateway] ✅ Middleware configured");
