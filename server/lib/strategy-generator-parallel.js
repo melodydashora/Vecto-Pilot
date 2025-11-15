@@ -212,8 +212,24 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
   console.log(`[runSimpleStrategyPipeline] Starting for snapshot ${snapshotId}`);
   
   try {
-    // REMOVED: No placeholder creation - saveStrategy() creates the single authoritative row
-    // with complete data including model_name in a single atomic operation
+    // Build dynamic model name from environment variables (full 3-step chain)
+    const strategist = process.env.STRATEGY_STRATEGIST || 'unknown';
+    const briefer = process.env.STRATEGY_BRIEFER || 'unknown';
+    const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'unknown';
+    const fullModelChain = `${strategist}→${briefer}→${consolidator}`;
+    
+    // Create initial strategy row with model_name - ensures exactly ONE row per snapshot
+    // Using onConflictDoNothing to handle race conditions (first writer wins)
+    await db.insert(strategies).values({
+      snapshot_id: snapshotId,
+      user_id: userId,
+      status: 'pending',
+      model_name: fullModelChain,
+      created_at: new Date(),
+      updated_at: new Date()
+    }).onConflictDoNothing();
+    
+    console.log(`[runSimpleStrategyPipeline] ✅ Strategy row created with model_name: ${fullModelChain}`);
     
     // Import providers
     const { runMinStrategy } = await import('./providers/minstrategy.js');
