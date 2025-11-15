@@ -149,10 +149,15 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "STRATEGIC OVERVIEW:",
     strategy,
     "",
-    "DRIVER ADDRESS:",
-    snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown',
+    "DRIVER CURRENT LOCATION (GPS):",
+    `${snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown'}`,
+    `Coordinates: ${snapshot?.lat}, ${snapshot?.lng}`,
     "",
-    "What venues should the driver target right now? Return JSON with coords + category + tips + strategic timing."
+    "CRITICAL: Generate venues within 15-20 miles of the driver's CURRENT coordinates above.",
+    "Do NOT generate venues where the strategy suggests repositioning to - only near current location.",
+    "The strategy may suggest moving to another area, but your job is to show tactical options from where they are NOW.",
+    "",
+    "What specific venues near the driver's current location should they target? Return JSON with coords + category + tips + strategic timing."
   ].join("\n");
 
   console.log(`[TRIAD 2/3 - GPT-5 Planner] Calling GPT-5 (using default temperature - GPT-5 doesn't support custom temperature)...`);

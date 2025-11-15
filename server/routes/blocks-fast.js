@@ -82,11 +82,11 @@ router.get('/', async (req, res) => {
       .orderBy(ranking_candidates.rank);
     console.log(`[blocks-fast GET] Found ${candidates.length} candidates`);
     
-    // 15-minute perimeter enforcement (show all if drive time not calculated yet)
-    const within15Min = (driveMin) => {
-      // If drive time not calculated yet, include the venue (will show "calculating...")
-      if (!Number.isFinite(driveMin)) return true;
-      return driveMin <= 15;
+    // 25-mile perimeter enforcement (show all if distance not calculated yet)
+    const within25Miles = (distanceMiles) => {
+      // If distance not calculated yet, include the venue (will show "calculating...")
+      if (!Number.isFinite(distanceMiles)) return true;
+      return distanceMiles <= 25;
     };
     
     const allBlocks = candidates.map(c => ({
@@ -107,13 +107,23 @@ router.get('/', async (req, res) => {
       eventSummary: c.venue_events?.summary,
     }));
     
-    // Filter to 15-minute perimeter
-    const blocks = allBlocks.filter(b => within15Min(b.driveTimeMinutes));
-    const rejected = allBlocks.filter(b => !within15Min(b.driveTimeMinutes)).length;
+    // Filter to 25-mile perimeter
+    const filtered = allBlocks.filter(b => within25Miles(b.estimated_distance_miles));
+    const rejected = allBlocks.filter(b => !within25Miles(b.estimated_distance_miles)).length;
+    
+    // Sort: closest high-value first → furthest high-value last
+    // Primary sort: value_per_min DESC (highest value first)
+    // Secondary sort: estimated_distance_miles ASC (closest first within same value tier)
+    const blocks = filtered.sort((a, b) => {
+      const valueDiff = (b.value_per_min || 0) - (a.value_per_min || 0);
+      if (Math.abs(valueDiff) > 0.01) return valueDiff; // Different value tiers
+      return (a.estimated_distance_miles || 999) - (b.estimated_distance_miles || 999); // Same tier: closest first
+    });
     
     const audit = [
       { step: 'gating', strategy_ready: true },
-      { step: 'perimeter', accepted: blocks.length, rejected, max_minutes: 15 }
+      { step: 'perimeter', accepted: blocks.length, rejected, max_miles: 25 },
+      { step: 'sorting', method: 'value_desc_distance_asc' }
     ];
 
     console.log(`[blocks-fast GET] ✅ Returning ${blocks.length} blocks (${rejected} rejected by 15-min perimeter)`);
