@@ -968,11 +968,11 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       snapshot_id: snapshotV1.snapshot_id,
       h3_r8,
       status: 'parallel_providers_initiated',
-      req_id: reqId
+      req_id: cid
     });
   } catch (err) {
     console.error('[location] snapshot error', err);
-    return httpError(res, 500, 'snapshot_failed', String(err?.message || err), reqId);
+    return httpError(res, 500, 'snapshot_failed', String(err?.message || err), cid);
   }
 });
 
