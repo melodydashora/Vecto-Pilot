@@ -846,44 +846,9 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     console.log('  🌫️ Air: air_quality =', snapshotV1.air ? `AQI ${snapshotV1.air.aqi}` : 'none');
     console.log('  🛫 Airport: airport_context =', airportContext ? `${airportContext.airport_code} (${airportContext.distance_miles}mi, ${airportContext.delay_minutes}min delays)` : 'none');
 
-    // Create or claim strategy row without a race; only the winner proceeds
-    const now = new Date();
-    await db.insert(strategies).values({
-      snapshot_id: snapshotV1.snapshot_id,
-      status: 'pending',
-      attempt: 1,
-      created_at: now,
-      updated_at: now,
-      // Copy precise user-resolved location context
-      user_resolved_address: snapshotV1.resolved?.formattedAddress || null,
-      user_resolved_city: snapshotV1.resolved?.city || null,
-      user_resolved_state: snapshotV1.resolved?.state || null,
-      // Also copy coordinates for continuity
-      lat: snapshotV1.coord.lat,
-      lng: snapshotV1.coord.lng,
-      city: snapshotV1.resolved?.city || null,
-      state: snapshotV1.resolved?.state || null,
-      user_address: snapshotV1.resolved?.formattedAddress || null,
-      // Provider fields remain NULL until providers write (no pre-seeding)
-      minstrategy: null,
-      briefing_news: null,
-      briefing_events: null,
-      briefing_traffic: null,
-      consolidated_strategy: null
-    }).onConflictDoUpdate({
-      target: strategies.snapshot_id,
-      set: { 
-        user_resolved_address: snapshotV1.resolved?.formattedAddress || null,
-        user_resolved_city: snapshotV1.resolved?.city || null,
-        user_resolved_state: snapshotV1.resolved?.state || null,
-        lat: snapshotV1.coord.lat,
-        lng: snapshotV1.coord.lng,
-        city: snapshotV1.resolved?.city || null,
-        state: snapshotV1.resolved?.state || null,
-        user_address: snapshotV1.resolved?.formattedAddress || null,
-        updated_at: now
-      }
-    });
+    // REMOVED: Strategy row creation - strategy-generator-parallel.js creates the SINGLE strategy row
+    // The strategy generator will fetch all enriched data from the complete snapshot row
+    // This ensures: 1) No race conditions, 2) model_name preserved, 3) Full snapshot context available
 
     // Call parallel providers directly instead of enqueueing job
     console.log(`[location] 📍 Snapshot created: ${snapshotV1.snapshot_id}`, {

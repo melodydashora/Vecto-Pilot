@@ -109,15 +109,9 @@ router.post("/", async (req, res) => {
     // Persist to DB
     await db.insert(snapshots).values(dbSnapshot);
 
-    // Immediately create placeholder strategy row so GET endpoint can return "pending" instead of "not_found"
-    await db.insert(strategies).values({
-      snapshot_id,
-      status: 'pending',
-      attempt: 1,
-      created_at: new Date(),
-      updated_at: new Date(),
-    }).onConflictDoNothing();
-
+    // REMOVED: Placeholder strategy creation - strategy-generator-parallel.js creates the SINGLE strategy row
+    // This prevents race conditions and ensures model_name attribution is preserved
+    
     // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
     queueMicrotask(() => {
       try {
