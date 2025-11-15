@@ -33,15 +33,21 @@ const PLANNER_TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS || '5000'); /
 router.get('/', async (req, res) => {
   const snapshotId = req.query.snapshotId || req.query.snapshot_id;
   
+  console.log(`[blocks-fast GET] 🔍 Request for snapshot: ${snapshotId}`);
+  
   if (!snapshotId) {
+    console.log('[blocks-fast GET] ❌ No snapshot ID provided');
     return res.status(400).json({ error: 'snapshot_required' });
   }
 
   try {
     // GATE 1: Strategy must be ready before blocks
+    console.log(`[blocks-fast GET] Checking if strategy ready for ${snapshotId}...`);
     const { ready, strategy, status } = await isStrategyReady(snapshotId);
+    console.log(`[blocks-fast GET] Strategy ready: ${ready}, status: ${status}`);
     
     if (!ready) {
+      console.log(`[blocks-fast GET] Strategy not ready, returning 202`);
       return res.status(202).json({ 
         ok: false, 
         reason: 'strategy_pending',
@@ -60,16 +66,21 @@ router.get('/', async (req, res) => {
     } : null;
     
     // GATE 2: Find ranking for this snapshot
+    console.log(`[blocks-fast GET] Querying rankings for snapshot ${snapshotId}...`);
     const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+    console.log(`[blocks-fast GET] Ranking found:`, ranking ? `YES (${ranking.ranking_id})` : 'NO');
     
     if (!ranking) {
+      console.error(`[blocks-fast GET] ❌ NO RANKING FOUND for snapshot ${snapshotId}`);
       return res.status(404).json({ error: 'NOT_FOUND', blocks: [] });
     }
 
     // Get candidates for this ranking
+    console.log(`[blocks-fast GET] Querying candidates for ranking ${ranking.ranking_id}...`);
     const candidates = await db.select().from(ranking_candidates)
       .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
       .orderBy(ranking_candidates.rank);
+    console.log(`[blocks-fast GET] Found ${candidates.length} candidates`);
     
     // 15-minute perimeter enforcement (show all if drive time not calculated yet)
     const within15Min = (driveMin) => {
@@ -105,9 +116,11 @@ router.get('/', async (req, res) => {
       { step: 'perimeter', accepted: blocks.length, rejected, max_minutes: 15 }
     ];
 
+    console.log(`[blocks-fast GET] ✅ Returning ${blocks.length} blocks (${rejected} rejected by 15-min perimeter)`);
     return res.json({ blocks, ranking_id: ranking.ranking_id, briefing, audit });
   } catch (error) {
-    console.error('[blocks-fast GET] Error:', error);
+    console.error('[blocks-fast GET] ❌ Error:', error.message);
+    console.error('[blocks-fast GET] Stack:', error.stack);
     return res.status(500).json({ error: 'internal_error', blocks: [] });
   }
 });
@@ -193,13 +206,24 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
           const [consolidated] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
           
           if (consolidated?.consolidated_strategy) {
-            await generateEnhancedSmartBlocks({
-              snapshotId,
-              consolidated: consolidated.consolidated_strategy,
-              briefing: briefing,
-              snapshot: snapshot,
-              user_id: null
-            });
+            try {
+              await generateEnhancedSmartBlocks({
+                snapshotId,
+                consolidated: consolidated.consolidated_strategy,
+                briefing: briefing,
+                snapshot: snapshot,
+                user_id: null
+              });
+              console.log(`[blocks-fast POST] ✅ Smart blocks generation complete`);
+            } catch (blocksError) {
+              console.error(`[blocks-fast POST] ❌ Smart blocks generation failed:`, blocksError.message);
+              console.error(`[blocks-fast POST] Stack:`, blocksError.stack);
+              return sendOnce(500, {
+                error: 'blocks_generation_failed',
+                message: blocksError.message
+              });
+            }
+            
             console.log(`[blocks-fast POST] ✅ Synchronous waterfall complete`);
             
             // Return success immediately after waterfall completes
