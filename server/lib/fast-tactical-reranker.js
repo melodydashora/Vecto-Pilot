@@ -10,12 +10,12 @@ import { z } from "zod";
 const RerankItemSchema = z.object({
   id: z.string(), // Must match a candidate ID
   score: z.number().min(0).max(100),
-  reason: z.string().max(100).optional()
+  reason: z.string().optional()  // No char limit - model-agnostic
 });
 
 const RerankResponseSchema = z.object({
   ranked_venues: z.array(RerankItemSchema).max(12),
-  tactical_notes: z.string().max(200).optional()
+  tactical_notes: z.string().optional()  // No char limit - model-agnostic
 });
 
 /**
