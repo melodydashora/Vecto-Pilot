@@ -4,8 +4,14 @@ import { ndjson } from '../logger/ndjson.js';
 
 const { Pool } = pkg;
 
+// CRITICAL: Use DEV_DATABASE_URL for local development, DATABASE_URL for production
+const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
+const dbUrl = isProduction ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
+
+console.log(`[connection-manager] Using ${isProduction ? 'PRODUCTION' : 'DEV'} database`);
+
 const cfg = {
-  connectionString: process.env.DATABASE_URL,
+  connectionString: dbUrl,
   max: Number(process.env.PG_MAX || process.env.DB__POOL_MAX || 10),
   min: Number(process.env.PG_MIN || 2),
   idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 10000),
@@ -13,7 +19,7 @@ const cfg = {
   keepAlive: process.env.PG_KEEPALIVE !== 'false',
   keepAliveInitialDelayMillis: Number(process.env.PG_KEEPALIVE_DELAY_MS || 5000),
   maxUses: Number(process.env.PG_MAX_USES || 7500),
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: { rejectUnauthorized: false },
   allowExitOnIdle: false,
   statement_timeout: 5000, // Postgres server-side timeout (5s)
   query_timeout: 5000, // pg client-side timeout (5s)

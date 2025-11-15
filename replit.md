@@ -2,17 +2,23 @@
 
 ## ⚠️ CRITICAL: DATABASE ENVIRONMENT RULES ⚠️
 
-**DATABASE_URL POINTS TO PRODUCTION - DO NOT POLLUTE WITH TEST DATA**
+**AUTOMATIC DATABASE ROUTING - ENFORCED IN CODE**
 
-Rules:
-1. **NEVER** run test queries against DATABASE_URL (production database)
-2. **NEVER** create test snapshots in production
-3. **NEVER** run curl commands that POST to production endpoints
-4. **ASK** the user for a separate dev database URL before any testing
-5. Production database queries are READ-ONLY for inspection purposes only
-6. All testing must happen locally or against a separate dev database
+The application automatically routes to the correct database:
+- **Local Development** (`REPLIT_DEPLOYMENT` not set): Uses `DEV_DATABASE_URL` (late-mouse)
+- **Production** (`REPLIT_DEPLOYMENT=1`): Uses `DATABASE_URL` (fancy-snow)
 
-If you need to test database operations, STOP and ask the user for dev database credentials first.
+**NEVER POLLUTE PRODUCTION WITH TEST DATA**
+
+Enforcement Points:
+1. `server/db/connection-manager.js` - Checks `REPLIT_DEPLOYMENT` flag
+2. `drizzle.config.js` - Routes migrations to correct database
+
+Agent Rules:
+1. **NEVER** manually run queries against production database
+2. **TRUST** the automatic routing - local development is isolated
+3. Testing and development is safe - uses separate dev database
+4. Production database is READ-ONLY for inspection via execute_sql_tool
 
 ## Overview
 Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximize rideshare driver earnings. It provides real-time, data-driven strategic briefings by integrating diverse data sources (location, events, traffic, weather, air quality) and leveraging advanced AI and data analytics to generate actionable strategies for drivers.
