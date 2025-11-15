@@ -15,6 +15,23 @@
 
 **Verification**: Local test with webservice mode shows correct environment loading and contract validation.
 
+### 🔧 Database Connection Pool Exhaustion (Nov 15, 2025)
+**Issue**: Production deployment crashing with PostgreSQL error `57P01` (ADMIN_SHUTDOWN) - "database connection terminated".
+
+**Root Cause**: Cloud Run autoscale creates multiple instances, each with `PG_MAX=10` connections. With 10+ instances, total connections exceed Neon's free tier limit (~100), causing database to terminate connections.
+
+**Fix Applied**:
+1. Set `PG_MAX=2` in `env/webservice.env` for autoscale deployments (limits each instance to 2 connections)
+2. Set `PG_MIN=0` to avoid pre-creating idle connections
+3. Set `PG_IDLE_TIMEOUT_MS=30000` (30s) for faster connection recycling
+4. Enhanced pool error handler to gracefully handle `57P01` errors without crashing
+
+**Connection Math**:
+- Before: 10 instances × 10 connections = 100 connections ❌ (at limit)
+- After: 50 instances × 2 connections = 100 connections ✅ (sustainable)
+
+**Verification**: Deploy and check that app starts without database errors. Connection pool should report `max=2` in webservice mode.
+
 ### 🔧 Venue Generation Database Bug (Nov 15, 2025)
 **Issue**: Venue generation failing with `insert into "rankings" (created_at) values (default)` error.
 
