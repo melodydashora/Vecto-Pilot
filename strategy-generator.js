@@ -2,6 +2,13 @@
 // strategy-generator.js - Triad Worker Entry Point
 // Runs the consolidation listener only (LISTEN mode, no hot polling)
 
+// Load environment contract (if not already loaded by parent process)
+import { loadEnvironment } from './server/lib/load-env.js';
+if (!process.env._ENV_LOADED) {
+  loadEnvironment();
+  process.env._ENV_LOADED = '1';
+}
+
 // Force unbuffered console output for child process
 if (process.stdout._handle) process.stdout._handle.setBlocking(true);
 if (process.stderr._handle) process.stderr._handle.setBlocking(true);

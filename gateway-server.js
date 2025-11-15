@@ -8,10 +8,14 @@ import httpProxy from "http-proxy";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { loadEnvironment } from "./server/lib/load-env.js";
 import { validateOrExit } from "./server/lib/validate-env.js";
 
 const { createProxyServer } = httpProxy;
 // Lazy-load triad-worker to avoid DB pool creation before server is ready
+
+// Load environment contract (DEPLOY_MODE-aware)
+loadEnvironment();
 
 // Validate environment before starting server (fast-fail for missing config)
 validateOrExit();
