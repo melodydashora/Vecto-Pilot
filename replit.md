@@ -68,11 +68,11 @@ The platform uses a **contract-driven environment system** with mode-specific va
 - `mono-mode.env` - Legacy fallback (local development)
 
 **Mode Selection** via `DEPLOY_MODE` environment variable:
-- `DEPLOY_MODE=webservice` - Replit Autoscale deployment (HTTP/WebSocket only)
+- `DEPLOY_MODE=webservice` - Replit Reserved VM deployment (HTTP/WebSocket + Background Worker)
   - Loads: `shared.env` + `webservice.env`
-  - Contract: `ENABLE_BACKGROUND_WORKER=false` (autoscale compatible)
+  - Contract: `ENABLE_BACKGROUND_WORKER=true`, `USE_LISTEN_MODE=true` (Reserved VM with background worker)
   - Binds: PORT 5000
-  - Use case: Production webservice on Replit Autoscale
+  - Use case: Production webservice on Replit Reserved VM with strategy generation worker
 
 - `DEPLOY_MODE=worker` - Background worker deployment (Scheduled/Reserved VM)
   - Loads: `shared.env` + `worker.env`
