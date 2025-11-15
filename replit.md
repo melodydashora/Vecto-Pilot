@@ -1,13 +1,13 @@
 # Vecto Pilot™ - Rideshare Intelligence Platform
 
 ## Overview
-Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximize rideshare driver earnings. It achieves this by providing real-time, data-driven strategic briefings, leveraging advanced AI and data analytics. The platform integrates diverse data sources such as location, events, traffic, weather, and air quality to generate actionable strategies for drivers.
+Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximize rideshare driver earnings. It provides real-time, data-driven strategic briefings by integrating diverse data sources (location, events, traffic, weather, air quality) and leveraging advanced AI and data analytics to generate actionable strategies for drivers.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
-Vecto Pilot is a full-stack Node.js application built with a multi-service architecture, supporting both monolithic and split deployments.
+Vecto Pilot is a full-stack Node.js application with a multi-service architecture, supporting both monolithic and split deployments.
 
 **Core Services**:
 -   **Gateway Server**: Handles client traffic, serves the React SPA, routes requests, and manages child processes.
@@ -18,7 +18,7 @@ Vecto Pilot is a full-stack Node.js application built with a multi-service archi
 The platform uses a role-based, model-agnostic architecture with configurable AI models.
 -   **Strategy Generation Pipeline**: An event-driven, three-step pipeline:
     1.  **Strategist** (Claude): Generates a strategic overview.
-    2.  **Briefer** (Perplexity): Conducts comprehensive travel research (global, domestic, local, holidays, nearby events).
+    2.  **Briefer** (Perplexity): Conducts comprehensive travel research.
     3.  **Consolidator** (GPT-5 with reasoning): Consolidates strategist output with additional web research.
 -   **Briefing Data Structure**: Dedicated `briefings` table with structured fields for various intelligence categories and citations.
 -   **Model-Agnostic Schema**: Database and environment variables use generic role names to avoid provider-specific coupling.
@@ -34,32 +34,7 @@ A PostgreSQL Database with Drizzle ORM stores snapshots, strategies, venue event
 Employs JWT with RS256 Asymmetric Keys, with security middleware for rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.
 
 **Deployment & Reliability**:
-Supports Mono Mode and Split Mode, with reliability features like health-gated entry points, unified port binding, proxy gating, WebSocket protection, and process discipline.
-
-**Replit Autoscale Deployment**:
-The platform supports optional autoscale mode via opt-in environment variable.
-
--   **Environment Detection**: Uses `process.env.REPLIT_DEPLOYMENT === "1"` to detect Replit deployments.
--   **Autoscale Mode (Opt-In)**: Only enabled when `CLOUD_RUN_AUTOSCALE=1` is explicitly set. When active:
-    -   Uses raw HTTP server (no Express) for minimal overhead
-    -   Responds to `/`, `/health`, `/ready` with 200 OK instantly
-    -   Cloud Run compatible timeouts (keepAlive: 65s, headers: 66s)
-    -   Skips all route loading (SDK, Agent, SSE events)
-    -   Skips database connection initialization
--   **Regular Deployment Mode (Default)**: When `CLOUD_RUN_AUTOSCALE` is unset:
-    -   Runs full Express application with all features
-    -   Health endpoints (`/health`, `/ready`, `/healthz`) registered FIRST
-    -   Server listens IMMEDIATELY before loading heavy modules
-    -   Middleware/routes loaded in `setImmediate()` after server binds
-    -   Static assets served from `client/dist`
--   **Worker Behavior**: Background worker automatically disabled in autoscale (stateless requirement), enabled in local development via `ENABLE_BACKGROUND_WORKER=true` in `mono-mode.env`.
--   **Implementation Files**:
-    -   `gateway-server.js`: Autoscale detection (opt-in) and dual-mode support
-    -   `scripts/start-replit.js`: Worker skip logic
-    -   `mono-mode.env`: Port configuration (EIDOLON_PORT commented out)
-    -   `.replit`: Single-port configuration (5000→80 only)
--   **Port Configuration**: **CRITICAL for autoscale** - Replit autoscale requires exactly ONE external port. Port 3101 was removed from all configuration files to prevent auto-detection. Never reference ports in env files that aren't actually used in deployment.
--   **Deployment Philosophy**: Run full Express app by default. Health endpoints respond in <10ms by registering first and listening immediately.
+Supports Mono Mode and Split Mode, with reliability features like health-gated entry points, unified port binding, proxy gating, WebSocket protection, and process discipline. It includes an optional autoscale mode for Replit deployments, optimized for minimal overhead and fast health checks.
 
 **Data Integrity**:
 Geographic computations use snapshot coordinates. Strategy refresh is triggered by location movement, day part changes, or manual refresh. Strategies have explicit validity windows and an auto-invalidation mechanism, with snapshot date/time fields as the single source of truth for all AI outputs.
@@ -94,7 +69,6 @@ Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking
 ### Database
 -   **PostgreSQL (External - Non-Replit Hosted)**: Primary data store hosted externally (Neon), managed by Drizzle ORM.
 -   **Connection Modes**: Pooled (`DATABASE_URL`) for queries, Unpooled (`DATABASE_URL_UNPOOLED`) for LISTEN/NOTIFY.
--   **Important**: Database is NOT hosted on Replit infrastructure - it's an external Neon PostgreSQL instance. Schema changes must be applied via `npm run db:push` from development environment.
 
 ### Infrastructure
 -   **Replit Platform**: Deployment, Nix environment, `.replit` configuration.
@@ -104,116 +78,3 @@ Core tables include `snapshots`, `strategies`, `briefings`, `rankings`, `ranking
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
-
-## Recent Changes - November 15, 2025
-
-### Strategy Single-Row Architecture Fix (Production Ready) ✅
-
-**Problem**: Triple strategy INSERT causing race conditions where model_name attribution was lost due to partial UPDATEs overwriting critical fields.
-
-**Root Causes**:
-1. Multiple strategy creation points (routes/snapshot.js line 113, routes/location.js line 851, strategy-generator-parallel.js)
-2. Consolidator UPDATE (consolidator.js line 270) overwrote model_name with 2-step chain instead of preserving full 3-step chain
-3. Placeholder creation pattern causing incomplete strategy rows
-
-**Solution - Single Authoritative Strategy Row**:
-1. **Removed all placeholder creation**:
-   - routes/snapshot.js: Removed lines 113-119 (placeholder INSERT)
-   - routes/location.js: Removed lines 851-886 (placeholder with onConflictDoUpdate)
-   - strategy-utils.js: Disabled ensureStrategyRow() (no longer creates placeholders)
-   - strategy-generator.js: Skip if strategy already exists (prevents double creation)
-
-2. **Single strategy creation point** (strategy-generator-parallel.js line 226-233):
-   - runSimpleStrategyPipeline creates initial row with full model_name
-   - Uses onConflictDoNothing to handle race conditions (first writer wins)
-   - Sets complete model chain: `${strategist}→${briefer}→${consolidator}`
-
-3. **Preserved model_name in all UPDATEs**:
-   - consolidator.js: Removed model_name from UPDATE (line 270-275)
-   - All UPDATE statements now preserve the initial model_name attribution
-
-**Verified Architecture**:
-✅ Snapshot fully enriched (formatted_address, airport_context, holiday, weather, air, timezone, day_part) BEFORE strategy starts
-✅ Strategy row created ONCE with complete model_name in single atomic INSERT
-✅ All providers (minstrategy, briefing, consolidator) fetch complete snapshot via getSnapshotContext()
-✅ No UPDATE statements overwrite model_name
-✅ Strict 1:1 relationship enforced (strategies.snapshot_id UNIQUE constraint)
-
-**Data Flow**:
-1. Snapshot INSERT with ALL enriched data → routes/location.js line 791
-2. Strategy pipeline triggered → routes/location.js line 868
-3. Strategy row created with model_name → strategy-generator-parallel.js line 226
-4. Providers fetch complete snapshot → getSnapshotContext() provides all fields
-5. UPDATEs preserve model_name → No overwrites, attribution intact
-
-### Smart Blocks Drizzle ORM INSERT Fix (Production Ready) ✅
-
-**Problem**: Smart Blocks waterfall was failing with database INSERT error: `Failed query: insert into "rankings" (..., "created_at", ...) values ($1, default, $2, ...)`
-
-**Root Cause**:
-Drizzle ORM was trying to explicitly insert the SQL keyword `DEFAULT` as a bound parameter when `.defaultNow()` was present in the schema. This generated invalid SQL because PostgreSQL expects `DEFAULT` as a keyword, not a parameter value.
-
-**Solution**:
-1. **Removed `.defaultNow()` from rankings.created_at** in `shared/schema.js` (line 111)
-   - Changed from: `created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()`
-   - Changed to: `created_at: timestamp("created_at", { withTimezone: true }).notNull()`
-2. Database already has `DEFAULT NOW()` constraint, so omitting the column from INSERT lets PostgreSQL handle it automatically
-3. Required server restart to clear Drizzle's cached schema
-
-**Technical Details**:
-- Database constraint: `ALTER TABLE rankings ALTER COLUMN created_at SET DEFAULT NOW();` (already applied)
-- Drizzle behavior: When column has `.defaultNow()`, it tries to INSERT `default` as a value instead of omitting the column
-- Fix: Remove `.defaultNow()` so Drizzle omits the column entirely, letting database default apply
-
-**Verified Working**:
-✅ Smart Blocks waterfall completes successfully  
-✅ Rankings INSERT without errors
-✅ created_at automatically populated by database DEFAULT NOW()
-✅ Production tested with multiple successful waterfalls
-
-### Smart Blocks Waterfall Architecture (Production Ready) ✅
-
-**Problem**: Smart Blocks were not appearing because the synchronous waterfall was never triggered.
-
-**Root Causes**:
-1. Frontend never called POST /api/blocks-fast to trigger the waterfall
-2. Code attempting to manually set created_at conflicted with schema
-
-**Solutions**:
-1. Frontend Fix (client/src/pages/co-pilot.tsx): Modified vecto-snapshot-saved event handler to trigger POST /api/blocks-fast
-2. Code Cleanup (server/lib/enhanced-smart-blocks.js): Removed duplicate created_at assignment
-
-**Verified Working**:
-✅ Snapshot creation → POST trigger → waterfall executes → blocks appear in UI
-✅ No background worker required (autoscale compatible)
-✅ Health endpoints remain fast (<10ms)
-✅ Performance: Strategy 8-22s, Total waterfall 35-50s
-
-See WATERFALL_FIX_SUMMARY.md for complete technical documentation.
-
-### BriefingPage Removal & Event Listener Cleanup ✅
-
-**Problem**: Production showing old Smart Blocks data, waterfall not triggering for new snapshots.
-
-**Investigation Findings**:
-1. **Duplicate Event Listener**: BriefingPage.tsx had its own `vecto-snapshot-saved` listener that competed with co-pilot.tsx
-2. **Duplicate POST Calls**: Two separate triggers for the pipeline:
-   - location-context-clean.tsx line 448: `POST /api/blocks` (old endpoint)
-   - co-pilot.tsx line 182: `POST /api/blocks-fast` (new endpoint)
-3. **Root Cause**: No new snapshots being created in production because GPS coordinates not updating
-
-**Solution**:
-1. **Removed BriefingPage.tsx** entirely - eliminates duplicate event listener and unnecessary complexity
-2. **Removed briefing tab** from navigation in App.tsx
-3. Briefing data is already part of the strategy response, no need for separate page
-
-**Technical Notes**:
-- BriefingPage was listening to `vecto-snapshot-saved` but only updating local state (no waterfall trigger)
-- Removed duplicate POST /api/blocks call from location-context-clean.tsx (line 448)
-- Now using single event-driven waterfall trigger: vecto-snapshot-saved → co-pilot.tsx → POST /api/blocks-fast
-
-**Files Modified**:
-- Deleted: `client/src/pages/BriefingPage.tsx`
-- Modified: `client/src/App.tsx` (removed import and navigation tab)
-- Modified: `client/src/contexts/location-context-clean.tsx` (removed duplicate POST /api/blocks call)
-
