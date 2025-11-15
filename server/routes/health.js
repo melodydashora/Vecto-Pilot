@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { routerDiagnosticsV2 } from '../lib/llm-router-v2.js';
 import { getPoolStats } from '../db/pool.js';
+import { getAgentState } from '../db/connection-manager.js';
 import { providers } from '../lib/strategies/index.js';
+import { ndjson } from '../logger/ndjson.js';
+import { db } from '../db/drizzle.js';
+import { sql } from 'drizzle-orm';
 
 const router = Router();
 
@@ -54,19 +58,55 @@ router.get('/strategies', (req, res) => {
 export default router;
 
 export function healthRoutes(app) {
-  app.get('/health', (req, res) => {
-    res.json({ 
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development'
-    });
+  app.get('/health', async (req, res) => {
+    const { degraded, lastEvent } = getAgentState();
+    if (degraded) {
+      ndjson('health.degraded', { lastEvent });
+      return res.status(503).json({ 
+        state: 'degraded', 
+        lastEvent,
+        timestamp: new Date().toISOString()
+      });
+    }
+    try {
+      await db.execute(sql`SELECT 1`);
+      return res.status(200).json({ 
+        state: 'healthy',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+      });
+    } catch (e) {
+      ndjson('health.probe.error', { error: String(e.message || e) });
+      return res.status(503).json({ 
+        state: 'degraded', 
+        lastEvent: 'health.probe.error',
+        timestamp: new Date().toISOString()
+      });
+    }
   });
 
-  app.get('/ready', (req, res) => {
-    // Check if database is accessible
-    res.json({ 
-      status: 'ready',
-      timestamp: new Date().toISOString()
-    });
+  app.get('/ready', async (req, res) => {
+    const { degraded, lastEvent } = getAgentState();
+    if (degraded) {
+      return res.status(503).json({ 
+        status: 'not_ready',
+        reason: 'database_degraded',
+        lastEvent,
+        timestamp: new Date().toISOString()
+      });
+    }
+    try {
+      await db.execute(sql`SELECT 1`);
+      return res.json({ 
+        status: 'ready',
+        timestamp: new Date().toISOString()
+      });
+    } catch (e) {
+      return res.status(503).json({ 
+        status: 'not_ready',
+        reason: 'database_error',
+        timestamp: new Date().toISOString()
+      });
+    }
   });
 }
