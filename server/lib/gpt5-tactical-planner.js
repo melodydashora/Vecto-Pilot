@@ -15,7 +15,7 @@ const VenueRecommendationSchema = z.object({
   staging_lng: z.number().min(-180).max(180).optional(),
   staging_name: z.string().max(200).optional(),          // Name of staging location
   category: z.enum(['airport', 'entertainment', 'shopping', 'dining', 'sports_venue', 'transit_hub', 'hotel', 'nightlife', 'event_venue', 'other']).or(z.string()),
-  pro_tips: z.array(z.string().max(250)).min(1).max(3),
+  pro_tips: z.array(z.string().max(500)).min(1).max(3),
   strategic_timing: z.string().max(200).optional()       // Strategic reason to go (even if Google says closed): "Opens in 30 min", "Event at 7 PM"
 });
 
