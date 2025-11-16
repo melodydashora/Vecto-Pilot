@@ -121,6 +121,29 @@ process.on('unhandledRejection', (reason, promise) => {
       return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
     });
 
+    // Diagnostic endpoint to verify database routing in production
+    app.get("/api/diagnostic/db-info", (_req, res) => {
+      const isProductionEnv = process.env.REPLIT_DEPLOYMENT === '1' 
+        || process.env.REPLIT_DEPLOYMENT === 'true'
+        || process.env.DEPLOY_MODE === 'webservice'
+        || (process.env.NODE_ENV === 'production' && !process.env.DEV_DATABASE_URL);
+      
+      const dbUrl = isProductionEnv ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
+      const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@').split('@')[1] : 'NOT_SET';
+      
+      res.json({
+        environment_detection: {
+          REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT || 'not set',
+          DEPLOY_MODE: process.env.DEPLOY_MODE || 'not set',
+          NODE_ENV: process.env.NODE_ENV || 'not set',
+          isProduction: isProductionEnv
+        },
+        database_target: isProductionEnv ? 'PRODUCTION' : 'DEVELOPMENT',
+        database_host: maskedUrl,
+        timestamp: new Date().toISOString()
+      });
+    });
+
     // Start HTTP server IMMEDIATELY (before loading heavy modules)
     const server = http.createServer(app);
     
