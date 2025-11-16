@@ -8,7 +8,10 @@ const { Pool } = pkg;
 const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
 const dbUrl = isProduction ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
 
+// DEBUG: Show which database URL is being used (masked password)
+const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@') : 'NOT_SET';
 console.log(`[connection-manager] Using ${isProduction ? 'PRODUCTION' : 'DEV'} database`);
+console.log(`[connection-manager] Database URL: ${maskedUrl}`);
 
 const cfg = {
   connectionString: dbUrl,
