@@ -4,23 +4,18 @@ import { ndjson } from '../logger/ndjson.js';
 
 const { Pool } = pkg;
 
-// CRITICAL: Use DEV_DATABASE_URL for local development, DATABASE_URL for production
-// Check multiple environment indicators for production
-const isProduction = process.env.REPLIT_DEPLOYMENT === '1' 
-  || process.env.REPLIT_DEPLOYMENT === 'true'
-  || process.env.DEPLOY_MODE === 'webservice'
-  || (process.env.NODE_ENV === 'production' && !process.env.DEV_DATABASE_URL);
-
-const dbUrl = isProduction ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
+// Replit DATABASE_URL automatically switches between dev and prod
+// No need for manual environment detection - Replit handles this
+const dbUrl = process.env.DATABASE_URL;
 
 // DEBUG: Show which database URL is being used (masked password)
 const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@') : 'NOT_SET';
+const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.DEPLOY_MODE === 'webservice';
 console.log(`[connection-manager] 🔍 Environment Detection:`);
 console.log(`  - REPLIT_DEPLOYMENT: ${process.env.REPLIT_DEPLOYMENT || 'not set'}`);
 console.log(`  - DEPLOY_MODE: ${process.env.DEPLOY_MODE || 'not set'}`);
 console.log(`  - NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-console.log(`  - isProduction: ${isProduction}`);
-console.log(`[connection-manager] Using ${isProduction ? '🚀 PRODUCTION' : '🔧 DEV'} database`);
+console.log(`  - Using: ${isProduction ? '🚀 PRODUCTION' : '🔧 DEV'} database (Replit auto-switches)`);
 console.log(`[connection-manager] Database URL: ${maskedUrl}`);
 
 const cfg = {
