@@ -10,7 +10,7 @@
     "build:client": "cd client && npm install && npm run build",
     "start": "NODE_ENV=production node gateway-server.js",
     "dev": "NODE_ENV=development node gateway-server.js",
-    "db:push": "npx drizzle-kit generate && npx drizzle-kit push",
+    "db:push": "drizzle-kit generate && drizzle-kit push",
     "build": "vite build",
     "eidolon-direct": "node index.js",
     "gateway:proxy": "tsx server/gateway/assistant-proxy.ts",
