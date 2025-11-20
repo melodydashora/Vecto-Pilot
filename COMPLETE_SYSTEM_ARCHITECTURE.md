@@ -616,19 +616,21 @@ POST /api/blocks-fast → server/routes/blocks-fast.js
   - `STRATEGY_CONSOLIDATOR_MAX_TOKENS`
 
 #### **Venue Generator**
-- **File:** `server/lib/enhanced-smart-blocks.js`
-- **Function:** `generateEnhancedSmartBlocks(...)`
-- **Model:** GPT-5 (OpenAI)
-- **Purpose:** Generate 6 venue recommendations with tactical insights
+- **File:** `server/lib/venue-generator.js`
+- **Function:** `generateVenueCoordinates(...)`
+- **Model:** Model-agnostic (configured via `STRATEGY_VENUE_GENERATOR`)
+- **Purpose:** Generate 6-8 venue recommendations with tactical insights
 - **Output:**
-  - Creates rankings entry
-  - Creates 6x ranking_candidates
+  - Venue coordinates (location + staging)
+  - Pro tips and staging recommendations
+  - Category and demand level
 - **Enrichments:**
   - Google Places API (business hours)
   - Google Routes API (drive time)
   - Perplexity (venue-specific events)
 - **Env Vars:**
-  - `OPENAI_API_KEY`
+  - `STRATEGY_VENUE_GENERATOR` (model name)
+  - `STRATEGY_VENUE_GENERATOR_MAX_TOKENS`
   - `GOOGLE_MAPS_API_KEY`
   - `PERPLEXITY_API_KEY`
 
@@ -637,23 +639,25 @@ POST /api/blocks-fast → server/routes/blocks-fast.js
 All AI models are configurable via environment variables for easy model swaps:
 
 ```bash
-# Strategist (Claude)
-STRATEGY_STRATEGIST=claude-sonnet-4-5-20250929
+# Strategist (Model-agnostic: claude-*, gpt-*, gemini-*)
+STRATEGY_STRATEGIST=claude-sonnet-4-5-20250514
 STRATEGY_STRATEGIST_MAX_TOKENS=4000
 STRATEGY_STRATEGIST_TEMPERATURE=0.2
 
-# Briefer (Perplexity)
+# Briefer (Model-agnostic: sonar-*, claude-*, gpt-*, gemini-*)
 STRATEGY_BRIEFER=sonar-pro
 STRATEGY_BRIEFER_MAX_TOKENS=4000
 STRATEGY_BRIEFER_TEMPERATURE=0.2
 
-# Consolidator (GPT-5)
+# Consolidator (Model-agnostic: gpt-*, claude-*, gemini-*)
 STRATEGY_CONSOLIDATOR=gpt-5.1-turbo
 STRATEGY_CONSOLIDATOR_MAX_TOKENS=2000
 STRATEGY_CONSOLIDATOR_TEMPERATURE=0.3
 
-# Venue Generator (GPT-5)
-# Uses same OPENAI_API_KEY, model specified in code
+# Venue Generator (Model-agnostic: gpt-*, claude-*, gemini-*)
+STRATEGY_VENUE_GENERATOR=gpt-5.1-turbo
+STRATEGY_VENUE_GENERATOR_MAX_TOKENS=1200
+STRATEGY_VENUE_GENERATOR_REASONING_EFFORT=low
 ```
 
 ---
@@ -710,12 +714,12 @@ server/lib/providers/
 #### **Core Libraries**
 ```
 server/lib/
-├── enhanced-smart-blocks.js      # GPT-5 venue generation
+├── enhanced-smart-blocks.js      # Smart blocks orchestration
+├── venue-generator.js            # Model-agnostic venue coordinate generation
 ├── strategy-utils.js             # Strategy helpers (ensureStrategyRow, isStrategyReady)
 ├── persist-ranking.js            # Save venues to database
 ├── scoring-engine.js             # Value-per-minute calculations
-├── driveTime.js                  # Google Routes API integration
-└── gpt5-venue-generator.js       # GPT-5 venue coordinate generation
+└── driveTime.js                  # Google Routes API integration
 ```
 
 #### **Database**
