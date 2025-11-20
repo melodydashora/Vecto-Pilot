@@ -1,7 +1,7 @@
 
 // Vecto Pilot™ Models Dictionary
 // Centralized source of truth for all AI models used in the system
-// Last updated: October 16, 2025
+// Last updated: November 20, 2025
 
 export const MODELS_DICTIONARY = {
 // ===== REPLIT AGENT ASSISTANT (Claude Sonnet 4.5) =====
@@ -57,7 +57,7 @@ replit_agent: {
   // ==========================================
   triad_strategist: {
     provider: 'anthropic',
-    model_id: 'claude-sonnet-4-5-20250514', // Updated to match Replit Agent
+    model_id: 'claude-sonnet-4-5-20250929', // Updated to match Replit Agent
     model_name: 'Claude Sonnet 4.5 (Strategist)',
     context_window: 200000,
     max_output_tokens: 64000,
@@ -160,7 +160,7 @@ replit_agent: {
   // ==========================================
   agent_override_primary: {
     provider: 'anthropic',
-    model_id: 'claude-sonnet-4-5-20250514', // Updated to match Replit Agent
+    model_id: 'claude-sonnet-4-5-20250929', // Updated to match Replit Agent
     model_name: 'Claude Sonnet 4.5 (Atlas Primary)',
     context_window: 200000,
     max_output_tokens: 200000,
@@ -261,7 +261,7 @@ replit_agent: {
   // STRATEGIST - Strategic overview generation
   strategist: {
     provider: 'anthropic',
-    model_id: 'claude-sonnet-4-5-20250514',
+    model_id: 'claude-sonnet-4-5-20250929',
     model_name: 'Claude Sonnet 4.5 (Strategist)',
     context_window: 200000,
     max_output_tokens: 4000,
@@ -314,8 +314,8 @@ replit_agent: {
   // CONSOLIDATOR - Strategy consolidation
   consolidator: {
     provider: 'openai',
-    model_id: 'gpt-5.1-turbo',
-    model_name: 'GPT-5.1 Turbo (Consolidator)',
+    model_id: 'gpt-5',
+    model_name: 'GPT-5 (Consolidator)',
     context_window: 272000,
     max_output_tokens: 2000,
     api_endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -341,8 +341,8 @@ replit_agent: {
   // VENUE_GENERATOR - Smart venue recommendations
   venue_generator: {
     provider: 'openai',
-    model_id: 'gpt-5.1-turbo',
-    model_name: 'GPT-5.1 Turbo (Venue Generator)',
+    model_id: 'gpt-5',
+    model_name: 'GPT-5 (Venue Generator)',
     context_window: 272000,
     max_output_tokens: 2000,
     api_endpoint: 'https://api.openai.com/v1/chat/completions',
