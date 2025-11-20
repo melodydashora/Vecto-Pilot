@@ -108,15 +108,14 @@ export async function getListenClient() {
   // CRITICAL: Use unpooled connection for LISTEN/NOTIFY
   // Neon's pooler (pgBouncer) does not support LISTEN/NOTIFY
   
-  // CRITICAL: Respect dev/prod database routing (same logic as connection-manager.js)
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
-  const baseDbUrl = isProduction ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
-  let connectionString = process.env.DATABASE_URL_UNPOOLED || baseDbUrl;
+  // Replit DATABASE_URL automatically switches between dev and prod
+  const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.DEPLOY_MODE === 'webservice';
+  let connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
   
-  console.log(`[db-client] LISTEN client using ${isProduction ? 'PRODUCTION' : 'DEV'} database`);
+  console.log(`[db-client] LISTEN client using ${isProduction ? 'PRODUCTION' : 'DEV'} database (Replit auto-switches)`);
   
   if (!connectionString) {
-    throw new Error('[db-client] No DATABASE_URL or DEV_DATABASE_URL found');
+    throw new Error('[db-client] No DATABASE_URL found');
   }
   
   // AUTO-DERIVE UNPOOLED URL: If we have a pooled Neon URL and no explicit unpooled URL,

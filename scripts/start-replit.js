@@ -295,13 +295,13 @@ waitHealth(healthUrl)
 process.on('SIGTERM', () => {
   console.log('[boot] SIGTERM received, shutting down...');
   server.kill();
-  if (sdk) sdk.kill();
+  if (typeof sdk !== 'undefined' && sdk) sdk.kill();
   if (worker) worker.kill();
 });
 
 process.on('SIGINT', () => {
   console.log('[boot] SIGINT received, shutting down...');
   server.kill();
-  if (sdk) sdk.kill();
+  if (typeof sdk !== 'undefined' && sdk) sdk.kill();
   if (worker) worker.kill();
 });
