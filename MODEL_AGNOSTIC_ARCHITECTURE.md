@@ -44,8 +44,8 @@ The system automatically detects the provider based on model name prefixes:
 
 | Prefix | Provider | Example Models | Adapter File |
 |--------|----------|----------------|--------------|
-| `claude-` | Anthropic | `claude-sonnet-4-5-20250514` | `anthropic-adapter.js` |
-| `gpt-`, `o1-` | OpenAI | `gpt-5.1-turbo`, `gpt-4o`, `o1-preview` | `openai-adapter.js` |
+| `claude-` | Anthropic | `claude-sonnet-4-5-20250929` | `anthropic-adapter.js` |
+| `gpt-`, `o1-` | OpenAI | `gpt-5`, `gpt-4o`, `o1-preview` | `openai-adapter.js` |
 | `gemini-` | Google | `gemini-2.5-pro`, `gemini-2.0-flash` | `gemini-adapter.js` |
 | `sonar-` | Perplexity | `sonar-pro`, `sonar` | `perplexity-adapter.js` |
 
@@ -58,7 +58,7 @@ The system automatically detects the provider based on model name prefixes:
 **Default Model:** Claude Sonnet 4.5  
 **Environment Variables:**
 ```bash
-STRATEGY_STRATEGIST=claude-sonnet-4-5-20250514
+STRATEGY_STRATEGIST=claude-sonnet-4-5-20250929
 STRATEGY_STRATEGIST_MAX_TOKENS=4000
 STRATEGY_STRATEGIST_TEMPERATURE=0.2
 ```
@@ -99,10 +99,10 @@ const result = await callModel("briefer", {
 
 ### 3. Consolidator
 **Purpose:** Synthesize all provider outputs into actionable strategy  
-**Default Model:** GPT-5.1 Turbo  
+**Default Model:** GPT-5  
 **Environment Variables:**
 ```bash
-STRATEGY_CONSOLIDATOR=gpt-5.1-turbo
+STRATEGY_CONSOLIDATOR=gpt-5
 STRATEGY_CONSOLIDATOR_MAX_TOKENS=2000
 STRATEGY_CONSOLIDATOR_TEMPERATURE=0.3
 ```
@@ -120,10 +120,10 @@ const result = await callModel("consolidator", {
 
 ### 4. Venue Generator
 **Purpose:** Generate smart venue recommendations with coordinates  
-**Default Model:** GPT-5.1 Turbo  
+**Default Model:** GPT-5  
 **Environment Variables:**
 ```bash
-STRATEGY_VENUE_GENERATOR=gpt-5.1-turbo
+STRATEGY_VENUE_GENERATOR=gpt-5
 STRATEGY_VENUE_GENERATOR_MAX_TOKENS=1200
 STRATEGY_VENUE_GENERATOR_REASONING_EFFORT=low
 ```
@@ -147,7 +147,7 @@ All models are defined in `server/lib/models-dictionary.js`:
 export const MODELS_DICTIONARY = {
   strategist: {
     provider: 'anthropic',
-    model_id: 'claude-sonnet-4-5-20250514',
+    model_id: 'claude-sonnet-4-5-20250929',
     context_window: 200000,
     max_output_tokens: 4000,
     parameters: { temperature: 0.2 },
@@ -174,14 +174,14 @@ export const MODELS_DICTIONARY = {
 
 **Before (Claude):**
 ```bash
-STRATEGY_STRATEGIST=claude-sonnet-4-5-20250514
+STRATEGY_STRATEGIST=claude-sonnet-4-5-20250929
 STRATEGY_STRATEGIST_MAX_TOKENS=4000
 STRATEGY_STRATEGIST_TEMPERATURE=0.2
 ```
 
 **After (GPT-5):**
 ```bash
-STRATEGY_STRATEGIST=gpt-5.1-turbo
+STRATEGY_STRATEGIST=gpt-5
 STRATEGY_STRATEGIST_MAX_TOKENS=4000
 # Note: GPT-5 doesn't support temperature, uses reasoning_effort instead
 ```
@@ -203,7 +203,7 @@ PERPLEXITY_API_KEY=pplx-...
 
 **After (Claude):**
 ```bash
-STRATEGY_BRIEFER=claude-sonnet-4-5-20250514
+STRATEGY_BRIEFER=claude-sonnet-4-5-20250929
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
@@ -336,7 +336,7 @@ GOOGLE_GENERATIVE_AI_API_KEY=AIza...
 
 ### Test 2: Swap Venue Generator to Claude
 ```bash
-STRATEGY_VENUE_GENERATOR=claude-sonnet-4-5-20250514
+STRATEGY_VENUE_GENERATOR=claude-sonnet-4-5-20250929
 STRATEGY_VENUE_GENERATOR_MAX_TOKENS=1200
 STRATEGY_VENUE_GENERATOR_TEMPERATURE=0.3
 ANTHROPIC_API_KEY=sk-ant-...
@@ -371,17 +371,17 @@ STRATEGY_BRIEFER=gpt-4o-mini
 Run parallel experiments with different models:
 ```bash
 # Production: Claude strategist
-STRATEGY_STRATEGIST=claude-sonnet-4-5-20250514
+STRATEGY_STRATEGIST=claude-sonnet-4-5-20250929
 
 # Experiment: GPT-5 strategist
-STRATEGY_STRATEGIST=gpt-5.1-turbo
+STRATEGY_STRATEGIST=gpt-5
 ```
 
 ### 3. Provider Fallbacks
 If one provider is down, switch instantly:
 ```bash
 # Anthropic down? Switch to GPT-5
-STRATEGY_STRATEGIST=gpt-5.1-turbo
+STRATEGY_STRATEGIST=gpt-5
 ```
 
 ### 4. Future-Proof
@@ -443,7 +443,7 @@ STRATEGY_{ROLE}_REASONING_EFFORT={low|medium|high}  # GPT-5 only
 ### Example Complete Configuration
 ```bash
 # Strategist (Claude)
-STRATEGY_STRATEGIST=claude-sonnet-4-5-20250514
+STRATEGY_STRATEGIST=claude-sonnet-4-5-20250929
 STRATEGY_STRATEGIST_MAX_TOKENS=4000
 STRATEGY_STRATEGIST_TEMPERATURE=0.2
 
@@ -453,11 +453,11 @@ STRATEGY_BRIEFER_MAX_TOKENS=4000
 STRATEGY_BRIEFER_TEMPERATURE=0.2
 
 # Consolidator (GPT-5)
-STRATEGY_CONSOLIDATOR=gpt-5.1-turbo
+STRATEGY_CONSOLIDATOR=gpt-5
 STRATEGY_CONSOLIDATOR_MAX_TOKENS=2000
 
 # Venue Generator (GPT-5)
-STRATEGY_VENUE_GENERATOR=gpt-5.1-turbo
+STRATEGY_VENUE_GENERATOR=gpt-5
 STRATEGY_VENUE_GENERATOR_MAX_TOKENS=1200
 STRATEGY_VENUE_GENERATOR_REASONING_EFFORT=low
 ```
@@ -522,6 +522,7 @@ Vecto Pilot is now **100% model-agnostic** with:
 
 ---
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
+**Last Updated:** November 20, 2025  
 **Last Audit:** November 20, 2025  
 **Status:** Production-Ready ✅
