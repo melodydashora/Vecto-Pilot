@@ -1,6 +1,6 @@
 # Entrypoint and runtime modules
 entrypoint = "gateway-server.js"
-modules = ["postgresql-16", "python-3.11", "nodejs-20"]
+modules = ["python-3.11", "nodejs-20", "postgresql-16"]
 
 # Primary run command (Run button / default start)
 # Source env safely so comments/quotes are handled correctly
