@@ -1,19 +1,20 @@
 // server/lib/providers/briefing.js
-// Briefer provider - Uses Perplexity API for comprehensive travel research
+// Briefer provider - Model-agnostic (uses callModel adapter)
 
 import { db } from '../../db/drizzle.js';
 import { briefings } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
+import { callModel } from '../adapters/index.js';
 
 /**
- * Run briefing generation using Perplexity API
+ * Run briefing generation using model-agnostic briefer
  * Comprehensive travel research: global/domestic/local + holidays + events within 50mi
  * Writes to briefings table (structured fields for Briefing page display)
  * @param {string} snapshotId - UUID of snapshot
  */
 export async function runBriefing(snapshotId) {
-  console.log(`[briefing] 🔍 Starting Perplexity comprehensive travel research for snapshot ${snapshotId}`);
+  console.log(`[briefing] 🔍 Starting comprehensive travel research for snapshot ${snapshotId}`);
   
   try {
     const ctx = await getSnapshotContext(snapshotId);
@@ -92,52 +93,24 @@ Please research and provide a comprehensive briefing covering:
 
 Use live web search to find current, factual information. Be comprehensive and organized.`;
 
-    // Call Perplexity API
-    const apiKey = process.env.PERPLEXITY_API_KEY;
-    if (!apiKey) {
-      throw new Error('PERPLEXITY_API_KEY environment variable not set');
-    }
-
-    const model = process.env.STRATEGY_BRIEFER || 'sonar-pro';
-    const maxTokens = parseInt(process.env.STRATEGY_BRIEFER_MAX_TOKENS || '4000', 10);
-    const temperature = parseFloat(process.env.STRATEGY_BRIEFER_TEMPERATURE || '0.2');
-
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          { role: 'system', content: systemInstruction },
-          { role: 'user', content: userPrompt }
-        ],
-        max_tokens: maxTokens,
-        temperature: temperature,
-        top_p: 0.9,
-        search_recency_filter: 'day',
-        return_images: false,
-        return_related_questions: false,
-        stream: false
-      })
+    // Call model-agnostic briefer role
+    const result = await callModel("briefer", {
+      system: systemInstruction,
+      user: userPrompt
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Perplexity API error: ${response.status} ${errorText}`);
+    if (!result.ok) {
+      throw new Error('Briefer model call failed');
     }
-
-    const result = await response.json();
-    const briefingText = result.choices?.[0]?.message?.content?.trim() || '';
+    
+    const briefingText = result.output?.trim() || '';
     const citations = result.citations || [];
     
     if (!briefingText) {
-      throw new Error('Perplexity returned empty response');
+      throw new Error('Briefer returned empty response');
     }
     
-    console.log(`[briefing] 📝 Perplexity response: ${briefingText.length} chars, ${citations.length} citations`);
+    console.log(`[briefing] 📝 Response: ${briefingText.length} chars, ${citations.length} citations`);
     
     // Parse JSON response from Perplexity
     let briefingData;

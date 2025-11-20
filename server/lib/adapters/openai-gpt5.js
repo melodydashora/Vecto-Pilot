@@ -43,9 +43,11 @@ export async function callGPT5({
     max_completion_tokens: tokens,
   };
 
-  // GPT-5 only supports default temperature (1.0) - skip temperature/top_p for gpt-5 models
+  // Reasoning models (o1-*, gpt-5*) use reasoning_effort instead of temperature
   // Use either temperature or reasoning_effort, not both
-  if (temperature !== undefined && !model.startsWith("gpt-5")) {
+  const isReasoningModel = model.startsWith("gpt-5") || model.startsWith("o1-");
+  
+  if (temperature !== undefined && !isReasoningModel) {
     body.temperature = temperature;
   } else if (reasoning_effort !== undefined) {
     body.reasoning_effort = reasoning_effort;
@@ -53,15 +55,15 @@ export async function callGPT5({
 
   // Log what sampling strategy is being used
   let samplingStrategy;
-  if (model.startsWith("gpt-5")) {
-    samplingStrategy = "default temperature (1.0)";
+  if (isReasoningModel) {
+    samplingStrategy = reasoning_effort ? `reasoning_effort=${reasoning_effort}` : "default (reasoning model)";
   } else if (temperature !== undefined) {
     samplingStrategy = `temperature=${temperature}`;
   } else {
-    samplingStrategy = `reasoning_effort=${effort}`;
+    samplingStrategy = "default";
   }
   
-  console.log(`[GPT-5] Calling ${model} with ${samplingStrategy}, max_completion_tokens=${tokens}`);
+  console.log(`[openai-adapter] Calling ${model} with ${samplingStrategy}, max_completion_tokens=${tokens}`);
 
   const res = await fetch(url, {
     method: "POST",

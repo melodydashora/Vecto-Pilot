@@ -1,6 +1,6 @@
 // server/routes/blocks-fast.js
 // Fast Tactical Path: Sub-7s performance optimization
-// GPT-5 Venue Generation + Google Places enrichment
+// Model-agnostic Venue Generation + Google Places enrichment
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
@@ -10,7 +10,7 @@ import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.
 import { predictDriveMinutes } from '../lib/driveTime.js';
 import { rerankCandidates } from '../lib/fast-tactical-reranker.js';
 import { persistRankingTx } from '../lib/persist-ranking.js';
-import { generateVenueCoordinates } from '../lib/gpt5-venue-generator.js';
+import { generateVenueCoordinates } from '../lib/venue-generator.js';
 import { isStrategyReady } from '../lib/strategy-utils.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
 import { blocksRequestSchema, snapshotIdQuerySchema } from '../validation/schemas.js';

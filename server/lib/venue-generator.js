@@ -1,13 +1,13 @@
-// server/lib/gpt5-venue-generator.js
-// GPT-5 Venue Coordinate Generation for Smart Blocks
+// server/lib/venue-generator.js
+// Model-Agnostic Venue Coordinate Generation for Smart Blocks
 // Generates fresh venue coordinates within 15 mile radius based on consolidated strategy + precise location
 
-import { callGPT5 } from './adapters/openai-gpt5.js';
+import { callModel } from './adapters/index.js';
 
 /**
- * Generate venue recommendations with coordinates using GPT-5
+ * Generate venue recommendations with coordinates using model-agnostic venue generator
  * @param {Object} params
- * @param {string} params.consolidatedStrategy - Final strategy from GPT-5 consolidator
+ * @param {string} params.consolidatedStrategy - Final strategy from consolidator
  * @param {number} params.driverLat - Driver's precise latitude
  * @param {number} params.driverLng - Driver's precise longitude
  * @param {string} params.city - Driver's city
@@ -27,7 +27,7 @@ export async function generateVenueCoordinates({
   weather,
   maxDistance = 15
 }) {
-  console.log(`[GPT-5 Venue Generator] Generating venues within ${maxDistance} miles of ${city}, ${state}...`);
+  console.log(`[Venue Generator] Generating venues within ${maxDistance} miles of ${city}, ${state}...`);
   
   const systemPrompt = `You are a rideshare venue intelligence system. Generate specific venue recommendations with precise GPS coordinates.
 
@@ -78,46 +78,48 @@ CRITICAL: Return exactly 8 venues in the JSON array, no more, no less.
 Return JSON only - no markdown, no explanation.`;
 
   try {
-    // CRITICAL: Bound to 1200 tokens to prevent length-based stops with 0 content
-    const result = await callGPT5({
-      developer: systemPrompt,
-      user: userPrompt,
-      max_completion_tokens: 1200,
-      reasoning_effort: 'low' // Reduce reasoning tokens to prioritize content generation
+    // Call model-agnostic venue_generator role
+    const result = await callModel("venue_generator", {
+      system: systemPrompt,
+      user: userPrompt
     });
 
+    if (!result.ok) {
+      throw new Error('Venue generator model call failed');
+    }
+
     // HARD VALIDATION: Ensure content was actually generated
-    if (!result.text || result.text.trim().length < 20) {
-      console.error('[GPT-5 Venue Generator] Empty or minimal content returned');
-      throw new Error('empty_generation: GPT-5 returned no usable content');
+    if (!result.output || result.output.trim().length < 20) {
+      console.error('[Venue Generator] Empty or minimal content returned');
+      throw new Error('empty_generation: Model returned no usable content');
     }
     
-    console.log(`[GPT-5 Venue Generator] Generated ${result.text.length} chars of content`);
+    console.log(`[Venue Generator] Generated ${result.output.length} chars of content`);
 
     // Parse JSON response
     let parsed;
     try {
       // Try direct parse first
-      parsed = JSON.parse(result.text);
+      parsed = JSON.parse(result.output);
     } catch (e) {
       // Try to extract JSON from markdown code blocks
-      const jsonMatch = result.text.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+      const jsonMatch = result.output.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[1]);
       } else {
         // Try to find JSON object in text
-        const jsonStart = result.text.indexOf('{');
-        const jsonEnd = result.text.lastIndexOf('}');
+        const jsonStart = result.output.indexOf('{');
+        const jsonEnd = result.output.lastIndexOf('}');
         if (jsonStart !== -1 && jsonEnd !== -1) {
-          parsed = JSON.parse(result.text.slice(jsonStart, jsonEnd + 1));
+          parsed = JSON.parse(result.output.slice(jsonStart, jsonEnd + 1));
         } else {
-          throw new Error('Could not extract JSON from GPT-5 response');
+          throw new Error('Could not extract JSON from model response');
         }
       }
     }
 
     if (!parsed.venues || !Array.isArray(parsed.venues)) {
-      throw new Error('GPT-5 response missing venues array');
+      throw new Error('Model response missing venues array');
     }
 
     // Validate and clean venues

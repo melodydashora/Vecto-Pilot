@@ -252,6 +252,117 @@ replit_agent: {
       api_key: 'PERPLEXITY_API_KEY',
       model: 'PERPLEXITY_MODEL'
     }
+  },
+
+  // ==========================================
+  // WATERFALL PIPELINE ROLES
+  // ==========================================
+  
+  // STRATEGIST - Strategic overview generation
+  strategist: {
+    provider: 'anthropic',
+    model_id: 'claude-sonnet-4-5-20250514',
+    model_name: 'Claude Sonnet 4.5 (Strategist)',
+    context_window: 200000,
+    max_output_tokens: 4000,
+    api_endpoint: 'https://api.anthropic.com/v1/messages',
+    parameters: {
+      temperature: 0.2,
+      max_tokens: 4000,
+      supports_temperature: true
+    },
+    pricing: {
+      input_per_million: 3.00,
+      output_per_million: 15.00,
+      currency: 'USD'
+    },
+    env_vars: {
+      api_key: 'ANTHROPIC_API_KEY',
+      model: 'STRATEGY_STRATEGIST',
+      max_tokens: 'STRATEGY_STRATEGIST_MAX_TOKENS',
+      temperature: 'STRATEGY_STRATEGIST_TEMPERATURE'
+    }
+  },
+
+  // BRIEFER - Comprehensive travel research
+  briefer: {
+    provider: 'perplexity',
+    model_id: 'sonar-pro',
+    model_name: 'Perplexity Sonar Pro (Briefer)',
+    context_window: 128000,
+    max_output_tokens: 4096,
+    api_endpoint: 'https://api.perplexity.ai/chat/completions',
+    parameters: {
+      temperature: 0.2,
+      max_tokens: 4000,
+      search_recency_filter: 'day',
+      supports_temperature: true
+    },
+    pricing: {
+      input_per_million: 1.00,
+      output_per_million: 1.00,
+      currency: 'USD'
+    },
+    env_vars: {
+      api_key: 'PERPLEXITY_API_KEY',
+      model: 'STRATEGY_BRIEFER',
+      max_tokens: 'STRATEGY_BRIEFER_MAX_TOKENS',
+      temperature: 'STRATEGY_BRIEFER_TEMPERATURE'
+    }
+  },
+
+  // CONSOLIDATOR - Strategy consolidation
+  consolidator: {
+    provider: 'openai',
+    model_id: 'gpt-5.1-turbo',
+    model_name: 'GPT-5.1 Turbo (Consolidator)',
+    context_window: 272000,
+    max_output_tokens: 2000,
+    api_endpoint: 'https://api.openai.com/v1/chat/completions',
+    parameters: {
+      temperature: 0.3,
+      max_tokens: 2000,
+      supports_temperature: false,
+      supports_reasoning_effort: true
+    },
+    pricing: {
+      input_per_million: 1.25,
+      output_per_million: 10.00,
+      currency: 'USD'
+    },
+    env_vars: {
+      api_key: 'OPENAI_API_KEY',
+      model: 'STRATEGY_CONSOLIDATOR',
+      max_tokens: 'STRATEGY_CONSOLIDATOR_MAX_TOKENS',
+      temperature: 'STRATEGY_CONSOLIDATOR_TEMPERATURE'
+    }
+  },
+
+  // VENUE_GENERATOR - Smart venue recommendations
+  venue_generator: {
+    provider: 'openai',
+    model_id: 'gpt-5.1-turbo',
+    model_name: 'GPT-5.1 Turbo (Venue Generator)',
+    context_window: 272000,
+    max_output_tokens: 2000,
+    api_endpoint: 'https://api.openai.com/v1/chat/completions',
+    parameters: {
+      reasoning_effort: 'low',
+      max_completion_tokens: 1200,
+      supports_temperature: false,
+      supports_reasoning_effort: true
+    },
+    pricing: {
+      input_per_million: 1.25,
+      output_per_million: 10.00,
+      currency: 'USD'
+    },
+    env_vars: {
+      api_key: 'OPENAI_API_KEY',
+      model: 'STRATEGY_VENUE_GENERATOR',
+      reasoning_effort: 'STRATEGY_VENUE_GENERATOR_REASONING_EFFORT',
+      max_tokens: 'STRATEGY_VENUE_GENERATOR_MAX_TOKENS'
+    }
   }
 };
 

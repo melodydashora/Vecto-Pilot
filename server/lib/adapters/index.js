@@ -4,12 +4,13 @@
 import { callOpenAI } from "./openai-adapter.js";
 import { callAnthropic } from "./anthropic-adapter.js";
 import { callGemini } from "./gemini-adapter.js";
+import { callPerplexity } from "./perplexity-adapter.js";
 
 /**
- * Call a model by role name (strategist, briefer, consolidator)
+ * Call a model by role name (strategist, briefer, consolidator, venue_generator)
  * @param {string} role - Role name (lowercase)
  * @param {Object} params - { system, user }
- * @returns {Promise<{ok: boolean, output: string}>}
+ * @returns {Promise<{ok: boolean, output: string, citations?: array}>}
  */
 export async function callModel(role, { system, user }) {
   const key = `STRATEGY_${role.toUpperCase()}`;
@@ -41,6 +42,10 @@ export async function callModel(role, { system, user }) {
     const topP = process.env[`${key}_TOP_P`] ? Number(process.env[`${key}_TOP_P`]) : undefined;
     const topK = process.env[`${key}_TOP_K`] ? Number(process.env[`${key}_TOP_K`]) : undefined;
     return callGemini({ model, system, user, maxTokens, temperature, topP, topK });
+  }
+  
+  if (model.startsWith("sonar-")) {
+    return callPerplexity({ model, system, user, maxTokens, temperature });
   }
 
   throw new Error(`Unsupported model for role ${role}: ${model}`);
