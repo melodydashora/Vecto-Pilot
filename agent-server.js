@@ -62,7 +62,16 @@ let dbPool = null;
  * @returns {Pool|null} PostgreSQL pool or null if DATABASE_URL not configured
  */
 function getDBPool() {
-  if (!dbPool && process.env.DATABASE_URL) {
+  // DEV/PROD split: Use DEV_DATABASE_URL in local development
+  const isProductionDB = process.env.REPLIT_DEPLOYMENT === '1' 
+    || process.env.REPLIT_DEPLOYMENT === 'true'
+    || (process.env.NODE_ENV === 'production' && !process.env.DEV_DATABASE_URL);
+  
+  const dbUrl = isProductionDB 
+    ? process.env.DATABASE_URL 
+    : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
+  
+  if (!dbPool && dbUrl) {
     // Try shared pool first
     dbPool = getSharedPool();
     
@@ -70,7 +79,7 @@ function getDBPool() {
     if (!dbPool) {
       console.log('[agent] Using local pool (shared pool disabled)');
       dbPool = new Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: dbUrl,
         ssl: IS_PRODUCTION ? { rejectUnauthorized: false } : false
       });
     }

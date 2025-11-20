@@ -836,7 +836,15 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     };
 
     // Save to Postgres using Drizzle
-    const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+    // DEV/PROD split: Use DEV_DATABASE_URL in local development
+    const isProduction = process.env.REPLIT_DEPLOYMENT === '1' 
+      || process.env.REPLIT_DEPLOYMENT === 'true'
+      || (process.env.NODE_ENV === 'production' && !process.env.DEV_DATABASE_URL);
+    
+    const dbUrl = isProduction 
+      ? (process.env.POSTGRES_URL || process.env.DATABASE_URL)
+      : (process.env.DEV_DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL);
+    
     console.info(`[db] pool tag @snapshot`, dbUrl?.slice(0, 32));
     console.log('[Snapshot DB] 💾 Writing to snapshots table - Field Mapping:');
     console.log('  → snapshot_id:', dbSnapshot.snapshot_id);

@@ -15,8 +15,17 @@ function getPool() {
   // Fallback: Create local pool with OLD settings for backward compatibility
   console.log('[db] Creating local pool (shared pool disabled)');
   
+  // DEV/PROD split: Use DEV_DATABASE_URL in local development
+  const isProduction = process.env.REPLIT_DEPLOYMENT === '1' 
+    || process.env.REPLIT_DEPLOYMENT === 'true'
+    || (process.env.NODE_ENV === 'production' && !process.env.DEV_DATABASE_URL);
+  
+  const dbUrl = isProduction 
+    ? process.env.DATABASE_URL 
+    : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
+  
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: dbUrl,
     max: 20,
     idleTimeoutMillis: 120000,  // 2 minutes (safe for Cloud Run)
     connectionTimeoutMillis: 5000,

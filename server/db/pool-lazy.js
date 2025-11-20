@@ -14,6 +14,15 @@ let poolCreationPromise = null;
 const isAutoscale = process.env.REPLIT_DEPLOYMENT === "1";
 const isProduction = process.env.NODE_ENV === 'production';
 
+// DEV/PROD split: Use DEV_DATABASE_URL in local development
+const isProductionDB = process.env.REPLIT_DEPLOYMENT === '1' 
+  || process.env.REPLIT_DEPLOYMENT === 'true'
+  || (process.env.NODE_ENV === 'production' && !process.env.DEV_DATABASE_URL);
+
+const DATABASE_URL = isProductionDB 
+  ? process.env.DATABASE_URL 
+  : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
+
 /**
  * Get or create the database pool (lazy initialization)
  * This prevents DB connections from being created during boot
@@ -32,7 +41,7 @@ export async function getLazyPool() {
     console.log('[db-lazy] Creating pool on first use...');
     
     const poolConfig = {
-      connectionString: process.env.DATABASE_URL,
+      connectionString: DATABASE_URL,
       
       // Autoscale: Small pool, fast recycling
       // Reserved: Larger pool, longer-lived connections
