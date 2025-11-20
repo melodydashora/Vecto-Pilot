@@ -78,6 +78,8 @@ export const strategies = pgTable("strategies", {
   // Model-agnostic provider outputs (generic columns for parallel multi-model pipeline)
   minstrategy: text("minstrategy"), // Strategic overview from strategist provider (Claude)
   consolidated_strategy: text("consolidated_strategy"), // Actionable summary for Co-Pilot from consolidator (GPT-5)
+  // Holiday detection (written early by holiday-checker for instant UI feedback)
+  holiday: text("holiday"), // Holiday name if today is a holiday (e.g., "Thanksgiving", "Christmas")
   // DEPRECATED COLUMNS (Perplexity now writes to briefings table instead)
   briefing_news: jsonb("briefing_news"), 
   briefing_events: jsonb("briefing_events"),
@@ -167,6 +169,11 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   business_hours: jsonb("business_hours"), // Business hours from Google Places API
   // Perplexity event research (populated after planner completes)
   venue_events: jsonb("venue_events"), // Today's events at this venue (concerts, games, festivals)
+  // Event and venue metadata (used for event proximity scoring and filtering)
+  event_badge_missing: boolean("event_badge_missing"), // True if venue should have event badge but it's missing
+  node_type: text("node_type"), // Type of venue node: 'venue', 'staging', etc.
+  access_status: text("access_status"), // Venue access status: 'public', 'restricted', 'private'
+  aliases: text("aliases").array(), // Alternative place IDs for this venue (variations)
 }, (table) => ({
   // Foreign key indexes for performance optimization (Issue #28)
   idxRankingId: sql`create index if not exists idx_ranking_candidates_ranking_id on ${table} (ranking_id)`,
