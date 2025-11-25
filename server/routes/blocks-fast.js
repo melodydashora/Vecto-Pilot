@@ -71,8 +71,14 @@ router.get('/', async (req, res) => {
     console.log(`[blocks-fast GET] Ranking found:`, ranking ? `YES (${ranking.ranking_id})` : 'NO');
     
     if (!ranking) {
-      console.error(`[blocks-fast GET] ❌ NO RANKING FOUND for snapshot ${snapshotId}`);
-      return res.status(404).json({ error: 'NOT_FOUND', blocks: [] });
+      console.log(`[blocks-fast GET] ℹ️ Ranking not ready yet for snapshot ${snapshotId} - returning 202 pending_blocks`);
+      return res.status(202).json({ 
+        ok: false,
+        reason: 'blocks_generating',
+        status: 'pending_blocks',
+        message: 'Venue recommendations are being generated',
+        blocks: []
+      });
     }
 
     // Get candidates for this ranking
