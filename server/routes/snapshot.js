@@ -78,27 +78,16 @@ router.post("/", async (req, res) => {
 
     const snapshot_id = uuid();
 
-    // Build DB record
+    // Build DB record - store only API-enriched fields
+    // Location data (lat/lng/city/state/etc) is pulled from users table via user_id
     const dbSnapshot = {
       snapshot_id,
       created_at: new Date(),
       user_id: userId,
       device_id: deviceId,
       session_id: sessionId,
-      lat,
-      lng,
-      accuracy_m: context?.accuracy || null,
-      coord_source: context?.source || 'api',
-      city: context?.city || null,
-      state: context?.state || null,
-      country: context?.country || null,
-      formatted_address: context?.formattedAddress || null,
-      timezone: context?.timezone || null,
-      local_iso: context?.local_iso ? new Date(context.local_iso) : null,
-      dow: context?.dow !== undefined ? context.dow : null,
-      hour: context?.hour !== undefined ? context.hour : null,
-      day_part_key: context?.day_part_key || null,
       h3_r8: context?.h3_r8 || null,
+      // API-enriched contextual data only (NOT duplicate location fields)
       weather: context?.weather || null,
       air: context?.air || null,
       airport_context: context?.airport_context || null,

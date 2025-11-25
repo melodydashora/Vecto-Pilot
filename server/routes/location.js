@@ -884,20 +884,9 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       user_id: (snapshotV1.user_id && snapshotV1.user_id.trim() !== '') ? snapshotV1.user_id : null,
       device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
-      lat: snapshotV1.coord.lat,
-      lng: snapshotV1.coord.lng,
-      accuracy_m: snapshotV1.coord.accuracyMeters || null,
-      coord_source: snapshotV1.coord.source || 'gps',
-      city: snapshotV1.resolved?.city || null,
-      state: snapshotV1.resolved?.state || null,
-      country: snapshotV1.resolved?.country || null,
-      formatted_address: snapshotV1.resolved?.formattedAddress || null,
-      timezone: snapshotV1.resolved?.timezone || null,
-      local_iso: safeDate(snapshotV1.time_context?.local_iso),
-      dow: snapshotV1.time_context?.dow !== undefined ? snapshotV1.time_context.dow : null,
-      hour: snapshotV1.time_context?.hour !== undefined ? snapshotV1.time_context.hour : null,
-      day_part_key: snapshotV1.time_context?.day_part_key || null,
+      // Location data (lat/lng/city/state/timezone/etc) is pulled from users table via user_id
       h3_r8,
+      // API-enriched contextual data only (NOT duplicate location fields)
       weather: (snapshotV1.weather && typeof snapshotV1.weather === 'object' && snapshotV1.weather.tempF !== undefined) ? {
         tempF: snapshotV1.weather.tempF,
         conditions: snapshotV1.weather.conditions,
