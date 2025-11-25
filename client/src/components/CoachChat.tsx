@@ -9,14 +9,42 @@ interface Message {
   content: string;
 }
 
+interface SnapshotData {
+  snapshot_id?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  formatted_address?: string;
+  dow?: number; // 0=Sunday, 1=Monday, etc.
+  hour?: number;
+  day_part_key?: string;
+  weather?: any; // { temp, condition, windSpeed, etc. }
+  air?: any; // { aqi, pollutants, etc. }
+  local_news?: any;
+  holiday?: string;
+  is_holiday?: boolean;
+  timezone?: string;
+  lat?: number;
+  lng?: number;
+}
+
 interface CoachChatProps {
   userId: string;
   snapshotId?: string;
   strategy?: string;
+  snapshot?: SnapshotData;
   blocks?: any[];
+  strategyReady?: boolean; // Indicates if strategy is still generating or complete
 }
 
-export default function CoachChat({ userId, snapshotId, strategy, blocks = [] }: CoachChatProps) {
+export default function CoachChat({ 
+  userId, 
+  snapshotId, 
+  strategy, 
+  snapshot, 
+  blocks = [],
+  strategyReady = false 
+}: CoachChatProps) {
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -47,7 +75,24 @@ export default function CoachChat({ userId, snapshotId, strategy, blocks = [] }:
           message: my,
           snapshotId,
           strategy,
-          blocks  // Send full blocks array with all fields (events, earnings, tips, etc.)
+          blocks,  // Send full blocks array with all fields (events, earnings, tips, etc.)
+          // Snapshot context: weather, AQI, city, daypart, etc. (enables early engagement)
+          snapshot: snapshot ? {
+            city: snapshot.city,
+            state: snapshot.state,
+            formatted_address: snapshot.formatted_address,
+            timezone: snapshot.timezone,
+            hour: snapshot.hour,
+            day_part_key: snapshot.day_part_key,
+            dow: snapshot.dow,
+            weather: snapshot.weather,
+            air: snapshot.air,
+            holiday: snapshot.holiday,
+            is_holiday: snapshot.is_holiday,
+            local_news: snapshot.local_news,
+            coordinates: snapshot.lat && snapshot.lng ? { lat: snapshot.lat, lng: snapshot.lng } : undefined
+          } : undefined,
+          strategyReady // Helps Coach know if strategy is still generating
         }),
         signal: controllerRef.current.signal,
       });
