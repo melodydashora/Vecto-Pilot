@@ -341,8 +341,11 @@ export function LocationProvider({ children }: LocationProviderProps) {
         }
       };
       
+      // Build URL with rich telemetry fields
+      const locationResolveUrl = `/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}&device_id=${deviceId}&accuracy=${coords.accuracy || ''}&coord_source=gps`;
+      
       Promise.all([
-        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}&device_id=${deviceId}`, { signal: enrichmentSignal }).then(safeJsonParse),
+        fetch(locationResolveUrl, { signal: enrichmentSignal }).then(safeJsonParse),
         fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(safeJsonParse).catch(() => null),
         fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(safeJsonParse).catch(() => null),
       ])

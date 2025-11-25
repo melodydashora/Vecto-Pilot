@@ -248,12 +248,17 @@ router.get('/timezone', async (req, res) => {
   }
 });
 
-// GET /api/location/resolve?lat=&lng=
+// GET /api/location/resolve?lat=&lng=&device_id=&accuracy=&session_id=&coord_source=
 // Combined endpoint - get both geocoding and timezone in one call
+// Captures rich telemetry fields for data quality tracking
 router.get('/resolve', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
+    const deviceId = req.query.device_id;
+    const accuracy = req.query.accuracy ? Number(req.query.accuracy) : null;
+    const sessionId = req.query.session_id || null;
+    const coordSource = req.query.coord_source || 'gps';
 
     if (!isFinite(lat) || !isFinite(lng)) {
       return res.status(400).json({ error: 'lat/lng required' });
@@ -337,8 +342,7 @@ router.get('/resolve', async (req, res) => {
     
     console.log(`[Location API] ✅ Complete resolution:`, resolvedData);
     
-    // OPTIONAL: Save to users table if device_id provided
-    const deviceId = req.query.device_id;
+    // Save to users table if device_id provided
     if (deviceId) {
       try {
         const now = new Date();
@@ -357,11 +361,14 @@ router.get('/resolve', async (req, res) => {
             .set({
               new_lat: lat,
               new_lng: lng,
+              accuracy_m: accuracy,
+              session_id: sessionId,
               formatted_address: formattedAddress,
               city,
               state,
               country,
               timezone: tz,
+              coord_source: coordSource,
               local_iso: now,
               dow,
               hour,
@@ -377,7 +384,9 @@ router.get('/resolve', async (req, res) => {
             device_id: deviceId,
             lat,
             lng,
-            coord_source: 'gps',
+            accuracy_m: accuracy,
+            session_id: sessionId,
+            coord_source: coordSource,
             formatted_address: formattedAddress,
             city,
             state,
@@ -397,7 +406,7 @@ router.get('/resolve', async (req, res) => {
         
         // Update response with user_id for client-side tracking
         resolvedData.user_id = userId;
-        console.log(`[location] ✅ Users table updated for device: ${deviceId}, user_id: ${userId}`);
+        console.log(`[location] ✅ Users table: device=${deviceId}, user_id=${userId}, accuracy=${accuracy}m, source=${coordSource}`);
       } catch (err) {
         console.warn('[location] Failed to save user location:', err.message);
       }
