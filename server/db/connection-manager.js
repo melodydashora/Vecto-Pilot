@@ -28,20 +28,28 @@ console.log(`  - NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
 console.log(`  - Using: ${isProduction ? '🚀 PRODUCTION' : '🔧 DEV'} database (Replit auto-switches)`);
 console.log(`[connection-manager] Database URL: ${maskedUrl}`);
 
+// Use Neon's connection pooler in production
+const usePooler = isProduction && dbUrl && !dbUrl.includes('-pooler');
+const connectionString = usePooler 
+  ? dbUrl.replace('.us-east-2', '-pooler.us-east-2')
+  : dbUrl;
+
 const cfg = {
-  connectionString: dbUrl,
-  max: Number(process.env.PG_MAX || process.env.DB__POOL_MAX || 10),
-  min: Number(process.env.PG_MIN || 2),
+  connectionString,
+  max: Number(process.env.PG_MAX || process.env.DB__POOL_MAX || 5), // Reduced from 10 for Neon
+  min: Number(process.env.PG_MIN || 0), // 0 for autoscale
   idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 10000),
   connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 5000),
   keepAlive: process.env.PG_KEEPALIVE !== 'false',
   keepAliveInitialDelayMillis: Number(process.env.PG_KEEPALIVE_DELAY_MS || 5000),
   maxUses: Number(process.env.PG_MAX_USES || 7500),
   ssl: { rejectUnauthorized: false },
-  allowExitOnIdle: false,
-  statement_timeout: 5000, // Postgres server-side timeout (5s)
-  query_timeout: 5000, // pg client-side timeout (5s)
+  allowExitOnIdle: true, // Allow pool to exit when idle (important for serverless)
+  statement_timeout: 5000,
+  query_timeout: 5000,
 };
+
+console.log(`[connection-manager] Using ${usePooler ? 'pooler' : 'direct'} connection (max=${cfg.max})`);
 
 let pool = new Pool(cfg);
 let degraded = false;
