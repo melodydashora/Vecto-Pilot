@@ -6,11 +6,21 @@ const { Pool } = pkg;
 
 // Replit DATABASE_URL automatically switches between dev and prod
 // No need for manual environment detection - Replit handles this
-const dbUrl = process.env.DATABASE_URL;
+let dbUrl = process.env.DATABASE_URL;
 
 // DEBUG: Show which database URL is being used (masked password)
 const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@') : 'NOT_SET';
 const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.DEPLOY_MODE === 'webservice';
+
+// CRITICAL: Use Neon connection pooler in production to avoid connection exhaustion
+// Connection pooler URL has -pooler suffix instead of direct DB connection
+if (isProduction && dbUrl && !dbUrl.includes('-pooler')) {
+  dbUrl = dbUrl.replace('.us-east-2', '-pooler.us-east-2')
+    .replace('.us-west-2', '-pooler.us-west-2')
+    .replace('.eu-west-1', '-pooler.eu-west-1');
+  console.log(`[connection-manager] 🔌 Converted to pooler URL for production`);
+}
+
 console.log(`[connection-manager] 🔍 Environment Detection:`);
 console.log(`  - REPLIT_DEPLOYMENT: ${process.env.REPLIT_DEPLOYMENT || 'not set'}`);
 console.log(`  - DEPLOY_MODE: ${process.env.DEPLOY_MODE || 'not set'}`);
