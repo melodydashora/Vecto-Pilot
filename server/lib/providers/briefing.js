@@ -3,8 +3,7 @@
 
 import { db } from '../../db/drizzle.js';
 import { briefings } from '../../../shared/schema.js';
-import { eq } from 'drizzle-orm';
-import { onConflictDoUpdate } from 'drizzle-orm/pg-core';
+import { eq, sql } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 import { callModel } from '../adapters/index.js';
 
@@ -145,18 +144,15 @@ Use live web search to find current, factual information. Be comprehensive and o
       rideshare_intel: briefingData.rideshare_intel || '',
       citations: citations
       // created_at and updated_at are set automatically via .defaultNow()
-    }).onConflictDoUpdate({
-      target: briefings.snapshot_id,
-      set: {
-        global_travel: briefingData.global_travel || '',
-        domestic_travel: briefingData.domestic_travel || '',
-        local_traffic: briefingData.local_traffic || '',
-        weather_impacts: briefingData.weather_impacts || '',
-        events_nearby: briefingData.events_nearby || '',
-        rideshare_intel: briefingData.rideshare_intel || '',
-        citations: citations,
-        updated_at: new Date()
-      }
+    }).onConflict().doUpdateSet({
+      global_travel: briefingData.global_travel || '',
+      domestic_travel: briefingData.domestic_travel || '',
+      local_traffic: briefingData.local_traffic || '',
+      weather_impacts: briefingData.weather_impacts || '',
+      events_nearby: briefingData.events_nearby || '',
+      rideshare_intel: briefingData.rideshare_intel || '',
+      citations: citations,
+      updated_at: new Date()
     });
     
     console.log(`[briefing] ✅ Briefing persisted for ${snapshotId}`);
