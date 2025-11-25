@@ -8,7 +8,7 @@ run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-repli
 
 # Nix/packages configuration
 [nix]
-packages = ["at", "imagemagick_light", "jq", "lsof", "nodejs-22", "spidermonkey_91", "tree"]
+packages = ["at", "imagemagick_light", "jq", "lsof", "nodejs-22", "spidermonkey_91", "tree", "undollar"]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)
