@@ -82,10 +82,25 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         businessHours: c.business_hours,
         eventBadge: c.venue_events?.badge,
         eventSummary: c.venue_events?.summary,
+        ranking_id: ranking.ranking_id,
       }));
+    } else {
+      // Rankings not yet created - strategy is ready but blocks are still generating
+      return res.json({
+        status: 'pending_blocks',
+        snapshot_id: snapshotId,
+        timeElapsedMs,
+        waitFor: ['blocks'],
+        strategy: {
+          min: strategy.minstrategy || '',
+          consolidated: strategy.consolidated_strategy || '',
+          holiday: snapshot?.holiday || null
+        },
+        blocks: []
+      });
     }
     
-    // Strategy ready - return complete data with blocks
+    // Strategy AND blocks ready - return complete data
     res.json({
       status: 'ok',
       snapshot_id: snapshotId,
@@ -95,7 +110,8 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         consolidated: strategy.consolidated_strategy || '',
         holiday: snapshot?.holiday || null
       },
-      blocks
+      blocks,
+      ranking_id: ranking.ranking_id
     });
   } catch (error) {
     console.error(`[content-blocks] Error:`, error);

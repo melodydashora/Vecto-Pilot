@@ -429,7 +429,8 @@ const CoPilot: React.FC = () => {
           });
           clearTimeout(timeoutId);
           
-          if (!response.ok) {
+          // Handle 202 Accepted as success (blocks still generating)
+          if (!response.ok && response.status !== 202) {
             const errorText = await response.text();
             throw new Error(`Failed to fetch strategy: ${errorText}`);
           }
