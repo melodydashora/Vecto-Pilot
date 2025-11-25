@@ -36,23 +36,13 @@ export const users = pgTable("users", {
 export const snapshots = pgTable("snapshots", {
   snapshot_id: uuid("snapshot_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
-  user_id: uuid("user_id"),
+  // Reference to users table for location data (replaces duplicate lat/lng/city/state/timezone)
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
   device_id: uuid("device_id").notNull(),
   session_id: uuid("session_id").notNull(),
-  lat: doublePrecision("lat").notNull(),
-  lng: doublePrecision("lng").notNull(),
-  accuracy_m: doublePrecision("accuracy_m"),
-  coord_source: text("coord_source").notNull(),
-  city: text("city"),
-  state: text("state"),
-  country: text("country"),
-  formatted_address: text("formatted_address"),
-  timezone: text("timezone"),
-  local_iso: timestamp("local_iso", { withTimezone: false }),
-  dow: integer("dow"), // 0=Sunday, 1=Monday, etc. - Models infer weekend from this
-  hour: integer("hour"),
-  day_part_key: text("day_part_key"),
+  // H3 geohash for density analysis
   h3_r8: text("h3_r8"),
+  // API-enriched contextual data only (NOT duplicate location fields)
   weather: jsonb("weather"),
   air: jsonb("air"),
   airport_context: jsonb("airport_context"),

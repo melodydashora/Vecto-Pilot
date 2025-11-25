@@ -29,6 +29,13 @@
       "when": 1764102976129,
       "tag": "0003_bouncy_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1764104922322,
+      "tag": "0004_fresh_mandrill",
+      "breakpoints": true
     }
   ]
 }

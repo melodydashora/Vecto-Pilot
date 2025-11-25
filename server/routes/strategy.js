@@ -164,7 +164,8 @@ router.post('/:snapshotId/retry', async (req, res) => {
       return res.status(404).json({ error: 'original_snapshot_not_found', snapshot_id: snapshotId });
     }
     
-    // Create new snapshot with same location data but new timestamp
+    // Create new snapshot with same location context but new timestamp
+    // Location data references user_id; only API-enriched fields are stored
     const newSnapshotId = crypto.randomUUID();
     const now = new Date();
     
@@ -174,19 +175,6 @@ router.post('/:snapshotId/retry', async (req, res) => {
       user_id: originalSnapshot.user_id,
       device_id: originalSnapshot.device_id,
       session_id: originalSnapshot.session_id,
-      lat: originalSnapshot.lat,
-      lng: originalSnapshot.lng,
-      accuracy_m: originalSnapshot.accuracy_m,
-      coord_source: originalSnapshot.coord_source,
-      city: originalSnapshot.city,
-      state: originalSnapshot.state,
-      country: originalSnapshot.country,
-      formatted_address: originalSnapshot.formatted_address,
-      timezone: originalSnapshot.timezone,
-      local_iso: originalSnapshot.local_iso,
-      dow: originalSnapshot.dow,
-      hour: originalSnapshot.hour,
-      day_part_key: originalSnapshot.day_part_key,
       h3_r8: originalSnapshot.h3_r8,
       weather: originalSnapshot.weather,
       air: originalSnapshot.air,
