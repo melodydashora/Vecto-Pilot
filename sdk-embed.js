@@ -73,12 +73,7 @@ export default function createSdkRouter(opts = {}) {
   r.use('/healthz', healthRoutes);
   r.use('/blocks-fast', blocksFastRoutes); // Fast tactical path (synchronous waterfall)
   r.use('/blocks', contentBlocksRoutes); // Structured content blocks (GET /blocks/strategy/:snapshotId)
-  r.use('/location', locationRoutes);
-  r.use('/resolve', locationRoutes);
-  r.use('/geocode', locationRoutes);
-  r.use('/timezone', locationRoutes);
-  r.use('/weather', locationRoutes);
-  r.use('/airquality', locationRoutes);
+  r.use('/location', locationRoutes); // All location endpoints: /api/location/resolve, /api/location/geocode, etc.
   r.use('/actions', actionsRoutes);
   r.use('/research', researchRoutes);
   r.use('/feedback', feedbackRoutes);

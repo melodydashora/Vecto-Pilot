@@ -14,8 +14,4 @@ export function getDb() {
   return db;
 }
 
-export function getPool() {
-  // Use shared pool from connection-manager
-  const { getPool: getSharedPool } = await import('./connection-manager.js');
-  return getSharedPool();
-}
+export { getPool } from './connection-manager.js';
