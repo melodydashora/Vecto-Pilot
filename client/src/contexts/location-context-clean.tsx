@@ -253,8 +253,11 @@ export function LocationProvider({ children }: LocationProviderProps) {
   // Session ID to invalidate queries when location changes (GPS refresh or city search)
   const [locationSessionId, setLocationSessionId] = useState(0);
 
-  // AbortController to cancel stale enrichment requests
-  const enrichmentControllerRef = useRef<AbortController | null>(null);
+  // AbortController for location resolution (don't abort - always want latest)
+  const locationControllerRef = useRef<AbortController | null>(null);
+  
+  // AbortController for weather/air quality only (can abort if new GPS arrives)
+  const weatherAirControllerRef = useRef<AbortController | null>(null);
 
   // Use the GPS hook without automatic refresh (0 = no interval)
   const { coords, loading, error: gpsError, refresh } = useGeoPosition(0);
@@ -306,16 +309,21 @@ export function LocationProvider({ children }: LocationProviderProps) {
       // Increment session ID to invalidate cached queries
       setLocationSessionId(prev => prev + 1);
       
-      // Cancel any in-flight enrichment requests from previous GPS position
-      // IMPORTANT: Only abort enrichment APIs (weather, city, air), NOT snapshot POST
-      if (enrichmentControllerRef.current) {
-        console.log("🚫 Aborting stale enrichment requests (weather/city/air only)");
-        enrichmentControllerRef.current.abort();
+      // CRITICAL FIX: Use separate controllers for location vs weather/air
+      // Location should NEVER be aborted - we always want the latest resolved location
+      // Only abort weather/air if new GPS arrives while they're in flight
+      if (weatherAirControllerRef.current) {
+        console.log("🚫 Aborting stale weather/air APIs only");
+        weatherAirControllerRef.current.abort();
       }
       
-      // Create new AbortController for enrichment APIs only
-      enrichmentControllerRef.current = new AbortController();
-      const enrichmentSignal = enrichmentControllerRef.current.signal;
+      // Create new AbortControllers
+      weatherAirControllerRef.current = new AbortController();
+      const weatherAirSignal = weatherAirControllerRef.current.signal;
+      
+      // Location gets fresh controller that never aborts (always want latest location)
+      locationControllerRef.current = new AbortController();
+      const locationSignal = locationControllerRef.current.signal;
       
       // DON'T update state yet - keep spinner active until location fully resolves
       // We'll update after we get city, state, and formattedAddress
@@ -329,14 +337,16 @@ export function LocationProvider({ children }: LocationProviderProps) {
       // Helper: Safe JSON parsing that checks content-type header
       const safeJsonParse = async (response) => {
         if (!response.ok) {
-          console.warn(`[LocationContext] API returned ${response.status}`);
+          console.error(`[LocationContext] API returned HTTP ${response.status}`);
           return null;
         }
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
-          return await response.json();
+          const data = await response.json();
+          console.log('[LocationContext] Parsed JSON response:', data);
+          return data;
         } else {
-          console.error('[LocationContext] Received non-JSON response (likely HTML error page)');
+          console.error(`[LocationContext] Received non-JSON response. Content-Type: ${contentType}`);
           return null;
         }
       };
@@ -345,12 +355,17 @@ export function LocationProvider({ children }: LocationProviderProps) {
       const locationResolveUrl = `/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}&device_id=${deviceId}&accuracy=${coords.accuracy || ''}&coord_source=gps`;
       
       Promise.all([
-        fetch(locationResolveUrl, { signal: enrichmentSignal }).then(safeJsonParse),
-        fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(safeJsonParse).catch(() => null),
-        fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(safeJsonParse).catch(() => null),
+        fetch(locationResolveUrl, { signal: locationSignal }).then(safeJsonParse).catch(err => {
+          console.error('[LocationContext] Location fetch failed:', err.message);
+          return null;
+        }),
+        fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
+        fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
       ])
         .then(async ([userLocationData, weatherData, airQualityData]) => {
-          // userLocationData comes from /api/user/location (saved to users table)
+          console.log('[LocationContext] Promise.all resolved with:', { userLocationData, weatherData, airQualityData });
+          
+          // userLocationData comes from /api/location/resolve (saved to users table)
           // This is the PRIMARY source for city/state display in header
           
           // Extract location data from users table response
@@ -362,6 +377,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
             timeZone: userLocationData?.timezone || null,
             user_id: userLocationData?.user_id || null,
           };
+          console.log('[LocationContext] Extracted locationData:', locationData);
 
           // Format as "City, ST" if we have both city and state (from users table)
           let locationName;
