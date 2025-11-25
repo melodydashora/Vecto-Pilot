@@ -2,6 +2,7 @@ import express from "express";
 import healthRoutes from "./server/routes/health.js";
 import blocksFastRoutes from "./server/routes/blocks-fast.js";
 import locationRoutes from "./server/routes/location.js";
+import userLocationRoutes from "./server/routes/user-location.js";
 import actionsRoutes from "./server/routes/actions.js";
 import researchRoutes from "./server/routes/research.js";
 import feedbackRoutes from "./server/routes/feedback.js";
@@ -74,6 +75,7 @@ export default function createSdkRouter(opts = {}) {
   r.use('/blocks-fast', blocksFastRoutes); // Fast tactical path (synchronous waterfall)
   r.use('/blocks', contentBlocksRoutes); // Structured content blocks (GET /blocks/strategy/:snapshotId)
   r.use('/location', locationRoutes); // All location endpoints: /api/location/resolve, /api/location/geocode, etc.
+  r.use('/user/location', userLocationRoutes); // User location: POST saves GPS+geocode to users table, GET retrieves user location
   r.use('/actions', actionsRoutes);
   r.use('/research', researchRoutes);
   r.use('/feedback', feedbackRoutes);
