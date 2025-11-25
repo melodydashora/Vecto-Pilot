@@ -53,6 +53,18 @@ const GlobalHeader: React.FC = () => {
   const currentLocationString =
     overrideCoords?.city ?? loc?.currentLocationString ?? loc?.location?.currentLocationString ?? "";
 
+  // Debug: Log what we're reading from context
+  useEffect(() => {
+    console.log("[GlobalHeader] Context location values:", {
+      overrideCoords: overrideCoords?.city,
+      currentLocationString: loc?.currentLocationString,
+      locationCurrentLocationString: loc?.location?.currentLocationString,
+      finalValue: currentLocationString,
+      coords,
+      locationState: loc?.location,
+    });
+  }, [currentLocationString, loc]);
+
   // Header is "resolved" as soon as we have coords + city (don't wait for weather/AQ/events)
   const isLocationResolved = Boolean(
     coords?.latitude && 

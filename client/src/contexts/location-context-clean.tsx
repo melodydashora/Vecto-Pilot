@@ -258,6 +258,9 @@ export function LocationProvider({ children }: LocationProviderProps) {
   
   // AbortController for weather/air quality only (can abort if new GPS arrives)
   const weatherAirControllerRef = useRef<AbortController | null>(null);
+  
+  // Generation counter to ensure only the latest Promise.all updates state
+  const generationRef = useRef(0);
 
   // Use the GPS hook without automatic refresh (0 = no interval)
   const { coords, loading, error: gpsError, refresh } = useGeoPosition(0);
@@ -309,6 +312,25 @@ export function LocationProvider({ children }: LocationProviderProps) {
       // Increment session ID to invalidate cached queries
       setLocationSessionId(prev => prev + 1);
       
+      // CRITICAL: Track generation to ensure only LATEST Promise.all updates state
+      // This prevents old Promise chains from overwriting new location data
+      generationRef.current += 1;
+      const currentGeneration = generationRef.current;
+      console.log(`🔢 Generation #${currentGeneration} starting for GPS update`);
+      
+      // Set immediate state with coordinates (will be updated to city name when API resolves)
+      setLocationState((prev: any) => ({
+        ...prev,
+        coords: { ...coords },
+        currentCoords: coords,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
+        lastUpdated: new Date(),
+        isLoading: true,
+        isUpdating: true,
+      }));
+      
       // CRITICAL FIX: Use separate controllers for location vs weather/air
       // Location should NEVER be aborted - we always want the latest resolved location
       // Only abort weather/air if new GPS arrives while they're in flight
@@ -324,9 +346,6 @@ export function LocationProvider({ children }: LocationProviderProps) {
       // Location gets fresh controller that never aborts (always want latest location)
       locationControllerRef.current = new AbortController();
       const locationSignal = locationControllerRef.current.signal;
-      
-      // DON'T update state yet - keep spinner active until location fully resolves
-      // We'll update after we get city, state, and formattedAddress
 
       // Resolve ALL context data in parallel: location, weather, and air quality
       // Track device_id for user location tracking
@@ -353,6 +372,9 @@ export function LocationProvider({ children }: LocationProviderProps) {
       // Build URL with rich telemetry fields
       const locationResolveUrl = `/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}&device_id=${deviceId}&accuracy=${coords.accuracy || ''}&coord_source=gps`;
       
+      console.log("🚀 [LocationContext] Starting Promise.all for location/weather/air APIs...");
+      console.log(`📡 Location URL: ${locationResolveUrl}`);
+      
       Promise.all([
         fetch(locationResolveUrl, { signal: locationSignal }).then(safeJsonParse).catch(err => {
           console.error('[LocationContext] Location fetch failed:', err.message);
@@ -361,7 +383,15 @@ export function LocationProvider({ children }: LocationProviderProps) {
         fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
         fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
       ])
-        .then(async ([userLocationData, weatherData, airQualityData]) => {
+        .then(([userLocationData, weatherData, airQualityData]) => {
+          // CRITICAL: Only update state if this is still the latest generation
+          if (currentGeneration !== generationRef.current) {
+            console.log(`⏭️ Generation #${currentGeneration} result ignored - newer generation #${generationRef.current} already started`);
+            return;
+          }
+          
+          console.log("✅ [LocationContext] Promise.all completed successfully!");
+          console.log(`✅ Generation #${currentGeneration} is latest - updating state`);
           console.log('[LocationContext] Promise.all resolved with:', { userLocationData, weatherData, airQualityData });
           
           // userLocationData comes from /api/location/resolve (saved to users table)
@@ -389,23 +419,28 @@ export function LocationProvider({ children }: LocationProviderProps) {
           }
           
           // NOW update state - location is fully resolved
-          setLocationState((prev: any) => ({
-            ...prev,
-            coords: { ...coords },
-            currentCoords: coords,
-            currentLocation: locationName, // CRITICAL FIX: Must match export key on line 997
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            accuracy: coords.accuracy,
-            lastUpdated: new Date(),
-            city: locationData.city,
-            state: locationData.state,
-            country: locationData.country,
-            timeZone: locationData.timeZone,
-            isLoading: false, // NOW stop spinner - we have complete data
-            isUpdating: false,
-            error: null,
-          }));
+          console.log(`🔄 [LocationContext] Updating state with resolved location: "${locationName}"`);
+          setLocationState((prev: any) => {
+            const newState = {
+              ...prev,
+              coords: { ...coords },
+              currentCoords: coords,
+              currentLocation: locationName, // CRITICAL: Must match export key on line 997
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              accuracy: coords.accuracy,
+              lastUpdated: new Date(),
+              city: locationData.city,
+              state: locationData.state,
+              country: locationData.country,
+              timeZone: locationData.timeZone,
+              isLoading: false, // NOW stop spinner - we have complete data
+              isUpdating: false,
+              error: null,
+            };
+            console.log(`🔄 [LocationContext] New state will have currentLocation: "${newState.currentLocation}"`);
+            return newState;
+          });
           console.log("[Global App] Location saved to users table:", locationName);
           console.log("[Global App] User ID:", locationData.user_id);
           console.log("[Global App] Weather:", weatherData?.available ? `${weatherData.temperature}°F` : 'unavailable');
@@ -501,29 +536,24 @@ export function LocationProvider({ children }: LocationProviderProps) {
             snapshotController.abort();
           }, 30000); // 30 second timeout for snapshot save (production backend may be slow)
           
-          try {
-            const snapshotResponse = await fetch("/api/location/snapshot", {
-              method: "POST",
-              headers: { 
-                "Content-Type": "application/json",
-                "x-correlation-id": crypto.randomUUID() // Add correlation ID for tracing
-              },
-              body: JSON.stringify(snapshotV1),
-              signal: snapshotController.signal, // Separate signal - won't be aborted by GPS updates
-            });
-            
+          // CRITICAL: Fire-and-forget snapshot creation in background
+          // Don't use async/await here - it would cause Promise to reject if snapshot fails
+          // Location state was already updated above - snapshot errors shouldn't affect it
+          fetch("/api/location/snapshot", {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              "x-correlation-id": crypto.randomUUID() // Add correlation ID for tracing
+            },
+            body: JSON.stringify(snapshotV1),
+            signal: snapshotController.signal, // Separate signal - won't be aborted by GPS updates
+          }).then(async (snapshotResponse) => {
             clearTimeout(snapshotTimeout); // Clear timeout on success
             
             if (snapshotResponse.ok) {
               const snapshotData = await snapshotResponse.json();
               const snapshotId = snapshotData.snapshot_id || snapshotV1.snapshot_id;
               console.log("✅ Snapshot saved successfully:", snapshotId);
-              
-              // NOTE: Removed POST /api/blocks call (old background worker endpoint)
-              // The waterfall is now triggered via event-driven architecture:
-              // 1. vecto-snapshot-saved event dispatched below
-              // 2. co-pilot.tsx catches event and calls POST /api/blocks-fast (synchronous waterfall)
-              // This prevents duplicate waterfall execution and supports autoscale deployment
               
               // Dispatch event to notify UI that snapshot is complete and ready
               window.dispatchEvent(
@@ -544,17 +574,6 @@ export function LocationProvider({ children }: LocationProviderProps) {
                 status: snapshotResponse.status,
                 error: errorData
               });
-              
-              // Set error state to prevent GPS refresh loop
-              setLocationState((prev: any) => ({
-                ...prev,
-                isUpdating: false,
-                isLoading: false,
-                error: `Snapshot creation failed: ${errorData.message || errorData.error || 'Server error'}`
-              }));
-              
-              // Stop further processing - don't dispatch events or start strategy pipeline
-              return;
             }
             
             // Broadcast snapshot event for other components
@@ -571,36 +590,26 @@ export function LocationProvider({ children }: LocationProviderProps) {
               weather: weatherData?.available ? `${weatherData.temperature}°F` : 'none',
               airQuality: airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'none',
             });
-          } catch (err: any) {
+          }).catch((err: any) => {
             clearTimeout(snapshotTimeout);
-            
-            // Handle AbortError separately - this is a timeout or user cancellation
+            // Log but don't affect location state - snapshot is background work
             if (err.name === 'AbortError') {
-              console.error("❌ Snapshot POST aborted (timeout or canceled):", err.message);
-              setLocationState((prev: any) => ({
-                ...prev,
-                isUpdating: false,
-                isLoading: false,
-                error: 'Snapshot save timed out. Please try refreshing your location.'
-              }));
+              console.warn("⏱️ Snapshot POST timeout or canceled");
             } else {
-              console.error("❌ Snapshot POST network error:", err);
-              setLocationState((prev: any) => ({
-                ...prev,
-                isUpdating: false,
-                isLoading: false,
-                error: 'Network error while saving snapshot. Please check your connection.'
-              }));
+              console.error("❌ Snapshot error (won't affect location):", err.message);
             }
-            
-            // CRITICAL: Stop execution - don't try to access locationData below
-            return;
-          }
+          });
 
           // State already updated above with currentLocation = locationName
           // No need to update again - we already set it to the resolved address
         })
         .catch((err) => {
+          // CRITICAL: Only update state if this is still the latest generation
+          if (currentGeneration !== generationRef.current) {
+            console.log(`⏭️ Generation #${currentGeneration} error ignored - newer generation #${generationRef.current} already started`);
+            return;
+          }
+          
           // Don't log errors for intentional aborts (new GPS position arrived)
           if (err.name === 'AbortError') {
             console.log("⏭️ Enrichment aborted - new GPS position received");
@@ -608,13 +617,15 @@ export function LocationProvider({ children }: LocationProviderProps) {
           }
           
           console.error("[Global App] Location resolve error:", err);
-          // Fall back to coordinates if resolution fails
+          // Fall back to coordinates if resolution fails (only if this is the latest generation)
           setLocationState((prev: any) => ({
             ...prev,
             latitude: coords.latitude,
             longitude: coords.longitude,
             currentLocation: `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`,
             lastUpdated: new Date(),
+            isLoading: false,
+            isUpdating: false,
           }));
         });
     } else if (gpsError) {
