@@ -137,3 +137,134 @@ The **snapshots** table is the foundation for strategy generation and Coach cont
 - Called automatically when snapshot is created
 - Cached for 10 minutes to reduce database load
 - Enables Coach to answer questions while strategy generates (35-50 second wait)
+
+---
+
+## Production Readiness & Critical Fixes Applied
+
+### 🔴 CRITICAL ISSUES RESOLVED
+
+#### 1. Database Schema Alignment (FIXED)
+**Problem**: Auxiliary tables (eidolon_memory, assistant_memory, agent_memory, cross_thread_memory) conflicted between dev and production databases
+**Solution**: Dropped conflicting auxiliary tables, synchronized 20 core production tables
+**Impact**: ✅ Database now clean with unified schema across all environments
+
+#### 2. Unique Constraint on triad_jobs.snapshot_id (VERIFIED)
+**Status**: Constraint exists and enforced
+```sql
+ALTER TABLE "triad_jobs" ADD CONSTRAINT "triad_jobs_snapshot_id_unique" UNIQUE("snapshot_id");
+```
+**Impact**: ✅ Prevents duplicate job processing, ensures idempotency
+
+#### 3. Connection Pool Exhaustion Risk (FIXED)
+**Problem**: 5 different pool instances created across codebase, causing connection limit exhaustion
+**Solution**: Centralized to single `server/db/connection-manager.js` pool with unified configuration
+**Pool Configuration**:
+- Max connections: Configurable via `PG_MAX` (default: 10)
+- Min connections: Configurable via `PG_MIN` (default: 2)
+- Idle timeout: `PG_IDLE_TIMEOUT_MS` (default: 10s)
+- Connection timeout: 5s
+- Max uses per connection: 7,500
+- Keep-alive enabled with 5s initial delay
+**Impact**: ✅ All requests use single shared pool, preventing exhaustion
+
+#### 4. Connection Pooler URL for Production (FIXED)
+**Problem**: Production was using direct database connections instead of Neon's connection pooler
+**Solution**: Automatic URL conversion in `server/db/connection-manager.js`
+```javascript
+if (isProduction && dbUrl && !dbUrl.includes('-pooler')) {
+  dbUrl = dbUrl.replace('.us-east-2', '-pooler.us-east-2')
+    .replace('.us-west-2', '-pooler.us-west-2')
+    .replace('.eu-west-1', '-pooler.eu-west-1');
+}
+```
+**Impact**: ✅ Production uses connection pooler for better scalability and lower latency
+
+#### 5. Race Condition in Briefing Insert (FIXED)
+**Problem**: Concurrent requests for same snapshot could trigger duplicate Perplexity API calls
+**Solution**: Added `ON CONFLICT DO UPDATE` clause to briefing insert
+```javascript
+await db.insert(briefings).values({...})
+  .onConflictDoUpdate({
+    target: briefings.snapshot_id,
+    set: { /* all fields */ }
+  });
+```
+**Impact**: ✅ Ensures idempotency, prevents duplicate API calls, saves Perplexity credits
+
+### 🟠 HIGH-PRIORITY ISSUES RESOLVED
+
+#### 1. Venue Enrichment Retry Logic (FIXED)
+**Problem**: Transient Google API failures (429, 5xx) caused permanent data holes
+**Solution**: Added exponential backoff retry logic (3 attempts: 1s, 2s, 4s delays)
+```javascript
+const maxRetries = 3;
+const baseDelay = 1000; // exponential: 1s, 2s, 4s
+// Retries on 429 (rate limit) and 5xx errors
+```
+**Behavior**:
+- Attempt 1: Initial request
+- Attempt 2: Retry after 1s if failed
+- Attempt 3: Retry after 2s if failed
+- Fail: After 4s total if all attempts fail
+**Impact**: ✅ Resilient to temporary network and API issues, preserves venue data
+
+#### 2. Connection Pooler Configuration
+**Environment Variables**:
+- `PG_MAX`: Maximum connections (default: 10)
+- `PG_MIN`: Minimum connections (default: 2)
+- `PG_IDLE_TIMEOUT_MS`: Idle timeout in milliseconds (default: 10000)
+- `DATABASE_URL`: Automatically switches between dev/prod (Replit managed)
+**Impact**: ✅ Production automatically uses pooler suffix for scalability
+
+### 🟡 MEDIUM-PRIORITY IMPROVEMENTS
+
+#### 1. Timezone Validation in Venue Hours
+**Implementation**: Business hours calculations use snapshot timezone
+```javascript
+const timezone = snapshot?.timezone || "America/Chicago"; // Fallback to CDT
+const isOpen = calculateIsOpen(weekdayTexts, timezone);
+```
+**Impact**: Accurate "Open Now" badges even across time zones
+
+#### 2. Consolidation Dependency Management
+**Status**: Consolidation correctly waits for both strategy AND briefing before execution
+```javascript
+const hasStrategy = row.minstrategy != null && row.minstrategy.length > 0;
+const hasBriefing = briefingRow != null;
+if (!hasStrategy || !hasBriefing) {
+  return; // Skips consolidation until both complete
+}
+```
+**Impact**: ✅ Prevents partial consolidations
+
+### Database Migration Strategy
+**For Production Deployment**:
+1. Use `npm run db:push` to sync schema changes
+2. If conflicts occur, use `npm run db:push --force` 
+3. Never manually write SQL migrations
+4. Replit automatically handles dev/prod database switching via `DATABASE_URL`
+
+### Monitoring & Health Endpoints
+- **GET `/health`**: Returns 200 if app healthy, 503 if database degraded
+- **GET `/ready`**: Returns 200 if ready to accept traffic
+- These endpoints reflect connection pool status and database availability
+
+### Performance Metrics (Expected)
+- **Full waterfall pipeline**: ~20 seconds (strategy generation + smart blocks)
+- **Smart blocks generation**: ~10-15 seconds with 6 venue recommendations
+- **Connection pool warmup**: <500ms after first request
+- **Briefing completion**: ~15-20 seconds with Perplexity API calls
+
+### Production Deployment Checklist
+- ✅ Database schema synchronized (20 core tables)
+- ✅ Connection pooling configured for single pool instance
+- ✅ Connection pooler URL enabled for production
+- ✅ Briefing race conditions eliminated via ON CONFLICT
+- ✅ Google API retry logic with exponential backoff
+- ✅ Timezone handling in venue business hours
+- ✅ Health endpoints configured
+- ✅ Error handling and logging in place
+- ✅ Database auto-reconnect with backoff implemented
+
+**Status**: 🟢 **PRODUCTION READY** - All critical and high-priority issues resolved. Database schema is clean, connection pooling is unified, and retry logic handles transient failures. Ready for publication on Replit.

@@ -27,7 +27,7 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
     return [];
   }
 
-  const timezone = snapshot?.timezone || "America/Chicago"; // Fallback to CDT
+  const timezone = snapshot?.timezone || "UTC"; // Fallback to UTC for global app
   console.log(
     `[Venue Enrichment] Enriching ${venues.length} venues (timezone: ${timezone})...`,
   );
@@ -220,7 +220,7 @@ function condenseWeeklyHours(weekdayTexts) {
  * @param {string} timezone - IANA timezone (e.g., "America/Chicago")
  * @returns {boolean|null} - true if open, false if closed, null if hours unavailable
  */
-function calculateIsOpen(weekdayTexts, timezone) {
+function calculateIsOpen(weekdayTexts, timezone = "UTC") {
   if (!weekdayTexts || weekdayTexts.length === 0) {
     return null; // No hours data available
   }
@@ -228,6 +228,17 @@ function calculateIsOpen(weekdayTexts, timezone) {
   try {
     // Get current time in the venue's timezone
     const now = new Date();
+    // Validate timezone to avoid Intl errors on invalid timezones
+    try {
+      // Test if timezone is valid by creating formatter
+      const testFormatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: timezone,
+      });
+    } catch {
+      console.warn(`[calculateIsOpen] Invalid timezone "${timezone}", falling back to UTC`);
+      timezone = "UTC";
+    }
+    
     const formatter = new Intl.DateTimeFormat("en-US", {
       timeZone: timezone,
       weekday: "long",
@@ -339,132 +350,160 @@ function calculateIsOpen(weekdayTexts, timezone) {
 }
 
 /**
- * Get place details from Google Places API (New)
+ * Get place details from Google Places API (New) with retry logic
  * @param {number} lat
  * @param {number} lng
  * @param {string} name - Venue name for verification
  * @param {string} timezone - IANA timezone for accurate hours calculation
  * @returns {Promise<Object>} {place_id, business_status, ...}
  */
-async function getPlaceDetails(lat, lng, name, timezone = "America/Chicago") {
-  try {
-    // Use Places API (New) - Search Nearby with PRECISE location
-    const response = await fetch(PLACES_NEW_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask":
-          "places.id,places.displayName,places.businessStatus,places.formattedAddress,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.location",
-      },
-      body: JSON.stringify({
-        locationRestriction: {
-          circle: {
-            center: {
-              latitude: lat,
-              longitude: lng,
+async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
+  // CRITICAL: Add retry logic for transient Google API failures (5xx, 429)
+  const maxRetries = 3;
+  const baseDelay = 1000; // 1 second base delay
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // Use Places API (New) - Search Nearby with PRECISE location
+      const response = await fetch(PLACES_NEW_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+          "X-Goog-FieldMask":
+            "places.id,places.displayName,places.businessStatus,places.formattedAddress,places.currentOpeningHours,places.regularOpeningHours,places.utcOffsetMinutes,places.location",
+        },
+        body: JSON.stringify({
+          locationRestriction: {
+            circle: {
+              center: {
+                latitude: lat,
+                longitude: lng,
+              },
+              radius: 20.0, // PRECISE: 20 meter radius to find exact venue at these coords
             },
-            radius: 20.0, // PRECISE: 20 meter radius to find exact venue at these coords
           },
-        },
-        maxResultCount: 1,
-        rankPreference: "DISTANCE", // Prioritize closest venue to exact coords
-      }),
-    });
+          maxResultCount: 1,
+          rankPreference: "DISTANCE", // Prioritize closest venue to exact coords
+        }),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(
-        `[Places API (New)] HTTP ${response.status} for "${name}":`,
-        errorText,
-      );
-      throw new Error(
-        `Places API returned ${response.status}: ${errorText.substring(0, 200)}`,
-      );
-    }
-
-    const data = await response.json();
-    console.log(
-      `[Places API (New)] Raw response for "${name}":`,
-      JSON.stringify(data).substring(0, 500),
-    );
-
-    if (data.places && data.places.length > 0) {
-      const place = data.places[0];
-
-      const googleName = place.displayName?.text || place.name;
-      const googleLat = place.location?.latitude;
-      const googleLng = place.location?.longitude;
-
-      // Calculate distance between requested coords and Google's returned coords
-      const distance =
-        googleLat && googleLng
-          ? Math.sqrt(
-              Math.pow((lat - googleLat) * 111000, 2) +
-                Math.pow((lng - googleLng) * 111000, 2),
-            )
-          : null;
-
-      console.log(
-        `🔍 [GOOGLE PLACES] Lookup for "${name}" at ${lat.toFixed(6)},${lng.toFixed(6)}:`,
-        {
-          found_name: googleName,
-          found_coords:
-            googleLat && googleLng
-              ? `${googleLat.toFixed(6)},${googleLng.toFixed(6)}`
-              : "unknown",
-          distance_meters: distance ? distance.toFixed(1) : "unknown",
-          place_id: place.id,
-          address: place.formattedAddress,
-        },
-      );
-
-      // Extract business hours
-      const hours = place.currentOpeningHours || place.regularOpeningHours;
-      const weekdayTexts = hours?.weekdayDescriptions || [];
-
-      // CRITICAL: Calculate isOpen ourselves using snapshot timezone (don't trust Google's openNow)
-      const isOpen = calculateIsOpen(weekdayTexts, timezone);
-
-      // DEBUG: Log raw hours and calculated status
-      if (weekdayTexts.length > 0) {
-        console.log(
-          `[Places API] "${name}" - Calculated isOpen: ${isOpen} (timezone: ${timezone})`,
+      if (!response.ok) {
+        // Retry on 429 (rate limit) and 5xx errors
+        if ((response.status === 429 || response.status >= 500) && attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
+          console.warn(
+            `[Places API] HTTP ${response.status} for "${name}" - Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`,
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue; // Retry
+        }
+        
+        const errorText = await response.text();
+        console.error(
+          `[Places API (New)] HTTP ${response.status} for "${name}":`,
+          errorText,
         );
-        console.log(`[Places API] Raw hours:`, weekdayTexts);
-        console.log(
-          `[Places API] Google's openNow was: ${hours?.openNow} (we calculate our own)`,
+        throw new Error(
+          `Places API returned ${response.status}: ${errorText.substring(0, 200)}`,
         );
       }
 
-      // Condense weekly hours into readable format
-      const condensedHours = condenseWeeklyHours(weekdayTexts);
+      // Parse response
+      const data = await response.json();
+      console.log(
+        `[Places API (New)] Raw response for "${name}":`,
+        JSON.stringify(data).substring(0, 500),
+      );
 
-      return {
-        place_id: place.id,
-        google_name: googleName, // Return Google's name for validation
-        business_status: place.businessStatus || "OPERATIONAL",
-        formatted_address: place.formattedAddress,
-        isOpen: isOpen,
-        businessHours: condensedHours || null,
-        allHours: weekdayTexts,
-      };
+      if (data.places && data.places.length > 0) {
+        const place = data.places[0];
+
+        const googleName = place.displayName?.text || place.name;
+        const googleLat = place.location?.latitude;
+        const googleLng = place.location?.longitude;
+
+        // Calculate distance between requested coords and Google's returned coords
+        const distance =
+          googleLat && googleLng
+            ? Math.sqrt(
+                Math.pow((lat - googleLat) * 111000, 2) +
+                  Math.pow((lng - googleLng) * 111000, 2),
+              )
+            : null;
+
+        console.log(
+          `🔍 [GOOGLE PLACES] Lookup for "${name}" at ${lat.toFixed(6)},${lng.toFixed(6)}:`,
+          {
+            found_name: googleName,
+            found_coords:
+              googleLat && googleLng
+                ? `${googleLat.toFixed(6)},${googleLng.toFixed(6)}`
+                : "unknown",
+            distance_meters: distance ? distance.toFixed(1) : "unknown",
+            place_id: place.id,
+            address: place.formattedAddress,
+          },
+        );
+
+        // Extract business hours
+        const hours = place.currentOpeningHours || place.regularOpeningHours;
+        const weekdayTexts = hours?.weekdayDescriptions || [];
+
+        // CRITICAL: Calculate isOpen ourselves using snapshot timezone (don't trust Google's openNow)
+        const isOpen = calculateIsOpen(weekdayTexts, timezone);
+
+        // DEBUG: Log raw hours and calculated status
+        if (weekdayTexts.length > 0) {
+          console.log(
+            `[Places API] "${name}" - Calculated isOpen: ${isOpen} (timezone: ${timezone})`,
+          );
+          console.log(`[Places API] Raw hours:`, weekdayTexts);
+          console.log(
+            `[Places API] Google's openNow was: ${hours?.openNow} (we calculate our own)`,
+          );
+        }
+
+        // Condense weekly hours into readable format
+        const condensedHours = condenseWeeklyHours(weekdayTexts);
+
+        return {
+          place_id: place.id,
+          google_name: googleName, // Return Google's name for validation
+          business_status: place.businessStatus || "OPERATIONAL",
+          formatted_address: place.formattedAddress,
+          isOpen: isOpen,
+          businessHours: condensedHours || null,
+          allHours: weekdayTexts,
+        };
+      }
+
+      console.warn(
+        `⚠️ [GOOGLE PLACES] No results found for "${name}" at ${lat},${lng}`,
+      );
+
+      return null;
+    } catch (error) {
+      // Network errors: retry
+      if (attempt < maxRetries - 1) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.warn(
+          `[Places API] Network error: ${error.message} - Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`,
+        );
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue; // Retry
+      }
+      
+      // Final attempt failed
+      console.error(
+        `[Places API] CRITICAL ERROR for "${name}" at ${lat},${lng}:`,
+        {
+          message: error.message,
+          stack: error.stack?.substring(0, 200),
+        },
+      );
+      return null;
     }
-
-    console.warn(
-      `⚠️ [GOOGLE PLACES] No results found for "${name}" at ${lat},${lng}`,
-    );
-
-    return null;
-  } catch (error) {
-    console.error(
-      `[Places API] CRITICAL ERROR for "${name}" at ${lat},${lng}:`,
-      {
-        message: error.message,
-        stack: error.stack?.substring(0, 200),
-      },
-    );
-    return null;
   }
 }
 
