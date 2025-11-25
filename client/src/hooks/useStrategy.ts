@@ -48,6 +48,8 @@ export function useStrategy(snapshotId?: string) {
   useEffect(() => {
     let active = true;
     let pollTimeout: NodeJS.Timeout | null = null;
+    // CRITICAL FIX: Use AbortController to prevent memory leaks from pending fetch requests
+    const abortController = new AbortController();
     
     if (!snapshotId) {
       setData(null);
@@ -55,29 +57,32 @@ export function useStrategy(snapshotId?: string) {
       return;
     }
 
-    const fetchStrategy = () => {
-      fetch(`/api/blocks/strategy/${snapshotId}`)
-        .then(r => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        })
-        .then(d => {
-          if (!active) return;
-          
-          setData(d);
-          setLoading(false);
-          
-          // Poll every 2s until strategy is ready (ok or ok_partial) or error
-          const shouldPoll = d.status === 'pending' || d.status === 'running';
-          if (shouldPoll) {
-            pollTimeout = setTimeout(fetchStrategy, 2000);
-          }
-        })
-        .catch(err => {
-          if (!active) return;
-          setError(err.message);
-          setLoading(false);
+    const fetchStrategy = async () => {
+      try {
+        if (!active) return;
+        
+        const response = await fetch(`/api/blocks/strategy/${snapshotId}`, {
+          signal: abortController.signal
         });
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const d = await response.json();
+        
+        if (!active) return;
+        
+        setData(d);
+        setLoading(false);
+        
+        // Poll every 2s until strategy is ready (ok or ok_partial) or error
+        const shouldPoll = d.status === 'pending' || d.status === 'running';
+        if (shouldPoll && active) {
+          pollTimeout = setTimeout(fetchStrategy, 2000);
+        }
+      } catch (err: any) {
+        if (!active || err.name === 'AbortError') return;
+        setError(err.message);
+        setLoading(false);
+      }
     };
 
     setLoading(true);
@@ -87,6 +92,8 @@ export function useStrategy(snapshotId?: string) {
     return () => {
       active = false;
       if (pollTimeout) clearTimeout(pollTimeout);
+      // CRITICAL FIX: Abort in-flight requests to prevent memory leaks
+      abortController.abort();
     };
   }, [snapshotId]);
 
