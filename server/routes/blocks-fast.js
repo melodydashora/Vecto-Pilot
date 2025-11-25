@@ -170,7 +170,7 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
         snapshot_id: snapshotId,
         kind: 'triad',
         status: 'queued'
-      }).onConflictDoNothing().returning();
+      }).onConflictDoNothing({ target: triad_jobs.snapshot_id }).returning();
       
       if (job) {
         // New job created - run full pipeline synchronously (no worker needed)
