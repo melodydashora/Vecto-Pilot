@@ -378,12 +378,18 @@ export function LocationProvider({ children }: LocationProviderProps) {
             ...prev,
             coords: { ...coords },
             currentCoords: coords,
+            currentLocation: locationName, // CRITICAL FIX: Must match export key on line 997
+            latitude: coords.latitude,
+            longitude: coords.longitude,
             accuracy: coords.accuracy,
-            currentLocationString: locationName, // UI displays this!
+            lastUpdated: new Date(),
+            city: locationData.city,
+            state: locationData.state,
+            country: locationData.country,
+            timeZone: locationData.timeZone,
             isLoading: false, // NOW stop spinner - we have complete data
             isUpdating: false,
             error: null,
-            timeZone: locationData.timeZone,
           }));
           console.log("[Global App] Location saved to users table:", locationName);
           console.log("[Global App] User ID:", locationData.user_id);
@@ -576,19 +582,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
             return;
           }
 
-          // Update location state ONCE with both coordinates and resolved name
-          setLocationState((prev: any) => ({
-            ...prev,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            currentLocation: locationName,
-            lastUpdated: new Date(),
-            city: locationData.city,
-            state: locationData.state,
-            country: locationData.country,
-            timeZone: locationData.timeZone,
-            dayPart: timeContext.dayPartLabel,
-          }));
+          // State already updated above with currentLocation = locationName
+          // No need to update again - we already set it to the resolved address
         })
         .catch((err) => {
           // Don't log errors for intentional aborts (new GPS position arrived)
