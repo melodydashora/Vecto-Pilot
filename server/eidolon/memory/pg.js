@@ -44,7 +44,8 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
   try {
     // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
     if (user_id_val) {
-      await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
+      // CRITICAL: Parameterized query to prevent SQL injection
+      await client.query(`SET LOCAL app.user_id = $1::uuid`, [user_id_val]);
     }
     // Skip SET for NULL - not needed when RLS is disabled
     
@@ -79,7 +80,8 @@ export async function memoryGet({ table, scope, key, userId }) {
   try {
     // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
     if (user_id_val) {
-      await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
+      // CRITICAL: Parameterized query to prevent SQL injection
+      await client.query(`SET LOCAL app.user_id = $1::uuid`, [user_id_val]);
     }
     // Skip SET for NULL - not needed when RLS is disabled
     
@@ -121,7 +123,8 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
   try {
     // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
     if (user_id_val) {
-      await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
+      // CRITICAL: Parameterized query to prevent SQL injection
+      await client.query(`SET LOCAL app.user_id = $1::uuid`, [user_id_val]);
     }
     // Skip SET for NULL - not needed when RLS is disabled
     

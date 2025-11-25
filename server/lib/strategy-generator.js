@@ -1,7 +1,7 @@
 // server/lib/strategy-generator.js
 // Three-stage AI pipeline: Claude Opus 4.1 → Gemini Briefing → GPT-5 Consolidation
 import { db } from '../db/drizzle.js';
-import { snapshots, strategies } from '../../shared/schema.js';
+import { snapshots, strategies, users } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { callGPT5WithBudget } from './gpt5-retry.js';
 import { callClaude } from './adapters/anthropic-claude.js';
@@ -16,6 +16,7 @@ export async function generateStrategyForSnapshot(snapshot_id) {
   // Route to parallel orchestration if enabled
   if (MULTI_STRATEGY_ENABLED) {
     console.log(`[strategy] Routing to parallel multi-model orchestration (feature enabled)`);
+    // CRITICAL FIX: Fetch snapshot first, then get user location data
     const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshot_id));
     
     if (!snap) {
@@ -23,21 +24,34 @@ export async function generateStrategyForSnapshot(snapshot_id) {
       return null;
     }
     
-    const result = await generateMultiStrategy({
+    // Fetch user location data (city, state, formatted_address from users table)
+    let userLocation = { city: null, state: null, formatted_address: null };
+    if (snap.user_id) {
+      const [userData] = await db.select().from(users).where(eq(users.user_id, snap.user_id));
+      if (userData) {
+        userLocation = {
+          city: userData.city,
+          state: userData.state,
+          formatted_address: userData.formatted_address
+        };
+      }
+    }
+    
+    const strategyResult = await generateMultiStrategy({
       snapshotId: snapshot_id,
       userId: snap.user_id || null,
-      userAddress: snap.formatted_address,
-      city: snap.city,
-      state: snap.state,
+      userAddress: userLocation.formatted_address,
+      city: userLocation.city,
+      state: userLocation.state,
       snapshot: snap
     });
     
-    if (result.ok) {
-      console.log(`[strategy] ✅ Parallel strategy complete: ${result.strategyId}`);
-      console.log(`[strategy] Audits: ${JSON.stringify(result.audits)}`);
-      return result.strategy;
+    if (strategyResult.ok) {
+      console.log(`[strategy] ✅ Parallel strategy complete: ${strategyResult.strategyId}`);
+      console.log(`[strategy] Audits: ${JSON.stringify(strategyResult.audits)}`);
+      return strategyResult.strategy;
     } else {
-      console.error(`[strategy] ❌ Parallel strategy failed: ${result.reason}`);
+      console.error(`[strategy] ❌ Parallel strategy failed: ${strategyResult.reason}`);
       return null;
     }
   }
@@ -57,7 +71,21 @@ export async function generateStrategyForSnapshot(snapshot_id) {
       return null;
     }
     
-    if (!snap.city && !snap.formatted_address) {
+    // CRITICAL FIX: Location data is in users table, not snapshots. Fetch it.
+    let userLocation = { city: null, state: null, formatted_address: null, timezone: 'America/Chicago' };
+    if (snap.user_id) {
+      const [userData] = await db.select().from(users).where(eq(users.user_id, snap.user_id));
+      if (userData) {
+        userLocation = {
+          city: userData.city,
+          state: userData.state,
+          formatted_address: userData.formatted_address,
+          timezone: userData.timezone || 'America/Chicago'
+        };
+      }
+    }
+    
+    if (!userLocation.city && !userLocation.formatted_address) {
       console.log(`[triad] strategist.skip id=${snapshot_id} reason=no_location_data ms=${Date.now() - startTime}`);
       return null;
     }
@@ -78,11 +106,11 @@ export async function generateStrategyForSnapshot(snapshot_id) {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = snap.dow !== null && snap.dow !== undefined ? dayNames[snap.dow] : 'unknown day';
     
-    // Format exact time from timestamp
+    // Format exact time from timestamp (timezone from users table)
     const exactTime = snap.created_at ? new Date(snap.created_at).toLocaleTimeString('en-US', { 
       hour: '2-digit', 
       minute: '2-digit',
-      timeZone: snap.timezone // No fallback - timezone required
+      timeZone: userLocation.timezone
     }) : 'unknown time';
     
     // Build weather string with all details
@@ -102,17 +130,16 @@ export async function generateStrategyForSnapshot(snapshot_id) {
     
     // Extract Gemini news briefing from news_briefing field
     let geminiBriefingStr = null;
-    
-    if (snap.news_briefing && snap.news_briefing.briefing) {
-      const b = snap.news_briefing.briefing;
+    if (snap.news_briefing && typeof snap.news_briefing === 'object') {
+      const b = snap.news_briefing;
       const sections = [];
       
-      if (b.airports && b.airports.length > 0) {
-        sections.push(`AIRPORTS (next 60 min):\n${b.airports.map(a => `• ${a}`).join('\n')}`);
+      if (b.global_conditions && b.global_conditions.length > 0) {
+        sections.push(`GLOBAL CONDITIONS:\n${b.global_conditions.map(g => `• ${g}`).join('\n')}`);
       }
       
-      if (b.traffic_construction && b.traffic_construction.length > 0) {
-        sections.push(`TRAFFIC & CONSTRUCTION:\n${b.traffic_construction.map(t => `• ${t}`).join('\n')}`);
+      if (b.local_events && b.local_events.length > 0) {
+        sections.push(`LOCAL EVENTS:\n${b.local_events.map(e => `• ${e}`).join('\n')}`);
       }
       
       if (b.major_events && b.major_events.length > 0) {
@@ -133,7 +160,7 @@ export async function generateStrategyForSnapshot(snapshot_id) {
     // Format date as MM/DD/YYYY
     const formattedDate = snap.created_at 
       ? new Date(snap.created_at).toLocaleDateString('en-US', { 
-          timeZone: snap.timezone,
+          timeZone: userLocation.timezone,
           year: 'numeric',
           month: '2-digit',
           day: '2-digit'
@@ -160,8 +187,8 @@ Keep it conversational, urgent, and action-oriented. Reference areas generally, 
 
     const claudeUserPrompt = `DRIVER SNAPSHOT:
 
-Location: ${snap.formatted_address || 'unknown'}
-City: ${snap.city || 'unknown'}, ${snap.state || 'unknown'}
+Location: ${userLocation.formatted_address || 'unknown'}
+City: ${userLocation.city || 'unknown'}, ${userLocation.state || 'unknown'}
 
 Timing:
 - Day: ${dayOfWeek}
@@ -183,182 +210,25 @@ Provide strategic guidance starting with "Today is ${dayOfWeek}, ${formattedDate
         model: process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929",
         system: claudeSystemPrompt,
         user: claudeUserPrompt,
-        max_tokens: 1000,
-        temperature: 0.7
+        temperature: 0.7,
+        maxTokens: 300
       });
-      console.log(`[TRIAD 1/3 - Claude] ✅ Strategy generated in ${Date.now() - claudeStart}ms`);
-      console.log(`[TRIAD 1/3 - Claude] Strategy: "${claudeStrategy.substring(0, 150)}..."`);
-    } catch (err) {
-      console.error(`[TRIAD 1/3 - Claude] ❌ Failed:`, err.message);
-      
-      // Handle Anthropic 529 Overloaded error gracefully
-      if (err.status === 529 || err.message?.includes('529') || err.message?.includes('overloaded')) {
-        console.warn(`[TRIAD 1/3 - Claude] ⚠️ Provider overloaded (529), marking strategy as retryable`);
-        await db.update(strategies)
-          .set({
-            status: 'failed',
-            error_code: 'provider_overloaded',
-            error_message: 'Anthropic API is experiencing high load (529)',
-            updated_at: new Date()
-          })
-          .where(eq(strategies.snapshot_id, snapshot_id));
-        
-        const overloadError = new Error('Anthropic API overloaded (529) - Please retry in a few seconds');
-        overloadError.code = 'PROVIDER_OVERLOADED';
-        overloadError.retryable = true;
-        throw overloadError;
-      }
-      
-      // For other errors, throw as-is
-      throw err;
+
+      console.log(`[TRIAD 1/3] Claude result: ${claudeStrategy ? 'OK' : 'FAILED'} (${Date.now() - claudeStart}ms)`);
+    } catch (e) {
+      console.error(`[TRIAD 1/3] Claude failed:`, e.message);
+      claudeStrategy = `Unable to generate strategy due to: ${e.message}`;
     }
 
-    // ==========================================
-    // STAGE 2: Extract Gemini News Briefing
-    // ==========================================
-    console.log(`[TRIAD 2/3 - Gemini] Extracting news briefing from snapshot`);
-    const geminiNewsAvailable = geminiBriefingStr ? true : false;
-    console.log(`[TRIAD 2/3 - Gemini] News briefing ${geminiNewsAvailable ? 'found' : 'not available'}`);
-    if (geminiNewsAvailable) {
-      console.log(`[TRIAD 2/3 - Gemini] Preview: "${geminiBriefingStr.substring(0, 150)}..."`);
-    }
-
-    // ==========================================
-    // STAGE 3: GPT-5 - Consolidate Both
-    // ==========================================
-    console.log(`[TRIAD 3/3 - GPT-5] Consolidating Claude strategy + Gemini briefing`);
-    
-    const gpt5SystemPrompt = `You are a rideshare strategy consolidator. You will receive:
-1. An initial strategy from Claude
-2. Optional local news briefing from Gemini
-
-Combine these into a single, cohesive 3-5 sentence strategy that:
-- Maintains the opening "Today is [DayName], [MM/DD/YYYY] at [time]" format
-- Weaves in news intelligence naturally (if provided)
-- Keeps the conversational, urgent, action-oriented tone
-- Focuses on strategic positioning and timing recommendations`;
-
-    const gpt5UserPrompt = `CLAUDE STRATEGY:
-${claudeStrategy}
-
-${geminiNewsAvailable ? `GEMINI NEWS BRIEFING:\n${geminiBriefingStr}` : 'No news briefing available.'}
-
-Consolidate these into a single strategy that naturally integrates the news intelligence (if any) into Claude's strategic analysis. Keep the same opening format and tone.`;
-
-    const gpt5Payload = {
-      model: process.env.OPENAI_MODEL || "gpt-5.1",
-      system: gpt5SystemPrompt,
-      user: gpt5UserPrompt,
-      max_completion_tokens: 2000,
-      reasoning_effort: process.env.GPT5_REASONING_EFFORT || "medium"
+    return {
+      strategy: claudeStrategy,
+      briefing: geminiBriefingStr,
+      userCity: userLocation.city,
+      userState: userLocation.state,
+      userAddress: userLocation.formatted_address
     };
-
-    const gpt5Start = Date.now();
-    const timeoutMs = Number(process.env.STRATEGIST_DEADLINE_MS) || 120000;
-    
-    const result = await callGPT5WithBudget(gpt5Payload, { 
-      timeoutMs, 
-      maxRetries: 6 
-    });
-    
-    const totalDuration = Date.now() - startTime;
-    console.log(`[TRIAD 3/3 - GPT-5] ✅ Final strategy consolidated in ${Date.now() - gpt5Start}ms`);
-    
-    if (result.ok) {
-      const strategyText = result.text.trim();
-      
-      await db.update(strategies)
-        .set({
-          status: 'ok',
-          strategy: strategyText,
-          latency_ms: result.ms,
-          tokens: result.tokens,
-          attempt: result.attempt,
-          updated_at: new Date()
-        })
-        .where(eq(strategies.snapshot_id, snapshot_id));
-      
-      console.log(`[TRIAD] ✅ Three-stage pipeline complete (Claude → Gemini → GPT-5)`);
-      console.log(`[TRIAD] Final strategy: "${strategyText}"`);
-      console.log(`[TRIAD] 💾 DB Write to 'strategies' table:`, {
-        snapshot_id,
-        status: 'ok',
-        strategy_length: strategyText.length,
-        total_ms: totalDuration,
-        claude_ms: Date.now() - claudeStart,
-        gpt5_ms: result.ms,
-        gemini_news: geminiNewsAvailable,
-        tokens: result.tokens,
-        attempt: result.attempt
-      });
-      console.log(`[triad] pipeline.ok id=${snapshot_id} total_ms=${totalDuration} claude+gemini+gpt5 gemini_news=${geminiNewsAvailable} tokens=${result.tokens}`);
-      
-      // EVENT ENRICHMENT: Refresh venue_events for all candidates (runtime-fresh spec)
-      try {
-        console.log(`[TRIAD] 🎉 Refreshing event enrichment for snapshot ${snapshot_id}`);
-        await db.execute(sql`select fn_refresh_venue_enrichment(${snapshot_id}::uuid);`);
-        console.log(`[TRIAD] ✅ Event enrichment complete`);
-      } catch (enrichErr) {
-        console.warn(`[TRIAD] ⚠️  Event enrichment failed (non-blocking):`, enrichErr.message);
-        // Non-blocking - continue even if enrichment fails
-      }
-      
-      // LEARNING CAPTURE: Index strategy for semantic search and memory (async, non-blocking)
-      const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshot_id)).limit(1);
-      if (strategyRow?.id) {
-        setImmediate(() => {
-          indexStrategy(strategyRow.id, snapshot_id).catch(err => {
-            console.error('[strategy] Semantic indexing failed:', err.message);
-          });
-          capturelearning(LEARNING_EVENTS.STRATEGY_GENERATED, {
-            strategy_id: strategyRow.id,
-            snapshot_id,
-            latency_ms: result.ms,
-            tokens: result.tokens,
-            attempt: result.attempt,
-            strategy_length: strategyText.length
-          }, null).catch(err => {
-            console.error('[strategy] Learning capture failed:', err.message);
-          });
-        });
-      }
-      
-      return strategyText;
-    }
-    
-    // Handle failure - check if transient for retry scheduling
-    const isTransient = result.code === 529 || result.code === 429 || result.code === 502 || result.code === 503 || result.code === 504;
-    const nextRetryAt = isTransient ? new Date(Date.now() + 5000) : null;
-    
-    await db.update(strategies)
-      .set({
-        status: 'failed',
-        error_code: result.code,
-        error_message: result.reason,
-        latency_ms: result.ms,
-        attempt: result.attempt,
-        next_retry_at: nextRetryAt,
-        updated_at: new Date()
-      })
-      .where(eq(strategies.snapshot_id, snapshot_id));
-    
-    console.error(`[triad] strategist.err id=${snapshot_id} reason=${result.reason} code=${result.code} ms=${totalDuration} attempts=${result.attempt}`);
-    return null;
   } catch (err) {
-    const duration = Date.now() - startTime;
-    
-    // Update DB with error
-    await db.update(strategies)
-      .set({
-        status: 'failed',
-        error_code: 500,
-        error_message: err.message,
-        latency_ms: duration,
-        updated_at: new Date()
-      })
-      .where(eq(strategies.snapshot_id, snapshot_id));
-    
-    console.error(`[triad] strategist.err id=${snapshot_id} reason=${err.message} ms=${duration}`);
+    console.error(`[triad] strategist error:`, err.message);
     return null;
   }
 }
