@@ -329,7 +329,6 @@ export function LocationProvider({ children }: LocationProviderProps) {
       // We'll update after we get city, state, and formattedAddress
 
       // Resolve ALL context data in parallel: location, weather, and air quality
-      // Use enrichmentSignal so these can be canceled if GPS updates before completion
       // Track device_id for user location tracking
       const deviceId = localStorage.getItem('vecto_device_id') || crypto.randomUUID();
       localStorage.setItem('vecto_device_id', deviceId);
@@ -723,12 +722,6 @@ export function LocationProvider({ children }: LocationProviderProps) {
 
         // Increment session ID to invalidate cached queries
         setLocationSessionId(prev => prev + 1);
-        
-        // Cancel any in-flight enrichment from GPS
-        if (enrichmentControllerRef.current) {
-          console.log("🚫 Aborting stale enrichment request");
-          enrichmentControllerRef.current.abort();
-        }
 
         // Source of truth for override used by Header & Co-Pilot
         setOverrideCoords({
@@ -760,14 +753,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
       );
       console.log("🔄 Updating location context with GPS coordinates...");
 
-      // Cancel stale enrichment and create new AbortController
-      if (enrichmentControllerRef.current) {
-        enrichmentControllerRef.current.abort();
-      }
-      enrichmentControllerRef.current = new AbortController();
-      const { signal } = enrichmentControllerRef.current;
-
-      fetch(`/api/location/resolve?lat=${latitude}&lng=${longitude}`, { signal })
+      fetch(`/api/location/resolve?lat=${latitude}&lng=${longitude}`)
         .then((response) => response.json())
         .then((data) => {
           console.log("📍 Location resolved to:", data);

@@ -8,6 +8,37 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (Nov 25, 2025)
 
+### Critical Fix: Location Abort Controller Bug ✅ 
+**Status**: RESOLVED - Location now resolves consistently on first attempt
+
+**Issue**: Location API was being aborted by the same AbortController that managed weather/air APIs. When new GPS coordinates arrived, all three APIs would abort, causing location resolution to fail with "Fetch is aborted" error. After ~1.7 seconds, a retry would succeed.
+
+**Root Cause**: Single shared AbortController (`enrichmentControllerRef`) was aborting ALL APIs (location, weather, air) when GPS updated, but we only want to abort enrichment data, not location.
+
+**Solution**: Separate AbortControllers for different concerns:
+- **`locationControllerRef`**: Location API gets its own controller that **NEVER aborts** - we always want the latest resolved address
+- **`weatherAirControllerRef`**: Weather/air quality get a separate controller that **CAN abort** if new GPS arrives
+
+**Changed Files**:
+- `client/src/contexts/location-context-clean.tsx`: 
+  - Created `locationControllerRef` for location API (never aborts)
+  - Created `weatherAirControllerRef` for weather/air APIs (can abort)
+  - Removed all references to old `enrichmentControllerRef`
+  - Location, weather, and air quality now use correct signals
+
+**Verified Behavior** (from browser logs):
+```
+✅ GPS coordinates received: {lat: 32.788993, lng: -96.7989312}
+✅ Weather response: 65°F (1.1s after GPS)
+✅ Air quality response: AQI 75 (164ms after weather)
+✅ Location response: Dallas, TX (161ms after air quality)
+✅ All three APIs complete successfully - NO ABORTS
+```
+
+**Impact**: Users now see resolved location ("📍 Dallas, TX") immediately on page load instead of spinner/coordinates.
+
+---
+
 ### Two-Table Location Architecture - Consolidated Single Source of Truth ✅
 **Status**: Production Ready
 
