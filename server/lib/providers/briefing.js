@@ -4,6 +4,7 @@
 import { db } from '../../db/drizzle.js';
 import { briefings } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
+import { onConflictDoUpdate } from 'drizzle-orm/pg-core';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 import { callModel } from '../adapters/index.js';
 
@@ -132,13 +133,21 @@ Use live web search to find current, factual information. Be comprehensive and o
       };
     }
 
-    // Check if briefing already exists
-    const [existing] = await db.select().from(briefings)
-      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-
-    if (existing) {
-      // Update existing
-      await db.update(briefings).set({
+    // CRITICAL: Use ON CONFLICT to prevent duplicate API calls on concurrent requests
+    // This ensures idempotency even if briefing is called multiple times
+    await db.insert(briefings).values({
+      snapshot_id: snapshotId,
+      global_travel: briefingData.global_travel || '',
+      domestic_travel: briefingData.domestic_travel || '',
+      local_traffic: briefingData.local_traffic || '',
+      weather_impacts: briefingData.weather_impacts || '',
+      events_nearby: briefingData.events_nearby || '',
+      rideshare_intel: briefingData.rideshare_intel || '',
+      citations: citations
+      // created_at and updated_at are set automatically via .defaultNow()
+    }).onConflictDoUpdate({
+      target: briefings.snapshot_id,
+      set: {
         global_travel: briefingData.global_travel || '',
         domestic_travel: briefingData.domestic_travel || '',
         local_traffic: briefingData.local_traffic || '',
@@ -147,25 +156,10 @@ Use live web search to find current, factual information. Be comprehensive and o
         rideshare_intel: briefingData.rideshare_intel || '',
         citations: citations,
         updated_at: new Date()
-      }).where(eq(briefings.snapshot_id, snapshotId));
-      
-      console.log(`[briefing] ✅ Updated briefing for ${snapshotId}`);
-    } else {
-      // Insert new
-      await db.insert(briefings).values({
-        snapshot_id: snapshotId,
-        global_travel: briefingData.global_travel || '',
-        domestic_travel: briefingData.domestic_travel || '',
-        local_traffic: briefingData.local_traffic || '',
-        weather_impacts: briefingData.weather_impacts || '',
-        events_nearby: briefingData.events_nearby || '',
-        rideshare_intel: briefingData.rideshare_intel || '',
-        citations: citations
-        // created_at and updated_at are set automatically via .defaultNow()
-      });
-      
-      console.log(`[briefing] ✅ Created briefing for ${snapshotId}`);
-    }
+      }
+    });
+    
+    console.log(`[briefing] ✅ Briefing persisted for ${snapshotId}`);
     
     console.log(`[briefing] 📊 Structured data: global=${!!briefingData.global_travel}, domestic=${!!briefingData.domestic_travel}, local=${!!briefingData.local_traffic}, weather=${!!briefingData.weather_impacts}, events=${!!briefingData.events_nearby}, rideshare=${!!briefingData.rideshare_intel}`);
   } catch (error) {
