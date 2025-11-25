@@ -3,7 +3,7 @@
 
 import { Router } from 'express';
 import { db } from '../db/drizzle.js';
-import { strategies, snapshots } from '../../shared/schema.js';
+import { strategies, snapshots, rankings, ranking_candidates } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 export const router = Router();
@@ -57,7 +57,35 @@ router.get('/strategy/:snapshotId', async (req, res) => {
       });
     }
     
-    // Strategy ready - return complete data
+    // Fetch venue blocks/recommendations
+    let blocks = [];
+    const [ranking] = await db.select().from(rankings)
+      .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+    
+    if (ranking) {
+      const candidates = await db.select().from(ranking_candidates)
+        .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
+        .orderBy(ranking_candidates.rank);
+      
+      blocks = candidates.map(c => ({
+        name: c.name,
+        coordinates: { lat: c.lat, lng: c.lng },
+        placeId: c.place_id,
+        estimated_distance_miles: c.distance_miles,
+        driveTimeMinutes: c.drive_minutes,
+        value_per_min: c.value_per_min,
+        value_grade: c.value_grade,
+        not_worth: c.not_worth,
+        proTips: c.pro_tips,
+        closed_venue_reasoning: c.closed_reasoning,
+        stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
+        businessHours: c.business_hours,
+        eventBadge: c.venue_events?.badge,
+        eventSummary: c.venue_events?.summary,
+      }));
+    }
+    
+    // Strategy ready - return complete data with blocks
     res.json({
       status: 'ok',
       snapshot_id: snapshotId,
@@ -66,7 +94,8 @@ router.get('/strategy/:snapshotId', async (req, res) => {
         min: strategy.minstrategy || '',
         consolidated: strategy.consolidated_strategy || '',
         holiday: snapshot?.holiday || null
-      }
+      },
+      blocks
     });
   } catch (error) {
     console.error(`[content-blocks] Error:`, error);

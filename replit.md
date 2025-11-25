@@ -21,7 +21,7 @@ The platform utilizes a role-based, model-agnostic architecture with configurabl
 A React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. It features a Strategy Section, Smart Blocks for venue recommendations, an AI Strategy Coach, and a Rideshare Briefing Tab, including immutable strategy history with a retry workflow.
 
 **Data Storage**:
-A PostgreSQL Database with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes and JSONB for flexible storage. Database operations are automatically routed to a development database for local environments and a production database for deployments.
+A PostgreSQL Database (Replit built-in, Neon-backed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes and JSONB for flexible storage. Replit automatically routes to development database during development and production database when published - no manual configuration needed.
 
 **Authentication & Security**:
 Employs JWT with RS256 Asymmetric Keys and security middleware for rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.
@@ -43,7 +43,7 @@ Includes a comprehensive Neon connection resilience pattern with `server/db/conn
 -   **Weather and Air Quality**: Configurable via environment variables.
 
 ### Database
--   **PostgreSQL (External - Neon)**: Primary data store, managed by Drizzle ORM. Utilizes pooled connections for queries and unpooled for LISTEN/NOTIFY. Features robust connection resilience, detecting Neon-specific error codes (57P01) for targeted retry logic.
+-   **PostgreSQL (Replit Built-in)**: Primary data store, managed by Drizzle ORM. Uses `DATABASE_URL` environment variable which Replit automatically configures for dev/prod separation. Features robust connection resilience with auto-reconnect logic and exponential backoff.
 
 ### Infrastructure
 -   **Replit Platform**: Deployment and Nix environment.
