@@ -44,7 +44,7 @@ const cfg = {
   keepAliveInitialDelayMillis: Number(process.env.PG_KEEPALIVE_DELAY_MS || 5000),
   maxUses: Number(process.env.PG_MAX_USES || 7500),
   ssl: { rejectUnauthorized: false },
-  allowExitOnIdle: true, // Allow pool to exit when idle (important for serverless)
+  allowExitOnIdle: false, // CRITICAL: Never auto-exit pool - Neon terminates idle, we reconnect
   statement_timeout: 5000,
   query_timeout: 5000,
 };
@@ -123,19 +123,16 @@ async function initPool() {
 }
 
 async function drainPool() {
-  // CRITICAL: Only drain if pool is alive - prevents "Called end on pool more than once"
-  if (!poolAlive || !pool) {
-    ndjson('db.drain.skip', { reason: 'pool_already_drained' });
+  // CRITICAL: Don't call pool.end() - just prepare for reconnection
+  // Neon will terminate idle connections, we'll create new pool
+  if (!pool) {
+    ndjson('db.drain.skip', { reason: 'no_pool' });
     return;
   }
   
-  poolAlive = false; // Mark pool as dead BEFORE draining
   ndjson('db.drain.begin', {});
-  try { 
-    await pool.end(); 
-  } catch (e) {
-    ndjson('db.drain.error', { error: String(e.message || e) });
-  }
+  // Don't end the pool - just let old references be garbage collected
+  // This prevents "Called end on pool more than once" errors
   ndjson('db.drain.end', {});
 }
 
@@ -199,7 +196,7 @@ async function reconnectWithBackoff() {
       return;
     } catch (e) {
       ndjson('db.reconnect.error', { attempt, error: String(e.message || e) });
-      try { await pool.end(); } catch {}
+      // Don't call pool.end() - just let it be replaced on next attempt
     }
   }
   lastEvent = 'db.reconnect.exhausted';
@@ -210,13 +207,23 @@ async function reconnectWithBackoff() {
 }
 
 export async function safeQuery(text, params) {
-  // CRITICAL: Fast-fail if degraded OR pool is dead
-  if (degraded || !poolAlive) {
+  // CRITICAL: Only reject if degraded, not if pool is temporarily reconn waiting
+  // poolAlive flag is only meaningful if we're actually degraded
+  if (degraded && !poolAlive) {
     ndjson('query.rejected', {
-      reason: degraded ? 'degraded' : 'pool_dead',
+      reason: 'degraded_no_pool',
       sql_hash: crypto.createHash('sha1').update(text).digest('hex'),
     });
     const err = new Error('db_degraded');
+    err.status = 503;
+    throw err;
+  }
+  if (!pool) {
+    ndjson('query.rejected', {
+      reason: 'no_pool',
+      sql_hash: crypto.createHash('sha1').update(text).digest('hex'),
+    });
+    const err = new Error('db_no_pool');
     err.status = 503;
     throw err;
   }
@@ -284,7 +291,8 @@ export function getPoolWrapper() {
       }
       return pool.connect();
     },
-    end: () => pool.end(),
+    // CRITICAL: Don't provide end() method - pool should NEVER be ended in production
+    // Neon handles connection lifecycle, we just reconnect on admin termination
   };
 }
 
