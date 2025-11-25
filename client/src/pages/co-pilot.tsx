@@ -250,6 +250,32 @@ const CoPilot: React.FC = () => {
     return unsubscribe;
   }, [lastSnapshotId]);
 
+  // Fetch snapshot data early for Coach context (backup while strategy generates)
+  const { data: snapshotData } = useQuery({
+    queryKey: ['/api/snapshot', lastSnapshotId],
+    queryFn: async () => {
+      if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
+      
+      const response = await fetch(`/api/snapshot/${lastSnapshotId}`);
+      if (!response.ok) return null;
+      
+      const data = await response.json();
+      console.log('[snapshot-fetch]', {
+        city: data.city,
+        state: data.state,
+        weather: data.weather,
+        air: data.air,
+        hour: data.hour,
+        dayPart: data.day_part_key,
+        holiday: data.holiday
+      });
+      return data;
+    },
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+    gcTime: 20 * 60 * 1000,
+  });
+
   // Fetch strategy from database when we have a new snapshot (polling fallback if SSE fails)
   const { data: strategyData, isFetching: isStrategyFetching } = useQuery({
     queryKey: ['/api/blocks/strategy', lastSnapshotId],
@@ -1628,13 +1654,18 @@ const CoPilot: React.FC = () => {
           </div>
         )}
 
-        {/* AI Strategy Coach - GPT-5 Chat Interface */}
-        {coords && persistentStrategy && (
+        {/* AI Strategy Coach - Shows BEFORE strategy completes (early engagement backup plan) */}
+        {coords && snapshotData && (
           <div className="mb-6" data-testid="ai-coach-section">
             <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-purple-600" />
                 <h2 className="text-lg font-semibold text-gray-800">AI Strategy Coach</h2>
+                {!persistentStrategy && (
+                  <Badge variant="secondary" className="text-xs">
+                    Strategy Generating...
+                  </Badge>
+                )}
               </div>
               <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
                 Live Chat
@@ -1645,7 +1676,9 @@ const CoPilot: React.FC = () => {
                 userId={localStorage.getItem('vecto_user_id') || 'default'}
                 snapshotId={lastSnapshotId || undefined}
                 strategy={persistentStrategy}
+                snapshot={snapshotData}
                 blocks={blocks}
+                strategyReady={!!persistentStrategy}
               />
             </div>
           </div>

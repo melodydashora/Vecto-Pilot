@@ -52,3 +52,88 @@ Includes a comprehensive Neon connection resilience pattern with `server/db/conn
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Database Schema - Snapshots Table
+
+The **snapshots** table is the foundation for strategy generation and Coach context. Each snapshot captures a complete "moment in time" of driver location and environmental conditions.
+
+### Location & Coordinates
+| Field | Type | Purpose |
+|-------|------|---------|
+| `snapshot_id` | UUID | Primary key, unique identifier for each snapshot moment |
+| `lat` | Float | Latitude coordinate from GPS or manual search |
+| `lng` | Float | Longitude coordinate from GPS or manual search |
+| `accuracy_m` | Float | GPS accuracy in meters (0.0-200.0m typical) |
+| `coord_source` | Text | 'gps', 'manual_city_search', 'api', etc. |
+
+### Location Names (Geocoded)
+| Field | Type | Purpose |
+|-------|------|---------|
+| `city` | Text | City name (e.g., "Frisco") |
+| `state` | Text | State code (e.g., "TX") |
+| `country` | Text | Country code (e.g., "US") |
+| `formatted_address` | Text | Full address (e.g., "Frisco, TX 75034, USA") |
+| `timezone` | Text | IANA timezone (e.g., "America/Chicago") |
+| `h3_r8` | Text | Hexagonal spatial index for grid-based analysis |
+
+### Time Context
+| Field | Type | Purpose |
+|-------|------|---------|
+| `local_iso` | Timestamp | Local time when snapshot created (no TZ) |
+| `dow` | Integer | Day of week (0=Sunday, 1=Monday...6=Saturday) |
+| `hour` | Integer | Hour of day (0-23) |
+| `day_part_key` | Text | Time period label: 'early_morning' (5-9am), 'mid_morning' (9am-12pm), 'afternoon' (12-5pm), 'evening' (5-9pm), 'night' (9pm-5am) |
+
+### Environmental Data (JSONB)
+| Field | Type | Sample Structure | Coach Use |
+|-------|------|------------------|-----------|
+| `weather` | JSONB | `{temp: 63, condition: "Cloudy", windSpeed: 8}` | Context for surge patterns, outdoor vs airport demand |
+| `air` | JSONB | `{aqi: 92, level: "Moderate", pollutants: {...}}` | Air quality context, pollution-related surge areas |
+| `local_news` | JSONB | `{events: [...], incidents: [...]}` | Real-time disruptions Coach can discuss |
+| `airport_context` | JSONB | `{nearestAirports: [...], delays: [...]}` | Airport activity for Q&A |
+
+### Special Context
+| Field | Type | Purpose |
+|-------|------|---------|
+| `holiday` | Text | Holiday name if applicable (e.g., "Thanksgiving", "Christmas") or null |
+| `is_holiday` | Boolean | Quick flag for holiday surge detection |
+
+### Metadata (JSONB)
+| Field | Type | Purpose |
+|-------|------|---------|
+| `device` | JSONB | Device type, OS, app version |
+| `permissions` | JSONB | GPS, location permissions status |
+| `extras` | JSONB | Future extensibility fields |
+
+### Timestamps
+| Field | Type | Purpose |
+|-------|------|---------|
+| `created_at` | Timestamp | When snapshot was persisted to DB |
+| `session_id` | UUID | Groups multiple snapshots in user session |
+| `device_id` | UUID | Tracks unique device across sessions |
+| `user_id` | UUID | Null if anonymous, references registered user |
+
+## AI Coach Integration
+
+**Early Engagement Model**: The Coach now shows **BEFORE strategy completes** using snapshot data as a backup plan for Q&A:
+
+### Coach receives snapshot fields:
+- **Location context**: `city`, `state`, `formatted_address`, `coordinates`
+- **Time context**: `hour`, `dow` (day of week), `day_part_key` (time period)
+- **Environmental data**: `weather` (temp, condition), `air` (AQI, pollution), `local_news` (events)
+- **Holiday info**: `holiday` (name), `is_holiday` (boolean flag)
+- **Timezone**: For displaying local time to driver
+
+### Coach features snapshot-driven Q&A:
+- "What's the weather affecting demand today?" → Uses `weather` field
+- "What's the air quality?" → Uses `air.aqi`
+- "What time of day is it?" → Uses `hour` + `day_part_key`
+- "Are there events happening?" → Uses `local_news`, `airport_context`
+- "Is today a holiday?" → Uses `holiday` + `is_holiday`
+
+### API Endpoint
+**GET `/api/snapshot/:snapshotId`** - Fetch snapshot for Coach context
+- Returns all fields listed above
+- Called automatically when snapshot is created
+- Cached for 10 minutes to reduce database load
+- Enables Coach to answer questions while strategy generates (35-50 second wait)

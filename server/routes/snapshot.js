@@ -2,6 +2,7 @@
 import express, { Router } from 'express';
 import crypto from "node:crypto";
 import { db } from "../db/drizzle.js";
+import { sql } from "drizzle-orm";
 import { snapshots, strategies } from "../../shared/schema.js";
 import { generateStrategyForSnapshot } from "../lib/strategy-generator.js";
 import { validateIncomingSnapshot } from "../util/validate-snapshot.js";
@@ -148,6 +149,60 @@ router.post("/", async (req, res) => {
     const code = msg.startsWith("missing:") || msg.startsWith("invalid:") ? 400 : 500;
     console.warn("[snapshot] ERR", { msg, code, ms: Date.now() - started, req_id: reqId });
     return res.status(code).json({ ok: false, error: msg, req_id: reqId });
+  }
+});
+
+// GET /:snapshotId - Fetch snapshot for Coach context (early engagement backup)
+// Snapshot fields: city, state, weather (temp, condition), air (AQI), hour, dayPart, holiday, timezone, coordinates
+router.get("/:snapshotId", async (req, res) => {
+  const { snapshotId } = req.params;
+  
+  if (!snapshotId) {
+    return res.status(400).json({ ok: false, error: 'MISSING_SNAPSHOT_ID' });
+  }
+  
+  try {
+    const snapshot = await db.query.snapshots.findFirst({
+      where: (t) => sql`${t.snapshot_id} = ${snapshotId}`,
+    });
+    
+    if (!snapshot) {
+      return res.status(404).json({ ok: false, error: 'SNAPSHOT_NOT_FOUND' });
+    }
+    
+    console.log('[snapshot-get]', {
+      snapshot_id: snapshot.snapshot_id,
+      city: snapshot.city,
+      weather: !!snapshot.weather,
+      aqi: snapshot.air?.aqi || null,
+      dayPart: snapshot.day_part_key
+    });
+    
+    // Return all snapshot fields for Coach context
+    return res.json({
+      snapshot_id: snapshot.snapshot_id,
+      city: snapshot.city,
+      state: snapshot.state,
+      country: snapshot.country,
+      formatted_address: snapshot.formatted_address,
+      timezone: snapshot.timezone,
+      lat: snapshot.lat,
+      lng: snapshot.lng,
+      hour: snapshot.hour,
+      dow: snapshot.dow,
+      day_part_key: snapshot.day_part_key,
+      weather: snapshot.weather,
+      air: snapshot.air,
+      local_news: snapshot.local_news,
+      airport_context: snapshot.airport_context,
+      holiday: snapshot.holiday,
+      is_holiday: snapshot.is_holiday,
+      h3_r8: snapshot.h3_r8,
+      created_at: snapshot.created_at?.toISOString()
+    });
+  } catch (err) {
+    console.error('[snapshot-get] Error:', err);
+    return res.status(500).json({ ok: false, error: 'INTERNAL_ERROR', message: String(err) });
   }
 });
 
