@@ -359,16 +359,6 @@ export function LocationProvider({ children }: LocationProviderProps) {
             timeZone: userLocationData?.timezone || null,
             user_id: userLocationData?.user_id || null,
           };
-          
-          // NOW update state - location is fully resolved
-          setLocationState((prev: any) => ({
-            ...prev,
-            coords: { ...coords },
-            accuracy: coords.accuracy,
-            isLoading: false, // NOW stop spinner - we have complete data
-            isUpdating: false,
-            error: null,
-          }));
 
           // Format as "City, ST" if we have both city and state (from users table)
           let locationName;
@@ -379,6 +369,19 @@ export function LocationProvider({ children }: LocationProviderProps) {
           } else {
             locationName = `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
           }
+          
+          // NOW update state - location is fully resolved
+          setLocationState((prev: any) => ({
+            ...prev,
+            coords: { ...coords },
+            currentCoords: coords,
+            accuracy: coords.accuracy,
+            currentLocationString: locationName, // UI displays this!
+            isLoading: false, // NOW stop spinner - we have complete data
+            isUpdating: false,
+            error: null,
+            timeZone: locationData.timeZone,
+          }));
           console.log("[Global App] Location saved to users table:", locationName);
           console.log("[Global App] User ID:", locationData.user_id);
           console.log("[Global App] Weather:", weatherData?.available ? `${weatherData.temperature}°F` : 'unavailable');
