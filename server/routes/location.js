@@ -325,12 +325,14 @@ router.get('/resolve', async (req, res) => {
       console.log(`[location] Using fallback timezone: ${timeZone}`);
     }
 
+    let userId = null;
     const resolvedData = {
       city,
       state,
       country,
       timeZone,
       formattedAddress: formattedAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      user_id: userId,
     };
     
     console.log(`[Location API] ✅ Complete resolution:`, resolvedData);
@@ -340,8 +342,9 @@ router.get('/resolve', async (req, res) => {
     if (deviceId) {
       try {
         const now = new Date();
-        const hour = new Date(now.toLocaleString('en-US', { timeZone })).getHours();
-        const dow = new Date(now.toLocaleString('en-US', { timeZone })).getDay();
+        const tz = timeZone || 'America/Chicago';
+        const hour = new Date(now.toLocaleString('en-US', { timeZone: tz })).getHours();
+        const dow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
         const dayPartKey = getDayPartKey(hour);
         
         const existingUser = await db.query.users.findFirst({
@@ -349,6 +352,7 @@ router.get('/resolve', async (req, res) => {
         }).catch(() => null);
         
         if (existingUser) {
+          userId = existingUser.user_id;
           await db.update(users)
             .set({
               new_lat: lat,
@@ -357,7 +361,7 @@ router.get('/resolve', async (req, res) => {
               city,
               state,
               country,
-              timezone: timeZone,
+              timezone: tz,
               local_iso: now,
               dow,
               hour,
@@ -365,10 +369,11 @@ router.get('/resolve', async (req, res) => {
               updated_at: now,
             })
             .where(eq(users.device_id, deviceId))
-            .catch(err => console.warn('[location] users update failed:', err));
+            .catch(err => console.warn('[location] users update failed:', err.message));
         } else {
+          userId = crypto.randomUUID();
           const newUser = {
-            user_id: crypto.randomUUID(),
+            user_id: userId,
             device_id: deviceId,
             lat,
             lng,
@@ -377,7 +382,7 @@ router.get('/resolve', async (req, res) => {
             city,
             state,
             country,
-            timezone: timeZone,
+            timezone: tz,
             local_iso: now,
             dow,
             hour,
@@ -387,19 +392,25 @@ router.get('/resolve', async (req, res) => {
           };
           
           await db.insert(users).values(newUser)
-            .catch(err => console.warn('[location] users insert failed:', err));
+            .catch(err => console.warn('[location] users insert failed:', err.message));
         }
         
-        console.log(`[location] ✅ Users table updated for device: ${deviceId}`);
+        // Update response with user_id for client-side tracking
+        resolvedData.user_id = userId;
+        console.log(`[location] ✅ Users table updated for device: ${deviceId}, user_id: ${userId}`);
       } catch (err) {
         console.warn('[location] Failed to save user location:', err.message);
       }
     }
     
+    // Always explicitly set JSON content-type to prevent HTML leaks
+    res.setHeader('Content-Type', 'application/json');
     res.json(resolvedData);
   } catch (err) {
     console.error('[location] resolve error', err);
-    res.status(500).json({ error: 'location-resolve-failed' });
+    // Always set JSON content-type to prevent HTML leaks on error
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ error: 'location-resolve-failed', message: err.message });
   }
 });
 

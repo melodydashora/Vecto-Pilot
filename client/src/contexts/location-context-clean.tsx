@@ -326,10 +326,25 @@ export function LocationProvider({ children }: LocationProviderProps) {
       const deviceId = localStorage.getItem('vecto_device_id') || crypto.randomUUID();
       localStorage.setItem('vecto_device_id', deviceId);
       
+      // Helper: Safe JSON parsing that checks content-type header
+      const safeJsonParse = async (response) => {
+        if (!response.ok) {
+          console.warn(`[LocationContext] API returned ${response.status}`);
+          return null;
+        }
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          return await response.json();
+        } else {
+          console.error('[LocationContext] Received non-JSON response (likely HTML error page)');
+          return null;
+        }
+      };
+      
       Promise.all([
-        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}&device_id=${deviceId}`, { signal: enrichmentSignal }).then(r => r.json()),
-        fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(r => r.json()).catch(() => null),
-        fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(r => r.json()).catch(() => null),
+        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}&device_id=${deviceId}`, { signal: enrichmentSignal }).then(safeJsonParse),
+        fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(safeJsonParse).catch(() => null),
+        fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(safeJsonParse).catch(() => null),
       ])
         .then(async ([userLocationData, weatherData, airQualityData]) => {
           // userLocationData comes from /api/user/location (saved to users table)

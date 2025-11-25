@@ -99,13 +99,9 @@ router.post('/venue', async (req, res) => {
         sentiment,
         comment: sanitizedComment,
       })
-      .onConflictDoUpdate({
-        target: [venue_feedback.user_id, venue_feedback.ranking_id, venue_feedback.place_id],
-        set: {
-          sentiment,
-          comment: sanitizedComment,
-          created_at: sql`now()`,
-        },
+      .onConflict().doUpdateSet({
+        sentiment,
+        comment: sanitizedComment,
       })
       .returning();
     
@@ -263,13 +259,9 @@ router.post('/strategy', async (req, res) => {
         sentiment,
         comment: sanitizedComment,
       })
-      .onConflictDoUpdate({
-        target: [strategy_feedback.user_id, strategy_feedback.ranking_id],
-        set: {
-          sentiment,
-          comment: sanitizedComment,
-          created_at: sql`now()`,
-        },
+      .onConflict().doUpdateSet({
+        sentiment,
+        comment: sanitizedComment,
       });
     
     console.log('[feedback] strategy upsert ok', {

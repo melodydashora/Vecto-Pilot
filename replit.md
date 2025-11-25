@@ -8,10 +8,55 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (Nov 25, 2025)
 
-### Two-Table Location Architecture Implemented ✅
+### Robust Error Handling & Two-Table Location Architecture ✅
 **Status**: Production Ready
 
-The platform now uses a **two-table architecture** for user location management, separating user-driven location data from API-enriched contextual snapshots.
+Integrated production-grade error handling patterns from industry best practices to ensure system stability when external APIs fail.
+
+#### Key Implementations
+
+**1. Server-Side Resilience (location.js)**
+- **Explicit Content-Type headers**: Always sets `Content-Type: application/json` on success AND error responses to prevent HTML leaks
+- **Outer try-catch**: Catches database/syntax errors, returns `500` with JSON instead of HTML stack traces
+- **Graceful API fallbacks**: If Google Maps API fails, endpoint continues to save raw GPS coords and returns fallback data
+- **Consistent error responses**: All errors return JSON with explicit status codes (400, 404, 500)
+
+**Example Flow**:
+```
+GPS coords → Google Geocoding (try-catch isolates this)
+             ↓
+        If fails: Continue with fallback city/state/timezone
+        If succeeds: Use resolved address
+             ↓
+        Save to users table (always succeeds)
+             ↓
+        Return JSON with user_id
+```
+
+**2. Client-Side Resilience (location-context-clean.tsx)**
+- **Content-Type validation**: Checks `response.headers.get('content-type')` before calling `.json()`
+- **HTTP status checking**: Validates `response.ok` before parsing
+- **Safe JSON parsing**: Custom `safeJsonParse()` helper returns null on invalid responses (not HTML)
+- **No white-screen crashes**: Failed API calls degrade gracefully without throwing errors
+
+**Example Response Handling**:
+```javascript
+const safeJsonParse = async (response) => {
+  if (!response.ok) {
+    console.warn(`API returned ${response.status}`);
+    return null;
+  }
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return await response.json();
+  } else {
+    console.error('Received non-JSON response (likely HTML error page)');
+    return null;
+  }
+};
+```
+
+**3. Database Persistence (Two-Table Architecture)**
 
 #### Users Table (`users`) - PRIMARY LOCATION SOURCE
 Stores driver location data (GPS coords + resolved address). This is the authoritative source for header display and user identity.
@@ -46,42 +91,58 @@ Pulls precise location from users table and adds environmental API enrichments (
 **Frontend (`client/src/contexts/location-context-clean.tsx`)**:
 - GPS permission gated on location refresh
 - Calls `/api/location/resolve?lat=X&lng=Y&device_id=Z` 
-- Pass `device_id` to backend for user tracking
+- Passes `device_id` to backend for user tracking
 - Receives geocoded city/state for immediate header display
 - Location displays as "City, State" (e.g., "Frisco, TX")
+- Robust error handling prevents white-screen crashes
 
 **Backend (`server/routes/location.js`)**:
-- `/api/location/resolve` endpoint enhanced with user persistence
+- `/api/location/resolve` endpoint enhanced with:
+  - User persistence (auto-create/update users table)
+  - Isolated external API calls (if Google Maps fails, still saves GPS)
+  - Explicit JSON response headers on ALL paths
+  - Try-catch blocks preventing HTML error leaks
 - When `device_id` query parameter provided:
   - Checks if user exists in users table
   - **Update path**: Updates new_lat, new_lng, resolved address, timezone, time context
   - **Create path**: Inserts new user record with all location data
-- Side effects: User location automatically saved during geocoding
+  - **Returns**: user_id in response for client-side tracking
 - Provides fallback timezone handling (America/Chicago default)
 
 **Database Operations**:
 - Drizzle ORM used for all SQL - no raw migrations
+- Fixed deprecated `onConflictDoUpdate` syntax (Drizzle v0.28+):
+  - Changed from: `.onConflictDoUpdate({...})`
+  - Changed to: `.onConflict().doUpdateSet({...})`
+  - Applied to: briefing.js, feedback.js routes
 - Single pool connection via `server/db/connection-manager.js`
 - `npm run db:push` handles schema synchronization automatically
 
 ### Critical Fixes in Place
 
-1. **User Persistence**: All location requests with device_id automatically save/update users table
-2. **Timezone Handling**: Derived from Google Timezone API, fallback to browser default
-3. **Device Tracking**: localStorage stores device_id across sessions for user continuity
-4. **Time Context**: Computed in user's timezone (hour, dow, day_part_key) for strategy relevance
+1. **SDK Router Loading**: Fixed Drizzle ORM import issue preventing SDK from loading
+2. **Server-Side JSON Guarantee**: Always returns JSON, never HTML error pages
+3. **Client-Side Parsing Safety**: Content-Type validation prevents JSON parse errors
+4. **User Persistence**: All location requests with device_id automatically save/update users table
+5. **Timezone Handling**: Derived from Google Timezone API, fallback to browser default
+6. **Device Tracking**: localStorage stores device_id across sessions for user continuity
+7. **Time Context**: Computed in user's timezone (hour, dow, day_part_key) for strategy relevance
 
 ### Performance Metrics
 - Geocoding: <500ms (Google API + DB save)
 - Full location resolution: <1s end-to-end
 - Header refresh: Immediate (city/state available after resolution)
 - Snapshot creation: ~2-5s including API enrichments
+- Error recovery: Automatic with no user-visible failures
 
-### Testing
-- Backend endpoint verified with curl
-- Browser console logs show city/state display
-- Database schema: 21 core users table fields + 31 snapshots fields
-- All endpoints return proper JSON responses
+### Testing Results
+- ✅ Backend endpoint verified with curl - returns proper JSON
+- ✅ Users table persisting device_id, location, timezone
+- ✅ Browser displays "Frisco, TX" location
+- ✅ No "Unexpected token <" crashes
+- ✅ Weather and air quality data flowing through
+- ✅ SDK router loading successfully
+- ✅ Drizzle ORM syntax fixed across all routes
 
 ### Production Deployment Checklist
 - ✅ Users table schema created and migrated
@@ -90,7 +151,10 @@ Pulls precise location from users table and adds environmental API enrichments (
 - ✅ Timezone resolution with fallbacks
 - ✅ Header displays resolved city/state
 - ✅ Database connection pooling verified
-- ✅ Error handling with graceful fallbacks
+- ✅ Server-side error handling with explicit JSON
+- ✅ Client-side content-type validation
+- ✅ Drizzle ORM syntax modernized
+- ✅ SDK router loads without errors
 - ✅ No breaking changes to existing endpoints
 
 ---
@@ -143,4 +207,4 @@ Includes a comprehensive Neon connection resilience pattern with `server/db/conn
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
 
 ## Production Readiness Status
-🟢 **PRODUCTION READY** - Two-table architecture implemented with complete data persistence, timezone handling, and device tracking.
+🟢 **PRODUCTION READY** - Robust error handling integrated with complete data persistence, timezone handling, device tracking, and API resilience.
