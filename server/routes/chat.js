@@ -42,23 +42,33 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// POST /api/chat - AI Strategy Coach with streaming
+// POST /api/chat - AI Strategy Coach with Full Schema Access
 router.post('/', async (req, res) => {
-  const { userId, message, snapshotId, strategy, blocks } = req.body;
+  const { userId, message, snapshotId, strategyId, strategy, blocks } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
   }
 
-  console.log('[chat] User:', userId || 'anonymous', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
+  console.log('[chat] User:', userId || 'anonymous', '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
 
   try {
-    // Use CoachDAL for read-only, snapshot-scoped data access
+    // Use CoachDAL for full schema read access
     let contextInfo = '';
     
     try {
-      // If snapshotId provided, use it; otherwise get latest
+      // Entry point: strategyId (from UI) → snapshotId → full schema access
+      // Fallback: direct snapshotId or latest snapshot for user
       let activeSnapshotId = snapshotId;
+      
+      if (!activeSnapshotId && strategyId) {
+        console.log('[chat] Resolving strategy_id:', strategyId);
+        const resolution = await coachDAL.resolveStrategyToSnapshot(strategyId);
+        if (resolution) {
+          activeSnapshotId = resolution.snapshot_id;
+          console.log('[chat] Resolved strategy_id to snapshot_id:', activeSnapshotId);
+        }
+      }
       
       if (!activeSnapshotId && userId) {
         const [latestSnap] = await db
@@ -70,15 +80,16 @@ router.post('/', async (req, res) => {
         
         if (latestSnap) {
           activeSnapshotId = latestSnap.snapshot_id;
+          console.log('[chat] Using latest snapshot for user:', activeSnapshotId);
         }
       }
 
-      // Get complete context using CoachDAL
+      // Get COMPLETE context using CoachDAL (full schema access)
       if (activeSnapshotId) {
-        const context = await coachDAL.getCompleteContext(activeSnapshotId);
+        const context = await coachDAL.getCompleteContext(activeSnapshotId, strategyId);
         contextInfo = coachDAL.formatContextForPrompt(context);
         
-        console.log(`[chat] Context loaded for snapshot ${activeSnapshotId} - Status: ${context.status}`);
+        console.log(`[chat] Full context loaded - Status: ${context.status}`);
       } else {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
