@@ -1,6 +1,38 @@
 import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
+// Users table: stores user location data (GPS coords + resolved address)
+// Header displays city/state from this table
+// Snapshots pull location data from this table + add API enrichments
+export const users = pgTable("users", {
+  user_id: uuid("user_id").primaryKey().defaultRandom(),
+  device_id: uuid("device_id").notNull(),
+  session_id: uuid("session_id"),
+  // Original coordinates (first GPS reading for density analysis)
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  accuracy_m: doublePrecision("accuracy_m"),
+  coord_source: text("coord_source").notNull().default('gps'), // 'gps' | 'manual_city_search' | 'api'
+  // Updated coordinates (current position when user moves/refreshes)
+  new_lat: doublePrecision("new_lat"),
+  new_lng: doublePrecision("new_lng"),
+  new_accuracy_m: doublePrecision("new_accuracy_m"),
+  // Resolved precise location (from geocoding API)
+  formatted_address: text("formatted_address"), // Full street address
+  city: text("city"),
+  state: text("state"),
+  country: text("country"),
+  timezone: text("timezone"),
+  // Time context (when location was resolved)
+  local_iso: timestamp("local_iso", { withTimezone: false }),
+  dow: integer("dow"), // 0=Sunday, 1=Monday, etc.
+  hour: integer("hour"),
+  day_part_key: text("day_part_key"), // 'morning', 'afternoon', 'evening', etc.
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const snapshots = pgTable("snapshots", {
   snapshot_id: uuid("snapshot_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
