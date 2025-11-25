@@ -194,7 +194,7 @@ async function saveStrategy(row) {
       model_name: modelName,
       created_at: new Date(),
       updated_at: new Date()
-    }).onConflictDoNothing({ target: strategies.snapshot_id });
+    }).onConflictDoNothing();
 
     return { ok: true };
   } catch (err) {
@@ -227,7 +227,7 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
       model_name: fullModelChain,
       created_at: new Date(),
       updated_at: new Date()
-    }).onConflictDoNothing({ target: strategies.snapshot_id });
+    }).onConflictDoNothing();
     
     console.log(`[runSimpleStrategyPipeline] ✅ Strategy row created with model_name: ${fullModelChain}`);
     

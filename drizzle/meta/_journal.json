@@ -15,6 +15,13 @@
       "when": 1763619974945,
       "tag": "0001_bouncy_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1764090100781,
+      "tag": "0002_freezing_shiva",
+      "breakpoints": true
     }
   ]
 }

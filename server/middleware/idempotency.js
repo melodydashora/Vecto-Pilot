@@ -39,7 +39,7 @@ export function idempotency({ header = "x-idempotency-key", ttlMs = 60000 } = {}
               key,
               status: s,
               body: isJson ? body : { text: body }
-            }).onConflictDoNothing({ target: http_idem.key });
+            }).onConflictDoNothing();
           } catch (err) {
             console.warn('[idempotency] Failed to save response:', err.message);
           }

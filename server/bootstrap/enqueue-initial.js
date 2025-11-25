@@ -43,7 +43,7 @@ export async function seedJobIfEmpty() {
       snapshot_id: snapshotId,
       kind: 'triad',
       status: 'queued'
-    }).onConflictDoNothing({ target: triad_jobs.snapshot_id });
+    }).onConflictDoNothing();
 
     console.log(`[boot] ✅ Seeded triad job for snapshot ${snapshotId}`);
   } catch (err) {

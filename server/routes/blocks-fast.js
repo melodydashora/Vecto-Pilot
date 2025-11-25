@@ -170,7 +170,7 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
         snapshot_id: snapshotId,
         kind: 'triad',
         status: 'queued'
-      }).onConflictDoNothing({ target: triad_jobs.snapshot_id }).returning();
+      }).onConflictDoNothing().returning();
       
       if (job) {
         // New job created - run full pipeline synchronously (no worker needed)
@@ -236,13 +236,50 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
             
             console.log(`[blocks-fast POST] ✅ Synchronous waterfall complete`);
             
-            // Return success immediately after waterfall completes
-            return sendOnce(200, {
-              status: 'ok',
-              snapshot_id: snapshotId,
-              blocks: [],
-              message: 'Smart blocks generated successfully'
-            });
+            // Fetch the generated blocks to return to client
+            console.log(`[blocks-fast POST] 🔍 Fetching generated blocks...`);
+            const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+            
+            if (ranking) {
+              const candidates = await db.select().from(ranking_candidates)
+                .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
+                .orderBy(ranking_candidates.rank);
+              
+              const blocks = candidates.map(c => ({
+                name: c.name,
+                coordinates: { lat: c.lat, lng: c.lng },
+                placeId: c.place_id,
+                estimated_distance_miles: c.distance_miles,
+                driveTimeMinutes: c.drive_minutes,
+                value_per_min: c.value_per_min,
+                value_grade: c.value_grade,
+                not_worth: c.not_worth,
+                proTips: c.pro_tips,
+                closed_venue_reasoning: c.closed_reasoning,
+                stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
+                businessHours: c.business_hours,
+                isOpen: c.business_hours?.isOpen,
+                eventBadge: c.venue_events?.badge,
+                eventSummary: c.venue_events?.summary,
+              }));
+              
+              console.log(`[blocks-fast POST] ✅ Returning ${blocks.length} generated blocks`);
+              return sendOnce(200, {
+                status: 'ok',
+                snapshot_id: snapshotId,
+                blocks: blocks,
+                ranking_id: ranking.ranking_id,
+                message: 'Smart blocks generated successfully'
+              });
+            } else {
+              console.error(`[blocks-fast POST] ⚠️  No ranking found for snapshot after generation`);
+              return sendOnce(200, {
+                status: 'ok',
+                snapshot_id: snapshotId,
+                blocks: [],
+                message: 'Smart blocks generated (details pending)'
+              });
+            }
           } else {
             console.error(`[blocks-fast POST] ❌ Consolidation failed - no consolidated_strategy`);
             return sendOnce(500, {
