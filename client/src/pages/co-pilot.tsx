@@ -34,7 +34,7 @@ import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
-import { subscribeStrategyReady, subscribeBlocksReady } from '@/services/strategyEvents';
+import { subscribeStrategyReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 import {
   Tooltip,
@@ -288,51 +288,19 @@ const CoPilot: React.FC = () => {
     }
   }, [lastSnapshotId, strategySnapshotId]);
 
-  // Subscribe to SSE blocks_ready events (event-driven, no polling!)
-  const [blocksReadyForSnapshot, setBlocksReadyForSnapshot] = useState<string | null>(null);
-  
-  // Venue loading state with 2-minute progress bar
+  // SIMPLIFIED: No SSE for blocks - just poll after strategy is visible
+  // Venue loading state with progress bar
   const [venueLoadingStartTime, setVenueLoadingStartTime] = useState<number | null>(null);
   const [venueLoadingProgress, setVenueLoadingProgress] = useState(0);
-  
-  useEffect(() => {
-    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
-    
-    console.log('[SSE] Subscribing to blocks_ready events for snapshot:', lastSnapshotId);
-    const unsubscribe = subscribeBlocksReady((data) => {
-      if (data.snapshot_id === lastSnapshotId) {
-        console.log('🎉 Blocks ready for current snapshot! Fetching now...');
-        setBlocksReadyForSnapshot(data.snapshot_id);
-        setVenueLoadingProgress(100); // Complete the loading bar
-        // Invalidate blocks query to trigger fetch
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
-      }
-    });
-    
-    // ISSUE #61 FIX: Fallback timeout in case blocks_ready event never arrives
-    // After 30 seconds, enable blocks query anyway (snapshot creation might have failed)
-    const fallbackTimeout = setTimeout(() => {
-      if (!blocksReadyForSnapshot || blocksReadyForSnapshot !== lastSnapshotId) {
-        console.warn('[SSE] ⏱️ Blocks ready event timeout after 30s - enabling fallback query');
-        setBlocksReadyForSnapshot(lastSnapshotId);
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
-      }
-    }, 30000); // 30 seconds
-    
-    return () => {
-      unsubscribe();
-      clearTimeout(fallbackTimeout);
-    };
-  }, [lastSnapshotId, blocksReadyForSnapshot]);
   
   // Start venue loading timer when strategy becomes ready
   useEffect(() => {
     const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
     const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
     
-    if (strategyReady && snapshotMatches && !venueLoadingStartTime && !blocksReadyForSnapshot) {
+    if (strategyReady && snapshotMatches && !venueLoadingStartTime) {
       const now = Date.now();
-      console.log('⏰ Strategy ready - starting venue loading timer (2-3 minutes)');
+      console.log('⏰ Strategy ready - starting venue loading timer');
       setVenueLoadingStartTime(now);
       setVenueLoadingProgress(0);
     }
@@ -342,40 +310,34 @@ const CoPilot: React.FC = () => {
       setVenueLoadingStartTime(null);
       setVenueLoadingProgress(0);
     }
-  }, [strategyData, lastSnapshotId, venueLoadingStartTime, blocksReadyForSnapshot]);
+  }, [strategyData, lastSnapshotId, venueLoadingStartTime]);
   
-  // Update progress bar every second (simulate 2-minute loading, max 3 minutes)
+  // Update progress bar every second (simulate ~60 second loading)
   useEffect(() => {
-    if (!venueLoadingStartTime || blocksReadyForSnapshot) return;
+    if (!venueLoadingStartTime) return;
     
     const interval = setInterval(() => {
       const elapsed = Date.now() - venueLoadingStartTime;
-      const twoMinutes = 120000; // 2 minutes
-      const threeMinutes = 180000; // 3 minutes max
+      const expectedTime = 60000; // 60 seconds expected
+      const maxTime = 90000; // 90 seconds max
       
-      // Progress to 90% at 2 minutes, then slow to 100% at 3 minutes
+      // Progress smoothly to 95% at expected time, then slow to 100%
       let progress;
-      if (elapsed < twoMinutes) {
-        progress = (elapsed / twoMinutes) * 90;
-      } else if (elapsed < threeMinutes) {
-        const remainingTime = elapsed - twoMinutes;
-        const remainingProgress = (remainingTime / (threeMinutes - twoMinutes)) * 10;
-        progress = 90 + remainingProgress;
+      if (elapsed < expectedTime) {
+        progress = (elapsed / expectedTime) * 95;
+      } else if (elapsed < maxTime) {
+        const remainingTime = elapsed - expectedTime;
+        const remainingProgress = (remainingTime / (maxTime - expectedTime)) * 5;
+        progress = 95 + remainingProgress;
       } else {
         progress = 100;
       }
       
       setVenueLoadingProgress(Math.min(100, progress));
-      
-      // Auto-complete after 3 minutes
-      if (elapsed >= threeMinutes) {
-        setBlocksReadyForSnapshot(lastSnapshotId);
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks'] });
-      }
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [venueLoadingStartTime, blocksReadyForSnapshot, lastSnapshotId]);
+  }, [venueLoadingStartTime]);
 
   // Update persistent strategy when new strategy arrives
   useEffect(() => {
@@ -515,40 +477,41 @@ const CoPilot: React.FC = () => {
         throw err;
       }
     },
-    // AUTO-RUN when GPS + snapshot ready + strategy ready - keep spinning until success
-    // CRITICAL GATING:
-    // 1. Strategy must be written to DB with status='ok' (not 'pending', 'failed', etc.)
-    // 2. Strategy must be for the CURRENT snapshot ID (prevent stale data races)
-    // 3. Don't run while strategy is fetching (initial load OR polling)
-    // 4. Wait 60 seconds after strategy ready (blocks typically take 60-80s to generate)
-    // This ensures blocks query ONLY runs after strategy is persisted in DB with proper foreign key
+    // SIMPLIFIED POLLING: Start when AI Coach (strategy) is visible
+    // No SSE, no complex gating - just poll after strategy shows
     enabled: (() => {
       const hasCoords = !!coords;
-      const hasSnapshot = !!lastSnapshotId;
+      const hasSnapshot = !!lastSnapshotId && lastSnapshotId !== 'live-snapshot';
       const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
       const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
       
-      // EVENT-DRIVEN: Only enable when blocks_ready event is received for this snapshot
-      // No polling, no timers - just pure LISTEN/NOTIFY architecture!
-      const blocksReadyForThisSnapshot = blocksReadyForSnapshot === lastSnapshotId;
+      // SIMPLE GATE: Only start polling when AI Coach is visible
+      const shouldEnable = hasCoords && hasSnapshot && strategyReady && snapshotMatches;
       
-      const shouldEnable = hasCoords && hasSnapshot && blocksReadyForThisSnapshot;
-      
-      console.log('[blocks-query] 🔍 GATING CHECK (Event-Driven):', {
+      console.log('[blocks-query] 🔍 GATING CHECK (Strategy-Driven):', {
         hasCoords,
         hasSnapshot,
-        lastSnapshotId,
-        blocksReadyForSnapshot,
-        blocksReadyForThisSnapshot,
-        '⚠️ BLOCKED_REASON': !shouldEnable ? (!hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : !blocksReadyForThisSnapshot ? 'WAITING_FOR_BLOCKS_READY_EVENT' : 'UNKNOWN') : 'NONE',
-        shouldEnable
+        strategyReady,
+        snapshotMatches,
+        shouldEnable,
+        reason: !shouldEnable ? (!hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : !strategyReady ? 'STRATEGY_PENDING' : 'SNAPSHOT_MISMATCH') : 'READY'
       });
       
       return shouldEnable;
-    })(), // Auto-start when blocks_ready event is received
-    // NO POLLING: Event-driven architecture using PostgreSQL LISTEN/NOTIFY
-    // Blocks query only runs ONCE when blocks_ready SSE event is received
-    refetchInterval: false, // Disabled - we use SSE events instead
+    })(),
+    // SIMPLE POLLING: Poll every 5s until blocks arrive, then stop
+    refetchInterval: (query) => {
+      const blocks = query.state.data?.blocks;
+      const hasBlocks = blocks && blocks.length > 0;
+      // Stop polling once we have blocks
+      if (hasBlocks) {
+        console.log('[blocks-query] ✅ Got blocks, stopping poll');
+        setVenueLoadingProgress(100); // Complete the loading bar
+        return false;
+      }
+      console.log('[blocks-query] 🔄 Polling for blocks...');
+      return 5000; // Poll every 5 seconds
+    },
     retry: (failureCount, error: any) => {
       // Stop retrying if we got a timeout (504)
       if (error?.message?.includes('504') || error?.message?.includes('timeout')) {
