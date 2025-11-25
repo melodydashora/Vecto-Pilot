@@ -1675,6 +1675,7 @@ const CoPilot: React.FC = () => {
               <CoachChat 
                 userId={localStorage.getItem('vecto_user_id') || 'default'}
                 snapshotId={lastSnapshotId || undefined}
+                strategyId={strategyData?.strategy_id || undefined}
                 strategy={persistentStrategy}
                 snapshot={snapshotData}
                 blocks={blocks}

@@ -31,6 +31,7 @@ interface SnapshotData {
 interface CoachChatProps {
   userId: string;
   snapshotId?: string;
+  strategyId?: string;
   strategy?: string;
   snapshot?: SnapshotData;
   blocks?: any[];
@@ -39,7 +40,8 @@ interface CoachChatProps {
 
 export default function CoachChat({ 
   userId, 
-  snapshotId, 
+  snapshotId,
+  strategyId,
   strategy, 
   snapshot, 
   blocks = [],
@@ -74,6 +76,7 @@ export default function CoachChat({
           userId, 
           message: my,
           snapshotId,
+          strategyId,  // Entry point: Strategy ID from UI → Full schema access
           strategy,
           blocks,  // Send full blocks array with all fields (events, earnings, tips, etc.)
           // Snapshot context: weather, AQI, city, daypart, etc. (enables early engagement)
