@@ -2,12 +2,13 @@
 // Get full snapshot context including resolved address, weather, FAA, time/day/holiday
 
 import { db } from '../../db/drizzle.js';
-import { snapshots } from '../../../shared/schema.js';
+import { snapshots, users } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
  * Get complete snapshot context for AI providers
  * Includes: address, city/state, lat/lng, weather, airport, timezone, day_part, created_at
+ * Location data is pulled from users table (authoritative source) via user_id FK
  * @param {string} snapshotId - UUID of snapshot
  * @returns {Promise<Object>} Full snapshot context
  */
@@ -22,33 +23,48 @@ export async function getSnapshotContext(snapshotId) {
     throw new Error(`Snapshot ${snapshotId} not found`);
   }
 
+  // Fetch location data from users table (source of truth)
+  let userData = null;
+  if (snapshot.user_id) {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.user_id, snapshot.user_id))
+      .limit(1);
+    userData = user;
+  }
+
   // CRITICAL: Compute day_of_week string from dow number for date propagation
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const day_of_week = snapshot.dow != null ? dayNames[snapshot.dow] : 'Unknown';
-  const is_weekend = snapshot.dow === 0 || snapshot.dow === 6;
+  // Use user data if available (from users table), fallback to snapshot legacy fields
+  const dow = userData?.dow ?? snapshot.dow;
+  const day_of_week = dow != null ? dayNames[dow] : 'Unknown';
+  const is_weekend = dow === 0 || dow === 6;
 
   // Return full context with ALL fields providers need
   // CRITICAL DATE PROPAGATION: dow, day_of_week, hour, local_iso, iso_timestamp
   // These fields are authoritative and must be passed to all providers
   return {
     snapshot_id: snapshot.snapshot_id,
-    formatted_address: snapshot.formatted_address,
-    user_address: snapshot.formatted_address, // alias for compatibility
-    city: snapshot.city,
-    state: snapshot.state,
-    country: snapshot.country,
-    lat: snapshot.lat,
-    lng: snapshot.lng,
-    accuracy_m: snapshot.accuracy_m,
-    timezone: snapshot.timezone,
+    user_id: snapshot.user_id,
+    // Location data from users table (authoritative source)
+    formatted_address: userData?.formatted_address || snapshot.formatted_address,
+    user_address: userData?.formatted_address || snapshot.formatted_address, // alias for compatibility
+    city: userData?.city || snapshot.city,
+    state: userData?.state || snapshot.state,
+    country: userData?.country || snapshot.country,
+    lat: userData?.new_lat ?? userData?.lat ?? snapshot.lat,
+    lng: userData?.new_lng ?? userData?.lng ?? snapshot.lng,
+    accuracy_m: userData?.accuracy_m ?? snapshot.accuracy_m,
+    timezone: userData?.timezone || snapshot.timezone,
     
-    // CRITICAL: Date/time fields (authority for all downstream providers)
-    dow: snapshot.dow, // 0=Sunday, 1=Monday, etc. (authoritative)
+    // CRITICAL: Date/time fields from users table (authority for all downstream providers)
+    dow: dow, // 0=Sunday, 1=Monday, etc. (authoritative)
     day_of_week, // Computed string: "Sunday", "Monday", etc.
     is_weekend, // Computed flag
-    hour: snapshot.hour, // Hour of day (0-23)
-    day_part_key: snapshot.day_part_key, // "morning", "afternoon", "evening", "night"
-    local_iso: snapshot.local_iso, // Local timestamp without timezone
+    hour: userData?.hour ?? snapshot.hour, // Hour of day (0-23)
+    day_part_key: userData?.day_part_key || snapshot.day_part_key, // "morning", "afternoon", "evening", "night"
+    local_iso: userData?.local_iso || snapshot.local_iso, // Local timestamp without timezone
     iso_timestamp: snapshot.created_at?.toISOString(), // ISO timestamp with timezone
     created_at: snapshot.created_at, // Full timestamp object
     
@@ -56,6 +72,7 @@ export async function getSnapshotContext(snapshotId) {
     holiday: snapshot.holiday, // Holiday name if today is a holiday (e.g., "Thanksgiving")
     is_holiday: snapshot.is_holiday, // Boolean: true if today is a holiday
     
+    // API-enriched data from snapshots
     weather: snapshot.weather,
     airport_context: snapshot.airport_context,
     news_briefing: snapshot.news_briefing // includes holiday from Gemini

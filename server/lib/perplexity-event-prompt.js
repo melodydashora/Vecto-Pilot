@@ -120,7 +120,7 @@ function parseEventResponse(responseText) {
 
 /**
  * Generate event research request for specific district/zone
- * @param {Object} snapshot - Snapshot object with location data
+ * @param {Object} snapshot - Snapshot context object (with location from users table)
  * @param {string} districtName - District name (e.g., "Legacy West")
  * @param {string} timeWindow - Time window duration (e.g., "4 hours")
  * @returns {Object} Request object with prompt and metadata
@@ -130,14 +130,18 @@ function generateDistrictEventRequest(snapshot, districtName, timeWindow = '4 ho
   const windowStart = new Date(now);
   const windowEnd = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours default
   
+  // Location data comes from users table (via snapshot context)
+  const city = snapshot.city || 'Unknown';
+  const state = snapshot.state || '';
+  
   return {
     prompt: generateEventResearchPrompt({
       venueOrDistrictName: districtName,
       date: now.toISOString().split('T')[0],
       windowStartIso: windowStart.toISOString(),
       windowEndIso: windowEnd.toISOString(),
-      city: snapshot.city,
-      state: snapshot.state
+      city: city,
+      state: state
     }),
     metadata: {
       snapshot_id: snapshot.snapshot_id,

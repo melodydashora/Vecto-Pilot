@@ -25,6 +25,7 @@ Reject generation if input lacks lat/lng/address or the resolved address is olde
 
 /**
  * Build planner context with runtime-fresh constraints
+ * Uses snapshot context which already joins with users table for authoritative location
  */
 export function buildRuntimeFreshContext({
   snapshot,
