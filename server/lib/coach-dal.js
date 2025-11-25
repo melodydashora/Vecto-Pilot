@@ -1,19 +1,70 @@
 // server/lib/coach-dal.js
-// AI Strategy Coach Data Access Layer - Read-only, snapshot-scoped access
+// AI Strategy Coach Data Access Layer - Full Schema Read Access
 import { db } from '../db/drizzle.js';
-import { snapshots, strategies, ranking_candidates, rankings } from '../../shared/schema.js';
+import {
+  snapshots,
+  strategies,
+  ranking_candidates,
+  rankings,
+  briefings,
+  venue_feedback,
+  strategy_feedback,
+  venue_catalog,
+  venue_metrics,
+  actions
+} from '../../shared/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 
 /**
- * CoachDAL - Read-only data access for AI Strategy Coach
+ * CoachDAL - Full schema read access for AI Strategy Coach
+ * 
+ * Entry Point: strategy_id (visible on UI)
+ * Access Pattern: strategy_id → snapshot_id → user_id + session_id → ALL tables
  * 
  * Access contract:
- * - Scoped by user_id and snapshot_id
- * - Read-only (no writes/mutations)
+ * - Scoped by user_id and snapshot_id (waterfall tracking)
+ * - Full read access to entire schema (no mutations)
  * - Null-safe reads (missing data returns null, not errors)
  * - Temporal alignment: Trust snapshot day/time as ground truth
  */
 export class CoachDAL {
+  /**
+   * Resolve strategy_id to snapshot_id + user_id (entry point)
+   * @param {string} strategyId - Strategy ID from UI
+   * @returns {Promise<Object|null>} {snapshot_id, user_id, session_id} or null
+   */
+  async resolveStrategyToSnapshot(strategyId) {
+    try {
+      const [strat] = await db
+        .select({
+          snapshot_id: strategies.snapshot_id,
+          user_id: strategies.user_id,
+          strategy_id: strategies.strategy_id
+        })
+        .from(strategies)
+        .where(eq(strategies.strategy_id, strategyId))
+        .limit(1);
+
+      if (!strat) return null;
+
+      // Get session_id from snapshot
+      const [snap] = await db
+        .select({ session_id: snapshots.session_id })
+        .from(snapshots)
+        .where(eq(snapshots.snapshot_id, strat.snapshot_id))
+        .limit(1);
+
+      return {
+        snapshot_id: strat.snapshot_id,
+        user_id: strat.user_id,
+        session_id: snap?.session_id || null,
+        strategy_id: strat.strategy_id
+      };
+    } catch (error) {
+      console.error('[CoachDAL] resolveStrategyToSnapshot error:', error);
+      return null;
+    }
+  }
   /**
    * Get header snapshot with timezone, DST, day-of-week, day-part, location display
    * @param {string} snapshotId - Snapshot ID to scope reads
@@ -128,7 +179,136 @@ export class CoachDAL {
   }
 
   /**
-   * Get briefing data (events, traffic, news, holidays) from strategy JSONB
+   * Get comprehensive briefing (both strategies JSONB and briefings table)
+   * @param {string} snapshotId - Snapshot ID to scope reads
+   * @returns {Promise<Object>} Complete briefing data
+   */
+  async getComprehensiveBriefing(snapshotId) {
+    try {
+      // Get briefing from strategies table
+      const strategy = await this.getLatestStrategy(snapshotId);
+      
+      // Get briefing from briefings table (Perplexity + GPT-5)
+      const [briefingRecord] = await db
+        .select()
+        .from(briefings)
+        .where(eq(briefings.snapshot_id, snapshotId))
+        .limit(1);
+
+      return {
+        // From strategies table
+        events: strategy?.briefing?.events || [],
+        traffic: strategy?.briefing?.traffic || [],
+        news: strategy?.briefing?.news || [],
+        holidays: strategy?.briefing?.holidays || [],
+        // From briefings table
+        global_travel: briefingRecord?.global_travel || null,
+        domestic_travel: briefingRecord?.domestic_travel || null,
+        local_traffic: briefingRecord?.local_traffic || null,
+        weather_impacts: briefingRecord?.weather_impacts || null,
+        events_nearby: briefingRecord?.events_nearby || null,
+        rideshare_intel: briefingRecord?.rideshare_intel || null,
+        tactical_traffic: briefingRecord?.tactical_traffic || null,
+        tactical_closures: briefingRecord?.tactical_closures || null,
+        tactical_enforcement: briefingRecord?.tactical_enforcement || null,
+        citations: briefingRecord?.citations || null,
+      };
+    } catch (error) {
+      console.error('[CoachDAL] getComprehensiveBriefing error:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Get feedback data (venue + strategy feedback)
+   * @param {string} snapshotId - Snapshot ID to scope reads
+   * @returns {Promise<Object>} Feedback data
+   */
+  async getFeedback(snapshotId) {
+    try {
+      const [venueFeedback] = await Promise.all([
+        db.select()
+          .from(venue_feedback)
+          .where(eq(venue_feedback.snapshot_id, snapshotId)),
+        db.select()
+          .from(strategy_feedback)
+          .where(eq(strategy_feedback.snapshot_id, snapshotId))
+      ]);
+
+      const [strategyFeedback] = await Promise.all([
+        db.select()
+          .from(strategy_feedback)
+          .where(eq(strategy_feedback.snapshot_id, snapshotId))
+      ]);
+
+      return {
+        venue_feedback: venueFeedback || [],
+        strategy_feedback: strategyFeedback || [],
+      };
+    } catch (error) {
+      console.error('[CoachDAL] getFeedback error:', error);
+      return { venue_feedback: [], strategy_feedback: [] };
+    }
+  }
+
+  /**
+   * Get venue data (catalog + metrics for recommended locations)
+   * @param {string} snapshotId - Snapshot ID to scope reads (via ranking_candidates)
+   * @returns {Promise<Array>} Venue catalog + metrics
+   */
+  async getVenueData(snapshotId) {
+    try {
+      // Get all venues from ranking_candidates for this snapshot
+      const candidates = await db
+        .select()
+        .from(ranking_candidates)
+        .where(eq(ranking_candidates.snapshot_id, snapshotId));
+
+      if (candidates.length === 0) return [];
+
+      // Get place_ids
+      const placeIds = [...new Set(candidates.map(c => c.place_id).filter(Boolean))];
+
+      if (placeIds.length === 0) return [];
+
+      // Get venue catalog data
+      const venues = await db
+        .select()
+        .from(venue_catalog)
+        .where(eq(venue_catalog.place_id, placeIds[0])); // This would need IN operator
+
+      return {
+        candidates_count: candidates.length,
+        place_ids: placeIds,
+        venues: venues || [],
+      };
+    } catch (error) {
+      console.error('[CoachDAL] getVenueData error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get driver actions for this snapshot (dwell times, selections)
+   * @param {string} snapshotId - Snapshot ID to scope reads
+   * @returns {Promise<Array>} Actions taken
+   */
+  async getActions(snapshotId) {
+    try {
+      const driverActions = await db
+        .select()
+        .from(actions)
+        .where(eq(actions.snapshot_id, snapshotId));
+
+      return driverActions || [];
+    } catch (error) {
+      console.error('[CoachDAL] getActions error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get briefing data (events, traffic, news, holidays) from strategy JSONB (legacy)
    * @param {string} snapshotId - Snapshot ID to scope reads
    * @returns {Promise<Object>} Briefing data
    */
@@ -229,18 +409,56 @@ export class CoachDAL {
   }
 
   /**
-   * Get complete context for AI Coach
-   * Combines snapshot, strategy, briefing, and smart blocks
+   * Get complete context for AI Coach - Full schema access
+   * Combines snapshot, strategy, briefing, smart blocks, feedback, and venue data
+   * 
+   * Entry points:
+   * - snapshotId: Direct snapshot access
+   * - strategyId: Via strategy_id → snapshot_id resolution
+   * 
    * @param {string} snapshotId - Snapshot ID to scope reads
-   * @returns {Promise<Object>} Complete coach context
+   * @param {string} strategyId - Alternative entry point (strategy_id from UI)
+   * @returns {Promise<Object>} Complete coach context with full schema access
    */
-  async getCompleteContext(snapshotId) {
+  async getCompleteContext(snapshotId, strategyId) {
     try {
-      const [snapshot, strategy, briefing, smartBlocks] = await Promise.all([
-        this.getHeaderSnapshot(snapshotId),
-        this.getLatestStrategy(snapshotId),
-        this.getBriefing(snapshotId),
-        this.getSmartBlocks(snapshotId),
+      // Resolve strategy_id to snapshot_id if needed
+      let activeSnapshotId = snapshotId;
+      if (!activeSnapshotId && strategyId) {
+        const resolution = await this.resolveStrategyToSnapshot(strategyId);
+        if (!resolution) {
+          console.warn('[CoachDAL] Could not resolve strategy_id:', strategyId);
+          return {
+            snapshot: null,
+            strategy: null,
+            briefing: {},
+            smartBlocks: [],
+            feedback: { venue_feedback: [], strategy_feedback: [] },
+            venueData: [],
+            actions: [],
+            status: 'invalid_strategy_id',
+          };
+        }
+        activeSnapshotId = resolution.snapshot_id;
+      }
+
+      // Fetch all schema data in parallel
+      const [
+        snapshot,
+        strategy,
+        briefing,
+        smartBlocks,
+        feedback,
+        venueData,
+        driverActions
+      ] = await Promise.all([
+        this.getHeaderSnapshot(activeSnapshotId),
+        this.getLatestStrategy(activeSnapshotId),
+        this.getComprehensiveBriefing(activeSnapshotId),
+        this.getSmartBlocks(activeSnapshotId),
+        this.getFeedback(activeSnapshotId),
+        this.getVenueData(activeSnapshotId),
+        this.getActions(activeSnapshotId),
       ]);
 
       return {
@@ -248,6 +466,9 @@ export class CoachDAL {
         strategy,
         briefing,
         smartBlocks,
+        feedback,
+        venueData,
+        actions: driverActions,
         status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
     } catch (error) {
@@ -255,8 +476,11 @@ export class CoachDAL {
       return {
         snapshot: null,
         strategy: null,
-        briefing: { events: [], traffic: [], news: [], holidays: [] },
+        briefing: {},
         smartBlocks: [],
+        feedback: { venue_feedback: [], strategy_feedback: [] },
+        venueData: [],
+        actions: [],
         status: 'error',
       };
     }
@@ -275,106 +499,195 @@ export class CoachDAL {
   }
 
   /**
-   * Format context for AI prompt
-   * Null-safe formatting with clear "pending" states
+   * Format context for AI prompt - FULL SCHEMA ACCESS
+   * All available data organized by category for the Coach
    * @param {Object} context - Context from getCompleteContext
    * @returns {string} Formatted context string for AI prompt
    */
   formatContextForPrompt(context) {
-    const { snapshot, strategy, briefing, smartBlocks, status } = context;
+    const {
+      snapshot,
+      strategy,
+      briefing,
+      smartBlocks,
+      feedback,
+      venueData,
+      actions,
+      status
+    } = context;
 
     let prompt = '';
 
-    // Snapshot context (always available if snapshot exists)
+    // ========== SNAPSHOT DATA (Location, Time, Weather, Air Quality) ==========
     if (snapshot) {
-      prompt += `\n\n=== CURRENT CONTEXT ===`;
-      prompt += `\nLocation: ${snapshot.city}, ${snapshot.state}`;
-      prompt += `\nTime: ${snapshot.day_of_week}, ${snapshot.day_part}`;
+      prompt += `\n\n=== CURRENT LOCATION & TIME CONTEXT ===`;
+      prompt += `\n📍 Location: ${snapshot.location_display || `${snapshot.city}, ${snapshot.state}`}`;
+      prompt += `\n   Coordinates: ${snapshot.lat?.toFixed(4)}, ${snapshot.lng?.toFixed(4)}`;
+      prompt += `\n🕐 Time: ${snapshot.day_of_week}, ${snapshot.day_part}`;
       if (snapshot.hour != null) prompt += ` (${snapshot.hour}:00)`;
       if (snapshot.is_weekend) prompt += ` [WEEKEND]`;
-      prompt += `\nTimezone: ${snapshot.timezone}`;
-      
+      prompt += `\n🌍 Timezone: ${snapshot.timezone}`;
+
+      // Weather
       if (snapshot.weather) {
-        prompt += `\nWeather: ${snapshot.weather.tempF}°F, ${snapshot.weather.conditions || 'N/A'}`;
+        prompt += `\n\n🌤️  WEATHER CONDITIONS`;
+        prompt += `\n   Temperature: ${snapshot.weather.tempF || snapshot.weather.temp || 'N/A'}°F`;
+        prompt += `\n   Conditions: ${snapshot.weather.conditions || snapshot.weather.condition || 'N/A'}`;
+        if (snapshot.weather.windSpeed) prompt += `\n   Wind: ${snapshot.weather.windSpeed} mph`;
       }
-      
+
+      // Air Quality
       if (snapshot.air) {
-        prompt += `\nAir Quality: AQI ${snapshot.air.aqi} (${snapshot.air.category})`;
+        prompt += `\n\n💨 AIR QUALITY`;
+        prompt += `\n   AQI: ${snapshot.air.aqi || 'N/A'} (${snapshot.air.category || 'N/A'})`;
+        if (snapshot.air.pollutants) prompt += `\n   Pollutants: ${JSON.stringify(snapshot.air.pollutants).substring(0, 100)}`;
       }
 
-      if (snapshot.airport_context) {
-        const airports = snapshot.airport_context.airports || [];
-        if (airports.length > 0) {
-          prompt += `\n\nAirport Conditions (30-mile radius):`;
-          airports.slice(0, 2).forEach(a => {
-            prompt += `\n- ${a.name} (${a.code}): ${a.distance_miles?.toFixed(1)}mi`;
-            if (a.delays) prompt += ` - DELAYS: ${a.delays}`;
-            if (a.closures) prompt += ` - CLOSURES: ${a.closures}`;
-          });
-        }
+      // Airport Conditions
+      if (snapshot.airport_context?.airports && snapshot.airport_context.airports.length > 0) {
+        prompt += `\n\n✈️  AIRPORT CONDITIONS (30-mile radius)`;
+        snapshot.airport_context.airports.slice(0, 3).forEach(a => {
+          prompt += `\n   ${a.name || 'Unknown'} (${a.code || 'N/A'}): ${a.distance_miles?.toFixed(1) || 'N/A'}mi`;
+          if (a.delays) prompt += ` - DELAYS: ${a.delays}`;
+          if (a.closures) prompt += ` - CLOSURES: ${a.closures}`;
+        });
+      }
+
+      // Holiday
+      if (snapshot.holiday || snapshot.is_holiday) {
+        prompt += `\n\n🎉 SPECIAL DATE: ${snapshot.holiday || 'Holiday'} (surge likely)`;
       }
     }
 
-    // Strategy context
+    // ========== STRATEGY & CONSOLIDATION ==========
     if (strategy) {
-      if (strategy.holiday) {
-        prompt += `\n\n🎉 HOLIDAY: ${strategy.holiday}`;
-      }
-
       if (strategy.consolidated_strategy) {
-        prompt += `\n\n=== CURRENT STRATEGY ===\n${strategy.consolidated_strategy}`;
+        prompt += `\n\n=== AI-GENERATED STRATEGY (Ready) ===\n${strategy.consolidated_strategy}`;
       } else if (strategy.minstrategy) {
-        prompt += `\n\n=== INITIAL STRATEGY (consolidation pending) ===\n${strategy.minstrategy}`;
+        prompt += `\n\n=== INITIAL STRATEGY (Consolidation in progress) ===\n${strategy.minstrategy}`;
       }
-    } else {
-      prompt += `\n\n⏳ Strategy is generating...`;
+    } else if (status === 'pending_strategy') {
+      prompt += `\n\n⏳ AI strategy is generating...`;
     }
 
-    // Briefing data
-    if (briefing.news && briefing.news.length > 0) {
-      prompt += `\n\n=== RIDESHARE NEWS ===`;
-      briefing.news.slice(0, 3).forEach((item, i) => {
-        const title = typeof item === 'string' ? item : item.title || item.summary || '';
-        prompt += `\n${i + 1}. ${title.substring(0, 150)}`;
-      });
+    // ========== COMPREHENSIVE BRIEFING (Perplexity + GPT-5) ==========
+    if (briefing && Object.keys(briefing).length > 0) {
+      // Global/Domestic/Local Travel
+      if (briefing.global_travel) {
+        prompt += `\n\n🌐 GLOBAL TRAVEL CONDITIONS`;
+        prompt += `\n${briefing.global_travel.substring(0, 200)}...`;
+      }
+      if (briefing.local_traffic) {
+        prompt += `\n\n🛣️  LOCAL TRAFFIC & CONSTRUCTION`;
+        prompt += `\n${briefing.local_traffic.substring(0, 200)}...`;
+      }
+
+      // Weather Impacts
+      if (briefing.weather_impacts) {
+        prompt += `\n\n⛈️  WEATHER IMPACTS ON TRAVEL`;
+        prompt += `\n${briefing.weather_impacts.substring(0, 200)}...`;
+      }
+
+      // Local Events
+      if (briefing.events_nearby) {
+        prompt += `\n\n🎭 LOCAL EVENTS NEARBY`;
+        prompt += `\n${briefing.events_nearby.substring(0, 200)}...`;
+      }
+
+      // Rideshare Intelligence
+      if (briefing.rideshare_intel) {
+        prompt += `\n\n💡 RIDESHARE INTELLIGENCE`;
+        prompt += `\n${briefing.rideshare_intel.substring(0, 200)}...`;
+      }
+
+      // Tactical 30-min forecast
+      if (briefing.tactical_traffic || briefing.tactical_closures) {
+        prompt += `\n\n⚡ NEXT 30 MINUTES (GPT-5 Tactical)`;
+        if (briefing.tactical_traffic) prompt += `\n   Traffic: ${briefing.tactical_traffic.substring(0, 100)}...`;
+        if (briefing.tactical_closures) prompt += `\n   Closures: ${briefing.tactical_closures.substring(0, 100)}...`;
+        if (briefing.tactical_enforcement) prompt += `\n   Enforcement: ${briefing.tactical_enforcement.substring(0, 100)}...`;
+      }
+
+      // Strategy-level events/traffic/news
+      if (briefing.events?.length > 0) {
+        prompt += `\n\n📅 EVENT CALENDAR`;
+        briefing.events.slice(0, 3).forEach((item, i) => {
+          const title = typeof item === 'string' ? item : item.title || item.name || '';
+          prompt += `\n   ${i + 1}. ${title.substring(0, 80)}`;
+        });
+      }
+
+      if (briefing.news?.length > 0) {
+        prompt += `\n\n📰 NEWS AFFECTING RIDESHARE`;
+        briefing.news.slice(0, 2).forEach((item, i) => {
+          const title = typeof item === 'string' ? item : item.title || '';
+          prompt += `\n   ${i + 1}. ${title.substring(0, 100)}`;
+        });
+      }
+
+      if (briefing.traffic?.length > 0) {
+        prompt += `\n\n🚗 TRAFFIC ALERTS`;
+        briefing.traffic.slice(0, 3).forEach((item, i) => {
+          const summary = typeof item === 'string' ? item : item.summary || '';
+          prompt += `\n   ${i + 1}. ${summary.substring(0, 100)}`;
+        });
+      }
     }
 
-    if (briefing.events && briefing.events.length > 0) {
-      prompt += `\n\n=== LOCAL EVENTS ===`;
-      briefing.events.slice(0, 5).forEach((item, i) => {
-        const title = typeof item === 'string' ? item : item.title || item.name || item.summary || '';
-        prompt += `\n${i + 1}. ${title}`;
-      });
-    }
-
-    if (briefing.traffic && briefing.traffic.length > 0) {
-      prompt += `\n\n=== TRAFFIC CONDITIONS ===`;
-      briefing.traffic.slice(0, 5).forEach((item, i) => {
-        const summary = typeof item === 'string' ? item : item.summary || item.note || '';
-        prompt += `\n${i + 1}. ${summary}`;
-      });
-    }
-
-    // Smart blocks
+    // ========== SMART BLOCKS (Location Recommendations) ==========
     if (smartBlocks && smartBlocks.length > 0) {
-      prompt += `\n\n=== RECOMMENDED LOCATIONS (Top ${Math.min(smartBlocks.length, 6)}) ===`;
+      prompt += `\n\n📍 RECOMMENDED LOCATIONS (Top ${Math.min(smartBlocks.length, 6)})`;
       smartBlocks.slice(0, 6).forEach((block, i) => {
-        prompt += `\n${i + 1}. ${block.name}`;
+        prompt += `\n   ${i + 1}. ${block.name}`;
         if (block.distance_miles != null) prompt += ` - ${block.distance_miles.toFixed(1)}mi`;
         if (block.drive_minutes != null) prompt += `, ${block.drive_minutes}min`;
         if (block.value_grade) prompt += ` [${block.value_grade} value]`;
-        
+
         if (block.has_event && block.event_summary) {
-          prompt += `\n   🎉 EVENT: ${block.event_summary.substring(0, 100)}`;
+          prompt += `\n       🎉 EVENT: ${block.event_summary.substring(0, 80)}`;
         }
-        
-        if (block.pro_tips && block.pro_tips.length > 0) {
-          prompt += `\n   💡 ${block.pro_tips[0].substring(0, 100)}`;
+
+        if (block.pro_tips?.length > 0) {
+          prompt += `\n       💡 Tip: ${block.pro_tips[0].substring(0, 80)}`;
         }
       });
     } else if (status === 'pending_blocks') {
       prompt += `\n\n⏳ Location recommendations are being generated...`;
     }
+
+    // ========== FEEDBACK DATA (Cross-driver learning) ==========
+    if (feedback && (feedback.venue_feedback?.length > 0 || feedback.strategy_feedback?.length > 0)) {
+      prompt += `\n\n👍 DRIVER FEEDBACK (Community)`;
+      if (feedback.venue_feedback?.length > 0) {
+        const thumbsUp = feedback.venue_feedback.filter(f => f.sentiment === 'up').length;
+        const thumbsDown = feedback.venue_feedback.filter(f => f.sentiment === 'down').length;
+        prompt += `\n   Venue Votes: ${thumbsUp} up, ${thumbsDown} down`;
+      }
+      if (feedback.strategy_feedback?.length > 0) {
+        const thumbsUp = feedback.strategy_feedback.filter(f => f.sentiment === 'up').length;
+        const thumbsDown = feedback.strategy_feedback.filter(f => f.sentiment === 'down').length;
+        prompt += `\n   Strategy Votes: ${thumbsUp} up, ${thumbsDown} down`;
+      }
+    }
+
+    // ========== DRIVER ACTIONS (Session history) ==========
+    if (actions && actions.length > 0) {
+      const dwell = actions.find(a => a.dwell_ms);
+      if (dwell) {
+        prompt += `\n\n⏱️  SESSION ACTIVITY`;
+        prompt += `\n   Last action dwell: ${(dwell.dwell_ms / 1000).toFixed(1)}s`;
+      }
+    }
+
+    // ========== DATA AVAILABILITY SUMMARY ==========
+    prompt += `\n\n📋 DATA ACCESS SUMMARY`;
+    prompt += `\n   ✓ Snapshot: ${snapshot ? 'Complete' : 'Unavailable'}`;
+    prompt += `\n   ✓ Strategy: ${strategy ? (strategy.consolidated_strategy ? 'Ready' : 'In Progress') : 'Pending'}`;
+    prompt += `\n   ✓ Briefing: ${briefing && Object.keys(briefing).length > 0 ? 'Complete' : 'Unavailable'}`;
+    prompt += `\n   ✓ Smart Blocks: ${smartBlocks?.length || 0} venues`;
+    prompt += `\n   ✓ Feedback: ${feedback?.venue_feedback?.length || 0} venue votes`;
+    prompt += `\n   ✓ Actions: ${actions?.length || 0} recorded`;
+    prompt += `\n   Status: ${status}`;
 
     return prompt;
   }
