@@ -15,7 +15,7 @@ channel = "stable-25_05"
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
 run = ["sh", "-c", "DEPLOY_MODE=webservice node gateway-server.js"]
-deploymentTarget = "gce"
+deploymentTarget = "cloudrun"
 
 [[ports]]
 localPort = 5000
