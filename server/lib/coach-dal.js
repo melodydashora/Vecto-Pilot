@@ -11,7 +11,8 @@ import {
   strategy_feedback,
   venue_catalog,
   venue_metrics,
-  actions
+  actions,
+  users
 } from '../../shared/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 
@@ -67,6 +68,7 @@ export class CoachDAL {
   }
   /**
    * Get header snapshot with timezone, DST, day-of-week, day-part, location display
+   * Location data is pulled from users table (authoritative source)
    * @param {string} snapshotId - Snapshot ID to scope reads
    * @returns {Promise<Object|null>} Snapshot context or null
    */
@@ -77,16 +79,6 @@ export class CoachDAL {
           snapshot_id: snapshots.snapshot_id,
           user_id: snapshots.user_id,
           created_at: snapshots.created_at,
-          iso_timestamp: snapshots.local_iso,
-          timezone: snapshots.timezone,
-          dow: snapshots.dow, // 0=Sunday, 1=Monday, etc.
-          hour: snapshots.hour,
-          day_part_key: snapshots.day_part_key,
-          location_display: snapshots.formatted_address,
-          city: snapshots.city,
-          state: snapshots.state,
-          lat: snapshots.lat,
-          lng: snapshots.lng,
           weather: snapshots.weather,
           air: snapshots.air,
           airport_context: snapshots.airport_context,
@@ -97,26 +89,38 @@ export class CoachDAL {
 
       if (!snap) return null;
 
-      // Enrich with computed fields
+      // Fetch location data from users table (authoritative source)
+      let userData = null;
+      if (snap.user_id) {
+        const [user] = await db
+          .select()
+          .from(users)
+          .where(eq(users.user_id, snap.user_id))
+          .limit(1);
+        userData = user;
+      }
+
+      // Enrich with computed fields and user location data
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const day_of_week = snap.dow != null ? dayNames[snap.dow] : 'Unknown';
-      const is_weekend = snap.dow === 0 || snap.dow === 6;
+      const dow = userData?.dow || 0;
+      const day_of_week = dow != null ? dayNames[dow] : 'Unknown';
+      const is_weekend = dow === 0 || dow === 6;
 
       return {
         snapshot_id: snap.snapshot_id,
         user_id: snap.user_id,
         iso_timestamp: snap.created_at?.toISOString() || null,
-        timezone: snap.timezone || 'America/Chicago',
+        timezone: userData?.timezone || 'America/Chicago',
         day_of_week,
         is_weekend,
-        dow: snap.dow,
-        hour: snap.hour,
-        day_part: snap.day_part_key || 'unknown',
-        location_display: snap.location_display || `${snap.city}, ${snap.state}`,
-        city: snap.city,
-        state: snap.state,
-        lat: snap.lat,
-        lng: snap.lng,
+        dow: dow,
+        hour: userData?.hour || 0,
+        day_part: userData?.day_part_key || 'unknown',
+        location_display: userData?.formatted_address || `${userData?.city || 'Unknown'}, ${userData?.state || ''}`,
+        city: userData?.city || 'Unknown',
+        state: userData?.state || '',
+        lat: userData?.new_lat ?? userData?.lat,
+        lng: userData?.new_lng ?? userData?.lng,
         weather: snap.weather,
         air: snap.air,
         airport_context: snap.airport_context,
