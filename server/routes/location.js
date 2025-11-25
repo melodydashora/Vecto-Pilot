@@ -3,7 +3,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { latLngToCell } from 'h3-js';
 import { db } from '../db/drizzle.js';
-import { snapshots, strategies } from '../../shared/schema.js';
+import { snapshots, strategies, users } from '../../shared/schema.js';
 import { sql, eq } from 'drizzle-orm';
 import { generateStrategyForSnapshot } from '../lib/strategy-generator.js';
 import { validateSnapshotV1 } from '../util/validate-snapshot.js';
@@ -334,6 +334,68 @@ router.get('/resolve', async (req, res) => {
     };
     
     console.log(`[Location API] ✅ Complete resolution:`, resolvedData);
+    
+    // OPTIONAL: Save to users table if device_id provided
+    const deviceId = req.query.device_id;
+    if (deviceId) {
+      try {
+        const now = new Date();
+        const hour = new Date(now.toLocaleString('en-US', { timeZone })).getHours();
+        const dow = new Date(now.toLocaleString('en-US', { timeZone })).getDay();
+        const dayPartKey = getDayPartKey(hour);
+        
+        const existingUser = await db.query.users.findFirst({
+          where: eq(users.device_id, deviceId),
+        }).catch(() => null);
+        
+        if (existingUser) {
+          await db.update(users)
+            .set({
+              new_lat: lat,
+              new_lng: lng,
+              formatted_address: formattedAddress,
+              city,
+              state,
+              country,
+              timezone: timeZone,
+              local_iso: now,
+              dow,
+              hour,
+              day_part_key: dayPartKey,
+              updated_at: now,
+            })
+            .where(eq(users.device_id, deviceId))
+            .catch(err => console.warn('[location] users update failed:', err));
+        } else {
+          const newUser = {
+            user_id: crypto.randomUUID(),
+            device_id: deviceId,
+            lat,
+            lng,
+            coord_source: 'gps',
+            formatted_address: formattedAddress,
+            city,
+            state,
+            country,
+            timezone: timeZone,
+            local_iso: now,
+            dow,
+            hour,
+            day_part_key: dayPartKey,
+            created_at: now,
+            updated_at: now,
+          };
+          
+          await db.insert(users).values(newUser)
+            .catch(err => console.warn('[location] users insert failed:', err));
+        }
+        
+        console.log(`[location] ✅ Users table updated for device: ${deviceId}`);
+      } catch (err) {
+        console.warn('[location] Failed to save user location:', err.message);
+      }
+    }
+    
     res.json(resolvedData);
   } catch (err) {
     console.error('[location] resolve error', err);

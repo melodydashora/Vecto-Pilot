@@ -56,25 +56,39 @@ router.post('/', async (req, res) => {
     let timezone = null;
 
     if (GOOGLE_MAPS_API_KEY) {
-      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`;
-      const geocodeRes = await fetch(geocodeUrl);
-      const geocodeData = await geocodeRes.json();
+      try {
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`;
+        const geocodeRes = await fetch(geocodeUrl, { timeout: 5000 });
+        const geocodeData = await geocodeRes.json();
 
-      if (geocodeData.status === 'OK' && geocodeData.results?.length > 0) {
-        const result = geocodeData.results[0];
-        formattedAddress = result.formatted_address;
-        const parts = pickAddressParts(result.address_components || []);
-        city = parts.city;
-        state = parts.state;
-        country = parts.country;
+        if (geocodeData.status === 'OK' && geocodeData.results?.length > 0) {
+          const result = geocodeData.results[0];
+          formattedAddress = result.formatted_address;
+          const parts = pickAddressParts(result.address_components || []);
+          city = parts.city;
+          state = parts.state;
+          country = parts.country;
+        }
+      } catch (geocodeErr) {
+        console.warn('[user-location] Geocode error:', geocodeErr.message);
+        // Fallback: continue without geocode data
       }
 
-      const tzUrl = `https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`;
-      const tzRes = await fetch(tzUrl);
-      const tzData = await tzRes.json();
-      if (tzData.status === 'OK') {
-        timezone = tzData.timeZoneId;
+      try {
+        const tzUrl = `https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`;
+        const tzRes = await fetch(tzUrl, { timeout: 5000 });
+        const tzData = await tzRes.json();
+        if (tzData.status === 'OK') {
+          timezone = tzData.timeZoneId;
+        }
+      } catch (tzErr) {
+        console.warn('[user-location] Timezone error:', tzErr.message);
+        // Fallback: use browser default or America/Chicago
+        timezone = 'America/Chicago';
       }
+    } else {
+      console.warn('[user-location] No Google Maps API key - geocoding disabled');
+      timezone = 'America/Chicago';
     }
 
     const now = new Date();

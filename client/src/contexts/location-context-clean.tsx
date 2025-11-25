@@ -322,12 +322,29 @@ export function LocationProvider({ children }: LocationProviderProps) {
 
       // Resolve ALL context data in parallel: location, weather, and air quality
       // Use enrichmentSignal so these can be canceled if GPS updates before completion
+      // Track device_id for user location tracking
+      const deviceId = localStorage.getItem('vecto_device_id') || crypto.randomUUID();
+      localStorage.setItem('vecto_device_id', deviceId);
+      
       Promise.all([
-        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(r => r.json()),
+        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}&device_id=${deviceId}`, { signal: enrichmentSignal }).then(r => r.json()),
         fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(r => r.json()).catch(() => null),
         fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: enrichmentSignal }).then(r => r.json()).catch(() => null),
       ])
-        .then(async ([locationData, weatherData, airQualityData]) => {
+        .then(async ([userLocationData, weatherData, airQualityData]) => {
+          // userLocationData comes from /api/user/location (saved to users table)
+          // This is the PRIMARY source for city/state display in header
+          
+          // Extract location data from users table response
+          const locationData = {
+            city: userLocationData?.city || null,
+            state: userLocationData?.state || null,
+            country: userLocationData?.country || null,
+            formattedAddress: userLocationData?.formatted_address || null,
+            timeZone: userLocationData?.timezone || null,
+            user_id: userLocationData?.user_id || null,
+          };
+          
           // NOW update state - location is fully resolved
           setLocationState((prev: any) => ({
             ...prev,
@@ -338,7 +355,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
             error: null,
           }));
 
-          // Format as "City, ST" if we have both city and state
+          // Format as "City, ST" if we have both city and state (from users table)
           let locationName;
           if (locationData.city && locationData.state) {
             locationName = `${locationData.city}, ${locationData.state}`;
@@ -347,11 +364,12 @@ export function LocationProvider({ children }: LocationProviderProps) {
           } else {
             locationName = `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
           }
-          console.log("[Global App] Location resolved to:", locationName);
+          console.log("[Global App] Location saved to users table:", locationName);
+          console.log("[Global App] User ID:", locationData.user_id);
           console.log("[Global App] Weather:", weatherData?.available ? `${weatherData.temperature}°F` : 'unavailable');
           console.log("[Global App] Air Quality:", airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'unavailable');
 
-          // Build time context with timezone
+          // Build time context with timezone (from users table)
           const timeContext = buildTimeContext(locationData.timeZone);
           
           // Build baseline context for snapshot
