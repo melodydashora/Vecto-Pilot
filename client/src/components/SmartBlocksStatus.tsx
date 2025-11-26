@@ -19,7 +19,8 @@ interface SmartBlocksStatusProps {
   blocksError?: Error | null;
   timeElapsedMs?: number;
   snapshotId?: string | null;
-  venueLoadingProgress?: number;
+  enrichmentProgress?: number;
+  enrichmentPhase?: 'idle' | 'strategy' | 'blocks';
 }
 
 export function SmartBlocksStatus({
@@ -31,7 +32,8 @@ export function SmartBlocksStatus({
   blocksError,
   timeElapsedMs,
   snapshotId,
-  venueLoadingProgress = 0
+  enrichmentProgress = 0,
+  enrichmentPhase = 'idle'
 }: SmartBlocksStatusProps) {
   // Determine pipeline stage
   const getPipelineStage = () => {
@@ -84,6 +86,22 @@ export function SmartBlocksStatus({
                   ok
                 </Badge>
               )}
+              {/* Progress bar during strategy phase - show immediately when enrichment starts */}
+              {enrichmentPhase === 'strategy' && (
+                <div className="mt-2">
+                  <div className="w-full bg-green-200 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-500 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.max(5, (enrichmentProgress / 30) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    AI analyzing location context...
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -113,13 +131,14 @@ export function SmartBlocksStatus({
                         ? 'Waiting for strategy to complete...'
                         : 'Waiting for worker to generate venues...'}
               </p>
-              {(isBlocksLoading || (strategyReady && !hasBlocks && venueLoadingProgress > 0)) && (
+              {/* Progress bar during blocks phase - show when strategy ready but blocks not yet loaded */}
+              {enrichmentPhase === 'blocks' && !hasBlocks && (
                 <div className="mt-2">
                   <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
                     <div 
                       className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 rounded-full transition-all duration-500"
                       style={{
-                        width: `${venueLoadingProgress}%`,
+                        width: `${Math.max(5, (enrichmentProgress - 30) * (100 / 70))}%`,
                       }}
                     />
                   </div>
