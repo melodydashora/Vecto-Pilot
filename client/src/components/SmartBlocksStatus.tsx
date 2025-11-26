@@ -156,7 +156,7 @@ export function SmartBlocksStatus({
               <MapPin className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
                 <p className="text-xs text-gray-600">
-                  Snapshot ID: <span className="font-mono text-[10px]">{snapshotId.substring(0, 8)}...</span>
+                  Snapshot ID: <span className="font-mono text-[10px]">{snapshotId}</span>
                 </p>
               </div>
             </div>
