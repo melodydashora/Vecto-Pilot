@@ -31,11 +31,11 @@ export const users = pgTable("users", {
 export const snapshots = pgTable("snapshots", {
   snapshot_id: uuid("snapshot_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
-  // Reference to users table for location data
-  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+  // User tracking (NOT a FK - snapshots are self-contained)
+  user_id: uuid("user_id"),
   device_id: uuid("device_id").notNull(),
   session_id: uuid("session_id").notNull(),
-  // Denormalized location context (from users table at snapshot creation time)
+  // Location data (stored at snapshot creation - authoritative source)
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   city: text("city"),

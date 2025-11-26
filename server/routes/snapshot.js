@@ -35,43 +35,45 @@ router.post("/", async (req, res) => {
   const started = Date.now();
 
   try {
-    // Accept lat/lng from query params OR body
-    const latFromQuery = req.query.lat ? Number(req.query.lat) : null;
-    const lngFromQuery = req.query.lng ? Number(req.query.lng) : null;
+    // CRITICAL FIX: Extract SnapshotV1 format directly from frontend
+    // Frontend sends: { snapshot_id, user_id, device_id, session_id, coord: {lat, lng}, 
+    //                   resolved: {city, state, country, timezone, formattedAddress}, 
+    //                   time_context: {local_iso, dow, hour, day_part_key, is_weekend},
+    //                   weather, air, device, permissions, ... }
     
-    // CRITICAL: Log the entire request body to debug what frontend is sending
-    console.log('[snapshot] Request body keys:', Object.keys(req.body || {}));
-    console.log('[snapshot] Full request body:', JSON.stringify(req.body).substring(0, 500));
+    const {
+      coord,
+      resolved,
+      time_context,
+      weather,
+      air,
+      user_id: bodyUserId,
+      device_id: bodyDeviceId,
+      session_id: bodySessionId,
+      device: deviceInfo,
+      permissions: permissionsInfo
+    } = req.body || {};
     
-    // Map both SnapshotV1 format (resolved) and internal format (context) for compatibility
-    const { lat: latFromBody, lng: lngFromBody, context, resolved, meta, coord, device, permissions, time_context } = req.body || {};
+    // Extract coordinates from coord object (SnapshotV1 format)
+    const lat = coord?.lat ?? null;
+    const lng = coord?.lng ?? null;
     
-    const lat = latFromQuery ?? latFromBody ?? coord?.lat;
-    const lng = lngFromQuery ?? lngFromBody ?? coord?.lng;
+    // Extract location from resolved object and NORMALIZE camelCase → snake_case
+    const city = resolved?.city ?? null;
+    const state = resolved?.state ?? null;
+    const country = resolved?.country ?? null;
+    const formatted_address = resolved?.formattedAddress ?? null; // Frontend sends camelCase
+    const timezone = resolved?.timeZone ?? null; // Frontend sends camelCase
     
-    // Map resolved → context for SnapshotV1 format compatibility
-    // CRITICAL: Normalize camelCase fields from frontend (timeZone) to snake_case (timezone)
-    const resolvedNormalized = resolved ? {
-      ...resolved,
-      timezone: resolved.timeZone || resolved.timezone, // Frontend sends camelCase timeZone
-      formatted_address: resolved.formattedAddress || resolved.formatted_address
-    } : {};
-    const contextData = context || resolvedNormalized || {};
+    // Extract time context
+    const local_iso = time_context?.local_iso ?? null;
+    const dow = time_context?.dow ?? null;
+    const hour = time_context?.hour ?? null;
+    const day_part_key = time_context?.day_part_key ?? null;
     
-    // Extract time context from frontend (SnapshotV1 format includes time_context)
-    const timeData = time_context || {};
-    
-    console.log('[snapshot] EXTRACTED DATA:', {
-      lat,
-      lng,
-      city: contextData?.city,
-      state: contextData?.state,
-      timezone: contextData?.timezone,
-      formatted_address: contextData?.formatted_address,
-      hour: timeData?.hour,
-      dow: timeData?.dow,
-      day_part_key: timeData?.day_part_key,
-      local_iso: timeData?.local_iso
+    console.log('[snapshot] ✅ EXTRACTED SnapshotV1 data:', {
+      lat, lng, city, state, timezone, formatted_address,
+      hour, dow, day_part_key, local_iso
     });
     
     // Validate snapshot data completeness using dedicated validator
@@ -95,91 +97,42 @@ router.post("/", async (req, res) => {
       console.info("[snapshot] Missing optional fields", { warnings });
     }
     
-    // Get userId from header or body - must be valid UUID or null
-    const userIdRaw = req.headers["x-user-id"] || req.body?.user_id || null;
-    const userId = uuidOrNull(userIdRaw);
-    
-    if (userIdRaw && !userId) {
-      console.warn("[snapshot] Invalid user_id format (not UUID), setting to null", { userId: userIdRaw });
-    }
-    
-    const deviceId = req.body?.device_id || uuid();
-    const sessionId = req.body?.session_id || uuid();
-
+    // Get userId - from body (SnapshotV1 format) or generate new
+    const userId = uuidOrNull(bodyUserId) || uuid();
+    const deviceId = bodyDeviceId || uuid();
+    const sessionId = bodySessionId || uuid();
     const snapshot_id = uuid();
 
-    // Build DB record - store location + time context + API-enriched fields
+    // Build DB record - store ALL snapshot data (location, time, weather, air)
     const dbSnapshot = {
       snapshot_id,
       created_at: new Date(),
       user_id: userId,
       device_id: deviceId,
       session_id: sessionId,
-      // Denormalized precise location (stored at snapshot creation)
+      // Location data (denormalized from frontend at snapshot creation)
       lat: lat || null,
       lng: lng || null,
-      city: contextData?.city || null,
-      state: contextData?.state || null,
-      country: contextData?.country || null,
-      formatted_address: contextData?.formatted_address || null,
-      timezone: contextData?.timezone || null,
-      // Time context (authoritative at snapshot creation)
-      local_iso: timeData?.local_iso ? new Date(timeData.local_iso) : null,
-      dow: timeData?.dow ?? null,
-      hour: timeData?.hour ?? null,
-      day_part_key: timeData?.day_part_key || null,
-      h3_r8: contextData?.h3_r8 || null,
-      // API-enriched contextual data only
-      weather: contextData?.weather || null,
-      air: contextData?.air || null,
-      airport_context: contextData?.airport_context || null,
-      device: (meta || device)?.device || device || null,
-      permissions: (meta || permissions)?.permissions || permissions || null,
-      extras: contextData?.extras || null,
+      city: city || null,
+      state: state || null,
+      country: country || null,
+      formatted_address: formatted_address || null,
+      timezone: timezone || null,
+      // Time context (authoritative at snapshot creation - stored as-is from frontend)
+      local_iso: local_iso ? new Date(local_iso) : null,
+      dow: dow ?? null,
+      hour: hour ?? null,
+      day_part_key: day_part_key || null,
+      // API-enriched contextual data
+      weather: weather || null,
+      air: air || null,
+      device: deviceInfo || null,
+      permissions: permissionsInfo || null,
     };
 
-    // Persist to DB
+    // Persist to DB - ALL location and time data goes into snapshots table
     await db.insert(snapshots).values(dbSnapshot);
-
-    // CRITICAL: Also update users table so getSnapshotContext() finds location data
-    // Users table is the source of truth for location data that providers need
-    if (userId && (contextData?.city || contextData?.state || contextData?.timezone || contextData?.formatted_address)) {
-      console.log(`[snapshot] Updating users table for ${userId} with location context`, {
-        city: contextData?.city,
-        state: contextData?.state,
-        timezone: contextData?.timezone,
-        formatted_address: contextData?.formatted_address
-      });
-      try {
-        await db.insert(users).values({
-          user_id: userId,
-          device_id: deviceId,
-          session_id: sessionId,
-          lat: lat || 0,
-          lng: lng || 0,
-          city: contextData?.city || null,
-          state: contextData?.state || null,
-          country: contextData?.country || null,
-          formatted_address: contextData?.formatted_address || null,
-          timezone: contextData?.timezone || null,
-          coord_source: 'api'
-        }).onConflictDoUpdate({
-          target: users.user_id,
-          set: {
-            city: contextData?.city,
-            state: contextData?.state,
-            country: contextData?.country,
-            formatted_address: contextData?.formatted_address,
-            timezone: contextData?.timezone,
-            updated_at: sql`NOW()`
-          }
-        });
-        console.log(`[snapshot] ✅ Users table updated with location data`);
-      } catch (userError) {
-        console.error(`[snapshot] ⚠️ Failed to update users table:`, userError.message);
-        // Don't fail the snapshot if users update fails - snapshot is still valid
-      }
-    }
+    console.log('[snapshot] ✅ Snapshot persisted with all location/time data');
 
     // REMOVED: Placeholder strategy creation - strategy-generator-parallel.js creates the SINGLE strategy row
     // This prevents race conditions and ensures model_name attribution is preserved
@@ -196,23 +149,16 @@ router.post("/", async (req, res) => {
       }
     });
 
-    console.log("[snapshot] OK", { snapshot_id, ms: Date.now() - started });
+    console.log("[snapshot] ✅ OK", { snapshot_id, city, timezone, hour, dow, ms: Date.now() - started });
     
-    // Return 201 with artifact metadata for parity
     return res.status(201).json({ 
       ok: true, 
-      artifactId: snapshot_id,
-      artifactPath: `database://snapshots/${snapshot_id}`,
-      snapshot: {
-        snapshot_id,
-        lat,
-        lng,
-        city: dbSnapshot.city,
-        state: dbSnapshot.state,
-        timezone: dbSnapshot.timezone,
-        created_at: dbSnapshot.created_at.toISOString()
-      },
-      received_at: started, 
+      snapshot_id,
+      city,
+      state,
+      timezone,
+      hour,
+      dow,
       req_id: reqId 
     });
   } catch (err) {
