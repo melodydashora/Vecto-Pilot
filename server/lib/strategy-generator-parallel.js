@@ -116,14 +116,15 @@ Return JSON with events[], news[], traffic[] arrays.`;
  * Call GPT-5 to consolidate strategist + briefer outputs
  * ROLE-PURE: Only receives address + strategist output + briefer output
  */
-async function consolidateWithGPT5Thinking({ plan, briefing, userAddress }) {
+async function consolidateWithGPT5Thinking({ plan, briefing, userAddress, city, state }) {
   try {
     const developerPrompt = `You are a rideshare strategy consolidator.
-Merge the strategist's initial plan with the briefer's real-time intelligence into one final actionable strategy.
-Keep it 3–5 sentences, urgent, time-aware, and specific.`;
+Merge the strategist's initial plan with the briefer's real-time intelligence into one final actionable strategy for the driver's current location.
+Keep it 3–5 sentences, urgent, time-aware, and specific. Reference the precise location in your analysis.`;
 
-    const userPrompt = `USER LOCATION:
-${userAddress || 'Unknown location'}
+    const userPrompt = `DRIVER'S PRECISE LOCATION:
+Address: ${userAddress || 'Unknown location'}
+City: ${city || 'Unknown'}, ${state || 'Unknown'}
 
 STRATEGIST OUTPUT:
 ${plan || 'No strategist output'}
@@ -131,7 +132,7 @@ ${plan || 'No strategist output'}
 BRIEFER OUTPUT:
 ${briefing ? JSON.stringify(briefing, null, 2) : 'No briefer output'}
 
-Task: Merge these into a final consolidated strategy for this location.`;
+Task: Merge these into a final consolidated strategy considering the driver's specific address and local conditions.`;
 
     console.log(`[GPT-5] === ROLE-PURE CONSOLIDATION ===`);
     console.log(`[GPT-5] Location: ${userAddress || 'Unknown'}`);
@@ -444,7 +445,9 @@ export async function consolidateStrategy({ snapshotId, claudeStrategy, briefing
         const consolidated = await consolidateWithGPT5Thinking({
           plan: claudeStrategy,
           briefing: briefing,
-          userAddress: user?.user_address || snapshot?.formatted_address || 'Unknown location'
+          userAddress: user?.user_address || snapshot?.formatted_address || 'Unknown location',
+          city: snapshot?.city,
+          state: snapshot?.state
         });
 
         finishReason = consolidated.finishReason;
