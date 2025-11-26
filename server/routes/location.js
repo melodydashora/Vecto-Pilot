@@ -1280,15 +1280,16 @@ router.get('/users/me', async (req, res) => {
       updated_at: userRecord.updated_at
     });
     
+    // CRITICAL FIX Finding #2: Return camelCase to match /api/location/resolve contract
     res.json({
       ok: true,
       user_id: userRecord.user_id,
       device_id: userRecord.device_id,
-      formatted_address: userRecord.formatted_address,
+      formattedAddress: userRecord.formatted_address,
       city: userRecord.city,
       state: userRecord.state,
       country: userRecord.country,
-      timezone: userRecord.timezone,
+      timeZone: userRecord.timezone,
       lat: userRecord.new_lat || userRecord.lat,
       lng: userRecord.new_lng || userRecord.lng,
       accuracy_m: userRecord.accuracy_m,
