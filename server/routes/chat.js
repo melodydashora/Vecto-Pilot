@@ -57,20 +57,22 @@ router.post('/', async (req, res) => {
     let contextInfo = '';
     
     try {
-      // Entry point: strategyId (from UI) → snapshotId → full schema access
-      // Fallback: direct snapshotId or latest snapshot for user
+      // PRIORITY: Use the snapshotId provided by the UI (always current)
+      // The UI has the authoritative snapshot ID from the current location
       let activeSnapshotId = snapshotId;
       
-      if (!activeSnapshotId && strategyId) {
+      if (activeSnapshotId) {
+        console.log('[chat] Using snapshot from UI:', activeSnapshotId);
+      } else if (strategyId) {
+        // Fallback: resolve strategy to snapshot if no direct snapshotId
         console.log('[chat] Resolving strategy_id:', strategyId);
         const resolution = await coachDAL.resolveStrategyToSnapshot(strategyId);
         if (resolution) {
           activeSnapshotId = resolution.snapshot_id;
           console.log('[chat] Resolved strategy_id to snapshot_id:', activeSnapshotId);
         }
-      }
-      
-      if (!activeSnapshotId && userId) {
+      } else if (userId) {
+        // Last resort: fetch latest snapshot for user
         const [latestSnap] = await db
           .select({ snapshot_id: snapshots.snapshot_id })
           .from(snapshots)
@@ -86,10 +88,10 @@ router.post('/', async (req, res) => {
 
       // Get COMPLETE context using CoachDAL (full schema access)
       if (activeSnapshotId) {
-        const context = await coachDAL.getCompleteContext(activeSnapshotId, strategyId);
+        const context = await coachDAL.getCompleteContext(activeSnapshotId, null);
         contextInfo = coachDAL.formatContextForPrompt(context);
         
-        console.log(`[chat] Full context loaded - Status: ${context.status}`);
+        console.log(`[chat] Full context loaded - Status: ${context.status} | Snapshot: ${activeSnapshotId}`);
       } else {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
