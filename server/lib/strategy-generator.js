@@ -3,7 +3,7 @@
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies, users } from '../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
-import { callGPT5WithBudget } from './gpt5-retry.js';
+import { callGPT5WithBudget } from './model-retry.js';
 import { callClaude } from './adapters/anthropic-claude.js';
 import { capturelearning, LEARNING_EVENTS } from '../middleware/learning-capture.js';
 import { indexStrategy } from './semantic-search.js';

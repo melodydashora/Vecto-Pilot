@@ -1,6 +1,6 @@
-// server/lib/gpt5-tactical-planner.js
-// GPT-5 Tactical Planner: Takes strategic overview → tactical venue recommendations
-// Uses GPT-5 reasoning mode for deep tactical analysis
+// server/lib/tactical-planner.js
+// Tactical Planner: Takes strategic overview → tactical venue recommendations
+// Model-agnostic: uses STRATEGY_CONSOLIDATOR from env
 
 import { callGPT5 } from "./adapters/openai-gpt5.js";
 import { z } from "zod";

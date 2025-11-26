@@ -126,7 +126,7 @@ Hour: ${ctx.hour}:00
 Timezone: ${ctx.timezone}
 ${ctx.is_holiday ? `🎉 HOLIDAY: ${ctx.holiday}` : ''}
 
-Location: ${cityDisplay}
+PRECISE DRIVER LOCATION: ${userAddress}
 Coordinates: ${ctx.lat}, ${ctx.lng}
 
 Weather: ${ctx.weather?.tempF || 'unknown'}°F, ${ctx.weather?.conditions || 'unknown'}
@@ -137,7 +137,7 @@ STRATEGIST'S ASSESSMENT:
 ${minstrategy}
 
 YOUR TASK:
-Research current conditions in ${cityDisplay} and return structured JSON with ALL 5 FIELDS:
+Research current conditions near ${userAddress} and return structured JSON with ALL 5 FIELDS:
 
 1. tactical_traffic: Traffic/incidents for next 30 minutes (detailed)
 2. tactical_closures: Closures/construction for next 30 minutes (detailed)
@@ -154,7 +154,7 @@ CRITICAL REQUIREMENTS:
 - Prioritize next 30 minutes only
 - Use exact day/time: ${dayOfWeek}, ${localTime}
 ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
-- Reference only "${cityDisplay}" (no full street addresses)
+- Use the PRECISE DRIVER LOCATION above for local context
 - Return ONLY valid JSON with all 5 fields
 - The "summary" field MUST be present and actionable`;
 
