@@ -82,6 +82,17 @@ export class CoachDAL {
           weather: snapshots.weather,
           air: snapshots.air,
           airport_context: snapshots.airport_context,
+          // TIME CONTEXT - READ FROM SNAPSHOT (authoritative)
+          dow: snapshots.dow,
+          hour: snapshots.hour,
+          day_part_key: snapshots.day_part_key,
+          timezone: snapshots.timezone,
+          // LOCATION FROM SNAPSHOT
+          lat: snapshots.lat,
+          lng: snapshots.lng,
+          city: snapshots.city,
+          state: snapshots.state,
+          formatted_address: snapshots.formatted_address,
         })
         .from(snapshots)
         .where(eq(snapshots.snapshot_id, snapshotId))
@@ -89,7 +100,7 @@ export class CoachDAL {
 
       if (!snap) return null;
 
-      // Fetch location data from users table (authoritative source)
+      // Fetch user location data (for current coordinates if they've moved)
       let userData = null;
       if (snap.user_id) {
         const [user] = await db
@@ -100,9 +111,9 @@ export class CoachDAL {
         userData = user;
       }
 
-      // Enrich with computed fields and user location data
+      // Build context: Snapshot is ground truth for time/location, user table for current position
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const dow = userData?.dow || 0;
+      const dow = snap.dow ?? 0;
       const day_of_week = dow != null ? dayNames[dow] : 'Unknown';
       const is_weekend = dow === 0 || dow === 6;
 
@@ -110,17 +121,17 @@ export class CoachDAL {
         snapshot_id: snap.snapshot_id,
         user_id: snap.user_id,
         iso_timestamp: snap.created_at?.toISOString() || null,
-        timezone: userData?.timezone || 'America/Chicago',
+        timezone: snap.timezone || 'America/Chicago',
         day_of_week,
         is_weekend,
         dow: dow,
-        hour: userData?.hour || 0,
-        day_part: userData?.day_part_key || 'unknown',
-        location_display: userData?.formatted_address || `${userData?.city || 'Unknown'}, ${userData?.state || ''}`,
-        city: userData?.city || 'Unknown',
-        state: userData?.state || '',
-        lat: userData?.new_lat ?? userData?.lat,
-        lng: userData?.new_lng ?? userData?.lng,
+        hour: snap.hour ?? 0,
+        day_part: snap.day_part_key || 'unknown',
+        location_display: snap.formatted_address || `${snap.city || 'Unknown'}, ${snap.state || ''}`,
+        city: snap.city || 'Unknown',
+        state: snap.state || '',
+        lat: userData?.new_lat ?? userData?.lat ?? snap.lat,
+        lng: userData?.new_lng ?? userData?.lng ?? snap.lng,
         weather: snap.weather,
         air: snap.air,
         airport_context: snap.airport_context,
