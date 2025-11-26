@@ -2,8 +2,8 @@
 import express, { Router } from 'express';
 import crypto from "node:crypto";
 import { db } from "../db/drizzle.js";
-import { sql } from "drizzle-orm";
-import { snapshots, strategies } from "../../shared/schema.js";
+import { sql, eq } from "drizzle-orm";
+import { snapshots, strategies, users } from "../../shared/schema.js";
 import { generateStrategyForSnapshot } from "../lib/strategy-generator.js";
 import { validateIncomingSnapshot } from "../util/validate-snapshot.js";
 import { uuidOrNull } from "../util/uuid.js";
@@ -109,6 +109,41 @@ router.post("/", async (req, res) => {
 
     // Persist to DB
     await db.insert(snapshots).values(dbSnapshot);
+
+    // CRITICAL: Also update users table so getSnapshotContext() finds location data
+    // Users table is the source of truth for location data that providers need
+    if (userId && (contextData?.city || contextData?.state || contextData?.timezone || contextData?.formatted_address)) {
+      console.log(`[snapshot] Updating users table for ${userId} with location context`);
+      try {
+        await db.insert(users).values({
+          user_id: userId,
+          device_id: deviceId,
+          session_id: sessionId,
+          lat: lat || 0,
+          lng: lng || 0,
+          city: contextData?.city || null,
+          state: contextData?.state || null,
+          country: contextData?.country || null,
+          formatted_address: contextData?.formatted_address || null,
+          timezone: contextData?.timezone || null,
+          coord_source: 'api'
+        }).onConflictDoUpdate({
+          target: users.user_id,
+          set: {
+            city: contextData?.city || null,
+            state: contextData?.state || null,
+            country: contextData?.country || null,
+            formatted_address: contextData?.formatted_address || null,
+            timezone: contextData?.timezone || null,
+            updated_at: sql`NOW()`
+          }
+        });
+        console.log(`[snapshot] ✅ Users table updated with location data`);
+      } catch (userError) {
+        console.error(`[snapshot] ⚠️ Failed to update users table:`, userError.message);
+        // Don't fail the snapshot if users update fails - snapshot is still valid
+      }
+    }
 
     // REMOVED: Placeholder strategy creation - strategy-generator-parallel.js creates the SINGLE strategy row
     // This prevents race conditions and ensures model_name attribution is preserved
