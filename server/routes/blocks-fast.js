@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
-import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates, strategies, venue_events } from '../../shared/schema.js';
+import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates, strategies, venue_events, users } from '../../shared/schema.js';
 import { eq, sql, and, lte, gte, or, isNotNull } from 'drizzle-orm';
 import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
 import { predictDriveMinutes } from '../lib/driveTime.js';
@@ -199,9 +199,36 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
           runBriefing(snapshotId)
         ]);
         
-        // STEP 2: Fetch provider outputs
+        // STEP 2: Fetch provider outputs (JOIN users table for coordinates)
         console.log(`[blocks-fast POST] 📚 Step 2/4: Fetching outputs...`);
-        const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+        const [snapshotWithUser] = await db.select({
+          snapshot_id: snapshots.snapshot_id,
+          user_id: snapshots.user_id,
+          device_id: snapshots.device_id,
+          session_id: snapshots.session_id,
+          h3_r8: snapshots.h3_r8,
+          weather: snapshots.weather,
+          air: snapshots.air,
+          airport_context: snapshots.airport_context,
+          local_news: snapshots.local_news,
+          news_briefing: snapshots.news_briefing,
+          holiday: snapshots.holiday,
+          is_holiday: snapshots.is_holiday,
+          created_at: snapshots.created_at,
+          // User location data (from users table)
+          lat: users.lat,
+          lng: users.lng,
+          city: users.city,
+          state: users.state,
+          country: users.country,
+          timezone: users.timezone,
+          formatted_address: users.formatted_address
+        }).from(snapshots)
+          .leftJoin(users, eq(snapshots.user_id, users.user_id))
+          .where(eq(snapshots.snapshot_id, snapshotId))
+          .limit(1);
+        const snapshot = snapshotWithUser;
+        console.log(`[blocks-fast POST] 📍 Driver location: ${snapshot?.lat}, ${snapshot?.lng} (${snapshot?.city}, ${snapshot?.state})`);
         const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
         const [briefing] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
         

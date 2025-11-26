@@ -314,56 +314,82 @@ const CoPilot: React.FC = () => {
     }
   }, [lastSnapshotId, strategySnapshotId]);
 
-  // SIMPLIFIED: No SSE for blocks - just poll after strategy is visible
-  // Venue loading state with progress bar
-  const [venueLoadingStartTime, setVenueLoadingStartTime] = useState<number | null>(null);
-  const [venueLoadingProgress, setVenueLoadingProgress] = useState(0);
+  // UNIFIED ENRICHMENT PROGRESS: Tracks entire pipeline from GPS to blocks
+  // Phase 1: Strategy generation (0-30%) - starts when coords arrive
+  // Phase 2: Blocks generation (30-100%) - starts when strategy ready
+  const [enrichmentStartTime, setEnrichmentStartTime] = useState<number | null>(null);
+  const [enrichmentProgress, setEnrichmentProgress] = useState(0);
+  const [enrichmentPhase, setEnrichmentPhase] = useState<'idle' | 'strategy' | 'blocks'>('idle');
   
-  // Start venue loading timer when strategy becomes ready
+  // Start enrichment timer IMMEDIATELY when coords arrive (before snapshot created)
   useEffect(() => {
-    const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
+    console.log('🔍 Enrichment check:', { hasCoords: !!coords, enrichmentPhase });
+    // Start as soon as we have coords and we're not already in an enrichment phase
+    if (coords && enrichmentPhase === 'idle') {
+      const now = Date.now();
+      console.log('⏰ Enrichment started immediately - coords received');
+      setEnrichmentStartTime(now);
+      setEnrichmentProgress(5); // Start at 5% to show immediate feedback
+      setEnrichmentPhase('strategy');
+    }
+  }, [coords, enrichmentPhase]);
+  
+  // Update phase when strategy becomes ready
+  useEffect(() => {
+    const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks';
     const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
     
-    if (strategyReady && snapshotMatches && !venueLoadingStartTime) {
-      const now = Date.now();
-      console.log('⏰ Strategy ready - starting venue loading timer');
-      setVenueLoadingStartTime(now);
-      setVenueLoadingProgress(0);
+    if (strategyReady && snapshotMatches && enrichmentPhase === 'strategy') {
+      console.log('⏰ Strategy ready - moving to blocks phase');
+      setEnrichmentPhase('blocks');
+      // Jump progress to 30% when entering blocks phase
+      setEnrichmentProgress(30);
     }
-    
-    // Reset when snapshot changes
-    if (lastSnapshotId && strategyData?._snapshotId !== lastSnapshotId) {
-      setVenueLoadingStartTime(null);
-      setVenueLoadingProgress(0);
-    }
-  }, [strategyData, lastSnapshotId, venueLoadingStartTime]);
+  }, [strategyData, lastSnapshotId, enrichmentPhase]);
   
-  // Update progress bar every second (simulate ~60 second loading)
+  // Update progress bar every 500ms for smooth animation
   useEffect(() => {
-    if (!venueLoadingStartTime) return;
+    if (!enrichmentStartTime || enrichmentPhase === 'idle') return;
     
     const interval = setInterval(() => {
-      const elapsed = Date.now() - venueLoadingStartTime;
-      const expectedTime = 60000; // 60 seconds expected
-      const maxTime = 90000; // 90 seconds max
+      const elapsed = Date.now() - enrichmentStartTime;
       
-      // Progress smoothly to 95% at expected time, then slow to 100%
-      let progress;
-      if (elapsed < expectedTime) {
-        progress = (elapsed / expectedTime) * 95;
-      } else if (elapsed < maxTime) {
-        const remainingTime = elapsed - expectedTime;
-        const remainingProgress = (remainingTime / (maxTime - expectedTime)) * 5;
-        progress = 95 + remainingProgress;
-      } else {
-        progress = 100;
+      if (enrichmentPhase === 'strategy') {
+        // Phase 1: Strategy generation (0-30% over ~15 seconds)
+        const strategyExpected = 15000; // 15 seconds expected for strategy
+        const strategyProgress = Math.min(30, (elapsed / strategyExpected) * 30);
+        setEnrichmentProgress(strategyProgress);
+      } else if (enrichmentPhase === 'blocks') {
+        // Phase 2: Blocks generation (30-100% over ~75 seconds after strategy ready)
+        // Use a separate timer from when blocks phase started
+        const blocksExpected = 75000; // 75 seconds expected for blocks
+        const blocksMax = 120000; // 120 seconds max
+        
+        // Calculate blocks elapsed time (estimate based on total minus strategy time)
+        const strategyTime = 15000; // approximate strategy time
+        const blocksElapsed = Math.max(0, elapsed - strategyTime);
+        
+        let progress;
+        if (blocksElapsed < blocksExpected) {
+          // Smooth progress from 30% to 95%
+          progress = 30 + (blocksElapsed / blocksExpected) * 65;
+        } else if (blocksElapsed < blocksMax) {
+          // Slow crawl from 95% to 100%
+          const remainingTime = blocksElapsed - blocksExpected;
+          const remainingProgress = (remainingTime / (blocksMax - blocksExpected)) * 5;
+          progress = 95 + remainingProgress;
+        } else {
+          progress = 100;
+        }
+        
+        setEnrichmentProgress(Math.min(100, progress));
       }
-      
-      setVenueLoadingProgress(Math.min(100, progress));
-    }, 1000);
+    }, 500);
     
     return () => clearInterval(interval);
-  }, [venueLoadingStartTime]);
+  }, [enrichmentStartTime, enrichmentPhase]);
+  
+  // Note: Stop enrichment effect moved after useQuery that defines blocksData
 
   // Update persistent strategy when new strategy arrives
   useEffect(() => {
@@ -509,7 +535,7 @@ const CoPilot: React.FC = () => {
     enabled: (() => {
       const hasCoords = !!coords;
       const hasSnapshot = !!lastSnapshotId && lastSnapshotId !== 'live-snapshot';
-      const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete';
+      const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks';
       const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
       
       // SIMPLE GATE: Only start polling when AI Coach is visible
@@ -533,7 +559,6 @@ const CoPilot: React.FC = () => {
       // Stop polling once we have blocks
       if (hasBlocks) {
         console.log('[blocks-query] ✅ Got blocks, stopping poll');
-        setVenueLoadingProgress(100); // Complete the loading bar
         return false;
       }
       console.log('[blocks-query] 🔄 Polling for blocks...');
@@ -554,6 +579,14 @@ const CoPilot: React.FC = () => {
     },
     retryDelay: (attemptIndex) => Math.min(3000 * 2 ** attemptIndex, 10000), // Exponential backoff: 3s, 6s, 10s max
   });
+
+  // Stop enrichment when blocks are loaded (must be after useQuery that defines blocksData)
+  useEffect(() => {
+    if (blocksData?.blocks && blocksData.blocks.length > 0) {
+      setEnrichmentPhase('idle');
+      setEnrichmentProgress(100);
+    }
+  }, [blocksData?.blocks]);
 
   useEffect(() => {
     if (error) {
@@ -1691,14 +1724,15 @@ const CoPilot: React.FC = () => {
           <div className="mb-6">
             <SmartBlocksStatus
               strategyStatus={strategyData?.status}
-              strategyReady={strategyData?.status === 'ok'}
+              strategyReady={strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks'}
               isStrategyFetching={isStrategyFetching}
               hasBlocks={blocks.length > 0}
               isBlocksLoading={isLoading}
               blocksError={error as Error | null}
               timeElapsedMs={strategyData?.timeElapsedMs}
               snapshotId={lastSnapshotId}
-              venueLoadingProgress={venueLoadingProgress}
+              enrichmentProgress={enrichmentProgress}
+              enrichmentPhase={enrichmentPhase}
             />
           </div>
         )}
