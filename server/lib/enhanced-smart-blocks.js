@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
 import { rankings, ranking_candidates } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { generateTacticalPlan } from './gpt5-tactical-planner.js';
+import { generateTacticalPlan } from './tactical-planner.js';
 import { hasRenderableBriefing } from './strategy-utils.js';
 import { enrichVenues } from './venue-enrichment.js';
 

@@ -1,5 +1,5 @@
-// server/lib/gpt5-retry.js
-// Model-agnostic strategist with transient retry logic
+// server/lib/model-retry.js
+// Model-agnostic retry logic with exponential backoff
 import { callModel } from './adapters/index.js';
 
 export async function callGPT5WithBudget(payload, { timeoutMs = 45000, maxRetries = 6 } = {}) {
