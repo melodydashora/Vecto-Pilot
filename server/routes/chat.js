@@ -42,15 +42,15 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// POST /api/chat - AI Strategy Coach with Full Schema Access
+// POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context
 router.post('/', async (req, res) => {
-  const { userId, message, snapshotId, strategyId, strategy, blocks } = req.body;
+  const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
   }
 
-  console.log('[chat] User:', userId || 'anonymous', '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
+  console.log('[chat] User:', userId || 'anonymous', '| Thread:', threadHistory.length, 'messages | Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
 
   try {
     // Use CoachDAL for full schema read access
@@ -112,6 +112,12 @@ router.post('/', async (req, res) => {
 - General advice and companionship on the road
 - Listening and responding with empathy
 
+**Conversation Context:**
+- You have full access to the conversation history with this driver
+- When the driver says "yes", "no", "go ahead", "thank you" or similar brief responses, understand them in context of what you just asked or suggested
+- Example: If you asked "Would you like tips for the airport?", the driver saying "yes" means they want airport tips
+- Be natural and conversational - don't repeat back what they said or ask for clarification
+
 **Communication Style:**
 - Warm, friendly, and conversational - like a supportive friend
 - Use natural language and emojis when it feels right
@@ -126,18 +132,29 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    // Build full message history: include thread history + new message
+    const messageHistory = threadHistory
+      .filter(msg => msg && msg.role && msg.content) // Validate messages
+      .map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+      .concat([
+        {
+          role: 'user',
+          content: message
+        }
+      ]);
+
+    console.log(`[chat] Sending ${messageHistory.length} messages to Claude (thread + current)`);
+
     // Stream response from Claude
     const stream = await anthropic.messages.stream({
       model: process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
       max_tokens: 1024,
       temperature: 0.7,
       system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: message
-        }
-      ]
+      messages: messageHistory
     });
 
     // Send chunks as SSE
