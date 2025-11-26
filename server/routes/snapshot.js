@@ -31,16 +31,13 @@ router.post("/", async (req, res) => {
   res.setHeader('x-req-id', reqId);
   
   console.log("[snapshot] handler ENTER", { url: req.originalUrl, req_id: reqId });
+  console.log("[snapshot] ❌ FULL REQUEST BODY:", JSON.stringify(req.body).substring(0, 1000));
+  console.log("[snapshot] Body keys:", Object.keys(req.body || {}));
 
   const started = Date.now();
 
   try {
-    // CRITICAL FIX: Extract SnapshotV1 format directly from frontend
-    // Frontend sends: { snapshot_id, user_id, device_id, session_id, coord: {lat, lng}, 
-    //                   resolved: {city, state, country, timezone, formattedAddress}, 
-    //                   time_context: {local_iso, dow, hour, day_part_key, is_weekend},
-    //                   weather, air, device, permissions, ... }
-    
+    // Extract everything from request body
     const {
       coord,
       resolved,
@@ -53,6 +50,15 @@ router.post("/", async (req, res) => {
       device: deviceInfo,
       permissions: permissionsInfo
     } = req.body || {};
+    
+    console.log("[snapshot] Destructured values:", { 
+      has_coord: !!coord, 
+      has_resolved: !!resolved, 
+      has_time_context: !!time_context,
+      coord: JSON.stringify(coord),
+      resolved: JSON.stringify(resolved),
+      time_context: JSON.stringify(time_context)
+    });
     
     // Extract coordinates from coord object (SnapshotV1 format)
     const lat = coord?.lat ?? null;
