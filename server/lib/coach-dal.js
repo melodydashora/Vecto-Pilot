@@ -145,7 +145,6 @@ export class CoachDAL {
           consolidated_strategy: strategies.consolidated_strategy,
           minstrategy: strategies.minstrategy,
           holiday: strategies.holiday,
-          briefing: strategies.briefing,
           strategy_timestamp: strategies.strategy_timestamp,
           created_at: strategies.created_at,
           user_resolved_address: strategies.user_resolved_address,
@@ -169,7 +168,6 @@ export class CoachDAL {
         consolidated_strategy: strat.consolidated_strategy,
         strategy_timestamp: strat.strategy_timestamp?.toISOString() || strat.created_at?.toISOString() || null,
         holiday: strat.holiday,
-        briefing: strat.briefing || {},
         user_address: strat.user_resolved_address,
         user_city: strat.user_resolved_city,
         user_state: strat.user_resolved_state,
@@ -230,16 +228,10 @@ export class CoachDAL {
    */
   async getFeedback(snapshotId) {
     try {
-      const [venueFeedback] = await Promise.all([
+      const [venueFeedback, strategyFeedback] = await Promise.all([
         db.select()
           .from(venue_feedback)
           .where(eq(venue_feedback.snapshot_id, snapshotId)),
-        db.select()
-          .from(strategy_feedback)
-          .where(eq(strategy_feedback.snapshot_id, snapshotId))
-      ]);
-
-      const [strategyFeedback] = await Promise.all([
         db.select()
           .from(strategy_feedback)
           .where(eq(strategy_feedback.snapshot_id, snapshotId))
@@ -258,7 +250,7 @@ export class CoachDAL {
   /**
    * Get venue data (catalog + metrics for recommended locations)
    * @param {string} snapshotId - Snapshot ID to scope reads (via ranking_candidates)
-   * @returns {Promise<Array>} Venue catalog + metrics
+   * @returns {Promise<Object>} Venue catalog + metrics
    */
   async getVenueData(snapshotId) {
     try {
@@ -268,18 +260,19 @@ export class CoachDAL {
         .from(ranking_candidates)
         .where(eq(ranking_candidates.snapshot_id, snapshotId));
 
-      if (candidates.length === 0) return [];
+      if (candidates.length === 0) return { candidates_count: 0, place_ids: [], venues: [] };
 
       // Get place_ids
       const placeIds = [...new Set(candidates.map(c => c.place_id).filter(Boolean))];
 
-      if (placeIds.length === 0) return [];
+      if (placeIds.length === 0) return { candidates_count: 0, place_ids: [], venues: [] };
 
-      // Get venue catalog data
+      // Get venue catalog data using IN operator
+      const { inArray } = await import('drizzle-orm');
       const venues = await db
         .select()
         .from(venue_catalog)
-        .where(eq(venue_catalog.place_id, placeIds[0])); // This would need IN operator
+        .where(inArray(venue_catalog.place_id, placeIds));
 
       return {
         candidates_count: candidates.length,
@@ -288,7 +281,7 @@ export class CoachDAL {
       };
     } catch (error) {
       console.error('[CoachDAL] getVenueData error:', error);
-      return [];
+      return { candidates_count: 0, place_ids: [], venues: [] };
     }
   }
 
