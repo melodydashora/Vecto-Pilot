@@ -30,80 +30,48 @@ router.post("/", async (req, res) => {
   const reqId = crypto.randomUUID();
   res.setHeader('x-req-id', reqId);
   
-  console.log("[snapshot] handler ENTER", { url: req.originalUrl, req_id: reqId });
-  console.log("[snapshot] ❌ FULL REQUEST BODY:", JSON.stringify(req.body).substring(0, 1000));
-  console.log("[snapshot] Body keys:", Object.keys(req.body || {}));
-
   const started = Date.now();
 
   try {
-    // Extract everything from request body
-    const {
-      coord,
-      resolved,
-      time_context,
-      weather,
-      air,
-      user_id: bodyUserId,
-      device_id: bodyDeviceId,
-      session_id: bodySessionId,
-      device: deviceInfo,
-      permissions: permissionsInfo
-    } = req.body || {};
+    // CRITICAL: Extract EVERYTHING from SnapshotV1 format sent by frontend
+    // Frontend sends complete object with coord, resolved, time_context at top level
+    const body = req.body || {};
     
-    console.log("[snapshot] Destructured values:", { 
-      has_coord: !!coord, 
-      has_resolved: !!resolved, 
-      has_time_context: !!time_context,
-      coord: JSON.stringify(coord),
-      resolved: JSON.stringify(resolved),
-      time_context: JSON.stringify(time_context)
-    });
+    // Precise location coordinates (MUST be saved)
+    const lat = body.coord?.lat ?? null;
+    const lng = body.coord?.lng ?? null;
     
-    // Extract coordinates from coord object (SnapshotV1 format)
-    const lat = coord?.lat ?? null;
-    const lng = coord?.lng ?? null;
+    // Resolved location address
+    const city = body.resolved?.city ?? null;
+    const state = body.resolved?.state ?? null;
+    const country = body.resolved?.country ?? null;
+    const formatted_address = body.resolved?.formattedAddress ?? null;
+    const timezone = body.resolved?.timezone ?? null;
     
-    // Extract location from resolved object (frontend sends snake_case)
-    const city = resolved?.city ?? null;
-    const state = resolved?.state ?? null;
-    const country = resolved?.country ?? null;
-    const formatted_address = resolved?.formattedAddress ?? null;
-    const timezone = resolved?.timezone ?? null; // Frontend sends snake_case 'timezone'
+    // Time context (MUST be saved)
+    const local_iso = body.time_context?.local_iso ?? null;
+    const dow = body.time_context?.dow ?? null;
+    const hour = body.time_context?.hour ?? null;
+    const day_part_key = body.time_context?.day_part_key ?? null;
     
-    // Extract time context
-    const local_iso = time_context?.local_iso ?? null;
-    const dow = time_context?.dow ?? null;
-    const hour = time_context?.hour ?? null;
-    const day_part_key = time_context?.day_part_key ?? null;
+    // API enrichments
+    const weather = body.weather ?? null;
+    const air = body.air ?? null;
     
-    // Log full extracted data AND what was received to verify correctness
-    console.log('[snapshot] Request received - full resolved object:', JSON.stringify(resolved));
-    console.log('[snapshot] ✅ EXTRACTED SnapshotV1 data:', {
+    // User/device tracking
+    const bodyUserId = body.user_id ?? null;
+    const bodyDeviceId = body.device_id ?? null;
+    const bodySessionId = body.session_id ?? null;
+    const deviceInfo = body.device ?? null;
+    const permissionsInfo = body.permissions ?? null;
+    
+    // Log extraction
+    console.log('[snapshot] ✅ EXTRACTED SnapshotV1:', {
       lat, lng, city, state, timezone, formatted_address,
-      hour, dow, day_part_key, local_iso
+      hour, dow, day_part_key,
+      has_weather: !!weather, has_air: !!air
     });
     
-    // Validate snapshot data completeness using dedicated validator
-    const { ok, errors, warnings } = validateIncomingSnapshot(req.body ?? {});
-    
-    if (!ok) {
-      console.warn("[snapshot] INCOMPLETE_DATA - possible web crawler or incomplete client", { 
-        fields_missing: errors,
-        warnings,
-        hasUserAgent: !!req.get("user-agent"),
-        userAgent: req.get("user-agent"),
-        req_id: reqId
-      });
-      return httpError(res, 400, 'refresh_required', 'Please refresh location permission and retry.', reqId, {
-        fields_missing: errors
-      });
-    }
-    
-    // Log warnings for optional fields
-    if (warnings.length > 0) {
-      console.info("[snapshot] Missing optional fields", { warnings });
-    }
     
     // Get userId - from body (SnapshotV1 format) or generate new
     const userId = uuidOrNull(bodyUserId) || uuid();
