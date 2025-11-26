@@ -105,10 +105,10 @@ export async function getListenClient() {
     }
   }
 
-  // Replit Database - use DATABASE_URL directly (auto-switched by Replit)
+  // PostgreSQL via Replit - use DATABASE_URL directly (automatically injected by Replit)
   const connectionString = process.env.DATABASE_URL;
   
-  console.log(`[db-client] LISTEN client using Replit Database`);
+  console.log(`[db-client] LISTEN client using Replit PostgreSQL`);
   
   if (!connectionString) {
     throw new Error('[db-client] No DATABASE_URL found');

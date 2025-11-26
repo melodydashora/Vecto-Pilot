@@ -1101,8 +1101,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       }
     }
 
-    // Save to Postgres using Drizzle
-    // Replit automatically switches DATABASE_URL between dev and prod
+    // Save to Replit PostgreSQL using Drizzle ORM
+    // Uses DATABASE_URL automatically injected by Replit for both dev and production
     console.log('[Snapshot DB] 💾 Writing to snapshots table - API-Enriched Data Only:');
     console.log('  → snapshot_id:', dbSnapshot.snapshot_id);
     console.log('  → user_id:', dbSnapshot.user_id);
