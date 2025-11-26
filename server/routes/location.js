@@ -755,6 +755,45 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
           fields_missing: v.errors
         });
       }
+      
+      // CRITICAL: If client sent resolved location data, ensure it's properly structured
+      // This handles the full SnapshotV1 path where client sends complete location context
+      if (snapshotV1.resolved && !snapshotV1.resolved.formattedAddress && snapshotV1.coord) {
+        console.log('[snapshot] ⚠️ Client sent resolved but missing formattedAddress - resolving server-side');
+        try {
+          const { lat, lng } = snapshotV1.coord;
+          const geocodeUrl = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+          geocodeUrl.searchParams.set('latlng', `${lat},${lng}`);
+          geocodeUrl.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+          
+          const geocodeRes = await googleMapsCircuit(async (signal) => {
+            const response = await fetch(geocodeUrl.toString(), { signal });
+            if (!response.ok) throw new Error(`Geocode API error: ${response.status}`);
+            return await response.json();
+          });
+          
+          if (geocodeRes.status === 'OK' && geocodeRes.results?.[0]) {
+            const { city, state, country } = pickAddressParts(geocodeRes.results[0].address_components);
+            const formattedAddress = geocodeRes.results[0].formatted_address;
+            snapshotV1.resolved.city = city;
+            snapshotV1.resolved.state = state;
+            snapshotV1.resolved.country = country;
+            snapshotV1.resolved.formattedAddress = formattedAddress;
+            console.log('[snapshot] ✅ Resolved missing address fields:', { city, state, formattedAddress });
+          }
+        } catch (resolveErr) {
+          console.warn('[snapshot] Could not resolve missing address:', resolveErr.message);
+        }
+      }
+      
+      // Log what we're about to save
+      console.log('[snapshot] Full mode - client sent resolved location:', {
+        formattedAddress: snapshotV1.resolved?.formattedAddress,
+        city: snapshotV1.resolved?.city,
+        state: snapshotV1.resolved?.state,
+        country: snapshotV1.resolved?.country,
+        timezone: snapshotV1.resolved?.timezone
+      });
     }
 
     console.log('[snapshot] Calculating H3 geohash...');
