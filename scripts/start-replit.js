@@ -44,9 +44,14 @@ if (process.env.SIMULATE === '1') {
     process.exit(1);
   });
 
-  // Exit early - simulation handles its own lifecycle
+  // Simulation handles its own lifecycle
   // Child process event handlers (exit/error above) will handle termination
-  return;
+  // Don't continue with normal boot - process will exit via child handlers above
+  process.on('SIGINT', () => child.kill('SIGINT'));
+  process.on('SIGTERM', () => child.kill('SIGTERM'));
+  
+  // Exit here to prevent normal boot from running
+  process.exit(0);
 }
 
 // Helper function to load env files
