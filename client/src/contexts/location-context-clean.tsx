@@ -301,7 +301,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
     }
 
     if (coords) {
-      console.log("[Global App] GPS coordinates received:", coords);
+      console.log("[Global App] GPS coordinates received from navigator.geolocation:", coords);
+      console.log(`[Global App] Source: Browser Native GPS (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)})`);
       
       // CLEAR OLD STRATEGY: We have new coords, about to create new snapshot
       console.log("🧹 Clearing old strategy before creating new snapshot");
