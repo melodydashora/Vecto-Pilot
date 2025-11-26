@@ -33,114 +33,67 @@ router.post("/", async (req, res) => {
   const started = Date.now();
 
   try {
-    // RAW BODY DEBUG - Log exactly what arrived
-    const rawBodyStr = JSON.stringify(req.body).substring(0, 2000);
-    console.log('[snapshot] 📡 RAW REQUEST BODY:', rawBodyStr);
-    console.log('[snapshot] 📡 BODY TOP-LEVEL KEYS:', Object.keys(req.body || {}));
+    // SIMPLE: Frontend sends complete SnapshotV1, just extract and save as-is
+    const snap = req.body || {};
     
-    const body = req.body || {};
+    // Direct extraction - no null coalescing, no validation layers
+    const snapshot_id = snap.snapshot_id || uuid();
+    const lat = snap.coord?.lat;
+    const lng = snap.coord?.lng;
+    const city = snap.resolved?.city;
+    const state = snap.resolved?.state;
+    const country = snap.resolved?.country;
+    const formatted_address = snap.resolved?.formattedAddress;
+    const timezone = snap.resolved?.timezone;
+    const hour = snap.time_context?.hour;
+    const dow = snap.time_context?.dow;
+    const day_part_key = snap.time_context?.day_part_key;
+    const local_iso = snap.time_context?.local_iso;
     
-    // STRICT: Extract with NO defaults to null - use undefined if missing
-    const lat = body.coord?.lat;
-    const lng = body.coord?.lng;
-    const city = body.resolved?.city;
-    const state = body.resolved?.state;
-    const country = body.resolved?.country;
-    const formatted_address = body.resolved?.formattedAddress;
-    const timezone = body.resolved?.timezone;
-    const local_iso = body.time_context?.local_iso;
-    const dow = body.time_context?.dow;
-    const hour = body.time_context?.hour;
-    const day_part_key = body.time_context?.day_part_key;
-    
-    // API enrichments (can be optional)
-    const weather = body.weather;
-    const air = body.air;
-    
-    // User/device tracking
-    const bodyUserId = body.user_id;
-    const bodyDeviceId = body.device_id;
-    const bodySessionId = body.session_id;
-    const deviceInfo = body.device;
-    const permissionsInfo = body.permissions;
-    
-    // STRICT VALIDATION: REQUIRE all location and time fields
-    const missing = [];
-    if (typeof lat !== 'number' || !Number.isFinite(lat)) missing.push('coord.lat');
-    if (typeof lng !== 'number' || !Number.isFinite(lng)) missing.push('coord.lng');
-    if (typeof city !== 'string' || !city.trim()) missing.push('resolved.city');
-    if (typeof state !== 'string' || !state.trim()) missing.push('resolved.state');
-    if (typeof timezone !== 'string' || !timezone.trim()) missing.push('resolved.timezone');
-    if (typeof formatted_address !== 'string' || !formatted_address.trim()) missing.push('resolved.formattedAddress');
-    if (typeof hour !== 'number' || hour < 0 || hour > 23) missing.push('time_context.hour');
-    if (typeof dow !== 'number' || dow < 0 || dow > 6) missing.push('time_context.dow');
-    if (typeof day_part_key !== 'string' || !day_part_key.trim()) missing.push('time_context.day_part_key');
-    if (typeof local_iso !== 'string' || !local_iso.trim()) missing.push('time_context.local_iso');
-    
-    if (missing.length > 0) {
-      console.error('[snapshot] ❌ VALIDATION FAILED - Missing required fields:', { missing });
-      return res.status(400).json({ 
-        ok: false, 
-        error: 'INCOMPLETE_SNAPSHOT',
-        missing_fields: missing,
-        req_id: reqId 
-      });
-    }
-    
-    console.log('[snapshot] ✅ EXTRACTED COMPLETE SnapshotV1:', {
-      lat, lng, city, state, timezone, formatted_address,
-      hour, dow, day_part_key,
-      has_weather: !!weather, has_air: !!air
+    console.log('[snapshot] 📍 EXTRACTED COORDS + LOCATION:', {
+      lat, lng, city, state, timezone, formatted_address, hour, dow, day_part_key
     });
     
-    
-    // Get userId - from body (SnapshotV1 format) or generate new
-    const userId = uuidOrNull(bodyUserId) || uuid();
-    const deviceId = bodyDeviceId || uuid();
-    const sessionId = bodySessionId || uuid();
-    const snapshot_id = uuid();
-
-    // Build DB record - STRICT: All required location and time data from validated extraction
+    // Build DB record - store everything as received
     const dbSnapshot = {
       snapshot_id,
-      created_at: new Date(),
-      user_id: userId,
-      device_id: deviceId,
-      session_id: sessionId,
-      // Location data - REQUIRED fields from strict validation above
-      lat: Number(lat), // lat is guaranteed to be a number at this point
-      lng: Number(lng), // lng is guaranteed to be a number at this point
-      city: String(city).trim(),
-      state: String(state).trim(),
-      country: country ? String(country).trim() : null,
-      formatted_address: String(formatted_address).trim(),
-      timezone: String(timezone).trim(),
-      // Time context - REQUIRED fields from strict validation above
-      local_iso: new Date(local_iso),
-      dow: Number(dow), // dow is guaranteed to be valid number at this point
-      hour: Number(hour), // hour is guaranteed to be valid number at this point
-      day_part_key: String(day_part_key).trim(),
-      // API-enriched contextual data (optional)
-      weather: weather ? JSON.stringify(weather) : null,
-      air: air ? JSON.stringify(air) : null,
-      device: deviceInfo ? JSON.stringify(deviceInfo) : null,
-      permissions: permissionsInfo ? JSON.stringify(permissionsInfo) : null,
+      created_at: snap.created_at ? new Date(snap.created_at) : new Date(),
+      user_id: snap.user_id || uuid(),
+      device_id: snap.device_id || uuid(),
+      session_id: snap.session_id || uuid(),
+      // Precise location coordinates (GPS)
+      lat: typeof lat === 'number' ? lat : null,
+      lng: typeof lng === 'number' ? lng : null,
+      // Resolved address
+      city: city || null,
+      state: state || null,
+      country: country || null,
+      formatted_address: formatted_address || null,
+      timezone: timezone || null,
+      // Time context
+      local_iso: local_iso ? new Date(local_iso) : null,
+      dow: typeof dow === 'number' ? dow : null,
+      hour: typeof hour === 'number' ? hour : null,
+      day_part_key: day_part_key || null,
+      // API data
+      weather: snap.weather || null,
+      air: snap.air || null,
+      device: snap.device || null,
+      permissions: snap.permissions || null,
     };
 
-    console.log('[snapshot] 🔥 ABOUT TO INSERT WITH REQUIRED DATA:', {
+    console.log('[snapshot] 🔥 INSERTING:', {
       lat: dbSnapshot.lat,
       lng: dbSnapshot.lng,
       city: dbSnapshot.city,
       timezone: dbSnapshot.timezone,
       hour: dbSnapshot.hour,
-      dow: dbSnapshot.dow,
-      formatted_address: dbSnapshot.formatted_address,
-      day_part_key: dbSnapshot.day_part_key
+      dow: dbSnapshot.dow
     });
 
-    // Persist to DB - ALL location and time data saved
+    // Insert to DB
     await db.insert(snapshots).values(dbSnapshot);
-    console.log('[snapshot] ✅ PRECISE LOCATION SAVED TO DATABASE:', { snapshot_id, lat, lng, city, timezone });
+    console.log('[snapshot] ✅ SAVED TO DB:', { snapshot_id, lat, lng, city, timezone });
 
     // REMOVED: Placeholder strategy creation - strategy-generator-parallel.js creates the SINGLE strategy row
     // This prevents race conditions and ensures model_name attribution is preserved
