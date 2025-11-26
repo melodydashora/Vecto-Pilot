@@ -19,7 +19,14 @@ import { createSnapshot, persistSnapshot as saveSnapshotToDB } from "@/lib/snaps
 //   GET  /api/geocode/reverse?lat=..&lng=..  -> { city, state, country }
 //   GET  /api/timezone?lat=..&lng=.. -> { timeZone }  (fallbacks included)
 
-const GlobalHeader: React.FC = () => {
+/**
+ * GlobalHeader - Real-time driver location and context display
+ * - Polls fresh location from users table every 2 seconds
+ * - Displays resolved address, time, weather, air quality
+ * - Handles snapshot creation with validation gates
+ * Memoized to prevent unnecessary re-renders from parent context updates
+ */
+const GlobalHeaderComponent: React.FC = () => {
   const loc = useLocation() as any;
   const { toast } = useToast();
 
@@ -665,4 +672,5 @@ const GlobalHeader: React.FC = () => {
   );
 };
 
-export default GlobalHeader;
+// Memoize to prevent unnecessary re-renders when parent context updates
+export default React.memo(GlobalHeaderComponent);
