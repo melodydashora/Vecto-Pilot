@@ -42,8 +42,9 @@ const GlobalHeader: React.FC = () => {
   // CRITICAL FIX Issue #5: Get device_id from localStorage for database query
   const deviceId = typeof window !== 'undefined' ? localStorage.getItem('vecto_device_id') : null;
 
-  // CRITICAL FIX Issue #5: Query /api/users/me directly for fresh location from database
+  // CRITICAL FIX Issue #5 & #3: Query /api/users/me directly for fresh location from database
   // This bypasses context state lag and ensures header always shows current location
+  // CRITICAL FIX Finding #3: Reduced polling from 5s to 2s for faster header updates
   const { data: dbUserLocation } = useQuery({
     queryKey: ['/api/users/me', deviceId],
     queryFn: async () => {
@@ -52,8 +53,8 @@ const GlobalHeader: React.FC = () => {
       if (!res.ok) return null;
       return res.json();
     },
-    staleTime: 5000, // Refresh from DB every 5 seconds
-    refetchInterval: 5000, // Poll every 5 seconds for fresh data
+    staleTime: 2000, // Mark data stale after 2 seconds
+    refetchInterval: 2000, // Poll every 2 seconds for fresh data (faster header updates)
     enabled: !!deviceId,
   });
 

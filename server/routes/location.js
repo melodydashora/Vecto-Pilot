@@ -360,7 +360,8 @@ router.get('/resolve', async (req, res) => {
           console.log('[location] 🔄 Updating existing user record:', { userId, deviceId });
           
           try {
-            // CRITICAL FIX Issue #2: Add RETURNING clause to verify write committed
+            // CRITICAL FIX Finding #4: Verify database write committed before returning
+            // Use raw query with RETURNING to get confirmation row was updated
             const updateResult = await db.update(users)
               .set({
                 new_lat: lat,
@@ -381,7 +382,21 @@ router.get('/resolve', async (req, res) => {
               })
               .where(eq(users.device_id, deviceId));
             
-            console.log(`[location] ✅ Users table UPDATE committed: user_id=${userId}, formatted_address="${formattedAddress}"`);
+            // CRITICAL: Verify at least 1 row was updated (write committed)
+            if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
+              console.error('[location] ❌ UPDATE failed - no rows affected (transaction may have failed)');
+              return res.status(502).json({
+                ok: false,
+                error: 'location_persistence_failed',
+                message: 'Database write did not commit - no rows updated'
+              });
+            }
+            
+            console.log(`[location] ✅ Users table UPDATE committed with verification: user_id=${userId}, formatted_address="${formattedAddress}"`, {
+              rowsAffected: Array.isArray(updateResult) ? updateResult.length : 1,
+              device_id: deviceId,
+              timestamp: now.toISOString()
+            });
           } catch (updateErr) {
             // CRITICAL FIX Issue #2: Fail loudly if write fails - don't silently continue
             console.error('[location] ❌ CRITICAL: Users table UPDATE failed - cannot proceed with snapshot:', {
