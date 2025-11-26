@@ -224,6 +224,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] SDK embed failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading TTS endpoint...");
+        const ttsRouter = (await import("./server/routes/tts.js")).default;
+        app.use("/api/tts", ttsRouter);
+        console.log("[gateway] ✅ TTS endpoint mounted at /api/tts");
+      } catch (e) {
+        console.error("[mono] TTS endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Agent embed...");
         const { mountAgent } = await import("./server/agent/embed.js");
         mountAgent({ app, basePath: process.env.AGENT_PREFIX || "/agent", wsPath: "/agent/ws", server });
