@@ -95,23 +95,34 @@ router.get('/', async (req, res) => {
       return distanceMiles <= 25;
     };
     
-    const allBlocks = candidates.map(c => ({
-      name: c.name,
-      coordinates: { lat: c.lat, lng: c.lng },
-      placeId: c.place_id,
-      estimated_distance_miles: c.distance_miles,
-      driveTimeMinutes: c.drive_minutes,
-      value_per_min: c.value_per_min,
-      value_grade: c.value_grade,
-      not_worth: c.not_worth,
-      proTips: c.pro_tips,
-      closed_venue_reasoning: c.closed_reasoning,
-      stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
-      businessHours: c.business_hours,
-      isOpen: c.business_hours?.isOpen,
-      eventBadge: c.venue_events?.badge,
-      eventSummary: c.venue_events?.summary,
-    }));
+    // Batch resolve venue addresses for all candidates in parallel
+    const { resolveVenueAddressesBatch } = await import('../lib/venue-address-resolver.js');
+    const venueKeys = candidates.map(c => ({ lat: c.lat, lng: c.lng, name: c.name }));
+    const addressMap = await resolveVenueAddressesBatch(venueKeys);
+    
+    const allBlocks = candidates.map(c => {
+      const coordKey = `${c.lat},${c.lng}`;
+      const resolvedAddress = addressMap[coordKey] || c.address || null;
+      
+      return {
+        name: c.name,
+        address: resolvedAddress, // 🎯 NOW INCLUDES VENUE ADDRESS
+        coordinates: { lat: c.lat, lng: c.lng },
+        placeId: c.place_id,
+        estimated_distance_miles: c.distance_miles,
+        driveTimeMinutes: c.drive_minutes,
+        value_per_min: c.value_per_min,
+        value_grade: c.value_grade,
+        not_worth: c.not_worth,
+        proTips: c.pro_tips,
+        closed_venue_reasoning: c.closed_reasoning,
+        stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
+        businessHours: c.business_hours,
+        isOpen: c.business_hours?.isOpen,
+        eventBadge: c.venue_events?.badge,
+        eventSummary: c.venue_events?.summary,
+      };
+    });
     
     // Filter to 25-mile perimeter
     const filtered = allBlocks.filter(b => within25Miles(b.estimated_distance_miles));
@@ -257,23 +268,34 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
                 .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
                 .orderBy(ranking_candidates.rank);
               
-              const blocks = candidates.map(c => ({
-                name: c.name,
-                coordinates: { lat: c.lat, lng: c.lng },
-                placeId: c.place_id,
-                estimated_distance_miles: c.distance_miles,
-                driveTimeMinutes: c.drive_minutes,
-                value_per_min: c.value_per_min,
-                value_grade: c.value_grade,
-                not_worth: c.not_worth,
-                proTips: c.pro_tips,
-                closed_venue_reasoning: c.closed_reasoning,
-                stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
-                businessHours: c.business_hours,
-                isOpen: c.business_hours?.isOpen,
-                eventBadge: c.venue_events?.badge,
-                eventSummary: c.venue_events?.summary,
-              }));
+              // Batch resolve venue addresses
+              const { resolveVenueAddressesBatch } = await import('../lib/venue-address-resolver.js');
+              const venueKeys = candidates.map(c => ({ lat: c.lat, lng: c.lng, name: c.name }));
+              const addressMap = await resolveVenueAddressesBatch(venueKeys);
+              
+              const blocks = candidates.map(c => {
+                const coordKey = `${c.lat},${c.lng}`;
+                const resolvedAddress = addressMap[coordKey] || c.address || null;
+                
+                return {
+                  name: c.name,
+                  address: resolvedAddress, // 🎯 NOW INCLUDES VENUE ADDRESS
+                  coordinates: { lat: c.lat, lng: c.lng },
+                  placeId: c.place_id,
+                  estimated_distance_miles: c.distance_miles,
+                  driveTimeMinutes: c.drive_minutes,
+                  value_per_min: c.value_per_min,
+                  value_grade: c.value_grade,
+                  not_worth: c.not_worth,
+                  proTips: c.pro_tips,
+                  closed_venue_reasoning: c.closed_reasoning,
+                  stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
+                  businessHours: c.business_hours,
+                  isOpen: c.business_hours?.isOpen,
+                  eventBadge: c.venue_events?.badge,
+                  eventSummary: c.venue_events?.summary,
+                };
+              });
               
               console.log(`[blocks-fast POST] ✅ Returning ${blocks.length} generated blocks`);
               return sendOnce(200, {
