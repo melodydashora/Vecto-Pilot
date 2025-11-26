@@ -36,13 +36,21 @@ export const users = pgTable("users", {
 export const snapshots = pgTable("snapshots", {
   snapshot_id: uuid("snapshot_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
-  // Reference to users table for location data (replaces duplicate lat/lng/city/state/timezone)
+  // Reference to users table for location data
   user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
   device_id: uuid("device_id").notNull(),
   session_id: uuid("session_id").notNull(),
+  // Denormalized precise location (stored at snapshot creation for production reliability)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  city: text("city"),
+  state: text("state"),
+  country: text("country"),
+  formatted_address: text("formatted_address"),
+  timezone: text("timezone"),
   // H3 geohash for density analysis
   h3_r8: text("h3_r8"),
-  // API-enriched contextual data only (NOT duplicate location fields)
+  // API-enriched contextual data only
   weather: jsonb("weather"),
   air: jsonb("air"),
   airport_context: jsonb("airport_context"),
