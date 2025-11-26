@@ -1039,23 +1039,6 @@ const CoPilot: React.FC = () => {
               </span>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const newMode = !fastTacticalMode;
-              setFastTacticalMode(newMode);
-              localStorage.setItem('vecto_fast_tactical_mode', String(newMode));
-              toast({
-                title: newMode ? 'Fast Tactical Mode Enabled' : 'Full Triad Mode Enabled',
-                description: newMode ? 'Using Quick Picks with AI reranking (sub-7s)' : 'Using full AI strategic pipeline',
-              });
-            }}
-            data-testid="button-toggle-fast-mode"
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            {fastTacticalMode ? 'Fast Mode' : 'Full Mode'}
-          </Button>
         </div>
 
         {/* Greeting/Holiday Banner - Always visible with fallback */}
