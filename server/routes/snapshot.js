@@ -58,12 +58,12 @@ router.post("/", async (req, res) => {
     const lat = coord?.lat ?? null;
     const lng = coord?.lng ?? null;
     
-    // Extract location from resolved object and NORMALIZE camelCase → snake_case
+    // Extract location from resolved object (frontend sends snake_case)
     const city = resolved?.city ?? null;
     const state = resolved?.state ?? null;
     const country = resolved?.country ?? null;
-    const formatted_address = resolved?.formattedAddress ?? null; // Frontend sends camelCase
-    const timezone = resolved?.timeZone ?? null; // Frontend sends camelCase
+    const formatted_address = resolved?.formattedAddress ?? null;
+    const timezone = resolved?.timezone ?? null; // Frontend sends snake_case 'timezone'
     
     // Extract time context
     const local_iso = time_context?.local_iso ?? null;
@@ -71,6 +71,8 @@ router.post("/", async (req, res) => {
     const hour = time_context?.hour ?? null;
     const day_part_key = time_context?.day_part_key ?? null;
     
+    // Log full extracted data AND what was received to verify correctness
+    console.log('[snapshot] Request received - full resolved object:', JSON.stringify(resolved));
     console.log('[snapshot] ✅ EXTRACTED SnapshotV1 data:', {
       lat, lng, city, state, timezone, formatted_address,
       hour, dow, day_part_key, local_iso
