@@ -1034,16 +1034,20 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       user_id: (snapshotV1.user_id && snapshotV1.user_id.trim() !== '') ? snapshotV1.user_id : null,
       device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
-      // CRITICAL: Location data is NOT stored in snapshots - it comes from users table via FK join
-      // snapshots table stores ONLY API-enriched data (weather, air, airport)
-      // get-snapshot-context.js reads: userData?.formatted_address, userData?.city, userData?.lat, etc.
-      lat: null,
-      lng: null,
-      city: null,
-      state: null,
-      country: null,
-      formatted_address: null,
-      timezone: null,
+      // SELF-CONTAINED: Store all location data directly in snapshots (no FK dependency on users table)
+      // DB = source of truth - all context needed by AI models must be in this record
+      lat: snapshotV1.coord?.lat ?? null,
+      lng: snapshotV1.coord?.lng ?? null,
+      city: snapshotV1.resolved?.city ?? null,
+      state: snapshotV1.resolved?.state ?? null,
+      country: snapshotV1.resolved?.country ?? null,
+      formatted_address: snapshotV1.resolved?.formattedAddress ?? null,
+      timezone: snapshotV1.resolved?.timezone ?? null,
+      // Time context from client
+      local_iso: safeDate(snapshotV1.time_context?.local_iso) ?? null,
+      hour: typeof snapshotV1.time_context?.hour === 'number' ? snapshotV1.time_context.hour : null,
+      dow: typeof snapshotV1.time_context?.dow === 'number' ? snapshotV1.time_context.dow : null,
+      day_part_key: snapshotV1.time_context?.day_part_key ?? null,
       h3_r8,
       // API-enriched contextual data ONLY
       weather: (snapshotV1.weather && typeof snapshotV1.weather === 'object' && snapshotV1.weather.tempF !== undefined) ? {
@@ -1065,50 +1069,35 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       extras: snapshotV1.extras || null,
     };
 
-    // VALIDATION GATE: Verify location was resolved in users table before creating snapshot
-    // Issue #6: Validate that formatted_address exists and is fresh
-    if (snapshotV1.user_id) {
-      try {
-        const [userRecord] = await db
-          .select()
-          .from(users)
-          .where(eq(users.user_id, snapshotV1.user_id))
-          .limit(1);
-        
-        if (!userRecord || !userRecord.formatted_address) {
-          console.error('[Snapshot] ❌ VALIDATION FAILED: User location not resolved in users table');
-          return httpError(res, 400, 'location_not_resolved', 
-            'Location data not found in users table - please retry location resolution', cid);
-        }
-        
-        const locationFreshness = validateLocationFreshness(userRecord);
-        if (!locationFreshness.valid) {
-          console.error('[Snapshot] ❌ CRITICAL: Location freshness validation FAILED:', locationFreshness.error);
-          // CRITICAL FIX Issue #6: Reject snapshot if location data is stale - LLMs need fresh context
-          return httpError(res, 400, 'location_stale', 
-            `Location data is stale (${locationFreshness.error}). Please refresh GPS.`, cid);
-        } else {
-          console.log('[Snapshot] ✅ Location validation passed - users table has fresh address:', {
-            formatted_address: userRecord.formatted_address,
-            city: userRecord.city,
-            updated_at: userRecord.updated_at,
-            accuracy_m: userRecord.accuracy_m
-          });
-        }
-      } catch (validationErr) {
-        console.error('[Snapshot] Validation check failed:', validationErr.message);
-        return httpError(res, 502, 'validation_failed', 'Could not validate location', cid);
-      }
+    // SELF-CONTAINED VALIDATION: Verify snapshot has complete location data
+    // DB = source of truth - validate that this snapshot record has what AI models need
+    if (!dbSnapshot.lat || !dbSnapshot.lng) {
+      console.error('[Snapshot] ❌ VALIDATION FAILED: Missing GPS coordinates in snapshot');
+      return httpError(res, 400, 'missing_coordinates', 
+        'GPS coordinates required - please enable location and retry', cid);
     }
+    
+    if (!dbSnapshot.city && !dbSnapshot.formatted_address) {
+      console.error('[Snapshot] ❌ VALIDATION FAILED: Missing resolved location in snapshot');
+      return httpError(res, 400, 'missing_address', 
+        'Location could not be resolved - please retry', cid);
+    }
+    
+    console.log('[Snapshot] ✅ Self-contained validation passed:', {
+      lat: dbSnapshot.lat,
+      lng: dbSnapshot.lng,
+      city: dbSnapshot.city,
+      timezone: dbSnapshot.timezone,
+      hour: dbSnapshot.hour
+    });
 
     // Save to Replit PostgreSQL using Drizzle ORM
     // Uses DATABASE_URL automatically injected by Replit for both dev and production
-    console.log('[Snapshot DB] 💾 Writing to snapshots table - API-Enriched Data Only:');
+    console.log('[Snapshot DB] 💾 Writing SELF-CONTAINED snapshot to database:');
     console.log('  → snapshot_id:', dbSnapshot.snapshot_id);
-    console.log('  → user_id:', dbSnapshot.user_id);
-    console.log('  → device_id:', dbSnapshot.device_id);
-    console.log('  → h3_r8:', dbSnapshot.h3_r8);
-    console.log('  ⚠️  Location fields (lat, lng, city, state, formatted_address, timezone) are NULL - will be read from users table');
+    console.log('  → LOCATION: lat=%s lng=%s city=%s state=%s timezone=%s', 
+      dbSnapshot.lat, dbSnapshot.lng, dbSnapshot.city, dbSnapshot.state, dbSnapshot.timezone);
+    console.log('  → TIME: hour=%s dow=%s day_part=%s', dbSnapshot.hour, dbSnapshot.dow, dbSnapshot.day_part_key);
     console.log('  → weather:', dbSnapshot.weather);
     console.log('  → air:', dbSnapshot.air);
     console.log('  → airport_context:', dbSnapshot.airport_context);
