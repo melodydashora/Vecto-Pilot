@@ -6,11 +6,32 @@ import { snapshots, users } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
- * Get complete snapshot context for AI providers
- * Includes: address, city/state, lat/lng, weather, airport, timezone, day_part, created_at
- * Location data is pulled from users table (authoritative source) via user_id FK
- * @param {string} snapshotId - UUID of snapshot
- * @returns {Promise<Object>} Full snapshot context
+ * Get complete snapshot context for AI providers (Strategist, Briefer, Consolidator, Holiday Checker)
+ * 
+ * DATA ARCHITECTURE:
+ * - Location data pulled from users table (authoritative source) via user_id FK
+ * - API-enriched data (weather, air, airport_context, local_news) from snapshots table
+ * - Prevents "Unknown location" by failing hard if formatted_address missing
+ * 
+ * REQUIRED BY LLMs:
+ *   - formatted_address: Full street address (e.g., "1000 N Dallas Parkway, Carrollton, TX")
+ *   - city, state, country: Address components for geographic context
+ *   - lat, lng: Coordinates for distance calculations
+ *   - timezone: IANA identifier for local time context
+ *   - dow, hour, day_part_key: Time context in driver's timezone (not UTC)
+ *   - weather, air: Real-time environmental conditions
+ *   - airport_context: FAA delays, closures for demand signals
+ *   - local_news: Perplexity briefing for local events/context
+ *   - holiday, is_holiday: Special event detection
+ * 
+ * CRITICAL BEHAVIOR:
+ *   - Rejects snapshots where formatted_address is null/empty (fail-hard)
+ *   - Uses users table as source of truth (prevents address duplication)
+ *   - Migrating from legacy snapshot lat/lng to users table columns
+ * 
+ * @param {string} snapshotId - UUID of snapshot to resolve
+ * @returns {Promise<Object>} Full context ready for AI provider pipeline
+ * @throws {Error} If snapshot not found or formatted_address missing
  */
 export async function getSnapshotContext(snapshotId) {
   const [snapshot] = await db

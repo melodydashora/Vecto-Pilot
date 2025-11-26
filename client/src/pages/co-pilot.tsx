@@ -115,8 +115,13 @@ interface BlocksResponse {
   };
 }
 
+/**
+ * CoPilot - AI-powered venue recommendations and strategy optimization
+ * - Displays real-time smart blocks (staging areas) with demand/earnings insights
+ * - Polls for AI-generated recommendations every 5 seconds until blocks arrive
+ * - Integrates feedback system for continuous ML model improvement
+ */
 const CoPilot: React.FC = () => {
-  console.log('[CoPilot] Component rendering');
   const locationContext = useLocation();
   const { toast } = useToast();
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
@@ -519,7 +524,7 @@ const CoPilot: React.FC = () => {
             }
           };
           
-          console.log('✅ Transformed blocks:', transformed.blocks);
+          // Blocks ready - no log to reduce spam (polling completed successfully)
           return transformed;
         }
       } catch (err: any) {
@@ -541,14 +546,15 @@ const CoPilot: React.FC = () => {
       // SIMPLE GATE: Only start polling when AI Coach is visible
       const shouldEnable = hasCoords && hasSnapshot && strategyReady && snapshotMatches;
       
-      console.log('[blocks-query] 🔍 GATING CHECK (Strategy-Driven):', {
-        hasCoords,
-        hasSnapshot,
-        strategyReady,
-        snapshotMatches,
-        shouldEnable,
-        reason: !shouldEnable ? (!hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : !strategyReady ? 'STRATEGY_PENDING' : 'SNAPSHOT_MISMATCH') : 'READY'
-      });
+      // Debug: Only log gating status changes to reduce console spam
+      if (shouldEnable && lastStatusRef.current !== 'ready') {
+        console.log('[blocks-query] ✅ Ready to fetch blocks (strategy-driven polling)');
+        lastStatusRef.current = 'ready';
+      } else if (!shouldEnable && lastStatusRef.current === 'ready') {
+        const reason = !hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : !strategyReady ? 'STRATEGY_PENDING' : 'SNAPSHOT_MISMATCH';
+        console.log('[blocks-query] ⏸️ Polling paused -', reason);
+        lastStatusRef.current = 'paused';
+      }
       
       return shouldEnable;
     })(),
@@ -556,12 +562,10 @@ const CoPilot: React.FC = () => {
     refetchInterval: (query) => {
       const blocks = query.state.data?.blocks;
       const hasBlocks = blocks && blocks.length > 0;
-      // Stop polling once we have blocks
+      // Stop polling once we have blocks (no log to reduce spam)
       if (hasBlocks) {
-        console.log('[blocks-query] ✅ Got blocks, stopping poll');
         return false;
       }
-      console.log('[blocks-query] 🔄 Polling for blocks...');
       return 5000; // Poll every 5 seconds
     },
     retry: (failureCount, error: any) => {
