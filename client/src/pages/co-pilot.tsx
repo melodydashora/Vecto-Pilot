@@ -5,7 +5,7 @@
  * Integrates with smart-blocks-enhanced API for time-aware zone suggestions.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { Card, CardContent } from '@/components/ui/card';
@@ -159,6 +159,9 @@ const CoPilot: React.FC = () => {
   
   // Strategy feedback modal state  
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
+
+  // Ref to track polling status changes (reduces console spam by only logging transitions)
+  const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
 
   // Get coords from shared location context (same as GlobalHeader)
   const gpsCoords = locationContext?.currentCoords;
