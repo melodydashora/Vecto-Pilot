@@ -1,7 +1,9 @@
-# Neon Connection Resilience Implementation
+# ~~Neon~~ **Replit PostgreSQL** Connection Resilience Implementation
+
+> **⚠️ ARCHIVED DOCUMENTATION (2025-11-26):** This document describes connection patterns for the previous external Neon PostgreSQL provider. The system has been migrated to Replit's managed PostgreSQL database. Core concepts (health checks, exponential backoff, connection pooling) remain relevant.
 
 ## Overview
-Comprehensive connection resilience pattern to survive Neon admin-terminated connections, autoscale events, and connection pool saturation in Replit Reserved VM deployments.
+~~Comprehensive connection resilience pattern to survive Neon admin-terminated connections, autoscale events, and connection pool saturation in Replit Reserved VM deployments.~~ Connection resilience patterns are now simplified with Replit's managed PostgreSQL providing stable, production-ready database connectivity.
 
 ## Components Implemented
 
