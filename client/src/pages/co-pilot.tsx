@@ -28,7 +28,9 @@ import {
   Info,
   PartyPopper,
   Sun,
-  Moon
+  Moon,
+  Volume2,
+  Square
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
@@ -162,6 +164,10 @@ const CoPilot: React.FC = () => {
 
   // Ref to track polling status changes (reduces console spam by only logging transitions)
   const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
+  
+  // Text-to-speech state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Get coords from shared location context (same as GlobalHeader)
   const gpsCoords = locationContext?.currentCoords;
@@ -906,6 +912,41 @@ const CoPilot: React.FC = () => {
     });
   };
 
+  // Text-to-speech handler
+  const handleReadStrategy = () => {
+    if (!persistentStrategy) return;
+    
+    if (isSpeaking) {
+      // Stop speaking
+      speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    // Start speaking
+    const utterance = new SpeechSynthesisUtterance(persistentStrategy);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+    
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      toast({
+        title: 'Text-to-Speech Failed',
+        description: 'Unable to read strategy aloud.',
+        variant: 'destructive',
+      });
+    };
+
+    speechSynthRef.current = utterance;
+    speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
+  };
+
   // Get demand level badge
   const getDemandBadge = (level?: string) => {
     if (level === 'high') {
@@ -1119,9 +1160,33 @@ const CoPilot: React.FC = () => {
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-sm font-semibold text-purple-900">Strategic Overview</p>
-                      <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
-                        ✅ Complete
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
+                          ✅ Complete
+                        </Badge>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleReadStrategy}
+                                className="h-6 w-6 p-0 hover:bg-purple-200"
+                                data-testid="button-read-strategy"
+                              >
+                                {isSpeaking ? (
+                                  <Square className="w-3 h-3 text-red-600 fill-red-600" />
+                                ) : (
+                                  <Volume2 className="w-3 h-3 text-purple-600" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              {isSpeaking ? 'Stop reading' : 'Read strategy aloud'}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
                     </div>
                     <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
                   </div>
