@@ -410,8 +410,6 @@ export function LocationProvider({ children }: LocationProviderProps) {
           };
           console.log('[LocationContext] Extracted locationData:', locationData);
 
-          // Display "City, State" in header for clean UI
-          // NOTE: formattedAddress (exact street address) is stored in snapshot and sent to LLMs
           let locationName;
           if (locationData.city && locationData.state) {
             locationName = `${locationData.city}, ${locationData.state}`;
