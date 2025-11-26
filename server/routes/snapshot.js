@@ -49,10 +49,18 @@ router.post("/", async (req, res) => {
     // CRITICAL: Normalize camelCase fields from frontend (timeZone) to snake_case (timezone)
     const resolvedNormalized = resolved ? {
       ...resolved,
-      timezone: resolved.timezone || resolved.timeZone, // Handle both camelCase and snake_case
-      formatted_address: resolved.formatted_address || resolved.formattedAddress
+      timezone: resolved.timeZone || resolved.timezone, // Frontend sends camelCase timeZone
+      formatted_address: resolved.formattedAddress || resolved.formatted_address
     } : {};
     const contextData = context || resolvedNormalized || {};
+    
+    console.log('[snapshot] contextData extracted:', {
+      city: contextData?.city,
+      state: contextData?.state,
+      timezone: contextData?.timezone,
+      formatted_address: contextData?.formatted_address,
+      source: context ? 'context' : resolved ? 'resolved' : 'empty'
+    });
     
     // Validate snapshot data completeness using dedicated validator
     const { ok, errors, warnings } = validateIncomingSnapshot(req.body ?? {});
