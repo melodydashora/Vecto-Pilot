@@ -39,11 +39,13 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         // 1. Reverse geocode coords → address
         const address = await reverseGeocode(venue.lat, venue.lng);
 
-        // 2. Calculate distance + drive time with traffic
+        // 2. Calculate distance + drive time with traffic (original driver coords → LLM-provided venue coords)
+        console.log(`[Venue Enrichment] 📍 Distance calc: from (${driverLocation.lat.toFixed(4)}, ${driverLocation.lng.toFixed(4)}) → "${venue.name}" (${venue.lat.toFixed(4)}, ${venue.lng.toFixed(4)})`);
         const route = await getRouteWithTraffic(driverLocation, {
           lat: venue.lat,
           lng: venue.lng,
         });
+        console.log(`[Venue Enrichment] ✅ Distance: ${(route.distanceMeters * 0.000621371).toFixed(1)} mi, Drive time: ${Math.ceil(route.durationSeconds / 60)} min`);
 
         // 3. Get place details from Google Places API (New) with timezone
         const placeDetails = await getPlaceDetails(

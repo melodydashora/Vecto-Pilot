@@ -64,6 +64,9 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
       lng: snapshot.lng
     };
     
+    console.log(`[ENHANCED-BLOCKS] 📍 Driver location (original): ${driverLocation.lat.toFixed(4)}, ${driverLocation.lng.toFixed(4)}`);
+    console.log(`[ENHANCED-BLOCKS] 📍 Driver address: ${snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`}`);
+    
     const enrichedVenues = await enrichVenues(
       venuesPlan.recommended_venues,
       driverLocation,
@@ -72,6 +75,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
     const enrichmentMs = Date.now() - enrichmentStart;
     
     console.log(`[ENHANCED-BLOCKS] ✅ Enriched ${enrichedVenues.length} venues with Google APIs in ${enrichmentMs}ms`);
+    console.log(`[ENHANCED-BLOCKS] Distance data stored: ${enrichedVenues.map(v => `${v.name}=${v.distanceMiles}mi`).join(', ')}`);
     
     // Step 3: Create ranking record (use env var for model name)
     const venuePlannerModel = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.1';
@@ -99,6 +103,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
       const driveMinutes = enriched.driveTimeMinutes || 0;
       const estimatedEarnings = distanceMiles * 1.50; // $1.50/mile estimate
       const valuePerMin = driveMinutes > 0 ? estimatedEarnings / driveMinutes : 0;
+      
+      console.log(`[ENHANCED-BLOCKS] 💾 Storing candidate: "${enriched.name}" | distance=${distanceMiles}mi | time=${driveMinutes}min | source=${enriched.distanceSource}`);
       
       // Grade venues: A = $1+/min, B = $0.50-$1/min, C = <$0.50/min
       let valueGrade = 'C';
