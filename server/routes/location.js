@@ -357,26 +357,45 @@ router.get('/resolve', async (req, res) => {
         
         if (existingUser) {
           userId = existingUser.user_id;
-          await db.update(users)
-            .set({
-              new_lat: lat,
-              new_lng: lng,
-              accuracy_m: accuracy,
-              session_id: sessionId,
-              formatted_address: formattedAddress,
-              city,
-              state,
-              country,
-              timezone: tz,
-              coord_source: coordSource,
-              local_iso: now,
-              dow,
-              hour,
-              day_part_key: dayPartKey,
-              updated_at: now,
-            })
-            .where(eq(users.device_id, deviceId))
-            .catch(err => console.warn('[location] users update failed:', err.message));
+          console.log('[location] 🔄 Updating existing user record:', { userId, deviceId });
+          
+          try {
+            // CRITICAL FIX Issue #2: Add RETURNING clause to verify write committed
+            const updateResult = await db.update(users)
+              .set({
+                new_lat: lat,
+                new_lng: lng,
+                accuracy_m: accuracy,
+                session_id: sessionId,
+                formatted_address: formattedAddress,
+                city,
+                state,
+                country,
+                timezone: tz,
+                coord_source: coordSource,
+                local_iso: now,
+                dow,
+                hour,
+                day_part_key: dayPartKey,
+                updated_at: now,
+              })
+              .where(eq(users.device_id, deviceId));
+            
+            console.log(`[location] ✅ Users table UPDATE committed: user_id=${userId}, formatted_address="${formattedAddress}"`);
+          } catch (updateErr) {
+            // CRITICAL FIX Issue #2: Fail loudly if write fails - don't silently continue
+            console.error('[location] ❌ CRITICAL: Users table UPDATE failed - cannot proceed with snapshot:', {
+              error: updateErr.message,
+              deviceId,
+              userId
+            });
+            return res.status(502).json({
+              ok: false,
+              error: 'location_persistence_failed',
+              message: 'Failed to save location to database',
+              details: updateErr.message
+            });
+          }
         } else {
           userId = crypto.randomUUID();
           const newUser = {
@@ -400,13 +419,31 @@ router.get('/resolve', async (req, res) => {
             updated_at: now,
           };
           
-          await db.insert(users).values(newUser)
-            .catch(err => console.warn('[location] users insert failed:', err.message));
+          console.log('[location] 🆕 Creating new user record:', { userId, deviceId });
+          
+          try {
+            // CRITICAL FIX Issue #2: Add error handling to verify write committed
+            await db.insert(users).values(newUser);
+            console.log(`[location] ✅ Users table INSERT committed: user_id=${userId}, formatted_address="${formattedAddress}"`);
+          } catch (insertErr) {
+            // CRITICAL FIX Issue #2: Fail loudly if write fails
+            console.error('[location] ❌ CRITICAL: Users table INSERT failed - cannot proceed:', {
+              error: insertErr.message,
+              deviceId,
+              userId
+            });
+            return res.status(502).json({
+              ok: false,
+              error: 'location_persistence_failed',
+              message: 'Failed to save location to database',
+              details: insertErr.message
+            });
+          }
         }
         
         // Update response with user_id for client-side tracking
         resolvedData.user_id = userId;
-        console.log(`[location] ✅ Users table: device=${deviceId}, user_id=${userId}, accuracy=${accuracy}m, source=${coordSource}`);
+        console.log(`[location] ✅ Users table persisted successfully: device=${deviceId}, user_id=${userId}, accuracy=${accuracy}m, address="${formattedAddress}"`);
       } catch (err) {
         console.warn('[location] Failed to save user location:', err.message);
       }
