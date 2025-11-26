@@ -78,16 +78,23 @@ router.post("/", async (req, res) => {
 
     const snapshot_id = uuid();
 
-    // Build DB record - store only API-enriched fields
-    // Location data (lat/lng/city/state/etc) is pulled from users table via user_id
+    // Build DB record - store denormalized location AND API-enriched fields for production reliability
     const dbSnapshot = {
       snapshot_id,
       created_at: new Date(),
       user_id: userId,
       device_id: deviceId,
       session_id: sessionId,
+      // Denormalized precise location (stored at snapshot creation)
+      lat: lat || null,
+      lng: lng || null,
+      city: context?.city || null,
+      state: context?.state || null,
+      country: context?.country || null,
+      formatted_address: context?.formatted_address || null,
+      timezone: context?.timezone || null,
       h3_r8: context?.h3_r8 || null,
-      // API-enriched contextual data only (NOT duplicate location fields)
+      // API-enriched contextual data only
       weather: context?.weather || null,
       air: context?.air || null,
       airport_context: context?.airport_context || null,

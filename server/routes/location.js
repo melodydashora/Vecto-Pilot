@@ -57,18 +57,7 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;
 
-// Production gate: Disallow manual city overrides (test-only feature)
-router.use((req, res, next) => {
-  const isProd = process.env.NODE_ENV === 'production';
-  const manualCityProvided = !!(req.query?.city || req.query?.cityName || req.body?.city || req.body?.cityName);
-
-  if (isProd && manualCityProvided) {
-    console.warn('🚫 Manual city override blocked in production');
-    return res.status(400).json({ error: 'manual-city-disabled-in-prod' });
-  }
-
-  next();
-});
+// UNIFIED: Accept manual city overrides consistently (test and debug feature)
 
 // Helper to extract city, state, country from Google Geocoding response
 function pickAddressParts(components) {
