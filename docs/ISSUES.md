@@ -275,7 +275,7 @@ curl "http://localhost:5000/api/blocks-fast?snapshotId=6d7a1e38-e077-4655-9984-b
 - Worker runs as separate process via `scripts/start-replit.js`
 - Providers are stateless functions (safe for horizontal scaling)
 - Database handles concurrency with unique constraints
-- NOTIFY events work with external Neon PostgreSQL (pooled + unpooled)
+- ~~NOTIFY events work with external Neon PostgreSQL (pooled + unpooled)~~ **UPDATED (2025-11-26): Now uses Replit PostgreSQL (pooled + unpooled)**
 
 ### Related Issues
 
@@ -363,7 +363,7 @@ curl "http://localhost:5000/api/blocks-fast?snapshotId=6d7a1e38-e077-4655-9984-b
 After transitioning from using production database for dev testing to separate dev database (`DEV_DATABASE_URL`), several database access points have inconsistent behavior:
 
 **Inconsistent Files:**
-1. **`server/db/client.js`** (Line 22) - Fallback pool hard-coded to `DATABASE_URL`, ignores `DEV_DATABASE_URL`
+1. ~~**`server/db/client.js`** (Line 22) - Fallback pool hard-coded to `DATABASE_URL`, ignores `DEV_DATABASE_URL`~~ **ARCHIVED (2025-11-26): File removed during Neon→Replit migration**
 2. **`server/db/drizzle-lazy.js`** (Line 11) - Only checks `POSTGRES_URL` and `DATABASE_URL`, missing `DEV_DATABASE_URL`
 3. **`server/db/pool-lazy.js`** - Doesn't implement dev/prod detection
 
@@ -393,7 +393,7 @@ const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT
 const dbUrl = isProduction ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
 ```
 
-**Client Fallback (Incorrect):**
+~~**Client Fallback (Incorrect):**
 ```javascript
 // server/db/client.js:22
 pool = new Pool({
@@ -401,7 +401,7 @@ pool = new Pool({
   max: 20,
   // ...
 });
-```
+```~~ **ARCHIVED (2025-11-26): File removed during Neon→Replit migration; see server/db/connection-manager.js for canonical implementation**
 
 **Lazy Pool (Incorrect):**
 ```javascript
@@ -423,42 +423,17 @@ const DATABASE_URL = process.env.POSTGRES_URL || process.env.DATABASE_URL; // �
 
 ### Recommended Fix (Not Applied)
 
-**To fix `server/db/client.js`:**
-```javascript
-// BEFORE (Line 7-22):
-function getPool() {
-  if (pool) return pool;
-  
-  pool = getSharedPool();
-  if (pool) return pool;
-  
-  console.log('[db] Creating local pool (shared pool disabled)');
-  
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL, // ❌ Wrong
-    max: 20,
-    // ...
-  });
-}
+~~**To fix `server/db/client.js`:**~~ **ARCHIVED (2025-11-26): File removed during Neon→Replit migration**
 
-// AFTER:
-function getPool() {
-  if (pool) return pool;
-  
-  pool = getSharedPool();
-  if (pool) return pool;
-  
-  console.log('[db] Creating local pool (shared pool disabled)');
-  
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
-  const dbUrl = isProduction ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
-  
-  pool = new Pool({
-    connectionString: dbUrl, // ✅ Correct
-    max: 20,
-    // ...
-  });
-}
+~~See server/db/connection-manager.js for canonical implementation:~~
+```javascript
+// ✅ CANONICAL: server/db/connection-manager.js (current implementation)
+const isDeployment = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
+// Uses DATABASE_URL directly (Replit automatically injects correct URL for dev/prod)
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+});
 ```
 
 **To fix `server/db/drizzle-lazy.js`:**
@@ -484,7 +459,7 @@ const DATABASE_URL = isProduction
 ### Files Affected
 
 **Need Updates:**
-- `server/db/client.js` (fallback pool)
+- ~~`server/db/client.js` (fallback pool)~~ **REMOVED (2025-11-26)**
 - `server/db/drizzle-lazy.js` (lazy connection)
 - `server/db/pool-lazy.js` (lazy pool)
 
@@ -504,8 +479,8 @@ node -e "const isProduction = process.env.REPLIT_DEPLOYMENT === '1'; console.log
 # Test shared pool path
 node -e "import('./server/db/connection-manager.js').then(m => console.log('Connection manager uses:', m.getPool().options.connectionString.includes('br-misty-pine') ? 'DEV DB ✅' : 'PROD DB ⚠️'));"
 
-# Test fallback pool path
-PG_USE_SHARED_POOL=false node -e "import('./server/db/client.js').then(m => console.log('Client fallback would use:', process.env.DATABASE_URL.includes('br-young-dust') ? 'PROD DB ⚠️' : 'DEV DB ✅'));"
+~~# Test fallback pool path
+PG_USE_SHARED_POOL=false node -e "import('./server/db/client.js').then(m => console.log('Client fallback would use:', process.env.DATABASE_URL.includes('br-young-dust') ? 'PROD DB ⚠️' : 'DEV DB ✅'));"~~ **ARCHIVED (2025-11-26): File removed**
 ```
 
 ### Related Documentation
@@ -7287,16 +7262,16 @@ drizzle-kit drop --count=1
 
 ### Current Database State
 
-**External Database**: Neon PostgreSQL (non-Replit hosted)
-- Primary: Pooled connection (`DATABASE_URL`)
-- LISTEN/NOTIFY: Unpooled connection (`DATABASE_URL_UNPOOLED`)
+~~**External Database**: Neon PostgreSQL (non-Replit hosted)~~ **UPDATED (2025-11-26): Replit PostgreSQL (managed by Replit platform)**
+- Primary: Pooled connection (`DATABASE_URL` - auto-injected by Replit)
+- LISTEN/NOTIFY: Unpooled connection (via direct DATABASE_URL connection)
 - Schema changes: Via `npm run db:push` from development environment
-- Production schema: Manually synced
+- Production schema: Automatically synced via Replit deployment
 
 **Risk Assessment:**
-- ⚠️ No automated rollback for production database
+- ✅ Automated rollback via Replit checkpoints for production database
 - ✅ Development database protected by Replit checkpoints
-- ⚠️ Schema changes require manual coordination
+- ✅ Schema changes handled by Drizzle ORM via `npm run db:push`
 
 ### Resolution
 
