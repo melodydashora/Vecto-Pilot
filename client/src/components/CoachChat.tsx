@@ -75,6 +75,7 @@ export default function CoachChat({
         body: JSON.stringify({ 
           userId, 
           message: my,
+          threadHistory: msgs,  // Send full conversation history for context awareness
           snapshotId,
           strategyId,  // Entry point: Strategy ID from UI → Full schema access
           strategy,
