@@ -1,30 +1,28 @@
-import pkg from 'pg';
-const { Pool } = pkg;
+import { Pool } from 'pg';
 
-// Replit Database - automatically handles DATABASE_URL for both dev and prod
-// No manual environment switches needed
+// SIMPLIFIED: Replit automatically injects the correct DATABASE_URL 
+// for both Development (local) and Production (Deployments).
+// We do not need manual switching logic or external Neon checks.
+
 if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is required');
+  console.error("❌ Fatal: DATABASE_URL is missing. Ensure Replit Postgres is enabled.");
+  process.exit(1);
 }
 
-console.log('[connection-manager] ✅ Using Replit Database');
-
-const pool = new Pool({
+// Create a standard Postgres pool using the environment provided URL
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: Number(process.env.PG_MAX || 5),
-  min: Number(process.env.PG_MIN || 0),
-  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 10000),
-  connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 5000),
-  keepAlive: process.env.PG_KEEPALIVE !== 'false',
-  ssl: { rejectUnauthorized: false },
-  allowExitOnIdle: false,
+  max: 20, // Standard pool size
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
-// Basic error logging
 pool.on('error', (err) => {
-  console.error('[connection-manager] Unexpected error on idle client:', err.message);
-  // Don't exit - just log and let reconnection happen naturally
+  console.error('Unexpected error on idle client', err);
+  // Don't exit process immediately in serverless/replit envs, just log
 });
+
+export const query = (text, params) => pool.query(text, params);
 
 export function getPool() {
   return pool;
