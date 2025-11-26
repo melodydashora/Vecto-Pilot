@@ -340,6 +340,13 @@ export function LocationProvider({ children }: LocationProviderProps) {
         weatherAirControllerRef.current.abort();
       }
       
+      // RACE CONDITION FIX: Don't launch new API calls if a newer generation already started
+      // This prevents wasting quota on stale requests
+      if (currentGeneration !== generationRef.current) {
+        console.log(`⏭️ Generation #${currentGeneration} skipped - newer generation #${generationRef.current} already triggered`);
+        return;
+      }
+      
       // Create new AbortControllers
       weatherAirControllerRef.current = new AbortController();
       const weatherAirSignal = weatherAirControllerRef.current.signal;
