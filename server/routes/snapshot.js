@@ -39,10 +39,14 @@ router.post("/", async (req, res) => {
     const latFromQuery = req.query.lat ? Number(req.query.lat) : null;
     const lngFromQuery = req.query.lng ? Number(req.query.lng) : null;
     
-    const { lat: latFromBody, lng: lngFromBody, context, meta } = req.body || {};
+    // Map both SnapshotV1 format (resolved) and internal format (context) for compatibility
+    const { lat: latFromBody, lng: lngFromBody, context, resolved, meta, coord, device, permissions } = req.body || {};
     
-    const lat = latFromQuery ?? latFromBody;
-    const lng = lngFromQuery ?? lngFromBody;
+    const lat = latFromQuery ?? latFromBody ?? coord?.lat;
+    const lng = lngFromQuery ?? lngFromBody ?? coord?.lng;
+    
+    // Map resolved → context for SnapshotV1 format compatibility
+    const contextData = context || resolved || {};
     
     // Validate snapshot data completeness using dedicated validator
     const { ok, errors, warnings } = validateIncomingSnapshot(req.body ?? {});
@@ -88,19 +92,19 @@ router.post("/", async (req, res) => {
       // Denormalized precise location (stored at snapshot creation)
       lat: lat || null,
       lng: lng || null,
-      city: context?.city || null,
-      state: context?.state || null,
-      country: context?.country || null,
-      formatted_address: context?.formatted_address || null,
-      timezone: context?.timezone || null,
-      h3_r8: context?.h3_r8 || null,
+      city: contextData?.city || null,
+      state: contextData?.state || null,
+      country: contextData?.country || null,
+      formatted_address: contextData?.formatted_address || null,
+      timezone: contextData?.timezone || null,
+      h3_r8: contextData?.h3_r8 || null,
       // API-enriched contextual data only
-      weather: context?.weather || null,
-      air: context?.air || null,
-      airport_context: context?.airport_context || null,
-      device: meta?.device || null,
-      permissions: meta?.permissions || null,
-      extras: meta?.extras || null,
+      weather: contextData?.weather || null,
+      air: contextData?.air || null,
+      airport_context: contextData?.airport_context || null,
+      device: (meta || device)?.device || device || null,
+      permissions: (meta || permissions)?.permissions || permissions || null,
+      extras: contextData?.extras || null,
     };
 
     // Persist to DB
