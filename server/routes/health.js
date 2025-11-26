@@ -67,7 +67,7 @@ export function healthRoutes(app) {
       });
     }
     try {
-      // 3s timeout probe for health check (external Neon database)
+      // 3s timeout probe for health check
       const pool = getSharedPool();
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Health probe timeout')), 3000)

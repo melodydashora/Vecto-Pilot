@@ -10,8 +10,8 @@ export function validateEnvironment() {
   const warnings = [];
   
   // CRITICAL: Database connection (required for all modes)
-  if (!process.env.DATABASE_URL && !process.env.DATABASE_URL_UNPOOLED) {
-    errors.push('DATABASE_URL or DATABASE_URL_UNPOOLED is required');
+  if (!process.env.DATABASE_URL) {
+    errors.push('DATABASE_URL is required (Replit Database)');
   }
   
   // CRITICAL: AI providers (at least one required for strategy generation)

@@ -4,8 +4,8 @@ import { getPool } from './connection-manager.js';
  * Connection Pool with Admin Termination Handling
  * 
  * Wraps pg.Pool with degradation/reconnection logic to handle:
- * - Neon admin-terminated connections (code 57P01)
- * - Connection pool exhaustion in Reserved VM with background worker
+ * - Database admin-terminated connections (code 57P01)
+ * - Connection pool exhaustion with background worker
  * - Exponential backoff with jitter for reconnection
  * - NDJSON audit trails for observability
  * 
