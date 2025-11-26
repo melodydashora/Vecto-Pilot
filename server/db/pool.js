@@ -16,14 +16,27 @@ const pool = getPool();
 
 /**
  * Get pool statistics for monitoring
- * Note: Direct pool access is now wrapped - use /health endpoint for state
+ * Returns actual connection pool metrics for health checks
  */
 export function getPoolStats() {
-  return {
-    note: 'Pool statistics now available via /health endpoint',
-    wrapped: true,
-    degradation_support: true
-  };
+  try {
+    return {
+      idle: pool.idleCount,
+      total: pool.totalCount,
+      waiting: pool.waitingCount,
+      max: pool._max || 20,
+      status: 'ok'
+    };
+  } catch (err) {
+    return {
+      idle: 0,
+      total: 0,
+      waiting: 0,
+      max: 20,
+      status: 'error',
+      error: err.message
+    };
+  }
 }
 
 export function getSharedPool() {
