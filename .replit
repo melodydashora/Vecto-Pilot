@@ -36,3 +36,10 @@ args = "set -a && . mono-mode.env && set +a && npm run start:replit"
 
 [agent]
 integrations = ["perplexity_v0:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+STRATEGY_STRATEGIST = "claude-sonnet-4-20250514"
+STRATEGY_BRIEFER = "sonar-pro"
+STRATEGY_CONSOLIDATOR = "gpt-5.1-2025-11-13"
