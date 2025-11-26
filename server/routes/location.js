@@ -922,14 +922,18 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       user_id: (snapshotV1.user_id && snapshotV1.user_id.trim() !== '') ? snapshotV1.user_id : null,
       device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
-      lat: snapshotV1.coord?.lat || null,
-      lng: snapshotV1.coord?.lng || null,
-      city: snapshotV1.resolved?.city || null,
-      state: snapshotV1.resolved?.state || null,
-      country: snapshotV1.resolved?.country || null,
-      formatted_address: snapshotV1.resolved?.formattedAddress || null,
-      timezone: snapshotV1.resolved?.timezone || null,
+      // CRITICAL: Location data is NOT stored in snapshots - it comes from users table via FK join
+      // snapshots table stores ONLY API-enriched data (weather, air, airport)
+      // get-snapshot-context.js reads: userData?.formatted_address, userData?.city, userData?.lat, etc.
+      lat: null,
+      lng: null,
+      city: null,
+      state: null,
+      country: null,
+      formatted_address: null,
+      timezone: null,
       h3_r8,
+      // API-enriched contextual data ONLY
       weather: (snapshotV1.weather && typeof snapshotV1.weather === 'object' && snapshotV1.weather.tempF !== undefined) ? {
         tempF: snapshotV1.weather.tempF,
         conditions: snapshotV1.weather.conditions,
@@ -951,17 +955,12 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 
     // Save to Postgres using Drizzle
     // Replit automatically switches DATABASE_URL between dev and prod
-    console.log('[Snapshot DB] 💾 Writing to snapshots table - Field Mapping:');
+    console.log('[Snapshot DB] 💾 Writing to snapshots table - API-Enriched Data Only:');
     console.log('  → snapshot_id:', dbSnapshot.snapshot_id);
     console.log('  → user_id:', dbSnapshot.user_id);
     console.log('  → device_id:', dbSnapshot.device_id);
-    console.log('  → lat:', dbSnapshot.lat);
-    console.log('  → lng:', dbSnapshot.lng);
-    console.log('  → city:', dbSnapshot.city);
-    console.log('  → state:', dbSnapshot.state);
-    console.log('  → formatted_address:', dbSnapshot.formatted_address);
-    console.log('  → timezone:', dbSnapshot.timezone);
     console.log('  → h3_r8:', dbSnapshot.h3_r8);
+    console.log('  ⚠️  Location fields (lat, lng, city, state, formatted_address, timezone) are NULL - will be read from users table');
     console.log('  → weather:', dbSnapshot.weather);
     console.log('  → air:', dbSnapshot.air);
     console.log('  → airport_context:', dbSnapshot.airport_context);
