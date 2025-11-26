@@ -45,8 +45,8 @@ if (process.env.SIMULATE === '1') {
   });
 
   // Exit early - simulation handles its own lifecycle
-  // We use a dummy Promise to prevent the rest of the script from executing
-  await new Promise(() => {});
+  // Child process event handlers (exit/error above) will handle termination
+  return;
 }
 
 // Helper function to load env files
