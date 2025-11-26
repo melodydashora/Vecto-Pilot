@@ -85,9 +85,12 @@ process.on('unhandledRejection', (reason, promise) => {
     console.log(`[gateway] Express loaded in ${Date.now() - startTime}ms`);
 
     // Reserved VM deployment - always run full application
+    // Standard deployment detection - Pattern 1 (canonical)
     const isDeployment = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
+    const isAutoscaleMode = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === "1";
     
     console.log(`[gateway] 🎯 isDeployment: ${isDeployment}`);
+    console.log(`[gateway] 🎯 isAutoscaleMode: ${isAutoscaleMode}`);
     console.log(`[gateway] 🎯 Reserved VM mode - full application with background workers`);
 
     // REGULAR MODE: Full application
@@ -103,7 +106,6 @@ process.on('unhandledRejection', (reason, promise) => {
     // Autoscale mode: Simple OK response for health probe
     // Reserved VM: Let SPA handle after static files mounted
     // Dev/Preview: Let SPA handle for normal experience
-    const isAutoscaleDeploy = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === "1";
     // IMPORTANT: Removed the root "/" override for autoscale mode
     // The root "/" should serve the actual app, not just "OK"
     // Health endpoints with connection degradation detection
@@ -142,7 +144,6 @@ process.on('unhandledRejection', (reason, promise) => {
   // NOTE: In mono mode, consolidation listener runs in separate strategy-generator.js process
   // Gateway should NOT start an inline listener to avoid conflicts with separate worker
   // Replit Reserved VMs support background workers, only disable for explicit autoscale mode
-  const isAutoscaleMode = process.env.CLOUD_RUN_AUTOSCALE === "1";
   
   if (isAutoscaleMode) {
     console.log("[gateway] ⏩ Background worker disabled (Autoscale mode detected)");
@@ -179,9 +180,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
     // Diagnostic endpoint to verify database routing (must be BEFORE SDK router)
     app.get("/api/diagnostic/db-info", (_req, res) => {
-      // Standard deployment detection - Pattern 1 (canonical)
-      const isDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
-      
       const dbUrl = isDeployment ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
       const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@').split('@')[1] : 'NOT_SET';
       
@@ -202,10 +200,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
     // Mount SSE strategy events endpoint (before SDK/Agent routes)
     // Enable SSE in all modes EXCEPT autoscale (Reserved VM supports SSE, autoscale doesn't)
-    // Standard deployment detection - Pattern 1 (canonical)
-    const isDeployment2 = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
-    const isAutoscaleDeploy = isDeployment2 && process.env.CLOUD_RUN_AUTOSCALE === "1";
-    if (!isAutoscaleDeploy) {
+    if (!isAutoscaleMode) {
       try {
         console.log("[gateway] Loading SSE strategy events...");
         const strategyEvents = (await import("./server/strategy-events.js")).default;
@@ -238,11 +233,9 @@ process.on('unhandledRejection', (reason, promise) => {
       }
       
       // Start background worker in production if enabled
-      // Standard deployment detection - Pattern 1 (canonical)
-      const isDeployment3 = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
       const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true';
       
-      if (isDeployment3 && shouldStartWorker) {
+      if (isDeployment && shouldStartWorker) {
         console.log("[gateway] 🚀 Starting background worker for production...");
         try {
           const { openSync } = await import('node:fs');
@@ -276,7 +269,7 @@ process.on('unhandledRejection', (reason, promise) => {
         } catch (e) {
           console.error('[gateway] ❌ Failed to start production worker:', e?.message);
         }
-      } else if (isDeployment3) {
+      } else if (isDeployment) {
         console.log('[gateway] ⏸️  Production worker disabled (ENABLE_BACKGROUND_WORKER not true)');
       }
     }
