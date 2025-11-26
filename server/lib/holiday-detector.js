@@ -78,7 +78,12 @@ Return ONLY the holiday name if one exists, otherwise return empty string.`
     });
 
     if (!response.ok) {
-      console.warn('[holiday-detector] ⚠️  Perplexity API error:', response.status);
+      const errorBody = await response.text();
+      console.error('[holiday-detector] ❌ Perplexity API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorBody
+      });
       return { holiday: null, is_holiday: false };
     }
 
