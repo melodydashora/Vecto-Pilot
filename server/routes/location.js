@@ -873,9 +873,14 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       user_id: (snapshotV1.user_id && snapshotV1.user_id.trim() !== '') ? snapshotV1.user_id : null,
       device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
-      // Location data (lat/lng/city/state/timezone/etc) is pulled from users table via user_id
+      lat: snapshotV1.coord?.lat || null,
+      lng: snapshotV1.coord?.lng || null,
+      city: snapshotV1.resolved?.city || null,
+      state: snapshotV1.resolved?.state || null,
+      country: snapshotV1.resolved?.country || null,
+      formatted_address: snapshotV1.resolved?.formattedAddress || null,
+      timezone: snapshotV1.resolved?.timezone || null,
       h3_r8,
-      // API-enriched contextual data only (NOT duplicate location fields)
       weather: (snapshotV1.weather && typeof snapshotV1.weather === 'object' && snapshotV1.weather.tempF !== undefined) ? {
         tempF: snapshotV1.weather.tempF,
         conditions: snapshotV1.weather.conditions,
@@ -886,10 +891,10 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         category: snapshotV1.air.category
       } : null,
       airport_context: airportContext,
-      local_news: null, // Perplexity daily local news (deprecated - now in strategy pipeline)
-      news_briefing: localNews, // Gemini-generated 60-minute briefing (deprecated - now in briefings table)
-      holiday: holidayInfo.holiday, // Holiday name from Perplexity (e.g., "Día de los Muertos")
-      is_holiday: holidayInfo.is_holiday, // Boolean flag
+      local_news: null,
+      news_briefing: localNews,
+      holiday: holidayInfo.holiday,
+      is_holiday: holidayInfo.is_holiday,
       device: snapshotV1.device || null,
       permissions: snapshotV1.permissions || null,
       extras: snapshotV1.extras || null,
@@ -905,14 +910,12 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     console.log('  → lng:', dbSnapshot.lng);
     console.log('  → city:', dbSnapshot.city);
     console.log('  → state:', dbSnapshot.state);
+    console.log('  → formatted_address:', dbSnapshot.formatted_address);
     console.log('  → timezone:', dbSnapshot.timezone);
-    console.log('  → day_part_key:', dbSnapshot.day_part_key);
     console.log('  → h3_r8:', dbSnapshot.h3_r8);
     console.log('  → weather:', dbSnapshot.weather);
     console.log('  → air:', dbSnapshot.air);
     console.log('  → airport_context:', dbSnapshot.airport_context);
-    console.log('  → local_news:', dbSnapshot.local_news ? dbSnapshot.local_news.summary?.slice(0, 100) + '...' : 'none');
-    console.log('  → news_briefing:', dbSnapshot.news_briefing ? JSON.stringify(dbSnapshot.news_briefing.briefing?.driver_takeaway || dbSnapshot.news_briefing.briefing).slice(0, 150) + '...' : 'none');
     
     try {
       await db.insert(snapshots).values(dbSnapshot);
