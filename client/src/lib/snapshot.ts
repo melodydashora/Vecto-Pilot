@@ -79,13 +79,9 @@ export async function persistSnapshot(snapshot: SnapshotV1): Promise<{ snapshot_
       body: JSON.stringify(snapshot),
     });
     
-    console.log("📡 Snapshot response status:", response.status, response.ok);
-    
     if (response.ok) {
       const data = await response.json();
       const snapshotId = data.snapshot_id || snapshot.snapshot_id;
-      
-      console.log("✅ Snapshot saved successfully! Dispatching event...", snapshotId);
       
       // Dispatch event to notify UI that snapshot is complete and ready
       window.dispatchEvent(
@@ -97,15 +93,12 @@ export async function persistSnapshot(snapshot: SnapshotV1): Promise<{ snapshot_
           },
         })
       );
-      console.log("🎉 Event 'vecto-snapshot-saved' dispatched!");
       
       return { snapshot_id: snapshotId };
     } else {
-      console.warn("⚠️ Snapshot save response not OK:", response.status);
       return null;
     }
   } catch (err) {
-    console.error("❌ Failed to persist snapshot:", err);
     return null;
   }
 }
