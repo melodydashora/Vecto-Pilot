@@ -39,6 +39,10 @@ router.post("/", async (req, res) => {
     const latFromQuery = req.query.lat ? Number(req.query.lat) : null;
     const lngFromQuery = req.query.lng ? Number(req.query.lng) : null;
     
+    // CRITICAL: Log the entire request body to debug what frontend is sending
+    console.log('[snapshot] Request body keys:', Object.keys(req.body || {}));
+    console.log('[snapshot] Full request body:', JSON.stringify(req.body).substring(0, 500));
+    
     // Map both SnapshotV1 format (resolved) and internal format (context) for compatibility
     const { lat: latFromBody, lng: lngFromBody, context, resolved, meta, coord, device, permissions, time_context } = req.body || {};
     
@@ -57,9 +61,13 @@ router.post("/", async (req, res) => {
     // Extract time context from frontend (SnapshotV1 format includes time_context)
     const timeData = time_context || {};
     
-    console.log('[snapshot] Data extracted:', {
+    console.log('[snapshot] EXTRACTED DATA:', {
+      lat,
+      lng,
       city: contextData?.city,
+      state: contextData?.state,
       timezone: contextData?.timezone,
+      formatted_address: contextData?.formatted_address,
       hour: timeData?.hour,
       dow: timeData?.dow,
       day_part_key: timeData?.day_part_key,
