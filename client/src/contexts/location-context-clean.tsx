@@ -410,14 +410,10 @@ export function LocationProvider({ children }: LocationProviderProps) {
           };
           console.log('[LocationContext] Extracted locationData:', locationData);
 
-          // Display precise formatted address in header (NOT just city/state)
-          // This ensures users see their exact location for accurate strategy generation
-          // e.g., "18178 Dallas Pkwy, Dallas, TX 75287" instead of just "Dallas, TX"
+          // Display "City, State" in header for clean UI
+          // NOTE: formattedAddress (exact street address) is stored in snapshot and sent to LLMs
           let locationName;
-          if (locationData.formattedAddress) {
-            // Use full formatted address for precision (street-level detail)
-            locationName = locationData.formattedAddress;
-          } else if (locationData.city && locationData.state) {
+          if (locationData.city && locationData.state) {
             locationName = `${locationData.city}, ${locationData.state}`;
           } else if (locationData.city) {
             locationName = locationData.city;
