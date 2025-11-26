@@ -65,9 +65,13 @@ export function createSnapshot({
   };
 }
 
+/**
+ * Persist snapshot to backend database
+ * @param {SnapshotV1} snapshot - Snapshot to persist
+ * @returns {Promise<{snapshot_id: string} | null>} Persisted snapshot ID or null on error
+ */
 export async function persistSnapshot(snapshot: SnapshotV1): Promise<{ snapshot_id: string } | null> {
   try {
-    console.log("🔄 Sending snapshot to server...", { snapshot_id: snapshot.snapshot_id });
     const response = await fetch("/api/location/snapshot", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
