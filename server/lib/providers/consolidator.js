@@ -61,6 +61,9 @@ export async function runConsolidator(snapshotId) {
     const userAddress = ctx.formatted_address; // CRITICAL: Always from users table via getSnapshotContext
     const cityDisplay = ctx.city || 'your area';
     
+    // DEBUG: Log the precise address being sent to GPT-5
+    console.log(`[consolidator] 🎯 PRECISE ADDRESS FOR LLM: "${userAddress}"`);
+    
     // CRITICAL: Extract AUTHORITATIVE date/time from snapshot (never recompute)
     const dayOfWeek = ctx.day_of_week;
     const isWeekend = ctx.is_weekend;
