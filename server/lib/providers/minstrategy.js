@@ -20,7 +20,10 @@ export async function runMinStrategy(snapshotId) {
     
     const systemPrompt = `You are a rideshare strategy analyst. Analyze the driver's current location, time, weather, and conditions to provide a brief strategic assessment (2-3 sentences). Focus on positioning opportunities and demand patterns.
 
-IMPORTANT: Use plain text only. Do NOT use markdown formatting (no **, __, #, etc.). Write in clear, natural sentences.`;
+CRITICAL: 
+- ALWAYS start with "From your current position in [CITY], [STATE]" using the exact location provided
+- NEVER use "Unknown" - you have been given the precise driver location
+- Use plain text only. Do NOT use markdown formatting (no **, __, #, etc.). Write in clear, natural sentences.`;
     
     // CRITICAL: Use snapshot's authoritative date/time fields
     const localTime = ctx.local_iso ? new Date(ctx.local_iso).toLocaleString('en-US', { 
