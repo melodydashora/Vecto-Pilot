@@ -558,16 +558,19 @@ export function LocationProvider({ children }: LocationProviderProps) {
               console.log("✅ Snapshot saved successfully:", snapshotId);
               
               // Dispatch event to notify UI that snapshot is complete and ready
+              // Include holiday data so GlobalHeader can display it
               window.dispatchEvent(
                 new CustomEvent("vecto-snapshot-saved", {
                   detail: {
                     snapshotId,
                     lat: coords.latitude,
                     lng: coords.longitude,
+                    holiday: snapshotData.holiday || null,
+                    is_holiday: snapshotData.is_holiday || false,
                   },
                 })
               );
-              console.log("✅ Snapshot complete and ready! ID:", snapshotId);
+              console.log("✅ Snapshot complete and ready! ID:", snapshotId, "Holiday:", snapshotData.holiday || 'none');
             } else {
               clearTimeout(snapshotTimeout);
               // Handle HTTP errors (500, 503, etc.)
