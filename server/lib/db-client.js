@@ -105,11 +105,10 @@ export async function getListenClient() {
     }
   }
 
-  // Replit Database - use DATABASE_URL directly
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.DEPLOY_MODE === 'webservice';
+  // Replit Database - use DATABASE_URL directly (auto-switched by Replit)
   const connectionString = process.env.DATABASE_URL;
   
-  console.log(`[db-client] LISTEN client using ${isProduction ? 'PRODUCTION' : 'DEV'} Replit Database`);
+  console.log(`[db-client] LISTEN client using Replit Database`);
   
   if (!connectionString) {
     throw new Error('[db-client] No DATABASE_URL found');
