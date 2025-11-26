@@ -43,6 +43,13 @@
       "when": 1764123151809,
       "tag": "0005_even_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1764138152189,
+      "tag": "0006_typical_lifeguard",
+      "breakpoints": true
     }
   ]
 }
