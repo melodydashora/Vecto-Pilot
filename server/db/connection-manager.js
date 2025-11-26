@@ -1,8 +1,8 @@
-import pkg from 'pg';
+import Database from '@replit/database';
 import crypto from 'crypto';
 import { ndjson } from '../logger/ndjson.js';
 
-const { Pool } = pkg;
+const db = new Database();
 
 // Replit DATABASE_URL automatically switches between dev and prod
 // No need for manual environment detection - Replit handles this
