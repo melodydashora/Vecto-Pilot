@@ -238,9 +238,34 @@ router.get('/timezone', async (req, res) => {
   }
 });
 
-// GET /api/location/resolve?lat=&lng=&device_id=&accuracy=&session_id=&coord_source=
-// Combined endpoint - get both geocoding and timezone in one call
-// Captures rich telemetry fields for data quality tracking
+/**
+ * GET /api/location/resolve
+ * Resolves GPS coordinates to formatted address and timezone in a single call
+ * 
+ * Query Parameters:
+ *   - lat (number, required): Latitude coordinate
+ *   - lng (number, required): Longitude coordinate
+ *   - device_id (string, optional): Device identifier for tracking across sessions
+ *   - accuracy (number, optional): GPS accuracy radius in meters
+ *   - session_id (string, optional): Session identifier for telemetry
+ *   - coord_source (string, optional): Source of coordinates (default: "gps")
+ * 
+ * Returns:
+ *   - city, state, country: Resolved address components
+ *   - formattedAddress: Full street address from Google Geocoding API
+ *   - timeZone: IANA timezone identifier
+ *   - user_id: UUID of created/updated user record in users table
+ * 
+ * Side Effects:
+ *   - Creates or updates user record in users table with rich telemetry
+ *   - Validates formatted_address is not null before database write
+ *   - Throws 502 error if address resolution fails (prevents bad data)
+ * 
+ * Data Quality:
+ *   - Captures accuracy_m, session_id, coord_source for density analysis
+ *   - Computes local time context (dow, hour, day_part) in user's timezone
+ *   - Single source of truth for driver location (replaces legacy methods)
+ */
 router.get('/resolve', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
