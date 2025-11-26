@@ -250,8 +250,18 @@ router.get('/resolve', async (req, res) => {
     const coordSource = req.query.coord_source || 'gps';
 
     if (!isFinite(lat) || !isFinite(lng)) {
-      return res.status(400).json({ error: 'lat/lng required' });
+      console.error('[Location API] INVALID COORDINATES - lat/lng required for precise location resolution', {
+        lat,
+        lng,
+        isLatFinite: isFinite(lat),
+        isLngFinite: isFinite(lng),
+        rawLat: req.query.lat,
+        rawLng: req.query.lng
+      });
+      return res.status(400).json({ error: 'lat/lng required for precise location resolution', ok: false });
     }
+    
+    console.log('[Location API] VALID COORDINATES received', { lat, lng, accuracy, deviceId });
 
     if (!GOOGLE_MAPS_API_KEY) {
       console.warn('[location] No Google Maps API key configured');

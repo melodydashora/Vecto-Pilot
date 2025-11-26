@@ -348,12 +348,25 @@ export function LocationProvider({ children }: LocationProviderProps) {
       locationControllerRef.current = new AbortController();
       const locationSignal = locationControllerRef.current.signal;
 
-      // Resolve ALL context data in parallel: location, weather, and air quality
-      // Track device_id for user location tracking
+      if (!isFinite(coords.latitude) || !isFinite(coords.longitude)) {
+        console.error('[LocationContext] INVALID COORDINATES - lat/lng required for precise location resolution', {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          isLatFinite: isFinite(coords.latitude),
+          isLngFinite: isFinite(coords.longitude)
+        });
+        setLocationState((prev: any) => ({
+          ...prev,
+          error: 'Invalid GPS coordinates - cannot resolve location',
+          isLoading: false,
+          isUpdating: false,
+        }));
+        return;
+      }
+
       const deviceId = localStorage.getItem('vecto_device_id') || crypto.randomUUID();
       localStorage.setItem('vecto_device_id', deviceId);
       
-      // Helper: Safe JSON parsing that checks content-type header
       const safeJsonParse = async (response) => {
         if (!response.ok) {
           console.error(`[LocationContext] API returned HTTP ${response.status}`);
@@ -370,8 +383,12 @@ export function LocationProvider({ children }: LocationProviderProps) {
         }
       };
       
-      // Build URL with rich telemetry fields
       const locationResolveUrl = `/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}&device_id=${deviceId}&accuracy=${coords.accuracy || ''}&coord_source=gps`;
+      console.log('[LocationContext] VALID COORDINATES - calling location API', {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy
+      });
       
       console.log("🚀 [LocationContext] Starting Promise.all for location/weather/air APIs...");
       console.log(`📡 Location URL: ${locationResolveUrl}`);
