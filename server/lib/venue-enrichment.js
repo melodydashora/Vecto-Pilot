@@ -9,7 +9,6 @@
  */
 
 import { getRouteWithTraffic } from "./routes-api.js";
-import { getPlaceHours, findPlaceIdByText } from "./places-hours.js";
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
