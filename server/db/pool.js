@@ -17,17 +17,23 @@ const pool = getPool();
 /**
  * Get pool statistics for monitoring
  * Returns actual connection pool metrics for health checks
+ * Uses only public pg.Pool properties (safe across all versions)
  */
 export function getPoolStats() {
   try {
+    // Get max pool size from pool options (public API, safe across versions)
+    // Fallback to 20 if not available (matches default in connection-manager.js)
+    const maxPoolSize = pool.options?.max ?? 20;
+    
     return {
-      idle: pool.idleCount,
-      total: pool.totalCount,
-      waiting: pool.waitingCount,
-      max: pool._max || 20,
+      idle: pool.idleCount ?? 0,
+      total: pool.totalCount ?? 0,
+      waiting: pool.waitingCount ?? 0,
+      max: maxPoolSize,
       status: 'ok'
     };
   } catch (err) {
+    // If any error occurs accessing pool properties, return safe defaults
     return {
       idle: 0,
       total: 0,
