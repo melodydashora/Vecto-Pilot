@@ -409,9 +409,12 @@ export function LocationProvider({ children }: LocationProviderProps) {
           };
           console.log('[LocationContext] Extracted locationData:', locationData);
 
-          // Format as "City, ST" if we have both city and state (from users table response)
+          // CRITICAL: Use FULL formatted address for precise location (e.g., "123 Main St, Frisco, TX 75034")
+          // "City, State" is too vague - user could be 30+ minutes from city center
           let locationName;
-          if (locationData.city && locationData.state) {
+          if (locationData.formattedAddress) {
+            locationName = locationData.formattedAddress;
+          } else if (locationData.city && locationData.state) {
             locationName = `${locationData.city}, ${locationData.state}`;
           } else if (locationData.city) {
             locationName = locationData.city;
