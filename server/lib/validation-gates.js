@@ -30,14 +30,14 @@ export function validateLocationFreshness(snapshot, requestTime = new Date()) {
     };
   }
 
-  // Check reverse-geocode age ≤ 2 minutes
+  // Check reverse-geocode age ≤ 24 hours (drivers can manually refresh)
   const snapshotAge = requestTime - new Date(snapshot.created_at);
-  const maxAgeMs = 2 * 60 * 1000; // 2 minutes in milliseconds
+  const maxAgeMs = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
   if (snapshotAge > maxAgeMs) {
     return { 
       valid: false, 
-      error: `LOCATION_STALE: Snapshot age ${Math.round(snapshotAge / 1000)}s exceeds 120s threshold` 
+      error: `LOCATION_STALE: Snapshot age ${Math.round(snapshotAge / 1000)}s exceeds 86400s threshold` 
     };
   }
 
