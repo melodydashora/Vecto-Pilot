@@ -1009,10 +1009,17 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         
         const locationFreshness = validateLocationFreshness(userRecord);
         if (!locationFreshness.valid) {
-          console.warn('[Snapshot] ⚠️ Location freshness check:', locationFreshness.error);
-          // Log but don't block - location might be older but still valid for snapshot
+          console.error('[Snapshot] ❌ CRITICAL: Location freshness validation FAILED:', locationFreshness.error);
+          // CRITICAL FIX Issue #6: Reject snapshot if location data is stale - LLMs need fresh context
+          return httpError(res, 400, 'location_stale', 
+            `Location data is stale (${locationFreshness.error}). Please refresh GPS.`, cid);
         } else {
-          console.log('[Snapshot] ✅ Location validation passed - users table has fresh address:', userRecord.formatted_address);
+          console.log('[Snapshot] ✅ Location validation passed - users table has fresh address:', {
+            formatted_address: userRecord.formatted_address,
+            city: userRecord.city,
+            updated_at: userRecord.updated_at,
+            accuracy_m: userRecord.accuracy_m
+          });
         }
       } catch (validationErr) {
         console.error('[Snapshot] Validation check failed:', validationErr.message);
