@@ -263,12 +263,12 @@ export function LocationProvider({ children }: LocationProviderProps) {
   const generationRef = useRef(0);
 
   // Use the GPS hook without automatic refresh (0 = no interval)
-  const { coords, loading, error: gpsError, refresh } = useGeoPosition(0);
+  const { coords, loading, error: gpsError, refresh } = useGeolocation(0);
 
   // Simplified GPS refresh function using the hook
   const refreshLocation = async () => {
     // Renamed from refreshGPS to refreshLocation for consistency
-    console.log("🌐 Starting GPS refresh using useGeoPosition hook...");
+    console.log("🌐 Starting GPS refresh using useGeolocation hook...");
     
     // GPS refresh clears override - this is the source of truth
     setOverrideCoords(null);
@@ -280,7 +280,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
       isLoading: true,
     }));
 
-    // Use the refresh function from useGeoPosition hook
+    // Use the refresh function from useGeolocation hook
     await refresh();
 
     // The useEffect will handle updating the location when coords change
