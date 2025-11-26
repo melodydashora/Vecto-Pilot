@@ -11,7 +11,7 @@ export function validateEnvironment() {
   
   // CRITICAL: Database connection (required for all modes)
   if (!process.env.DATABASE_URL) {
-    errors.push('DATABASE_URL is required (Replit Database)');
+    errors.push('DATABASE_URL is required (Replit PostgreSQL)');
   }
   
   // CRITICAL: AI providers (at least one required for strategy generation)
