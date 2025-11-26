@@ -97,14 +97,24 @@ const GlobalHeader: React.FC = () => {
     return () => clearInterval(id);
   }, []);
 
-  // Listen for snapshot saved event to update indicator
+  // Listen for snapshot saved event to update indicator (and holiday info)
   useEffect(() => {
     const handleSnapshotSaved = (e: Event) => {
       const customEvent = e as CustomEvent;
       const snapshotId = customEvent.detail?.snapshotId;
+      const holidayName = customEvent.detail?.holiday;
+      const holidayFlag = customEvent.detail?.is_holiday;
       if (snapshotId) {
         setSnapshotReady(true);
         setLatestSnapshotId(snapshotId);
+      }
+      // Update holiday state if provided
+      if (holidayName) {
+        setHoliday(holidayName);
+        setIsHoliday(true);
+      } else if (holidayFlag === false) {
+        setHoliday(null);
+        setIsHoliday(false);
       }
     };
     window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
@@ -503,7 +513,12 @@ const GlobalHeader: React.FC = () => {
               <div className="text-xs text-white/80 flex items-center gap-2">
                 <span>
                   <Clock className="inline mr-1 h-3 w-3" />
-                  {dayOfWeek} {timeContextLabel}
+                  {/* Prioritize holiday name over day part label when available */}
+                  {isHoliday && holiday ? (
+                    <span className="text-amber-300 font-semibold">{holiday}</span>
+                  ) : (
+                    <>{dayOfWeek} {timeContextLabel}</>
+                  )}
                 </span>
                 {weatherLoading ? (
                   <div className="h-5 w-14 rounded-full bg-white/10 animate-pulse" aria-hidden="true" />
