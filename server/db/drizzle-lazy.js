@@ -1,16 +1,14 @@
-// server/db/drizzle-lazy.js
-// Lazy-loaded Drizzle instance using shared connection-manager pool
+// Lazy-loaded Drizzle instance
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { getPool } from './connection-manager.js';
+import pool from './connection-manager.js';
+import * as schema from '../../shared/schema.js';
 
 let db = null;
 
 export function getDb() {
   if (!db) {
-    const pool = getPool();
-    db = drizzle(pool, { logger: false });
+    db = drizzle(pool, { schema });
   }
-  
   return db;
 }
 
