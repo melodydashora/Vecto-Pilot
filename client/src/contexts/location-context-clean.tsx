@@ -6,7 +6,7 @@ import {
   useRef,
   ReactNode,
 } from "react";
-import { useGeolocation } from "@/hooks/use-geolocation";
+import { useGeoPosition } from "@/hooks/useGeoPosition";
 import type { DriverSettings } from "@/types/driver";
 import { buildTimeContext } from "@/lib/daypart";
 import { createSnapshot } from "@/lib/snapshot";
