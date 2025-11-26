@@ -184,11 +184,14 @@ console.log('[boot] ⏩ SDK routes embedded in gateway (no separate SDK process)
 const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true' && !isCloudRun;
 
 let worker = null;
-let workerRestartCount = 0;
-const MAX_WORKER_RESTARTS = 10;
-const RESTART_BACKOFF_MS = 5000;
+let consecutiveFailures = 0; // Tracks CONSECUTIVE failures, resets on successful start
+const MAX_WORKER_RESTARTS = parseInt(process.env.MAX_WORKER_RESTARTS || '10', 10);
+const RESTART_BACKOFF_MS = parseInt(process.env.RESTART_BACKOFF_MS || '5000', 10);
 
 async function startWorker() {
+  // Reset consecutive failures when spawning a new worker (successful restart)
+  consecutiveFailures = 0;
+  
   const { openSync } = await import('node:fs');
   const workerLogFd = openSync('/tmp/worker-output.log', 'a');
   
@@ -199,6 +202,7 @@ async function startWorker() {
 
   worker.on('error', (err) => {
     console.error('[boot:worker:error] Failed to spawn worker:', err.message);
+    consecutiveFailures++;
   });
 
   worker.on('exit', async (code) => {
@@ -219,26 +223,26 @@ async function startWorker() {
       }
     }
 
-    // Auto-restart logic
-    if (code !== 0 && code !== null && workerRestartCount < MAX_WORKER_RESTARTS) {
-      workerRestartCount++;
-      console.log(`[boot:worker:restart] Restarting worker (attempt ${workerRestartCount}/${MAX_WORKER_RESTARTS}) in ${RESTART_BACKOFF_MS}ms...`);
+    // Auto-restart logic (tracks CONSECUTIVE failures, not total)
+    if (code !== 0 && code !== null && consecutiveFailures < MAX_WORKER_RESTARTS) {
+      consecutiveFailures++;
+      console.log(`[boot:worker:restart] Restarting worker (consecutive failures: ${consecutiveFailures}/${MAX_WORKER_RESTARTS}) in ${RESTART_BACKOFF_MS}ms...`);
       
       setTimeout(() => {
         console.log('[boot:worker:restart] Spawning new worker process...');
         startWorker();
       }, RESTART_BACKOFF_MS);
-    } else if (workerRestartCount >= MAX_WORKER_RESTARTS) {
-      console.error('[boot:worker:restart] ❌ Max restart attempts reached, worker will not restart');
+    } else if (consecutiveFailures >= MAX_WORKER_RESTARTS) {
+      console.error('[boot:worker:restart] ❌ Max consecutive restart attempts reached, worker will not restart');
       console.error('[boot:worker:restart] ❌ Strategy generation is OFFLINE - manual intervention required');
     } else {
-      console.log('[boot:worker:exit] Worker exited gracefully (code 0), not restarting');
+      console.log('[boot:worker:exit] Worker exited gracefully (code 0), reset failure counter for next restart cycle');
     }
   });
 
   console.log(`[boot] ✅ Triad worker started (PID: ${worker.pid})`);
   console.log(`[boot] 📋 Worker logs: /tmp/worker-output.log`);
-  console.log(`[boot] 🔄 Auto-restart enabled (max ${MAX_WORKER_RESTARTS} attempts)`);
+  console.log(`[boot] 🔄 Auto-restart enabled (max ${MAX_WORKER_RESTARTS} consecutive failures allowed)`);
 }
 
 if (shouldStartWorker) {
