@@ -409,12 +409,10 @@ export function LocationProvider({ children }: LocationProviderProps) {
           };
           console.log('[LocationContext] Extracted locationData:', locationData);
 
-          // CRITICAL: Use FULL formatted address for precise location (e.g., "123 Main St, Frisco, TX 75034")
-          // "City, State" is too vague - user could be 30+ minutes from city center
+          // Display "City, State" in header for clean UI
+          // NOTE: formattedAddress (exact street address) is stored in snapshot and sent to LLMs
           let locationName;
-          if (locationData.formattedAddress) {
-            locationName = locationData.formattedAddress;
-          } else if (locationData.city && locationData.state) {
+          if (locationData.city && locationData.state) {
             locationName = `${locationData.city}, ${locationData.state}`;
           } else if (locationData.city) {
             locationName = locationData.city;
