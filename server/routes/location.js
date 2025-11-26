@@ -7,6 +7,7 @@ import { snapshots, strategies, users } from '../../shared/schema.js';
 import { sql, eq } from 'drizzle-orm';
 import { generateStrategyForSnapshot } from '../lib/strategy-generator.js';
 import { validateSnapshotV1 } from '../util/validate-snapshot.js';
+import { validateLocationFreshness } from '../lib/validation-gates.js';
 import { uuidOrNull } from '../util/uuid.js';
 import { makeCircuit } from '../util/circuit.js';
 import { jobQueue } from '../lib/job-queue.js';
@@ -952,6 +953,35 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       permissions: snapshotV1.permissions || null,
       extras: snapshotV1.extras || null,
     };
+
+    // VALIDATION GATE: Verify location was resolved in users table before creating snapshot
+    // Issue #6: Validate that formatted_address exists and is fresh
+    if (snapshotV1.user_id) {
+      try {
+        const [userRecord] = await db
+          .select()
+          .from(users)
+          .where(eq(users.user_id, snapshotV1.user_id))
+          .limit(1);
+        
+        if (!userRecord || !userRecord.formatted_address) {
+          console.error('[Snapshot] ❌ VALIDATION FAILED: User location not resolved in users table');
+          return httpError(res, 400, 'location_not_resolved', 
+            'Location data not found in users table - please retry location resolution', cid);
+        }
+        
+        const locationFreshness = validateLocationFreshness(userRecord);
+        if (!locationFreshness.valid) {
+          console.warn('[Snapshot] ⚠️ Location freshness check:', locationFreshness.error);
+          // Log but don't block - location might be older but still valid for snapshot
+        } else {
+          console.log('[Snapshot] ✅ Location validation passed - users table has fresh address:', userRecord.formatted_address);
+        }
+      } catch (validationErr) {
+        console.error('[Snapshot] Validation check failed:', validationErr.message);
+        return httpError(res, 502, 'validation_failed', 'Could not validate location', cid);
+      }
+    }
 
     // Save to Postgres using Drizzle
     // Replit automatically switches DATABASE_URL between dev and prod
