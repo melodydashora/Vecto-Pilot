@@ -91,9 +91,8 @@ function loadEnvFile(filename) {
 }
 
 // Reserved VM deployment - always run full application, never autoscale mode
-const isDeployment = 
-  process.env.REPLIT_DEPLOYMENT === "1" || 
-  process.env.REPLIT_DEPLOYMENT === "true"
+// Canonical pattern for deployment detection (standardized across all entry points)
+const isDeployment = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
 
 // Debug logging for deployment detection
 console.log('[boot] 🔍 Deployment detection:');

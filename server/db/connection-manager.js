@@ -1,8 +1,8 @@
 import { Pool } from 'pg';
 
-// SIMPLIFIED: Replit automatically injects the correct DATABASE_URL 
+// SIMPLIFIED: Replit PostgreSQL automatically injects the correct DATABASE_URL 
 // for both Development (local) and Production (Deployments).
-// We do not need manual switching logic or external Neon checks.
+// We do not need manual switching logic or external database provider checks.
 
 if (!process.env.DATABASE_URL) {
   console.error("❌ Fatal: DATABASE_URL is missing. Ensure Replit Postgres is enabled.");
@@ -28,7 +28,7 @@ export function getPool() {
   return pool;
 }
 
-// Get agent state for health monitoring (Replit DB is stable, always report healthy)
+// Get agent state for health monitoring (PostgreSQL via Replit is stable, always report healthy)
 export function getAgentState() {
   return {
     degraded: false,
