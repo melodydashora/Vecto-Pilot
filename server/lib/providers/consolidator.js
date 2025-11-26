@@ -119,6 +119,8 @@ CRITICAL REQUIREMENTS:
 - Do NOT list venues or curb locations
 - The "summary" field is MANDATORY - it consolidates tactical details into actionable guidance
 - Use the exact day of week and time provided - do not recompute dates
+- NEVER output "Unknown, Unknown" - you have the precise location below
+- Always reference driver's EXACT location: ${userAddress}
 - Return ONLY valid JSON with all 5 fields`;
 
     const userPrompt = `SNAPSHOT DATA (AUTHORITATIVE - from driver's GPS):
@@ -129,7 +131,7 @@ Hour: ${ctx.hour}:00
 Timezone: ${ctx.timezone}
 ${ctx.is_holiday ? `🎉 HOLIDAY: ${ctx.holiday}` : ''}
 
-PRECISE DRIVER LOCATION: ${userAddress}
+DRIVER'S EXACT LOCATION (USE THIS - NOT "Unknown"): ${userAddress}
 Coordinates: ${ctx.lat}, ${ctx.lng}
 
 Weather: ${ctx.weather?.tempF || 'unknown'}°F, ${ctx.weather?.conditions || 'unknown'}
@@ -147,10 +149,12 @@ Research current conditions near ${userAddress} and return structured JSON with 
 3. tactical_enforcement: Enforcement activity (checkpoints, patrols, detailed)
 4. tactical_sources: Sources checked (list websites/URLs you searched)
 5. summary: MANDATORY - Actionable 3-5 sentence summary that:
+   - STARTS with: "From your current position in ${ctx.city}, ${ctx.state}..."
    - Consolidates ALL tactical details above
    - Integrates strategist's assessment
    - Tells driver exactly what to do in next 30 minutes
    - Ends with specific recommendation (go now, wait, focus on X area)
+   - NEVER outputs "Unknown, Unknown" - always use exact location: ${userAddress}
 
 CRITICAL REQUIREMENTS:
 - ALL 5 FIELDS ARE REQUIRED - especially "summary"
