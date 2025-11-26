@@ -471,8 +471,7 @@ const CoPilot: React.FC = () => {
           
           // Transform response to match existing interface
           const data = await response.json();
-          console.log('🔍 Raw API response:', data);
-          console.log('🔍 First block raw:', data.blocks?.[0]);
+          // Debug: Blocks API response (removed verbose logs)
           
           const transformed = {
             now: data.generatedAt || new Date().toISOString(),
