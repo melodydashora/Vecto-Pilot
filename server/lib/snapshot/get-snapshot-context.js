@@ -57,52 +57,49 @@ export async function getSnapshotContext(snapshotId) {
 
   // CRITICAL: Compute day_of_week string from dow number for date propagation
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  // Use user data if available (from users table), fallback to snapshot legacy fields
-  const dow = userData?.dow ?? snapshot.dow;
+  // Use snapshot as authority for time context (it's immutable and captures the moment)
+  const dow = snapshot.dow;
   const day_of_week = dow != null ? dayNames[dow] : 'Unknown';
   const is_weekend = dow === 0 || dow === 6;
 
   // Return full context with ALL fields providers need
   // CRITICAL DATE PROPAGATION: dow, day_of_week, hour, local_iso, iso_timestamp
-  // These fields are authoritative and must be passed to all providers
+  // These fields are authoritative from the snapshot and must be passed to all providers
   
   // CRITICAL FIX: Reject if formatted_address missing - fail hard instead of silently using fallback
   // This alerts LLM pipeline to missing location data rather than silently using generic "Unknown location"
-  if (!userData?.formatted_address) {
-    console.error('[getSnapshotContext] ❌ CRITICAL: Missing formatted_address from users table', {
+  if (!snapshot?.formatted_address) {
+    console.error('[getSnapshotContext] ❌ CRITICAL: Missing formatted_address from snapshot', {
       snapshot_id: snapshot.snapshot_id,
       user_id: snapshot.user_id,
-      userData: userData ? { city: userData.city, state: userData.state } : null
+      snapshot_location: snapshot ? { city: snapshot.city, state: snapshot.state } : null
     });
   }
   
-  const formattedAddress = userData?.formatted_address || `${userData?.city || 'Unknown'}, ${userData?.state || 'Area'}`;
+  const formattedAddress = snapshot?.formatted_address || `${snapshot?.city || 'Unknown'}, ${snapshot?.state || 'Area'}`;
   
   return {
     snapshot_id: snapshot.snapshot_id,
     user_id: snapshot.user_id,
-    // Location data from users table (authoritative source)
+    // Location data from snapshot (denormalized from users table at snapshot creation)
     formatted_address: formattedAddress,
     user_address: formattedAddress, // alias for compatibility
-    city: userData?.city || snapshot.city,
-    state: userData?.state || snapshot.state,
-    country: userData?.country || snapshot.country,
-    // CRITICAL FIX Finding #6: Dual lat/lng columns during migration
-    // new_lat/new_lng: Current write target (set by GPS refresh via /api/location/resolve)
-    // lat/lng: Legacy columns - being phased out after all existing data migrated
-    // Priority: 1) new_lat/new_lng if populated, 2) lat/lng fallback, 3) snapshot historical data
-    lat: userData?.new_lat ?? userData?.lat ?? snapshot.lat,
-    lng: userData?.new_lng ?? userData?.lng ?? snapshot.lng,
-    accuracy_m: userData?.accuracy_m ?? snapshot.accuracy_m,
-    timezone: userData?.timezone || snapshot.timezone,
+    city: snapshot.city,
+    state: snapshot.state,
+    country: snapshot.country,
+    // Coordinates from snapshot (captured at snapshot creation time)
+    lat: snapshot.lat,
+    lng: snapshot.lng,
+    accuracy_m: snapshot.accuracy_m,
+    timezone: snapshot.timezone,
     
-    // CRITICAL: Date/time fields from users table (authority for all downstream providers)
-    dow: dow, // 0=Sunday, 1=Monday, etc. (authoritative)
+    // CRITICAL: Date/time fields from snapshot (immutable at snapshot creation)
+    dow: dow, // 0=Sunday, 1=Monday, etc. (authoritative from snapshot)
     day_of_week, // Computed string: "Sunday", "Monday", etc.
     is_weekend, // Computed flag
-    hour: userData?.hour ?? snapshot.hour, // Hour of day (0-23)
-    day_part_key: userData?.day_part_key || snapshot.day_part_key, // "morning", "afternoon", "evening", "night"
-    local_iso: userData?.local_iso || snapshot.local_iso, // Local timestamp without timezone
+    hour: snapshot.hour, // Hour of day (0-23)
+    day_part_key: snapshot.day_part_key, // "morning", "afternoon", "evening", "night"
+    local_iso: snapshot.local_iso, // Local timestamp without timezone
     iso_timestamp: snapshot.created_at?.toISOString(), // ISO timestamp with timezone
     created_at: snapshot.created_at, // Full timestamp object
     
