@@ -46,7 +46,13 @@ router.post("/", async (req, res) => {
     const lng = lngFromQuery ?? lngFromBody ?? coord?.lng;
     
     // Map resolved → context for SnapshotV1 format compatibility
-    const contextData = context || resolved || {};
+    // CRITICAL: Normalize camelCase fields from frontend (timeZone) to snake_case (timezone)
+    const resolvedNormalized = resolved ? {
+      ...resolved,
+      timezone: resolved.timezone || resolved.timeZone, // Handle both camelCase and snake_case
+      formatted_address: resolved.formatted_address || resolved.formattedAddress
+    } : {};
+    const contextData = context || resolvedNormalized || {};
     
     // Validate snapshot data completeness using dedicated validator
     const { ok, errors, warnings } = validateIncomingSnapshot(req.body ?? {});
@@ -113,7 +119,12 @@ router.post("/", async (req, res) => {
     // CRITICAL: Also update users table so getSnapshotContext() finds location data
     // Users table is the source of truth for location data that providers need
     if (userId && (contextData?.city || contextData?.state || contextData?.timezone || contextData?.formatted_address)) {
-      console.log(`[snapshot] Updating users table for ${userId} with location context`);
+      console.log(`[snapshot] Updating users table for ${userId} with location context`, {
+        city: contextData?.city,
+        state: contextData?.state,
+        timezone: contextData?.timezone,
+        formatted_address: contextData?.formatted_address
+      });
       try {
         await db.insert(users).values({
           user_id: userId,
@@ -130,11 +141,11 @@ router.post("/", async (req, res) => {
         }).onConflictDoUpdate({
           target: users.user_id,
           set: {
-            city: contextData?.city || null,
-            state: contextData?.state || null,
-            country: contextData?.country || null,
-            formatted_address: contextData?.formatted_address || null,
-            timezone: contextData?.timezone || null,
+            city: contextData?.city,
+            state: contextData?.state,
+            country: contextData?.country,
+            formatted_address: contextData?.formatted_address,
+            timezone: contextData?.timezone,
             updated_at: sql`NOW()`
           }
         });
