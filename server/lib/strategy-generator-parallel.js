@@ -5,6 +5,7 @@ import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { callModel } from './adapters/index.js';
+import { validateConditions } from './weather-traffic-validator.js';
 
 // Feature flag - set to true to enable parallel orchestration
 const MULTI_STRATEGY_ENABLED = process.env.MULTI_STRATEGY_ENABLED === 'true';
@@ -425,6 +426,29 @@ export async function consolidateStrategy({ snapshotId, claudeStrategy, briefing
   console.log(`[consolidation] Starting GPT-5 consolidation for snapshot ${snapshotId}`);
 
   try {
+    // CRITICAL: Validate weather and traffic conditions FIRST - reject bad strategies early
+    console.log(`[consolidation] Validating weather and traffic conditions...`);
+    const conditions = await validateConditions(snapshot);
+    
+    if (!conditions.valid) {
+      console.warn(`[consolidation] ❌ REJECTING STRATEGY - Bad conditions detected:`, {
+        weather: conditions.weather,
+        traffic: conditions.traffic,
+        reason: conditions.rejectionReason
+      });
+      
+      await db.update(strategies).set({
+        consolidated_strategy: null,
+        status: 'rejected',
+        error_message: `Strategy rejected due to unsafe conditions: ${conditions.rejectionReason}`,
+        updated_at: new Date()
+      }).where(eq(strategies.snapshot_id, snapshotId));
+      
+      return { ok: false, reason: 'bad_conditions', details: conditions };
+    }
+    
+    console.log(`[consolidation] ✅ Weather and traffic conditions validated - proceeding with strategy`);
+    
     // Extract briefing fields from single JSONB object
     const events = briefing?.events || [];
     const news = briefing?.news || [];
