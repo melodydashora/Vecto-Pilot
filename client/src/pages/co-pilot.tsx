@@ -481,14 +481,6 @@ const CoPilot: React.FC = () => {
             refined: data.refined,
             timing: data.timing,
             blocks: data.blocks?.map((v: any) => {
-              console.log('🔄 Transforming block:', v.name, {
-                estimated_distance_miles: v.estimated_distance_miles,
-                driveTimeMinutes: v.driveTimeMinutes,
-                distanceSource: v.distanceSource,
-                value_per_min: v.value_per_min,
-                value_grade: v.value_grade
-              });
-              
               return {
                 name: v.name,
                 address: v.address,

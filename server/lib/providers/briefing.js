@@ -8,13 +8,27 @@ import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 import { callModel } from '../adapters/index.js';
 
 /**
- * Run briefing generation using model-agnostic briefer
- * Comprehensive travel research: global/domestic/local + holidays + events within 50mi
- * Writes to briefings table (structured fields for Briefing page display)
+ * Generate comprehensive briefing for driver location and time context
+ * 
+ * RESEARCH COVERAGE:
+ * - Global/domestic/local travel conditions
+ * - Local traffic, construction, road closures
+ * - Weather impacts on travel
+ * - Events within 50 miles affecting demand
+ * - Rideshare-specific intelligence (surge zones, airport activity)
+ * 
+ * DATA FLOW:
+ * - Pulls snapshot context (location, timezone, time_of_day)
+ * - Sends to Perplexity Sonar Pro for live web research
+ * - Parses JSON response with structured briefing fields
+ * - Writes to briefings table for Briefing page display
+ * - Updates strategy consolidation pipeline
+ * 
  * @param {string} snapshotId - UUID of snapshot
+ * @returns {Promise<void>}
+ * @throws {Error} If snapshot not found or briefing generation fails
  */
 export async function runBriefing(snapshotId) {
-  console.log(`[briefing] 🔍 Starting comprehensive travel research for snapshot ${snapshotId}`);
   
   try {
     const ctx = await getSnapshotContext(snapshotId);
