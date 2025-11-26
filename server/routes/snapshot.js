@@ -40,7 +40,7 @@ router.post("/", async (req, res) => {
     const lngFromQuery = req.query.lng ? Number(req.query.lng) : null;
     
     // Map both SnapshotV1 format (resolved) and internal format (context) for compatibility
-    const { lat: latFromBody, lng: lngFromBody, context, resolved, meta, coord, device, permissions } = req.body || {};
+    const { lat: latFromBody, lng: lngFromBody, context, resolved, meta, coord, device, permissions, time_context } = req.body || {};
     
     const lat = latFromQuery ?? latFromBody ?? coord?.lat;
     const lng = lngFromQuery ?? lngFromBody ?? coord?.lng;
@@ -54,12 +54,16 @@ router.post("/", async (req, res) => {
     } : {};
     const contextData = context || resolvedNormalized || {};
     
-    console.log('[snapshot] contextData extracted:', {
+    // Extract time context from frontend (SnapshotV1 format includes time_context)
+    const timeData = time_context || {};
+    
+    console.log('[snapshot] Data extracted:', {
       city: contextData?.city,
-      state: contextData?.state,
       timezone: contextData?.timezone,
-      formatted_address: contextData?.formatted_address,
-      source: context ? 'context' : resolved ? 'resolved' : 'empty'
+      hour: timeData?.hour,
+      dow: timeData?.dow,
+      day_part_key: timeData?.day_part_key,
+      local_iso: timeData?.local_iso
     });
     
     // Validate snapshot data completeness using dedicated validator
@@ -96,7 +100,7 @@ router.post("/", async (req, res) => {
 
     const snapshot_id = uuid();
 
-    // Build DB record - store denormalized location AND API-enriched fields for production reliability
+    // Build DB record - store location + time context + API-enriched fields
     const dbSnapshot = {
       snapshot_id,
       created_at: new Date(),
@@ -111,6 +115,11 @@ router.post("/", async (req, res) => {
       country: contextData?.country || null,
       formatted_address: contextData?.formatted_address || null,
       timezone: contextData?.timezone || null,
+      // Time context (authoritative at snapshot creation)
+      local_iso: timeData?.local_iso ? new Date(timeData.local_iso) : null,
+      dow: timeData?.dow ?? null,
+      hour: timeData?.hour ?? null,
+      day_part_key: timeData?.day_part_key || null,
       h3_r8: contextData?.h3_r8 || null,
       // API-enriched contextual data only
       weather: contextData?.weather || null,
