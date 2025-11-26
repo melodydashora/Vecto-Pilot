@@ -45,9 +45,17 @@ export async function getSnapshotContext(snapshotId) {
   // CRITICAL DATE PROPAGATION: dow, day_of_week, hour, local_iso, iso_timestamp
   // These fields are authoritative and must be passed to all providers
   
-  // CRITICAL: Ensure formatted_address is always from users table first (authoritative)
-  // Never fall back to snapshot.formatted_address - always use userData
-  const formattedAddress = userData?.formatted_address || 'Unknown location';
+  // CRITICAL FIX: Reject if formatted_address missing - fail hard instead of silently using fallback
+  // This alerts LLM pipeline to missing location data rather than silently using generic "Unknown location"
+  if (!userData?.formatted_address) {
+    console.error('[getSnapshotContext] ❌ CRITICAL: Missing formatted_address from users table', {
+      snapshot_id: snapshot.snapshot_id,
+      user_id: snapshot.user_id,
+      userData: userData ? { city: userData.city, state: userData.state } : null
+    });
+  }
+  
+  const formattedAddress = userData?.formatted_address || `${userData?.city || 'Unknown'}, ${userData?.state || 'Area'}`;
   
   return {
     snapshot_id: snapshot.snapshot_id,

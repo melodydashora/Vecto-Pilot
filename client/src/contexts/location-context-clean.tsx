@@ -426,6 +426,22 @@ export function LocationProvider({ children }: LocationProviderProps) {
             user_id: userLocationData?.user_id || null,
           };
           console.log('[LocationContext] Extracted locationData:', locationData);
+          
+          // CRITICAL FIX: Validate formattedAddress exists - don't proceed with null address
+          if (!locationData.formattedAddress) {
+            console.error('[LocationContext] ❌ CRITICAL: formattedAddress is null/empty from backend', {
+              city: locationData.city,
+              state: locationData.state,
+              coords: { lat: coords.latitude, lng: coords.longitude },
+              accuracy: coords.accuracy
+            });
+            console.warn('[LocationContext] ⚠️ Skipping snapshot creation - location data incomplete. Retrying GPS in 2 seconds...');
+            // Don't create snapshot - wait for retry
+            setTimeout(() => {
+              refreshLocation();
+            }, 2000);
+            return; // Exit without creating snapshot
+          }
 
           let locationName;
           if (locationData.city && locationData.state) {

@@ -299,13 +299,34 @@ router.get('/resolve', async (req, res) => {
       const first = geocodeData.results?.[0];
       ({ city, state, country } = first ? pickAddressParts(first.address_components) : {});
       formattedAddress = first?.formatted_address;
+      
+      // CRITICAL FIX: Validate formatted_address is not empty (Google API can return empty string)
+      if (!formattedAddress || formattedAddress.trim() === '') {
+        console.warn(`[Location API] ⚠️ Google API returned empty formatted_address for coords [${lat}, ${lng}]`, {
+          city,
+          state,
+          country,
+          rawAddress: formattedAddress,
+          accuracy: 'low - coordinates may be too approximate'
+        });
+        // Use fallback: City, State if available
+        if (city && state) {
+          formattedAddress = `${city}, ${state}`;
+          console.log(`[Location API] 📍 Using city/state fallback: "${formattedAddress}"`);
+        } else {
+          console.error(`[Location API] ❌ CRITICAL: No fallback available - cannot determine address at coords [${lat}, ${lng}]`);
+          formattedAddress = null; // Let validation gate catch this
+        }
+      }
+      
       console.log(`[Location API] 🗺️ Geocode resolved:`, {
         lat,
         lng,
         city,
         state,
         country,
-        formattedAddress
+        formattedAddress,
+        quality: formattedAddress ? 'precise' : 'failed'
       });
     } else {
       console.error(`[Location API] ❌ Geocode failed:`, {
@@ -360,6 +381,19 @@ router.get('/resolve', async (req, res) => {
           console.log('[location] 🔄 Updating existing user record:', { userId, deviceId });
           
           try {
+            // CRITICAL FIX: Validate formatted_address is not null before database write
+            if (!formattedAddress) {
+              console.error('[location] ❌ CRITICAL: formattedAddress is null/empty - refusing to update users table', {
+                lat, lng, city, state, accuracy, deviceId, coordSource,
+                reason: 'Google API may have returned empty string or reverse-geocoding failed'
+              });
+              return res.status(502).json({
+                ok: false,
+                error: 'location_persistence_failed',
+                message: 'Location could not be resolved to precise address. Try allowing GPS permissions or moving to a different location.'
+              });
+            }
+            
             // CRITICAL FIX Finding #4: Verify database write committed before returning
             // Use raw query with RETURNING to get confirmation row was updated
             const updateResult = await db.update(users)
