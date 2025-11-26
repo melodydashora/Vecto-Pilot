@@ -42,12 +42,8 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
   client.on('error', errorHandler);
   
   try {
-    // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
-    if (user_id_val) {
-      // CRITICAL: Parameterized query to prevent SQL injection
-      await client.query(`SET LOCAL app.user_id = $1::uuid`, [user_id_val]);
-    }
-    // Skip SET for NULL - not needed when RLS is disabled
+    // RLS is disabled - data isolation handled via SQL filtering on user_id column
+    // No session variable needed; user_id is part of the conflict/update logic
     
     const q = `
       INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
@@ -78,12 +74,8 @@ export async function memoryGet({ table, scope, key, userId }) {
   client.on('error', errorHandler);
   
   try {
-    // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
-    if (user_id_val) {
-      // CRITICAL: Parameterized query to prevent SQL injection
-      await client.query(`SET LOCAL app.user_id = $1::uuid`, [user_id_val]);
-    }
-    // Skip SET for NULL - not needed when RLS is disabled
+    // RLS is disabled - data isolation handled via SQL filtering on user_id column
+    // No session variable needed; WHERE clause ensures user-specific data access
     
     const q = `
       SELECT content FROM ${table}
@@ -121,12 +113,8 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
   client.on('error', errorHandler);
   
   try {
-    // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
-    if (user_id_val) {
-      // CRITICAL: Parameterized query to prevent SQL injection
-      await client.query(`SET LOCAL app.user_id = $1::uuid`, [user_id_val]);
-    }
-    // Skip SET for NULL - not needed when RLS is disabled
+    // RLS is disabled - data isolation handled via SQL filtering on user_id column
+    // No session variable needed; WHERE clause ensures user-specific data access
     
     const q = `
       SELECT key, content, updated_at
