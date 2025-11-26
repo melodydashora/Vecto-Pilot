@@ -1231,6 +1231,75 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
   }
 });
 
+// GET /api/users/me
+// CRITICAL FIX Issue #5: Fetch current user's latest location directly from users table
+// Header can call this instead of relying on cached context state
+// Always returns fresh data from authoritative source
+router.get('/users/me', async (req, res) => {
+  try {
+    const deviceId = req.query.device_id;
+    
+    if (!deviceId) {
+      return res.status(400).json({ 
+        ok: false,
+        error: 'device_id_required',
+        message: 'device_id query parameter required'
+      });
+    }
+    
+    console.log('[users/me] Fetching latest location for device:', deviceId);
+    
+    const [userRecord] = await db
+      .select()
+      .from(users)
+      .where(eq(users.device_id, deviceId))
+      .limit(1);
+    
+    if (!userRecord) {
+      console.warn('[users/me] No user found for device:', deviceId);
+      return res.status(404).json({
+        ok: false,
+        error: 'user_not_found',
+        message: 'No location data found for this device'
+      });
+    }
+    
+    // Return latest location data from authoritative users table
+    console.log('[users/me] ✅ Returning latest location:', {
+      user_id: userRecord.user_id,
+      formatted_address: userRecord.formatted_address,
+      city: userRecord.city,
+      state: userRecord.state,
+      updated_at: userRecord.updated_at
+    });
+    
+    res.json({
+      ok: true,
+      user_id: userRecord.user_id,
+      device_id: userRecord.device_id,
+      formatted_address: userRecord.formatted_address,
+      city: userRecord.city,
+      state: userRecord.state,
+      country: userRecord.country,
+      timezone: userRecord.timezone,
+      lat: userRecord.new_lat || userRecord.lat,
+      lng: userRecord.new_lng || userRecord.lng,
+      accuracy_m: userRecord.accuracy_m,
+      dow: userRecord.dow,
+      hour: userRecord.hour,
+      day_part_key: userRecord.day_part_key,
+      updated_at: userRecord.updated_at
+    });
+  } catch (err) {
+    console.error('[users/me] fetch error:', err);
+    res.status(500).json({
+      ok: false,
+      error: 'fetch_failed',
+      message: String(err?.message || err)
+    });
+  }
+});
+
 // GET /api/snapshots/:snapshotId
 // Fetch snapshot data including airport context
 router.get('/snapshots/:snapshotId', async (req, res) => {

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "@/contexts/location-context-clean";
+import { useQuery } from "@tanstack/react-query";
 
 // helpers (add these files from sections 2 and 3 below)
 import { classifyDayPart, buildTimeContext } from "@/lib/daypart";
@@ -38,6 +39,24 @@ const GlobalHeader: React.FC = () => {
   const [holiday, setHoliday] = useState<string | null>(null);
   const [isHoliday, setIsHoliday] = useState(false);
 
+  // CRITICAL FIX Issue #5: Get device_id from localStorage for database query
+  const deviceId = typeof window !== 'undefined' ? localStorage.getItem('vecto_device_id') : null;
+
+  // CRITICAL FIX Issue #5: Query /api/users/me directly for fresh location from database
+  // This bypasses context state lag and ensures header always shows current location
+  const { data: dbUserLocation } = useQuery({
+    queryKey: ['/api/users/me', deviceId],
+    queryFn: async () => {
+      if (!deviceId) return null;
+      const res = await fetch(`/api/users/me?device_id=${encodeURIComponent(deviceId)}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    staleTime: 5000, // Refresh from DB every 5 seconds
+    refetchInterval: 5000, // Poll every 5 seconds for fresh data
+    enabled: !!deviceId,
+  });
+
   // location from context, supporting both shapes
   // PRIORITY: Use override coords if available (manual city search), otherwise use GPS
   const overrideCoords = loc?.overrideCoords ?? null;
@@ -50,25 +69,24 @@ const GlobalHeader: React.FC = () => {
   
   const coords = overrideCoords || gpsCoords;
 
-  // PRIORITY: Use override city, then context's resolved location, then try location.currentLocation
+  // CRITICAL FIX Issue #5: PRIORITY - Use database location, then override city, then fallback
   const currentLocationString =
     overrideCoords?.city ?? 
+    (dbUserLocation?.ok && dbUserLocation?.city ? dbUserLocation.city : null) ??
     loc?.currentLocationString ?? 
     loc?.location?.currentLocation ??  // Try currentLocation (the actual state key)
     loc?.location?.currentLocationString ?? 
     "";
 
-  // Debug: Log what we're reading from context
+  // Debug: Log what we're reading - PRIORITY database location
   useEffect(() => {
-    console.log("[GlobalHeader] Context location values:", {
+    console.log("[GlobalHeader] CRITICAL FIX Issue #5 - Location source hierarchy:", {
+      dbLocation: dbUserLocation?.ok ? { city: dbUserLocation.city, state: dbUserLocation.state, updated_at: dbUserLocation.updated_at } : null,
       overrideCoords: overrideCoords?.city,
-      currentLocationString: loc?.currentLocationString,
-      locationCurrentLocationString: loc?.location?.currentLocationString,
-      finalValue: currentLocationString,
-      coords,
-      locationState: loc?.location,
+      contextLocationString: loc?.currentLocationString,
+      finalDisplayValue: currentLocationString,
     });
-  }, [currentLocationString, loc]);
+  }, [currentLocationString, dbUserLocation, loc]);
 
   // Header is "resolved" as soon as we have coords + city (don't wait for weather/AQ/events)
   const isLocationResolved = Boolean(
@@ -123,8 +141,11 @@ const GlobalHeader: React.FC = () => {
 
 
   // Compute local time fields for display with timezone
+  // CRITICAL FIX Issue #5: PRIORITY database timezone over context
   useEffect(() => {
-    const tz = loc?.timeZone || loc?.location?.timeZone;
+    const tz = dbUserLocation?.ok && dbUserLocation?.timezone 
+      ? dbUserLocation.timezone
+      : (loc?.timeZone || loc?.location?.timeZone);
     
     // Only pass timeZone if we have it, otherwise use browser's local timezone
     const formatter = new Intl.DateTimeFormat("en-US", {
@@ -146,7 +167,7 @@ const GlobalHeader: React.FC = () => {
     // Just show day and context label separately (avoid duplicate)
     setDayOfWeek(day);
     setTimeContextLabel(label);
-  }, [now, loc?.timeZone, loc?.location?.timeZone]);
+  }, [now, dbUserLocation, loc?.timeZone, loc?.location?.timeZone]);
 
   // ---- helpers -------------------------------------------------------------
 
@@ -160,8 +181,12 @@ const GlobalHeader: React.FC = () => {
   };
 
   const formatLocation = () => {
-    // Prioritize showing the resolved city name over coordinates
+    // CRITICAL FIX Issue #5: Show resolved city from database (freshest source)
     if (currentLocationString && currentLocationString !== "Getting location..." && currentLocationString !== "Detecting...") {
+      // If database location, show with formatted_address for precision
+      if (dbUserLocation?.ok && dbUserLocation?.formatted_address) {
+        return `📍 ${dbUserLocation.formatted_address}`;
+      }
       return currentLocationString;
     }
     // Fall back to coordinates if city name not yet resolved
