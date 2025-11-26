@@ -9,9 +9,9 @@ import { eq } from 'drizzle-orm';
  * Get complete snapshot context for AI providers (Strategist, Briefer, Consolidator, Holiday Checker)
  * 
  * DATA ARCHITECTURE:
- * - Location data pulled from users table (authoritative source) via user_id FK
- * - API-enriched data (weather, air, airport_context, local_news) from snapshots table
- * - Prevents "Unknown location" by failing hard if formatted_address missing
+ * - ALL location, time, weather data stored in snapshots table at snapshot creation
+ * - Snapshots table is authoritative source (denormalized for reliability)
+ * - No joins needed - single query retrieves everything providers need
  * 
  * REQUIRED BY LLMs:
  *   - formatted_address: Full street address (e.g., "1000 N Dallas Parkway, Carrollton, TX")
@@ -25,9 +25,8 @@ import { eq } from 'drizzle-orm';
  *   - holiday, is_holiday: Special event detection
  * 
  * CRITICAL BEHAVIOR:
- *   - Rejects snapshots where formatted_address is null/empty (fail-hard)
- *   - Uses users table as source of truth (prevents address duplication)
- *   - Migrating from legacy snapshot lat/lng to users table columns
+ *   - Snapshots store complete context at creation time (no joins)
+ *   - Fails hard if formatted_address missing (prevents "Unknown location" fallback)
  * 
  * @param {string} snapshotId - UUID of snapshot to resolve
  * @returns {Promise<Object>} Full context ready for AI provider pipeline
@@ -44,17 +43,6 @@ export async function getSnapshotContext(snapshotId) {
     throw new Error(`Snapshot ${snapshotId} not found`);
   }
 
-  // Fetch location data from users table (source of truth)
-  let userData = null;
-  if (snapshot.user_id) {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.user_id, snapshot.user_id))
-      .limit(1);
-    userData = user;
-  }
-
   // CRITICAL: Compute day_of_week string from dow number for date propagation
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   // Use snapshot as authority for time context (it's immutable and captures the moment)
@@ -62,54 +50,55 @@ export async function getSnapshotContext(snapshotId) {
   const day_of_week = dow != null ? dayNames[dow] : 'Unknown';
   const is_weekend = dow === 0 || dow === 6;
 
-  // Return full context with ALL fields providers need
-  // CRITICAL DATE PROPAGATION: dow, day_of_week, hour, local_iso, iso_timestamp
-  // These fields are authoritative from the snapshot and must be passed to all providers
-  
-  // CRITICAL FIX: Reject if formatted_address missing - fail hard instead of silently using fallback
-  // This alerts LLM pipeline to missing location data rather than silently using generic "Unknown location"
+  // CRITICAL FIX: Fail hard if formatted_address missing - don't use fallback
   if (!snapshot?.formatted_address) {
-    console.error('[getSnapshotContext] ❌ CRITICAL: Missing formatted_address from snapshot', {
-      snapshot_id: snapshot.snapshot_id,
-      user_id: snapshot.user_id,
-      snapshot_location: snapshot ? { city: snapshot.city, state: snapshot.state } : null
-    });
+    throw new Error(`[getSnapshotContext] CRITICAL: Missing formatted_address from snapshot ${snapshotId}. Cannot proceed without location data.`);
   }
   
-  const formattedAddress = snapshot?.formatted_address || `${snapshot?.city || 'Unknown'}, ${snapshot?.state || 'Area'}`;
-  
-  return {
+  const ctx = {
     snapshot_id: snapshot.snapshot_id,
     user_id: snapshot.user_id,
-    // Location data from snapshot (denormalized from users table at snapshot creation)
-    formatted_address: formattedAddress,
-    user_address: formattedAddress, // alias for compatibility
+    // Location data (stored in snapshot at creation - denormalized for reliability)
+    formatted_address: snapshot.formatted_address,
+    user_address: snapshot.formatted_address, // alias for compatibility
     city: snapshot.city,
     state: snapshot.state,
     country: snapshot.country,
-    // Coordinates from snapshot (captured at snapshot creation time)
+    // Coordinates from snapshot
     lat: snapshot.lat,
     lng: snapshot.lng,
     accuracy_m: snapshot.accuracy_m,
     timezone: snapshot.timezone,
     
-    // CRITICAL: Date/time fields from snapshot (immutable at snapshot creation)
-    dow: dow, // 0=Sunday, 1=Monday, etc. (authoritative from snapshot)
+    // Date/time fields from snapshot (immutable at snapshot creation)
+    dow: dow, // 0=Sunday, 1=Monday, etc.
     day_of_week, // Computed string: "Sunday", "Monday", etc.
     is_weekend, // Computed flag
-    hour: snapshot.hour, // Hour of day (0-23)
+    hour: snapshot.hour, // Hour of day (0-23) 
     day_part_key: snapshot.day_part_key, // "morning", "afternoon", "evening", "night"
-    local_iso: snapshot.local_iso, // Local timestamp without timezone
-    iso_timestamp: snapshot.created_at?.toISOString(), // ISO timestamp with timezone
-    created_at: snapshot.created_at, // Full timestamp object
+    local_iso: snapshot.local_iso, // Local timestamp
+    iso_timestamp: snapshot.created_at?.toISOString(),
+    created_at: snapshot.created_at,
     
-    // Holiday information (populated by Perplexity briefing)
-    holiday: snapshot.holiday, // Holiday name if today is a holiday (e.g., "Thanksgiving")
-    is_holiday: snapshot.is_holiday, // Boolean: true if today is a holiday
+    // Holiday information
+    holiday: snapshot.holiday,
+    is_holiday: snapshot.is_holiday,
     
-    // API-enriched data from snapshots
+    // API-enriched data
     weather: snapshot.weather,
+    air: snapshot.air,
     airport_context: snapshot.airport_context,
-    news_briefing: snapshot.news_briefing // includes holiday from Gemini
+    news_briefing: snapshot.news_briefing
   };
+  
+  console.log('[getSnapshotContext] ✅ Retrieved snapshot context:', {
+    snapshot_id: ctx.snapshot_id,
+    formatted_address: ctx.formatted_address,
+    timezone: ctx.timezone,
+    hour: ctx.hour,
+    dow: ctx.dow,
+    day_part_key: ctx.day_part_key
+  });
+  
+  return ctx;
 }
