@@ -4,6 +4,16 @@
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
 
 /**
+ * Check if an address is a plus code (e.g., "35RH+H9 Frisco, TX, USA")
+ * Plus codes are garbage - filter them out
+ */
+function isPlusCode(address) {
+  if (!address) return false;
+  // Plus codes have pattern: XXXXXX+XX or similar (6 chars, +, 2-3 chars)
+  return /^[A-Z0-9]{6}\+[A-Z0-9]{2,3}\b/.test(address.trim());
+}
+
+/**
  * Resolve venue coordinates to a formatted address
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
@@ -23,7 +33,11 @@ export async function resolveVenueAddress(lat, lng, venueName = null) {
     if (geocodeRes?.ok) {
       const data = await geocodeRes.json();
       if (data.status === 'OK' && data.results?.[0]?.formatted_address) {
-        return data.results[0].formatted_address;
+        const address = data.results[0].formatted_address;
+        // Reject plus codes - they're not user-friendly
+        if (!isPlusCode(address)) {
+          return address;
+        }
       }
     }
     
@@ -39,7 +53,11 @@ export async function resolveVenueAddress(lat, lng, venueName = null) {
       if (placesRes?.ok) {
         const data = await placesRes.json();
         if (data.candidates?.[0]?.formatted_address) {
-          return data.candidates[0].formatted_address;
+          const address = data.candidates[0].formatted_address;
+          // Reject plus codes
+          if (!isPlusCode(address)) {
+            return address;
+          }
         }
       }
     }
