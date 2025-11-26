@@ -8,6 +8,7 @@ export function createSnapshot({
   timeContext,
   weather,
   air,
+  user_id: providedUserId,
 }: {
   coord: Coord;
   resolved: { city?: string | null; state?: string | null; country?: string | null; timezone?: string | null; formattedAddress?: string | null };
@@ -20,9 +21,14 @@ export function createSnapshot({
   };
   weather?: { tempF?: number | null; conditions?: string | null; description?: string | null };
   air?: { aqi?: number | null; category?: string | null };
+  user_id?: string | null;
 }): SnapshotV1 {
   const identity = getIdentity();
   const snapshot_id = crypto.randomUUID();
+  
+  // CRITICAL: Use user_id from location/resolve if provided, otherwise fall back to identity
+  // This ensures the snapshot references the same user record that has formattedAddress, timezone, etc.
+  const effectiveUserId = providedUserId || identity.user_id;
 
   const ua = navigator.userAgent;
   let platform: "ios" | "android" | "web" | "desktop" = "web";
@@ -40,7 +46,7 @@ export function createSnapshot({
   return {
     schema_version: 1,
     snapshot_id,
-    user_id: identity.user_id,
+    user_id: effectiveUserId,
     device_id: identity.device_id,
     session_id: identity.session_id,
     created_at: new Date().toISOString(),

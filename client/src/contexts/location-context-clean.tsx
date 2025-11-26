@@ -481,6 +481,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
           };
 
           // Build SnapshotV1 format for backend with ALL data
+          // CRITICAL: Pass user_id from location/resolve to ensure snapshot references correct users row
+          console.log("[Snapshot] Creating with user_id from location/resolve:", locationData.user_id);
           const snapshotV1 = createSnapshot({
             coord: {
               lat: coords.latitude,
@@ -495,6 +497,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
               timezone: locationData.timeZone,
               formattedAddress: locationData.formattedAddress,
             },
+            user_id: locationData.user_id,
             timeContext: (() => {
               const tz = locationData.timeZone || 'America/Chicago';
               const now = new Date();
@@ -527,6 +530,13 @@ export function LocationProvider({ children }: LocationProviderProps) {
               aqi: airQualityData.aqi,
               category: airQualityData.category,
             } : undefined,
+          });
+
+          console.log("[Snapshot] Created snapshot with:", { 
+            snapshot_id: snapshotV1.snapshot_id, 
+            user_id: snapshotV1.user_id,
+            formattedAddress: snapshotV1.resolved?.formattedAddress,
+            city: snapshotV1.resolved?.city
           });
 
           // Save context snapshot for ML/analytics
