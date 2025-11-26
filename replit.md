@@ -21,7 +21,7 @@ The platform utilizes a role-based, model-agnostic architecture with configurabl
 A React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Key features include a Strategy Section, Smart Blocks for venue recommendations, an AI Strategy Coach, and a Rideshare Briefing Tab with immutable strategy history and retry workflow.
 
 **Data Storage**:
-A PostgreSQL Database (Replit built-in, Neon-backed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes and JSONB for flexible storage. The architecture employs a two-table location model where the `users` table is the authoritative source for driver location, and the `snapshots` table references `users` for API-enriched contextual data without duplicating location information. Connection resilience includes auto-reconnect logic with exponential backoff.
+A PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes and JSONB for flexible storage. The architecture employs a two-table location model where the `users` table is the authoritative source for driver location, and the `snapshots` table references `users` for API-enriched contextual data without duplicating location information. Connection resilience includes automatic reconnection logic with exponential backoff.
 
 **Authentication & Security**:
 Employs JWT with RS256 Asymmetric Keys and security middleware for rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.
