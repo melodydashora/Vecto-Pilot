@@ -18,8 +18,7 @@ import diagnosticsStrategyRoutes from "./server/routes/diagnostics-strategy.js";
 import contentBlocksRoutes from "./server/routes/content-blocks.js";
 // Legacy processor retired — do not import
 // Fast path is mounted via the gateway (server/routes/blocks.js -> blocks-fast)
-import { loggingMiddleware } from "./server/middleware/logging.js";
-import { securityMiddleware } from "./server/middleware/security.js";
+// Logging and security handled by gateway middleware - not duplicated here
 import { 
   getEnhancedProjectContext,
   storeCrossThreadMemory,
@@ -36,10 +35,8 @@ export default function createSdkRouter(opts = {}) {
 
   // JSON parsing for SDK routes
   r.use(express.json({ limit: '1mb' }));
-  r.use(loggingMiddleware);
-  r.use(securityMiddleware);
 
-  // Enhanced context middleware
+  // Enhanced context middleware (logging/security handled by gateway)
   r.use(async (req, res, next) => {
     try {
       const ctx = await getEnhancedProjectContext({
