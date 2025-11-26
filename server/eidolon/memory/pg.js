@@ -43,19 +43,28 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
   
   try {
     // RLS is disabled - data isolation handled via SQL filtering on user_id column
-    // No session variable needed; user_id is part of the conflict/update logic
-    
-    const q = `
-      INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
-      VALUES ($1, $2, $3, $4, now(), now(), $5)
-      ON CONFLICT (scope, key, user_id)
-      DO UPDATE SET content = $4, updated_at = now(), expires_at = $5
+    // First try to update existing record
+    const updateQ = `
+      UPDATE ${table}
+      SET content = $4, updated_at = now(), expires_at = $5
+      WHERE scope = $1 AND key = $2 AND (user_id IS NOT DISTINCT FROM $3)
       RETURNING id
     `;
     const v = [scope, key, user_id_val, contentVal, expiresAt];
-
-    const { rows } = await client.query(q, v);
-    return rows[0]?.id || null;
+    const { rows: updateRows } = await client.query(updateQ, v);
+    
+    if (updateRows.length > 0) {
+      return updateRows[0].id;
+    }
+    
+    // If no update, insert new record
+    const insertQ = `
+      INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
+      VALUES ($1, $2, $3, $4, now(), now(), $5)
+      RETURNING id
+    `;
+    const { rows: insertRows } = await client.query(insertQ, v);
+    return insertRows[0]?.id || null;
   } finally {
     client.removeListener('error', errorHandler);
     client.release();
