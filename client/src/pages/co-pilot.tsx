@@ -167,7 +167,7 @@ const CoPilot: React.FC = () => {
   
   // Text-to-speech state
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Get coords from shared location context (same as GlobalHeader)
   const gpsCoords = locationContext?.currentCoords;
@@ -912,39 +912,74 @@ const CoPilot: React.FC = () => {
     });
   };
 
-  // Text-to-speech handler
-  const handleReadStrategy = () => {
+  // Text-to-speech handler - uses OpenAI natural voice
+  const handleReadStrategy = async () => {
     if (!persistentStrategy) return;
     
     if (isSpeaking) {
-      // Stop speaking
-      speechSynthesis.cancel();
+      // Stop playing
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
       setIsSpeaking(false);
       return;
     }
 
-    // Start speaking
-    const utterance = new SpeechSynthesisUtterance(persistentStrategy);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-    
-    utterance.onend = () => {
+    try {
+      setIsSpeaking(true);
+      console.log('[TTS] Requesting audio synthesis for strategy...');
+      
+      // Call backend TTS endpoint
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: persistentStrategy })
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS failed: ${response.statusText}`);
+      }
+
+      // Get audio blob
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // Create or reuse audio element
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+      }
+
+      const audio = audioRef.current;
+      audio.src = audioUrl;
+      
+      audio.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+        toast({
+          title: 'Playback Failed',
+          description: 'Unable to play audio.',
+          variant: 'destructive',
+        });
+      };
+
+      // Play audio
+      await audio.play();
+      console.log('[TTS] ✅ Playing audio');
+    } catch (err) {
       setIsSpeaking(false);
-    };
-    
-    utterance.onerror = () => {
-      setIsSpeaking(false);
+      console.error('[TTS] Error:', err);
       toast({
         title: 'Text-to-Speech Failed',
-        description: 'Unable to read strategy aloud.',
+        description: err instanceof Error ? err.message : 'Unable to read strategy aloud.',
         variant: 'destructive',
       });
-    };
-
-    speechSynthRef.current = utterance;
-    speechSynthesis.speak(utterance);
-    setIsSpeaking(true);
+    }
   };
 
   // Get demand level badge
