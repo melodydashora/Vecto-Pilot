@@ -12,44 +12,32 @@ let dbUrl = process.env.DATABASE_URL;
 const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@') : 'NOT_SET';
 const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.DEPLOY_MODE === 'webservice';
 
-// CRITICAL: Use Neon connection pooler in production to avoid connection exhaustion
-// Connection pooler URL has -pooler suffix instead of direct DB connection
-if (isProduction && dbUrl && !dbUrl.includes('-pooler')) {
-  dbUrl = dbUrl.replace('.us-east-2', '-pooler.us-east-2')
-    .replace('.us-west-2', '-pooler.us-west-2')
-    .replace('.eu-west-1', '-pooler.eu-west-1');
-  console.log(`[connection-manager] 🔌 Converted to pooler URL for production`);
-}
-
 console.log(`[connection-manager] 🔍 Environment Detection:`);
 console.log(`  - REPLIT_DEPLOYMENT: ${process.env.REPLIT_DEPLOYMENT || 'not set'}`);
 console.log(`  - DEPLOY_MODE: ${process.env.DEPLOY_MODE || 'not set'}`);
 console.log(`  - NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-console.log(`  - Using: ${isProduction ? '🚀 PRODUCTION' : '🔧 DEV'} database (Replit auto-switches)`);
+console.log(`  - Using: ${isProduction ? '🚀 PRODUCTION' : '🔧 DEV'} Replit Database`);
 console.log(`[connection-manager] Database URL: ${maskedUrl}`);
 
-// Use Neon's connection pooler in production
-const usePooler = isProduction && dbUrl && !dbUrl.includes('-pooler');
-const connectionString = usePooler 
-  ? dbUrl.replace('.us-east-2', '-pooler.us-east-2')
-  : dbUrl;
+// Replit Database - use direct connection URL as-is
+const connectionString = dbUrl;
 
 const cfg = {
   connectionString,
-  max: Number(process.env.PG_MAX || process.env.DB__POOL_MAX || 5), // Reduced from 10 for Neon
-  min: Number(process.env.PG_MIN || 0), // 0 for autoscale
+  max: Number(process.env.PG_MAX || process.env.DB__POOL_MAX || 5),
+  min: Number(process.env.PG_MIN || 0),
   idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS || 10000),
   connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS || 5000),
   keepAlive: process.env.PG_KEEPALIVE !== 'false',
   keepAliveInitialDelayMillis: Number(process.env.PG_KEEPALIVE_DELAY_MS || 5000),
   maxUses: Number(process.env.PG_MAX_USES || 7500),
   ssl: { rejectUnauthorized: false },
-  allowExitOnIdle: false, // CRITICAL: Never auto-exit pool - Neon terminates idle, we reconnect
+  allowExitOnIdle: false,
   statement_timeout: 5000,
   query_timeout: 5000,
 };
 
-console.log(`[connection-manager] Using ${usePooler ? 'pooler' : 'direct'} connection (max=${cfg.max})`);
+console.log(`[connection-manager] Using Replit Database connection (max=${cfg.max})`);
 
 let pool = new Pool(cfg);
 let degraded = false;
@@ -60,7 +48,7 @@ let poolAlive = true; // CRITICAL: Prevent "Called end on pool more than once"
 // No pool wrappers - they cause queries to hang
 // Degradation checks are done at middleware level instead
 
-// CRITICAL: Catch errors on idle connections (Neon admin terminations)
+// CRITICAL: Catch errors on idle connections
 pool.on('error', (err, client) => {
   const isTermination = isAdminTermination(err);
   
@@ -79,7 +67,7 @@ pool.on('error', (err, client) => {
     lastEvent = 'db.terminated';
     
     ndjson('db.terminated', {
-      reason: 'administrator_command_idle',
+      reason: 'connection_terminated',
       err_code: err.code,
       err_message: err.message,
       deploy_mode: process.env.DEPLOY_MODE,
@@ -124,7 +112,6 @@ async function initPool() {
 
 async function drainPool() {
   // CRITICAL: Don't call pool.end() - just prepare for reconnection
-  // Neon will terminate idle connections, we'll create new pool
   if (!pool) {
     ndjson('db.drain.skip', { reason: 'no_pool' });
     return;
@@ -170,7 +157,7 @@ async function reconnectWithBackoff() {
           lastEvent = 'db.terminated';
           
           ndjson('db.terminated', {
-            reason: 'administrator_command_idle',
+            reason: 'connection_terminated',
             err_code: err.code,
             err_message: err.message,
             deploy_mode: process.env.DEPLOY_MODE,
@@ -291,8 +278,7 @@ export function getPoolWrapper() {
       }
       return pool.connect();
     },
-    // CRITICAL: Don't provide end() method - pool should NEVER be ended in production
-    // Neon handles connection lifecycle, we just reconnect on admin termination
+    // CRITICAL: Don't provide end() method - pool should NEVER be ended
   };
 }
 
