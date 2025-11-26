@@ -58,6 +58,10 @@ export async function getSnapshotContext(snapshotId) {
     city: userData?.city || snapshot.city,
     state: userData?.state || snapshot.state,
     country: userData?.country || snapshot.country,
+    // CRITICAL FIX Finding #6: Dual lat/lng columns during migration
+    // new_lat/new_lng: Current write target (set by GPS refresh via /api/location/resolve)
+    // lat/lng: Legacy columns - being phased out after all existing data migrated
+    // Priority: 1) new_lat/new_lng if populated, 2) lat/lng fallback, 3) snapshot historical data
     lat: userData?.new_lat ?? userData?.lat ?? snapshot.lat,
     lng: userData?.new_lng ?? userData?.lng ?? snapshot.lng,
     accuracy_m: userData?.accuracy_m ?? snapshot.accuracy_m,
