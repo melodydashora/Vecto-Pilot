@@ -1,8 +1,10 @@
-# Neon Connection Resilience - Contract Implementation
+# ~~Neon~~ **Replit PostgreSQL** Connection Resilience - Contract Implementation
 
-## Status: ✅ COMPLETE
+## Status: ✅ ARCHIVED (Migration Complete 2025-11-26)
 
-This implementation fulfills the Replit agent contract for handling Neon database terminations (error code `57P01`) and pool exhaustion in Reserved VM deployments with background workers.
+> **⚠️ HISTORICAL RECORD:** This document describes the contract implementation for external Neon database termination handling. The system has migrated to Replit's managed PostgreSQL which provides stable connections without the need for complex degradation/recovery patterns. This document is retained for historical reference only.
+
+~~This implementation fulfills the Replit agent contract for handling Neon database terminations (error code `57P01`) and pool exhaustion in Reserved VM deployments with background workers.~~ Connection stability is now provided by Replit's managed database infrastructure.
 
 ---
 

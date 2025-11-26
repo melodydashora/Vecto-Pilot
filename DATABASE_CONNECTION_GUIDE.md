@@ -1,11 +1,13 @@
 # Database Connection & Testing Guide
 
 **Date:** 2025-10-30  
-**Status:** Ready for Neon Database Connection
+**Status:** ~~Ready for Neon Database Connection~~ **ARCHIVED** - Migrated to Replit PostgreSQL (2025-11-26)
 
 ---
 
-## 🔑 Neon Database Connection
+## 🔑 ~~Neon~~ **Replit PostgreSQL** Database Connection
+
+> **⚠️ Historical Documentation:** This guide was written for external Neon PostgreSQL. The system now uses Replit's managed PostgreSQL database. Database URLs are automatically provided by Replit Secrets - no manual configuration needed.
 
 ### Your Database Status
 ✅ **Production branch:** `br-young-dust-ahslrdre` (ready)  
