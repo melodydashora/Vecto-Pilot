@@ -179,22 +179,19 @@ process.on('unhandledRejection', (reason, promise) => {
 
     // Diagnostic endpoint to verify database routing (must be BEFORE SDK router)
     app.get("/api/diagnostic/db-info", (_req, res) => {
-      const isProductionEnv = process.env.REPLIT_DEPLOYMENT === '1' 
-        || process.env.REPLIT_DEPLOYMENT === 'true'
-        || process.env.DEPLOY_MODE === 'webservice'
-        || (process.env.NODE_ENV === 'production' && !process.env.DEV_DATABASE_URL);
+      // Standard deployment detection - Pattern 1 (canonical)
+      const isDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
       
-      const dbUrl = isProductionEnv ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
+      const dbUrl = isDeployment ? process.env.DATABASE_URL : (process.env.DEV_DATABASE_URL || process.env.DATABASE_URL);
       const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@').split('@')[1] : 'NOT_SET';
       
       res.json({
         environment_detection: {
           REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT || 'not set',
-          DEPLOY_MODE: process.env.DEPLOY_MODE || 'not set',
           NODE_ENV: process.env.NODE_ENV || 'not set',
-          isProduction: isProductionEnv
+          isDeployment
         },
-        database_target: isProductionEnv ? 'PRODUCTION' : 'DEVELOPMENT',
+        database_target: isDeployment ? 'PRODUCTION' : 'DEVELOPMENT',
         database_host: maskedUrl,
         has_dev_url: !!process.env.DEV_DATABASE_URL,
         has_prod_url: !!process.env.DATABASE_URL,
@@ -205,7 +202,9 @@ process.on('unhandledRejection', (reason, promise) => {
 
     // Mount SSE strategy events endpoint (before SDK/Agent routes)
     // Enable SSE in all modes EXCEPT autoscale (Reserved VM supports SSE, autoscale doesn't)
-    const isAutoscaleDeploy = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === "1";
+    // Standard deployment detection - Pattern 1 (canonical)
+    const isDeployment2 = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
+    const isAutoscaleDeploy = isDeployment2 && process.env.CLOUD_RUN_AUTOSCALE === "1";
     if (!isAutoscaleDeploy) {
       try {
         console.log("[gateway] Loading SSE strategy events...");
@@ -239,10 +238,11 @@ process.on('unhandledRejection', (reason, promise) => {
       }
       
       // Start background worker in production if enabled
-      const isProduction = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
+      // Standard deployment detection - Pattern 1 (canonical)
+      const isDeployment3 = process.env.REPLIT_DEPLOYMENT === "1" || process.env.REPLIT_DEPLOYMENT === "true";
       const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true';
       
-      if (isProduction && shouldStartWorker) {
+      if (isDeployment3 && shouldStartWorker) {
         console.log("[gateway] 🚀 Starting background worker for production...");
         try {
           const { openSync } = await import('node:fs');
@@ -276,7 +276,7 @@ process.on('unhandledRejection', (reason, promise) => {
         } catch (e) {
           console.error('[gateway] ❌ Failed to start production worker:', e?.message);
         }
-      } else if (isProduction) {
+      } else if (isDeployment3) {
         console.log('[gateway] ⏸️  Production worker disabled (ENABLE_BACKGROUND_WORKER not true)');
       }
     }
