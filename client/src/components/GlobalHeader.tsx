@@ -69,10 +69,12 @@ const GlobalHeader: React.FC = () => {
   
   const coords = overrideCoords || gpsCoords;
 
-  // CRITICAL FIX Issue #5: PRIORITY - Use database location, then override city, then fallback
+  // CRITICAL FIX Issue #5 & #8: PRIORITY - Use database location, then override city, then context city/state
   const currentLocationString =
     overrideCoords?.city ?? 
     (dbUserLocation?.ok && dbUserLocation?.city ? dbUserLocation.city : null) ??
+    (loc?.city && loc?.state ? `${loc.city}, ${loc.state}` : null) ?? 
+    (loc?.location?.city && loc?.location?.state ? `${loc.location.city}, ${loc.location.state}` : null) ??
     loc?.currentLocationString ?? 
     loc?.location?.currentLocation ??  // Try currentLocation (the actual state key)
     loc?.location?.currentLocationString ?? 
