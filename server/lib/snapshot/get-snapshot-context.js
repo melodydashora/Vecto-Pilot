@@ -44,12 +44,17 @@ export async function getSnapshotContext(snapshotId) {
   // Return full context with ALL fields providers need
   // CRITICAL DATE PROPAGATION: dow, day_of_week, hour, local_iso, iso_timestamp
   // These fields are authoritative and must be passed to all providers
+  
+  // CRITICAL: Ensure formatted_address is always from users table first (authoritative)
+  // Never fall back to snapshot.formatted_address - always use userData
+  const formattedAddress = userData?.formatted_address || 'Unknown location';
+  
   return {
     snapshot_id: snapshot.snapshot_id,
     user_id: snapshot.user_id,
     // Location data from users table (authoritative source)
-    formatted_address: userData?.formatted_address || snapshot.formatted_address,
-    user_address: userData?.formatted_address || snapshot.formatted_address, // alias for compatibility
+    formatted_address: formattedAddress,
+    user_address: formattedAddress, // alias for compatibility
     city: userData?.city || snapshot.city,
     state: userData?.state || snapshot.state,
     country: userData?.country || snapshot.country,
