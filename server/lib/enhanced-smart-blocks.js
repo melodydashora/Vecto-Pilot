@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { generateTacticalPlan } from './tactical-planner.js';
 import { hasRenderableBriefing } from './strategy-utils.js';
 import { enrichVenues } from './venue-enrichment.js';
+import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
 
 /**
  * Generate enhanced smart blocks using GPT-5 venue planner
@@ -77,6 +78,24 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
     console.log(`[ENHANCED-BLOCKS] ✅ Enriched ${enrichedVenues.length} venues with Google APIs in ${enrichmentMs}ms`);
     console.log(`[ENHANCED-BLOCKS] Distance data stored: ${enrichedVenues.map(v => `${v.name}=${v.distanceMiles}mi`).join(', ')}`);
     
+    // Step 2.5: Verify venue events using Gemini 2.5 Pro
+    console.log(`[ENHANCED-BLOCKS] 🔍 Verifying events for venues with events...`);
+    const verificationStart = Date.now();
+    const eventVerificationMap = await verifyVenueEventsBatch(
+      enrichedVenues.map(v => ({
+        ...v,
+        city: snapshot.city,
+        distance_miles: parseFloat(v.distanceMiles)
+      }))
+    );
+    const verificationMs = Date.now() - verificationStart;
+    
+    const verifiedEvents = extractVerifiedEvents(enrichedVenues, eventVerificationMap);
+    console.log(`[ENHANCED-BLOCKS] ✅ Event verification complete in ${verificationMs}ms - ${verifiedEvents.length} high-confidence events extracted`);
+    
+    // Store verified events for strategy injection
+    const verifiedEventsJson = JSON.stringify(verifiedEvents);
+    
     // Step 3: Create ranking record (use env var for model name)
     const venuePlannerModel = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.1';
     await db.insert(rankings).values({
@@ -91,7 +110,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
       planner_ms: plannerMs,
       total_ms: 0,
       timed_out: false,
-      path_taken: 'enhanced-smart-blocks'
+      path_taken: 'enhanced-smart-blocks',
+      extras: verifiedEventsJson // Store verified events for strategy injection
     });
     
     console.log(`[ENHANCED-BLOCKS] ✅ Ranking record created: ${rankingId}`);

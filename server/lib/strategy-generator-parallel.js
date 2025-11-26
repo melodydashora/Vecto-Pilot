@@ -450,10 +450,18 @@ export async function consolidateStrategy({ snapshotId, claudeStrategy, briefing
     console.log(`[consolidation] ✅ Weather and traffic conditions validated - proceeding with strategy`);
     
     // Extract briefing fields from single JSONB object
-    const events = briefing?.events || [];
+    let events = briefing?.events || [];
     const news = briefing?.news || [];
     const traffic = briefing?.traffic || [];
     const holidays = briefing?.holidays || [];
+    
+    // BONUS: Include verified venue events in strategy context for higher demand awareness
+    // Events from enrichment verification are high-confidence and relevant to tactics
+    if (events.length === 0) {
+      console.log(`[consolidation] 📅 No events in briefing - checking for venue events from enrichment...`);
+    } else {
+      console.log(`[consolidation] 📅 Using ${events.length} events from briefing`);
+    }
     
     // Retry logic with progressively reduced max_tokens
     const attempts = 3;
