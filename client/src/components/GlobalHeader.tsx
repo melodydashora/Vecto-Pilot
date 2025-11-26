@@ -50,8 +50,13 @@ const GlobalHeader: React.FC = () => {
   
   const coords = overrideCoords || gpsCoords;
 
+  // PRIORITY: Use override city, then context's resolved location, then try location.currentLocation
   const currentLocationString =
-    overrideCoords?.city ?? loc?.currentLocationString ?? loc?.location?.currentLocationString ?? "";
+    overrideCoords?.city ?? 
+    loc?.currentLocationString ?? 
+    loc?.location?.currentLocation ??  // Try currentLocation (the actual state key)
+    loc?.location?.currentLocationString ?? 
+    "";
 
   // Debug: Log what we're reading from context
   useEffect(() => {

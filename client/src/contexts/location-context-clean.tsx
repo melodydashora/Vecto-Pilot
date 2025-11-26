@@ -398,12 +398,13 @@ export function LocationProvider({ children }: LocationProviderProps) {
           // This is the PRIMARY source for city/state display in header
           
           // Extract location data from users table response
+          // CRITICAL: Backend returns camelCase (timeZone, formattedAddress) - use correct property names!
           const locationData = {
             city: userLocationData?.city || null,
             state: userLocationData?.state || null,
             country: userLocationData?.country || null,
-            formattedAddress: userLocationData?.formatted_address || null,
-            timeZone: userLocationData?.timezone || null,
+            formattedAddress: userLocationData?.formattedAddress || null,  // camelCase from backend
+            timeZone: userLocationData?.timeZone || null,  // camelCase from backend
             user_id: userLocationData?.user_id || null,
           };
           console.log('[LocationContext] Extracted locationData:', locationData);
