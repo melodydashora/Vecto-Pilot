@@ -206,13 +206,18 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
         const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
         const [briefing] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
         
-        if (snapshot && strategy?.minstrategy && briefing) {
-          // STEP 3: Run consolidation (15-20s)
+        // CRITICAL: Make briefing OPTIONAL - consolidation proceeds even if Perplexity fails
+        // Only REQUIRE snapshot and minstrategy (strategist is critical, briefing is enhancement)
+        if (snapshot && strategy?.minstrategy) {
+          // STEP 3: Run consolidation (15-20s) - with or without briefing
           console.log(`[blocks-fast POST] 🔄 Step 3/4: Consolidation...`);
+          if (!briefing) {
+            console.warn(`[blocks-fast POST] ⚠️ Briefing missing - proceeding with strategist output only`);
+          }
           await consolidateStrategy({
             snapshotId,
             claudeStrategy: strategy.minstrategy,
-            briefing: briefing,
+            briefing: briefing || { events: [], news: [], traffic: [] }, // Provide empty briefing as fallback
             user: null,
             snapshot: snapshot,
             holiday: strategy.holiday
