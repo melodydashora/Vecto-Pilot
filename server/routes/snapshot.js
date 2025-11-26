@@ -87,8 +87,8 @@ router.post("/", async (req, res) => {
       device_id: deviceId,
       session_id: sessionId,
       // Location data (denormalized from frontend at snapshot creation)
-      lat: lat || null,
-      lng: lng || null,
+      lat: lat !== null && lat !== undefined ? Number(lat) : null,
+      lng: lng !== null && lng !== undefined ? Number(lng) : null,
       city: city || null,
       state: state || null,
       country: country || null,
@@ -96,8 +96,8 @@ router.post("/", async (req, res) => {
       timezone: timezone || null,
       // Time context (authoritative at snapshot creation - stored as-is from frontend)
       local_iso: local_iso ? new Date(local_iso) : null,
-      dow: dow ?? null,
-      hour: hour ?? null,
+      dow: dow !== null && dow !== undefined ? Number(dow) : null,
+      hour: hour !== null && hour !== undefined ? Number(hour) : null,
       day_part_key: day_part_key || null,
       // API-enriched contextual data
       weather: weather || null,
@@ -106,9 +106,21 @@ router.post("/", async (req, res) => {
       permissions: permissionsInfo || null,
     };
 
+    // CRITICAL: Log exactly what we're about to insert (before DB call)
+    console.log('[snapshot] 🔥 ABOUT TO INSERT:', {
+      lat_value: dbSnapshot.lat,
+      lng_value: dbSnapshot.lng,
+      city_value: dbSnapshot.city,
+      timezone_value: dbSnapshot.timezone,
+      hour_value: dbSnapshot.hour,
+      dow_value: dbSnapshot.dow,
+      formatted_address_value: dbSnapshot.formatted_address,
+      local_iso_value: dbSnapshot.local_iso
+    });
+
     // Persist to DB - ALL location and time data goes into snapshots table
-    await db.insert(snapshots).values(dbSnapshot);
-    console.log('[snapshot] ✅ Snapshot persisted with all location/time data');
+    const result = await db.insert(snapshots).values(dbSnapshot);
+    console.log('[snapshot] ✅ Snapshot persisted:', { snapshot_id, result: !!result });
 
     // REMOVED: Placeholder strategy creation - strategy-generator-parallel.js creates the SINGLE strategy row
     // This prevents race conditions and ensures model_name attribution is preserved
