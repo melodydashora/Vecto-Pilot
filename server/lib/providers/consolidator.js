@@ -58,7 +58,7 @@ export async function runConsolidator(snapshotId) {
     
     // Step 2: Fetch snapshot to get full context for briefing research
     const ctx = await getSnapshotContext(snapshotId);
-    const userAddress = ctx.formatted_address || 'Unknown location';
+    const userAddress = ctx.formatted_address; // CRITICAL: Always from users table via getSnapshotContext
     const cityDisplay = ctx.city || 'your area';
     
     // CRITICAL: Extract AUTHORITATIVE date/time from snapshot (never recompute)
