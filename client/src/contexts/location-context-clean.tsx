@@ -383,7 +383,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
         fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
         fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
       ])
-        .then(async ([userLocationData, weatherData, airQualityData]) => {
+        .then(([userLocationData, weatherData, airQualityData]) => {
           // CRITICAL: Only update state if this is still the latest generation
           if (currentGeneration !== generationRef.current) {
             console.log(`⏭️ Generation #${currentGeneration} result ignored - newer generation #${generationRef.current} already started`);
@@ -398,7 +398,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
           // This is the PRIMARY source for city/state display in header
           
           // Extract location data from users table response
-          let locationData = {
+          const locationData = {
             city: userLocationData?.city || null,
             state: userLocationData?.state || null,
             country: userLocationData?.country || null,
@@ -408,31 +408,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
           };
           console.log('[LocationContext] Extracted locationData:', locationData);
 
-          // FALLBACK: If city/state not resolved, call geocoding API separately
-          if (!locationData.city || !locationData.state) {
-            console.log("⚠️ City/state missing from location API, calling geocoding fallback...");
-            try {
-              const geoResponse = await fetch(`/api/location/geocode?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: locationSignal });
-              if (geoResponse.ok) {
-                const contentType = geoResponse.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                  const geoData = await geoResponse.json();
-                  console.log("✅ Geocoding fallback resolved:", geoData);
-                  locationData = {
-                    ...locationData,
-                    city: geoData.city || locationData.city,
-                    state: geoData.state || locationData.state,
-                    country: geoData.country || locationData.country,
-                    formattedAddress: geoData.formattedAddress || locationData.formattedAddress,
-                  };
-                }
-              }
-            } catch (err) {
-              console.error("❌ Geocoding fallback failed:", err.message);
-            }
-          }
-
-          // Format as "City, ST" if we have both city and state (from users table or geocoding)
+          // Format as "City, ST" if we have both city and state (from users table response)
           let locationName;
           if (locationData.city && locationData.state) {
             locationName = `${locationData.city}, ${locationData.state}`;
@@ -442,14 +418,15 @@ export function LocationProvider({ children }: LocationProviderProps) {
             locationName = `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
           }
           
-          // NOW update state - location is fully resolved
+          // UPDATE STATE IMMEDIATELY - don't wait for fallback geocoding
+          // This ensures city/state display updates in header ASAP
           console.log(`🔄 [LocationContext] Updating state with resolved location: "${locationName}"`);
           setLocationState((prev: any) => {
             const newState = {
               ...prev,
               coords: { ...coords },
               currentCoords: coords,
-              currentLocation: locationName, // CRITICAL: Must match export key on line 997
+              currentLocation: locationName, // CRITICAL: Must match export key at line 1029
               latitude: coords.latitude,
               longitude: coords.longitude,
               accuracy: coords.accuracy,
@@ -458,7 +435,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
               state: locationData.state,
               country: locationData.country,
               timeZone: locationData.timeZone,
-              isLoading: false, // NOW stop spinner - we have complete data
+              isLoading: false, // Stop spinner - we have location data
               isUpdating: false,
               error: null,
             };
