@@ -102,7 +102,6 @@ router.post('/', validate(schemas.action), async (req, res) => {
     };
 
     // Retry logic for foreign key constraint errors (replication lag)
-    // Extended for Neon's distributed database architecture
     const maxRetries = 8;
     const retryDelayMs = 150; // Start with 150ms, grows exponentially
     let lastError;
