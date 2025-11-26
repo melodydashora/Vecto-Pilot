@@ -425,7 +425,6 @@ const CoPilot: React.FC = () => {
     // Note: selectedModel and modelParameter NOT in queryKey to avoid cancelling previous requests during testing
     queryKey: ['/api/blocks', coords?.latitude, coords?.longitude, distanceFilter, locationContext.locationSessionId, lastSnapshotId],
     queryFn: async () => {
-      console.log('[blocks-query] Starting blocks fetch for snapshot:', lastSnapshotId);
       if (!coords) throw new Error('No GPS coordinates');
       
       // 3min 50s timeout for Triad orchestrator (AI processing with buffer)
