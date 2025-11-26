@@ -383,7 +383,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
         fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
         fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
       ])
-        .then(([userLocationData, weatherData, airQualityData]) => {
+        .then(async ([userLocationData, weatherData, airQualityData]) => {
           // CRITICAL: Only update state if this is still the latest generation
           if (currentGeneration !== generationRef.current) {
             console.log(`⏭️ Generation #${currentGeneration} result ignored - newer generation #${generationRef.current} already started`);
@@ -398,7 +398,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
           // This is the PRIMARY source for city/state display in header
           
           // Extract location data from users table response
-          const locationData = {
+          let locationData = {
             city: userLocationData?.city || null,
             state: userLocationData?.state || null,
             country: userLocationData?.country || null,
@@ -408,7 +408,31 @@ export function LocationProvider({ children }: LocationProviderProps) {
           };
           console.log('[LocationContext] Extracted locationData:', locationData);
 
-          // Format as "City, ST" if we have both city and state (from users table)
+          // FALLBACK: If city/state not resolved, call geocoding API separately
+          if (!locationData.city || !locationData.state) {
+            console.log("⚠️ City/state missing from location API, calling geocoding fallback...");
+            try {
+              const geoResponse = await fetch(`/api/location/geocode?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: locationSignal });
+              if (geoResponse.ok) {
+                const contentType = geoResponse.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                  const geoData = await geoResponse.json();
+                  console.log("✅ Geocoding fallback resolved:", geoData);
+                  locationData = {
+                    ...locationData,
+                    city: geoData.city || locationData.city,
+                    state: geoData.state || locationData.state,
+                    country: geoData.country || locationData.country,
+                    formattedAddress: geoData.formattedAddress || locationData.formattedAddress,
+                  };
+                }
+              }
+            } catch (err) {
+              console.error("❌ Geocoding fallback failed:", err.message);
+            }
+          }
+
+          // Format as "City, ST" if we have both city and state (from users table or geocoding)
           let locationName;
           if (locationData.city && locationData.state) {
             locationName = `${locationData.city}, ${locationData.state}`;
