@@ -100,7 +100,7 @@ router.post('/venue', async (req, res) => {
         comment: sanitizedComment,
       })
       .onConflictDoUpdate({
-        target: [venue_feedback.snapshot_id, venue_feedback.venue_name],
+        target: [venue_feedback.user_id, venue_feedback.ranking_id, venue_feedback.place_id],
         set: {
           sentiment,
           comment: sanitizedComment,
@@ -263,7 +263,7 @@ router.post('/strategy', async (req, res) => {
         comment: sanitizedComment,
       })
       .onConflictDoUpdate({
-        target: [strategy_feedback.snapshot_id, strategy_feedback.user_id],
+        target: [strategy_feedback.user_id, strategy_feedback.ranking_id],
         set: {
           sentiment,
           comment: sanitizedComment,
