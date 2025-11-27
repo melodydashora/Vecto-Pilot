@@ -128,9 +128,13 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
         setIsVoiceActive(false);
       };
 
-      ws.onclose = () => {
-        console.log('[voice] Voice chat ended');
+      ws.onclose = (event) => {
+        console.log('[voice] Voice chat ended, code:', event.code, 'reason:', event.reason);
         setIsVoiceActive(false);
+      };
+      
+      ws.onerror = (event) => {
+        console.error('[voice] WebSocket error:', event);
       };
     } catch (err) {
       console.error('[voice] Start failed:', err);
@@ -151,13 +155,19 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
   async function startAudioCapture() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioContext = new AudioContext({ sampleRate: 24000 });
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ 
+        sampleRate: 24000 
+      });
       audioContextRef.current = audioContext;
       
       const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const processor = audioContext.createScriptProcessor(2048, 1, 1);
       
       processor.onaudioprocess = (event) => {
+        if (!realtimeRef.current || realtimeRef.current.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        
         const audioData = event.inputBuffer.getChannelData(0);
         
         // Convert Float32 to Int16 (PCM16)
@@ -167,19 +177,17 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
           pcm16Data[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
         }
         
-        // Send PCM16 audio to WebSocket as base64
-        if (realtimeRef.current?.readyState === WebSocket.OPEN) {
-          const base64Audio = btoa(String.fromCharCode.apply(null, Array.from(pcm16Data)));
-          realtimeRef.current.send(JSON.stringify({
-            type: 'input_audio_buffer.append',
-            audio: base64Audio,
-          }));
-        }
+        // Send PCM16 audio as base64
+        const base64Audio = btoa(String.fromCharCode.apply(null, Array.from(pcm16Data)));
+        realtimeRef.current.send(JSON.stringify({
+          type: 'input_audio_buffer.append',
+          audio: base64Audio,
+        }));
       };
 
       source.connect(processor);
       processor.connect(audioContext.destination);
-      console.log('[voice] Audio capture started');
+      console.log('[voice] Audio capture started on stream');
     } catch (err) {
       console.error('[voice] Audio capture failed:', err);
       stopVoiceChat();
