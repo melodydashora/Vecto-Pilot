@@ -50,17 +50,18 @@ interface SmartBlocksProps {
   state?: string;
   snapshotLat?: number;
   snapshotLng?: number;
+  holiday?: string | null;
 }
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const SEARCH_RADIUS_MILES = 15; // 15 mile radius for venue discovery
 
-export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapshotLng }: SmartBlocksProps) {
+export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapshotLng, holiday }: SmartBlocksProps) {
   // Use snapshot coordinates as fallback if main coords not available
   const effectiveLat = lat || snapshotLat;
   const effectiveLng = lng || snapshotLng;
   
-  console.log('[SmartBlocks] Props:', { lat, lng, snapshotLat, snapshotLng, effectiveLat, effectiveLng, city, state });
+  console.log('[SmartBlocks] Props:', { lat, lng, snapshotLat, snapshotLng, effectiveLat, effectiveLng, city, state, holiday });
   
   const [venueData, setVenueData] = useState<VenueData | null>(null);
   const [trafficData, setTrafficData] = useState<TrafficData | null>(null);
@@ -86,6 +87,10 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
         state: state || "",
         radius: SEARCH_RADIUS_MILES.toString()
       });
+      
+      if (holiday) {
+        params.append('holiday', holiday);
+      }
 
       console.log('[SmartBlocks] Fetching venues:', `/api/venues/smart-blocks?${params}`);
       const response = await fetch(`/api/venues/smart-blocks?${params}`);
@@ -315,6 +320,11 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
                         <span className="text-slate-700">{getVenueIcon(venue.type)}</span>
                         <span className="font-medium text-sm text-slate-900">{venue.name}</span>
                         <Badge className={getExpenseColor(venue.expense_level)}>{venue.expense_level}</Badge>
+                        {holiday && (
+                          <Badge className="bg-purple-100 text-purple-700 text-xs border-0">
+                            🎉 Special Hrs
+                          </Badge>
+                        )}
                         {venue.closing_soon && (
                           <Badge variant="destructive" className="text-xs">
                             <Clock className="h-3 w-3 mr-1" />
