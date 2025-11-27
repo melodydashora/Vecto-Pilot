@@ -105,10 +105,12 @@ export async function getListenClient() {
     }
   }
 
-  // PostgreSQL via Replit - use DATABASE_URL directly (automatically injected for all environments)
+  // PostgreSQL via Replit MANAGED DATABASE ONLY
+  // Replit automatically injects DATABASE_URL for all environments (dev + production)
+  // No external databases (Neon, Vercel, Railway) are used
   const connectionString = process.env.DATABASE_URL;
   
-  console.log(`[db-client] LISTEN client connecting to Replit PostgreSQL via DATABASE_URL`);
+  console.log(`[db-client] ✅ LISTEN client connecting to Replit managed PostgreSQL via DATABASE_URL`);
   
   if (!connectionString) {
     throw new Error('[db-client] No DATABASE_URL found');
