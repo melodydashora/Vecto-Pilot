@@ -32,8 +32,9 @@ Supports Mono Mode and Split Mode, featuring health-gated entry points, unified 
 ## External Dependencies
 
 ### Third-Party APIs
--   **AI & Research**: Anthropic (Claude), OpenAI (GPT-4o Realtime for voice, GPT-5.1 for strategy), Google (Gemini), Perplexity.
+-   **AI & Research**: Anthropic (Claude), OpenAI (GPT-4o Realtime for voice, GPT-5.1 for strategy), Google (Gemini 2.0 Flash for venue intelligence), Perplexity.
 -   **Voice Chat**: OpenAI Realtime API (GPT-4o Realtime with 232-320ms latency, configurable via VOICE_MODEL env var)
+-   **Venue Intelligence**: Gemini 2.0 Flash with real-time bar/restaurant discovery, expense-level sorting ($$$$→$), hours filtering, and last-call alerts
 -   **Location & Mapping**: Google Places API, Google Routes API, Google Geocoding API, Google Timezone API.
 -   **Weather and Air Quality**: Configurable via environment variables.
 
