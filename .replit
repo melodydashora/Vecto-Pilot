@@ -43,3 +43,4 @@ integrations = ["perplexity_v0:1.0.0"]
 STRATEGY_STRATEGIST = "claude-sonnet-4-5-20250929"
 STRATEGY_BRIEFER = "sonar-pro"
 STRATEGY_CONSOLIDATOR = "gpt-5.1-2025-11-13"
+GEMINI_MODEL = "gemini-2.5-pro"
