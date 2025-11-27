@@ -10,6 +10,26 @@
   }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+}
+
 /* ---- Design tokens ---- */
 :root {
   --background: 0 0% 100%;
@@ -99,6 +119,9 @@
   .alert-card.warning { @apply bg-yellow-50 dark:bg-yellow-950 border-yellow-500; }
   .alert-card.success { @apply bg-green-50 dark:bg-green-950 border-green-500; }
   .alert-card.info { @apply bg-blue-50 dark:bg-blue-950 border-blue-500; }
+
+  .animate-fade-in { @apply animate-in fade-in duration-500 ease-out; }
+  .pulse-glow { @apply animate-pulse; animation: pulseGlow 2s infinite; }
 }
 
 /* ---- Header stack tweaks ---- */

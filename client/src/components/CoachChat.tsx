@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageSquare, Send, Mic, Phone, Square } from "lucide-react";
+import { MessageSquare, Send, Mic, Square, Loader, Zap } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -322,28 +322,43 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
   ];
 
   return (
-    <Card className="flex flex-col h-[500px] border-2">
-      {/* Header */}
-      <div className="flex items-center gap-2 p-4 border-b bg-muted/50">
-        <MessageSquare className="h-5 w-5 text-primary" />
-        <h3 className="font-semibold">AI Companion</h3>
-        <span className="text-xs text-muted-foreground ml-auto">Always here to help</span>
+    <Card className="flex flex-col h-[500px] border-2 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-950 dark:to-blue-950 overflow-hidden shadow-lg">
+      {/* Premium Header */}
+      <div className="flex items-center gap-3 px-5 py-4 border-b bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700 text-white shadow-sm">
+        <div className="flex items-center justify-center h-9 w-9 rounded-full bg-white/20 backdrop-blur">
+          <Zap className="h-5 w-5" />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm">Rideshare Coach</h3>
+          <p className="text-xs text-blue-100">AI Strategy & Earnings Companion</p>
+        </div>
+        {isVoiceActive && (
+          <div className="ml-auto flex items-center gap-1">
+            <span className="text-xs bg-white/20 px-2 py-1 rounded-full animate-pulse">🎤 Listening</span>
+          </div>
+        )}
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-auto p-4 space-y-3">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-auto p-4 space-y-4 scroll-smooth">
         {msgs.length === 0 && (
-          <div className="text-center py-8 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Ask me about strategy, venues, or just chat. I'm here for you! 💬
-            </p>
-            <div className="flex flex-wrap gap-2 justify-center">
+          <div className="text-center py-10 space-y-5">
+            <div className="inline-block p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <MessageSquare className="h-8 w-8 text-blue-600 dark:text-blue-300" />
+            </div>
+            <div>
+              <h4 className="font-semibold text-foreground mb-1">Welcome to Your Rideshare Coach!</h4>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                Get instant advice on venues, strategy, earnings tips, or just chat. Tap any suggestion below to get started!
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center pt-2">
               {suggestedQuestions.map((q, i) => (
                 <Button
                   key={i}
                   variant="outline"
                   size="sm"
-                  className="text-xs"
+                  className="text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-blue-200 dark:border-blue-800"
                   onClick={() => {
                     setInput(q);
                     setTimeout(() => send(), 100);
@@ -360,17 +375,29 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
         {msgs.map((m, i) => (
           <div
             key={i}
-            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex gap-2 animate-fade-in ${m.role === "user" ? "justify-end" : "justify-start"}`}
             data-testid={`message-${m.role}-${i}`}
           >
+            {m.role === "assistant" && (
+              <div className="flex-shrink-0 h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                <span className="text-xs text-white">⚡</span>
+              </div>
+            )}
             <div
-              className={`inline-block rounded-2xl px-4 py-2 max-w-[80%] ${
+              className={`inline-block rounded-2xl px-4 py-3 max-w-xs shadow-sm ${
                 m.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
+                  ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-br-none"
+                  : "bg-white dark:bg-slate-800 text-foreground border border-blue-100 dark:border-blue-900 rounded-bl-none"
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+              <p className={`text-sm leading-relaxed ${m.role === "assistant" ? "whitespace-pre-wrap" : ""}`}>
+                {m.content || (m.role === "assistant" && isStreaming && i === msgs.length - 1 ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Loader className="h-4 w-4 animate-spin" />
+                    Thinking...
+                  </span>
+                ) : "")}
+              </p>
             </div>
           </div>
         ))}
@@ -379,28 +406,36 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
 
       {/* Voice Transcript Display */}
       {voiceTranscript && (
-        <div className="px-3 py-2 bg-blue-50 border-t text-sm text-blue-900 max-h-12 overflow-auto">
-          🎤 {voiceTranscript}
+        <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-t border-blue-200 dark:border-blue-800 text-sm text-blue-900 dark:text-blue-100 max-h-14 overflow-auto flex items-center gap-2">
+          <span className="animate-pulse">🎤</span>
+          <span className="font-medium">You said:</span>
+          <span className="italic">{voiceTranscript}</span>
         </div>
       )}
 
-      {/* Input */}
-      <div className="p-3 border-t flex gap-2">
-        <Input
-          className="flex-1"
-          placeholder={isVoiceActive ? "Listening... speak now" : "Ask about strategy, pings, or where to stage…"}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !isStreaming && !isVoiceActive && send()}
-          disabled={isStreaming || isVoiceActive}
-          data-testid="input-chat-message"
-        />
+      {/* Input Area */}
+      <div className="p-3 border-t bg-white dark:bg-slate-900 flex gap-2">
+        <div className="flex-1 relative">
+          <Input
+            className="flex-1 rounded-full border-2 border-blue-200 dark:border-blue-800 focus:border-blue-600 dark:focus:border-blue-500 bg-slate-50 dark:bg-slate-800 transition-colors"
+            placeholder={isVoiceActive ? "🎤 Listening... speak now" : "Ask about strategy, venues, or earnings…"}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !isStreaming && !isVoiceActive && send()}
+            disabled={isStreaming || isVoiceActive}
+            data-testid="input-chat-message"
+          />
+        </div>
         
         {/* Voice Button */}
         <Button
           onClick={isVoiceActive ? stopVoiceChat : startVoiceChat}
           size="icon"
-          variant={isVoiceActive ? "destructive" : "outline"}
+          className={`rounded-full transition-all ${
+            isVoiceActive 
+              ? "bg-red-500 hover:bg-red-600 animate-pulse" 
+              : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
+          }`}
           title={isVoiceActive ? "Stop voice chat" : "Start voice chat"}
           data-testid="button-voice-chat"
         >
@@ -412,9 +447,10 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
           onClick={send}
           disabled={!input.trim() || isStreaming || isVoiceActive}
           size="icon"
+          className="rounded-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 transition-all"
           data-testid="button-send-message"
         >
-          <Send className="h-4 w-4" />
+          {isStreaming ? <Loader className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
     </Card>
