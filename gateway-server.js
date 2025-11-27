@@ -240,6 +240,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] Realtime voice endpoint failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading Venue Intelligence endpoint...");
+        const venueIntelRouter = (await import("./server/routes/venue-intelligence.js")).default;
+        app.use("/api/venues", venueIntelRouter);
+        console.log("[gateway] ✅ Venue Intelligence endpoint mounted at /api/venues");
+      } catch (e) {
+        console.error("[mono] Venue Intelligence endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Agent embed...");
         const { mountAgent } = await import("./server/agent/embed.js");
         mountAgent({ app, basePath: process.env.AGENT_PREFIX || "/agent", wsPath: "/agent/ws", server });
