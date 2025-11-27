@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageSquare, Send } from "lucide-react";
+import { MessageSquare, Send, Mic, Phone, Square } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -50,11 +50,146 @@ export default function CoachChat({
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
   const controllerRef = useRef<AbortController | null>(null);
+  const realtimeRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Initialize voice chat with OpenAI Realtime API
+  async function startVoiceChat() {
+    try {
+      setIsVoiceActive(true);
+      console.log('[voice] Starting voice chat session...');
+
+      // Get ephemeral token from backend
+      const res = await fetch('/api/realtime/token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ snapshotId, userId, strategyId }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to get token');
+      }
+
+      const { token, context } = await res.json();
+      console.log('[voice] Token received, context:', context);
+
+      // Initialize WebSocket connection to OpenAI Realtime API
+      const wsUrl = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17`;
+      const ws = new WebSocket(wsUrl);
+      realtimeRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('[voice] WebSocket connected');
+        
+        // Send session setup with authorization
+        ws.send(JSON.stringify({
+          type: 'session.update',
+          session: {
+            model: 'gpt-4o-realtime-preview-2024-12-17',
+            instructions: `You are an AI companion for rideshare drivers. You have access to current context:
+Location: ${context.city || 'unknown'}
+Weather: ${context.weather?.conditions || 'unknown'}
+Time: ${context.dayPart || 'unknown'} (${context.hour}:00)
+Current Strategy: ${context.strategy?.substring(0, 200) || 'none'}
+
+Keep responses concise (under 100 words). Be friendly and supportive. Help drivers with strategy, venue recommendations, or just conversation. Never suggest illegal activities.`,
+            voice: 'alloy',
+            input_audio_format: 'pcm16',
+            output_audio_format: 'pcm16',
+            input_audio_transcription: { model: 'whisper-1' },
+          },
+        }));
+
+        // Add authorization header (done via token in URL, but send confirmation)
+        ws.send(JSON.stringify({
+          type: 'session.user.auth',
+          token: token,
+        }));
+
+        // Start audio capture
+        startAudioCapture();
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleRealtimeMessage(msg);
+      };
+
+      ws.onerror = (err) => {
+        console.error('[voice] WebSocket error:', err);
+        setIsVoiceActive(false);
+      };
+
+      ws.onclose = () => {
+        console.log('[voice] Voice chat ended');
+        setIsVoiceActive(false);
+      };
+    } catch (err) {
+      console.error('[voice] Start failed:', err);
+      setIsVoiceActive(false);
+      alert('Failed to start voice chat: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  }
+
+  function stopVoiceChat() {
+    if (realtimeRef.current) {
+      realtimeRef.current.close();
+      realtimeRef.current = null;
+    }
+    setIsVoiceActive(false);
+    setVoiceTranscript("");
+  }
+
+  async function startAudioCapture() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+      const processor = audioContext.createMediaStreamAudioProcessor(stream);
+      
+      processor.port.onmessage = (event) => {
+        const audioData = event.data.getChannelData(0);
+        // Send PCM16 audio to WebSocket
+        if (realtimeRef.current?.readyState === WebSocket.OPEN) {
+          realtimeRef.current.send(JSON.stringify({
+            type: 'input_audio_buffer.append',
+            audio: audioData,
+          }));
+        }
+      };
+
+      console.log('[voice] Audio capture started');
+    } catch (err) {
+      console.error('[voice] Audio capture failed:', err);
+      stopVoiceChat();
+    }
+  }
+
+  function handleRealtimeMessage(msg: any) {
+    if (msg.type === 'response.audio_transcript.delta') {
+      // AI is speaking - show in transcript
+      setVoiceTranscript(prev => prev + (msg.delta || ''));
+    } else if (msg.type === 'conversation.item.created') {
+      // Message created
+      if (msg.item?.role === 'assistant') {
+        setMsgs(prev => [...prev, { role: 'assistant', content: msg.item.content?.[0]?.transcript || '' }]);
+      }
+    } else if (msg.type === 'input_audio_buffer.speech_started') {
+      // User started speaking
+      console.log('[voice] User speech detected');
+    } else if (msg.type === 'input_audio_buffer.speech_stopped') {
+      // User stopped speaking
+      console.log('[voice] User speech ended');
+    }
   };
 
   async function send() {
@@ -222,20 +357,40 @@ export default function CoachChat({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Voice Transcript Display */}
+      {voiceTranscript && (
+        <div className="px-3 py-2 bg-blue-50 border-t text-sm text-blue-900 max-h-12 overflow-auto">
+          🎤 {voiceTranscript}
+        </div>
+      )}
+
       {/* Input */}
       <div className="p-3 border-t flex gap-2">
         <Input
           className="flex-1"
-          placeholder="Ask about strategy, pings, or where to stage…"
+          placeholder={isVoiceActive ? "Listening... speak now" : "Ask about strategy, pings, or where to stage…"}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !isStreaming && send()}
-          disabled={isStreaming}
+          onKeyDown={(e) => e.key === "Enter" && !isStreaming && !isVoiceActive && send()}
+          disabled={isStreaming || isVoiceActive}
           data-testid="input-chat-message"
         />
+        
+        {/* Voice Button */}
+        <Button
+          onClick={isVoiceActive ? stopVoiceChat : startVoiceChat}
+          size="icon"
+          variant={isVoiceActive ? "destructive" : "outline"}
+          title={isVoiceActive ? "Stop voice chat" : "Start voice chat"}
+          data-testid="button-voice-chat"
+        >
+          {isVoiceActive ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+        </Button>
+
+        {/* Text Send Button */}
         <Button
           onClick={send}
-          disabled={!input.trim() || isStreaming}
+          disabled={!input.trim() || isStreaming || isVoiceActive}
           size="icon"
           data-testid="button-send-message"
         >
