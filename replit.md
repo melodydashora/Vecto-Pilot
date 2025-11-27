@@ -18,7 +18,7 @@ Vecto Pilot is a full-stack Node.js application with a multi-service architectur
 The platform utilizes a role-based, model-agnostic architecture with configurable AI models (Strategist, Briefer, Consolidator, Holiday Checker) for its event-driven strategy generation pipeline. AI models are configured via environment variables.
 
 **Frontend Architecture**:
-A React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Key features include a Strategy Section, Smart Blocks for venue recommendations, an AI Strategy Coach, and a Rideshare Briefing Tab with immutable strategy history and retry workflow.
+A React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Key features include a Strategy Section, Smart Blocks for venue recommendations, an AI Strategy Coach with hands-free voice chat (OpenAI Realtime API), and a Rideshare Briefing Tab with immutable strategy history and retry workflow.
 
 **Data Storage**:
 A PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes and JSONB for flexible storage. The architecture employs a two-table location model where the `users` table is the authoritative source for driver location, and the `snapshots` table references `users` for API-enriched contextual data without duplicating location information. Connection resilience includes automatic reconnection logic with exponential backoff.
@@ -32,7 +32,8 @@ Supports Mono Mode and Split Mode, featuring health-gated entry points, unified 
 ## External Dependencies
 
 ### Third-Party APIs
--   **AI & Research**: Anthropic (Claude), OpenAI (GPT-5), Google (Gemini), Perplexity.
+-   **AI & Research**: Anthropic (Claude), OpenAI (GPT-4o Realtime for voice, GPT-5.1 for strategy), Google (Gemini), Perplexity.
+-   **Voice Chat**: OpenAI Realtime API (GPT-4o Realtime with 232-320ms latency, configurable via VOICE_MODEL env var)
 -   **Location & Mapping**: Google Places API, Google Routes API, Google Geocoding API, Google Timezone API.
 -   **Weather and Air Quality**: Configurable via environment variables.
 

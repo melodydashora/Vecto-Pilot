@@ -8,6 +8,12 @@ import { coachDAL } from '../lib/coach-dal.js';
 const router = Router();
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// Voice model configuration
+// GPT-4o Realtime: 232-320ms latency (proven, production-ready)
+// Future upgrade: GPT-5 Pro (<150ms) or GPT-5.1 when voice API available
+const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-4o-realtime-preview-2024-12-17';
+const TOKEN_EXPIRY_SECONDS = 3600; // 1 hour
+
 /**
  * POST /api/realtime/token
  * Generate ephemeral session token for OpenAI Realtime API
@@ -24,12 +30,12 @@ router.post('/token', async (req, res) => {
       return res.status(400).json({ error: 'snapshotId or userId required' });
     }
 
-    console.log('[realtime] Generating token for snapshot:', snapshotId, '| user:', userId);
+    console.log('[realtime] Generating token for snapshot:', snapshotId, '| user:', userId, '| model:', VOICE_MODEL);
 
     // Generate ephemeral token (1 hour expiry)
     const response = await client.beta.realtimeTokens.create({
-      model: 'gpt-4o-realtime-preview-2024-12-17',
-      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      model: VOICE_MODEL,
+      expires_at: Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_SECONDS,
     });
 
     // Fetch snapshot context for system prompt
@@ -68,7 +74,7 @@ router.post('/token', async (req, res) => {
       ok: true,
       token: response.token,
       expires_at: response.expires_at,
-      model: 'gpt-4o-realtime-preview-2024-12-17',
+      model: VOICE_MODEL,
       context,
     });
   } catch (err) {

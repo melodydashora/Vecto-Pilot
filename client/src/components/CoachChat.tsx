@@ -79,11 +79,11 @@ export default function CoachChat({
         throw new Error(err.error || 'Failed to get token');
       }
 
-      const { token, context } = await res.json();
-      console.log('[voice] Token received, context:', context);
+      const { token, model, context } = await res.json();
+      console.log('[voice] Token received, model:', model, 'context:', context);
 
-      // Initialize WebSocket connection to OpenAI Realtime API
-      const wsUrl = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17`;
+      // Initialize WebSocket connection to OpenAI Realtime API with dynamic model
+      const wsUrl = `wss://api.openai.com/v1/realtime?model=${model}`;
       const ws = new WebSocket(wsUrl);
       realtimeRef.current = ws;
 
@@ -94,7 +94,7 @@ export default function CoachChat({
         ws.send(JSON.stringify({
           type: 'session.update',
           session: {
-            model: 'gpt-4o-realtime-preview-2024-12-17',
+            model: model,
             instructions: `You are an AI companion for rideshare drivers. You have access to current context:
 Location: ${context.city || 'unknown'}
 Weather: ${context.weather?.conditions || 'unknown'}
