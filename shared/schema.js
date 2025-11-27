@@ -458,6 +458,53 @@ export const venue_events = pgTable("venue_events", {
   idxStartsAt: sql`create index if not exists idx_venue_events_starts_at on ${table} (starts_at)`,
 }));
 
+// Traffic zones for real-time traffic intelligence
+export const traffic_zones = pgTable("traffic_zones", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  city: text("city"),
+  state: text("state"),
+  traffic_density: integer("traffic_density"), // 1-10 scale
+  density_level: text("density_level"), // 'low' | 'medium' | 'high'
+  congestion_areas: jsonb("congestion_areas"), // Array of congestion hotspots
+  high_demand_zones: jsonb("high_demand_zones"), // Array of high-demand areas
+  driver_advice: text("driver_advice"),
+  sources: jsonb("sources"), // Gemini search sources
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }), // Traffic data expires after ~15 min
+}, (table) => ({
+  idxCoords: sql`create index if not exists idx_traffic_zones_coords on ${table} (lat, lng)`,
+  idxCity: sql`create index if not exists idx_traffic_zones_city on ${table} (city)`,
+}));
+
+// Nearby venues discovered via Gemini web search (bars/restaurants)
+export const nearby_venues = pgTable("nearby_venues", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  venue_type: text("venue_type").notNull(), // 'bar' | 'restaurant' | 'bar_restaurant'
+  address: text("address"),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  expense_level: text("expense_level"), // '$' | '$$' | '$$$' | '$$$$'
+  expense_rank: integer("expense_rank"), // 1-4 (4 = most expensive)
+  is_open: boolean("is_open").default(true),
+  hours_today: text("hours_today"),
+  closing_soon: boolean("closing_soon").default(false), // True if closing within 1 hour
+  minutes_until_close: integer("minutes_until_close"),
+  crowd_level: text("crowd_level"), // 'low' | 'medium' | 'high'
+  rideshare_potential: text("rideshare_potential"), // 'low' | 'medium' | 'high'
+  city: text("city"),
+  state: text("state"),
+  search_sources: jsonb("search_sources"), // Gemini grounding sources
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxSnapshotId: sql`create index if not exists idx_nearby_venues_snapshot_id on ${table} (snapshot_id)`,
+  idxExpenseRank: sql`create index if not exists idx_nearby_venues_expense_rank on ${table} (expense_rank)`,
+  idxClosingSoon: sql`create index if not exists idx_nearby_venues_closing_soon on ${table} (closing_soon)`,
+}));
+
 export const agent_changes = pgTable("agent_changes", {
   id: uuid("id").primaryKey().defaultRandom(),
   change_type: text("change_type").notNull(),

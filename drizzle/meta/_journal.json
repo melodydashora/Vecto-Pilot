@@ -57,6 +57,13 @@
       "when": 1764139235949,
       "tag": "0007_easy_ulik",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1764227123553,
+      "tag": "0008_good_namor",
+      "breakpoints": true
     }
   ]
 }
