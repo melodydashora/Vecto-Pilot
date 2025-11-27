@@ -152,21 +152,34 @@ Keep responses concise (under 100 words). Be friendly and supportive. Help drive
   async function startAudioCapture() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioContext = new AudioContext();
+      const audioContext = new AudioContext({ sampleRate: 24000 });
       audioContextRef.current = audioContext;
-      const processor = audioContext.createMediaStreamAudioProcessor(stream);
       
-      processor.port.onmessage = (event) => {
-        const audioData = event.data.getChannelData(0);
-        // Send PCM16 audio to WebSocket
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      
+      processor.onaudioprocess = (event) => {
+        const audioData = event.inputBuffer.getChannelData(0);
+        
+        // Convert Float32 to Int16 (PCM16)
+        const pcm16Data = new Int16Array(audioData.length);
+        for (let i = 0; i < audioData.length; i++) {
+          const s = Math.max(-1, Math.min(1, audioData[i]));
+          pcm16Data[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        
+        // Send PCM16 audio to WebSocket as base64
         if (realtimeRef.current?.readyState === WebSocket.OPEN) {
+          const base64Audio = btoa(String.fromCharCode.apply(null, Array.from(pcm16Data)));
           realtimeRef.current.send(JSON.stringify({
             type: 'input_audio_buffer.append',
-            audio: audioData,
+            audio: base64Audio,
           }));
         }
       };
 
+      source.connect(processor);
+      processor.connect(audioContext.destination);
       console.log('[voice] Audio capture started');
     } catch (err) {
       console.error('[voice] Audio capture failed:', err);
