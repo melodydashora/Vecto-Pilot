@@ -232,6 +232,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] TTS endpoint failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading OpenAI Realtime voice chat endpoint...");
+        const realtimeRouter = (await import("./server/routes/realtime.js")).default;
+        app.use("/api/realtime", realtimeRouter);
+        console.log("[gateway] ✅ Voice chat endpoint mounted at /api/realtime");
+      } catch (e) {
+        console.error("[mono] Realtime voice endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Agent embed...");
         const { mountAgent } = await import("./server/agent/embed.js");
         mountAgent({ app, basePath: process.env.AGENT_PREFIX || "/agent", wsPath: "/agent/ws", server });
