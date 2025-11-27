@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   MapPin, Clock, DollarSign, Users, AlertTriangle, 
-  RefreshCw, Loader, Car, Utensils, Wine, TrendingUp 
+  RefreshCw, Loader, Car, Utensils, Wine, TrendingUp,
+  Zap
 } from "lucide-react";
 
 interface Venue {
@@ -49,13 +50,17 @@ interface SmartBlocksProps {
   state?: string;
 }
 
+const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
 export default function SmartBlocks({ lat, lng, city, state }: SmartBlocksProps) {
   const [venueData, setVenueData] = useState<VenueData | null>(null);
   const [trafficData, setTrafficData] = useState<TrafficData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [nextRefresh, setNextRefresh] = useState<number>(0);
 
-  const fetchIntelligence = async () => {
+  const fetchIntelligence = useCallback(async () => {
     if (!lat || !lng) {
       setError("Location required");
       return;
@@ -79,6 +84,8 @@ export default function SmartBlocks({ lat, lng, city, state }: SmartBlocksProps)
       if (result.success) {
         setVenueData(result.data.venues);
         setTrafficData(result.data.traffic);
+        setLastUpdated(new Date());
+        setNextRefresh(AUTO_REFRESH_INTERVAL / 1000);
       } else {
         setError(result.error || "Failed to fetch intelligence");
       }
@@ -88,13 +95,41 @@ export default function SmartBlocks({ lat, lng, city, state }: SmartBlocksProps)
     } finally {
       setLoading(false);
     }
-  };
+  }, [lat, lng, city, state]);
 
   useEffect(() => {
     if (lat && lng) {
       fetchIntelligence();
     }
-  }, [lat, lng, city, state]);
+  }, [lat, lng, city, state, fetchIntelligence]);
+
+  useEffect(() => {
+    if (!lat || !lng) return;
+    
+    const interval = setInterval(() => {
+      fetchIntelligence();
+    }, AUTO_REFRESH_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [lat, lng, fetchIntelligence]);
+
+  useEffect(() => {
+    if (nextRefresh <= 0) return;
+    
+    const countdown = setInterval(() => {
+      setNextRefresh(prev => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(countdown);
+  }, [nextRefresh]);
+
+  const formatTimeAgo = (date: Date) => {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes === 1) return '1 min ago';
+    return `${minutes} mins ago`;
+  };
 
   const getExpenseColor = (level: string) => {
     switch (level) {
@@ -139,22 +174,36 @@ export default function SmartBlocks({ lat, lng, city, state }: SmartBlocksProps)
   }
 
   return (
-    <div className="space-y-4" data-testid="smart-blocks-container">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-blue-600" />
-          Venue Intelligence
-        </h2>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchIntelligence}
-          disabled={loading}
-          data-testid="button-refresh-venues"
-        >
-          {loading ? <Loader className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Refresh
-        </Button>
+    <div className="space-y-4 pb-20" data-testid="smart-blocks-container">
+      <div className="sticky top-0 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
+              <TrendingUp className="h-5 w-5 text-blue-600" />
+              Venue Intelligence
+              <Badge className="bg-green-100 text-green-700 border-0 text-xs flex items-center gap-1">
+                <Zap className="h-3 w-3" />
+                Live
+              </Badge>
+            </h2>
+            {lastUpdated && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                Updated {formatTimeAgo(lastUpdated)} • Auto-refresh in {Math.floor(nextRefresh / 60)}:{(nextRefresh % 60).toString().padStart(2, '0')}
+              </p>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchIntelligence}
+            disabled={loading}
+            className="border-gray-300"
+            data-testid="button-refresh-venues"
+          >
+            {loading ? <Loader className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {error && (

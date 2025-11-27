@@ -162,6 +162,9 @@ const CoPilot: React.FC = () => {
   
   // Strategy feedback modal state  
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
+  
+  // Bottom tab navigation
+  const [activeTab, setActiveTab] = useState<'strategy' | 'venues'>('strategy');
 
   // Ref to track polling status changes (reduces console spam by only logging transitions)
   const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
@@ -1014,6 +1017,10 @@ const CoPilot: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24" data-testid="copilot-page">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pt-6 pb-6">
+        
+        {/* Strategy Tab Content */}
+        {activeTab === 'strategy' && (
+          <>
         {/* Live Status Banner */}
         <div className="mb-6 flex items-center gap-3 flex-wrap justify-between">
           <div className="flex items-center gap-2">
@@ -1795,18 +1802,6 @@ const CoPilot: React.FC = () => {
           </div>
         )}
 
-        {/* Venue Intelligence - Bars/Restaurants sorted by expense with traffic data */}
-        {coords && (
-          <div className="mb-6" data-testid="venue-intelligence-section">
-            <SmartBlocks
-              lat={coords.lat}
-              lng={coords.lng}
-              city={snapshotData?.city}
-              state={snapshotData?.state}
-            />
-          </div>
-        )}
-
         {/* Smart Blocks Pipeline Status - Shows after Coach */}
         {coords && (
           <div className="mb-6">
@@ -1824,7 +1819,64 @@ const CoPilot: React.FC = () => {
             />
           </div>
         )}
+          </>
+        )}
 
+        {/* Venues Tab Content - Dynamic venue intelligence */}
+        {activeTab === 'venues' && coords && (
+          <div data-testid="venue-intelligence-section">
+            <SmartBlocks
+              lat={coords.lat}
+              lng={coords.lng}
+              city={snapshotData?.city}
+              state={snapshotData?.state}
+            />
+          </div>
+        )}
+
+        {activeTab === 'venues' && !coords && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <MapPin className="w-12 h-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-700">Location Required</h3>
+            <p className="text-gray-500 mt-2">Enable location services to see nearby venues</p>
+          </div>
+        )}
+
+      </div>
+
+      {/* Bottom Tab Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50" data-testid="bottom-tabs">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('strategy')}
+              className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
+                activeTab === 'strategy' 
+                  ? 'text-blue-600 bg-blue-50' 
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+              data-testid="tab-strategy"
+            >
+              <Sparkles className={`w-6 h-6 ${activeTab === 'strategy' ? 'text-blue-600' : 'text-gray-400'}`} />
+              <span className="text-xs font-medium">Strategy</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('venues')}
+              className={`relative flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
+                activeTab === 'venues' 
+                  ? 'text-blue-600 bg-blue-50' 
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+              data-testid="tab-venues"
+            >
+              <div className="relative">
+                <TrendingUp className={`w-6 h-6 ${activeTab === 'venues' ? 'text-blue-600' : 'text-gray-400'}`} />
+                <span className="absolute -top-1 -right-2 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              </div>
+              <span className="text-xs font-medium">Venues</span>
+            </button>
+          </div>
+        </div>
       </div>
       
       {/* Venue Feedback Modal */}
