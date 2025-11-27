@@ -120,8 +120,8 @@
   .alert-card.success { @apply bg-green-50 dark:bg-green-950 border-green-500; }
   .alert-card.info { @apply bg-blue-50 dark:bg-blue-950 border-blue-500; }
 
-  .animate-fade-in { @apply animate-in fade-in duration-500 ease-out; }
-  .pulse-glow { @apply animate-pulse; animation: pulseGlow 2s infinite; }
+  .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+  .pulse-glow { animation: pulseGlow 2s infinite; }
 }
 
 /* ---- Header stack tweaks ---- */
