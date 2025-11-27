@@ -314,14 +314,14 @@ replit_agent: {
   // CONSOLIDATOR - Strategy consolidation
   consolidator: {
     provider: 'openai',
-    model_id: 'gpt-5',
-    model_name: 'GPT-5 (Consolidator)',
+    model_id: 'gpt-5.1',
+    model_name: 'GPT-5.1 (Consolidator)',
     context_window: 272000,
-    max_output_tokens: 2000,
+    max_output_tokens: 64000,
     api_endpoint: 'https://api.openai.com/v1/chat/completions',
     parameters: {
-      temperature: 0.3,
-      max_tokens: 2000,
+      reasoning_effort: 'medium',
+      max_completion_tokens: 64000,
       supports_temperature: false,
       supports_reasoning_effort: true
     },
@@ -333,8 +333,8 @@ replit_agent: {
     env_vars: {
       api_key: 'OPENAI_API_KEY',
       model: 'STRATEGY_CONSOLIDATOR',
-      max_tokens: 'STRATEGY_CONSOLIDATOR_MAX_TOKENS',
-      temperature: 'STRATEGY_CONSOLIDATOR_TEMPERATURE'
+      reasoning_effort: 'STRATEGY_CONSOLIDATOR_REASONING_EFFORT',
+      max_tokens: 'STRATEGY_CONSOLIDATOR_MAX_TOKENS'
     }
   },
 
