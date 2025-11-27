@@ -220,13 +220,14 @@ Return ONLY valid JSON.`;
 /**
  * Combined venue + traffic intelligence for Smart Blocks
  * @param {Object} params - Query parameters
+ * @param {string} [params.holiday] - Current holiday name (optional)
  * @returns {Promise<Object>} Combined intelligence
  */
-export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5 }) {
+export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, holiday = null }) {
   try {
     // Run venue discovery and traffic intelligence in parallel
     const [venueData, trafficData] = await Promise.all([
-      discoverNearbyVenues({ lat, lng, city, state, radiusMiles }),
+      discoverNearbyVenues({ lat, lng, city, state, radiusMiles, holiday }),
       getTrafficIntelligence({ lat, lng, city, state })
     ]);
 
