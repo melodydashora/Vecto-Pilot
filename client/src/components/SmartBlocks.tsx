@@ -274,15 +274,15 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
             {venueData.last_call_venues.slice(0, 3).map((venue, i) => (
               <div 
                 key={i} 
-                className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded-lg border"
+                className="flex items-center justify-between p-2 bg-white rounded-lg border border-orange-200"
                 data-testid={`last-call-venue-${i}`}
               >
                 <div className="flex items-center gap-2">
-                  {getVenueIcon(venue.type)}
-                  <span className="font-medium text-sm">{venue.name}</span>
+                  <span className="text-slate-700">{getVenueIcon(venue.type)}</span>
+                  <span className="font-medium text-sm text-slate-900">{venue.name}</span>
                   <Badge className={getExpenseColor(venue.expense_level)}>{venue.expense_level}</Badge>
                 </div>
-                <Badge variant="outline" className="text-orange-600">
+                <Badge variant="outline" className="text-orange-600 border-orange-400">
                   <Clock className="h-3 w-3 mr-1" />
                   {venue.minutes_until_close}min
                 </Badge>
@@ -306,14 +306,14 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
               {venueData.venues.map((venue, i) => (
                 <div 
                   key={i} 
-                  className={`p-3 rounded-lg border ${venue.closing_soon ? 'border-orange-200 bg-orange-50/50 dark:bg-orange-950/20' : 'bg-gray-50 dark:bg-slate-800'}`}
+                  className={`p-3 rounded-lg border ${venue.closing_soon ? 'border-orange-300 bg-orange-50' : 'bg-slate-100 border-slate-200'}`}
                   data-testid={`venue-card-${i}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        {getVenueIcon(venue.type)}
-                        <span className="font-medium text-sm">{venue.name}</span>
+                        <span className="text-slate-700">{getVenueIcon(venue.type)}</span>
+                        <span className="font-medium text-sm text-slate-900">{venue.name}</span>
                         <Badge className={getExpenseColor(venue.expense_level)}>{venue.expense_level}</Badge>
                         {venue.closing_soon && (
                           <Badge variant="destructive" className="text-xs">
@@ -322,11 +322,11 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <p className="text-xs text-slate-600 flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
                         {venue.address}
                       </p>
-                      <div className="flex items-center gap-3 mt-1 text-xs">
+                      <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {venue.hours_today}
@@ -339,7 +339,7 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
                     </div>
                     <Badge 
                       variant={venue.rideshare_potential === "high" ? "default" : "outline"}
-                      className={venue.rideshare_potential === "high" ? "bg-green-600" : ""}
+                      className={venue.rideshare_potential === "high" ? "bg-green-600 text-white" : "text-slate-700 border-slate-400"}
                     >
                       {venue.rideshare_potential} potential
                     </Badge>
