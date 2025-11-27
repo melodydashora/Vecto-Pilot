@@ -7,13 +7,13 @@ export const schemas = {
   uuid: z.string().uuid(),
   
   action: z.object({
-    action_type: z.enum(['view', 'dwell', 'block_clicked', 'dismiss', 'navigate']),
-    snapshot_id: z.string().uuid(),
+    action_type: z.enum(['view', 'dwell', 'block_clicked', 'dismiss', 'navigate']).optional(),
+    snapshot_id: z.string().uuid().optional(),
     ranking_id: z.string().uuid().optional(),
     venue_id: z.string().optional(),
-    dwell_ms: z.number().int().min(0).max(3600000).optional(),
+    dwell_ms: z.number().int().min(0).max(3600000).nullable().optional(),
     metadata: z.record(z.any()).optional()
-  }),
+  }).strict(false),
   
   feedback: z.object({
     venue_id: z.string(),
@@ -21,20 +21,20 @@ export const schemas = {
     rating: z.number().int().min(1).max(5).optional(),
     comment: z.string().max(1000).optional(),
     feedback_type: z.enum(['rating', 'comment', 'report']).optional()
-  }),
+  }).strict(false),
   
   location: z.object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
     accuracy: z.number().min(0).optional()
-  }),
+  }).strict(false),
   
   snapshot: z.object({
     user_lat: z.number().min(-90).max(90),
     user_lng: z.number().min(-180).max(180),
     timezone: z.string().optional(),
     weather: z.object({}).passthrough().optional()
-  })
+  }).strict(false)
 };
 
 // Validation middleware factory
@@ -44,17 +44,20 @@ export function validate(schema) {
       req.validatedBody = schema.parse(req.body);
       next();
     } catch (err) {
-      if (err instanceof z.ZodError && err.errors) {
+      if (err instanceof z.ZodError) {
+        // Always return 400 for validation errors - don't pass to next()
+        console.warn('[validation] ZodError for action:', err.errors?.map(e => `${e.path?.join('.')}=${e.message}`).join(', '));
         return res.status(400).json({
           ok: false,
           error: 'VALIDATION_ERROR',
           message: 'Invalid request data',
-          details: err.errors.map(e => ({
+          details: err.errors?.map(e => ({
             field: e.path?.join('.') || 'unknown',
             message: e.message
-          }))
+          })) || []
         });
       }
+      // For non-ZodErrors, pass to error handler
       next(err);
     }
   };
