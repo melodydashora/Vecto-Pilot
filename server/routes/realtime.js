@@ -2,11 +2,11 @@
 // Enables voice-to-voice conversation with full snapshot context
 
 import { Router } from 'express';
-import OpenAI from 'openai';
+import fetch from 'node-fetch';
 import { coachDAL } from '../lib/coach-dal.js';
 
 const router = Router();
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Voice model configuration
 // GPT-4o Realtime: 232-320ms latency (proven, production-ready)
@@ -32,11 +32,26 @@ router.post('/token', async (req, res) => {
 
     console.log('[realtime] Generating token for snapshot:', snapshotId, '| user:', userId, '| model:', VOICE_MODEL);
 
-    // Generate ephemeral token (1 hour expiry)
-    const response = await client.beta.realtimeTokens.create({
-      model: VOICE_MODEL,
-      expires_at: Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_SECONDS,
+    // Generate ephemeral token using OpenAI REST API
+    const tokenResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: VOICE_MODEL,
+        expires_in: TOKEN_EXPIRY_SECONDS,
+      }),
     });
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.json();
+      console.error('[realtime] OpenAI API error:', errorData);
+      throw new Error(errorData.error?.message || 'Failed to generate token');
+    }
+
+    const response = await tokenResponse.json();
 
     // Fetch snapshot context for system prompt
     let context = {
@@ -68,12 +83,12 @@ router.post('/token', async (req, res) => {
       }
     }
 
-    console.log('[realtime] ✅ Token generated, expires:', response.expires_at, '| Context:', context);
+    console.log('[realtime] ✅ Token generated, id:', response.id, '| Context:', context);
 
     res.json({
       ok: true,
-      token: response.token,
-      expires_at: response.expires_at,
+      token: response.client_secret?.value || response.token,
+      expires_at: response.expires_at || Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_SECONDS,
       model: VOICE_MODEL,
       context,
     });
