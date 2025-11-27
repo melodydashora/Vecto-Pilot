@@ -1878,6 +1878,7 @@ const CoPilot: React.FC = () => {
               state={snapshotData?.state}
               snapshotLat={snapshotData?.lat}
               snapshotLng={snapshotData?.lng}
+              holiday={snapshotData?.holiday}
             />
           </div>
         )}
