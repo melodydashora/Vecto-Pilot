@@ -2,8 +2,8 @@
 // Enables voice-to-voice conversation with full snapshot context
 
 import { Router } from 'express';
-import fetch from 'node-fetch';
 import { coachDAL } from '../lib/coach-dal.js';
+// Node.js 18+ has built-in fetch - no import needed
 
 const router = Router();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
