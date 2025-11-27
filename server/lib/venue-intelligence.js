@@ -14,9 +14,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * @param {string} params.city - City name
  * @param {string} params.state - State/region
  * @param {number} params.radiusMiles - Search radius in miles (default 15)
+ * @param {string} [params.holiday] - Current holiday (e.g., "Thanksgiving") - affects hours
  * @returns {Promise<Object>} Venue intelligence with sorted venues
  */
-export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 15 }) {
+export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 15, holiday = null }) {
   const model = genAI.getGenerativeModel({ 
     model: "gemini-2.0-flash-exp",
     generationConfig: {
@@ -30,13 +31,16 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
   const currentMinutes = currentTime.getMinutes();
   const timeString = `${currentHour}:${currentMinutes.toString().padStart(2, '0')}`;
   
-  const prompt = `You are a rideshare driver intelligence assistant. Find me ALL bars and restaurants near ${city}, ${state} (coordinates: ${lat}, ${lng}) within ${radiusMiles} miles.
+  const holidayContext = holiday ? `\n⚠️ TODAY IS ${holiday.toUpperCase()} - Many venues may have special holiday hours!` : '';
+  
+  const prompt = `You are a rideshare driver intelligence assistant. Find me ALL bars and restaurants near ${city}, ${state} (coordinates: ${lat}, ${lng}) within ${radiusMiles} miles.${holidayContext}
 
 IMPORTANT REQUIREMENTS:
 1. Sort by EXPENSE LEVEL: Highest expense first ($$$$) down to lowest ($)
 2. Include ONLY venues that are currently OPEN or will be open within the next hour
 3. For each venue, note if it's closing within 1 hour (LAST CALL opportunity!)
 4. Use current time: ${timeString}
+5. If today is a holiday, venues may have SPECIAL/MODIFIED hours - note this in the response
 
 For each venue provide:
 - name: Venue name

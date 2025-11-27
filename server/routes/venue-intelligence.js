@@ -80,11 +80,11 @@ router.get('/traffic', async (req, res) => {
 /**
  * GET /api/venues/smart-blocks
  * Combined venue + traffic intelligence for Smart Blocks UI
- * Query params: lat, lng, city, state, radius (miles)
+ * Query params: lat, lng, city, state, radius (miles), holiday (optional)
  */
 router.get('/smart-blocks', async (req, res) => {
   try {
-    const { lat, lng, city, state, radius } = req.query;
+    const { lat, lng, city, state, radius, holiday } = req.query;
     
     if (!lat || !lng) {
       return res.status(400).json({ 
@@ -97,7 +97,8 @@ router.get('/smart-blocks', async (req, res) => {
       lng: parseFloat(lng),
       city: city || 'Unknown',
       state: state || '',
-      radiusMiles: parseFloat(radius) || 5
+      radiusMiles: parseFloat(radius) || 5,
+      holiday: holiday || null
     });
 
     res.json({
