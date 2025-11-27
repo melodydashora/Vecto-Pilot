@@ -41,7 +41,6 @@ router.post('/token', async (req, res) => {
       },
       body: JSON.stringify({
         model: VOICE_MODEL,
-        expires_in: TOKEN_EXPIRY_SECONDS,
       }),
     });
 
@@ -52,6 +51,11 @@ router.post('/token', async (req, res) => {
     }
 
     const response = await tokenResponse.json();
+    console.log('[realtime] ✅ Token response received:', { 
+      id: response.id, 
+      hasSecret: !!response.client_secret,
+      expiresAt: response.expires_at 
+    });
 
     // Fetch snapshot context for system prompt
     let context = {
@@ -83,12 +87,12 @@ router.post('/token', async (req, res) => {
       }
     }
 
-    console.log('[realtime] ✅ Token generated, id:', response.id, '| Context:', context);
+    console.log('[realtime] ✅ Token generated for snapshot:', snapshotId, '| Context:', context);
 
     res.json({
       ok: true,
-      token: response.client_secret?.value || response.token,
-      expires_at: response.expires_at || Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_SECONDS,
+      token: response.client_secret?.value,
+      expires_at: response.expires_at,
       model: VOICE_MODEL,
       context,
     });
