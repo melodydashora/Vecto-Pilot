@@ -2,9 +2,9 @@
 // Real-time venue intelligence using Gemini 2.0 Flash with web search grounding
 // Provides: bars/restaurants sorted by expense, filtered by operating hours, traffic context
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 /**
  * Discover nearby bars and restaurants using Gemini with Google Search grounding
@@ -17,7 +17,14 @@ const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
  * @returns {Promise<Object>} Venue intelligence with sorted venues
  */
 export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 5 }) {
-  const model = genai.models;
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-2.0-flash-exp",
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 8000,
+      responseMimeType: "application/json",
+    }
+  });
   const currentTime = new Date();
   const currentHour = currentTime.getHours();
   const currentMinutes = currentTime.getMinutes();
@@ -76,16 +83,8 @@ SORT ORDER: Highest expense ($$$$) first, then by closing_soon (true first for l
 Return ONLY valid JSON, no markdown.`;
 
   try {
-    const response = await model.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-      }
-    });
-
-    const text = response.text;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
     
     // Parse JSON response
     let venueData;
@@ -102,13 +101,8 @@ Return ONLY valid JSON, no markdown.`;
       }
     }
 
-    // Extract grounding metadata if available
-    const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
-    if (groundingMetadata?.groundingChunks) {
-      venueData.search_sources = groundingMetadata.groundingChunks.map(
-        chunk => chunk.web?.title || chunk.web?.uri
-      ).filter(Boolean);
-    }
+    // Add search source info
+    venueData.search_sources = venueData.search_sources || ['Gemini AI analysis'];
 
     // Post-process: ensure proper sorting
     if (venueData.venues && Array.isArray(venueData.venues)) {
@@ -144,7 +138,14 @@ Return ONLY valid JSON, no markdown.`;
  * @returns {Promise<Object>} Traffic intelligence
  */
 export async function getTrafficIntelligence({ lat, lng, city, state }) {
-  const model = genai.models;
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-2.0-flash-exp",
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 4000,
+      responseMimeType: "application/json",
+    }
+  });
   const currentTime = new Date();
   const timeString = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   
@@ -177,16 +178,8 @@ Return JSON:
 Return ONLY valid JSON.`;
 
   try {
-    const response = await model.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-      }
-    });
-
-    const text = response.text;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
     
     let trafficData;
     try {
