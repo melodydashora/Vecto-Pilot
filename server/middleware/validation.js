@@ -44,13 +44,13 @@ export function validate(schema) {
       req.validatedBody = schema.parse(req.body);
       next();
     } catch (err) {
-      if (err instanceof z.ZodError) {
+      if (err instanceof z.ZodError && err.errors) {
         return res.status(400).json({
           ok: false,
           error: 'VALIDATION_ERROR',
           message: 'Invalid request data',
           details: err.errors.map(e => ({
-            field: e.path.join('.'),
+            field: e.path?.join('.') || 'unknown',
             message: e.message
           }))
         });
