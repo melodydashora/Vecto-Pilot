@@ -80,28 +80,33 @@ export default function CoachChat({
       }
 
       const { token, model, context } = await res.json();
-      console.log('[voice] Token received, model:', model, 'context:', context);
+      console.log('[voice] Token received, model:', model, 'token:', token?.substring(0, 20) + '...');
 
-      // Initialize WebSocket connection to OpenAI Realtime API with dynamic model
-      const wsUrl = `wss://api.openai.com/v1/realtime?model=${model}`;
+      if (!token) {
+        throw new Error('No token returned from server');
+      }
+
+      // Initialize WebSocket connection to OpenAI Realtime API
+      // Token must be passed as query parameter for auth
+      const wsUrl = `wss://api.openai.com/v1/realtime?model=${model}&token=${token}`;
+      console.log('[voice] Connecting to realtime API...');
       const ws = new WebSocket(wsUrl);
       realtimeRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[voice] WebSocket connected');
+        console.log('[voice] WebSocket connected - sending session config');
         
-        // Send session setup with authorization
+        // Send session setup with driver context
         ws.send(JSON.stringify({
           type: 'session.update',
           session: {
-            model: model,
-            instructions: `You are an AI companion for rideshare drivers. You have access to current context:
-Location: ${context.city || 'unknown'}
-Weather: ${context.weather?.conditions || 'unknown'}
-Time: ${context.dayPart || 'unknown'} (${context.hour}:00)
-Current Strategy: ${context.strategy?.substring(0, 200) || 'none'}
+            modalities: ['text', 'audio'],
+            instructions: `You are an AI companion for rideshare drivers in ${context.city || 'unknown'}, TX. 
+Weather: ${context.weather?.conditions || 'clear'} (${context.weather?.tempF || 70}°F)
+Time: ${context.dayPart || 'day'} (${context.hour || 12}:00)
+Strategy: ${context.strategy?.substring(0, 150) || 'Generate advice for earning opportunities'}
 
-Keep responses concise (under 100 words). Be friendly and supportive. Help drivers with strategy, venue recommendations, or just conversation. Never suggest illegal activities.`,
+Keep responses under 100 words. Be conversational, friendly, and supportive. Focus on safety and maximizing earnings.`,
             voice: 'alloy',
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
@@ -109,13 +114,7 @@ Keep responses concise (under 100 words). Be friendly and supportive. Help drive
           },
         }));
 
-        // Add authorization header (done via token in URL, but send confirmation)
-        ws.send(JSON.stringify({
-          type: 'session.user.auth',
-          token: token,
-        }));
-
-        // Start audio capture
+        // Start audio capture AFTER session is configured
         startAudioCapture();
       };
 
