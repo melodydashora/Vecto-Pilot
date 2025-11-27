@@ -38,6 +38,7 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
 import { subscribeStrategyReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
+import SmartBlocks from '@/components/SmartBlocks';
 import {
   Tooltip,
   TooltipContent,
@@ -1791,6 +1792,18 @@ const CoPilot: React.FC = () => {
                 strategyReady={!!persistentStrategy}
               />
             </div>
+          </div>
+        )}
+
+        {/* Venue Intelligence - Bars/Restaurants sorted by expense with traffic data */}
+        {coords && (
+          <div className="mb-6" data-testid="venue-intelligence-section">
+            <SmartBlocks
+              lat={coords.lat}
+              lng={coords.lng}
+              city={snapshotData?.city}
+              state={snapshotData?.state}
+            />
           </div>
         )}
 
