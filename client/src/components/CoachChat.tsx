@@ -322,43 +322,43 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
   ];
 
   return (
-    <Card className="flex flex-col h-[500px] border-2 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-950 dark:to-blue-950 overflow-hidden shadow-lg">
-      {/* Premium Header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700 text-white shadow-sm">
-        <div className="flex items-center justify-center h-9 w-9 rounded-full bg-white/20 backdrop-blur">
-          <Zap className="h-5 w-5" />
+    <Card className="flex flex-col h-[500px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 overflow-hidden shadow-lg rounded-xl">
+      {/* Clean Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-white/20">
+          <Zap className="h-4 w-4" />
         </div>
         <div>
-          <h3 className="font-bold text-sm">Rideshare Coach</h3>
-          <p className="text-xs text-blue-100">AI Strategy & Earnings Companion</p>
+          <h3 className="font-semibold text-sm">Rideshare Coach</h3>
+          <p className="text-xs text-white/80">AI Strategy Assistant</p>
         </div>
         {isVoiceActive && (
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto">
             <span className="text-xs bg-white/20 px-2 py-1 rounded-full animate-pulse">🎤 Listening</span>
           </div>
         )}
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-auto p-4 space-y-4 scroll-smooth">
+      {/* Messages Area - Light background for readability */}
+      <div className="flex-1 overflow-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-800">
         {msgs.length === 0 && (
-          <div className="text-center py-10 space-y-5">
-            <div className="inline-block p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
-              <MessageSquare className="h-8 w-8 text-blue-600 dark:text-blue-300" />
+          <div className="text-center py-8 space-y-4">
+            <div className="inline-flex items-center justify-center h-14 w-14 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <MessageSquare className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h4 className="font-semibold text-foreground mb-1">Welcome to Your Rideshare Coach!</h4>
-              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                Get instant advice on venues, strategy, earnings tips, or just chat. Tap any suggestion below to get started!
+              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Welcome to Your Rideshare Coach!</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-300 max-w-sm mx-auto leading-relaxed">
+                Get instant advice on venues, strategy, and earnings tips. Tap any suggestion to get started!
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 justify-center pt-2">
+            <div className="flex flex-wrap gap-2 justify-center pt-3">
               {suggestedQuestions.map((q, i) => (
                 <Button
                   key={i}
                   variant="outline"
                   size="sm"
-                  className="text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-blue-200 dark:border-blue-800"
+                  className="text-xs bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900 hover:border-blue-400 shadow-sm"
                   onClick={() => {
                     setInput(q);
                     setTimeout(() => send(), 100);
@@ -379,21 +379,21 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
             data-testid={`message-${m.role}-${i}`}
           >
             {m.role === "assistant" && (
-              <div className="flex-shrink-0 h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                <span className="text-xs text-white">⚡</span>
+              <div className="flex-shrink-0 h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                <Zap className="h-3.5 w-3.5 text-white" />
               </div>
             )}
             <div
-              className={`inline-block rounded-2xl px-4 py-3 max-w-xs shadow-sm ${
+              className={`inline-block rounded-2xl px-4 py-2.5 max-w-[75%] shadow-sm ${
                 m.role === "user"
-                  ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-br-none"
-                  : "bg-white dark:bg-slate-800 text-foreground border border-blue-100 dark:border-blue-900 rounded-bl-none"
+                  ? "bg-blue-600 text-white rounded-br-sm"
+                  : "bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600 rounded-bl-sm"
               }`}
             >
               <p className={`text-sm leading-relaxed ${m.role === "assistant" ? "whitespace-pre-wrap" : ""}`}>
                 {m.content || (m.role === "assistant" && isStreaming && i === msgs.length - 1 ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Loader className="h-4 w-4 animate-spin" />
+                  <span className="inline-flex items-center gap-1.5 text-gray-500">
+                    <Loader className="h-3.5 w-3.5 animate-spin" />
                     Thinking...
                   </span>
                 ) : "")}
@@ -406,7 +406,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
 
       {/* Voice Transcript Display */}
       {voiceTranscript && (
-        <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-t border-blue-200 dark:border-blue-800 text-sm text-blue-900 dark:text-blue-100 max-h-14 overflow-auto flex items-center gap-2">
+        <div className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/50 border-t border-blue-200 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-200 max-h-12 overflow-auto flex items-center gap-2">
           <span className="animate-pulse">🎤</span>
           <span className="font-medium">You said:</span>
           <span className="italic">{voiceTranscript}</span>
@@ -414,27 +414,25 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       )}
 
       {/* Input Area */}
-      <div className="p-3 border-t bg-white dark:bg-slate-900 flex gap-2">
-        <div className="flex-1 relative">
-          <Input
-            className="flex-1 rounded-full border-2 border-blue-200 dark:border-blue-800 focus:border-blue-600 dark:focus:border-blue-500 bg-slate-50 dark:bg-slate-800 transition-colors"
-            placeholder={isVoiceActive ? "🎤 Listening... speak now" : "Ask about strategy, venues, or earnings…"}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !isStreaming && !isVoiceActive && send()}
-            disabled={isStreaming || isVoiceActive}
-            data-testid="input-chat-message"
-          />
-        </div>
+      <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 flex gap-2">
+        <Input
+          className="flex-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          placeholder={isVoiceActive ? "Listening... speak now" : "Ask about strategy, venues, or earnings..."}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !isStreaming && !isVoiceActive && send()}
+          disabled={isStreaming || isVoiceActive}
+          data-testid="input-chat-message"
+        />
         
         {/* Voice Button */}
         <Button
           onClick={isVoiceActive ? stopVoiceChat : startVoiceChat}
           size="icon"
-          className={`rounded-full transition-all ${
+          className={`rounded-full h-10 w-10 ${
             isVoiceActive 
-              ? "bg-red-500 hover:bg-red-600 animate-pulse" 
-              : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
+              ? "bg-red-500 hover:bg-red-600 text-white animate-pulse" 
+              : "bg-blue-600 hover:bg-blue-700 text-white"
           }`}
           title={isVoiceActive ? "Stop voice chat" : "Start voice chat"}
           data-testid="button-voice-chat"
@@ -447,7 +445,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
           onClick={send}
           disabled={!input.trim() || isStreaming || isVoiceActive}
           size="icon"
-          className="rounded-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 transition-all"
+          className="rounded-full h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
           data-testid="button-send-message"
         >
           {isStreaming ? <Loader className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
