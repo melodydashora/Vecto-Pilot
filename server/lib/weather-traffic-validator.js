@@ -20,30 +20,38 @@ Description: ${snapshot.weather.description}
 Humidity: ${snapshot.weather.humidity}%
 Wind Speed: ${snapshot.weather.windSpeed} mph
 
-Respond with JSON: { "valid": boolean, "reason": string, "severity": "safe"|"caution"|"hazardous" }
+Respond with ONLY valid JSON (no markdown, no code blocks): { "valid": boolean, "reason": string, "severity": "safe"|"caution"|"hazardous" }
 - valid=true if conditions are workable for rideshare
 - valid=false if conditions are dangerous/impossible (severe snow, ice, floods, etc)
 - severity: safe (normal), caution (rain/wind but workable), hazardous (dangerous)`;
 
     const result = await callGeminiGenerateContent({
-      systemInstruction: 'You are a safety analyst for rideshare drivers. Evaluate if weather conditions are safe enough to work.',
+      systemInstruction: 'You are a safety analyst for rideshare drivers. Evaluate if weather conditions are safe enough to work. Always respond with ONLY valid JSON, no markdown formatting.',
       userText: prompt,
       maxOutputTokens: 256,
       temperature: 0.1
     });
 
-    const parsed = JSON.parse(result);
+    // Extract JSON if wrapped in markdown code blocks
+    const jsonMatch = result.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, result];
+    const jsonString = jsonMatch[1] || result;
+    const parsed = JSON.parse(jsonString.trim());
     console.log('[weather-validator] Result:', parsed);
     
     return {
       valid: parsed.valid === true,
-      reason: parsed.reason,
-      severity: parsed.severity || 'unknown',
+      reason: parsed.reason || 'No reason provided',
+      severity: parsed.severity || 'safe',
       conditions: `${snapshot.weather.tempF}°F, ${snapshot.weather.conditions}`
     };
   } catch (err) {
     console.error('[weather-validator] Error:', err.message);
-    return { valid: true, conditions: 'validation_error', reason: err.message };
+    return { 
+      valid: true, 
+      conditions: 'validation_error', 
+      reason: err.message,
+      severity: 'unknown'
+    };
   }
 }
 
@@ -65,30 +73,38 @@ Delays: ${airport_context.delay_minutes} minutes
 Reason: ${airport_context.delay_reason || 'none'}
 Closure Status: ${airport_context.closure_status}
 
-Respond with JSON: { "valid": boolean, "reason": string, "impact": "low"|"medium"|"high", "recommendation": string }
+Respond with ONLY valid JSON (no markdown, no code blocks): { "valid": boolean, "reason": string, "impact": "low"|"medium"|"high", "recommendation": string }
 - valid=true if traffic allows rideshare operations
 - valid=false if conditions prevent movement (airport closure, major gridlock)
 - impact: low (minimal effect), medium (noticeable delays), high (severe disruption)`;
 
     const result = await callGeminiGenerateContent({
-      systemInstruction: 'You are a traffic analyst for rideshare operations. Evaluate if traffic/airport conditions allow work.',
+      systemInstruction: 'You are a traffic analyst for rideshare operations. Evaluate if traffic/airport conditions allow work. Always respond with ONLY valid JSON, no markdown formatting.',
       userText: prompt,
       maxOutputTokens: 256,
       temperature: 0.1
     });
 
-    const parsed = JSON.parse(result);
+    // Extract JSON if wrapped in markdown code blocks
+    const jsonMatch = result.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, result];
+    const jsonString = jsonMatch[1] || result;
+    const parsed = JSON.parse(jsonString.trim());
     console.log('[traffic-validator] Result:', parsed);
     
     return {
       valid: parsed.valid === true,
-      reason: parsed.reason,
-      impact: parsed.impact || 'unknown',
-      recommendation: parsed.recommendation
+      reason: parsed.reason || 'No reason provided',
+      impact: parsed.impact || 'low',
+      recommendation: parsed.recommendation || 'Operations normal'
     };
   } catch (err) {
     console.error('[traffic-validator] Error:', err.message);
-    return { valid: true, impact: 'unknown', reason: err.message };
+    return { 
+      valid: true, 
+      impact: 'unknown', 
+      reason: err.message,
+      recommendation: 'Unable to validate'
+    };
   }
 }
 
