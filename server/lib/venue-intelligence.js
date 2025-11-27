@@ -13,10 +13,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
  * @param {number} params.lng - Driver longitude  
  * @param {string} params.city - City name
  * @param {string} params.state - State/region
- * @param {number} params.radiusMiles - Search radius in miles (default 5)
+ * @param {number} params.radiusMiles - Search radius in miles (default 15)
  * @returns {Promise<Object>} Venue intelligence with sorted venues
  */
-export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 5 }) {
+export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 15 }) {
   const model = genAI.getGenerativeModel({ 
     model: "gemini-2.0-flash-exp",
     generationConfig: {
@@ -79,7 +79,11 @@ Return a JSON object with this structure:
   "search_sources": ["list of sources used"]
 }
 
-SORT ORDER: Highest expense ($$$$) first, then by closing_soon (true first for last-call opportunities).
+SORT ORDER:
+1. Currently OPEN venues first (is_open: true)
+2. Within open venues: Closing soon first (last-call opportunities), then by expense level ($$$$→$)
+3. Venues opening later (is_open: false) last, sorted by expense level
+
 Return ONLY valid JSON, no markdown.`;
 
   try {
@@ -105,21 +109,30 @@ Return ONLY valid JSON, no markdown.`;
     venueData.search_sources = venueData.search_sources || ['Gemini AI analysis'];
 
     // Post-process: ensure proper sorting
+    // Order: Open venues first → closing soon → then by expense level → closed venues last
     if (venueData.venues && Array.isArray(venueData.venues)) {
       venueData.venues.sort((a, b) => {
-        // First by expense_rank descending
-        if (b.expense_rank !== a.expense_rank) {
-          return b.expense_rank - a.expense_rank;
+        // 1. Open venues before closed venues
+        if (a.is_open !== b.is_open) {
+          return a.is_open ? -1 : 1;
         }
-        // Then by closing_soon (true first for last-call opportunities)
-        if (a.closing_soon !== b.closing_soon) {
-          return a.closing_soon ? -1 : 1;
+        
+        // Within open venues:
+        if (a.is_open && b.is_open) {
+          // 2. Closing soon first (last-call opportunities)
+          if (a.closing_soon !== b.closing_soon) {
+            return a.closing_soon ? -1 : 1;
+          }
+          // 3. Then by expense_rank descending
+          return (b.expense_rank || 0) - (a.expense_rank || 0);
         }
-        return 0;
+        
+        // Within closed venues: sort by expense
+        return (b.expense_rank || 0) - (a.expense_rank || 0);
       });
 
-      // Extract last-call venues
-      venueData.last_call_venues = venueData.venues.filter(v => v.closing_soon);
+      // Extract last-call venues (open and closing soon)
+      venueData.last_call_venues = venueData.venues.filter(v => v.is_open && v.closing_soon);
     }
 
     return venueData;

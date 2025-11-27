@@ -48,11 +48,20 @@ interface SmartBlocksProps {
   lng?: number;
   city?: string;
   state?: string;
+  snapshotLat?: number;
+  snapshotLng?: number;
 }
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const SEARCH_RADIUS_MILES = 15; // 15 mile radius for venue discovery
 
-export default function SmartBlocks({ lat, lng, city, state }: SmartBlocksProps) {
+export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapshotLng }: SmartBlocksProps) {
+  // Use snapshot coordinates as fallback if main coords not available
+  const effectiveLat = lat || snapshotLat;
+  const effectiveLng = lng || snapshotLng;
+  
+  console.log('[SmartBlocks] Props:', { lat, lng, snapshotLat, snapshotLng, effectiveLat, effectiveLng, city, state });
+  
   const [venueData, setVenueData] = useState<VenueData | null>(null);
   const [trafficData, setTrafficData] = useState<TrafficData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -61,7 +70,7 @@ export default function SmartBlocks({ lat, lng, city, state }: SmartBlocksProps)
   const [nextRefresh, setNextRefresh] = useState<number>(0);
 
   const fetchIntelligence = useCallback(async () => {
-    if (!lat || !lng) {
+    if (!effectiveLat || !effectiveLng) {
       setError("Location required");
       return;
     }
@@ -71,15 +80,17 @@ export default function SmartBlocks({ lat, lng, city, state }: SmartBlocksProps)
 
     try {
       const params = new URLSearchParams({
-        lat: lat.toString(),
-        lng: lng.toString(),
+        lat: effectiveLat.toString(),
+        lng: effectiveLng.toString(),
         city: city || "Unknown",
         state: state || "",
-        radius: "5"
+        radius: SEARCH_RADIUS_MILES.toString()
       });
 
+      console.log('[SmartBlocks] Fetching venues:', `/api/venues/smart-blocks?${params}`);
       const response = await fetch(`/api/venues/smart-blocks?${params}`);
       const result = await response.json();
+      console.log('[SmartBlocks] API Response:', result);
 
       if (result.success) {
         setVenueData(result.data.venues);
@@ -95,23 +106,23 @@ export default function SmartBlocks({ lat, lng, city, state }: SmartBlocksProps)
     } finally {
       setLoading(false);
     }
-  }, [lat, lng, city, state]);
+  }, [effectiveLat, effectiveLng, city, state]);
 
   useEffect(() => {
-    if (lat && lng) {
+    if (effectiveLat && effectiveLng) {
       fetchIntelligence();
     }
-  }, [lat, lng, city, state, fetchIntelligence]);
+  }, [effectiveLat, effectiveLng, city, state, fetchIntelligence]);
 
   useEffect(() => {
-    if (!lat || !lng) return;
+    if (!effectiveLat || !effectiveLng) return;
     
     const interval = setInterval(() => {
       fetchIntelligence();
     }, AUTO_REFRESH_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [lat, lng, fetchIntelligence]);
+  }, [effectiveLat, effectiveLng, fetchIntelligence]);
 
   useEffect(() => {
     if (nextRefresh <= 0) return;
@@ -162,7 +173,7 @@ export default function SmartBlocks({ lat, lng, city, state }: SmartBlocksProps)
     return "text-green-600 dark:text-green-400";
   };
 
-  if (!lat || !lng) {
+  if (!effectiveLat || !effectiveLng) {
     return (
       <Card className="border-dashed">
         <CardContent className="py-8 text-center">
