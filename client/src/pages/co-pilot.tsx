@@ -30,7 +30,8 @@ import {
   Sun,
   Moon,
   Volume2,
-  Square
+  Square,
+  Wine
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
@@ -1822,9 +1823,54 @@ const CoPilot: React.FC = () => {
           </>
         )}
 
-        {/* Venues Tab Content - Dynamic venue intelligence */}
+        {/* Venues Tab Content - Bars & High-Volume Venues */}
         {activeTab === 'venues' && coords && (
           <div data-testid="venue-intelligence-section">
+            {/* Venues Header with Location Context */}
+            <div className="mb-6 flex items-center gap-3 flex-wrap justify-between">
+              <div className="flex items-center gap-2">
+                <Wine className="w-5 h-5 text-purple-600" />
+                <h2 className="text-lg font-semibold text-gray-800">Bars & High-Volume Venues</h2>
+                <Badge variant="outline" className="border-green-500 text-green-600">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                  Live
+                </Badge>
+              </div>
+              {snapshotData && (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <MapPin className="w-4 h-4" />
+                  <span>{snapshotData.city}{snapshotData.state ? `, ${snapshotData.state}` : ''}</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Location Context Card from Snapshot */}
+            {snapshotData && (
+              <Card className="mb-4 border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-purple-100">
+                      <MapPin className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-800">
+                        {snapshotData.address || `${snapshotData.city}, ${snapshotData.state}`}
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Showing bars and restaurants sorted by expense level ($$$$→$) with last-call alerts
+                      </p>
+                      {snapshotData.timezone && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          <Clock className="w-3 h-3 inline mr-1" />
+                          Local time: {new Date().toLocaleTimeString('en-US', { timeZone: snapshotData.timezone, hour: 'numeric', minute: '2-digit' })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
             <SmartBlocks
               lat={coords.lat}
               lng={coords.lng}
@@ -1836,9 +1882,9 @@ const CoPilot: React.FC = () => {
 
         {activeTab === 'venues' && !coords && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <MapPin className="w-12 h-12 text-gray-400 mb-4" />
+            <Wine className="w-12 h-12 text-gray-400 mb-4" />
             <h3 className="text-lg font-semibold text-gray-700">Location Required</h3>
-            <p className="text-gray-500 mt-2">Enable location services to see nearby venues</p>
+            <p className="text-gray-500 mt-2">Enable location services to discover nearby bars and venues</p>
           </div>
         )}
 
