@@ -115,7 +115,16 @@ router.get('/', async (req, res) => {
     
     const allBlocks = candidates.map(c => {
       const coordKey = `${c.lat},${c.lng}`;
-      const resolvedAddress = addressMap[coordKey] || c.address || null;
+      // Filter out Plus Codes - use resolved address if it exists and is not a Plus Code
+      let resolvedAddress = addressMap[coordKey];
+      if (resolvedAddress && isPlusCode(resolvedAddress)) {
+        resolvedAddress = null;
+      }
+      // Fallback to candidate address if not a Plus Code
+      if (!resolvedAddress && c.address && !isPlusCode(c.address)) {
+        resolvedAddress = c.address;
+      }
+      resolvedAddress = resolvedAddress || null;
       
       // Only include businessHours if NOT a holiday or special hours in effect
       const block = {
@@ -295,7 +304,16 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
               
               const blocks = candidates.map(c => {
                 const coordKey = `${c.lat},${c.lng}`;
-                const resolvedAddress = addressMap[coordKey] || c.address || null;
+                // Filter out Plus Codes - use resolved address if it exists and is not a Plus Code
+                let resolvedAddress = addressMap[coordKey];
+                if (resolvedAddress && isPlusCode(resolvedAddress)) {
+                  resolvedAddress = null;
+                }
+                // Fallback to candidate address if not a Plus Code
+                if (!resolvedAddress && c.address && !isPlusCode(c.address)) {
+                  resolvedAddress = c.address;
+                }
+                resolvedAddress = resolvedAddress || null;
                 
                 return {
                   name: c.name,
