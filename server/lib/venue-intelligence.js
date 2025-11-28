@@ -5,6 +5,43 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
+
+/**
+ * Enrich bar venues with phone numbers using Google Places API
+ * @param {Array} venues - Array of venues from Gemini
+ * @returns {Promise<Array>} - Venues with phone numbers added for bars
+ */
+async function enrichBarsWithPhones(venues) {
+  if (!GOOGLE_MAPS_API_KEY || !venues || venues.length === 0) {
+    return venues;
+  }
+
+  // Only enrich bars and bar_restaurants
+  const barsToEnrich = venues.filter(v => v.type === "bar" || v.type === "bar_restaurant");
+  
+  for (const bar of barsToEnrich) {
+    try {
+      // Use Google Places text search to find the venue and get phone
+      const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
+      searchUrl.searchParams.set('query', `${bar.name} ${bar.address}`);
+      searchUrl.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+      
+      const response = await fetch(searchUrl.toString()).catch(() => null);
+      if (response?.ok) {
+        const data = await response.json();
+        if (data.results?.[0]?.formatted_phone_number) {
+          bar.phone = data.results[0].formatted_phone_number;
+        }
+      }
+    } catch (err) {
+      console.warn(`[VenueIntelligence] Failed to get phone for ${bar.name}:`, err.message);
+      // Continue without phone - don't break the flow
+    }
+  }
+
+  return venues;
+}
 
 /**
  * Discover nearby bars and restaurants using Gemini with Google Search grounding
@@ -139,6 +176,9 @@ Return ONLY valid JSON, no markdown.`;
 
       // Extract last-call venues (open and closing soon)
       venueData.last_call_venues = venueData.venues.filter(v => v.is_open && v.closing_soon);
+      
+      // Enrich bar venues with phone numbers from Google Places
+      venueData.venues = await enrichBarsWithPhones(venueData.venues);
     }
 
     return venueData;
