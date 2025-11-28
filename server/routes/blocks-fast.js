@@ -17,6 +17,12 @@ import { blocksRequestSchema, snapshotIdQuerySchema } from '../validation/schema
 
 const router = Router();
 
+// Helper to detect Plus Codes (e.g., "35XR+RV Frisco, TX, USA")
+function isPlusCode(address) {
+  if (!address) return false;
+  return /^[A-Z0-9]{6}\+[A-Z0-9]{2,3}\b/.test(address.trim());
+}
+
 // Helper to safely calculate elapsed time and prevent NaN in responses
 function safeElapsedMs(row) {
   const t0 = row?.created_at ? new Date(row.created_at).getTime() : Date.now();
