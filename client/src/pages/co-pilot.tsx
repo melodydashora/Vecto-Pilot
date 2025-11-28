@@ -1022,34 +1022,6 @@ const CoPilot: React.FC = () => {
         {/* Strategy Tab Content */}
         {activeTab === 'strategy' && (
           <>
-        {/* Live Status Banner */}
-        <div className="mb-6 flex items-center gap-3 flex-wrap justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-800">Top Earning Spots</h2>
-            <Badge variant="outline" className="border-green-500 text-green-600">
-              <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
-              Live · Ranked by $/Mile
-            </Badge>
-            {blocksData?.path_taken && (
-              <Badge 
-                variant="outline" 
-                className={blocksData.path_taken === 'refined' 
-                  ? "border-purple-500 text-purple-600 bg-purple-50" 
-                  : "border-blue-500 text-blue-600 bg-blue-50"}
-              >
-                <Zap className="w-3 h-3 mr-1" />
-                {blocksData.path_taken === 'refined' ? 'AI Refined' : 'Quick Picks'}
-              </Badge>
-            )}
-            {blocksData?.timing && (
-              <span className="text-xs text-gray-500">
-                {blocksData.timing.total_ms}ms
-              </span>
-            )}
-          </div>
-        </div>
-
         {/* Greeting/Holiday Banner - Always visible with fallback */}
         {(() => {
           // Check for holiday from strategy data (always preserve holiday if found)
