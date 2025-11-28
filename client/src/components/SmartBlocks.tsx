@@ -12,6 +12,7 @@ interface Venue {
   name: string;
   type: "bar" | "restaurant" | "bar_restaurant";
   address: string;
+  phone?: string | null;
   expense_level: string;
   expense_rank: number;
   is_open: boolean;
