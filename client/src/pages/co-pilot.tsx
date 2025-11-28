@@ -1272,20 +1272,6 @@ const CoPilot: React.FC = () => {
               </CardContent>
             </Card>
           )}
-
-          {/* Retry Button - Enabled when strategy is complete or failed */}
-          {coords && lastSnapshotId && lastSnapshotId !== 'live-snapshot' && (
-            <Button
-              onClick={retryStrategy}
-              disabled={isRetrying || (!persistentStrategy && strategyData?.status !== 'failed')}
-              variant="outline"
-              className="w-full"
-              data-testid="button-retry-strategy"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Retry Strategy
-            </Button>
-          )}
         </div>
 
         {/* Smart Blocks - Only render when we have data */}
