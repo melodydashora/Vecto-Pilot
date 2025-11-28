@@ -46,6 +46,7 @@ For each venue provide:
 - name: Venue name
 - type: "bar" or "restaurant" or "bar_restaurant"
 - address: Full street address
+- phone: Phone number in format (XXX) XXX-XXXX or null if unavailable
 - expense_level: "$", "$$", "$$$", or "$$$$" (4 = most expensive)
 - expense_rank: 4 for $$$$, 3 for $$$, 2 for $$, 1 for $
 - is_open: true/false
@@ -67,6 +68,7 @@ Return a JSON object with this structure:
       "name": "...",
       "type": "bar|restaurant|bar_restaurant",
       "address": "...",
+      "phone": "(XXX) XXX-XXXX",
       "expense_level": "$$$$",
       "expense_rank": 4,
       "is_open": true,
