@@ -86,6 +86,8 @@ interface SmartBlock {
     address: string;
     walkTime: string;
     parkingTip: string;
+    lat?: number;
+    lng?: number;
   };
   proTips?: string[];
   up_count?: number;
@@ -1592,12 +1594,29 @@ const CoPilot: React.FC = () => {
                       {/* Staging Area */}
                       {block.stagingArea && (
                         <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <MapPin className="w-4 h-4 text-gray-600" />
-                            <h4 className="text-sm font-semibold text-gray-900">Staging Area</h4>
-                            <Badge className="bg-yellow-400 text-yellow-900 border-0 text-xs px-2 py-0">
-                              {block.stagingArea.type}
-                            </Badge>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-gray-600" />
+                              <h4 className="text-sm font-semibold text-gray-900">Staging Area</h4>
+                              <Badge className="bg-yellow-400 text-yellow-900 border-0 text-xs px-2 py-0">
+                                {block.stagingArea.type}
+                              </Badge>
+                            </div>
+                            {block.stagingArea.lat && block.stagingArea.lng && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-blue-400 text-blue-600 hover:bg-blue-50"
+                                onClick={() => {
+                                  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${block.stagingArea.lat},${block.stagingArea.lng}`;
+                                  window.open(mapsUrl, '_blank');
+                                }}
+                                data-testid="button-navigate-staging"
+                              >
+                                <Navigation className="w-4 h-4 mr-1" />
+                                Navigate
+                              </Button>
+                            )}
                           </div>
                           <div className="ml-6 space-y-1">
                             <p className="text-sm font-medium text-gray-900">{block.stagingArea.name}</p>
