@@ -88,6 +88,13 @@ router.get('/', async (req, res) => {
       .orderBy(ranking_candidates.rank);
     console.log(`[blocks-fast GET] Found ${candidates.length} candidates`);
     
+    // Fetch snapshot to check holiday status
+    const [snapshot] = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    const isHoliday = snapshot?.is_holiday === true;
+    const hasSpecialHours = snapshot?.holiday && snapshot?.is_holiday === true;
+    console.log(`[blocks-fast GET] Holiday context: isHoliday=${isHoliday}, hasSpecialHours=${hasSpecialHours}`);
+    
     // 25-mile perimeter enforcement (show all if distance not calculated yet)
     const within25Miles = (distanceMiles) => {
       // If distance not calculated yet, include the venue (will show "calculating...")
@@ -104,7 +111,8 @@ router.get('/', async (req, res) => {
       const coordKey = `${c.lat},${c.lng}`;
       const resolvedAddress = addressMap[coordKey] || c.address || null;
       
-      return {
+      // Only include businessHours if NOT a holiday or special hours in effect
+      const block = {
         name: c.name,
         address: resolvedAddress, // 🎯 NOW INCLUDES VENUE ADDRESS
         coordinates: { lat: c.lat, lng: c.lng },
@@ -117,11 +125,17 @@ router.get('/', async (req, res) => {
         proTips: c.pro_tips,
         closed_venue_reasoning: c.closed_reasoning,
         stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
-        businessHours: c.business_hours,
         isOpen: c.business_hours?.isOpen,
         eventBadge: c.venue_events?.badge,
         eventSummary: c.venue_events?.summary,
       };
+      
+      // Dynamic business hours enrichment - only include if NOT holiday/special hours
+      if (c.business_hours && !isHoliday && !hasSpecialHours) {
+        block.businessHours = c.business_hours;
+      }
+      
+      return block;
     });
     
     // Filter to 25-mile perimeter
