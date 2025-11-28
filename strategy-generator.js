@@ -19,18 +19,37 @@ console.log(`  NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`  DATABASE_URL=${process.env.DATABASE_URL ? '***configured***' : 'MISSING'}`);
 console.log(`  ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_BACKGROUND_WORKER}`);
 
-// Test database connection first
+// Test database connection with retry logic
 import { db } from './server/db/drizzle.js';
 import { sql } from 'drizzle-orm';
 
-console.log('[strategy-generator] Testing database connection...');
-try {
-  await db.execute(sql`SELECT 1 as test`);
-  console.log('[strategy-generator] ✅ Database connection OK');
-} catch (err) {
-  console.error('[strategy-generator] ❌ Database connection FAILED:', err.message);
-  process.exit(1);
+async function testDatabaseConnection(maxAttempts = 5) {
+  let lastError = null;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await db.execute(sql`SELECT 1 as test`);
+      console.log('[strategy-generator] ✅ Database connection OK');
+      return true;
+    } catch (err) {
+      lastError = err;
+      const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s, 8s, 16s
+      console.warn(`[strategy-generator] ⚠️  Connection attempt ${attempt}/${maxAttempts} failed: ${err.message}`);
+      if (attempt < maxAttempts) {
+        console.log(`[strategy-generator] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  // After all retries exhausted, log but continue (LISTEN mode is resilient)
+  console.warn('[strategy-generator] ❌ Database connection failed after', maxAttempts, 'attempts');
+  console.warn('[strategy-generator] ⚠️  Continuing anyway - LISTEN mode will retry automatically on each message');
+  return false;
 }
+
+console.log('[strategy-generator] Testing database connection...');
+await testDatabaseConnection();
 
 // Import the LISTEN-only worker
 import { startConsolidationListener } from './server/jobs/triad-worker.js';
