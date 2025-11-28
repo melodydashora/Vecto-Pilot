@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   MapPin, Clock, DollarSign, Users, AlertTriangle, 
   RefreshCw, Loader, Car, Utensils, Wine, TrendingUp,
-  Zap
+  Zap, Phone
 } from "lucide-react";
 
 interface Venue {
@@ -337,6 +337,18 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
                         <MapPin className="h-3 w-3" />
                         {venue.address}
                       </p>
+                      {venue.phone && (venue.type === "bar" || venue.type === "bar_restaurant") && (
+                        <p className="text-xs mt-1">
+                          <a 
+                            href={`tel:${venue.phone.replace(/\D/g, '')}`}
+                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline"
+                            data-testid={`call-button-${venue.name}`}
+                          >
+                            <Phone className="h-3 w-3" />
+                            {venue.phone}
+                          </a>
+                        </p>
+                      )}
                       <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
