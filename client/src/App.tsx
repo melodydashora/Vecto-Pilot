@@ -58,7 +58,6 @@ function App() {
         <LocationProvider>
           <div className="App min-h-screen bg-gray-50">
             <GlobalHeader />
-            <NavigationTabs />
             
             <main className="main-content-with-header">
               <CoPilot />
