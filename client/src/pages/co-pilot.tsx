@@ -1282,8 +1282,8 @@ const CoPilot: React.FC = () => {
               className="w-full"
               data-testid="button-retry-strategy"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isRetrying ? 'animate-spin' : ''}`} />
-              {isRetrying ? 'Retrying...' : 'Retry Strategy'}
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry Strategy
             </Button>
           )}
         </div>
