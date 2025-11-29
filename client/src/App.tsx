@@ -5,9 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import GlobalHeader from './components/GlobalHeader';
 import ErrorBoundary from './components/ErrorBoundary';
 import CoPilot from './pages/co-pilot';
-import BriefingPage from './pages/BriefingPage';
 import SafeScaffold from './pages/SafeScaffold';
-import { FileText, Navigation } from 'lucide-react';
 
 import './index.css';
 
@@ -23,36 +21,28 @@ const queryClient = new QueryClient({
   },
 });
 
-function BottomNavigation() {
+function NavigationTabs() {
   const [location] = useLocation();
   
+  // Hide navigation if feature flag is enabled
+  if (FF_HIDE_NAV) {
+    return null;
+  }
+  
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-bottom">
-      <div className="max-w-2xl mx-auto">
-        <nav className="flex" aria-label="Bottom Navigation">
+    <div className="border-b border-gray-200 bg-white">
+      <div className="max-w-7xl mx-auto px-4">
+        <nav className="flex space-x-8" aria-label="Tabs">
           <Link
             href="/"
-            className={`flex-1 flex flex-col items-center py-3 px-2 transition-colors ${
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
               location === '/'
-                ? 'text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
-            data-testid="nav-copilot"
+            data-testid="tab-copilot"
           >
-            <Navigation className={`h-5 w-5 ${location === '/' ? 'fill-blue-100' : ''}`} />
-            <span className="text-xs mt-1 font-medium">Copilot</span>
-          </Link>
-          <Link
-            href="/briefing"
-            className={`flex-1 flex flex-col items-center py-3 px-2 transition-colors ${
-              location === '/briefing'
-                ? 'text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-            data-testid="nav-briefing"
-          >
-            <FileText className={`h-5 w-5 ${location === '/briefing' ? 'fill-blue-100' : ''}`} />
-            <span className="text-xs mt-1 font-medium">Briefing</span>
+            Copilot
           </Link>
         </nav>
       </div>
@@ -69,17 +59,10 @@ function App() {
           <div className="App min-h-screen bg-gray-50">
             <GlobalHeader />
             
-            <main className="main-content-with-header pb-16">
-              <Switch>
-                <Route path="/" component={CoPilot} />
-                <Route path="/briefing" component={BriefingPage} />
-                <Route>
-                  <CoPilot />
-                </Route>
-              </Switch>
+            <main className="main-content-with-header">
+              <CoPilot />
             </main>
 
-            <BottomNavigation />
             <Toaster />
           </div>
         </LocationProvider>
