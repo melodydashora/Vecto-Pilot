@@ -120,6 +120,17 @@ export const strategies = pgTable("strategies", {
 export const briefings = pgTable("briefings", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  // Location context for this briefing
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  city: text("city"),
+  state: text("state"),
+  // NEW: Structured briefing data from external APIs
+  news: jsonb("news"), // Rideshare-relevant news from SerpAPI + Gemini filtering
+  weather_current: jsonb("weather_current"), // Current conditions from Google Weather API
+  weather_forecast: jsonb("weather_forecast"), // Hourly forecast (next 3-6 hours) from Google Weather API
+  traffic_conditions: jsonb("traffic_conditions"), // Traffic data from Google Routes API
+  events: jsonb("events"), // Local events affecting rideshare drivers
   // Perplexity comprehensive research (background context)
   global_travel: text("global_travel"), // Global conditions affecting this region
   domestic_travel: text("domestic_travel"), // National/domestic travel conditions
