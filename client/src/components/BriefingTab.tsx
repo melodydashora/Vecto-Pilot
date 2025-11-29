@@ -212,12 +212,17 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   return (
     <div className="space-y-6" data-testid="briefing-container">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Newspaper className="w-5 h-5 text-indigo-600" />
           <h2 className="text-lg font-semibold text-gray-800">Driver Briefing</h2>
           {location?.city && (
             <Badge variant="outline" className="ml-2">
               {location.city}, {location.state}
+            </Badge>
+          )}
+          {data?.snapshot_id && (
+            <Badge variant="outline" className="text-xs font-mono bg-gray-100 text-gray-600">
+              Snapshot: {data.snapshot_id.slice(0, 8)}...
             </Badge>
           )}
         </div>
@@ -237,7 +242,14 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </Button>
       </div>
 
-      {updated_at && (
+      {updated_at && data?.snapshot_id && (
+        <p className="text-xs text-gray-500 flex items-center gap-2">
+          <Clock className="w-3 h-3" />
+          <span>Last updated: {new Date(updated_at).toLocaleTimeString()}</span>
+          <span className="text-gray-400">• Snapshot ID: {data.snapshot_id}</span>
+        </p>
+      )}
+      {updated_at && !data?.snapshot_id && (
         <p className="text-xs text-gray-500 flex items-center gap-1">
           <Clock className="w-3 h-3" />
           Last updated: {new Date(updated_at).toLocaleTimeString()}
