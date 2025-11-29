@@ -125,8 +125,8 @@ export default function BriefingPage() {
       const air = airRes?.ok ? await airRes.json() : null;
       
       // Get latest snapshot for strategy data
-      // Try to get the most recent snapshot from local storage first
-      const storedSnapshotId = localStorage.getItem('vecto_last_snapshot_id');
+      // Use the same key as co-pilot page for consistency
+      const storedSnapshotId = localStorage.getItem('vecto_strategy_snapshot_id');
       let strategyData = null;
       let snapshotData = null;
       
