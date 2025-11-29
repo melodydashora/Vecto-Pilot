@@ -17,10 +17,13 @@ import { blocksRequestSchema, snapshotIdQuerySchema } from '../validation/schema
 
 const router = Router();
 
-// Helper to detect Plus Codes (e.g., "35XR+RV Frisco, TX, USA")
+// Helper to detect Plus Codes (e.g., "C4PW+2V Waxahachie, TX, USA" or "35XR+RV Frisco, TX, USA")
 function isPlusCode(address) {
   if (!address) return false;
-  return /^[A-Z0-9]{6}\+[A-Z0-9]{2,3}\b/.test(address.trim());
+  const trimmed = address.trim();
+  // Google Plus Codes: 4-6 alphanumerics, plus sign, 2-3 alphanumerics, optional space and location
+  // Examples: "C4PW+2V", "35XR+RV", "C4PW+2V Waxahachie, TX, USA"
+  return /^[A-Z0-9]{4,6}\+[A-Z0-9]{2,3}(\s|$)/.test(trimmed);
 }
 
 // Helper to safely calculate elapsed time and prevent NaN in responses
@@ -118,11 +121,17 @@ router.get('/', async (req, res) => {
       // Filter out Plus Codes - use resolved address if it exists and is not a Plus Code
       let resolvedAddress = addressMap[coordKey];
       if (resolvedAddress && isPlusCode(resolvedAddress)) {
+        console.log(`[blocks-fast GET] ⚠️ Filtering Plus Code: "${resolvedAddress}" for ${c.name}`);
         resolvedAddress = null;
       }
       // Fallback to candidate address if not a Plus Code
       if (!resolvedAddress && c.address && !isPlusCode(c.address)) {
         resolvedAddress = c.address;
+      }
+      // If we still have a Plus Code from candidate, reject it too
+      if (resolvedAddress && isPlusCode(resolvedAddress)) {
+        console.log(`[blocks-fast GET] ⚠️ Filtering Plus Code from candidate: "${resolvedAddress}" for ${c.name}`);
+        resolvedAddress = null;
       }
       resolvedAddress = resolvedAddress || null;
       
@@ -307,11 +316,17 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
                 // Filter out Plus Codes - use resolved address if it exists and is not a Plus Code
                 let resolvedAddress = addressMap[coordKey];
                 if (resolvedAddress && isPlusCode(resolvedAddress)) {
+                  console.log(`[blocks-fast POST] ⚠️ Filtering Plus Code: "${resolvedAddress}" for ${c.name}`);
                   resolvedAddress = null;
                 }
                 // Fallback to candidate address if not a Plus Code
                 if (!resolvedAddress && c.address && !isPlusCode(c.address)) {
                   resolvedAddress = c.address;
+                }
+                // If we still have a Plus Code from candidate, reject it too
+                if (resolvedAddress && isPlusCode(resolvedAddress)) {
+                  console.log(`[blocks-fast POST] ⚠️ Filtering Plus Code from candidate: "${resolvedAddress}" for ${c.name}`);
+                  resolvedAddress = null;
                 }
                 resolvedAddress = resolvedAddress || null;
                 
