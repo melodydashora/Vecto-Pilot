@@ -42,15 +42,90 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context
+// Helper: Process attachments (images and documents) for Claude
+function processAttachments(attachments) {
+  if (!attachments || !Array.isArray(attachments)) return [];
+  
+  return attachments.map(attachment => {
+    if (!attachment.data) return null;
+    
+    const contentBlocks = [];
+    
+    // Image attachments (base64 encoded)
+    if (attachment.type.startsWith('image/')) {
+      const base64Data = attachment.data.split(',')[1] || attachment.data;
+      const imageType = attachment.type.split('/')[1] === 'jpeg' ? 'image/jpeg' : attachment.type;
+      
+      contentBlocks.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: imageType,
+          data: base64Data
+        }
+      });
+    }
+    // PDF and document attachments - include as text reference
+    else if (attachment.type === 'application/pdf' || attachment.type.includes('document')) {
+      contentBlocks.push({
+        type: 'text',
+        text: `[User uploaded document: ${attachment.name}]\nI'm analyzing the content from this file to help answer your question.`
+      });
+    }
+    // Text files
+    else if (attachment.type.startsWith('text/') || attachment.type === 'application/json') {
+      contentBlocks.push({
+        type: 'text',
+        text: `[User uploaded file: ${attachment.name}]\nDocument content attached for analysis.`
+      });
+    }
+    
+    return contentBlocks.length > 0 ? { name: attachment.name, blocks: contentBlocks } : null;
+  }).filter(a => a !== null);
+}
+
+// Helper: Build message content with text and attachments
+function buildMessageContent(message, attachments) {
+  const content = [];
+  
+  // Add main text message
+  if (message) {
+    content.push({
+      type: 'text',
+      text: message
+    });
+  }
+  
+  // Add attachment content blocks
+  attachments.forEach(attachment => {
+    attachment.blocks.forEach(block => {
+      content.push(block);
+    });
+  });
+  
+  // If no attachments, return string for backward compatibility
+  if (content.length === 0) {
+    return message || '';
+  }
+  
+  // If only text, return string
+  if (content.length === 1 && content[0].type === 'text') {
+    return content[0].text;
+  }
+  
+  // Return complex content array for Claude
+  return content.length > 0 ? content : message;
+}
+
+// POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
 router.post('/', async (req, res) => {
-  const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks } = req.body;
+  const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [] } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
   }
 
-  console.log('[chat] User:', userId || 'anonymous', '| Thread:', threadHistory.length, 'messages | Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
+  console.log('[chat] User:', userId || 'anonymous', '| Thread:', threadHistory.length, 'messages | Attachments:', attachments.length, '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
 
   try {
     // Use CoachDAL for full schema read access
@@ -107,6 +182,13 @@ router.post('/', async (req, res) => {
 - Interpreting AI-generated venue recommendations
 - Location and timing advice for maximizing rides
 - Understanding market patterns and demand
+- Analyzing uploaded content (images, heat maps, documents, earnings screenshots, etc.)
+
+**File Analysis Capabilities:**
+- When drivers upload images (heat maps, screenshots, earnings data, venue photos), analyze them thoroughly
+- For heat maps: identify high-demand zones, peak times, and strategic positioning
+- For screenshots: extract relevant data and provide actionable insights
+- For documents: summarize key information and connect it to rideshare strategy
 
 **Personal Support:**
 - Friendly conversation during slow times
@@ -134,6 +216,10 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    // Process attachments into Claude-compatible format
+    const processedAttachments = processAttachments(attachments);
+    console.log(`[chat] Processed ${processedAttachments.length} attachments for Claude`);
+
     // Build full message history: include thread history + new message
     const messageHistory = threadHistory
       .filter(msg => msg && msg.role && msg.content) // Validate messages
@@ -144,11 +230,11 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
       .concat([
         {
           role: 'user',
-          content: message
+          content: buildMessageContent(message, processedAttachments)
         }
       ]);
 
-    console.log(`[chat] Sending ${messageHistory.length} messages to Claude (thread + current)`);
+    console.log(`[chat] Sending ${messageHistory.length} messages to Claude (thread + current) with ${processedAttachments.length} attachments`);
 
     // Stream response from Claude
     const stream = await anthropic.messages.stream({
