@@ -20,6 +20,18 @@ The platform utilizes a role-based, model-agnostic architecture with configurabl
 **Frontend Architecture**:
 A React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Key features include a Strategy Section, Smart Blocks for venue recommendations, an AI Strategy Coach with hands-free voice chat (OpenAI Realtime API), and a Rideshare Briefing Tab with immutable strategy history and retry workflow.
 
+**Briefing Tab Architecture**:
+The Briefing tab displays three data sources fetched at snapshot creation and stored in the database for consistency:
+1. **News**: Rideshare-relevant news from SerpAPI (Google News, 24-48 hour filter) + Gemini 2.0 Flash AI filtering for driver-relevant content
+2. **Weather**: Current conditions + hourly forecast from Google Weather API (6-hour lookahead)
+3. **Traffic**: Local traffic conditions and congestion levels
+
+Key files:
+- `server/lib/briefing-service.js` - Data fetching and AI filtering service
+- `server/routes/briefing.js` - API endpoints (GET /current, /snapshot/:id, POST /refresh, /generate)
+- `client/src/components/BriefingTab.tsx` - Frontend display component
+- Database table: `briefings` (linked to snapshots via snapshot_id)
+
 **Data Storage**:
 A PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes and JSONB for flexible storage. The architecture employs a two-table location model where the `users` table is the authoritative source for driver location, and the `snapshots` table references `users` for API-enriched contextual data without duplicating location information. Connection resilience includes automatic reconnection logic with exponential backoff.
 
@@ -32,11 +44,13 @@ Supports Mono Mode and Split Mode, featuring health-gated entry points, unified 
 ## External Dependencies
 
 ### Third-Party APIs
--   **AI & Research**: Anthropic (Claude), OpenAI (GPT-4o Realtime for voice, GPT-5.1 for strategy), Google (Gemini 2.0 Flash for venue intelligence), Perplexity.
+-   **AI & Research**: Anthropic (Claude), OpenAI (GPT-4o Realtime for voice, GPT-5.1 for strategy), Google (Gemini 2.0 Flash for venue intelligence + news filtering), Perplexity.
 -   **Voice Chat**: OpenAI Realtime API (GPT-4o Realtime with 232-320ms latency, configurable via VOICE_MODEL env var)
 -   **Venue Intelligence**: Gemini 2.0 Flash with real-time bar/restaurant discovery, expense-level sorting ($$$$→$), hours filtering, and last-call alerts
 -   **Location & Mapping**: Google Places API, Google Routes API, Google Geocoding API, Google Timezone API.
--   **Weather and Air Quality**: Configurable via environment variables.
+-   **Weather**: Google Weather API (current conditions + 240-hour forecast), configurable via GOOGLE_MAPS_API_KEY
+-   **News**: SerpAPI (Google News search with 24-48 hour time filtering), configurable via SERP_API_KEY
+-   **Air Quality**: Google Air Quality API, configurable via environment variables.
 
 ### Database
 -   **PostgreSQL (Replit Built-in)**: Primary data store, managed by Drizzle ORM.

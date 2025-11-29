@@ -40,6 +40,7 @@ import CoachChat from '@/components/CoachChat';
 import { subscribeStrategyReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 import SmartBlocks from '@/components/SmartBlocks';
+import BriefingTab from '@/components/BriefingTab';
 import {
   Tooltip,
   TooltipContent,
@@ -1803,16 +1804,7 @@ const CoPilot: React.FC = () => {
         {/* Briefing Tab Content */}
         {activeTab === 'briefing' && (
           <div data-testid="briefing-section" className="mb-24">
-            <SmartBlocks
-              lat={coords?.lat}
-              lng={coords?.lng}
-              city={snapshotData?.city}
-              state={snapshotData?.state}
-              snapshotLat={snapshotData?.lat}
-              snapshotLng={snapshotData?.lng}
-              holiday={snapshotData?.holiday}
-              showTrafficOnly={true}
-            />
+            <BriefingTab snapshotId={lastSnapshotId || undefined} />
           </div>
         )}
 
