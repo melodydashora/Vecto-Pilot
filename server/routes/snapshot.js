@@ -7,6 +7,7 @@ import { snapshots, strategies, users } from "../../shared/schema.js";
 import { generateStrategyForSnapshot } from "../lib/strategy-generator.js";
 import { validateIncomingSnapshot } from "../util/validate-snapshot.js";
 import { uuidOrNull } from "../util/uuid.js";
+import { generateAndStoreBriefing } from "../lib/briefing-service.js";
 
 const router = Router();
 
@@ -118,6 +119,22 @@ router.post("/", async (req, res) => {
         });
       } catch (e) {
         console.warn(`[triad] enqueue.err`, { snapshot_id, err: String(e) });
+      }
+    });
+
+    // Fire-and-forget: generate briefing data (news, weather, traffic)
+    queueMicrotask(() => {
+      if (lat && lng) {
+        console.log(`[briefing] enqueue`, { snapshot_id, city, state });
+        generateAndStoreBriefing({
+          snapshotId: snapshot_id,
+          lat,
+          lng,
+          city: city || 'Unknown',
+          state: state || ''
+        }).catch(err => {
+          console.warn(`[briefing] enqueue.failed`, { snapshot_id, err: String(err) });
+        });
       }
     });
 

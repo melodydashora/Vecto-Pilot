@@ -256,6 +256,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] Venue Intelligence endpoint failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading Briefing endpoint...");
+        const briefingRouter = (await import("./server/routes/briefing.js")).default;
+        app.use("/api/briefing", briefingRouter);
+        console.log("[gateway] ✅ Briefing endpoint mounted at /api/briefing");
+      } catch (e) {
+        console.error("[mono] Briefing endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Agent embed...");
         const { mountAgent } = await import("./server/agent/embed.js");
         mountAgent({ app, basePath: process.env.AGENT_PREFIX || "/agent", wsPath: "/agent/ws", server });
