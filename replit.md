@@ -18,7 +18,15 @@ Vecto Pilot is a full-stack Node.js application with a multi-service architectur
 The platform utilizes a role-based, model-agnostic architecture with configurable AI models (Strategist, Briefer, Consolidator, Holiday Checker) for its event-driven strategy generation pipeline. AI models are configured via environment variables.
 
 **Frontend Architecture**:
-A React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Key features include a Strategy Section, Smart Blocks for venue recommendations, an AI Strategy Coach with hands-free voice chat (OpenAI Realtime API), and a Rideshare Briefing Tab with immutable strategy history and retry workflow.
+A React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Key features include:
+-   **Copilot Tab**: Strategy Section with Smart Blocks for venue recommendations, AI Strategy Coach with hands-free voice chat (OpenAI Realtime API), and file upload for analyzing heat maps and documents.
+-   **Briefing Tab**: Mission Control consolidating all situational awareness in one view:
+    -   Weather & Air Quality (temperature, conditions, AQI)
+    -   Traffic Conditions (congestion alerts, severity levels)
+    -   Flight Status (airport delays, cancellations, surge opportunities)
+    -   Local Events (concerts, sports, festivals)
+    -   News Alerts (local news affecting rideshare demand)
+-   Mobile-first bottom navigation with wouter routing between Copilot (/) and Briefing (/briefing) tabs.
 
 **Data Storage**:
 A PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes and JSONB for flexible storage. The architecture employs a two-table location model where the `users` table is the authoritative source for driver location, and the `snapshots` table references `users` for API-enriched contextual data without duplicating location information. Connection resilience includes automatic reconnection logic with exponential backoff.
