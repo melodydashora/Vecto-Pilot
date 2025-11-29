@@ -159,6 +159,11 @@ main {
   z-index: 50;
 }
 
+/* Safe area for mobile devices with notches/home indicators */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* ---- Misc ---- */
 @keyframes spin {
   0% { transform: rotate(0deg); }
