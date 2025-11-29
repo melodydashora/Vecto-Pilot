@@ -6,8 +6,9 @@ import GlobalHeader from './components/GlobalHeader';
 import ErrorBoundary from './components/ErrorBoundary';
 import CoPilot from './pages/co-pilot';
 import BriefingPage from './pages/BriefingPage';
+import VenuePage from './pages/VenuePage';
 import SafeScaffold from './pages/SafeScaffold';
-import { FileText, Navigation } from 'lucide-react';
+import { FileText, Navigation, Wine } from 'lucide-react';
 
 import './index.css';
 
@@ -54,6 +55,18 @@ function BottomNavigation() {
             <FileText className={`h-5 w-5 ${location === '/briefing' ? 'fill-blue-100' : ''}`} />
             <span className="text-xs mt-1 font-medium">Briefing</span>
           </Link>
+          <Link
+            href="/venues"
+            className={`flex-1 flex flex-col items-center py-3 px-2 transition-colors ${
+              location === '/venues'
+                ? 'text-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            data-testid="nav-venues"
+          >
+            <Wine className={`h-5 w-5 ${location === '/venues' ? 'fill-blue-100' : ''}`} />
+            <span className="text-xs mt-1 font-medium">Venues</span>
+          </Link>
         </nav>
       </div>
     </div>
@@ -73,6 +86,7 @@ function App() {
               <Switch>
                 <Route path="/" component={CoPilot} />
                 <Route path="/briefing" component={BriefingPage} />
+                <Route path="/venues" component={VenuePage} />
                 <Route>
                   <CoPilot />
                 </Route>
