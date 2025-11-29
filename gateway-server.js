@@ -240,6 +240,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] Realtime voice endpoint failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading AI Strategy Coach with file upload support...");
+        const chatRouter = (await import("./server/routes/chat.js")).default;
+        app.use("/api/chat", chatRouter);
+        console.log("[gateway] ✅ AI Strategy Coach mounted at /api/chat");
+      } catch (e) {
+        console.error("[mono] AI Strategy Coach endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Venue Intelligence endpoint...");
         const venueIntelRouter = (await import("./server/routes/venue-intelligence.js")).default;
         app.use("/api/venues", venueIntelRouter);
