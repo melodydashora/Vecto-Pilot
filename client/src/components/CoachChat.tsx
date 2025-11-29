@@ -148,6 +148,23 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
 
   function stopVoiceChat() {
     if (realtimeRef.current) {
+      // Clean up MediaRecorder if attached
+      const mediaRecorder = (realtimeRef.current as any).mediaRecorder;
+      const audioStream = (realtimeRef.current as any).audioStream;
+      
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        console.log('[voice] MediaRecorder stopped');
+      }
+      
+      if (audioStream) {
+        audioStream.getTracks().forEach((track: MediaStreamTrack) => {
+          track.stop();
+          console.log('[voice] Audio track stopped');
+        });
+      }
+      
+      // Close WebSocket
       realtimeRef.current.close();
       realtimeRef.current = null;
     }
@@ -157,43 +174,56 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
 
   async function startAudioCapture() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ 
-        sampleRate: 24000 
+      console.log('[voice] Starting audio capture...');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { echoCancellation: true, noiseSuppression: true } 
       });
-      audioContextRef.current = audioContext;
+      console.log('[voice] ✅ Microphone access granted');
       
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(2048, 1, 1);
+      // Use MediaRecorder for reliable audio capture (avoids deprecated ScriptProcessor)
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       
-      processor.onaudioprocess = (event) => {
+      mediaRecorder.ondataavailable = async (event) => {
         if (!realtimeRef.current || realtimeRef.current.readyState !== WebSocket.OPEN) {
+          console.log('[voice] WebSocket not ready, skipping audio chunk');
           return;
         }
         
-        const audioData = event.inputBuffer.getChannelData(0);
+        if (event.data.size === 0) return;
         
-        // Convert Float32 to Int16 (PCM16)
-        const pcm16Data = new Int16Array(audioData.length);
-        for (let i = 0; i < audioData.length; i++) {
-          const s = Math.max(-1, Math.min(1, audioData[i]));
-          pcm16Data[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        // Read as ArrayBuffer for raw audio data
+        const arrayBuffer = await event.data.arrayBuffer();
+        // Convert to base64 for transmission
+        const bytes = new Uint8Array(arrayBuffer);
+        const base64Audio = btoa(String.fromCharCode.apply(null, Array.from(bytes)));
+        
+        try {
+          realtimeRef.current.send(JSON.stringify({
+            type: 'input_audio_buffer.append',
+            audio: base64Audio,
+          }));
+          console.log('[voice] 📡 Audio chunk sent (', bytes.length, 'bytes)');
+        } catch (err) {
+          console.error('[voice] Failed to send audio:', err);
         }
-        
-        // Send PCM16 audio as base64
-        const base64Audio = btoa(String.fromCharCode.apply(null, Array.from(pcm16Data)));
-        realtimeRef.current.send(JSON.stringify({
-          type: 'input_audio_buffer.append',
-          audio: base64Audio,
-        }));
       };
-
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-      console.log('[voice] Audio capture started on stream');
+      
+      mediaRecorder.onerror = (err) => {
+        console.error('[voice] MediaRecorder error:', err);
+        stopVoiceChat();
+      };
+      
+      // Start recording with 100ms chunks for streaming
+      mediaRecorder.start(100);
+      console.log('[voice] ✅ MediaRecorder started, sending audio in 100ms chunks');
+      
+      // Store reference to stop recording later
+      (realtimeRef.current as any).mediaRecorder = mediaRecorder;
+      (realtimeRef.current as any).audioStream = stream;
     } catch (err) {
       console.error('[voice] Audio capture failed:', err);
-      stopVoiceChat();
+      setIsVoiceActive(false);
+      alert('Microphone access denied: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   }
 
