@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Newspaper, Cloud, CloudRain, Sun, CloudSun, Thermometer, Wind, Droplets,
-  AlertTriangle, Car, RefreshCw, Loader, Clock, ExternalLink, TrendingUp
+  AlertTriangle, Car, RefreshCw, Loader, Clock, ExternalLink, TrendingUp,
+  ChevronDown, ChevronUp
 } from "lucide-react";
 
 interface NewsItem {
@@ -82,6 +83,9 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedWeather, setExpandedWeather] = useState(true);
+  const [expandedTraffic, setExpandedTraffic] = useState(true);
+  const [expandedNews, setExpandedNews] = useState(true);
 
   const fetchBriefing = useCallback(async (forceRefresh = false) => {
     if (forceRefresh) {
@@ -256,172 +260,227 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </p>
       )}
 
+      {/* Weather Card - Collapsible */}
       <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200" data-testid="weather-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            {weather?.current && getWeatherIcon(weather.current.conditionType, weather.current.isDaytime)}
-            Current Weather
-          </CardTitle>
+        <CardHeader 
+          className="pb-2 cursor-pointer hover:bg-blue-100/50 transition-colors"
+          onClick={() => setExpandedWeather(!expandedWeather)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              {weather?.current && getWeatherIcon(weather.current.conditionType, weather.current.isDaytime)}
+              Current Weather
+              {weather?.current?.temperature && (
+                <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 ml-2">
+                  {weather.current.temperature.degrees}°
+                </Badge>
+              )}
+            </CardTitle>
+            {expandedWeather ? (
+              <ChevronUp className="w-5 h-5 text-blue-600" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-blue-600" />
+            )}
+          </div>
         </CardHeader>
-        <CardContent>
-          {weather?.current ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="text-4xl font-bold text-gray-800">
-                    {weather.current.temperature?.degrees}°
-                    <span className="text-lg font-normal text-gray-500">
-                      {weather.current.temperature?.unit === 'FAHRENHEIT' ? 'F' : 'C'}
-                    </span>
+        {expandedWeather && (
+          <CardContent>
+            {weather?.current ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="text-4xl font-bold text-gray-800">
+                      {weather.current.temperature?.degrees}°
+                      <span className="text-lg font-normal text-gray-500">
+                        {weather.current.temperature?.unit === 'FAHRENHEIT' ? 'F' : 'C'}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-gray-700 font-medium">{weather.current.conditions}</p>
+                      {weather.current.feelsLike && (
+                        <p className="text-sm text-gray-500">
+                          Feels like {weather.current.feelsLike.degrees}°
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-gray-700 font-medium">{weather.current.conditions}</p>
-                    {weather.current.feelsLike && (
-                      <p className="text-sm text-gray-500">
-                        Feels like {weather.current.feelsLike.degrees}°
-                      </p>
+                  <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
+                    {weather.current.humidity !== null && (
+                      <div className="flex items-center gap-1">
+                        <Droplets className="w-4 h-4 text-blue-400" />
+                        <div className="text-center">
+                          <div className="font-medium">{weather.current.humidity}%</div>
+                          <div className="text-xs">Humidity</div>
+                        </div>
+                      </div>
+                    )}
+                    {weather.current.windSpeed && (
+                      <div className="flex items-center gap-1">
+                        <Wind className="w-4 h-4 text-gray-400" />
+                        <div className="text-center">
+                          <div className="font-medium">{weather.current.windSpeed.value}</div>
+                          <div className="text-xs">{weather.current.windDirection}</div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
-                  {weather.current.humidity !== null && (
-                    <div className="flex items-center gap-1">
-                      <Droplets className="w-4 h-4 text-blue-400" />
-                      {weather.current.humidity}%
-                    </div>
-                  )}
-                  {weather.current.windSpeed && (
-                    <div className="flex items-center gap-1">
-                      <Wind className="w-4 h-4 text-gray-400" />
-                      {weather.current.windSpeed.value} {weather.current.windDirection}
-                    </div>
-                  )}
-                </div>
-              </div>
 
-              {weather.forecast && weather.forecast.length > 0 && (
-                <div className="pt-3 border-t border-blue-200">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Next Few Hours</p>
-                  <div className="flex gap-3 overflow-x-auto pb-2">
-                    {weather.forecast.slice(0, 6).map((hour, idx) => (
-                      <div key={idx} className="flex flex-col items-center min-w-[60px] text-center">
-                        <span className="text-xs text-gray-500">
-                          {hour.time ? new Date(hour.time).toLocaleTimeString([], { hour: 'numeric' }) : `+${idx + 1}h`}
-                        </span>
-                        {getWeatherIcon(hour.conditionType, hour.isDaytime)}
-                        <span className="text-sm font-medium">
-                          {hour.temperature?.degrees}°
-                        </span>
-                        {hour.precipitationProbability !== null && hour.precipitationProbability > 0 && (
-                          <span className="text-xs text-blue-500">{hour.precipitationProbability}%</span>
-                        )}
+                {weather.forecast && weather.forecast.length > 0 && (
+                  <div className="pt-3 border-t border-blue-200">
+                    <p className="text-sm font-medium text-gray-700 mb-2">6-Hour Forecast</p>
+                    <div className="flex gap-3 overflow-x-auto pb-2">
+                      {weather.forecast.slice(0, 6).map((hour, idx) => (
+                        <div key={idx} className="flex flex-col items-center min-w-[70px] text-center p-2 bg-white/50 rounded">
+                          <span className="text-xs text-gray-500 font-medium">
+                            {hour.time ? new Date(hour.time).toLocaleTimeString([], { hour: 'numeric' }) : `+${idx + 1}h`}
+                          </span>
+                          <div className="my-1">
+                            {getWeatherIcon(hour.conditionType, hour.isDaytime)}
+                          </div>
+                          <span className="text-sm font-medium text-gray-800">
+                            {hour.temperature?.degrees}°
+                          </span>
+                          {hour.precipitationProbability !== null && hour.precipitationProbability > 0 && (
+                            <span className="text-xs text-blue-600 font-medium">{hour.precipitationProbability}% rain</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">Weather data not available</p>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Traffic Card - Collapsible */}
+      <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200" data-testid="traffic-card">
+        <CardHeader 
+          className="pb-2 cursor-pointer hover:bg-orange-100/50 transition-colors"
+          onClick={() => setExpandedTraffic(!expandedTraffic)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Car className="w-5 h-5 text-orange-600" />
+              Traffic Conditions
+              {traffic && (
+                <Badge variant="outline" className={`ml-2 ${getCongestionColor(traffic.congestionLevel).replace('text-', 'text-')} bg-orange-100 border-orange-300`}>
+                  {traffic.congestionLevel}
+                </Badge>
+              )}
+            </CardTitle>
+            {expandedTraffic ? (
+              <ChevronUp className="w-5 h-5 text-orange-600" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-orange-600" />
+            )}
+          </div>
+        </CardHeader>
+        {expandedTraffic && (
+          <CardContent>
+            {traffic ? (
+              <div className="space-y-3">
+                <div className="p-3 bg-white/50 rounded-lg">
+                  <p className="text-gray-700 font-medium">{traffic.summary || 'No significant traffic issues'}</p>
+                </div>
+                {traffic.incidents && traffic.incidents.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Active Incidents ({traffic.incidents.length}):</p>
+                    {traffic.incidents.map((incident, idx) => (
+                      <div key={idx} className="flex items-start gap-2 p-3 bg-white/50 rounded border border-orange-100">
+                        <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm text-gray-700 font-medium">{incident.description}</p>
+                          <Badge variant="outline" className="text-xs mt-2 bg-orange-100 text-orange-700 border-orange-300">
+                            {incident.severity}
+                          </Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-sm">Weather data not available</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200" data-testid="traffic-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Car className="w-5 h-5 text-orange-600" />
-            Traffic Conditions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {traffic ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-gray-700">{traffic.summary || 'No significant traffic issues'}</p>
-                <Badge variant="outline" className={getCongestionColor(traffic.congestionLevel)}>
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  {traffic.congestionLevel} congestion
-                </Badge>
+                )}
               </div>
-              {traffic.incidents && traffic.incidents.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Active Incidents:</p>
-                  {traffic.incidents.map((incident, idx) => (
-                    <div key={idx} className="flex items-start gap-2 p-2 bg-white/50 rounded">
-                      <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-gray-700">{incident.description}</p>
-                        <Badge variant="outline" className="text-xs mt-1">{incident.severity}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-gray-500 text-sm">Traffic data not available</p>
-          )}
-        </CardContent>
+            ) : (
+              <p className="text-gray-500 text-sm">Traffic data not available</p>
+            )}
+          </CardContent>
+        )}
       </Card>
 
+      {/* News Card - Collapsible */}
       <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200" data-testid="news-card">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Newspaper className="w-5 h-5 text-purple-600" />
-            Rideshare News
-            {newsItems.length > 0 && (
-              <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
-                {newsItems.length}
-              </Badge>
+        <CardHeader 
+          className="pb-2 cursor-pointer hover:bg-purple-100/50 transition-colors"
+          onClick={() => setExpandedNews(!expandedNews)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Newspaper className="w-5 h-5 text-purple-600" />
+              Rideshare News
+              {newsItems.length > 0 && (
+                <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 ml-2">
+                  {newsItems.length}
+                </Badge>
+              )}
+            </CardTitle>
+            {expandedNews ? (
+              <ChevronUp className="w-5 h-5 text-purple-600" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-purple-600" />
             )}
-          </CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          {newsItems.length > 0 ? (
-            <div className="space-y-3">
-              {newsItems.map((item, idx) => (
-                <article 
-                  key={idx} 
-                  className="p-3 bg-white/50 rounded-lg border border-purple-100"
-                  data-testid={`news-item-${idx}`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <h4 className="font-medium text-gray-800 text-sm">{item.title}</h4>
-                    <Badge variant="outline" className={getImpactColor(item.impact)}>
-                      {item.impact}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-2">{item.summary}</p>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>{item.source}</span>
-                    {item.link && (
-                      <a 
-                        href={item.link} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-purple-600 hover:text-purple-800"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        Read more
-                      </a>
-                    )}
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : briefing?.news?.error ? (
-            <div className="text-center py-4">
-              <AlertTriangle className="w-6 h-6 text-yellow-500 mx-auto mb-2" />
-              <p className="text-sm text-gray-600">Unable to fetch news</p>
-              <p className="text-xs text-gray-400 mt-1">{briefing.news.error}</p>
-            </div>
-          ) : (
-            <p className="text-gray-500 text-sm text-center py-4">
-              No rideshare-related news in the past 48 hours
-            </p>
-          )}
-        </CardContent>
+        {expandedNews && (
+          <CardContent>
+            {newsItems.length > 0 ? (
+              <div className="space-y-3">
+                {newsItems.map((item, idx) => (
+                  <article 
+                    key={idx} 
+                    className="p-3 bg-white/50 rounded-lg border border-purple-100 hover:border-purple-300 transition-colors"
+                    data-testid={`news-item-${idx}`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="font-medium text-gray-800 text-sm flex-1">{item.title}</h4>
+                      <Badge variant="outline" className={getImpactColor(item.impact)}>
+                        {item.impact}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-2">{item.summary}</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500">{item.source}</span>
+                      {item.link && (
+                        <a 
+                          href={item.link} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-purple-600 hover:text-purple-800 font-medium"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Link
+                        </a>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : briefing?.news?.error ? (
+              <div className="text-center py-4">
+                <AlertTriangle className="w-6 h-6 text-yellow-500 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">Unable to fetch news</p>
+                <p className="text-xs text-gray-400 mt-1">{briefing.news.error}</p>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">
+                No rideshare-related news in the past 48 hours
+              </p>
+            )}
+          </CardContent>
+        )}
       </Card>
     </div>
   );
