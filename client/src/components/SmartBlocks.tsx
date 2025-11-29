@@ -52,12 +52,13 @@ interface SmartBlocksProps {
   snapshotLat?: number;
   snapshotLng?: number;
   holiday?: string | null;
+  showTrafficOnly?: boolean;
 }
 
 const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const SEARCH_RADIUS_MILES = 15; // 15 mile radius for venue discovery
 
-export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapshotLng, holiday }: SmartBlocksProps) {
+export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapshotLng, holiday, showTrafficOnly }: SmartBlocksProps) {
   // Use snapshot coordinates as fallback if main coords not available
   const effectiveLat = lat || snapshotLat;
   const effectiveLng = lng || snapshotLng;
@@ -187,6 +188,57 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
           <p className="text-muted-foreground">Set your location to see nearby venues</p>
         </CardContent>
       </Card>
+    );
+  }
+
+  // If showTrafficOnly, render only the Traffic Conditions card (for Briefing tab)
+  if (showTrafficOnly) {
+    return (
+      <div className="space-y-4 pb-20" data-testid="smart-blocks-traffic-only">
+        {loading && !trafficData && (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <Loader className="h-8 w-8 mx-auto animate-spin text-blue-600" />
+              <p className="mt-2 text-muted-foreground">Loading traffic conditions...</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {error && (
+          <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
+            <CardContent className="py-3 text-sm text-red-700 dark:text-red-300">
+              <AlertTriangle className="h-4 w-4 inline mr-2" />
+              {error}
+            </CardContent>
+          </Card>
+        )}
+
+        {trafficData && (
+          <Card className="border-l-4 border-l-blue-500" data-testid="traffic-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Car className="h-4 w-4" />
+                Traffic Conditions
+                <Badge variant="outline" className={getTrafficColor(trafficData.traffic_density)}>
+                  {trafficData.density_level?.toUpperCase()}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-sm text-muted-foreground mb-2">{trafficData.driver_advice}</p>
+              {trafficData.high_demand_zones?.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {trafficData.high_demand_zones.slice(0, 3).map((zone, i) => (
+                    <Badge key={i} variant="secondary" className="text-xs">
+                      {zone.zone}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
     );
   }
 

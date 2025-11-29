@@ -1803,7 +1803,16 @@ const CoPilot: React.FC = () => {
         {/* Briefing Tab Content */}
         {activeTab === 'briefing' && (
           <div data-testid="briefing-section" className="mb-24">
-            {/* Briefing content will be added here */}
+            <SmartBlocks
+              lat={coords?.lat}
+              lng={coords?.lng}
+              city={snapshotData?.city}
+              state={snapshotData?.state}
+              snapshotLat={snapshotData?.lat}
+              snapshotLng={snapshotData?.lng}
+              holiday={snapshotData?.holiday}
+              showTrafficOnly={true}
+            />
           </div>
         )}
 
