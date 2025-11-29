@@ -385,9 +385,37 @@ function WeatherSection({ weather, air }: { weather?: WeatherData | null; air?: 
   );
 }
 
-// Traffic Conditions Section
+// Traffic Conditions Section - Uses Gemini for intelligent analysis
 function TrafficSection({ traffic }: { traffic?: TrafficItem[] }) {
-  if (!traffic || traffic.length === 0) {
+  const [geminiTraffic, setGeminiTraffic] = useState<TrafficItem[]>([]);
+  const [loadingGemini, setLoadingGemini] = useState(false);
+
+  // Try to fetch Gemini-powered traffic data
+  useEffect(() => {
+    const fetchGeminiTraffic = async () => {
+      try {
+        setLoadingGemini(true);
+        const response = await fetch('/api/location/traffic-gemini');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.traffic_analysis) {
+            setGeminiTraffic(data.traffic_analysis);
+          }
+        }
+      } catch (e) {
+        console.log('Gemini traffic fetch failed, using standard traffic data');
+      } finally {
+        setLoadingGemini(false);
+      }
+    };
+
+    fetchGeminiTraffic();
+  }, []);
+
+  // Use Gemini data if available, fall back to strategy data
+  const displayTraffic = geminiTraffic.length > 0 ? geminiTraffic : (traffic || []);
+
+  if (!displayTraffic || displayTraffic.length === 0) {
     return (
       <Card className="border-l-4 border-l-blue-500" data-testid="traffic-section-empty">
         <CardHeader className="pb-2">
@@ -414,8 +442,8 @@ function TrafficSection({ traffic }: { traffic?: TrafficItem[] }) {
     }
   };
   
-  const overallSeverity = traffic.some(t => t.severity === 'high') ? 'HIGH' :
-    traffic.some(t => t.severity === 'medium') ? 'MEDIUM' : 'LOW';
+  const overallSeverity = displayTraffic.some(t => t.severity === 'high') ? 'HIGH' :
+    displayTraffic.some(t => t.severity === 'medium') ? 'MEDIUM' : 'LOW';
 
   return (
     <Card className="border-l-4 border-l-blue-500" data-testid="traffic-section">
@@ -423,13 +451,15 @@ function TrafficSection({ traffic }: { traffic?: TrafficItem[] }) {
         <CardTitle className="text-sm flex items-center gap-2">
           <Car className="h-4 w-4" />
           Traffic Conditions
+          {geminiTraffic.length > 0 && <span className="text-xs text-purple-600 font-normal ml-1">via Gemini</span>}
           <Badge variant="outline" className={getSeverityColor(overallSeverity.toLowerCase())}>
             {overallSeverity}
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 space-y-2">
-        {traffic.slice(0, 5).map((item, i) => (
+        {loadingGemini && <p className="text-xs text-gray-500">Loading intelligent analysis...</p>}
+        {displayTraffic.slice(0, 5).map((item, i) => (
           <div 
             key={i} 
             className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg"
