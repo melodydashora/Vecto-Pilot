@@ -2,11 +2,12 @@ import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageSquare, Send, Mic, Square, Loader, Zap } from "lucide-react";
+import { MessageSquare, Send, Mic, Square, Loader, Zap, Paperclip, X } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  attachments?: Array<{ name: string; type: string; data: string; }>;
 }
 
 interface SnapshotData {
@@ -52,6 +53,8 @@ export default function CoachChat({
   const [isStreaming, setIsStreaming] = useState(false);
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [attachments, setAttachments] = useState<Array<{ name: string; type: string; data: string; }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const realtimeRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -212,12 +215,40 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
     }
   };
 
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.currentTarget.files;
+    if (!files) return;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const reader = new FileReader();
+      
+      reader.onload = (evt) => {
+        const data = evt.target?.result as string;
+        setAttachments(prev => [...prev, {
+          name: file.name,
+          type: file.type,
+          data: data
+        }]);
+      };
+      
+      reader.readAsDataURL(file);
+    }
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+
   async function send() {
-    if (!input.trim() || isStreaming) return;
+    if (!input.trim() && attachments.length === 0 || isStreaming) return;
     
     const my = input.trim();
     setInput("");
-    setMsgs((m) => [...m, { role: "user", content: my }, { role: "assistant", content: "" }]);
+    const filesToSend = attachments;
+    setAttachments([]);
+    setMsgs((m) => [...m, { role: "user", content: my || "(uploaded files)", attachments: filesToSend }, { role: "assistant", content: "" }]);
     setIsStreaming(true);
 
     controllerRef.current?.abort();
@@ -229,12 +260,13 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ 
           userId, 
-          message: my,
+          message: my || "(analyzing files)",
           threadHistory: msgs,  // Send full conversation history for context awareness
           snapshotId,
           strategyId,  // Entry point: Strategy ID from UI → Full schema access
           strategy,
           blocks,  // Send full blocks array with all fields (events, earnings, tips, etc.)
+          attachments: filesToSend,  // Include uploaded files for analysis
           // Snapshot context: weather, AQI, city, daypart, etc. (enables early engagement)
           snapshot: snapshot ? {
             city: snapshot.city,
@@ -413,17 +445,59 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
         </div>
       )}
 
+      {/* Attachments Display */}
+      {attachments.length > 0 && (
+        <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/50 border-t border-blue-200 dark:border-blue-800 flex flex-wrap gap-2">
+          {attachments.map((file, i) => (
+            <div key={i} className="flex items-center gap-1 bg-white dark:bg-slate-700 px-2 py-1 rounded-full text-xs text-gray-700 dark:text-gray-200 border border-blue-200 dark:border-blue-600">
+              <Paperclip className="h-3 w-3" />
+              <span className="truncate max-w-[100px]">{file.name}</span>
+              <button
+                onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
+                className="hover:text-red-500"
+                data-testid={`button-remove-attachment-${i}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Input Area */}
       <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 flex gap-2">
         <Input
           className="flex-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          placeholder={isVoiceActive ? "Listening... speak now" : "Ask about strategy, venues, or earnings..."}
+          placeholder={isVoiceActive ? "Listening... speak now" : "Ask about strategy, venues, or earnings... or upload files"}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !isStreaming && !isVoiceActive && send()}
           disabled={isStreaming || isVoiceActive}
           data-testid="input-chat-message"
         />
+        
+        {/* File Input (Hidden) */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+          accept="image/*,.pdf,.doc,.docx,.txt"
+          data-testid="input-file-upload"
+        />
+        
+        {/* File Upload Button */}
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          size="icon"
+          className="rounded-full h-10 w-10 bg-gray-500 hover:bg-gray-600 text-white"
+          title="Upload files (images, PDFs, documents)"
+          disabled={isStreaming || isVoiceActive}
+          data-testid="button-upload-file"
+        >
+          <Paperclip className="h-4 w-4" />
+        </Button>
         
         {/* Voice Button */}
         <Button
@@ -435,6 +509,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
               : "bg-blue-600 hover:bg-blue-700 text-white"
           }`}
           title={isVoiceActive ? "Stop voice chat" : "Start voice chat"}
+          disabled={attachments.length > 0}
           data-testid="button-voice-chat"
         >
           {isVoiceActive ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
