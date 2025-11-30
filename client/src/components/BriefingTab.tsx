@@ -164,6 +164,35 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     }
   }, [data]);
 
+  // Fetch real-time weather data separately for always-fresh conditions
+  const fetchRealtimeWeather = useCallback(async () => {
+    if (!data?.location) return;
+    
+    try {
+      const params = new URLSearchParams({
+        lat: data.location.lat.toString(),
+        lng: data.location.lng.toString()
+      });
+
+      const response = await fetch(`/api/briefing/weather/realtime?${params}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && data) {
+          setData({
+            ...data,
+            briefing: {
+              ...data.briefing,
+              weather: result.weather
+            },
+            updated_at: new Date().toISOString()
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Weather realtime fetch error:", err);
+    }
+  }, [data]);
+
   useEffect(() => {
     fetchBriefing();
   }, [fetchBriefing]);
@@ -177,6 +206,16 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     
     return () => clearInterval(interval);
   }, [data?.location, fetchRealtimeTraffic]);
+
+  // Auto-refresh real-time weather every 15 minutes (weather changes slower)
+  useEffect(() => {
+    if (!data?.location) return;
+    
+    fetchRealtimeWeather();
+    const interval = setInterval(fetchRealtimeWeather, 900000); // 15 minutes
+    
+    return () => clearInterval(interval);
+  }, [data?.location, fetchRealtimeWeather]);
 
   const getWeatherIcon = (conditionType?: string | null, isDaytime?: boolean | null) => {
     if (!conditionType) return <Cloud className="w-6 h-6 text-gray-500" />;
@@ -272,6 +311,17 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
           )}
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => fetchRealtimeWeather()}
+            disabled={refreshing}
+            data-testid="refresh-weather"
+            title="Refresh weather conditions"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span className="ml-2 hidden sm:inline">Weather</span>
+          </Button>
           <Button 
             variant="outline" 
             size="sm" 

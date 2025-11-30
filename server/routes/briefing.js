@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateAndStoreBriefing, getBriefingBySnapshotId, fetchTrafficConditions } from '../lib/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, fetchTrafficConditions, fetchWeatherConditions } from '../lib/briefing-service.js';
 import { db } from '../db/drizzle.js';
 import { snapshots } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
@@ -201,6 +201,30 @@ router.get('/traffic/realtime', async (req, res) => {
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching realtime traffic:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Real-time weather endpoint for briefing tab (always fresh, not cached)
+router.get('/weather/realtime', async (req, res) => {
+  try {
+    const { lat, lng } = req.query;
+    
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'Missing required parameters: lat, lng' });
+    }
+
+    const weather = await fetchWeatherConditions({
+      lat: parseFloat(lat),
+      lng: parseFloat(lng)
+    });
+
+    res.json({
+      success: true,
+      weather
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error fetching realtime weather:', error);
     res.status(500).json({ error: error.message });
   }
 });
