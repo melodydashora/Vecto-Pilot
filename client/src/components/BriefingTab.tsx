@@ -193,29 +193,17 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     }
   }, [data]);
 
+  // Fetch briefing only when snapshot ID changes (not on tab selection)
+  // Tied to snapshot lifecycle, similar to useStrategy pattern
   useEffect(() => {
+    if (!snapshotId) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+    
     fetchBriefing();
-  }, [fetchBriefing]);
-
-  // Auto-refresh real-time traffic every 60 seconds
-  useEffect(() => {
-    if (!data?.location) return;
-    
-    fetchRealtimeTraffic();
-    const interval = setInterval(fetchRealtimeTraffic, 60000);
-    
-    return () => clearInterval(interval);
-  }, [data?.location, fetchRealtimeTraffic]);
-
-  // Auto-refresh real-time weather every 15 minutes (weather changes slower)
-  useEffect(() => {
-    if (!data?.location) return;
-    
-    fetchRealtimeWeather();
-    const interval = setInterval(fetchRealtimeWeather, 900000); // 15 minutes
-    
-    return () => clearInterval(interval);
-  }, [data?.location, fetchRealtimeWeather]);
+  }, [snapshotId]);
 
   const getWeatherIcon = (conditionType?: string | null, isDaytime?: boolean | null) => {
     if (!conditionType) return <Cloud className="w-6 h-6 text-gray-500" />;
