@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { generateAndStoreBriefing, getBriefingBySnapshotId, fetchTrafficConditions, fetchWeatherConditions } from '../lib/briefing-service.js';
 import { db } from '../db/drizzle.js';
-import { snapshots } from '../../shared/schema.js';
+import { snapshots, users } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
 
 const router = Router();
@@ -117,12 +117,38 @@ router.get('/snapshot/:snapshotId', async (req, res) => {
       }
 
       const snapshotData = snapshot[0];
+      
+      // If snapshot has null location, try to get user's latest location
+      let { lat, lng, city, state } = snapshotData;
+      
+      if (!lat || !lng || !city || !state) {
+        if (snapshotData.user_id) {
+          const userLocation = await db.select()
+            .from(users)
+            .where(eq(users.user_id, snapshotData.user_id))
+            .limit(1);
+          
+          if (userLocation.length > 0) {
+            const userLoc = userLocation[0];
+            lat = lat || userLoc.lat;
+            lng = lng || userLoc.lng;
+            city = city || userLoc.city;
+            state = state || userLoc.state;
+          }
+        }
+      }
+      
+      // Check again - if we still have no location, we can't generate briefing
+      if (!lat || !lng) {
+        return res.status(400).json({ error: 'Cannot generate briefing - no location data available for this snapshot' });
+      }
+      
       const result = await generateAndStoreBriefing({
         snapshotId,
-        lat: snapshotData.lat,
-        lng: snapshotData.lng,
-        city: snapshotData.city,
-        state: snapshotData.state
+        lat,
+        lng,
+        city: city || 'Unknown',
+        state: state || ''
       });
 
       if (!result.success) {
