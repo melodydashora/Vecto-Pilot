@@ -9,12 +9,14 @@ const router = Router();
 
 router.get('/', (req, res) => {
   const diag = routerDiagnosticsV2();
+  const poolStats = getPoolStats();
   res.json({
     ok: true,
     service: 'Vecto Co-Pilot API',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
+    pool: poolStats,
     pid: process.pid,
     llm: diag
   });
