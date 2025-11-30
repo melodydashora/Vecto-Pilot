@@ -133,9 +133,50 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     }
   }, [snapshotId]);
 
+  // Fetch real-time traffic data separately for always-fresh conditions
+  const fetchRealtimeTraffic = useCallback(async () => {
+    if (!data?.location) return;
+    
+    try {
+      const params = new URLSearchParams({
+        lat: data.location.lat.toString(),
+        lng: data.location.lng.toString(),
+        city: data.location.city || 'Unknown',
+        state: data.location.state || ''
+      });
+
+      const response = await fetch(`/api/briefing/traffic/realtime?${params}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && data) {
+          setData({
+            ...data,
+            briefing: {
+              ...data.briefing,
+              traffic: result.traffic
+            },
+            updated_at: new Date().toISOString()
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Traffic realtime fetch error:", err);
+    }
+  }, [data]);
+
   useEffect(() => {
     fetchBriefing();
   }, [fetchBriefing]);
+
+  // Auto-refresh real-time traffic every 60 seconds
+  useEffect(() => {
+    if (!data?.location) return;
+    
+    fetchRealtimeTraffic();
+    const interval = setInterval(fetchRealtimeTraffic, 60000);
+    
+    return () => clearInterval(interval);
+  }, [data?.location, fetchRealtimeTraffic]);
 
   const getWeatherIcon = (conditionType?: string | null, isDaytime?: boolean | null) => {
     if (!conditionType) return <Cloud className="w-6 h-6 text-gray-500" />;
@@ -230,20 +271,33 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
             </Badge>
           )}
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => fetchBriefing(true)}
-          disabled={refreshing}
-          data-testid="refresh-briefing"
-        >
-          {refreshing ? (
-            <Loader className="w-4 h-4 animate-spin" />
-          ) : (
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => fetchRealtimeTraffic()}
+            disabled={refreshing}
+            data-testid="refresh-traffic"
+            title="Refresh traffic conditions"
+          >
             <RefreshCw className="w-4 h-4" />
-          )}
-          <span className="ml-2">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-        </Button>
+            <span className="ml-2 hidden sm:inline">Traffic</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => fetchBriefing(true)}
+            disabled={refreshing}
+            data-testid="refresh-briefing"
+          >
+            {refreshing ? (
+              <Loader className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            <span className="ml-2 hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </Button>
+        </div>
       </div>
 
       {updated_at && data?.snapshot_id && (
