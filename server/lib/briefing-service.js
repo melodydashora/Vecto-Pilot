@@ -75,7 +75,7 @@ async function filterNewsWithGemini(newsItems, city, state) {
     const prompt = `Based on this news data:
 ${newsText}
 
-Identify any local, state, or federal news or events that might affect rideshare drivers in ${city}, ${state}. Focus on: policy changes, regulations, airport pickup changes, road closures, accidents, protests, legal updates, special events, conferences, or other events that could impact driver demand or operations. 
+Identify any local, state, or federal news or events that might affect rideshare drivers in ${city}, ${state}. Focus on: policy changes, regulations, airport pickup changes, road closures, accidents, protests, legal updates, and special events like concerts, games, parades, watch parties, conferences, festivals, or other large gatherings that could impact driver demand or operations. 
 
 Return a JSON array of objects with these fields:
 - title: The news headline or event name
