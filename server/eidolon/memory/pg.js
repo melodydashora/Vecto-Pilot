@@ -11,10 +11,10 @@ if (!pool) {
   console.warn('[memory] Shared pool unavailable - creating fallback pool');
   pool = new Pool({
     connectionString: dsn,
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-    // optionally: allowExitOnIdle: true for serverless
+    max: 35, // Increased pool size to handle concurrent traffic spikes
+    idleTimeoutMillis: 60000, // Increased from 30s to 60s to keep connections alive longer
+    connectionTimeoutMillis: 10000, // Increased from 2s to 10s for better acquisition time
+    statement_timeout: 30000, // 30 second statement timeout to prevent long-running queries
   });
 }
 
