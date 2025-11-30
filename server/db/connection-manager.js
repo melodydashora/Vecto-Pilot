@@ -12,10 +12,35 @@ if (!process.env.DATABASE_URL) {
 // Create a standard Postgres pool using the environment provided URL
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20, // Standard pool size
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  max: 35, // Increased pool size to handle concurrent traffic spikes
+  idleTimeoutMillis: 60000, // Increased from 30s to 60s to keep connections alive longer
+  connectionTimeoutMillis: 10000, // Increased from 2s to 10s for better acquisition time
+  statement_timeout: 30000, // 30 second statement timeout to prevent long-running queries from blocking
 });
+
+// Add connection acquisition monitoring to detect pool exhaustion
+const connectionWarningThreshold = 30; // Warn when 30/35 connections in use
+let lastWarningTime = 0;
+
+pool.on('connect', (client) => {
+  // Set statement timeout on each new connection
+  client.query('SET statement_timeout TO 30000');
+});
+
+setInterval(() => {
+  const stats = {
+    idle: pool.idleCount ?? 0,
+    total: pool.totalCount ?? 0,
+    waiting: pool.waitingCount ?? 0,
+    max: pool.options?.max ?? 35,
+  };
+  
+  // Warn if pool is getting full
+  if (stats.total >= connectionWarningThreshold && Date.now() - lastWarningTime > 60000) {
+    console.warn(`⚠️ Connection pool nearing capacity: ${stats.total}/${stats.max} connections in use, ${stats.waiting} waiting`);
+    lastWarningTime = Date.now();
+  }
+}, 30000); // Check every 30 seconds
 
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
