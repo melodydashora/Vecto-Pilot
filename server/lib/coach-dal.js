@@ -214,7 +214,13 @@ export class CoachDAL {
         traffic: strategy?.briefing?.traffic || [],
         news: strategy?.briefing?.news || [],
         holidays: strategy?.briefing?.holidays || [],
-        // From briefings table
+        // NEW: From briefings table - Structured API data
+        weather_current: briefingRecord?.weather_current || null,
+        weather_forecast: briefingRecord?.weather_forecast || null,
+        traffic_conditions: briefingRecord?.traffic_conditions || null,
+        briefing_news: briefingRecord?.news || null,
+        briefing_events: briefingRecord?.events || null,
+        // Perplexity + GPT-5 research
         global_travel: briefingRecord?.global_travel || null,
         domestic_travel: briefingRecord?.domestic_travel || null,
         local_traffic: briefingRecord?.local_traffic || null,
@@ -578,67 +584,77 @@ export class CoachDAL {
       prompt += `\n\n⏳ AI strategy is generating...`;
     }
 
-    // ========== COMPREHENSIVE BRIEFING (Perplexity + GPT-5) ==========
+    // ========== COMPREHENSIVE BRIEFING (API Data + Perplexity + GPT-5) ==========
     if (briefing && Object.keys(briefing).length > 0) {
-      // Global/Domestic/Local Travel
+      // REAL-TIME API DATA
+      if (briefing.weather_current) {
+        prompt += `\n\n🌤️  REAL-TIME WEATHER (from Google Weather API)`;
+        const w = briefing.weather_current;
+        prompt += `\n   Current: ${w.temperature?.degrees || 'N/A'}°${w.temperature?.unit === 'FAHRENHEIT' ? 'F' : 'C'}`;
+        prompt += `\n   Conditions: ${w.conditions || 'N/A'}`;
+        if (w.humidity) prompt += `\n   Humidity: ${w.humidity}%`;
+        if (w.windSpeed) prompt += `\n   Wind: ${w.windSpeed.value || 'N/A'} ${w.windSpeed.unit || 'mph'}`;
+      }
+
+      if (briefing.weather_forecast?.length > 0) {
+        prompt += `\n   Forecast (next 6h): `;
+        briefing.weather_forecast.slice(0, 3).forEach((h, i) => {
+          const temp = h.temperature?.degrees || 'N/A';
+          prompt += `${i > 0 ? ' | ' : ''}${temp}° `;
+        });
+      }
+
+      if (briefing.traffic_conditions) {
+        prompt += `\n\n🚗 REAL-TIME TRAFFIC CONDITIONS`;
+        prompt += `\n   Level: ${briefing.traffic_conditions.congestionLevel || 'N/A'}`;
+        prompt += `\n   Summary: ${briefing.traffic_conditions.summary || 'N/A'}`;
+        if (briefing.traffic_conditions.incidents?.length > 0) {
+          prompt += `\n   Incidents (${briefing.traffic_conditions.incidents.length}):`;
+          briefing.traffic_conditions.incidents.slice(0, 2).forEach(inc => {
+            prompt += `\n     - ${inc.description?.substring(0, 80) || 'Unknown'}`;
+          });
+        }
+      }
+
+      if (briefing.briefing_news?.items?.length > 0 || briefing.briefing_news?.filtered?.length > 0) {
+        prompt += `\n\n📰 RIDESHARE NEWS & EVENTS (from SerpAPI + Gemini)`;
+        const newsItems = briefing.briefing_news.filtered || briefing.briefing_news.items || [];
+        newsItems.slice(0, 3).forEach((item, i) => {
+          prompt += `\n   ${i + 1}. ${item.title?.substring(0, 100) || 'Unknown'}`;
+          if (item.impact) prompt += ` [${item.impact}]`;
+          if (item.summary) prompt += `\n      ${item.summary.substring(0, 100)}...`;
+        });
+      }
+
+      if (briefing.briefing_events?.length > 0) {
+        prompt += `\n\n🎉 LOCAL EVENTS (concerts, games, parades, etc.)`;
+        briefing.briefing_events.slice(0, 3).forEach((evt, i) => {
+          const name = typeof evt === 'string' ? evt : evt.name || evt.title || 'Unknown';
+          prompt += `\n   ${i + 1}. ${name.substring(0, 80)}`;
+        });
+      }
+
+      // PERPLEXITY + GPT-5 RESEARCH
       if (briefing.global_travel) {
-        prompt += `\n\n🌐 GLOBAL TRAVEL CONDITIONS`;
-        prompt += `\n${briefing.global_travel.substring(0, 200)}...`;
+        prompt += `\n\n🌐 GLOBAL TRAVEL CONDITIONS (Perplexity)`;
+        prompt += `\n${briefing.global_travel.substring(0, 150)}...`;
       }
       if (briefing.local_traffic) {
-        prompt += `\n\n🛣️  LOCAL TRAFFIC & CONSTRUCTION`;
-        prompt += `\n${briefing.local_traffic.substring(0, 200)}...`;
-      }
-
-      // Weather Impacts
-      if (briefing.weather_impacts) {
-        prompt += `\n\n⛈️  WEATHER IMPACTS ON TRAVEL`;
-        prompt += `\n${briefing.weather_impacts.substring(0, 200)}...`;
-      }
-
-      // Local Events
-      if (briefing.events_nearby) {
-        prompt += `\n\n🎭 LOCAL EVENTS NEARBY`;
-        prompt += `\n${briefing.events_nearby.substring(0, 200)}...`;
+        prompt += `\n\n🛣️  LOCAL TRAFFIC & CONSTRUCTION (Perplexity)`;
+        prompt += `\n${briefing.local_traffic.substring(0, 150)}...`;
       }
 
       // Rideshare Intelligence
       if (briefing.rideshare_intel) {
-        prompt += `\n\n💡 RIDESHARE INTELLIGENCE`;
-        prompt += `\n${briefing.rideshare_intel.substring(0, 200)}...`;
+        prompt += `\n\n💡 RIDESHARE INTELLIGENCE (Perplexity)`;
+        prompt += `\n${briefing.rideshare_intel.substring(0, 150)}...`;
       }
 
       // Tactical 30-min forecast
       if (briefing.tactical_traffic || briefing.tactical_closures) {
         prompt += `\n\n⚡ NEXT 30 MINUTES (GPT-5 Tactical)`;
-        if (briefing.tactical_traffic) prompt += `\n   Traffic: ${briefing.tactical_traffic.substring(0, 100)}...`;
-        if (briefing.tactical_closures) prompt += `\n   Closures: ${briefing.tactical_closures.substring(0, 100)}...`;
-        if (briefing.tactical_enforcement) prompt += `\n   Enforcement: ${briefing.tactical_enforcement.substring(0, 100)}...`;
-      }
-
-      // Strategy-level events/traffic/news
-      if (briefing.events?.length > 0) {
-        prompt += `\n\n📅 EVENT CALENDAR`;
-        briefing.events.slice(0, 3).forEach((item, i) => {
-          const title = typeof item === 'string' ? item : item.title || item.name || '';
-          prompt += `\n   ${i + 1}. ${title.substring(0, 80)}`;
-        });
-      }
-
-      if (briefing.news?.length > 0) {
-        prompt += `\n\n📰 NEWS AFFECTING RIDESHARE`;
-        briefing.news.slice(0, 2).forEach((item, i) => {
-          const title = typeof item === 'string' ? item : item.title || '';
-          prompt += `\n   ${i + 1}. ${title.substring(0, 100)}`;
-        });
-      }
-
-      if (briefing.traffic?.length > 0) {
-        prompt += `\n\n🚗 TRAFFIC ALERTS`;
-        briefing.traffic.slice(0, 3).forEach((item, i) => {
-          const summary = typeof item === 'string' ? item : item.summary || '';
-          prompt += `\n   ${i + 1}. ${summary.substring(0, 100)}`;
-        });
+        if (briefing.tactical_traffic) prompt += `\n   Traffic: ${briefing.tactical_traffic.substring(0, 80)}...`;
+        if (briefing.tactical_closures) prompt += `\n   Closures: ${briefing.tactical_closures.substring(0, 80)}...`;
       }
     }
 
