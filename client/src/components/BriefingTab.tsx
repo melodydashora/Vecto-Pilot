@@ -211,6 +211,10 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     fetchBriefing();
   }, [snapshotId, fetchBriefing]);
 
+  const celsiusToFahrenheit = (celsius: number) => {
+    return Math.round((celsius * 9/5) + 32);
+  };
+
   const getWeatherIcon = (conditionType?: string | null, isDaytime?: boolean | null) => {
     if (!conditionType) return <Cloud className="w-6 h-6 text-gray-500" />;
     const type = conditionType.toLowerCase();
@@ -370,7 +374,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
               Current Weather
               {weather?.current?.temperature && (
                 <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 ml-2">
-                  {weather.current.temperature.degrees}°
+                  {celsiusToFahrenheit(weather.current.temperature.degrees)}°F
                 </Badge>
               )}
             </CardTitle>
@@ -388,16 +392,14 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="text-4xl font-bold text-gray-800">
-                      {weather.current.temperature?.degrees}°
-                      <span className="text-lg font-normal text-gray-500">
-                        {weather.current.temperature?.unit === 'FAHRENHEIT' ? 'F' : 'C'}
-                      </span>
+                      {celsiusToFahrenheit(weather.current.temperature?.degrees || 0)}°
+                      <span className="text-lg font-normal text-gray-500">F</span>
                     </div>
-                    <div>
-                      <p className="text-gray-700 font-medium">{weather.current.conditions}</p>
+                    <div className="min-w-0">
+                      <p className="text-gray-700 font-medium truncate">{weather.current.conditions}</p>
                       {weather.current.feelsLike && (
-                        <p className="text-sm text-gray-500">
-                          Feels like {weather.current.feelsLike.degrees}°
+                        <p className="text-sm text-gray-500 truncate">
+                          Feels like {celsiusToFahrenheit(weather.current.feelsLike.degrees)}°F
                         </p>
                       )}
                     </div>
@@ -437,7 +439,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
                             {getWeatherIcon(hour.conditionType, hour.isDaytime)}
                           </div>
                           <span className="text-sm font-medium text-gray-800">
-                            {hour.temperature?.degrees}°
+                            {celsiusToFahrenheit(hour.temperature?.degrees || 0)}°F
                           </span>
                           {hour.precipitationProbability !== null && hour.precipitationProbability > 0 && (
                             <span className="text-xs text-blue-600 font-medium">{hour.precipitationProbability}% rain</span>

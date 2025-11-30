@@ -75,15 +75,15 @@ async function filterNewsWithGemini(newsItems, city, state) {
     const prompt = `Based on this news data:
 ${newsText}
 
-Identify any local, state, or federal news that would specifically impact rideshare drivers in ${city}, ${state}. Focus ONLY on: policy changes, regulations, airport pickup changes, road closures, accidents, protests, or legal updates affecting rideshare. NO weather, events, hotspots, or positioning advice.
+Identify any local, state, or federal news or events that might affect rideshare drivers in ${city}, ${state}. Focus on: policy changes, regulations, airport pickup changes, road closures, accidents, protests, legal updates, special events, conferences, or other events that could impact driver demand or operations. 
 
 Return a JSON array of objects with these fields:
-- title: The news headline
+- title: The news headline or event name
 - summary: One sentence actionable summary for drivers
 - impact: "high", "medium", or "low"
 - source: The news source
 
-If no relevant news, return an empty array [].`;
+If no relevant news or events, return an empty array [].`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
