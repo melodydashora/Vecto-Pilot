@@ -179,16 +179,34 @@ export async function fetchWeatherConditions({ lat, lng }) {
 
 export async function fetchTrafficConditions({ lat, lng, city, state }) {
   try {
-    const trafficData = {
-      summary: 'Normal traffic conditions',
-      incidents: [],
-      congestionLevel: 'low',
+    // Import traffic intelligence from venue service
+    const { getTrafficIntelligence } = await import('./venue-intelligence.js');
+    const trafficIntel = await getTrafficIntelligence({ lat, lng, city, state });
+    
+    // Convert venue traffic format to briefing format
+    const incidents = (trafficIntel.congestion_areas || []).map(area => ({
+      description: `${area.area}: ${area.reason}`,
+      severity: area.severity > 7 ? 'high' : area.severity > 4 ? 'medium' : 'low'
+    }));
+    
+    const summary = trafficIntel.driver_advice || 'No significant traffic issues';
+    const congestionLevel = trafficIntel.density_level || 'low';
+    
+    return {
+      summary,
+      incidents,
+      congestionLevel,
       fetchedAt: new Date().toISOString()
     };
-    return trafficData;
   } catch (error) {
     console.error('[BriefingService] Traffic fetch error:', error);
-    return { summary: null, incidents: [], error: error.message };
+    return { 
+      summary: 'Unable to fetch traffic data', 
+      incidents: [], 
+      congestionLevel: 'low',
+      error: error.message,
+      fetchedAt: new Date().toISOString()
+    };
   }
 }
 

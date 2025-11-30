@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateAndStoreBriefing, getBriefingBySnapshotId } from '../lib/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, fetchTrafficConditions } from '../lib/briefing-service.js';
 import { db } from '../db/drizzle.js';
 import { snapshots } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
@@ -175,6 +175,32 @@ router.post('/refresh', async (req, res) => {
     }
   } catch (error) {
     console.error('[BriefingRoute] Error refreshing briefing:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Real-time traffic endpoint for briefing tab (always fresh, not cached)
+router.get('/traffic/realtime', async (req, res) => {
+  try {
+    const { lat, lng, city, state } = req.query;
+    
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'Missing required parameters: lat, lng' });
+    }
+
+    const traffic = await fetchTrafficConditions({
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+      city: city || 'Unknown',
+      state: state || ''
+    });
+
+    res.json({
+      success: true,
+      traffic
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error fetching realtime traffic:', error);
     res.status(500).json({ error: error.message });
   }
 });
