@@ -88,6 +88,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const [expandedNews, setExpandedNews] = useState(true);
 
   const fetchBriefing = useCallback(async (forceRefresh = false) => {
+    console.log('[BriefingTab] fetchBriefing called:', { snapshotId, forceRefresh });
     if (forceRefresh) {
       setRefreshing(true);
     } else {
@@ -106,8 +107,11 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         ? { method: 'POST' }
         : { method: 'GET' };
       
+      console.log('[BriefingTab] Fetching from:', endpoint);
       const response = await fetch(endpoint, options);
       const result = await response.json();
+      
+      console.log('[BriefingTab] Response:', { status: response.status, ok: response.ok, result });
 
       if (response.ok) {
         if (forceRefresh && result.briefing) {
@@ -119,6 +123,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
             updated_at: new Date().toISOString()
           });
         } else {
+          console.log('[BriefingTab] Setting data:', result);
           setData(result);
         }
       } else {
@@ -196,6 +201,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   // Fetch briefing only when snapshot ID changes (not on tab selection)
   // Tied to snapshot lifecycle, similar to useStrategy pattern
   useEffect(() => {
+    console.log('[BriefingTab] useEffect triggered:', { snapshotId });
     if (!snapshotId) {
       setData(null);
       setLoading(false);
@@ -203,7 +209,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     }
     
     fetchBriefing();
-  }, [snapshotId]);
+  }, [snapshotId, fetchBriefing]);
 
   const getWeatherIcon = (conditionType?: string | null, isDaytime?: boolean | null) => {
     if (!conditionType) return <Cloud className="w-6 h-6 text-gray-500" />;
