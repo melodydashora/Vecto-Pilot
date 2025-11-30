@@ -103,10 +103,33 @@ router.post('/generate', async (req, res) => {
 router.get('/snapshot/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
-    const briefing = await getBriefingBySnapshotId(snapshotId);
+    let briefing = await getBriefingBySnapshotId(snapshotId);
 
     if (!briefing) {
-      return res.status(404).json({ error: 'Briefing not found for this snapshot' });
+      // Auto-generate briefing if it doesn't exist
+      const snapshot = await db.select()
+        .from(snapshots)
+        .where(eq(snapshots.snapshot_id, snapshotId))
+        .limit(1);
+
+      if (snapshot.length === 0) {
+        return res.status(404).json({ error: 'Snapshot not found' });
+      }
+
+      const snapshotData = snapshot[0];
+      const result = await generateAndStoreBriefing({
+        snapshotId,
+        lat: snapshotData.lat,
+        lng: snapshotData.lng,
+        city: snapshotData.city,
+        state: snapshotData.state
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error });
+      }
+
+      briefing = result.briefing;
     }
 
     res.json({
