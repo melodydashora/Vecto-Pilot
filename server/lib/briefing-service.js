@@ -155,15 +155,26 @@ export async function fetchWeatherConditions({ lat, lng }) {
 
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
-      forecast = (forecastData.forecastHours || []).map(hour => ({
-        time: hour.displayDateTime,
-        temperature: hour.temperature,
-        conditions: hour.weatherCondition?.description?.text,
-        conditionType: hour.weatherCondition?.type,
-        precipitationProbability: hour.precipitation?.probability?.percent,
-        windSpeed: hour.wind?.speed,
-        isDaytime: hour.isDaytime
-      }));
+      forecast = (forecastData.forecastHours || []).map((hour, idx) => {
+        // Ensure time is a valid ISO string - use displayDateTime if valid, otherwise generate from current time
+        let timeValue = hour.displayDateTime;
+        if (!timeValue || isNaN(new Date(timeValue).getTime())) {
+          // If displayDateTime is invalid, generate forecast time by adding hours to current time
+          const forecastTime = new Date();
+          forecastTime.setHours(forecastTime.getHours() + idx);
+          timeValue = forecastTime.toISOString();
+        }
+        
+        return {
+          time: timeValue,
+          temperature: hour.temperature,
+          conditions: hour.weatherCondition?.description?.text,
+          conditionType: hour.weatherCondition?.type,
+          precipitationProbability: hour.precipitation?.probability?.percent,
+          windSpeed: hour.wind?.speed,
+          isDaytime: hour.isDaytime
+        };
+      });
     }
 
     return {
@@ -181,13 +192,35 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
   try {
     // Import traffic intelligence from venue service
     const { getTrafficIntelligence } = await import('./venue-intelligence.js');
-    const trafficIntel = await getTrafficIntelligence({ lat, lng, city, state });
+    
+    // Add timeout to prevent hanging requests
+    const trafficPromise = getTrafficIntelligence({ lat, lng, city, state });
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Traffic API timeout')), 8000)
+    );
+    
+    let trafficIntel;
+    try {
+      trafficIntel = await Promise.race([trafficPromise, timeoutPromise]);
+    } catch (timeoutErr) {
+      console.warn('[BriefingService] Traffic fetch timed out, using stub data:', timeoutErr.message);
+      // Return stub data on timeout instead of erroring
+      trafficIntel = {
+        density_level: 'medium',
+        driver_advice: 'Unable to fetch real-time traffic. Check maps for current conditions.',
+        congestion_areas: [],
+        high_demand_zones: []
+      };
+    }
     
     // Convert venue traffic format to briefing format
-    const incidents = (trafficIntel.congestion_areas || []).map(area => ({
-      description: `${area.area}: ${area.reason}`,
-      severity: area.severity > 7 ? 'high' : area.severity > 4 ? 'medium' : 'low'
-    }));
+    const incidents = (trafficIntel.congestion_areas || [])
+      .filter(area => area && area.area && area.reason)
+      .slice(0, 5) // Limit to 5 incidents
+      .map(area => ({
+        description: `${area.area}: ${area.reason}`,
+        severity: area.severity > 7 ? 'high' : area.severity > 4 ? 'medium' : 'low'
+      }));
     
     const summary = trafficIntel.driver_advice || 'No significant traffic issues';
     const congestionLevel = trafficIntel.density_level || 'low';
@@ -199,12 +232,12 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
       fetchedAt: new Date().toISOString()
     };
   } catch (error) {
-    console.error('[BriefingService] Traffic fetch error:', error);
+    console.error('[BriefingService] Traffic fetch error:', error.message);
+    // Return safe stub data on any error - don't break the briefing
     return { 
-      summary: 'Unable to fetch traffic data', 
+      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
       incidents: [], 
       congestionLevel: 'low',
-      error: error.message,
       fetchedAt: new Date().toISOString()
     };
   }
