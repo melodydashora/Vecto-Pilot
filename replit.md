@@ -22,9 +22,9 @@ A React + TypeScript Single Page Application (SPA), built with Vite, utilizing R
 
 **Briefing Tab Architecture**:
 The Briefing tab displays three data sources fetched at snapshot creation and stored in the database for consistency:
-1. **News**: Rideshare-relevant news from SerpAPI (Google News, 24-48 hour filter) + Gemini 2.0 Flash AI filtering for driver-relevant content
-2. **Weather**: Current conditions + hourly forecast from Google Weather API (6-hour lookahead)
-3. **Traffic**: Local traffic conditions and congestion levels
+1. **News & Events**: Rideshare-relevant news + local events (concerts, games, parades, watch parties) from SerpAPI (Google News, 24-48 hour filter) + Gemini 2.0 Flash AI filtering for driver-relevant content
+2. **Weather**: Current conditions (Fahrenheit for US) + hourly forecast from Google Weather API (6-hour lookahead)
+3. **Traffic**: Local traffic conditions and congestion levels with Gemini intelligence
 
 Key files:
 - `server/lib/briefing-service.js` - Data fetching and AI filtering service
@@ -42,8 +42,18 @@ The system uses snapshots as the authoritative connector across all data sources
 - **Tables Using Snapshot as Connector**: strategies, briefings, rankings, actions, triad_jobs, venue_feedback, strategy_feedback, app_feedback, nearby_venues
 - **ML-Ready Structure**: Every API call, LLM prompt, and user action is tied to a snapshot, making historical training data fully traceable and enabling supervised learning on driver behavior patterns
 - **Fallback Resolution**: When data is missing from snapshots (e.g., null location), the system resolves to the user's latest location from the users table before generating briefings or strategies
+- **AI Coach Access**: The Coach DAL provides consistent read-only access to all snapshot-linked data, allowing the AI Coach to provide contextual advice as data becomes available during the enrichment pipeline
 
 Connection resilience includes automatic reconnection logic with exponential backoff.
+
+**Data Flow Consistency Pattern**:
+All data flows follow a unified three-phase pattern:
+1. **Fetch**: External APIs or database queries retrieve data scoped to a snapshot_id
+2. **Resolve**: Data with null/missing fields falls back to user table or defaults before storage
+3. **Return**: Data is formatted consistently for UI consumption and AI Coach access
+- Routes validate and transform all API responses into snapshot-scoped records
+- UI components consume data via React Query with snapshot_id as cache key
+- AI Coach accesses all data through CoachDAL, which normalizes across snapshots/strategies/briefings tables
 
 **Authentication & Security**:
 Employs JWT with RS256 Asymmetric Keys and security middleware for rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.
@@ -72,3 +82,8 @@ Supports Mono Mode and Split Mode, featuring health-gated entry points, unified 
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
+## Recent Changes
+- **Nov 30, 2025**: Fixed briefing data loading by implementing location fallback to users table when snapshots have null location. AI Coach now has full access to structured briefing data (weather, traffic, news) through updated CoachDAL.
+- **Nov 30, 2025**: Converted weather metrics to Fahrenheit (°F) throughout briefing display. Updated news API prompt to explicitly request events (concerts, games, parades, watch parties).
+- **Nov 30, 2025**: Established snapshots as central connector across all tables for ML pipeline consistency.
