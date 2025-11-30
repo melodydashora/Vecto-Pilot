@@ -33,7 +33,17 @@ Key files:
 - Database table: `briefings` (linked to snapshots via snapshot_id)
 
 **Data Storage**:
-A PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes and JSONB for flexible storage. The architecture employs a two-table location model where the `users` table is the authoritative source for driver location, and the `snapshots` table references `users` for API-enriched contextual data without duplicating location information. Connection resilience includes automatic reconnection logic with exponential backoff.
+A PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data. It uses unique indexes and JSONB for flexible storage. 
+
+**Architecture Pattern - Snapshots as Central Connector for ML**:
+The system uses snapshots as the authoritative connector across all data sources, enabling machine learning and analytics:
+- **Location Model**: `users` table stores driver location (authoritative), `snapshots` table captures location at point-in-time without duplication
+- **Snapshot-Centric Data Hub**: All enrichments (strategies, briefings, rankings, actions, venue feedback) reference `snapshot_id`, creating a unified event context for each moment in time
+- **Tables Using Snapshot as Connector**: strategies, briefings, rankings, actions, triad_jobs, venue_feedback, strategy_feedback, app_feedback, nearby_venues
+- **ML-Ready Structure**: Every API call, LLM prompt, and user action is tied to a snapshot, making historical training data fully traceable and enabling supervised learning on driver behavior patterns
+- **Fallback Resolution**: When data is missing from snapshots (e.g., null location), the system resolves to the user's latest location from the users table before generating briefings or strategies
+
+Connection resilience includes automatic reconnection logic with exponential backoff.
 
 **Authentication & Security**:
 Employs JWT with RS256 Asymmetric Keys and security middleware for rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.

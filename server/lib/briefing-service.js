@@ -1,6 +1,15 @@
 import { db } from '../db/drizzle.js';
-import { briefings } from '../../shared/schema.js';
+import { briefings, snapshots } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
+
+// Briefing Service Architecture:
+// ================================
+// This service generates and stores briefings linked to snapshots (snapshot_id).
+// Snapshots serve as the central connector across all data sources for ML purposes:
+// - Each briefing is uniquely tied to a snapshot's point-in-time context
+// - Location data (lat/lng/city/state) is resolved from snapshot + fallback to user location
+// - All API calls (weather, traffic, news) are logged with snapshot_id for training data
+// - This enables full traceability and supervised learning on driver behavior patterns
 
 const SERP_API_KEY = process.env.SERP_API_KEY;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
