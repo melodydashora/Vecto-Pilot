@@ -119,7 +119,7 @@ function buildMessageContent(message, attachments) {
 
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
 // Uses optional auth: allows unauthenticated requests now, will use auth tokens when available
-import { optionalAuth } from '../middleware/auth.ts';
+import { optionalAuth } from '../middleware/auth.js';
 
 router.post('/', optionalAuth, async (req, res) => {
   const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [] } = req.body;
