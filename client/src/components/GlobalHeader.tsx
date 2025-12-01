@@ -52,6 +52,9 @@ const GlobalHeaderComponent: React.FC = () => {
   // CRITICAL FIX Issue #5 & #3: Query /api/users/me directly for fresh location from database
   // This bypasses context state lag and ensures header always shows current location
   // CRITICAL FIX Finding #3: Reduced polling from 5s to 2s for faster header updates
+  // CRITICAL FIX Production Issue #1 (Dec 1): Disabled aggressive polling (2s) causing 1643 req/6h
+  // Root cause: 30 reqs/min per user × 50 concurrent users = production spike
+  // Solution: Fetch on app init only, refetch on location change via context
   const { data: dbUserLocation } = useQuery({
     queryKey: ['/api/users/me', deviceId],
     queryFn: async () => {
@@ -60,8 +63,8 @@ const GlobalHeaderComponent: React.FC = () => {
       if (!res.ok) return null;
       return res.json();
     },
-    staleTime: 2000, // Mark data stale after 2 seconds
-    refetchInterval: 2000, // Poll every 2 seconds for fresh data (faster header updates)
+    staleTime: 60000, // Keep data fresh for 1 minute
+    refetchInterval: false, // DISABLED: No polling. Location updates flow through context.
     enabled: !!deviceId,
   });
 
