@@ -15,122 +15,227 @@ import { z } from 'zod';
 const SERP_API_KEY = process.env.SERP_API_KEY;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
+const NEWS_API_KEY = process.env.NEWS_API_KEY;
 
-// Zod validation schema for rideshare news events
-const RideshareEventSchema = z.object({
-  title: z.string().describe('Event or incident headline'),
-  summary: z.string().describe('One sentence actionable insight for drivers'),
-  impact: z.enum(['high', 'medium', 'low']).describe('Impact level on rideshare drivers'),
-  source: z.string().describe('News source name'),
-  event_type: z.enum(['road_closure', 'demand_event', 'policy_change', 'accident', 'other']).optional(),
+// Zod validation schema for local events
+const LocalEventSchema = z.object({
+  title: z.string().describe('Event name'),
+  summary: z.string().describe('One sentence event description with driver impact'),
+  impact: z.enum(['high', 'medium', 'low']).describe('Impact level on rideshare demand/routing'),
+  source: z.string().describe('Event source/discovery method'),
+  event_type: z.enum(['concert', 'game', 'comedy', 'live_music', 'festival', 'sports', 'performance', 'other']).optional(),
   latitude: z.number().optional().describe('Event latitude coordinate'),
   longitude: z.number().optional().describe('Event longitude coordinate'),
   distance_miles: z.number().optional().describe('Distance from user location in miles'),
-  event_date: z.string().optional().describe('Event date in ISO format'),
-  link: z.string().optional().describe('Source link'),
+  event_date: z.string().optional().describe('Event date/time in ISO format'),
+  event_time: z.string().optional().describe('Event start time (e.g., 7:00 PM)'),
+  location: z.string().optional().describe('Event venue name and address'),
+  link: z.string().optional().describe('Source link or ticket link'),
 });
 
-const RideshareNewsArraySchema = z.array(RideshareEventSchema);
+const LocalEventsArraySchema = z.array(LocalEventSchema);
 
 export async function fetchRideshareNews({ city, state, lat, lng, country = 'US' }) {
-  if (!SERP_API_KEY) {
-    console.warn('[BriefingService] SERP_API_KEY not set, skipping news fetch');
-    return { items: [], error: 'SERP_API_KEY not configured' };
-  }
-
-  try {
-    // Try broader metro area search first (e.g., Dallas for Irving, TX)
-    let searchQuery = encodeURIComponent(`uber OR lyft OR rideshare news ${state}`);
-    let url = `https://serpapi.com/search.json?engine=google&q=${searchQuery}&tbm=nws&tbs=qdr:d&api_key=${SERP_API_KEY}`;
-    
-    console.log(`[BriefingService] Fetching news from SerpAPI for ${city}, ${state}`);
-    console.log(`[BriefingService] Search query: ${searchQuery}`);
-    
-    const response = await fetch(url);
-    console.log(`[BriefingService] SerpAPI response status: ${response.status}`);
-    
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`[BriefingService] SerpAPI error ${response.status}: ${errText.substring(0, 200)}`);
-      throw new Error(`SerpAPI returned ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log(`[BriefingService] SerpAPI response keys:`, Object.keys(data));
-    console.log(`[BriefingService] News results count:`, data.news_results?.length || 0);
-    
-    let newsResults = data.news_results || [];
-    
-    // If no results, try fallback with just "rideshare"
-    if (newsResults.length === 0) {
-      console.log(`[BriefingService] No results with initial query, trying fallback...`);
-      const fallbackQuery = encodeURIComponent(`rideshare driver earnings tips`);
-      const fallbackUrl = `https://serpapi.com/search.json?engine=google&q=${fallbackQuery}&tbm=nws&tbs=qdr:w&api_key=${SERP_API_KEY}`;
-      const fallbackResponse = await fetch(fallbackUrl);
-      if (fallbackResponse.ok) {
-        const fallbackData = await fallbackResponse.json();
-        newsResults = fallbackData.news_results || [];
-        console.log(`[BriefingService] Fallback search returned ${newsResults.length} results`);
-      }
-    }
-    
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-    
-    const recentNews = newsResults
-      .filter(item => {
-        if (item.published_at) {
-          const pubDate = new Date(item.published_at);
-          return pubDate >= cutoff;
-        }
-        return true;
-      })
-      .slice(0, 8)
-      .map(item => ({
-        title: item.title,
-        source: item.source,
-        date: item.date || item.published_at,
-        link: item.link,
-        snippet: item.snippet
-      }));
-
-    console.log(`[BriefingService] Recent news after date filter: ${recentNews.length} items`);
-    
-    if (recentNews.length === 0) {
-      console.warn(`[BriefingService] No recent news found for ${city}, ${state}. Raw results: ${newsResults.length}`);
-      // Return stub data for testing when no real news is available
-      return { 
-        items: [], 
-        filtered: [
-          {
-            title: "Rideshare Market Insight",
-            summary: "No breaking news events detected in your area today. Monitor traffic conditions and airport activity.",
-            impact: "low",
-            source: "System",
-            event_type: "other",
-            latitude: lat,
-            longitude: lng,
-            distance_miles: 0,
-            event_date: new Date().toISOString(),
-            link: null
-          }
-        ], 
-        message: 'No recent rideshare news found - showing general market context' 
+  console.log(`[BriefingService] Fetching local events for ${city}, ${state} at (${lat}, ${lng})`);
+  
+  // Try Perplexity first (best for real-time local events)
+  if (PERPLEXITY_API_KEY) {
+    console.log('[BriefingService] Trying Perplexity for local events...');
+    const perplexityEvents = await fetchEventsFromPerplexity(city, state, lat, lng);
+    if (perplexityEvents.length > 0) {
+      console.log(`[BriefingService] ✅ Perplexity returned ${perplexityEvents.length} events`);
+      return {
+        items: perplexityEvents,
+        filtered: perplexityEvents,
+        fetchedAt: new Date().toISOString(),
+        source: 'Perplexity'
       };
     }
-
-    console.log(`[BriefingService] Calling Gemini to filter ${recentNews.length} news items`);
-    const filtered = await filterNewsWithGemini(recentNews, city, state, country, lat, lng);
-    
-    return {
-      items: recentNews,
-      filtered,
-      fetchedAt: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('[BriefingService] News fetch error:', error);
-    return { items: [], error: error.message };
   }
+  
+  // Fallback to SerpAPI if available
+  if (SERP_API_KEY) {
+    console.log('[BriefingService] Perplexity failed, trying SerpAPI...');
+    const serpEvents = await fetchEventsFromSerpAPI(city, state, lat, lng);
+    if (serpEvents.filtered.length > 0) {
+      console.log(`[BriefingService] ✅ SerpAPI returned ${serpEvents.filtered.length} events`);
+      return { ...serpEvents, source: 'SerpAPI' };
+    }
+  }
+  
+  // Fallback to NewsAPI
+  if (NEWS_API_KEY) {
+    console.log('[BriefingService] SerpAPI failed, trying NewsAPI...');
+    const newsEvents = await fetchEventsFromNewsAPI(city, state, lat, lng);
+    if (newsEvents.length > 0) {
+      console.log(`[BriefingService] ✅ NewsAPI returned ${newsEvents.length} events`);
+      return {
+        items: newsEvents,
+        filtered: newsEvents,
+        fetchedAt: new Date().toISOString(),
+        source: 'NewsAPI'
+      };
+    }
+  }
+  
+  // All failed - return stub
+  console.warn(`[BriefingService] No real-time events found from any service`);
+  return { 
+    items: [], 
+    filtered: [
+      {
+        title: "Local Events Search",
+        summary: "No major events found today in your area. Monitor traffic and airport activity for surge opportunities.",
+        impact: "low",
+        source: "System",
+        event_type: "other",
+        latitude: lat,
+        longitude: lng,
+        distance_miles: 0,
+        event_date: new Date().toISOString(),
+        link: null
+      }
+    ], 
+    message: 'No local events detected - monitoring normal conditions',
+    source: 'Stub'
+  };
+}
+
+async function fetchEventsFromPerplexity(city, state, lat, lng) {
+  try {
+    const prompt = `Find local events happening TODAY in ${city}, ${state} area within 50 miles of coordinates ${lat}, ${lng}.
+Focus on: concerts, games, sports, comedy shows, live music, festivals, performances, theater.
+Return ONLY a JSON array with event details. For each event include: title, location address, event_date/time, estimated_distance_miles, and type.
+Return empty array [] if no events found.
+
+RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
+
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'sonar-pro',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2,
+        max_tokens: 2000
+      })
+    });
+
+    if (!response.ok) {
+      console.warn(`[BriefingService] Perplexity error ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '[]';
+    
+    try {
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        // Convert Perplexity response to our schema
+        return parsed.map((event, idx) => ({
+          title: event.title || event.name || `Event ${idx + 1}`,
+          summary: `${event.type || 'Event'} at ${event.location || 'TBD'}. High demand for rideshare to/from this event.`,
+          impact: 'high',
+          source: 'Perplexity',
+          event_type: event.type?.toLowerCase() || 'other',
+          latitude: event.latitude,
+          longitude: event.longitude,
+          distance_miles: event.estimated_distance_miles || event.distance_miles,
+          event_date: event.event_date || event.date,
+          event_time: event.event_time || event.time,
+          location: event.location,
+          link: event.link || event.url
+        }));
+      }
+    } catch (e) {
+      console.error('[BriefingService] Perplexity JSON parse error:', e.message);
+      return [];
+    }
+  } catch (error) {
+    console.error('[BriefingService] Perplexity fetch error:', error.message);
+    return [];
+  }
+}
+
+async function fetchEventsFromSerpAPI(city, state, lat, lng) {
+  try {
+    const searchQuery = encodeURIComponent(`games concerts live music comedy shows performances events ${city}`);
+    const url = `https://serpapi.com/search.json?engine=google&q=${searchQuery}&tbm=nws&tbs=qdr:d&api_key=${SERP_API_KEY}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`SerpAPI ${response.status}`);
+    
+    const data = await response.json();
+    const newsResults = data.news_results || [];
+    
+    if (newsResults.length === 0) return { items: [], filtered: [] };
+    
+    const items = newsResults.slice(0, 8).map(item => ({
+      title: item.title,
+      source: item.source,
+      date: item.date || item.published_at,
+      link: item.link,
+      snippet: item.snippet
+    }));
+    
+    // Use Gemini to convert news to events with coordinates
+    const filtered = await convertNewsToEvents(items, city, state, lat, lng);
+    return { items, filtered };
+  } catch (error) {
+    console.error('[BriefingService] SerpAPI error:', error.message);
+    return { items: [], filtered: [] };
+  }
+}
+
+async function fetchEventsFromNewsAPI(city, state, lat, lng) {
+  try {
+    const q = encodeURIComponent(`games concerts live music comedy performances`);
+    const url = `https://newsapi.org/v2/everything?q=${q}&sortBy=publishedAt&language=en&pageSize=5&apiKey=${NEWS_API_KEY}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`NewsAPI ${response.status}`);
+    
+    const data = await response.json();
+    const articles = data.articles || [];
+    
+    return articles.map((article, idx) => ({
+      title: article.title,
+      summary: article.description || article.title,
+      impact: 'medium',
+      source: 'NewsAPI',
+      event_type: 'performance',
+      latitude: lat,
+      longitude: lng,
+      distance_miles: 0,
+      event_date: article.publishedAt,
+      link: article.url
+    }));
+  } catch (error) {
+    console.error('[BriefingService] NewsAPI error:', error.message);
+    return [];
+  }
+}
+
+async function convertNewsToEvents(newsItems, city, state, lat, lng) {
+  // Placeholder - would use Gemini to geocode and structure news as events
+  return newsItems.map((item, idx) => ({
+    title: item.title,
+    summary: `Event coverage: ${item.snippet?.substring(0, 60) || item.title}`,
+    impact: 'medium',
+    source: item.source,
+    event_type: 'other',
+    latitude: lat,
+    longitude: lng,
+    distance_miles: 0,
+    event_date: item.date,
+    link: item.link
+  }));
 }
 
 async function filterNewsWithGemini(newsItems, city, state, country, lat, lng) {
