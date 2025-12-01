@@ -26,7 +26,8 @@ router.get('/current', async (req, res) => {
         lat: snapshot.lat,
         lng: snapshot.lng,
         city: snapshot.city,
-        state: snapshot.state
+        state: snapshot.state,
+        country: snapshot.country
       });
       
       if (result.success) {
@@ -64,7 +65,7 @@ router.get('/current', async (req, res) => {
 
 router.post('/generate', async (req, res) => {
   try {
-    const { snapshotId, lat, lng, city, state } = req.body;
+    const { snapshotId, lat, lng, city, state, country } = req.body;
 
     if (!snapshotId) {
       return res.status(400).json({ error: 'snapshotId is required' });
@@ -75,7 +76,8 @@ router.post('/generate', async (req, res) => {
       lat,
       lng,
       city,
-      state
+      state,
+      country
     });
 
     if (result.success) {
@@ -127,7 +129,7 @@ router.get('/snapshot/:snapshotId', async (req, res) => {
       const snapshotData = snapshot[0];
       
       // If snapshot has null location, try to get user's latest location
-      let { lat, lng, city, state } = snapshotData;
+      let { lat, lng, city, state, country } = snapshotData;
       
       if (!lat || !lng || !city || !state) {
         if (snapshotData.user_id) {
@@ -156,7 +158,8 @@ router.get('/snapshot/:snapshotId', async (req, res) => {
         lat,
         lng,
         city: city || 'Unknown',
-        state: state || ''
+        state: state || '',
+        country: country || 'US'
       });
 
       if (!result.success) {
