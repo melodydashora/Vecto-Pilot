@@ -2221,6 +2221,154 @@ No mechanism existed for drivers to quickly signal which venues were successful 
 
 ## 🎯 **DECISION LOG**
 
+### December 1, 2025 - AI Coach Routing & Security Hardening
+
+#### 🔧 **FIX: Express Router Precedence Vulnerability (Chat Endpoint 404)**
+
+**Issue Description:**
+AI Coach `/api/chat` endpoint returned HTML 404 error (`Cannot POST /api/chat`) despite being properly mounted and having optionalAuth middleware configured to allow unauthenticated requests.
+
+**Symptom Chain:**
+```
+User sends: POST /api/chat {"message": "Where should I stage?", "snapshotId": "..."}
+Response: <!DOCTYPE html><pre>Cannot POST /api/chat</pre>
+Expected: SSE stream with Claude response (text/event-stream)
+```
+
+**Root Cause - Express Middleware Order (CRITICAL ARCHITECTURAL FINDING):**
+```
+BROKEN (old order in gateway-server.js):
+Line 217-225: Mount /api/chat router (specific)
+Line 227-235: Mount /api SDK router (CATCH-ALL) ← Intercepts ALL /api/* requests
+
+Express Evaluation: POST /api/chat
+1. Express checks Line 217 (/api/chat pattern)
+2. Request ALSO matches Line 227 (/api pattern - prefix match)
+3. First match wins in registration order
+4. Line 227 matches first BECAUSE it was registered first
+5. SDK router returns 404 from unmatched routes
+
+KEY INSIGHT: /api is a PREFIX match, so:
+- /api/chat matches BOTH /api/chat AND /api
+- /api/tts matches BOTH /api/tts AND /api
+- /api/anything matches BOTH /api/anything AND /api
+- Express stops at first match = SDK router always wins if registered first
+```
+
+**Fix Implementation:**
+```javascript
+// CHANGED in gateway-server.js (lines 219-308)
+
+// ✅ STEP 1: Mount all SPECIFIC routes FIRST (lines 225-296)
+app.use("/api/chat", chatRouter);              // Line 228
+app.use("/api/tts", ttsRouter);                // Line 236
+app.use("/api/realtime", realtimeRouter);      // Line 244
+app.use("/api/venues", venueIntelRouter);      // Line 252
+app.use("/api/briefing", briefingRouter);      // Line 260
+app.use("/api/location", locationRouter);      // Line 268
+app.use("/api/blocks-fast", blocksFastRouter); // Line 276
+app.use("/api/blocks", contentBlocksRouter);   // Line 284
+app.use("/agent", mountAgent);                 // Line 291
+
+// ✅ STEP 2: Mount CATCH-ALL LAST (lines 298-308)
+// Now /api/chat arrives, matches line 228 FIRST, never reaches line 304
+app.use("/api", sdkRouter); // ← MOVED HERE from line 227
+
+EXPRESS PRECEDENCE PRINCIPLE:
+First registered pattern that matches handles the request.
+Specific patterns MUST be registered BEFORE catch-all patterns.
+```
+
+**Architectural Diagram (Express Routing Precedence):**
+```
+REQUEST: POST /api/chat/message
+
+Pattern Matching Queue (registration order):
+┌─────────────────────────────────────────┐
+│ /api/chat         (specific)    ← STOP HERE
+│   handlers run, request complete
+└─────────────────────────────────────────┘
+
+✗ This pattern is never checked:
+┌─────────────────────────────────────────┐
+│ /api              (catch-all)
+│   would return 404 if reached
+└─────────────────────────────────────────┘
+
+REVERSE (old broken order):
+REQUEST: POST /api/chat/message
+
+Pattern Matching Queue:
+┌─────────────────────────────────────────┐
+│ /api              (catch-all) ← MATCHES FIRST
+│   handlers run, returns 404
+└─────────────────────────────────────────┘
+
+✗ This specific pattern never gets a chance:
+┌─────────────────────────────────────────┐
+│ /api/chat         (specific)
+│   never reached because /api already matched
+└─────────────────────────────────────────┘
+```
+
+**Why Hardened Security Wasn't The Issue (Common Misconception):**
+- CSP header (`Content-Security-Policy: default-src 'none'`) appeared in 404 response
+- This was a **red herring** - the header came from Express error handler, not the security middleware
+- The request never reached `/api/chat` route handler (where `optionalAuth` runs)
+- Auth middleware verification confirmed it was working correctly: `optionalAuth` calls `next()` on line 77 of auth.ts regardless of token
+
+**Files Changed:**
+- ✅ `gateway-server.js` - Lines 219-308
+  - ~~Mounted SDK router at line 227 (BEFORE specific routes)~~
+  - **Moved SDK router to line 298-308 (AFTER all specific routes)**
+  - Added CRITICAL comment explaining Express precedence requirement
+  - Reason: Express "first match wins" = catch-all must come LAST
+
+**Auth System Verification (No Changes Needed):**
+- ✅ `server/middleware/auth.ts` - optionalAuth function (line 60-77)
+  - Properly allows unauthenticated requests
+  - Validates token IF present, continues ALWAYS (line 77: `next()`)
+  - No changes required - auth was never the blocker
+
+**Test Case (Pre-Fix Behavior):**
+```bash
+# BROKEN (before gateway-server.js fix):
+curl -X POST http://localhost:5000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hi","snapshotId":"xyz"}' 
+# Output: <!DOCTYPE html><pre>Cannot POST /api/chat</pre>
+# Status: 404
+# Cause: SDK router returned 404 (not the secure endpoint)
+
+# FIXED (after gateway-server.js fix + restart):
+curl -X POST http://localhost:5000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hi","snapshotId":"xyz"}' 
+# Output: data: {delta: "..."}\n\n
+# Content-Type: text/event-stream
+# Status: 200 with SSE streaming
+# Cause: Chat router now matched FIRST before SDK catch-all
+```
+
+**Impact:**
+- ✅ AI Coach `/api/chat` now properly routes to chat handler
+- ✅ SSE streaming now reaches ChatRouter → Anthropic Claude
+- ✅ CoachDAL full snapshot context access now functional  
+- ✅ All other specific routes (/api/tts, /api/realtime, /api/briefing, /api/location, /api/blocks-fast, /api/blocks) also unblocked
+- ✅ Demonstrates critical Express architectural principle for future development
+
+**New Constraint Added:**
+~~Mount SDK router anywhere in middleware stack~~  
+→ **All catch-all routers (prefix /api) MUST be mounted AFTER all specific /api/* routes**
+
+**Why This Pattern Matters:**
+This isn't just a fix—it's a foundational Express principle that will prevent routing bugs across the entire app:
+- Any middleware that matches a prefix pattern needs careful ordering
+- Future API routes should follow: specific → specialized → general → catch-all
+- This applies to all Express apps, not just Vecto Pilot
+
+---
+
 ### October 9, 2025
 - ✅ **Implemented:** Per-ranking feedback system for venues and strategy
   - Database: venue_feedback & strategy_feedback tables with unique constraints
