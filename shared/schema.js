@@ -490,30 +490,47 @@ export const traffic_zones = pgTable("traffic_zones", {
 }));
 
 // Nearby venues discovered via Gemini web search (bars/restaurants)
+// ML training data: enriched with opening/closing times and user corrections
 export const nearby_venues = pgTable("nearby_venues", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   name: text("name").notNull(),
   venue_type: text("venue_type").notNull(), // 'bar' | 'restaurant' | 'bar_restaurant'
   address: text("address"),
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  distance_miles: doublePrecision("distance_miles"),
   expense_level: text("expense_level"), // '$' | '$$' | '$$$' | '$$$$'
   expense_rank: integer("expense_rank"), // 1-4 (4 = most expensive)
+  phone: text("phone"),
   is_open: boolean("is_open").default(true),
   hours_today: text("hours_today"),
+  hours_full_week: jsonb("hours_full_week"), // Mon-Sun schedule for learning
   closing_soon: boolean("closing_soon").default(false), // True if closing within 1 hour
   minutes_until_close: integer("minutes_until_close"),
+  opens_in_minutes: integer("opens_in_minutes"), // Null if open or >15 mins away
+  opens_in_future: boolean("opens_in_future"), // True if venue opens within 15 mins
+  was_filtered: boolean("was_filtered").default(false), // True if closed 30-45+ mins ago
   crowd_level: text("crowd_level"), // 'low' | 'medium' | 'high'
   rideshare_potential: text("rideshare_potential"), // 'low' | 'medium' | 'high'
   city: text("city"),
   state: text("state"),
+  // ML training data
+  day_of_week: integer("day_of_week"), // 0=Sunday, 1=Monday, etc
+  is_holiday: boolean("is_holiday").default(false),
+  holiday_name: text("holiday_name"),
   search_sources: jsonb("search_sources"), // Gemini grounding sources
+  // User corrections for ML feedback
+  user_corrections: jsonb("user_corrections").default(sql`'[]'`), // [{user_id, field, old_value, new_value, corrected_at}]
+  correction_count: integer("correction_count").default(0),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   idxSnapshotId: sql`create index if not exists idx_nearby_venues_snapshot_id on ${table} (snapshot_id)`,
   idxExpenseRank: sql`create index if not exists idx_nearby_venues_expense_rank on ${table} (expense_rank)`,
   idxClosingSoon: sql`create index if not exists idx_nearby_venues_closing_soon on ${table} (closing_soon)`,
+  idxCoords: sql`create index if not exists idx_nearby_venues_coords on ${table} (lat, lng)`,
+  idxCityState: sql`create index if not exists idx_nearby_venues_city_state on ${table} (city, state)`,
+  idxOpen: sql`create index if not exists idx_nearby_venues_is_open on ${table} (is_open)`,
 }));
 
 export const agent_changes = pgTable("agent_changes", {
