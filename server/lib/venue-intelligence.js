@@ -1,8 +1,11 @@
 // server/lib/venue-intelligence.js
 // Real-time venue intelligence using Gemini 2.0 Flash with web search grounding
 // Provides: bars/restaurants sorted by expense, filtered by operating hours, traffic context
+// ML: Persists venue data with user corrections for feedback loop
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { db } from '../db/drizzle.js';
+import { nearby_venues } from '../../shared/schema.js';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -72,12 +75,11 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
   
   const prompt = `You are a rideshare driver intelligence assistant. Find me ALL bars and restaurants near ${city}, ${state} (coordinates: ${lat}, ${lng}) within ${radiusMiles} miles.${holidayContext}
 
-IMPORTANT REQUIREMENTS:
-1. Sort by EXPENSE LEVEL: Highest expense first ($$$$) down to lowest ($)
-2. Include ONLY venues that are currently OPEN or will be open within the next hour
-3. For each venue, note if it's closing within 1 hour (LAST CALL opportunity!)
-4. Use current time: ${timeString}
-5. If today is a holiday, venues may have SPECIAL/MODIFIED hours - note this in the response
+CRITICAL FILTERING RULES - DRIVER BEHAVIOR:
+1. INCLUDE: Venues that are NOW OPEN
+2. INCLUDE: Venues opening within the next 15 minutes (driver can get there + they're opening soon)
+3. EXCLUDE: Venues that closed 30-45+ minutes ago (past their prime earning time)
+4. Sort by EXPENSE LEVEL: Highest expense first ($$$$) down to lowest ($)
 
 For each venue provide:
 - name: Venue name
@@ -86,10 +88,13 @@ For each venue provide:
 - phone: Phone number in format (XXX) XXX-XXXX or null if unavailable
 - expense_level: "$", "$$", "$$$", or "$$$$" (4 = most expensive)
 - expense_rank: 4 for $$$$, 3 for $$$, 2 for $$, 1 for $
-- is_open: true/false
+- is_open: true/false (current status NOW at ${timeString})
+- opens_in_minutes: Minutes until opening (null if already open or >15 mins away)
 - hours_today: Opening and closing time today (e.g., "11:00 AM - 2:00 AM")
+- hours_full_week: {"monday": "11am-2am", "tuesday": "11am-2am", ...} (for ML learning)
 - closing_soon: true if closing within 1 hour, false otherwise
 - minutes_until_close: Minutes until closing (null if not closing soon)
+- was_filtered: true if venue closed 30+ minutes ago (excluded from results)
 - crowd_level: "low", "medium", "high" (estimate based on time and venue type)
 - rideshare_potential: "low", "medium", "high" (based on expense + crowd)
 - lat: Approximate latitude
@@ -151,30 +156,38 @@ Return ONLY valid JSON, no markdown.`;
     // Add search source info
     venueData.search_sources = venueData.search_sources || ['Gemini AI analysis'];
 
-    // Post-process: ensure proper sorting
-    // Order: Open venues first → closing soon → then by expense level → closed venues last
+    // Post-process filtering and sorting
     if (venueData.venues && Array.isArray(venueData.venues)) {
-      venueData.venues.sort((a, b) => {
-        // 1. Open venues before closed venues
+      // Filter: Remove venues closed 30+ minutes ago (past earning prime time)
+      // Keep: Open venues + venues opening within 15 mins
+      const now = new Date();
+      const filteredVenues = venueData.venues.filter(v => {
+        // Venues that closed 30+ mins ago don't make driver trip
+        if (v.was_filtered) {
+          return false; // Gemini already marked as filtered
+        }
+        // Keep open venues or those opening within 15 mins
+        return v.is_open || (v.opens_in_minutes && v.opens_in_minutes <= 15);
+      });
+
+      // Sort: Open venues → opening soon → closing soon → by expense
+      filteredVenues.sort((a, b) => {
+        // 1. Open venues first
         if (a.is_open !== b.is_open) {
           return a.is_open ? -1 : 1;
         }
         
-        // Within open venues:
-        if (a.is_open && b.is_open) {
-          // 2. Closing soon first (last-call opportunities)
-          if (a.closing_soon !== b.closing_soon) {
-            return a.closing_soon ? -1 : 1;
-          }
-          // 3. Then by expense_rank descending
-          return (b.expense_rank || 0) - (a.expense_rank || 0);
+        // 2. Within open/opening venues: closing soon first (last-call)
+        if (a.closing_soon !== b.closing_soon) {
+          return a.closing_soon ? -1 : 1;
         }
         
-        // Within closed venues: sort by expense
+        // 3. Then by expense_rank descending ($$$$→$)
         return (b.expense_rank || 0) - (a.expense_rank || 0);
       });
 
-      // Extract last-call venues (open and closing soon)
+      venueData.venues = filteredVenues;
+      // Extract last-call venues (open and closing within 1 hour)
       venueData.last_call_venues = venueData.venues.filter(v => v.is_open && v.closing_soon);
       
       // Enrich bar venues with phone numbers from Google Places
@@ -291,8 +304,65 @@ export async function getSmartBlocksIntelligence({ lat, lng, city, state, radius
   }
 }
 
+/**
+ * Persist venue data to database for ML training and user feedback
+ * @param {Array} venues - Venues from Gemini discovery
+ * @param {Object} context - Context {snapshot_id, city, state, is_holiday, holiday_name, day_of_week}
+ * @returns {Promise<Array>} - Inserted venue records
+ */
+export async function persistVenuesToDatabase(venues, context) {
+  if (!venues || !Array.isArray(venues) || venues.length === 0) {
+    return [];
+  }
+
+  try {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    
+    const records = venues.map(v => ({
+      snapshot_id: context.snapshot_id,
+      name: v.name,
+      venue_type: v.type,
+      address: v.address,
+      lat: v.lat,
+      lng: v.lng,
+      distance_miles: v.distance_miles || null,
+      expense_level: v.expense_level,
+      expense_rank: v.expense_rank,
+      phone: v.phone || null,
+      is_open: v.is_open,
+      hours_today: v.hours_today,
+      hours_full_week: v.hours_full_week || null,
+      closing_soon: v.closing_soon,
+      minutes_until_close: v.minutes_until_close || null,
+      opens_in_minutes: v.opens_in_minutes || null,
+      opens_in_future: v.opens_in_minutes && v.opens_in_minutes <= 15,
+      was_filtered: v.was_filtered || false,
+      crowd_level: v.crowd_level,
+      rideshare_potential: v.rideshare_potential,
+      city: context.city,
+      state: context.state,
+      day_of_week: dayOfWeek,
+      is_holiday: context.is_holiday || false,
+      holiday_name: context.holiday_name || null,
+      search_sources: v.search_sources || null,
+      user_corrections: [],
+      correction_count: 0,
+    }));
+
+    const inserted = await db.insert(nearby_venues).values(records).returning();
+    console.log(`[VenueIntelligence] Persisted ${inserted.length} venues to database`);
+    return inserted;
+  } catch (error) {
+    console.warn('[VenueIntelligence] Failed to persist venues:', error.message);
+    // Don't throw - allow API to continue even if DB persistence fails
+    return [];
+  }
+}
+
 export default {
   discoverNearbyVenues,
   getTrafficIntelligence,
-  getSmartBlocksIntelligence
+  getSmartBlocksIntelligence,
+  persistVenuesToDatabase
 };
