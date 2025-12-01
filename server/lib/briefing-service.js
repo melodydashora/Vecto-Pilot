@@ -72,28 +72,51 @@ export async function fetchRideshareNews({ city, state, lat, lng }) {
 
 async function filterNewsWithGemini(newsItems, city, state) {
   if (!GOOGLE_API_KEY) {
-    console.warn('[BriefingService] GOOGLE_API_KEY not set, returning unfiltered news');
-    return newsItems;
+    console.warn('[BriefingService] GOOGLE_API_KEY not set, returning all news');
+    return newsItems.map(n => ({
+      title: n.title,
+      summary: n.snippet || n.title,
+      impact: 'medium',
+      source: n.source,
+      link: n.link
+    }));
   }
 
   try {
-    const newsText = newsItems.map((n, i) => 
-      `${i + 1}. ${n.title} (${n.source}, ${n.date})`
-    ).join('\n');
+    if (!newsItems || newsItems.length === 0) {
+      console.warn('[BriefingService] No news items to filter');
+      return [];
+    }
 
-    const prompt = `Based on this news data:
+    const newsText = newsItems.map((n, i) => 
+      `${i + 1}. ${n.title} (${n.source}, ${n.date})\n${n.snippet || ''}`
+    ).join('\n\n');
+
+    const prompt = `You are a rideshare driver intelligence system. Analyze this news for ${city}, ${state} and identify what matters for rideshare drivers.
+
+NEWS DATA:
 ${newsText}
 
-Identify any local, state, or federal news or events that might affect rideshare drivers in ${city}, ${state}. Focus on: policy changes, regulations, airport pickup changes, road closures, accidents, protests, legal updates, and special events like concerts, games, parades, watch parties, conferences, festivals, or other large gatherings that could impact driver demand or operations. 
+INSTRUCTIONS:
+1. Focus on: policy changes, regulations, airport pickup changes, road closures, accidents, protests
+2. Look for events that drive demand: concerts, games, parades, watch parties, conferences, festivals, conventions
+3. For each relevant item, provide actionable driver insight
+4. Return ONLY valid JSON array (no markdown, no explanation)
 
-Return a JSON array of objects with these fields:
-- title: The news headline or event name
-- summary: One sentence actionable summary for drivers
-- impact: "high", "medium", or "low"
-- source: The news source
+RESPONSE FORMAT:
+[
+  {
+    "title": "headline here",
+    "summary": "one sentence actionable insight for drivers",
+    "impact": "high" or "medium" or "low",
+    "source": "news source name"
+  }
+]
 
-If no relevant news or events, return an empty array [].`;
+If no relevant items, return: []`;
 
+    console.log('[BriefingService] Calling Gemini with prompt for', city, state);
+    
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
       {
@@ -101,30 +124,42 @@ If no relevant news or events, return an empty array [].`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 1024 }
+          generationConfig: { temperature: 0.2, maxOutputTokens: 2048, topP: 1 }
         })
       }
     );
 
     if (!response.ok) {
-      throw new Error(`Gemini API returned ${response.status}`);
+      const errData = await response.text();
+      throw new Error(`Gemini API ${response.status}: ${errData}`);
     }
 
     const data = await response.json();
+    console.log('[BriefingService] Gemini response:', JSON.stringify(data).substring(0, 200));
+    
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+    try {
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const filtered = JSON.parse(jsonMatch[0]);
+        console.log('[BriefingService] Filtered to', filtered.length, 'news items');
+        return filtered;
+      }
+    } catch (parseErr) {
+      console.error('[BriefingService] JSON parse error:', parseErr, 'text:', text.substring(0, 200));
     }
+    
     return [];
   } catch (error) {
     console.error('[BriefingService] Gemini filter error:', error);
+    // Fallback: return unfiltered as structured items
     return newsItems.slice(0, 3).map(n => ({
       title: n.title,
       summary: n.snippet || n.title,
       impact: 'medium',
-      source: n.source
+      source: n.source,
+      link: n.link
     }));
   }
 }
