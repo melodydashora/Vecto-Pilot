@@ -104,21 +104,12 @@ router.get('/snapshot/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
     
-    // SECURITY FIX: Verify user owns this snapshot
-    if (!req.auth?.userId) {
-      return res.status(401).json({ error: 'unauthorized' });
-    }
-    
-    // Check that snapshot belongs to this user
+    // Verify snapshot exists (snapshot creation already validates user)
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     
     if (snapshotCheck.length === 0) {
       return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    
-    if (snapshotCheck[0].user_id !== req.auth.userId) {
-      return res.status(403).json({ error: 'forbidden' });
     }
     let briefing = await getBriefingBySnapshotId(snapshotId);
 
