@@ -280,6 +280,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] Content Blocks endpoint failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading Strategy endpoint...");
+        const contentBlocksRouter = (await import("./server/routes/content-blocks.js")).default;
+        app.use("/api/blocks", contentBlocksRouter);
+        console.log("[gateway] ✅ Strategy endpoint mounted at /api/blocks/strategy");
+      } catch (e) {
+        console.error("[mono] Strategy endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Agent embed...");
         const { mountAgent } = await import("./server/agent/embed.js");
         mountAgent({ app, basePath: process.env.AGENT_PREFIX || "/agent", wsPath: "/agent/ws", server });
