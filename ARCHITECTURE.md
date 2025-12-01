@@ -2367,6 +2367,53 @@ This isn't just a fix—it's a foundational Express principle that will prevent 
 - Future API routes should follow: specific → specialized → general → catch-all
 - This applies to all Express apps, not just Vecto Pilot
 
+#### 🔧 **FOLLOW-UP FIX: TypeScript Import Error in Chat Route**
+
+**Issue (Blocking App Startup):**
+```
+[mono] AI Strategy Coach endpoint failed: Unknown file extension ".ts" for /home/runner/workspace/server/middleware/auth.ts
+TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".ts"
+```
+
+**Root Cause:**
+- `server/routes/chat.js` (JavaScript) imported `server/middleware/auth.ts` (TypeScript) on line 122
+- Node.js runtime cannot directly load TypeScript files without a loader
+- App failed to start because the import happened at module load time, before any setup completes
+
+**Solution:**
+- ✅ **Created `server/middleware/auth.js`** - JavaScript version of auth.ts (lines 1-59)
+  - Converted TypeScript types to JavaScript comments
+  - Kept all function logic identical
+  - Exported same functions: `requireAuth`, `optionalAuth`
+  
+- ✅ **Updated `server/routes/chat.js` line 125**
+  - ~~`import { optionalAuth } from '../middleware/auth.ts';`~~
+  - **`import { optionalAuth } from '../middleware/auth.js';`**
+  - Reason: Node.js can now load native JavaScript; no TypeScript transpilation needed at runtime
+
+**Files Changed:**
+- ✅ `server/middleware/auth.js` - NEW JavaScript version of auth middleware
+- ✅ `server/routes/chat.js` - Line 125 import updated from .ts to .js
+
+**Impact:**
+- ✅ App now starts without TypeScript import errors
+- ✅ Chat route can load auth middleware successfully
+- ✅ AI Coach endpoint can now handle requests
+- ✅ Combined with routing fix above, /api/chat will now respond with SSE instead of 404
+
+**Test Path:**
+```bash
+npm run dev  # App should start without "Unknown file extension" error
+curl -X POST http://localhost:5000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Where should I stage?","snapshotId":"..."}' 
+# Expected: data: {delta: "..."}  (SSE streaming)
+# Previous: <!DOCTYPE html><pre>Cannot POST /api/chat</pre>
+```
+
+**Architectural Lesson:**
+Mix-matching file types (TypeScript + JavaScript) at runtime requires explicit transpilation setup. For JavaScript modules, keep imports as .js extensions. TypeScript compilation should happen at build time, not runtime.
+
 ---
 
 ### October 9, 2025
