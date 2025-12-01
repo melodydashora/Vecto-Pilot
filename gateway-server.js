@@ -214,7 +214,11 @@ process.on('unhandledRejection', (reason, promise) => {
     }
 
     if (MODE === "mono") {
-      // Mount AI Strategy Coach BEFORE SDK router (must be before catch-all /api)
+      // CRITICAL: Mount ALL specific /api/* routes BEFORE the SDK catch-all router
+      // Express middleware order: first matching route wins. If SDK router (/api) comes first,
+      // it intercepts all /api/* requests before specific routes like /api/chat can handle them.
+      // Solution: Mount all specific routes first, then SDK router last as the catch-all fallback.
+      
       try {
         console.log("[gateway] Loading AI Strategy Coach with file upload support...");
         const chatRouter = (await import("./server/routes/chat.js")).default;
@@ -222,16 +226,6 @@ process.on('unhandledRejection', (reason, promise) => {
         console.log("[gateway] ✅ AI Strategy Coach mounted at /api/chat");
       } catch (e) {
         console.error("[mono] AI Strategy Coach endpoint failed:", e?.message, e?.stack);
-      }
-
-      try {
-        console.log("[gateway] Loading SDK embed...");
-        const createSdkRouter = (await import("./sdk-embed.js")).default;
-        const sdkRouter = createSdkRouter({});
-        app.use(process.env.API_PREFIX || "/api", sdkRouter);
-        console.log("[gateway] ✅ SDK routes mounted at /api");
-      } catch (e) {
-        console.error("[mono] SDK embed failed:", e?.message, e?.stack);
       }
       try {
         console.log("[gateway] Loading TTS endpoint...");
@@ -296,6 +290,18 @@ process.on('unhandledRejection', (reason, promise) => {
         console.log("[gateway] ✅ Agent mounted at /agent");
       } catch (e) {
         console.error("[mono] Agent embed failed:", e?.message, e?.stack);
+      }
+
+      // Mount SDK catch-all router LAST (after all specific /api/* routes)
+      // This ensures specific routes are matched first, and SDK handles unmatched /api requests
+      try {
+        console.log("[gateway] Loading SDK embed (catch-all fallback)...");
+        const createSdkRouter = (await import("./sdk-embed.js")).default;
+        const sdkRouter = createSdkRouter({});
+        app.use(process.env.API_PREFIX || "/api", sdkRouter);
+        console.log("[gateway] ✅ SDK routes mounted at /api (catch-all fallback)");
+      } catch (e) {
+        console.error("[mono] SDK embed failed:", e?.message, e?.stack);
       }
       
       // Start background worker in production if enabled
