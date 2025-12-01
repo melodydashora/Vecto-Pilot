@@ -120,6 +120,7 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
       body: JSON.stringify({
         model: 'sonar-pro',
         messages: [{ role: 'user', content: prompt }],
+        search_recency_filter: 'day',  // ✅ TODAY only - optimal for local events
         temperature: 0.2,
         max_tokens: 2000
       })
@@ -165,26 +166,50 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
 
 async function fetchEventsFromSerpAPI(city, state, lat, lng) {
   try {
-    const searchQuery = encodeURIComponent(`games concerts live music comedy shows performances events ${city}`);
-    const url = `https://serpapi.com/search.json?engine=google&q=${searchQuery}&tbm=nws&tbs=qdr:d&api_key=${SERP_API_KEY}`;
+    // Try Google Events engine first (structured event listings)
+    const searchQuery = encodeURIComponent(`games concerts live music comedy shows performances ${city}`);
+    let url = `https://serpapi.com/search.json?engine=google_events&q=${searchQuery}&location=${city},${state}&gl=us&api_key=${SERP_API_KEY}`;
     
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`SerpAPI ${response.status}`);
+    let response = await fetch(url);
+    if (!response.ok) throw new Error(`SerpAPI events ${response.status}`);
     
-    const data = await response.json();
-    const newsResults = data.news_results || [];
+    let data = await response.json();
+    let results = data.events_results || [];
     
-    if (newsResults.length === 0) return { items: [], filtered: [] };
+    // Fallback to Google News if no events found
+    if (results.length === 0) {
+      console.log('[BriefingService] No google_events results, trying news fallback');
+      url = `https://serpapi.com/search.json?engine=google&q=${searchQuery}&tbm=nws&tbs=qdr:d&api_key=${SERP_API_KEY}`;
+      response = await fetch(url);
+      if (!response.ok) throw new Error(`SerpAPI news ${response.status}`);
+      
+      data = await response.json();
+      results = data.news_results || [];
+      
+      if (results.length === 0) return { items: [], filtered: [] };
+      
+      const items = results.slice(0, 8).map(item => ({
+        title: item.title,
+        source: item.source,
+        date: item.date || item.published_at,
+        link: item.link,
+        snippet: item.snippet
+      }));
+      
+      const filtered = await convertNewsToEvents(items, city, state, lat, lng);
+      return { items, filtered };
+    }
     
-    const items = newsResults.slice(0, 8).map(item => ({
-      title: item.title,
-      source: item.source,
-      date: item.date || item.published_at,
-      link: item.link,
-      snippet: item.snippet
+    // Convert events to our schema
+    const items = results.slice(0, 8).map(event => ({
+      title: event.title || event.name,
+      location: event.address || event.location,
+      event_date: event.date,
+      event_time: event.start_time,
+      link: event.link,
+      source: 'SerpAPI Events'
     }));
     
-    // Use Gemini to convert news to events with coordinates
     const filtered = await convertNewsToEvents(items, city, state, lat, lng);
     return { items, filtered };
   } catch (error) {
@@ -195,8 +220,9 @@ async function fetchEventsFromSerpAPI(city, state, lat, lng) {
 
 async function fetchEventsFromNewsAPI(city, state, lat, lng) {
   try {
-    const q = encodeURIComponent(`games concerts live music comedy performances`);
-    const url = `https://newsapi.org/v2/everything?q=${q}&sortBy=publishedAt&language=en&pageSize=5&apiKey=${NEWS_API_KEY}`;
+    const q = encodeURIComponent(`games concerts live music comedy shows performances`);
+    // ✅ Optimal parameters: sortBy=publishedAt (most recent), searchIn deep search, today's articles
+    const url = `https://newsapi.org/v2/everything?q=${q}&sortBy=publishedAt&searchIn=title,description&language=en&pageSize=10&apiKey=${NEWS_API_KEY}`;
     
     const response = await fetch(url);
     if (!response.ok) throw new Error(`NewsAPI ${response.status}`);
@@ -204,18 +230,26 @@ async function fetchEventsFromNewsAPI(city, state, lat, lng) {
     const data = await response.json();
     const articles = data.articles || [];
     
-    return articles.map((article, idx) => ({
-      title: article.title,
-      summary: article.description || article.title,
-      impact: 'medium',
-      source: 'NewsAPI',
-      event_type: 'performance',
-      latitude: lat,
-      longitude: lng,
-      distance_miles: 0,
-      event_date: article.publishedAt,
-      link: article.url
-    }));
+    if (articles.length === 0) return [];
+    
+    // Filter for articles from last 24 hours
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    return articles
+      .filter(article => new Date(article.publishedAt) >= oneDayAgo)
+      .map((article, idx) => ({
+        title: article.title,
+        summary: article.description || article.title,
+        impact: 'medium',
+        source: 'NewsAPI',
+        event_type: 'performance',
+        latitude: lat,
+        longitude: lng,
+        distance_miles: 0,
+        event_date: article.publishedAt,
+        link: article.url
+      }));
   } catch (error) {
     console.error('[BriefingService] NewsAPI error:', error.message);
     return [];
