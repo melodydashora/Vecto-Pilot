@@ -51,34 +51,70 @@ async function perplexitySearch(query, systemPrompt) {
 async function researchProvider(providerName) {
   console.log(`\n🔍 Researching ${providerName}...`);
   
-  const query = `What are the current production AI models from ${providerName} as of October 2025? 
-  Include:
-  1. Latest model names/IDs (exact strings for API calls)
-  2. API endpoint URLs
-  3. Required HTTP headers
-  4. Supported parameters (temperature, max_tokens, etc.)
-  5. Context window sizes
-  6. Pricing per million tokens (input/output)
-  7. Special features or constraints
-  8. Any SDK package names
+  let query, systemPrompt;
   
-  Known flagship models to verify:
-  - OpenAI: gpt-5 (supports reasoning_effort: minimal/low/medium/high, NOT temperature/top_p)
-  - Anthropic: claude-sonnet-4-5-20250929 (Claude Sonnet 4.5)
-  - Google: gemini-2.5-pro (Gemini 2.5 Pro)
-  
-  Focus on models suitable for production use in chatbot/completion tasks.`;
+  if (providerName === 'News & Events APIs') {
+    query = `Compare these news/events discovery APIs for finding LOCAL events (concerts, games, comedy, live music) within 50 miles TODAY:
+    
+    1. **Perplexity AI API**
+       - What web search parameters enable real-time local event discovery?
+       - What values for search_recency_filter work best? (day/week/month)
+       - Does it have location-based filtering?
+       - Example: Finding events in Irving, TX
+    
+    2. **SerpAPI**
+       - Is there a Google Events engine (\`engine=google_events\`) for structured event listings?
+       - What parameters (\`tbm\`, \`tbs\`, location filters)?
+       - How does \`google_events\` differ from \`tbm=nws\` (news)?
+       - Time filtering: \`tbs=qdr:d\` for today?
+    
+    3. **NewsAPI**
+       - Can it filter by location or proximity?
+       - Best parameters for events: sortBy, searchIn, pageSize?
+       - Limitations for hyperlocal (50-mile radius) searches?
+    
+    4. **Google Gemini 2.5 Pro**
+       - Best parameters for structuring/geocoding event data?
+       - Can it extract coordinates and distances from text?
+       - What temperature/settings for accurate extraction?
+    
+    Provide exact parameter names, values, and API endpoint URLs for each.`;
+    
+    systemPrompt = `You are an expert on news and event discovery APIs. 
+    Provide precise, current information about API parameters for finding local events as of December 2025.
+    Focus on what works best for hyperlocal (50-mile radius) event discovery TODAY.
+    Include exact parameter names, endpoint URLs, and valid value ranges.
+    Cite specific documentation or recent API announcements.`;
+  } else {
+    query = `What are the current production AI models from ${providerName} as of December 2025? 
+    Include:
+    1. Latest model names/IDs (exact strings for API calls)
+    2. API endpoint URLs
+    3. Required HTTP headers
+    4. Supported parameters (temperature, max_tokens, etc.)
+    5. Context window sizes
+    6. Pricing per million tokens (input/output)
+    7. Special features or constraints
+    8. Any SDK package names
+    
+    Known flagship models to verify:
+    - OpenAI: gpt-5 (supports reasoning_effort: minimal/low/medium/high, NOT temperature/top_p)
+    - Anthropic: claude-sonnet-4-5-20250929 (Claude Sonnet 4.5)
+    - Google: gemini-2.5-pro (Gemini 2.5 Pro)
+    
+    Focus on models suitable for production use in chatbot/completion tasks.`;
 
-  const systemPrompt = `You are a technical researcher specializing in AI/LLM APIs. 
-  Provide precise, up-to-date information about production AI models as of October 2025.
-  Include exact API endpoint URLs, model IDs, and parameter names.
-  Format your response with clear sections for each piece of information.
-  Only include information from official documentation or reliable tech sources from 2024-2025.
-  
-  VERIFY these specific production models:
-  - claude-sonnet-4-5-20250929 (Anthropic's latest Sonnet)
-  - gpt-5 (OpenAI's latest, uses reasoning_effort not temperature)
-  - gemini-2.5-pro (Google's latest Gemini)`;
+    systemPrompt = `You are a technical researcher specializing in AI/LLM APIs. 
+    Provide precise, up-to-date information about production AI models as of December 2025.
+    Include exact API endpoint URLs, model IDs, and parameter names.
+    Format your response with clear sections for each piece of information.
+    Only include information from official documentation or reliable tech sources from 2024-2025.
+    
+    VERIFY these specific production models:
+    - claude-sonnet-4-5-20250929 (Anthropic's latest Sonnet)
+    - gpt-5 (OpenAI's latest, uses reasoning_effort not temperature)
+    - gemini-2.5-pro (Google's latest Gemini)`;
+  }
 
   const result = await perplexitySearch(query, systemPrompt);
   
@@ -233,7 +269,8 @@ async function main() {
       researchProvider('OpenAI'),
       researchProvider('Anthropic'),
       researchProvider('Google AI (Gemini)'),
-      researchProvider('Perplexity AI')
+      researchProvider('Perplexity AI'),
+      researchProvider('News & Events APIs')
     ]);
     
     // Research constraints and deprecations
