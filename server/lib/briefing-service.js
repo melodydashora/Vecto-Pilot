@@ -1,6 +1,7 @@
 import { db } from '../db/drizzle.js';
 import { briefings, snapshots } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 
 // Briefing Service Architecture:
 // ================================
@@ -15,7 +16,23 @@ const SERP_API_KEY = process.env.SERP_API_KEY;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
-export async function fetchRideshareNews({ city, state, lat, lng }) {
+// Zod validation schema for rideshare news events
+const RideshareEventSchema = z.object({
+  title: z.string().describe('Event or incident headline'),
+  summary: z.string().describe('One sentence actionable insight for drivers'),
+  impact: z.enum(['high', 'medium', 'low']).describe('Impact level on rideshare drivers'),
+  source: z.string().describe('News source name'),
+  event_type: z.enum(['road_closure', 'demand_event', 'policy_change', 'accident', 'other']).optional(),
+  latitude: z.number().optional().describe('Event latitude coordinate'),
+  longitude: z.number().optional().describe('Event longitude coordinate'),
+  distance_miles: z.number().optional().describe('Distance from user location in miles'),
+  event_date: z.string().optional().describe('Event date in ISO format'),
+  link: z.string().optional().describe('Source link'),
+});
+
+const RideshareNewsArraySchema = z.array(RideshareEventSchema);
+
+export async function fetchRideshareNews({ city, state, lat, lng, country = 'US' }) {
   if (!SERP_API_KEY) {
     console.warn('[BriefingService] SERP_API_KEY not set, skipping news fetch');
     return { items: [], error: 'SERP_API_KEY not configured' };
@@ -57,7 +74,7 @@ export async function fetchRideshareNews({ city, state, lat, lng }) {
       return { items: [], filtered: [], message: 'No recent rideshare news found' };
     }
 
-    const filtered = await filterNewsWithGemini(recentNews, city, state);
+    const filtered = await filterNewsWithGemini(recentNews, city, state, country, lat, lng);
     
     return {
       items: recentNews,
@@ -70,7 +87,7 @@ export async function fetchRideshareNews({ city, state, lat, lng }) {
   }
 }
 
-async function filterNewsWithGemini(newsItems, city, state) {
+async function filterNewsWithGemini(newsItems, city, state, country, lat, lng) {
   if (!GOOGLE_API_KEY) {
     console.warn('[BriefingService] GOOGLE_API_KEY not set, returning all news');
     return newsItems.map(n => ({
@@ -92,16 +109,23 @@ async function filterNewsWithGemini(newsItems, city, state) {
       `${i + 1}. ${n.title} (${n.source}, ${n.date})\n${n.snippet || ''}`
     ).join('\n\n');
 
-    const prompt = `You are a rideshare driver intelligence system. Analyze this news for ${city}, ${state} and identify what matters for rideshare drivers.
+    const prompt = `You are a rideshare driver intelligence system. Analyze TODAY'S news for ${city}, ${state}, ${country} and identify what matters for rideshare drivers.
+
+USER LOCATION: ${lat}, ${lng}
 
 NEWS DATA:
 ${newsText}
 
 INSTRUCTIONS:
-1. Focus on: policy changes, regulations, airport pickup changes, road closures, accidents, protests
-2. Look for events that drive demand: concerts, games, parades, watch parties, conferences, festivals, conventions
-3. For each relevant item, provide actionable driver insight
-4. Return ONLY valid JSON array (no markdown, no explanation)
+1. **FILTER TO TODAY ONLY**: Exclude past events or historical news. Only include events happening TODAY.
+2. **50-MILE RADIUS**: Filter events to within 50 miles of coordinates (${lat}, ${lng}). Include distance in miles if available.
+3. **FOCUS ON**: 
+   - Road closures caused by events (protests, accidents, construction)
+   - Demand-driving events: concerts, games, parades, conferences, festivals (TODAY only)
+   - Policy changes affecting airport pickups or rideshare regulations
+   - Major traffic incidents blocking major roads
+4. **FOR EACH EVENT**: Provide actionable driver insight and include coordinates if available.
+5. **RETURN ONLY valid JSON array** (no markdown, no explanation, no extra text)
 
 RESPONSE FORMAT:
 [
@@ -109,13 +133,19 @@ RESPONSE FORMAT:
     "title": "headline here",
     "summary": "one sentence actionable insight for drivers",
     "impact": "high" or "medium" or "low",
-    "source": "news source name"
+    "source": "news source name",
+    "event_type": "road_closure" | "demand_event" | "policy_change" | "accident" | "other",
+    "latitude": null,
+    "longitude": null,
+    "distance_miles": null,
+    "event_date": "2025-12-01T00:00:00Z",
+    "link": "source URL if available"
   }
 ]
 
 If no relevant items, return: []`;
 
-    console.log('[BriefingService] Calling Gemini with prompt for', city, state);
+    console.log('[BriefingService] Calling Gemini with prompt for', city, state, country);
     
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
@@ -142,8 +172,19 @@ If no relevant items, return: []`;
     try {
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const filtered = JSON.parse(jsonMatch[0]);
-        console.log('[BriefingService] Filtered to', filtered.length, 'news items');
+        const parsed = JSON.parse(jsonMatch[0]);
+        
+        // Validate against schema
+        const validatedResult = RideshareNewsArraySchema.safeParse(parsed);
+        
+        if (!validatedResult.success) {
+          console.warn('[BriefingService] Validation errors:', validatedResult.error.issues);
+          // Return parsed data even if validation fails, but log the issues
+          return parsed.slice(0, 10);
+        }
+        
+        const filtered = validatedResult.data;
+        console.log('[BriefingService] Validated and filtered to', filtered.length, 'news items');
         return filtered;
       }
     } catch (parseErr) {
@@ -287,11 +328,11 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
   }
 }
 
-export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, state }) {
-  console.log(`[BriefingService] Generating briefing for ${city}, ${state} (${lat}, ${lng})`);
+export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, state, country = 'US' }) {
+  console.log(`[BriefingService] Generating briefing for ${city}, ${state}, ${country} (${lat}, ${lng})`);
   
   const [newsResult, weatherResult, trafficResult] = await Promise.all([
-    fetchRideshareNews({ city, state, lat, lng }),
+    fetchRideshareNews({ city, state, lat, lng, country }),
     fetchWeatherConditions({ lat, lng }),
     fetchTrafficConditions({ lat, lng, city, state })
   ]);
