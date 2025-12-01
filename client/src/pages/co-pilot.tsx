@@ -169,6 +169,10 @@ const CoPilot: React.FC = () => {
   
   // Bottom tab navigation
   const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing'>('strategy');
+  
+  // Persistent briefing data (loaded once per snapshot, shared across tab switches)
+  const [briefingData, setBriefingData] = useState<any>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
 
   // Ref to track polling status changes (reduces console spam by only logging transitions)
   const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
@@ -189,12 +193,35 @@ const CoPilot: React.FC = () => {
   // Use override coords if available, otherwise GPS
   const coords = overrideCoords || gpsCoords;
   
-  // Listen for snapshot-saved event to trigger waterfall and gate blocks query
+  // Load all three tabs concurrently when snapshot changes
+  useEffect(() => {
+    const loadAllTabsData = async (snapshotId: string) => {
+      setBriefingLoading(true);
+      try {
+        const response = await fetch(`/api/briefing/snapshot/${snapshotId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setBriefingData(data);
+          console.log('✅ All briefing tabs loaded:', { news: data.briefing?.news?.length, weather: !!data.briefing?.weather, traffic: !!data.briefing?.traffic });
+        }
+      } catch (err) {
+        console.error('❌ Failed to load briefing tabs:', err);
+      } finally {
+        setBriefingLoading(false);
+      }
+    };
+
+    if (lastSnapshotId) {
+      loadAllTabsData(lastSnapshotId);
+    }
+  }, [lastSnapshotId]);
+
+  // Listen for snapshot-saved event to trigger waterfall and load all tabs
   useEffect(() => {
     const handleSnapshotSaved = async (e: any) => {
       const snapshotId = e.detail?.snapshotId;
       if (snapshotId) {
-        console.log("🎯 Co-Pilot: Snapshot ready, triggering waterfall:", snapshotId);
+        console.log("🎯 Co-Pilot: Snapshot ready, triggering all tabs + waterfall:", snapshotId);
         setLastSnapshotId(snapshotId);
         
         // Trigger synchronous waterfall: providers → consolidation → blocks
@@ -222,7 +249,7 @@ const CoPilot: React.FC = () => {
     window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
     
     return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
-  }, [coords, lastSnapshotId]);
+  }, []);
 
   // Clear persistent strategy when new coords received (before snapshot creation)
   useEffect(() => {
