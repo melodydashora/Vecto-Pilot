@@ -1,9 +1,31 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 
-// JWT functions - simplified for now
+// JWT functions - basic implementation
 function verifyAppToken(token: string) {
-  // TODO: Implement proper JWT verification
-  return { userId: 'user_' + Date.now() };
+  // If no JWT_SECRET configured, generate from Device ID for development
+  const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'dev-secret-change-in-production';
+  
+  try {
+    // Simple token verification: token format is "userId.signature"
+    const [userId, signature] = token.split('.');
+    if (!userId || !signature) throw new Error('Invalid token format');
+    
+    // Verify signature
+    const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
+    if (signature !== expectedSig) throw new Error('Invalid signature');
+    
+    // Ensure userId exists and is not a timestamp-based fake
+    if (!userId.startsWith('user-') && !userId.includes('@')) {
+      throw new Error('Invalid userId format');
+    }
+    
+    console.log('[auth] Token verified for user:', userId.substring(0, 20));
+    return { userId, verified: true };
+  } catch (error) {
+    console.error('[auth] Token verification failed:', error.message);
+    throw new Error('Invalid or expired token');
+  }
 }
 
 function isPhantom(userId: string, tetherSig?: string) {
