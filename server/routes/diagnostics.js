@@ -3,11 +3,13 @@ import crypto from 'crypto';
 import { db } from '../db/drizzle.js';
 import { sql, eq } from 'drizzle-orm';
 import { strategies, snapshots } from '../../shared/schema.js';
+import { requireAuth } from '../middleware/auth.ts';
 
 const router = express.Router();
 
+// SECURITY: All diagnostics require authentication
 // GET /api/diagnostics - System health check
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {

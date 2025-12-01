@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 
 // JWT functions - basic implementation
@@ -22,8 +22,9 @@ function verifyAppToken(token: string) {
     
     console.log('[auth] Token verified for user:', userId.substring(0, 20));
     return { userId, verified: true };
-  } catch (error) {
-    console.error('[auth] Token verification failed:', error.message);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('[auth] Token verification failed:', errMsg);
     throw new Error('Invalid or expired token');
   }
 }

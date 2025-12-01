@@ -117,13 +117,20 @@ function buildMessageContent(message, attachments) {
   return content.length > 0 ? content : message;
 }
 
+// SECURITY: Require authentication for chat
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
-router.post('/', async (req, res) => {
+import { requireAuth } from '../middleware/auth.ts';
+
+router.post('/', requireAuth, async (req, res) => {
   const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [] } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
   }
+  
+  // SECURITY: Use authenticated user if not provided
+  const authUserId = req.auth?.userId || userId;
+  console.log('[chat] Authenticated user:', authUserId);
 
   console.log('[chat] User:', userId || 'anonymous', '| Thread:', threadHistory.length, 'messages | Attachments:', attachments.length, '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
 

@@ -47,12 +47,18 @@ setInterval(() => {
   }
 }, 60000);
 
+// SECURITY: Require authentication
+import { requireAuth } from '../middleware/auth.ts';
+
 // POST /api/feedback/venue
-router.post('/venue', async (req, res) => {
+router.post('/venue', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
     const { userId, snapshot_id, ranking_id, place_id, venue_name, sentiment, comment } = req.body;
+    
+    // SECURITY: Use authenticated user_id, not from request body
+    const authUserId = req.auth?.userId || userId;
     
     // Validate required fields
     if (!snapshot_id || !ranking_id || !venue_name || !sentiment) {
@@ -91,7 +97,7 @@ router.post('/venue', async (req, res) => {
     const [feedbackRow] = await db
       .insert(venue_feedback)
       .values({
-        user_id: userId || null,
+        user_id: authUserId || null,
         snapshot_id,
         ranking_id,
         place_id: place_id || null,
@@ -115,7 +121,7 @@ router.post('/venue', async (req, res) => {
         created_at: new Date(),
         ranking_id,
         snapshot_id,
-        user_id: userId || null,
+        user_id: authUserId || null,
         action: 'venue_feedback',
         raw: { place_id, venue_name, sentiment },
       });
@@ -256,7 +262,7 @@ router.post('/strategy', async (req, res) => {
     await db
       .insert(strategy_feedback)
       .values({
-        user_id: userId || null,
+        user_id: authUserId || null,
         snapshot_id,
         ranking_id,
         sentiment,
