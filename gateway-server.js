@@ -272,6 +272,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] Location endpoint failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading Content Blocks endpoint...");
+        const blocksFastRouter = (await import("./server/routes/blocks-fast.js")).default;
+        app.use("/api/blocks-fast", blocksFastRouter);
+        console.log("[gateway] ✅ Content Blocks endpoint mounted at /api/blocks-fast");
+      } catch (e) {
+        console.error("[mono] Content Blocks endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Agent embed...");
         const { mountAgent } = await import("./server/agent/embed.js");
         mountAgent({ app, basePath: process.env.AGENT_PREFIX || "/agent", wsPath: "/agent/ws", server });
