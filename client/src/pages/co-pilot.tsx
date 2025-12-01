@@ -1840,7 +1840,7 @@ const CoPilot: React.FC = () => {
         )}
 
         {/* Venues Tab Content - Bars & High-Volume Venues */}
-        {activeTab === 'venues' && (coords || snapshotData?.lat) && (
+        {activeTab === 'venues' && (
           <div data-testid="venue-intelligence-section">
             {/* Venues Header with Location Context */}
             <div className="mb-6 flex items-center gap-3 flex-wrap justify-between">
@@ -1888,8 +1888,8 @@ const CoPilot: React.FC = () => {
             )}
             
             <SmartBlocks
-              lat={coords?.lat}
-              lng={coords?.lng}
+              lat={snapshotData?.lat || coords?.latitude}
+              lng={snapshotData?.lng || coords?.longitude}
               city={snapshotData?.city}
               state={snapshotData?.state}
               snapshotLat={snapshotData?.lat}
