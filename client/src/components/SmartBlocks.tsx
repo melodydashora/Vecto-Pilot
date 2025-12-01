@@ -285,10 +285,13 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
       )}
 
       {loading && !venueData && (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <Loader className="h-8 w-8 mx-auto animate-spin text-blue-600" />
-            <p className="mt-2 text-muted-foreground">Searching for venues with Gemini...</p>
+        <Card className="border-2 border-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg">
+          <CardContent className="py-12 text-center">
+            <div className="flex justify-center mb-4">
+              <Loader className="h-12 w-12 animate-spin text-blue-600 drop-shadow-lg" />
+            </div>
+            <p className="text-lg font-semibold text-blue-900 mb-2">🔍 Searching for venues...</p>
+            <p className="text-sm text-blue-700">Analyzing bars and restaurants with AI</p>
           </CardContent>
         </Card>
       )}

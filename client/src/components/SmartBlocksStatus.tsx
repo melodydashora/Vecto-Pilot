@@ -46,14 +46,18 @@ export function SmartBlocksStatus({
 
   const stage = getPipelineStage();
 
+  // ALWAYS show progress bars - don't hide them
+  const showStrategyProgress = enrichmentPhase === 'strategy' || (enrichmentPhase === 'blocks' && enrichmentProgress < 30);
+  const showBlocksProgress = enrichmentPhase === 'blocks';
+
   return (
-    <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50" data-testid="smart-blocks-status">
+    <Card className="border-2 border-purple-400 bg-gradient-to-br from-purple-50 to-indigo-50 shadow-lg" data-testid="smart-blocks-status">
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="w-5 h-5 text-purple-600" />
-          <h3 className="font-semibold text-gray-800">Smart Blocks Pipeline</h3>
-          <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
-            Live Status
+          <Sparkles className="w-5 h-5 text-purple-600 animate-pulse" />
+          <h3 className="font-bold text-gray-900">Smart Blocks Pipeline</h3>
+          <Badge className="bg-purple-500 text-white border-0 text-xs animate-pulse">
+            🔄 Live Status
           </Badge>
         </div>
 
@@ -86,19 +90,19 @@ export function SmartBlocksStatus({
                   ok
                 </Badge>
               )}
-              {/* Progress bar during strategy phase - show immediately when enrichment starts */}
-              {enrichmentPhase === 'strategy' && (
+              {/* Progress bar during strategy phase - ALWAYS VISIBLE */}
+              {showStrategyProgress && (
                 <div className="mt-2">
-                  <div className="w-full bg-green-200 rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-green-300 rounded-full h-3 overflow-hidden shadow-md">
                     <div 
-                      className="h-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-500 rounded-full transition-all duration-300"
+                      className="h-full bg-gradient-to-r from-green-600 via-emerald-500 to-green-600 rounded-full transition-all duration-200 shadow-lg"
                       style={{
-                        width: `${Math.max(5, (enrichmentProgress / 30) * 100)}%`,
+                        width: `${Math.max(8, Math.min(100, (enrichmentProgress / 30) * 100))}%`,
                       }}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    AI analyzing location context...
+                  <p className="text-xs text-green-700 mt-1 font-semibold">
+                    🚀 {enrichmentProgress.toFixed(0)}% - AI analyzing location context...
                   </p>
                 </div>
               )}
@@ -131,19 +135,19 @@ export function SmartBlocksStatus({
                         ? 'Waiting for strategy to complete...'
                         : 'Waiting for worker to generate venues...'}
               </p>
-              {/* Progress bar during blocks phase - show when strategy ready but blocks not yet loaded */}
-              {enrichmentPhase === 'blocks' && !hasBlocks && (
+              {/* Progress bar during blocks phase - ALWAYS VISIBLE when blocks phase */}
+              {showBlocksProgress && !hasBlocks && (
                 <div className="mt-2">
-                  <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-blue-300 rounded-full h-3 overflow-hidden shadow-md">
                     <div 
-                      className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 rounded-full transition-all duration-500"
+                      className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full transition-all duration-200 shadow-lg animate-pulse"
                       style={{
-                        width: `${Math.max(5, (enrichmentProgress - 30) * (100 / 70))}%`,
+                        width: `${Math.max(8, Math.min(100, (enrichmentProgress - 30) * (100 / 70)))}%`,
                       }}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Venues can take up to 3 minutes to load
+                  <p className="text-xs text-blue-700 mt-1 font-semibold">
+                    💫 {enrichmentProgress.toFixed(0)}% - Generating venue recommendations (2-3 mins)
                   </p>
                 </div>
               )}
