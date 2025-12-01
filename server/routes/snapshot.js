@@ -34,16 +34,10 @@ router.post("/", async (req, res) => {
   const started = Date.now();
 
   try {
-    // DEBUG: Log the raw body to understand what's actually arriving
-    const bodyKeys = Object.keys(req.body || {});
-    console.log('[snapshot] 📥 RAW BODY KEYS:', bodyKeys);
-    console.log('[snapshot] 📥 HAS coord?:', !!req.body?.coord, 'coord keys:', Object.keys(req.body?.coord || {}));
-    console.log('[snapshot] 📥 HAS resolved?:', !!req.body?.resolved, 'resolved keys:', Object.keys(req.body?.resolved || {}));
-    console.log('[snapshot] 📥 HAS time_context?:', !!req.body?.time_context, 'time_context keys:', Object.keys(req.body?.time_context || {}));
-    console.log('[snapshot] 📥 coord.lat value:', req.body?.coord?.lat, 'type:', typeof req.body?.coord?.lat);
-    console.log('[snapshot] 📥 resolved.city value:', req.body?.resolved?.city);
-    
     const snap = req.body || {};
+    
+    // SECURITY FIX: Use authenticated user_id from JWT, NOT from request body
+    const user_id = req.auth?.userId || uuid();
     
     // Direct extraction
     const snapshot_id = snap.snapshot_id || uuid();
@@ -59,16 +53,11 @@ router.post("/", async (req, res) => {
     const day_part_key = snap.time_context?.day_part_key;
     const local_iso = snap.time_context?.local_iso;
     
-    console.log('[snapshot] 📍 AFTER EXTRACTION:', {
-      lat, lng, city, state, timezone, formatted_address, hour, dow, day_part_key
-    });
-    
-    // Build DB record - store everything as received
-    // ALSO store entire raw request body in extras for debugging
+    // Build DB record
     const dbSnapshot = {
       snapshot_id,
       created_at: snap.created_at ? new Date(snap.created_at) : new Date(),
-      user_id: snap.user_id || uuid(),
+      user_id,
       device_id: snap.device_id || uuid(),
       session_id: snap.session_id || uuid(),
       // Precise location coordinates (GPS)
