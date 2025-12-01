@@ -1828,10 +1828,14 @@ const CoPilot: React.FC = () => {
           </>
         )}
 
-        {/* Briefing Tab Content */}
+        {/* Briefing Tab Content - Data persists across tab switches */}
         {activeTab === 'briefing' && (
           <div data-testid="briefing-section" className="mb-24">
-            <BriefingTab snapshotId={lastSnapshotId || undefined} />
+            <BriefingTab 
+              snapshotId={lastSnapshotId || undefined}
+              persistedData={briefingData}
+              persistedLoading={briefingLoading}
+            />
           </div>
         )}
 
