@@ -53,3 +53,29 @@ export function requireAuth(req: any, res: any, next: any) {
     res.status(401).json({ error: 'unauthorized', detail: e?.message });
   }
 }
+
+// Optional auth - allows requests with or without auth token
+// If token is provided, it validates it. If not, request continues anyway.
+// This supports both unauthenticated and authenticated flows.
+export function optionalAuth(req: any, res: any, next: any) {
+  try {
+    const hdr = req.headers.authorization || '';
+    const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : '';
+    
+    if (token) {
+      // Token provided - verify it
+      try {
+        const payload: any = verifyAppToken(token);
+        req.auth = { userId: payload.userId, phantom: isPhantom(payload.userId, payload.tetherSig) };
+      } catch (e: any) {
+        console.warn('[auth] Token provided but invalid:', e?.message);
+        // Token was provided but invalid - reject the request
+        return res.status(401).json({ error: 'unauthorized', detail: e?.message });
+      }
+    }
+    // Continue regardless of whether auth was provided or verified
+    next();
+  } catch (e: any) {
+    res.status(500).json({ error: 'server_error', detail: e?.message });
+  }
+}
