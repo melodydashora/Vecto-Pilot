@@ -42,12 +42,22 @@ export async function fetchRideshareNews({ city, state, lat, lng, country = 'US'
     const searchQuery = encodeURIComponent(`uber OR lyft OR rideshare ${city} ${state}`);
     const url = `https://serpapi.com/search.json?engine=google&q=${searchQuery}&tbm=nws&tbs=qdr:d2&api_key=${SERP_API_KEY}`;
     
+    console.log(`[BriefingService] Fetching news from SerpAPI for ${city}, ${state}`);
+    console.log(`[BriefingService] Search query: ${searchQuery}`);
+    
     const response = await fetch(url);
+    console.log(`[BriefingService] SerpAPI response status: ${response.status}`);
+    
     if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[BriefingService] SerpAPI error ${response.status}: ${errText.substring(0, 200)}`);
       throw new Error(`SerpAPI returned ${response.status}`);
     }
     
     const data = await response.json();
+    console.log(`[BriefingService] SerpAPI response keys:`, Object.keys(data));
+    console.log(`[BriefingService] News results count:`, data.news_results?.length || 0);
+    
     const newsResults = data.news_results || [];
     
     const now = new Date();
@@ -70,10 +80,14 @@ export async function fetchRideshareNews({ city, state, lat, lng, country = 'US'
         snippet: item.snippet
       }));
 
+    console.log(`[BriefingService] Recent news after date filter: ${recentNews.length} items`);
+    
     if (recentNews.length === 0) {
+      console.warn(`[BriefingService] No recent news found for ${city}, ${state}. Raw results: ${newsResults.length}`);
       return { items: [], filtered: [], message: 'No recent rideshare news found' };
     }
 
+    console.log(`[BriefingService] Calling Gemini to filter ${recentNews.length} news items`);
     const filtered = await filterNewsWithGemini(recentNews, city, state, country, lat, lng);
     
     return {
@@ -145,7 +159,9 @@ RESPONSE FORMAT:
 
 If no relevant items, return: []`;
 
-    console.log('[BriefingService] Calling Gemini with prompt for', city, state, country);
+    console.log(`[BriefingService] ===== CALLING GEMINI FOR ${city}, ${state}, ${country} =====`);
+    console.log(`[BriefingService] News items to filter: ${newsItems.length}`);
+    console.log(`[BriefingService] First item: ${newsItems[0]?.title.substring(0, 80) || 'N/A'}`);
     
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
@@ -165,9 +181,11 @@ If no relevant items, return: []`;
     }
 
     const data = await response.json();
-    console.log('[BriefingService] Gemini response:', JSON.stringify(data).substring(0, 200));
+    console.log(`[BriefingService] Gemini raw response:`, JSON.stringify(data).substring(0, 300));
     
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    console.log(`[BriefingService] Gemini text response length: ${text.length}`);
+    console.log(`[BriefingService] Gemini text (first 300 chars): ${text.substring(0, 300)}`);
     
     try {
       const jsonMatch = text.match(/\[[\s\S]*\]/);
