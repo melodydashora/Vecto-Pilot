@@ -218,12 +218,16 @@ router.get('/venue/summary', async (req, res) => {
   }
 });
 
+// SECURITY: Require authentication
 // POST /api/feedback/strategy
-router.post('/strategy', async (req, res) => {
+router.post('/strategy', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
     const { userId, snapshot_id, ranking_id, sentiment, comment } = req.body;
+    
+    // SECURITY: Use authenticated user_id, not from request body
+    const authUserId = req.auth?.userId || userId;
     
     // Validate required fields
     if (!snapshot_id || !ranking_id || !sentiment) {
@@ -247,10 +251,10 @@ router.post('/strategy', async (req, res) => {
       : null;
     
     // Check rate limit
-    if (!checkRateLimit(userId)) {
+    if (!checkRateLimit(authUserId)) {
       console.warn('[feedback] Rate limit exceeded (strategy)', { 
         correlation_id: correlationId, 
-        user_id: userId 
+        user_id: authUserId 
       });
       return res.status(429).json({ 
         ok: false, 
@@ -278,7 +282,7 @@ router.post('/strategy', async (req, res) => {
     
     console.log('[feedback] strategy upsert ok', {
       corr: correlationId,
-      user: userId || 'anon',
+      user: authUserId || 'anon',
       ranking: ranking_id,
       sent: sentiment,
     });
@@ -297,11 +301,14 @@ router.post('/strategy', async (req, res) => {
   }
 });
 
+// SECURITY: Require authentication
 // POST /api/feedback/app - Simple whole-app feedback (snapshot context only)
-router.post('/app', async (req, res) => {
+router.post('/app', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
+    // SECURITY: Use authenticated user_id
+    const authUserId = req.auth?.userId;
     const { snapshot_id, sentiment, comment } = req.body;
     
     // Validate required fields (snapshot_id is optional for app feedback)
