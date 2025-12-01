@@ -76,11 +76,13 @@ interface BriefingData {
 
 interface BriefingTabProps {
   snapshotId?: string;
+  persistedData?: BriefingData | null;
+  persistedLoading?: boolean;
 }
 
-export default function BriefingTab({ snapshotId }: BriefingTabProps) {
-  const [data, setData] = useState<BriefingData | null>(null);
-  const [loading, setLoading] = useState(false);
+export default function BriefingTab({ snapshotId, persistedData, persistedLoading }: BriefingTabProps) {
+  const [data, setData] = useState<BriefingData | null>(persistedData || null);
+  const [loading, setLoading] = useState(persistedLoading || false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedWeather, setExpandedWeather] = useState(true);
@@ -198,18 +200,17 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     }
   }, [data]);
 
-  // Fetch briefing only when snapshot ID changes (not on tab selection)
-  // Tied to snapshot lifecycle, similar to useStrategy pattern
+  // Use persisted data from parent when available, fetch independently only on tab switch if needed
   useEffect(() => {
-    console.log('[BriefingTab] useEffect triggered:', { snapshotId });
-    if (!snapshotId) {
-      setData(null);
+    if (persistedData) {
+      console.log('[BriefingTab] Using persisted data from parent');
+      setData(persistedData);
       setLoading(false);
-      return;
+    } else if (snapshotId) {
+      console.log('[BriefingTab] useEffect triggered with no persisted data:', { snapshotId });
+      fetchBriefing();
     }
-    
-    fetchBriefing();
-  }, [snapshotId, fetchBriefing]);
+  }, [snapshotId, persistedData, fetchBriefing]);
 
   const celsiusToFahrenheit = (celsius: number) => {
     return Math.round((celsius * 9/5) + 32);
