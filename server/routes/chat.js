@@ -117,11 +117,11 @@ function buildMessageContent(message, attachments) {
   return content.length > 0 ? content : message;
 }
 
-// SECURITY: Require authentication for chat
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
-import { requireAuth } from '../middleware/auth.ts';
+// Uses optional auth: allows unauthenticated requests now, will use auth tokens when available
+import { optionalAuth } from '../middleware/auth.ts';
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
   const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [] } = req.body;
 
   if (!message || typeof message !== 'string') {
