@@ -2,13 +2,15 @@
 // Parallel enrichment: GPT-5 explains why closed venues are still worth visiting
 import express from 'express';
 import { OpenAI } from 'openai';
+import { requireAuth } from '../middleware/auth.ts';
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// SECURITY: Require authentication
 // POST /api/closed-venue-reasoning
 // Body: { venueName, category, address, lat, lng, businessHours, strategyContext }
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const { venueName, category, address, businessHours, strategyContext } = req.body;
 

@@ -160,7 +160,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // GET /api/diagnostics/db-data - Show actual database records
-router.get('/db-data', async (req, res) => {
+router.get('/db-data', requireAuth, async (req, res) => {
   try {
     const snapshots = await db.execute(sql`
       SELECT snapshot_id, city, state, created_at, 
@@ -205,8 +205,9 @@ router.get('/db-data', async (req, res) => {
   }
 });
 
+// SECURITY: Require authentication for migrations
 // POST /api/diagnostics/migrate - Run database migrations
-router.post('/migrate', async (req, res) => {
+router.post('/migrate', requireAuth, async (req, res) => {
   try {
     const results = [];
     
@@ -653,8 +654,9 @@ router.get('/workflow-dry-run', async (req, res) => {
   }
 });
 
+// SECURITY: Require authentication for test endpoints
 // POST /api/diagnostics/test-consolidate/:snapshotId - Manually test consolidation logic
-router.post('/test-consolidate/:snapshotId', async (req, res) => {
+router.post('/test-consolidate/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
     
