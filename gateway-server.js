@@ -264,6 +264,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] Briefing endpoint failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading Location endpoint...");
+        const locationRouter = (await import("./server/routes/location.js")).default;
+        app.use("/api/location", locationRouter);
+        console.log("[gateway] ✅ Location endpoint mounted at /api/location");
+      } catch (e) {
+        console.error("[mono] Location endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Agent embed...");
         const { mountAgent } = await import("./server/agent/embed.js");
         mountAgent({ app, basePath: process.env.AGENT_PREFIX || "/agent", wsPath: "/agent/ws", server });
