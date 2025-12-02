@@ -33,118 +33,97 @@ const LocalEventSchema = z.object({
   event_time: z.string().optional().describe('Event start time (e.g., 7:00 PM)'),
   location: z.string().optional().describe('Event venue name and address'),
   link: z.string().optional().describe('Source link or ticket link'),
+  staging_area: z.string().optional().describe('Recommended staging/pickup area for rideshare drivers'),
+  place_id: z.string().optional().describe('Google Places ID for detailed venue info'),
 });
 
 const LocalEventsArraySchema = z.array(LocalEventSchema);
 
 export async function fetchRideshareNews({ city, state, lat, lng, country = 'US' }) {
-  console.log(`[BriefingService] Fetching local events for ${city}, ${state} at (${lat}, ${lng})`);
+  console.log(`[BriefingService] Fetching local events using Gemini 3.0 Pro for ${city}, ${state} at (${lat}, ${lng})`);
   
-  // Try Perplexity first (best for real-time local events)
-  if (PERPLEXITY_API_KEY) {
-    console.log('[BriefingService] Trying Perplexity for local events...');
-    const perplexityEvents = await fetchEventsFromPerplexity(city, state, lat, lng);
-    if (perplexityEvents.length > 0) {
-      console.log(`[BriefingService] ✅ Perplexity returned ${perplexityEvents.length} events`);
+  if (!GEMINI_API_KEY) {
+    console.warn('[BriefingService] Gemini API key not configured');
+    return { 
+      items: [], 
+      filtered: [],
+      fetchedAt: new Date().toISOString(),
+      source: 'None'
+    };
+  }
+
+  try {
+    // Use Gemini 3.0 Pro only for event discovery
+    const events = await fetchEventsFromGemini(city, state, lat, lng);
+    
+    if (events.length > 0) {
+      console.log(`[BriefingService] ✅ Gemini 3.0 Pro returned ${events.length} events`);
+      
+      // Enhance events with Google Places API data (address, staging area)
+      const enhancedEvents = await enhanceEventsWithPlacesAPI(events, lat, lng);
+      
       return {
-        items: perplexityEvents,
-        filtered: perplexityEvents,
+        items: enhancedEvents,
+        filtered: enhancedEvents,
         fetchedAt: new Date().toISOString(),
-        source: 'Perplexity'
+        source: 'Gemini 3.0 Pro'
       };
     }
+    
+    console.warn('[BriefingService] No events found from Gemini 3.0 Pro');
+    return { 
+      items: [], 
+      filtered: [],
+      fetchedAt: new Date().toISOString(),
+      source: 'Gemini 3.0 Pro'
+    };
+  } catch (error) {
+    console.error('[BriefingService] Event discovery error:', error.message);
+    return { 
+      items: [], 
+      filtered: [],
+      fetchedAt: new Date().toISOString(),
+      source: 'Error'
+    };
   }
-  
-  // Fallback to SerpAPI if available
-  if (SERP_API_KEY) {
-    console.log('[BriefingService] Perplexity failed, trying SerpAPI...');
-    const serpEvents = await fetchEventsFromSerpAPI(city, state, lat, lng);
-    if (serpEvents.filtered.length > 0) {
-      console.log(`[BriefingService] ✅ SerpAPI returned ${serpEvents.filtered.length} events`);
-      return { ...serpEvents, source: 'SerpAPI' };
-    }
-  }
-  
-  // Fallback to NewsAPI
-  if (NEWS_API_KEY) {
-    console.log('[BriefingService] SerpAPI failed, trying NewsAPI...');
-    const newsEvents = await fetchEventsFromNewsAPI(city, state, lat, lng);
-    if (newsEvents.length > 0) {
-      console.log(`[BriefingService] ✅ NewsAPI returned ${newsEvents.length} events`);
-      return {
-        items: newsEvents,
-        filtered: newsEvents,
-        fetchedAt: new Date().toISOString(),
-        source: 'NewsAPI'
-      };
-    }
-  }
-  
-  // All failed - return stub
-  console.warn(`[BriefingService] No real-time events found from any service`);
-  return { 
-    items: [], 
-    filtered: [
-      {
-        title: "Local Events Search",
-        summary: "No major events found today in your area. Monitor traffic and airport activity for surge opportunities.",
-        impact: "low",
-        source: "System",
-        event_type: "other",
-        latitude: lat,
-        longitude: lng,
-        distance_miles: 0,
-        event_date: new Date().toISOString(),
-        link: null
-      }
-    ], 
-    message: 'No local events detected - monitoring normal conditions',
-    source: 'Stub'
-  };
 }
 
-async function fetchEventsFromPerplexity(city, state, lat, lng) {
+async function fetchEventsFromGemini(city, state, lat, lng) {
   try {
-    const prompt = `Find local events happening TODAY in ${city}, ${state} area within 50 miles of coordinates ${lat}, ${lng}.
-Focus on: concerts, games, sports, comedy shows, live music, festivals, performances, theater.
-Return ONLY a JSON array with event details. For each event include: title, location address, event_date/time, estimated_distance_miles, and type.
-Return empty array [] if no events found.
+    const prompt = `Find local events happening TODAY in ${city}, ${state} area (within 50 miles of coordinates ${lat}, ${lng}). Focus on: concerts, games, sports, comedy shows, live music, festivals, performances, theater. Return ONLY a JSON array with event details. For each event include: title, location (venue name and address), event_date (ISO format), event_time (HH:MM format), type, estimated_distance_miles. Return empty array [] if no events found.
 
 RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
 
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [{ role: 'user', content: prompt }],
-        search_recency_filter: 'day',  // ✅ TODAY only - optimal for local events
-        temperature: 0.2,
-        max_tokens: 2000
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 1.0,
+          maxOutputTokens: 16000
+        }
       })
     });
 
     if (!response.ok) {
-      console.warn(`[BriefingService] Perplexity error ${response.status}`);
+      console.warn(`[BriefingService] Gemini 3.0 Pro error ${response.status}`);
       return [];
     }
 
     const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || '[]';
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     
     try {
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        // Convert Perplexity response to our schema
+        // Convert Gemini response to our schema
         return parsed.map((event, idx) => ({
           title: event.title || event.name || `Event ${idx + 1}`,
           summary: `${event.type || 'Event'} at ${event.location || 'TBD'}. High demand for rideshare to/from this event.`,
           impact: 'high',
-          source: 'Perplexity',
+          source: 'Gemini 3.0 Pro',
           event_type: event.type?.toLowerCase() || 'other',
           latitude: event.latitude,
           longitude: event.longitude,
@@ -156,13 +135,76 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
         }));
       }
     } catch (e) {
-      console.error('[BriefingService] Perplexity JSON parse error:', e.message);
+      console.error('[BriefingService] Gemini JSON parse error:', e.message);
       return [];
     }
   } catch (error) {
-    console.error('[BriefingService] Perplexity fetch error:', error.message);
+    console.error('[BriefingService] Gemini 3.0 Pro fetch error:', error.message);
     return [];
   }
+}
+
+// Enhance events with Google Places API data (address, staging area)
+async function enhanceEventsWithPlacesAPI(events, userLat, userLng) {
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.warn('[BriefingService] Google Maps API key not configured, skipping Places enhancement');
+    return events;
+  }
+
+  const enhanced = [];
+  
+  for (const event of events) {
+    try {
+      // Search for venue in Google Places
+      const searchQuery = encodeURIComponent(event.location || event.title);
+      const placesResponse = await fetch(
+        `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${searchQuery}&key=${GOOGLE_MAPS_API_KEY}`
+      );
+
+      if (placesResponse.ok) {
+        const placesData = await placesResponse.json();
+        const place = placesData.results?.[0];
+
+        if (place) {
+          // Get detailed place info including address and staging recommendations
+          const detailsResponse = await fetch(
+            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=formatted_address,name,business_status&key=${GOOGLE_MAPS_API_KEY}`
+          );
+
+          if (detailsResponse.ok) {
+            const detailsData = await detailsResponse.json();
+            const placeDetails = detailsData.result;
+
+            // Generate staging area recommendation based on venue type and location
+            let stagingArea = event.location;
+            if (placeDetails.formatted_address) {
+              stagingArea = placeDetails.formatted_address;
+            }
+
+            enhanced.push({
+              ...event,
+              location: placeDetails.formatted_address || event.location,
+              place_id: place.place_id,
+              staging_area: `Recommended staging: ${stagingArea}. Confirm exact pickup location with rider.`,
+              latitude: place.geometry?.location?.lat || event.latitude,
+              longitude: place.geometry?.location?.lng || event.longitude
+            });
+          } else {
+            enhanced.push({ ...event, place_id: place.place_id });
+          }
+        } else {
+          enhanced.push(event);
+        }
+      } else {
+        enhanced.push(event);
+      }
+    } catch (error) {
+      console.warn(`[BriefingService] Places API error for ${event.title}:`, error.message);
+      enhanced.push(event);
+    }
+  }
+
+  return enhanced;
 }
 
 async function fetchEventsFromSerpAPI(city, state, lat, lng) {
