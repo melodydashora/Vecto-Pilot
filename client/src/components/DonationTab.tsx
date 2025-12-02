@@ -5,7 +5,7 @@
  * families and individuals achieve better quality of life through smarter earning.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,18 +19,49 @@ import {
   Users,
   Lightbulb,
   DollarSign,
-  ArrowRight
+  ArrowRight,
+  ChevronDown,
+  HelpCircle
 } from 'lucide-react';
+import { InstructionsTab } from './InstructionsTab';
 
 interface DonationTabProps {
   userId?: string;
 }
 
 export const DonationTab: React.FC<DonationTabProps> = ({ userId }) => {
+  const [showInstructions, setShowInstructions] = useState(false);
   const donationLink = 'https://square.link/u/6PbBaNCi?src=sheet';
 
   return (
     <div className="space-y-6 pb-8">
+      {/* How to Use - Collapsible */}
+      <Card
+        className="border-blue-200 bg-blue-50 cursor-pointer hover:bg-blue-100 transition"
+        onClick={() => setShowInstructions(!showInstructions)}
+      >
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <HelpCircle className="w-5 h-5 text-blue-600" />
+              <CardTitle className="text-base">How to Use Vecto Pilot</CardTitle>
+            </div>
+            <ChevronDown
+              className={`w-5 h-5 text-blue-600 transition-transform ${
+                showInstructions ? 'rotate-180' : ''
+              }`}
+            />
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Instructions Content */}
+      {showInstructions && (
+        <div className="bg-white rounded-lg border border-blue-200 p-6">
+          <InstructionsTab />
+        </div>
+      )}
+
       {/* Hero Section */}
       <Card className="border-0 bg-gradient-to-r from-rose-50 to-pink-50 shadow-sm">
         <CardContent className="p-6">
