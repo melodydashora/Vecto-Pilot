@@ -382,6 +382,62 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         </p>
       )}
 
+      {/* School Closures Section */}
+      {schoolClosures.length > 0 && (
+        <Card data-testid="school-closures-card">
+          <CardHeader>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedNews(!expandedNews)}>
+              <BookOpen className="w-5 h-5 text-purple-600" />
+              <CardTitle className="text-base">School Closures ({schoolClosures.length})</CardTitle>
+              {expandedNews ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
+          </CardHeader>
+          {expandedNews && (
+            <CardContent className="space-y-3">
+              {schoolClosures.map((closure, idx) => (
+                <div
+                  key={idx}
+                  className="border rounded-lg p-3 bg-gradient-to-r from-purple-50 to-blue-50"
+                  data-testid={`closure-${closure.type}-${idx}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-semibold text-gray-900">{closure.schoolName}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {closure.type === 'college' ? '🎓 College' : '🏫 District'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">{closure.reason}</p>
+                      <div className="flex items-center gap-4 text-xs">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-gray-500" />
+                          <span>Closed: {formatDate(closure.closureStart)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-green-600" />
+                          <span>Reopens: {formatDate(closure.reopeningDate)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Badge className={`${
+                      closure.impact === 'high' ? 'bg-red-100 text-red-700' :
+                      closure.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      {closure.impact} impact
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2 italic">
+                    💡 Campus parking, pickup zones, and shuttle services may be unavailable during closures.
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       {/* Weather Card - Collapsible */}
       <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200" data-testid="weather-card">
         <CardHeader 
