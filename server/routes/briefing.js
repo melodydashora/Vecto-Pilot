@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateAndStoreBriefing, getBriefingBySnapshotId, fetchTrafficConditions, fetchWeatherConditions } from '../lib/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, fetchTrafficConditions, fetchWeatherConditions, confirmTBDEventDetails } from '../lib/briefing-service.js';
 import { db } from '../db/drizzle.js';
 import { snapshots, users } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';

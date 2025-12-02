@@ -17,6 +17,7 @@ const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
+const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
 // Zod validation schema for local events
 const LocalEventSchema = z.object({
@@ -270,6 +271,104 @@ async function convertNewsToEvents(newsItems, city, state, lat, lng) {
     event_date: item.date,
     link: item.link
   }));
+}
+
+// Confirm TBD event details using Gemini 2.5 Pro
+export async function confirmTBDEventDetails(events) {
+  if (!GEMINI_API_KEY) {
+    console.warn('[BriefingService] Gemini API key not configured, skipping TBD confirmation');
+    return events;
+  }
+
+  // Filter events with TBD details
+  const tbdEvents = events.filter(e => 
+    e.location?.includes('TBD') || 
+    e.event_time?.includes('TBD') || 
+    e.location === 'TBD'
+  );
+
+  if (tbdEvents.length === 0) {
+    return events; // No TBD events to confirm
+  }
+
+  console.log(`[BriefingService] Found ${tbdEvents.length} events with TBD details, confirming with Gemini...`);
+
+  try {
+    // Build prompt for Gemini to confirm event details
+    const eventDetails = tbdEvents.map(e => 
+      `- Title: "${e.title}"\n  Summary: "${e.summary}"\n  Location: "${e.location || 'TBD'}"\n  Time: "${e.event_time || 'TBD'}"`
+    ).join('\n\n');
+
+    const prompt = `You are an event information specialist. Review these events that have incomplete venue/time data and provide the most likely real-world details based on the title and context.
+
+Events with TBD details:
+${eventDetails}
+
+For each event, provide ONLY a JSON object (no explanations) with:
+{
+  "title": "exact event name",
+  "confirmed_venue": "full venue name and address or 'Unable to confirm'",
+  "confirmed_time": "start time like '7:00 PM' or 'Unable to confirm'",
+  "confidence": "high/medium/low"
+}
+
+Return a JSON array with one object per event. If you cannot confirm details, set to 'Unable to confirm'.`;
+
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 2000
+        }
+      }),
+      params: new URLSearchParams({ key: GEMINI_API_KEY })
+    });
+
+    if (!response.ok) {
+      console.error(`[BriefingService] Gemini API error: ${response.status}`);
+      return events;
+    }
+
+    const data = await response.json();
+    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    try {
+      // Extract JSON from response
+      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        console.warn('[BriefingService] No JSON array found in Gemini response');
+        return events;
+      }
+
+      const confirmed = JSON.parse(jsonMatch[0]);
+      console.log(`[BriefingService] ✅ Gemini confirmed ${confirmed.length} events`);
+
+      // Merge confirmed details back into events
+      return events.map(event => {
+        const match = confirmed.find(c => c.title === event.title);
+        if (match && match.confidence !== 'low') {
+          return {
+            ...event,
+            location: match.confirmed_venue !== 'Unable to confirm' ? match.confirmed_venue : event.location,
+            event_time: match.confirmed_time !== 'Unable to confirm' ? match.confirmed_time : event.event_time,
+            gemini_confirmed: true
+          };
+        }
+        return event;
+      });
+    } catch (e) {
+      console.error('[BriefingService] Gemini response parse error:', e.message);
+      return events;
+    }
+  } catch (error) {
+    console.error('[BriefingService] Gemini confirmation error:', error.message);
+    return events; // Return unconfirmed events as fallback
+  }
 }
 
 async function filterNewsWithGemini(newsItems, city, state, country, lat, lng) {
