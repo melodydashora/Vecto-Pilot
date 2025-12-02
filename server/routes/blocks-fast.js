@@ -42,21 +42,15 @@ const PLANNER_TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS || '5000'); /
 router.get('/', async (req, res) => {
   const snapshotId = req.query.snapshotId || req.query.snapshot_id;
   
-  console.log(`[blocks-fast GET] 🔍 Request for snapshot: ${snapshotId}`);
-  
   if (!snapshotId) {
-    console.log('[blocks-fast GET] ❌ No snapshot ID provided');
     return res.status(400).json({ error: 'snapshot_required' });
   }
 
   try {
     // GATE 1: Strategy must be ready before blocks
-    console.log(`[blocks-fast GET] Checking if strategy ready for ${snapshotId}...`);
     const { ready, strategy, status } = await isStrategyReady(snapshotId);
-    console.log(`[blocks-fast GET] Strategy ready: ${ready}, status: ${status}`);
     
     if (!ready) {
-      console.log(`[blocks-fast GET] Strategy not ready, returning 202`);
       return res.status(202).json({ 
         ok: false, 
         reason: 'strategy_pending',
@@ -75,12 +69,9 @@ router.get('/', async (req, res) => {
     } : null;
     
     // GATE 2: Find ranking for this snapshot
-    console.log(`[blocks-fast GET] Querying rankings for snapshot ${snapshotId}...`);
     const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
-    console.log(`[blocks-fast GET] Ranking found:`, ranking ? `YES (${ranking.ranking_id})` : 'NO');
     
     if (!ranking) {
-      console.log(`[blocks-fast GET] ℹ️ Ranking not ready yet for snapshot ${snapshotId} - returning 202 pending_blocks`);
       return res.status(202).json({ 
         ok: false,
         reason: 'blocks_generating',
@@ -91,18 +82,15 @@ router.get('/', async (req, res) => {
     }
 
     // Get candidates for this ranking
-    console.log(`[blocks-fast GET] Querying candidates for ranking ${ranking.ranking_id}...`);
     const candidates = await db.select().from(ranking_candidates)
       .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
       .orderBy(ranking_candidates.rank);
-    console.log(`[blocks-fast GET] Found ${candidates.length} candidates`);
     
     // Fetch snapshot to check holiday status
     const [snapshot] = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     const isHoliday = snapshot?.is_holiday === true;
     const hasSpecialHours = snapshot?.holiday && snapshot?.is_holiday === true;
-    console.log(`[blocks-fast GET] Holiday context: isHoliday=${isHoliday}, hasSpecialHours=${hasSpecialHours}`);
     
     // 25-mile perimeter enforcement (show all if distance not calculated yet)
     const within25Miles = (distanceMiles) => {
@@ -121,7 +109,6 @@ router.get('/', async (req, res) => {
       // Filter out Plus Codes - use resolved address if it exists and is not a Plus Code
       let resolvedAddress = addressMap[coordKey];
       if (resolvedAddress && isPlusCode(resolvedAddress)) {
-        console.log(`[blocks-fast GET] ⚠️ Filtering Plus Code: "${resolvedAddress}" for ${c.name}`);
         resolvedAddress = null;
       }
       // Fallback to candidate address if not a Plus Code
@@ -130,7 +117,6 @@ router.get('/', async (req, res) => {
       }
       // If we still have a Plus Code from candidate, reject it too
       if (resolvedAddress && isPlusCode(resolvedAddress)) {
-        console.log(`[blocks-fast GET] ⚠️ Filtering Plus Code from candidate: "${resolvedAddress}" for ${c.name}`);
         resolvedAddress = null;
       }
       resolvedAddress = resolvedAddress || null;
@@ -181,7 +167,6 @@ router.get('/', async (req, res) => {
       { step: 'sorting', method: 'value_desc_distance_asc' }
     ];
 
-    console.log(`[blocks-fast GET] ✅ Returning ${blocks.length} blocks (${rejected} rejected by 15-min perimeter)`);
     return res.json({ blocks, ranking_id: ranking.ranking_id, briefing, audit });
   } catch (error) {
     console.error('[blocks-fast GET] ❌ Error:', error.message);
@@ -238,7 +223,6 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
       
       if (job) {
         // New job created - run full pipeline synchronously (no worker needed)
-        console.log(`[blocks-fast POST] 🚀 Running synchronous waterfall for ${snapshotId}`);
         const { runMinStrategy } = await import('../lib/providers/minstrategy.js');
         const { runBriefing } = await import('../lib/providers/briefing.js');
         const { runHolidayCheck } = await import('../lib/providers/holiday-checker.js');
@@ -250,7 +234,6 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
         await ensureStrategyRow(snapshotId);
         
         // Pre-populate briefing endpoints to start auto-generation in background
-        console.log(`[blocks-fast POST] 🔄 Pre-warming briefing endpoints...`);
         try {
           await Promise.allSettled([
             fetch(`http://localhost:5000/api/briefing/weather/${snapshotId}`).catch(() => null),
@@ -260,42 +243,32 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
             fetch(`http://localhost:5000/api/briefing/school-closures/${snapshotId}`).catch(() => null)
           ]);
         } catch (e) {
-          console.warn(`[blocks-fast POST] ⚠️ Briefing pre-warm failed (non-critical):`, e.message);
+          // Pre-warming is non-critical, silent fail
         }
         
-        // STEP 1: Run providers in parallel (10-15s)
-        console.log(`[blocks-fast POST] 📡 Step 1/4: Providers...`);
+        // Run providers in parallel
         await Promise.all([
           runHolidayCheck(snapshotId),
           runMinStrategy(snapshotId),
           runBriefing(snapshotId)
         ]);
         
-        // STEP 2: Fetch provider outputs (use denormalized location from snapshots)
-        console.log(`[blocks-fast POST] 📚 Step 2/4: Fetching outputs...`);
-        console.log(`[blocks-fast POST] 📍 Driver location: ${snapshot?.lat}, ${snapshot?.lng} (${snapshot?.city}, ${snapshot?.state})`);
+        // Fetch provider outputs
         const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
         const [briefing] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
         
-        // CRITICAL: Make briefing OPTIONAL - consolidation proceeds even if Perplexity fails
-        // Only REQUIRE snapshot and minstrategy (strategist is critical, briefing is enhancement)
+        // Make briefing OPTIONAL - consolidation proceeds even if Perplexity fails
         if (snapshot && strategy?.minstrategy) {
-          // STEP 3: Run consolidation (15-20s) - with or without briefing
-          console.log(`[blocks-fast POST] 🔄 Step 3/4: Consolidation...`);
-          if (!briefing) {
-            console.warn(`[blocks-fast POST] ⚠️ Briefing missing - proceeding with strategist output only`);
-          }
           await consolidateStrategy({
             snapshotId,
             claudeStrategy: strategy.minstrategy,
-            briefing: briefing || { events: [], news: [], traffic: [] }, // Provide empty briefing as fallback
+            briefing: briefing || { events: [], news: [], traffic: [] },
             user: null,
             snapshot: snapshot,
             holiday: strategy.holiday
           });
           
-          // STEP 4: Generate smart blocks (10-15s)
-          console.log(`[blocks-fast POST] 🎯 Step 4/4: Generating blocks...`);
+          // Generate smart blocks
           const [consolidated] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
           
           if (consolidated?.consolidated_strategy) {
@@ -307,20 +280,15 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
                 snapshot: snapshot,
                 user_id: null
               });
-              console.log(`[blocks-fast POST] ✅ Smart blocks generation complete`);
             } catch (blocksError) {
-              console.error(`[blocks-fast POST] ❌ Smart blocks generation failed:`, blocksError.message);
-              console.error(`[blocks-fast POST] Stack:`, blocksError.stack);
+              console.error(`[blocks-fast POST] Smart blocks failed:`, blocksError.message);
               return sendOnce(500, {
                 error: 'blocks_generation_failed',
                 message: blocksError.message
               });
             }
             
-            console.log(`[blocks-fast POST] ✅ Synchronous waterfall complete`);
-            
             // Fetch the generated blocks to return to client
-            console.log(`[blocks-fast POST] 🔍 Fetching generated blocks...`);
             const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
             
             if (ranking) {

@@ -40,8 +40,6 @@ const LocalEventSchema = z.object({
 const LocalEventsArraySchema = z.array(LocalEventSchema);
 
 export async function fetchRideshareNews({ city, state, lat, lng, country = 'US' }) {
-  console.log(`[BriefingService] Fetching local events using Gemini 3.0 Pro for ${city}, ${state} at (${lat}, ${lng})`);
-  
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] Gemini API key not configured');
     return { 
@@ -57,8 +55,6 @@ export async function fetchRideshareNews({ city, state, lat, lng, country = 'US'
     const events = await fetchEventsFromGemini(city, state, lat, lng);
     
     if (events.length > 0) {
-      console.log(`[BriefingService] ✅ Gemini 3.0 Pro returned ${events.length} events`);
-      
       // Enhance events with Google Places API data (address, staging area)
       const enhancedEvents = await enhanceEventsWithPlacesAPI(events, lat, lng);
       
@@ -70,7 +66,6 @@ export async function fetchRideshareNews({ city, state, lat, lng, country = 'US'
       };
     }
     
-    console.warn('[BriefingService] No events found from Gemini 3.0 Pro');
     return { 
       items: [], 
       filtered: [],
@@ -107,7 +102,6 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
     });
 
     if (!response.ok) {
-      console.warn(`[BriefingService] Gemini 3.0 Pro error ${response.status}`);
       return [];
     }
 
@@ -135,7 +129,6 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
         }));
       }
     } catch (e) {
-      console.error('[BriefingService] Gemini JSON parse error:', e.message);
       return [];
     }
   } catch (error) {
