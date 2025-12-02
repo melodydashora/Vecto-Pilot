@@ -260,6 +260,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] Briefing endpoint failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading Auth endpoint...");
+        const authRouter = (await import("./server/routes/auth.js")).default;
+        app.use("/api/auth", authRouter);
+        console.log("[gateway] ✅ Auth endpoint mounted at /api/auth");
+      } catch (e) {
+        console.error("[mono] Auth endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Location endpoint...");
         const locationRouter = (await import("./server/routes/location.js")).default;
         app.use("/api/location", locationRouter);
