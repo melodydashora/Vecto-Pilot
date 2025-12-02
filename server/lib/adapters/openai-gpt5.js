@@ -45,12 +45,17 @@ export async function callGPT5({
 
   // Reasoning models (o1-*, gpt-5*) use reasoning_effort instead of temperature
   // Use either temperature or reasoning_effort, not both
+  // CRITICAL: GPT-5.1 and o1 models NEVER accept temperature - API rejects it
   const isReasoningModel = model.startsWith("gpt-5") || model.startsWith("o1-");
   
-  if (temperature !== undefined && !isReasoningModel) {
+  if (isReasoningModel) {
+    // GPT-5.1 and o1 models: use reasoning_effort ONLY
+    if (effort) {
+      body.reasoning_effort = effort;
+    }
+  } else if (temperature !== undefined) {
+    // Standard models: use temperature
     body.temperature = temperature;
-  } else if (reasoning_effort !== undefined) {
-    body.reasoning_effort = reasoning_effort;
   }
 
   // Log what sampling strategy is being used
