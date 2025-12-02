@@ -79,6 +79,14 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         // Only places_cache table exists for storing business hours
         // Coordinates are preserved in venue_catalog and rankings tables
 
+        // CRITICAL FIX: Filter out permanently closed venues before recommending to drivers
+        if (placeDetails?.business_status === 'CLOSED_PERMANENTLY') {
+          console.warn(
+            `[Venue Enrichment] 🚫 FILTERING OUT: "${venue.name}" - permanently closed (Google status: CLOSED_PERMANENTLY)`,
+          );
+          return null; // Filter this venue out
+        }
+
         const enrichedVenue = {
           ...venue,
           rank: index + 1,
@@ -96,7 +104,7 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         };
 
         console.log(
-          `[Venue Enrichment] ✅ "${venue.name}": placeId=${enrichedVenue.placeId ? "YES" : "NO"}, coords=${enrichedVenue.lat},${enrichedVenue.lng}`,
+          `[Venue Enrichment] ✅ "${venue.name}": placeId=${enrichedVenue.placeId ? "YES" : "NO"}, coords=${enrichedVenue.lat},${enrichedVenue.lng}, status=${enrichedVenue.businessStatus}`,
         );
         return enrichedVenue;
       } catch (error) {
@@ -122,8 +130,18 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
     }),
   );
 
-  console.log(`[Venue Enrichment] ✅ Enriched ${enriched.length} venues`);
-  return enriched;
+  // Filter out null entries (permanently closed venues that were filtered out)
+  const filtered = enriched.filter(Boolean);
+  const permanentlyClosedCount = enriched.length - filtered.length;
+
+  if (permanentlyClosedCount > 0) {
+    console.warn(
+      `[Venue Enrichment] ⚠️ Filtered out ${permanentlyClosedCount} permanently closed venue(s), ${filtered.length} venues remain`,
+    );
+  }
+
+  console.log(`[Venue Enrichment] ✅ Enriched ${filtered.length} venues (${permanentlyClosedCount} permanently closed filtered)`);
+  return filtered;
 }
 
 /**
