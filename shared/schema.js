@@ -6,7 +6,7 @@ import { sql } from "drizzle-orm";
 // Snapshots table: everything else (weather, time context, enrichments)
 export const users = pgTable("users", {
   user_id: uuid("user_id").primaryKey().defaultRandom(),
-  device_id: uuid("device_id").notNull(),
+  device_id: text("device_id").notNull(),
   session_id: uuid("session_id"),
   // Coordinates (lat/lng pair) - the core GPS data
   lat: doublePrecision("lat").notNull(),
@@ -33,7 +33,7 @@ export const snapshots = pgTable("snapshots", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
   // User tracking (NOT a FK - snapshots are self-contained)
   user_id: uuid("user_id"),
-  device_id: uuid("device_id").notNull(),
+  device_id: text("device_id").notNull(),
   session_id: uuid("session_id").notNull(),
   // Location data (stored at snapshot creation - authoritative source)
   lat: doublePrecision("lat"),
