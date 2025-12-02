@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Route, Switch, Link, useLocation } from 'wouter';
+import { Route, Switch, Link, useLocation as useWouterLocation } from 'wouter';
 import { LocationProvider } from '@/contexts/location-context-clean';
 import { Toaster } from '@/components/ui/toaster';
 import GlobalHeader from './components/GlobalHeader';
 import ErrorBoundary from './components/ErrorBoundary';
 import CoPilot from './pages/co-pilot';
+import MapPage from './pages/map-page';
 import SafeScaffold from './pages/SafeScaffold';
 
 import './index.css';
@@ -22,7 +23,7 @@ const queryClient = new QueryClient({
 });
 
 function NavigationTabs() {
-  const [location] = useLocation();
+  const [location] = useWouterLocation();
   
   // Hide navigation if feature flag is enabled
   if (FF_HIDE_NAV) {
@@ -42,7 +43,18 @@ function NavigationTabs() {
             }`}
             data-testid="tab-copilot"
           >
-            Copilot
+            Co-Pilot
+          </Link>
+          <Link
+            href="/map"
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              location === '/map'
+                ? 'border-green-600 text-green-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            data-testid="tab-map"
+          >
+            Map
           </Link>
         </nav>
       </div>
@@ -58,9 +70,13 @@ function App() {
         <LocationProvider>
           <div className="App min-h-screen bg-gray-50">
             <GlobalHeader />
+            <NavigationTabs />
             
             <main className="main-content-with-header">
-              <CoPilot />
+              <Switch>
+                <Route path="/" component={CoPilot} />
+                <Route path="/map" component={MapPage} />
+              </Switch>
             </main>
 
             <Toaster />
