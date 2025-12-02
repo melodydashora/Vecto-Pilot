@@ -14,7 +14,6 @@ const MULTI_STRATEGY_ENABLED = process.env.MULTI_STRATEGY_ENABLED === 'true';
  * Call Claude for core strategic plan (no venues)
  */
 async function callClaudeCore({ snapshotId, userAddress, city, state, snapshot }) {
-  console.log(`[callClaudeCore] ENTER - snapshot ${snapshotId}, city=${city}`);
   try {
     const systemPrompt = `You are a senior rideshare strategist. Analyze the driver's location, time, and conditions to provide strategic positioning advice. Focus on general patterns: time-of-day demand, weather impact, typical hotspots for this area. Return a 3-5 sentence strategy ONLY.`;
 
@@ -52,7 +51,6 @@ Provide strategic positioning advice for a rideshare driver right now.`;
  * Call Gemini for events, news, traffic feeds
  */
 async function callGeminiFeeds({ userAddress, city, state }) {
-  console.log(`[callGeminiFeeds] ENTER - city=${city}, state=${state}`);
   try {
     const systemPrompt = `You are a local intelligence researcher for rideshare drivers. Research real-time events, news, and traffic for ${city}, ${state}.
 
@@ -135,14 +133,6 @@ ${briefing ? JSON.stringify(briefing, null, 2) : 'No briefer output'}
 
 Task: Merge these into a final consolidated strategy considering the driver's specific address and local conditions.`;
 
-    console.log(`[GPT-5] === ROLE-PURE CONSOLIDATION ===`);
-    console.log(`[GPT-5] Location: ${userAddress || 'Unknown'}`);
-    console.log(`[GPT-5] Strategist output: ${plan?.length || 0} chars`);
-    console.log(`[GPT-5] Briefer output: ${briefing ? JSON.stringify(briefing).length : 0} chars`);
-    console.log(`[GPT-5] === END CONTEXT ===`);
-
-    console.log(`[CONSOLIDATOR] 🚀 Calling model-agnostic consolidator role...`);
-
     const result = await callModel("consolidator", {
       system: developerPrompt,
       user: userPrompt
@@ -150,7 +140,7 @@ Task: Merge these into a final consolidated strategy considering the driver's sp
 
     if (!result.ok) {
       const errorMsg = result.error || 'consolidator_failed';
-      console.error(`[CONSOLIDATOR] ❌ Model call failed:`, errorMsg);
+      console.error(`[consolidate] Model call failed:`, errorMsg);
       return { ok: false, reason: errorMsg };
     }
 
@@ -211,8 +201,6 @@ async function saveStrategy(row) {
  * Then triggers consolidation
  */
 export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddress, city, state, lat, lng, snapshot }) {
-  console.log(`[runSimpleStrategyPipeline] Starting for snapshot ${snapshotId}`);
-  
   try {
     // Build dynamic model name from environment variables (full 3-step chain)
     const strategist = process.env.STRATEGY_STRATEGIST || 'unknown';
@@ -231,14 +219,11 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
       updated_at: new Date()
     }).onConflictDoNothing();
     
-    console.log(`[runSimpleStrategyPipeline] ✅ Strategy row created with model_name: ${fullModelChain}`);
-    
     // Import providers
     const { runMinStrategy } = await import('./providers/minstrategy.js');
     const { runBriefing } = await import('./providers/briefing.js');
     
     // Run both providers in parallel
-    console.log(`[runSimpleStrategyPipeline] 🚀 Running minstrategy + briefing (Perplexity) in parallel...`);
     const [minResult, briefingResult] = await Promise.allSettled([
       runMinStrategy(snapshotId),
       runBriefing(snapshotId)
@@ -249,20 +234,16 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
     const briefingFailed = briefingResult?.status === 'rejected';
     
     if (minFailed) {
-      console.error(`[runSimpleStrategyPipeline] ❌ Minstrategy failed:`, minResult.reason?.message || minResult.reason);
-    } else {
-      console.log(`[runSimpleStrategyPipeline] ✅ Minstrategy complete`);
+      console.error(`[strategy-pipeline] Minstrategy failed:`, minResult.reason?.message || minResult.reason);
     }
     
     if (briefingFailed) {
-      console.error(`[runSimpleStrategyPipeline] ❌ Briefing (Perplexity) failed:`, briefingResult.reason?.message || briefingResult.reason);
-    } else {
-      console.log(`[runSimpleStrategyPipeline] ✅ Briefing (Perplexity) complete`);
+      console.error(`[strategy-pipeline] Briefing failed:`, briefingResult.reason?.message || briefingResult.reason);
     }
     
     // Strategist is required, briefing is optional (for UI only)
     if (minFailed) {
-      throw new Error('Strategist provider failed (required for pipeline)');
+      throw new Error('Strategist provider failed');
     }
     
     // Fetch updated strategy row to get strategist output
@@ -272,41 +253,34 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
     // Check if we have strategist output for consolidation
     const hasMin = !!strategyRow.minstrategy && strategyRow.minstrategy.length > 0;
     
-    console.log(`[runSimpleStrategyPipeline] 📊 Consolidation input: minstrategy=${hasMin} (briefing not required for consolidation)`);
-    
-    // Run consolidation if strategist output exists (consolidator does own research)
+    // Run consolidation if strategist output exists
     if (hasMin) {
-      console.log(`[runSimpleStrategyPipeline] 🤖 Running consolidator (GPT-5 will do own research + consolidation)...`);
       const { runConsolidator } = await import('./providers/consolidator.js');
       
       try {
         await runConsolidator(snapshotId);
-        console.log(`[runSimpleStrategyPipeline] ✅ Consolidation complete`);
       } catch (consolidatorErr) {
-        console.error(`[runSimpleStrategyPipeline] ❌ Consolidator failed:`, consolidatorErr.message);
+        console.error(`[strategy-pipeline] Consolidator failed:`, consolidatorErr.message);
         
         // Use strategist output as fallback if consolidator fails
         await db.update(strategies).set({
           consolidated_strategy: strategyRow.minstrategy,
           status: 'ok_partial',
-          error_message: `Fallback used: ${consolidatorErr.message}`,
+          error_message: `Fallback: ${consolidatorErr.message}`,
           updated_at: new Date()
         }).where(eq(strategies.snapshot_id, snapshotId));
-        
-        console.log(`[runSimpleStrategyPipeline] ⚠️ Using strategist output as fallback`);
       }
     } else {
-      console.warn(`[runSimpleStrategyPipeline] ⚠️ Skipping consolidation - missing strategist data`);
       await db.update(strategies).set({
         status: 'running',
-        error_message: `Waiting for strategist data`,
+        error_message: 'Waiting for strategist',
         updated_at: new Date()
       }).where(eq(strategies.snapshot_id, snapshotId));
     }
     
     return { ok: true };
   } catch (err) {
-    console.error(`[runSimpleStrategyPipeline] ❌ Pipeline failed:`, err.message);
+    console.error(`[strategy-pipeline] Failed:`, err.message);
     await db.update(strategies).set({
       error_message: `[simple-strategy] ${err.message?.slice(0, 800)}`,
       status: 'failed',
