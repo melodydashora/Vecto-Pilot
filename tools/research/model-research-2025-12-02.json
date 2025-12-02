@@ -1,0 +1,125 @@
+{
+  "generated_at": "2025-12-02T19:10:57.421Z",
+  "research_date": "December 2, 2025",
+  "providers": [
+    {
+      "provider": "OpenAI",
+      "timestamp": "2025-12-02T19:10:38.455Z",
+      "answer": "I appreciate your detailed query, but I must be transparent: the search results provided do not contain the specific technical information you're requesting about OpenAI's production API models as of December 2025.\n\n## What the Search Results Reveal\n\nThe search results mention that OpenAI has released **GPT-5** and reference it being used in enterprise applications, but they do not provide:\n\n- Exact model IDs or API endpoint URLs\n- HTTP header requirements\n- Specific parameter configurations (whether gpt-5 uses `reasoning_effort` instead of `temperature`)\n- Context window sizes\n- Pricing information (per million tokens)\n- SDK package names\n- API documentation details\n\nThe search results focus on business announcements about OpenAI's 1 million business customers, enterprise tools like AgentKit, and competitive positioning against Google, rather than technical API specifications.\n\n## Information Not Available\n\nTo obtain the precise technical specifications you need, you would need to consult:\n\n- **OpenAI's official API documentation** at platform.openai.com\n- **Current API reference guides** with exact model IDs and parameters\n- **Official pricing pages** with token costs\n- **SDK documentation** for Python, Node.js, or other languages\n\nThe personalization parameters you mentioned (gpt-5 with `reasoning_effort` parameters, claude-sonnet-4-5-20250929, and gemini-2.5-pro specifications) cannot be verified against the provided search results, as they contain no technical API details for any of these models.\n\nIf you have access to official OpenAI, Anthropic, or Google documentation from December 2025, I'd be happy to help you analyze and format that information according to your specifications.",
+      "citations": [
+        "https://openai.com/index/1-million-businesses-putting-ai-to-work/",
+        "https://blogs.nvidia.com/blog/neurips-open-source-digital-physical-ai/",
+        "https://www.businessinsider.com/openai-code-red-google-competitive-threat-2025-12",
+        "https://openai.com/index/openai-and-foxconn-collaborate/",
+        "https://openai.com/news/"
+      ],
+      "relatedQuestions": []
+    },
+    {
+      "provider": "Anthropic",
+      "timestamp": "2025-12-02T19:10:37.335Z",
+      "answer": "I don't have access to complete, current production API documentation for Anthropic's models as of December 2025. While the search results confirm that **Claude Sonnet 4.5** (referenced as \"Sonnet 4.5\") is a production model in use as of December 2025[1][2], the search results do not contain the specific technical details you've requested.\n\n## Information Available\n\nThe search results confirm that Anthropic has deployed **Claude Sonnet 4.5** for production use, with capabilities including extended thinking for complex reasoning tasks[2]. This model was actively being evaluated in research as of early December 2025[2].\n\nHowever, the search results do not provide:\n\n- Exact API model IDs or endpoint URLs\n- HTTP header requirements\n- Supported parameters (temperature, max_tokens, context windows)\n- Pricing information\n- SDK package names\n- API documentation details\n\n## Recommendation\n\nTo obtain accurate, current production API information for Anthropic models as of December 2025, you should:\n\n1. **Visit Anthropic's official documentation** at console.anthropic.com or their API documentation portal\n2. **Check the Models page** which lists all available production models with their exact IDs\n3. **Review the API reference** for current parameters, pricing, and context window specifications\n4. **Consult the SDK documentation** for your preferred language (Python, Node.js, etc.)\n\nThe information you're seeking requires access to official API documentation that isn't contained in these search results. Given the rapid pace of model releases and API changes, official sources will provide the most accurate and up-to-date details for production deployment.",
+      "citations": [
+        "https://simonwillison.net/2025/Dec/2/claude-soul-document/",
+        "https://red.anthropic.com/2025/smart-contracts/"
+      ],
+      "relatedQuestions": []
+    },
+    {
+      "provider": "Google AI (Gemini)",
+      "timestamp": "2025-12-02T19:10:39.192Z",
+      "answer": "# Google Gemini Production Models (December 2025)\n\nBased on the current information available, Google's production Gemini lineup has evolved significantly, with the latest flagship model being **Gemini 3 Pro**, not Gemini 2.5 Pro as previously expected.\n\n## Latest Production Models\n\n**Gemini 3 Pro Preview** (`gemini-3-pro-preview`) is Google's current state-of-the-art model, launched on November 18, 2025.[1] This represents a major generational leap from the Gemini 2.5 series and is now available in Google Search's AI Mode for subscribers as of December 1, 2025.[2]\n\nThe stable production lineup also includes:\n\n- **`gemini-2.5-pro`** - Stable version released June 17, 2025, featuring adaptive thinking capabilities[1]\n- **`gemini-2.5-flash-lite`** - Fast, low-cost variant released July 22, 2025[1]\n- **`gemini-2.0-flash`** - Established production model with image generation capabilities\n\n## API Endpoint and Authentication\n\nThe search results provided do not contain the specific API endpoint URLs, HTTP header requirements, or detailed parameter specifications needed for production API calls. To obtain this critical information, you would need to consult the official Google AI for Developers documentation at `ai.google.dev/gemini-api/docs`.\n\n## Missing Technical Specifications\n\nThe search results do not include:\n\n- Exact API endpoint URLs for making requests\n- Required HTTP headers and authentication formats\n- Supported parameters (temperature, max_tokens, top_p, etc.)\n- Context window sizes for each model\n- Pricing per million tokens (input/output)\n- SDK package names and versions\n- Rate limiting and quota information\n\n## Important Deprecations\n\nNote that several models have been deprecated or are scheduled for shutdown:[1]\n\n- Gemini 1.5 Pro, Flash, and Flash-8B were shut down September 29, 2025\n- Gemini 2.0 Flash Live models are scheduled for shutdown December 9, 2025\n\n## Recommendation\n\nFor complete production API documentation including endpoint URLs, parameter specifications, pricing, and SDK information, you should access the official Google AI for Developers documentation directly, as the search results provided focus on release announcements rather than technical API specifications.",
+      "citations": [
+        "https://ai.google.dev/gemini-api/docs/changelog",
+        "https://blog.google/products/search/gemini-3-ai-mode-more-countries/",
+        "https://fortune.com/2025/12/02/sam-altman-declares-code-red-google-gemini-ceo-sundar-pichai/"
+      ],
+      "relatedQuestions": []
+    },
+    {
+      "provider": "Perplexity AI",
+      "timestamp": "2025-12-02T19:10:38.903Z",
+      "answer": "I don't have access to the specific production API details you're requesting for Perplexity AI models as of December 2025.\n\nWhile the search results confirm that Perplexity Pro provides access to multiple AI models including GPT-4.1, Claude 4.0 Sonnet, Claude 4.0 Sonnet Thinking, Gemini 2.5 Pro, Sonar Large (LLaMA 3.1), Grok 3 Beta, 04-Mini, and R1 1776[1], the search results do not contain:\n\n- Exact model IDs/strings for API calls\n- Official API endpoint URLs\n- Required HTTP headers\n- Supported parameters (temperature, max_tokens, context windows)\n- Pricing information per million tokens\n- SDK package names\n- Special constraints or features\n\nThe search results indicate that Perplexity uses proprietary large language models rather than directly using GPT models[1], but they don't provide the technical API documentation needed to answer your query comprehensively.\n\nTo obtain this information, you would need to:\n\n1. Check Perplexity's official API documentation at their developer portal\n2. Contact Perplexity's sales or developer support team directly\n3. Review their official blog or announcements for December 2025 API releases\n\nThe information available in these search results focuses on Perplexity's consumer-facing features (real-time search, shopping assistance, multimodal capabilities) rather than production API specifications.",
+      "citations": [
+        "https://kanerika.com/blogs/perplexity-vs-chatgpt/",
+        "https://www.timesofai.com/news/perplexity-launches-free-ai-shopping-experience-for-us-users/",
+        "https://dev.to/solitrix02/6-game-changing-ai-models-that-defined-2025-408k",
+        "https://techcrunch.com/2025/11/25/openai-and-perplexity-are-launching-ai-shopping-assistants-but-competing-startups-arent-sweating-it/",
+        "https://www.perplexity.ai/finance/news/A3515930",
+        "https://vertu.com/lifestyle/top-8-ai-models-ranked-gemini-3-chatgpt-5-1-grok-4-claude-4-5-more/",
+        "https://leonfurze.com/2025/11/26/the-near-future-of-genai-december-2025-update-part-1/",
+        "https://www.perplexity.ai/finance/news/A3515047"
+      ],
+      "relatedQuestions": []
+    },
+    {
+      "provider": "News & Events APIs",
+      "timestamp": "2025-12-02T19:10:36.848Z",
+      "answer": "I don't have current information available about the specific APIs you're asking about for local event discovery as of December 2025. The search results provided focus on Perplexity AI's general capabilities (calendar integration, web search functionality, and task scheduling) rather than detailed API parameters for hyperlocal event discovery.\n\nTo get accurate, current information about these APIs, I recommend:\n\n**For Perplexity AI API**: Check the official Perplexity API documentation at perplexity.mintlify.app for current `web_search_options` parameters. The search results mention a `user_location` parameter for geographic filtering[2], but specific event discovery endpoints and recency filter values aren't detailed in the available information.\n\n**For SerpAPI**: Visit their official documentation to verify whether `engine=google_events` exists and what parameters it supports. The search results don't contain SerpAPI-specific information.\n\n**For NewsAPI**: Their official documentation would have current location filtering capabilities and parameter specifications.\n\n**For Google Gemini 2.5 Pro**: Google's API documentation would provide the latest parameters for data extraction and geocoding.\n\nSince these are rapidly evolving APIs and you need precise parameter names, exact endpoint URLs, and valid value ranges as of December 2025, I strongly recommend consulting each provider's official API documentation directly rather than relying on potentially outdated information. API specifications change frequently, and official documentation will have the most current and accurate details for your hyperlocal event discovery use case.",
+      "citations": [
+        "https://www.appypieautomate.ai/integrate/apps/google-calendar/integrations/perplexity-ai",
+        "https://perplexity.mintlify.app/guides/user-location-filter-guide",
+        "https://hostman.com/blog/how-perplexity-ai-works/",
+        "https://www.perplexity.ai/help-center/en/articles/11521526-perplexity-tasks",
+        "https://www.index.dev/blog/perplexity-vs-google-ai-overviews",
+        "https://picovoice.ai/blog/add-voice-to-perplexity/",
+        "https://kanerika.com/blogs/perplexity-vs-chatgpt/",
+        "https://www.moin.ai/en/chatbot-wiki/perplexity-chatgpt"
+      ],
+      "relatedQuestions": []
+    }
+  ],
+  "parameter_constraints": {
+    "topic": "parameter_constraints",
+    "timestamp": "2025-12-02T19:10:47.510Z",
+    "answer": "## OpenAI GPT-5 Parameters\n\n**GPT-5 does not support temperature, top_p, frequency_penalty, or presence_penalty.**[2] These parameters are explicitly unsupported with reasoning models in the GPT-5 series.\n\nInstead, GPT-5 uses the **reasoning_effort** parameter to control model behavior. This parameter replaces the traditional sampling parameters (temperature, top_p, frequency_penalty, presence_penalty) that governed output randomness and diversity in earlier models.\n\nThe valid values for **reasoning_effort** are:[2]\n- minimal\n- low\n- medium\n- high\n\nAdditionally, GPT-5 does not support **max_tokens**, **logprobs**, **top_logprobs**, **logit_bias**, or the **apply_patch** and **shell** tools.[2] Support for the apply_patch and shell tools with GPT-5.1 series models is coming soon.\n\nFor output control, GPT-5 models (GPT-5, GPT-5 Mini, and GPT-5 Nano) support a **Verbosity** setting that can be configured to Low (default), Medium, or High, which determines how many output tokens the model generates for each request.[3]\n\n## Anthropic Claude Sonnet 4.5 Parameters\n\nThe search results do not contain specific information about which API parameters Claude Sonnet 4.5 supports. However, the model ID for Claude Sonnet 4.5 is **claude-sonnet-4-5-20250929**. To obtain accurate parameter information for this model, you would need to consult Anthropic's official API documentation.\n\n## Google Gemini 2.5 Pro Parameters\n\nThe search results do not contain detailed information about Gemini 2.5 Pro's supported parameters. Based on the personalization context, Gemini 2.5 Pro supports standard **temperature** and **max_tokens** parameters, but the search results provided do not include the specific valid ranges or a complete parameter list for this model.\n\n## Breaking Changes from GPT-4 to GPT-5\n\nThe most significant breaking change is the removal of traditional sampling parameters. GPT-4 supported temperature, top_p, frequency_penalty, and presence_penalty, but GPT-5 does not support any of these parameters.[2] Applications migrating from GPT-4 to GPT-5 must remove these parameters from their API calls and instead use the reasoning_effort parameter to control model behavior.",
+    "citations": [
+      "https://platform.openai.com/docs/deprecations",
+      "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/reasoning?view=foundry-classic",
+      "https://gptforwork.com/help/release-notes",
+      "https://help.openai.com/zh-hant/articles/10128477-chatgpt-enterprise-edu-release-notes",
+      "https://developers.openai.com/changelog"
+    ]
+  },
+  "deprecated_models": {
+    "topic": "deprecated_models",
+    "timestamp": "2025-12-02T19:10:57.421Z",
+    "answer": "# Deprecated AI Models: Late 2024 and Early 2025\n\n## OpenAI Model Deprecations\n\nOpenAI has conducted several significant model retirements during this period, with confirmed deprecations from their official API documentation.\n\n**GPT-4 and GPT-4 Variants**\n\nThe original GPT-4 model was phased out by April 2025[3], replaced by the more capable GPT-4o released in May 2024. Additionally, `gpt-4-32k` and `gpt-4-vision-preview` were deprecated, with `gpt-4-vision-preview` having a six-month sunset window from June 2024[2].\n\n**GPT-4.5-preview**\n\n`gpt-4.5-preview` was deprecated on April 14, 2025, with a shutdown date of July 14, 2025[2][4]. The recommended replacement is `gpt-4.1`[4].\n\n**Reasoning Models (o1 Series)**\n\nTwo reasoning models reached end-of-life in mid-2025:\n- `o1-preview` was deprecated on April 28, 2025, with shutdown on July 28, 2025[2][4]. The replacement is `o3`[2][4].\n- `o1-mini` was deprecated on April 28, 2025, with shutdown on October 27, 2025[2]. The replacement is `o4-mini`[2].\n\n**Realtime API Preview**\n\n`gpt-4o-realtime-preview-2024-10-01` was deprecated on June 10, 2025, with removal on September 10, 2025[2]. Developers should migrate to `gpt-4o-realtime-preview`[2].\n\n**GPT-4o API Deprecation (Upcoming)**\n\nMost significantly, `chatgpt-4o-latest` will be retired from the API in mid-February 2026[1]. OpenAI is encouraging developers to adopt `gpt-5.1` for new workloads, with `gpt-5.1-chat-latest` serving as the general-purpose chat endpoint[1]. The `gpt-4o-mini` variant remains available at a budget tier[1].\n\n**Fine-tuning Deprecations**\n\nNew fine-tuning training on `babbage-002` and `davinci-002` was discontinued on October 28, 2024[2]. The recommended replacement for fine-tuning is `gpt-4o-mini`[2].\n\n**DALL-E 3 Deprecation**\n\nDALL-E 3 model snapshots are scheduled for deprecation on May 2, 2026[7].\n\n## Information Gaps\n\nThe search results do not contain confirmed deprecation information for Anthropic Claude models or Google AI models during this period. Only OpenAI deprecations from official sources are included in this response.",
+    "citations": [
+      "https://novalogiq.com/2025/11/22/openai-is-ending-api-access-to-fan-favorite-gpt-4o-model-in-february-2026/",
+      "https://platform.openai.com/docs/deprecations",
+      "https://netus.ai/blog/gpt-4-retired",
+      "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/legacy-models?view=foundry-classic",
+      "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/model-retirements?view=foundry-classic",
+      "https://community.openai.com/t/deprecation-of-chat-gpt-4o-latest/1367091",
+      "https://community.openai.com/t/openai-is-making-a-huge-mistake-by-deprecating-dall-e-3/1367228",
+      "https://help.openai.com/en/articles/6825453-chatgpt-release-notes"
+    ]
+  },
+  "recommendations": [
+    {
+      "priority": "HIGH",
+      "item": "GPT-5 Parameter Update",
+      "detail": "GPT-5 uses reasoning_effort instead of temperature. Update server/lib/adapters/openai-gpt5.js to remove unsupported parameters.",
+      "snapshot_note": "OpenAI may return snapshot IDs like gpt-5-2025-08-07. Adapter should check model family (startsWith) not exact match."
+    },
+    {
+      "priority": "HIGH",
+      "item": "Model Deprecation",
+      "detail": "Some models may be deprecated. Review the deprecated_models section and update your codebase."
+    },
+    {
+      "priority": "MEDIUM",
+      "item": "Claude 4.5 Verification",
+      "detail": "Verify Claude Sonnet 4.5 model ID matches what you have in server/lib/adapters/anthropic-sonnet45.js"
+    }
+  ],
+  "next_steps": [
+    "Review all findings against official documentation",
+    "Update server/lib/adapters/* files with new model names",
+    "Update docs/reference/LLM_MODELS_REFERENCE.md",
+    "Update .env.example with new model defaults",
+    "Test each model with tools/testing endpoints",
+    "Update ISSUES.md if deprecated models are still in use"
+  ]
+}
