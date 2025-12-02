@@ -1886,8 +1886,6 @@ const CoPilot: React.FC = () => {
           <div data-testid="briefing-section" className="mb-24">
             <BriefingTab 
               snapshotId={lastSnapshotId || undefined}
-              persistedData={briefingData}
-              persistedLoading={briefingLoading}
             />
           </div>
         )}
