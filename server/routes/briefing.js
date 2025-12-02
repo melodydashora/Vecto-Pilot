@@ -3,13 +3,15 @@ import { generateAndStoreBriefing, getBriefingBySnapshotId, fetchTrafficConditio
 import { db } from '../db/drizzle.js';
 import { snapshots, users } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-router.get('/current', async (req, res) => {
+router.get('/current', requireAuth, async (req, res) => {
   try {
     const latestSnapshot = await db.select()
       .from(snapshots)
+      .where(eq(snapshots.user_id, req.auth.userId))
       .orderBy(desc(snapshots.created_at))
       .limit(1);
 
@@ -64,7 +66,7 @@ router.get('/current', async (req, res) => {
   }
 });
 
-router.post('/generate', async (req, res) => {
+router.post('/generate', requireAuth, async (req, res) => {
   try {
     const { snapshotId, lat, lng, city, state, country } = req.body;
 
@@ -103,16 +105,16 @@ router.post('/generate', async (req, res) => {
   }
 });
 
-router.get('/snapshot/:snapshotId', async (req, res) => {
+router.get('/snapshot/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
     
-    // Verify snapshot exists (snapshot creation already validates user)
+    // SECURITY: Verify user owns this snapshot
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     
-    if (snapshotCheck.length === 0) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+      return res.status(404).json({ error: 'snapshot_not_found' }); // 404 prevents enumeration
     }
     let briefing = await getBriefingBySnapshotId(snapshotId);
 
@@ -197,10 +199,11 @@ router.get('/snapshot/:snapshotId', async (req, res) => {
   }
 });
 
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', requireAuth, async (req, res) => {
   try {
     const latestSnapshot = await db.select()
       .from(snapshots)
+      .where(eq(snapshots.user_id, req.auth.userId))
       .orderBy(desc(snapshots.created_at))
       .limit(1);
 

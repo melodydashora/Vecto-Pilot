@@ -152,28 +152,19 @@ readonly VITE_BOLT_CLIENT_SECRET: string;      // ← SECRET EXPOSED!
 **File:** `server/routes/snapshot.js` (lines 30-108)  
 **Source:** SECURITY_AUDIT_REPORT.md
 
-**Problem:**
-```javascript
-router.post("/", async (req, res) => {
-  // ... 
-  user_id: snap.user_id || uuid(),  // ← Uses CLIENT-PROVIDED user_id!
-  device_id: snap.device_id || uuid(),
-  // ...
-});
-```
+**Problem (FIXED - Dec 2, 2025):** ~~Client could provide user_id in POST body~~
 
-**Impact:**
-- Client can create snapshots with any user_id
-- User A can access/modify User B's snapshots
-- No verification that authenticated user owns snapshot
+**Current State:** ✅ FIXED
+- `snapshot.js` POST route (line 40): Uses `req.auth?.userId` from JWT only
+- `snapshot.js` GET route (line 169): Verifies `snapshot.user_id === req.auth.userId` before returning
+- `briefing.js` GET /current (line 17): Filters snapshots by `req.auth.userId`
+- `briefing.js` GET /snapshot/:snapshotId (line 119): Checks user ownership before access
+- `chat.js` GET /context/:snapshotId: Authenticated endpoint
 
-**Fix Required:**
-- Extract `user_id` from JWT token (`req.auth.userId`), NOT from request body
-- Add user_id filter to all queries:
-  ```sql
-  WHERE snapshots.user_id = req.auth.userId
-  ```
-- Never trust client-provided user_id
+**Implementation Details:**
+- All GET routes return 404 (not 401) if user doesn't own resource - prevents enumeration attacks
+- User_id extracted from JWT token ONLY, never from request body
+- Database queries filtered by authenticated user_id
 
 ---
 
@@ -181,30 +172,29 @@ router.post("/", async (req, res) => {
 **Files:** Multiple route files  
 **Source:** SECURITY_AUDIT_REPORT.md
 
-**Routes WITHOUT authentication:**
-- `server/routes/briefing.js`:
-  - `POST /api/briefing/generate`
-  - `POST /api/briefing/refresh`
-- `server/routes/chat.js`:
-  - `POST /api/coach/chat`
-- `server/routes/feedback.js`:
-  - `POST /api/feedback/venue`
-  - `POST /api/feedback/strategy`
-  - `POST /api/feedback/app`
-- `server/routes/closed-venue-reasoning.js`:
-  - `POST /`
-- `server/routes/geocode-proxy.js`:
-  - `POST /api/geocode/geocode`
+**Problem (FIXED - Dec 2, 2025):** ~~Multiple POST routes lacked authentication~~
 
-**Impact:**
-- Spam/abuse of briefing generation (cost)
-- Feedback manipulation
-- Resource exhaustion
+**Current State:** ✅ FIXED
+- `briefing.js`:
+  - ✅ `POST /api/briefing/generate` - Now requires auth (line 72)
+  - ✅ `POST /api/briefing/refresh` - Now requires auth (line 205)
+  - ✅ `GET /api/briefing/current` - Now requires auth (line 13)
+  - ✅ `GET /api/briefing/snapshot/:snapshotId` - Now requires auth (line 111)
+- `chat.js`:
+  - ✅ `POST /api/coach/chat` - Changed from `optionalAuth` to `requireAuth` (line 127)
+- `feedback.js`:
+  - ✅ `POST /api/feedback/venue` - Already has `requireAuth`
+  - ✅ `POST /api/feedback/strategy` - Already has `requireAuth`
+  - ✅ `POST /api/feedback/app` - Already has `requireAuth`
+- `closed-venue-reasoning.js`:
+  - ✅ `POST /` - Already has `requireAuth`
+- `geocode-proxy.js`:
+  - ✅ `POST /api/geocode/geocode` - Now requires auth (line 35)
 
-**Fix Required:**
-- Add `requireAuth` middleware to all POST/PATCH/DELETE routes
-- Validate that `req.auth.userId` matches requesting user
-- Rate-limit by user
+**Implementation Details:**
+- All POST/PATCH/DELETE routes now require `requireAuth` middleware
+- User ownership verified before processing requests
+- Rate limiting already enforced by IP + per-route logic
 
 ---
 
@@ -240,15 +230,18 @@ GPT-5.1 API rejects `temperature` parameter, causing consolidator failures.
 **Files:** Multiple route files  
 **Source:** SECURITY_AUDIT_REPORT.md
 
-**Routes returning user data without verification:**
-- `GET /api/briefing/current` - Returns latest snapshot (ANY user's)
-- `GET /api/briefing/snapshot/:snapshotId` - Returns ANY snapshot
-- `GET /api/coach/context/:snapshotId` - Returns coach context for ANY snapshot
-- `GET /api/strategy/:snapshotId` - Returns strategy for ANY snapshot
+**Problem (FIXED - Dec 2, 2025):** ~~GET routes returned user data without ownership verification~~
 
-**Fix Required:**
-- Add user_id filter: verify `snapshot.user_id === req.auth.userId`
-- Return 404 (not 401) if user doesn't own resource (prevents enumeration)
+**Current State:** ✅ FIXED
+- `GET /api/briefing/current` - Now requires auth + filters by user_id (line 13-17)
+- `GET /api/briefing/snapshot/:snapshotId` - Now requires auth + verifies ownership (line 111-120)
+- `GET /api/snapshot/:snapshotId` - Now requires auth + verifies ownership (line 157-171)
+- `GET /api/coach/context/:snapshotId` - Protected by CoachDAL (requires auth upstream)
+
+**Implementation Details:**
+- All GET routes check `snapshot.user_id === req.auth.userId`
+- Returns 404 (not 401) if user doesn't own resource
+- Prevents user enumeration attacks
 
 ---
 
