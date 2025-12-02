@@ -115,9 +115,16 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
           ? `/api/briefing/snapshot/${snapshotId}`
           : '/api/briefing/current';
       
+      const token = localStorage.getItem('token');
       const options = forceRefresh 
-        ? { method: 'POST' }
-        : { method: 'GET' };
+        ? { 
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          }
+        : { 
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+          };
       
       console.log('[BriefingTab] Fetching from:', endpoint);
       const response = await fetch(endpoint, options);
@@ -162,7 +169,10 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         state: data.location.state || ''
       });
 
-      const response = await fetch(`/api/briefing/traffic/realtime?${params}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/briefing/traffic/realtime?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (response.ok) {
         const result = await response.json();
         if (result.success && data) {
@@ -191,7 +201,10 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         lng: data.location.lng.toString()
       });
 
-      const response = await fetch(`/api/briefing/weather/realtime?${params}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/briefing/weather/realtime?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (response.ok) {
         const result = await response.json();
         if (result.success && data) {
