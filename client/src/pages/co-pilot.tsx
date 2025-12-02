@@ -201,7 +201,10 @@ const CoPilot: React.FC = () => {
     const loadAllTabsData = async (snapshotId: string) => {
       setBriefingLoading(true);
       try {
-        const response = await fetch(`/api/briefing/snapshot/${snapshotId}`);
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/briefing/snapshot/${snapshotId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (response.ok) {
           const data = await response.json();
           setBriefingData(data);
