@@ -99,6 +99,48 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedNews, setExpandedNews] = useState(true);
 
+  // Confirm TBD event details with Gemini
+  const confirmEventDetails = useCallback(async (events: any[]) => {
+    if (!events || events.length === 0) return events;
+    
+    // Check if any events have TBD details
+    const hasTBD = events.some(e => 
+      e.location?.includes('TBD') || 
+      e.event_time?.includes('TBD') || 
+      e.location === 'TBD'
+    );
+
+    if (!hasTBD) {
+      console.log('[BriefingTab] No TBD event details found');
+      return events;
+    }
+
+    try {
+      console.log('[BriefingTab] Confirming TBD event details with Gemini...');
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/briefing/confirm-event-details', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ events })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[BriefingTab] ✅ Event details confirmed by Gemini');
+        return result.confirmed_events || events;
+      } else {
+        console.warn('[BriefingTab] Gemini confirmation failed, using original events');
+        return events;
+      }
+    } catch (err) {
+      console.error('[BriefingTab] Error confirming event details:', err);
+      return events; // Return original events on error
+    }
+  }, []);
+
   const fetchBriefing = useCallback(async (forceRefresh = false) => {
     console.log('[BriefingTab] fetchBriefing called:', { snapshotId, forceRefresh });
     if (forceRefresh) {
@@ -133,17 +175,34 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
       console.log('[BriefingTab] Response:', { status: response.status, ok: response.ok, result });
 
       if (response.ok) {
-        if (forceRefresh && result.briefing) {
+        let briefingData = result;
+        
+        // Confirm TBD event details if events exist
+        if (result.briefing?.news?.filtered) {
+          const confirmedEvents = await confirmEventDetails(result.briefing.news.filtered);
+          briefingData = {
+            ...result,
+            briefing: {
+              ...result.briefing,
+              news: {
+                ...result.briefing.news,
+                filtered: confirmedEvents
+              }
+            }
+          };
+        }
+
+        if (forceRefresh && briefingData.briefing) {
           setData({
-            snapshot_id: result.snapshot_id || snapshotId || '',
-            location: result.location || { city: '', state: '', lat: 0, lng: 0 },
-            briefing: result.briefing,
+            snapshot_id: briefingData.snapshot_id || snapshotId || '',
+            location: briefingData.location || { city: '', state: '', lat: 0, lng: 0 },
+            briefing: briefingData.briefing,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
         } else {
-          console.log('[BriefingTab] Setting data:', result);
-          setData(result);
+          console.log('[BriefingTab] Setting data:', briefingData);
+          setData(briefingData);
         }
       } else {
         setError(result.error || "Failed to fetch briefing");
@@ -155,7 +214,7 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
       setLoading(false);
       setRefreshing(false);
     }
-  }, [snapshotId]);
+  }, [snapshotId, confirmEventDetails]);
 
   // Fetch real-time traffic data separately for always-fresh conditions
   const fetchRealtimeTraffic = useCallback(async () => {
