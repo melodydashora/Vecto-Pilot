@@ -78,6 +78,13 @@
       "when": 1764662938051,
       "tag": "0010_natural_cerebro",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1764671835936,
+      "tag": "0011_sad_firestar",
+      "breakpoints": true
     }
   ]
 }
