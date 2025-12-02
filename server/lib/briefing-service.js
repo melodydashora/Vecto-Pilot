@@ -760,8 +760,6 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
 
   const briefingData = {
     snapshot_id: snapshotId,
-    lat,
-    lng,
     city,
     state,
     news: newsResult,
@@ -780,8 +778,6 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     if (existing.length > 0) {
       await db.update(briefings)
         .set({
-          lat: briefingData.lat,
-          lng: briefingData.lng,
           city: briefingData.city,
           state: briefingData.state,
           news: briefingData.news,
