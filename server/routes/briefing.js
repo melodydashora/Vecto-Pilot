@@ -294,4 +294,26 @@ router.get('/weather/realtime', async (req, res) => {
   }
 });
 
+// Confirm TBD event details endpoint
+router.post('/confirm-event-details', requireAuth, async (req, res) => {
+  try {
+    const { events } = req.body;
+    
+    if (!events || !Array.isArray(events)) {
+      return res.status(400).json({ error: 'events array is required' });
+    }
+
+    console.log(`[BriefingRoute] Confirming TBD details for ${events.length} events`);
+    const confirmed = await confirmTBDEventDetails(events);
+
+    res.json({
+      success: true,
+      confirmed_events: confirmed
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error confirming event details:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
