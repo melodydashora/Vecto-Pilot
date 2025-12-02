@@ -41,14 +41,12 @@ import { subscribeStrategyReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 import SmartBlocks from '@/components/SmartBlocks';
 import BriefingTab from '@/components/BriefingTab';
-import MapTab from '@/components/MapTab';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Map as MapIcon } from 'lucide-react';
 
 interface SmartBlock {
   name: string;
@@ -170,7 +168,7 @@ const CoPilot: React.FC = () => {
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
   
   // Bottom tab navigation
-  const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing' | 'map'>('strategy');
+  const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing'>('strategy');
   
   // Persistent briefing data (loaded once per snapshot, shared across tab switches)
   const [briefingData, setBriefingData] = useState<any>(null);
@@ -1841,37 +1839,6 @@ const CoPilot: React.FC = () => {
           </div>
         )}
 
-        {/* Map Tab Content - Interactive venue map with traffic */}
-        {activeTab === 'map' && (
-          <div data-testid="map-section">
-            {coords && lastSnapshotId ? (
-              <MapTab 
-                driverLat={coords.latitude}
-                driverLng={coords.longitude}
-                venues={blocks.map((block, idx) => ({
-                  id: `${idx}`,
-                  name: block.name,
-                  lat: block.coordinates.lat,
-                  lng: block.coordinates.lng,
-                  distance_miles: block.estimated_distance_miles,
-                  drive_time_min: block.driveTimeMinutes || block.estimatedWaitTime,
-                  est_earnings_per_ride: block.estimated_earnings,
-                  rank: idx + 1,
-                  value_grade: block.value_grade,
-                }))}
-                snapshotId={lastSnapshotId}
-                isLoading={isLoading}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <MapPin className="w-12 h-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-700">Location Required</h3>
-                <p className="text-gray-500 mt-2">Enable location services to view venues on the map</p>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Venues Tab Content - Bars & High-Volume Venues */}
         {activeTab === 'venues' && (
           <div data-testid="venue-intelligence-section">
@@ -1984,18 +1951,6 @@ const CoPilot: React.FC = () => {
             >
               <MessageSquare className={`w-6 h-6 ${activeTab === 'briefing' ? 'text-indigo-600' : 'text-gray-400'}`} />
               <span className="text-xs font-medium">Briefing</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('map')}
-              className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'map' 
-                  ? 'text-green-600 bg-green-50' 
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-              data-testid="tab-map"
-            >
-              <MapIcon className={`w-6 h-6 ${activeTab === 'map' ? 'text-green-600' : 'text-gray-400'}`} />
-              <span className="text-xs font-medium">Map</span>
             </button>
           </div>
         </div>
