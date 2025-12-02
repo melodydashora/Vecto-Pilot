@@ -131,6 +131,7 @@ export const briefings = pgTable("briefings", {
   weather_forecast: jsonb("weather_forecast"), // Hourly forecast (next 3-6 hours) from Google Weather API
   traffic_conditions: jsonb("traffic_conditions"), // Traffic data from Google Routes API
   events: jsonb("events"), // Local events affecting rideshare drivers
+  school_closures: jsonb("school_closures"), // School district & college closures/reopenings (array of {schoolName, closureStart, reopeningDate, type, impact})
   // Perplexity comprehensive research (background context)
   global_travel: text("global_travel"), // Global conditions affecting this region
   domestic_travel: text("domestic_travel"), // National/domestic travel conditions
