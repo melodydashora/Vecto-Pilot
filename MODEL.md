@@ -74,34 +74,65 @@ ANTHROPIC_API_VERSION=2023-06-01
 
 ---
 
-### Google Gemini 2.5 Pro
-**Status**: ✅ Production
+### Google Gemini 2.5 Pro (Deprecated)
+**Status**: ⚠️ Legacy - Use Gemini 3.0 Pro instead
 
 ```env
 GEMINI_MODEL=gemini-2.5-pro-latest
 ```
 
-**API Details**:
-- **Endpoint**: `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
-- **Model ID**: `gemini-2.5-pro-latest`
-- **Context Window**: 1M tokens
-- **Headers**:
-  - `Authorization: Bearer <API_KEY>`
-  - `Content-Type: application/json`
+---
 
-**Supported Parameters**:
+### Google Gemini 3.0 Pro (NEW - Nov 2025)
+**Status**: ⚠️ Preview (Limited Availability - API timeouts reported)
+
+```env
+GEMINI_MODEL=gemini-3-pro-preview
+GEMINI_TEMPERATURE=1.0
+```
+
+**Note**: Gemini 3.0 Pro preview model currently experiencing API timeout issues. Use Gemini 2.5 Pro for production until general availability released.
+
+**API Details**:
+- **Endpoint**: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`
+- **Model ID**: `gemini-3-pro-preview`
+- **Context Window**: 1M tokens (input), 64K tokens (output)
+- **Knowledge Cutoff**: January 2025
+- **Modalities**: Text, images, video, audio, code, PDFs
+
+**Supported Parameters** (Updated):
 ```javascript
 {
-  "model": "gemini-2.5-pro-latest",
-  "contents": [...],
+  "contents": [{
+    "parts": [{"text": "..."}]
+  }],
   "generationConfig": {
-    "temperature": 0.7,
+    "temperature": 1.0,           // ✅ Keep at default (do NOT lower)
+    "maxOutputTokens": 2000,
     "topP": 0.95,
-    "maxOutputTokens": 2048,
     "stopSequences": [...]
   }
 }
 ```
+
+**Key Improvements Over 2.5 Pro**:
+- 76.2% on SWE-bench Verified (coding tasks)
+- 54.2% on Terminal-Bench 2.0 (tool usage)
+- 1487 Elo on WebDev Arena (best vibe coding model)
+- Better multimodal reasoning
+- Less verbose responses
+- Stronger spatial understanding
+
+**Pricing** (Preview Tier):
+- **Input**: $2/million tokens (≤200k)
+- **Output**: $12/million tokens
+- **Free tier**: 5-10 RPM with 250k TPM limits
+
+**Important Notes**:
+- ⚠️ `thinking_level` parameter NOT YET available via API (coming soon)
+- Keep `temperature: 1.0` - Gemini 3 is tuned for this default
+- Don't use chain-of-thought prompting; model has internal reasoning
+- For event discovery: Use 1.0 temp + max tokens 2000-3000 for natural reasoning
 
 ---
 

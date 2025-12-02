@@ -314,7 +314,7 @@ For each event, provide ONLY a JSON object (no explanations) with:
 
 Return a JSON array with one object per event. If you cannot confirm details, set to 'Unable to confirm'.`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-latest:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -322,7 +322,7 @@ Return a JSON array with one object per event. If you cannot confirm details, se
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 1.0,
+          temperature: 0.7,
           maxOutputTokens: 2000
         }
       })
