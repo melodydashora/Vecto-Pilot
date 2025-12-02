@@ -83,7 +83,19 @@ Supports Mono Mode and Split Mode, featuring health-gated entry points, unified 
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
 
+## Sustainability & Support
+**Vecto Pilot represents 6+ months of architectural planning and 750+ hours of development**, built entirely on personal investment:
+- **Out-of-Pocket Investment**: $5,000+ in API keys, AI models (Claude Sonnet 4.5, Perplexity Sonar Pro, GPT-5.1), and infrastructure
+- **Monthly Hosting**: $40/month Replit infrastructure to keep the platform live
+- **Per-Driver Cost**: ~$125-$250 per active driver to build, host, and maintain with cutting-edge AI
+- **Mission**: Help families get home safer by enabling rideshare drivers to earn more in less time with data-driven, transparent guidance
+- **Vision**: Continuous expansion to new markets, advanced safety features, and unlimited capability to help individuals achieve better quality of life
+
+Every contribution directly supports ongoing development, infrastructure stability, and the ability to expand to more drivers. Donations accepted via the **About** tab (5th tab in Co-Pilot).
+
 ## Recent Changes
+- **Dec 2, 2025**: Added 5th "About/Donation" tab to Co-Pilot showcasing project investment, complexity, and sustainability needs. Direct donation link integrated.
+- **Dec 2, 2025**: Map tab now supports full zoom range (10-18) with pinch-to-zoom only (no +/- buttons) for mobile-first experience.
 - **Nov 30, 2025**: Fixed briefing data loading by implementing location fallback to users table when snapshots have null location. AI Coach now has full access to structured briefing data (weather, traffic, news) through updated CoachDAL.
 - **Nov 30, 2025**: Converted weather metrics to Fahrenheit (°F) throughout briefing display. Updated news API prompt to explicitly request events (concerts, games, parades, watch parties).
 - **Nov 30, 2025**: Established snapshots as central connector across all tables for ML pipeline consistency.
