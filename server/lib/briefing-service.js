@@ -748,7 +748,7 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
   }
 }
 
-export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, state, country = 'US' }) {
+export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, state, formattedAddress, country = 'US' }) {
   console.log(`[BriefingService] Generating briefing for ${city}, ${state}, ${country} (${lat}, ${lng})`);
   
   const [newsResult, weatherResult, trafficResult, schoolClosures] = await Promise.all([
@@ -760,6 +760,7 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
 
   const briefingData = {
     snapshot_id: snapshotId,
+    formatted_address: formattedAddress,
     city,
     state,
     news: newsResult,
@@ -778,6 +779,7 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     if (existing.length > 0) {
       await db.update(briefings)
         .set({
+          formatted_address: briefingData.formatted_address,
           city: briefingData.city,
           state: briefingData.state,
           news: briefingData.news,

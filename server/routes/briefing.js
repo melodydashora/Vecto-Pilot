@@ -162,6 +162,7 @@ router.get('/snapshot/:snapshotId', requireAuth, async (req, res) => {
         lng,
         city: city || 'Unknown',
         state: state || '',
+        formattedAddress: snapshotData.formatted_address || null,
         country: country || 'US'
       });
 
