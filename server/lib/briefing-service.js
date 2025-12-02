@@ -462,6 +462,72 @@ export async function fetchWeatherConditions({ lat, lng }) {
   }
 }
 
+export async function fetchSchoolClosures({ city, state, lat, lng }) {
+  if (!PERPLEXITY_API_KEY) {
+    console.log('[BriefingService] Skipping school closures (no Perplexity API key)');
+    return [];
+  }
+
+  try {
+    const prompt = `Find upcoming school closures/breaks for ${city}, ${state} within 15 miles of coordinates (${lat}, ${lng}) for the next 30 days.
+
+Include:
+1. School district closures (winter break, spring break, professional development days)
+2. Local college/university closures (SMU, UT Dallas, UTA, etc.)
+3. Closure dates and reopening dates
+
+Return ONLY valid JSON array with this structure:
+[
+  {
+    "schoolName": "Dallas ISD" or "Southern Methodist University",
+    "closureStart": "2025-12-15",
+    "reopeningDate": "2026-01-06",
+    "type": "district" | "college",
+    "reason": "Winter Break",
+    "impact": "high" | "medium" | "low"
+  }
+]
+
+RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
+
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'sonar-pro',
+        messages: [{ role: 'user', content: prompt }],
+        search_recency_filter: 'month',
+        temperature: 0.1,
+        max_tokens: 2000
+      })
+    });
+
+    if (!response.ok) {
+      console.warn(`[BriefingService] School closures fetch failed (${response.status})`);
+      return [];
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '[]';
+    
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.warn('[BriefingService] Could not parse school closures response');
+      return [];
+    }
+
+    const closures = JSON.parse(jsonMatch[0]);
+    console.log(`[BriefingService] ✅ Found ${closures.length} school closures for ${city}, ${state}`);
+    return closures;
+  } catch (error) {
+    console.error('[BriefingService] School closures fetch error:', error.message);
+    return [];
+  }
+}
+
 export async function fetchTrafficConditions({ lat, lng, city, state }) {
   try {
     // Import traffic intelligence from venue service
@@ -520,10 +586,11 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
 export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, state, country = 'US' }) {
   console.log(`[BriefingService] Generating briefing for ${city}, ${state}, ${country} (${lat}, ${lng})`);
   
-  const [newsResult, weatherResult, trafficResult] = await Promise.all([
+  const [newsResult, weatherResult, trafficResult, schoolClosures] = await Promise.all([
     fetchRideshareNews({ city, state, lat, lng, country }),
     fetchWeatherConditions({ lat, lng }),
-    fetchTrafficConditions({ lat, lng, city, state })
+    fetchTrafficConditions({ lat, lng, city, state }),
+    fetchSchoolClosures({ city, state, lat, lng })
   ]);
 
   const briefingData = {
@@ -537,6 +604,7 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     weather_forecast: weatherResult.forecast,
     traffic_conditions: trafficResult,
     events: null,
+    school_closures: schoolClosures.length > 0 ? schoolClosures : null,
     created_at: new Date(),
     updated_at: new Date()
   };
@@ -551,6 +619,7 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
           weather_current: briefingData.weather_current,
           weather_forecast: briefingData.weather_forecast,
           traffic_conditions: briefingData.traffic_conditions,
+          school_closures: briefingData.school_closures,
           updated_at: new Date()
         })
         .where(eq(briefings.snapshot_id, snapshotId));

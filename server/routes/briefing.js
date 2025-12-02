@@ -52,7 +52,8 @@ router.get('/current', async (req, res) => {
           forecast: briefing.weather_forecast
         },
         traffic: briefing.traffic_conditions,
-        events: briefing.events
+        events: briefing.events,
+        school_closures: briefing.school_closures
       },
       created_at: briefing.created_at,
       updated_at: briefing.updated_at
@@ -184,7 +185,8 @@ router.get('/snapshot/:snapshotId', async (req, res) => {
           forecast: briefing.weather_forecast
         },
         traffic: briefing.traffic_conditions,
-        events: briefing.events
+        events: briefing.events,
+        school_closures: briefing.school_closures
       },
       created_at: briefing.created_at,
       updated_at: briefing.updated_at
