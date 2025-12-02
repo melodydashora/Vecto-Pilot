@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Newspaper, Cloud, CloudRain, Sun, CloudSun, Thermometer, Wind, Droplets,
   AlertTriangle, Car, RefreshCw, Loader, Clock, ExternalLink, TrendingUp,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, BookOpen
 } from "lucide-react";
 
 interface NewsItem {
@@ -48,6 +48,15 @@ interface TrafficConditions {
   fetchedAt: string;
 }
 
+interface SchoolClosure {
+  schoolName: string;
+  closureStart: string;
+  reopeningDate: string;
+  type: 'district' | 'college';
+  reason: string;
+  impact: 'high' | 'medium' | 'low';
+}
+
 interface BriefingData {
   snapshot_id: string;
   location: {
@@ -69,6 +78,7 @@ interface BriefingData {
     };
     traffic: TrafficConditions | null;
     events: unknown[] | null;
+    school_closures: SchoolClosure[] | null;
   };
   created_at: string;
   updated_at: string;
@@ -291,6 +301,15 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
   const newsItems = briefing?.news?.filtered || briefing?.news?.items || [];
   const weather = briefing?.weather;
   const traffic = briefing?.traffic;
+  const schoolClosures = (briefing?.school_closures as SchoolClosure[]) || [];
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
 
   return (
     <div className="space-y-6" data-testid="briefing-container">
