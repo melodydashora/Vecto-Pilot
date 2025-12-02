@@ -314,7 +314,7 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
   const newsItems = briefing?.news?.filtered || briefing?.news?.items || [];
   const weather = briefing?.weather;
   const traffic = briefing?.traffic;
-  const schoolClosures = (briefing?.school_closures as SchoolClosure[]) || [];
+  const allClosures = (briefing?.school_closures as SchoolClosure[]) || [];
 
   const formatDate = (dateStr: string) => {
     try {
@@ -323,6 +323,26 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
       return dateStr;
     }
   };
+
+  // Filter to show only active closures (during closure period)
+  const isClosureActive = (closure: SchoolClosure): boolean => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize to start of day
+      
+      const closureStart = new Date(closure.closureStart);
+      closureStart.setHours(0, 0, 0, 0);
+      
+      const reopeningDate = new Date(closure.reopeningDate);
+      reopeningDate.setHours(0, 0, 0, 0);
+      
+      return today >= closureStart && today <= reopeningDate;
+    } catch {
+      return true; // Show if date parsing fails
+    }
+  };
+
+  const schoolClosures = allClosures.filter(isClosureActive);
 
   return (
     <div className="space-y-6" data-testid="briefing-container">
