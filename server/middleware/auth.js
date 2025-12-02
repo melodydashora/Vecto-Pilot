@@ -16,8 +16,9 @@ function verifyAppToken(token) {
     const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
     if (signature !== expectedSig) throw new Error('Invalid signature');
     
-    // Ensure userId exists and is not a timestamp-based fake
-    if (!userId.startsWith('user-') && !userId.includes('@')) {
+    // Ensure userId exists and is not empty
+    // Accept UUIDs (primary format), emails, and user- prefix formats
+    if (!userId || userId.length < 8) {
       throw new Error('Invalid userId format');
     }
     
