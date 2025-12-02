@@ -9,10 +9,20 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 Vecto Pilot is a full-stack Node.js application with a multi-service architecture, supporting both monolithic and split deployments.
 
-**Core Services**:
+**Core Services** (Three Distinct Systems):
 -   **Gateway Server**: Handles client traffic, serves the React SPA, routes requests, and manages child processes.
 -   **SDK Server**: Provides business logic via a REST API for data services and the ML data pipeline.
 -   **Agent Server**: Delivers workspace intelligence with secure, token-based access.
+-   **Assistant**: Persistent user preferences and conversation history (table: `assistant_memory`).
+-   **Eidolon**: Project/session state management with snapshots (tables: `eidolon_memory`, `eidolon_snapshots`).
+
+**Authentication & Data Isolation**:
+-   **JWT Secret**: Stored in Replit secrets, used for token generation and validation
+-   **Three Separate Memory Systems**:
+    - **Agent Memory** (`agent_memory`, `agent_changes`): Agent service state tracking
+    - **Assistant Memory** (`assistant_memory`): User conversation history and preferences
+    - **Eidolon Memory** (`eidolon_memory`, `eidolon_snapshots`): Project snapshots and session state
+-   All systems scoped by user_id for complete data isolation
 
 **AI Configuration**:
 The platform utilizes a role-based, model-agnostic architecture with configurable AI models (Strategist, Briefer, Consolidator, Holiday Checker) for its event-driven strategy generation pipeline. AI models are configured via environment variables.
