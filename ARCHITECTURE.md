@@ -109,8 +109,46 @@ Single source of truth for:
 3. **Integration Boundaries** - External dependencies and their limits
 4. **Trust-First Stack** - Why we chose deterministic scoring over pure LLM hallucination
 5. **AI Development Guardrails** - Constraints for AI-driven development at speed
+6. **Sustainability & Mission** - Why this project exists and what it costs to keep it alive
 
 **Critical for:** Fast-moving AI-driven development where rework must be avoided and alignment must be maintained despite rapid iteration.
+
+---
+
+## 💝 **SUSTAINABILITY COMMITMENT**
+
+**Vecto Pilot is built on the belief that rideshare drivers deserve tools that help them earn more safely—not for profit, but for impact.**
+
+### Investment Breakdown
+- **$5,000+ out-of-pocket**: API keys, AI models (Claude Sonnet 4.5, Perplexity Sonar Pro, GPT-5.1), Google APIs, infrastructure setup
+- **6+ months of architectural planning**: Designing a system that balances accuracy, cost, and real-time responsiveness
+- **750+ hours of development**: Building, testing, hardening, and deploying a production-grade platform
+- **$40/month ongoing hosting**: Replit infrastructure to serve drivers 24/7
+
+### Per-Driver Economics
+At current scale, each active driver represents **~$125-$250 in cumulative platform costs** (development + infrastructure + ongoing maintenance). This is the cost to deliver:
+- Multi-model AI pipeline (strategist + briefer + consolidator)
+- Real-time venue intelligence with Google Places/Routes validation
+- Live traffic and weather integration
+- Voice-activated AI coaching
+- Historical feedback loop for continuous improvement
+
+### Mission Beyond Code
+**Vecto Pilot exists to help families get home safer.** This means:
+1. **Drivers earn more in less time** → Fewer hours on the road → Less fatigue and accidents
+2. **Data-driven decisions** → Transparent, repeatable guidance → Reduced speculation and risk
+3. **Unlimited scalability** → Every contribution enables expansion to more markets and drivers
+4. **Continuous innovation** → Each update brings new safety and earnings features
+
+### Contribution Impact
+Every donation directly supports:
+- ✅ Ongoing platform stability and uptime
+- ✅ New feature development (fire venues, advanced analytics, safety scoring)
+- ✅ Expansion to new cities and regions
+- ✅ Reduction of platform costs per driver (economies of scale)
+- ✅ Research into driver safety and earnings optimization
+
+**Donations are accepted through the About tab in Co-Pilot. Thank you for believing in better tools for better lives.**
 
 ---
 

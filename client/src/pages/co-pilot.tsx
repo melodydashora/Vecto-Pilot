@@ -42,13 +42,14 @@ import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 import SmartBlocks from '@/components/SmartBlocks';
 import BriefingTab from '@/components/BriefingTab';
 import MapTab from '@/components/MapTab';
+import { DonationTab } from '@/components/DonationTab';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Map as MapIcon } from 'lucide-react';
+import { Map as MapIcon, Heart } from 'lucide-react';
 
 interface SmartBlock {
   name: string;
@@ -1872,6 +1873,13 @@ const CoPilot: React.FC = () => {
           </div>
         )}
 
+        {/* Donation/About Tab Content */}
+        {activeTab === 'donation' && (
+          <div data-testid="donation-section" className="mb-24">
+            <DonationTab userId={localStorage.getItem('vecto_user_id') || 'default'} />
+          </div>
+        )}
+
         {/* Venues Tab Content - Bars & High-Volume Venues */}
         {activeTab === 'venues' && (
           <div data-testid="venue-intelligence-section">
@@ -1996,6 +2004,18 @@ const CoPilot: React.FC = () => {
             >
               <MapIcon className={`w-6 h-6 ${activeTab === 'map' ? 'text-green-600' : 'text-gray-400'}`} />
               <span className="text-xs font-medium">Map</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('donation')}
+              className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
+                activeTab === 'donation' 
+                  ? 'text-rose-600 bg-rose-50' 
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+              data-testid="tab-donation"
+            >
+              <Heart className={`w-6 h-6 ${activeTab === 'donation' ? 'text-rose-600' : 'text-gray-400'}`} />
+              <span className="text-xs font-medium">About</span>
             </button>
           </div>
         </div>
