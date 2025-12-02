@@ -74,6 +74,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     staleTime: 45000,
   });
 
+  // Single events query that fetches all events (local events + live music + concerts) with Places API resolution
   const eventsQuery = useQuery({
     queryKey: ['/api/briefing/events', snapshotId],
     queryFn: async () => {
@@ -82,20 +83,6 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to fetch events');
-      return response.json();
-    },
-    enabled: !!snapshotId,
-    staleTime: 45000,
-  });
-
-  const concertsQuery = useQuery({
-    queryKey: ['/api/briefing/concerts', snapshotId],
-    queryFn: async () => {
-      if (!snapshotId || !token) return null;
-      const response = await fetch(`/api/briefing/concerts/${snapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch concerts');
       return response.json();
     },
     enabled: !!snapshotId,
@@ -196,12 +183,13 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const weather = weatherQuery.data?.weather;
   const traffic = trafficQuery.data?.traffic;
   const news = rideshareNewsQuery.data?.news;
-  const events = eventsQuery.data?.events || [];
-  const concerts = concertsQuery.data?.concerts || [];
+  const allEvents = eventsQuery.data?.events || [];
   const allClosures = schoolClosuresQuery.data?.school_closures || [];
   const schoolClosures = allClosures.filter(isClosureActive);
-  const eventsToday = events.filter(isEventToday);
-  const concertsToday = concerts.filter(isEventToday);
+  
+  // Filter events by type
+  const eventsToday = allEvents.filter(e => isEventToday(e) && e.event_type !== 'concert');
+  const concertsToday = allEvents.filter(e => isEventToday(e) && e.event_type === 'concert');
   const newsItems = (news?.filtered || news?.items || []).filter(isEventToday);
 
   return (
@@ -555,7 +543,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         )}
       </Card>
 
-      {/* Local Events Card */}
+      {/* Local Events & Live Music Card (non-concerts) */}
       <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200" data-testid="events-card">
         <CardHeader 
           className="pb-2 cursor-pointer hover:bg-green-100/50 transition-colors"
@@ -568,7 +556,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
               ) : (
                 <>
                   <BookOpen className="w-5 h-5 text-green-600" />
-                  Local Events
+                  Local Events & Live Music
                   {eventsToday.length > 0 && (
                     <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 ml-2">
                       {eventsToday.length}
@@ -600,17 +588,18 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
                     </div>
                     {event.location && <p className="text-xs text-gray-600 mb-1">📍 {event.location}</p>}
                     {event.event_time && <p className="text-xs text-gray-600">🕐 {event.event_time}</p>}
+                    {event.staging_area && <p className="text-xs text-green-600 font-medium">📍 Staging: {event.staging_area}</p>}
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm text-center py-4">No local events today</p>
+              <p className="text-gray-500 text-sm text-center py-4">No local events or live music today</p>
             )}
           </CardContent>
         )}
       </Card>
 
-      {/* Concerts Card */}
+      {/* Concerts & Music Card */}
       <Card className="bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" data-testid="concerts-card">
         <CardHeader 
           className="pb-2 cursor-pointer hover:bg-pink-100/50 transition-colors"
@@ -618,7 +607,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              {concertsQuery.isLoading ? (
+              {eventsQuery.isLoading ? (
                 <Loader className="w-5 h-5 animate-spin text-pink-600" />
               ) : (
                 <>
@@ -641,7 +630,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedConcerts && (
           <CardContent>
-            {concertsQuery.isLoading ? (
+            {eventsQuery.isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-pink-600 mr-2" />
                 <span className="text-gray-600">Loading concerts...</span>
@@ -655,6 +644,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
                     </div>
                     {concert.location && <p className="text-xs text-gray-600 mb-1">🎵 {concert.location}</p>}
                     {concert.event_time && <p className="text-xs text-gray-600">🕐 {concert.event_time}</p>}
+                    {concert.staging_area && <p className="text-xs text-pink-600 font-medium">📍 Staging: {concert.staging_area}</p>}
                   </div>
                 ))}
               </div>
