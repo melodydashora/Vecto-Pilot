@@ -173,9 +173,13 @@ const CoPilot: React.FC = () => {
   // Bottom tab navigation
   const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing' | 'map'>('strategy');
   
-  // Persistent briefing data (loaded once per snapshot, shared across tab switches)
+  // Persistent briefing data (loaded once per location, shared across tab switches)
   const [briefingData, setBriefingData] = useState<any>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
+  
+  // Persistent venue data (loaded once per location, shared across tab switches)
+  const [venueData, setVenueData] = useState<any>(null);
+  const [venueLoading, setVenueLoading] = useState(false);
 
   // Ref to track polling status changes (reduces console spam by only logging transitions)
   const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
@@ -196,31 +200,73 @@ const CoPilot: React.FC = () => {
   // Use override coords if available, otherwise GPS
   const coords = overrideCoords || gpsCoords;
   
-  // Load all three tabs concurrently when snapshot changes
+  // Load Briefing + Venue data in parallel when location resolves (same trigger as SmartBlocks)
   useEffect(() => {
-    const loadAllTabsData = async (snapshotId: string) => {
+    if (!coords?.lat || !coords?.lng || !coords?.city || !coords?.state) {
+      return;
+    }
+    
+    console.log('📍 [CoPilot] Location resolved - loading briefing + venue data in parallel');
+    
+    const loadLocationData = async () => {
       setBriefingLoading(true);
+      setVenueLoading(true);
+      
       try {
+        // Fetch briefing data using location (not snapshot-dependent)
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/briefing/snapshot/${snapshotId}`, {
+        const params = new URLSearchParams({
+          lat: coords.lat.toString(),
+          lng: coords.lng.toString(),
+          city: coords.city,
+          state: coords.state
+        });
+        
+        const briefingResponse = await fetch(`/api/briefing/weather/realtime?${params}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (response.ok) {
-          const data = await response.json();
-          setBriefingData(data);
-          console.log('✅ All briefing tabs loaded:', { news: data.briefing?.news?.length, weather: !!data.briefing?.weather, traffic: !!data.briefing?.traffic });
+        
+        if (briefingResponse.ok) {
+          const briefingResult = await briefingResponse.json();
+          if (briefingResult.success) {
+            setBriefingData(briefingResult.weather || briefingResult);
+            console.log('✅ Briefing data loaded from location');
+          }
         }
       } catch (err) {
-        console.error('❌ Failed to load briefing tabs:', err);
+        console.error('❌ Failed to load briefing data:', err);
       } finally {
         setBriefingLoading(false);
       }
+      
+      try {
+        // Fetch venue data using location (not snapshot-dependent)
+        const venueParams = new URLSearchParams({
+          lat: coords.lat.toString(),
+          lng: coords.lng.toString(),
+          city: coords.city,
+          state: coords.state,
+          radius: '15'
+        });
+        
+        const venueResponse = await fetch(`/api/venues/smart-blocks?${venueParams}`);
+        
+        if (venueResponse.ok) {
+          const venueResult = await venueResponse.json();
+          if (venueResult.success) {
+            setVenueData(venueResult.data || venueResult);
+            console.log('✅ Venue data loaded from location');
+          }
+        }
+      } catch (err) {
+        console.error('❌ Failed to load venue data:', err);
+      } finally {
+        setVenueLoading(false);
+      }
     };
-
-    if (lastSnapshotId) {
-      loadAllTabsData(lastSnapshotId);
-    }
-  }, [lastSnapshotId]);
+    
+    loadLocationData();
+  }, [coords?.lat, coords?.lng, coords?.city, coords?.state]);
 
   // Listen for snapshot-saved event to trigger waterfall and load all tabs
   useEffect(() => {
