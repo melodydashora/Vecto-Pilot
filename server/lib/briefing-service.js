@@ -327,7 +327,7 @@ Return a JSON array with one object per event. If you cannot confirm details, se
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 1.0,
-            maxOutputTokens: 2000
+            maxOutputTokens: 16000
           }
         }),
         signal: controller.signal
