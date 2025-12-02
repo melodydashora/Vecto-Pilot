@@ -42,7 +42,7 @@ const PROVIDERS = {
   },
   google: {
     name: 'google',
-    endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.5-pro'}:generateContent`,
+    endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-3-pro-preview'}:generateContent`,
     maxConcurrency: parseInt(process.env.GEMINI_MAX_CONCURRENCY) || 12,
     headers: () => ({
       'content-type': 'application/json'
