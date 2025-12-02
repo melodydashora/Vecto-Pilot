@@ -768,7 +768,7 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     weather_current: weatherResult.current,
     weather_forecast: weatherResult.forecast,
     traffic_conditions: trafficResult,
-    events: null,
+    events: newsResult.filtered || newsResult.items || [],
     school_closures: schoolClosures.length > 0 ? schoolClosures : null,
     created_at: new Date(),
     updated_at: new Date()
@@ -780,10 +780,15 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     if (existing.length > 0) {
       await db.update(briefings)
         .set({
+          lat: briefingData.lat,
+          lng: briefingData.lng,
+          city: briefingData.city,
+          state: briefingData.state,
           news: briefingData.news,
           weather_current: briefingData.weather_current,
           weather_forecast: briefingData.weather_forecast,
           traffic_conditions: briefingData.traffic_conditions,
+          events: briefingData.events,
           school_closures: briefingData.school_closures,
           updated_at: new Date()
         })
