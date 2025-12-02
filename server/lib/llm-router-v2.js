@@ -171,7 +171,7 @@ function buildProviders() {
       cooldownMs: Number(cfg('CIRCUIT_COOLDOWN_MS','60000')),
     });
     const gate = new Gate(Number(cfg('GEMINI_MAX_CONCURRENCY','12')));
-    const geminiModel = cfg('GEMINI_MODEL','gemini-2.5-pro');
+    const geminiModel = cfg('GEMINI_MODEL','gemini-3-pro-preview');
     P.push({
       key: 'google', model: geminiModel, breaker, gate,
       call: async ({ system, user, perCallMs, signal }) => {

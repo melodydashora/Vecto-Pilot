@@ -472,7 +472,7 @@ router.get('/model-ping', async (req, res) => {
 
       try {
         const genAI = new GoogleGenerativeAI(process.env.GOOGLEAQ_API_KEY);
-        const modelId = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+        const modelId = process.env.GEMINI_MODEL || 'gemini-3-pro-preview';
         const model = genAI.getGenerativeModel({ model: modelId });
         const result = await model.generateContent('ping', { signal: controller.signal });
         
