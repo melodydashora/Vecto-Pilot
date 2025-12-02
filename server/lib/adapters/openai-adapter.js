@@ -27,10 +27,13 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
       body.max_tokens = maxTokens;
     }
 
-    // Add temperature or reasoning_effort (not both for o1 models)
-    if (reasoningEffort) {
+    // GPT-5.1 does NOT support temperature - use reasoning_effort only
+    // o1 models also use reasoning_effort, not temperature
+    const isGPT51 = model.includes('gpt-5.1');
+    if (reasoningEffort && (isGPT5Family || isO1Family)) {
       body.reasoning_effort = reasoningEffort;
-    } else if (temperature !== undefined) {
+      // CRITICAL: Don't set temperature for GPT-5.1 or o1 models (API will reject it)
+    } else if (!isGPT51 && temperature !== undefined) {
       body.temperature = temperature;
     }
 

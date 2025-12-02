@@ -2416,6 +2416,32 @@ Mix-matching file types (TypeScript + JavaScript) at runtime requires explicit t
 
 ---
 
+#### 🔧 **GPT-5.1 Integration & Model Configuration (December 1, 2025)**
+
+**Updates:**
+- ✅ Updated `server/lib/models-dictionary.js` consolidator entry: `gpt-5.1` → `gpt-5.1-2025-11-13`
+- ✅ Updated `server/lib/adapters/openai-adapter.js` to NOT pass `temperature` for GPT-5.1 models
+- ✅ Updated `server/lib/adapters/index.js` to NOT pass temperature to OpenAI for GPT-5.1 and o1 models
+- ✅ Updated `server/lib/validate-env.js` default models to use Claude Sonnet 4.5 and Perplexity Sonar Pro
+
+**GPT-5.1 Parameter Constraints (from OpenAI docs Dec 2025):**
+- ❌ `temperature` - NOT supported (API rejects with "Unsupported value")
+- ❌ `top_p` - NOT supported
+- ❌ `logprobs` - NOT supported
+- ✅ `reasoning_effort` - REQUIRED: "none", "low", "medium", "high"
+- ✅ `max_output_tokens` - Supported (upper bound for total output including reasoning)
+
+**Consolidator Pipeline Change:**
+- Model: `gpt-5.1-2025-11-13` (full versioned identifier)
+- Parameters: `{ reasoning_effort: "medium", max_completion_tokens: 64000 }`
+- Input: Strategist output + snapshot context
+- Output: Consolidated strategy with tactical briefing (traffic, closures, enforcement, summary)
+
+**Why This Works:**
+GPT-5.1 uses internal multi-step reasoning instead of external temperature/top_p controls. The `reasoning_effort` parameter controls depth/cost/latency tradeoff without exposing temperature. This matches OpenAI's new model design philosophy.
+
+---
+
 ### October 9, 2025
 - ✅ **Implemented:** Per-ranking feedback system for venues and strategy
   - Database: venue_feedback & strategy_feedback tables with unique constraints

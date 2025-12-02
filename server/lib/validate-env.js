@@ -42,8 +42,8 @@ export function validateEnvironment() {
   }
   
   // Model configuration validation
-  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-20250514';
-  const briefer = process.env.STRATEGY_BRIEFER || 'sonar';
+  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-sonnet-4-5-20250929';
+  const briefer = process.env.STRATEGY_BRIEFER || 'sonar-pro';
   const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.1-2025-11-13';
   
   console.log('[env-validation] AI Model Configuration:', {
