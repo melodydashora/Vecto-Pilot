@@ -31,7 +31,8 @@ import {
   Moon,
   Volume2,
   Square,
-  Wine
+  Wine,
+  Loader
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
