@@ -1,53 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Newspaper, Cloud, CloudRain, Sun, CloudSun, Thermometer, Wind, Droplets,
-  AlertTriangle, Car, RefreshCw, Loader, Clock, ExternalLink, TrendingUp,
+  Newspaper, Cloud, CloudRain, Sun, CloudSun, Wind, Droplets,
+  AlertTriangle, Car, RefreshCw, Loader, Clock, ExternalLink,
   ChevronDown, ChevronUp, BookOpen
 } from "lucide-react";
-
-interface NewsItem {
-  title: string;
-  summary: string;
-  impact: "high" | "medium" | "low";
-  source: string;
-  link?: string;
-}
-
-interface WeatherCurrent {
-  temperature: { degrees: number; unit: string } | null;
-  feelsLike: { degrees: number; unit: string } | null;
-  conditions: string | null;
-  conditionType: string | null;
-  humidity: number | null;
-  windSpeed: { value: number; unit: string } | null;
-  windDirection: string | null;
-  uvIndex: number | null;
-  precipitation: { value: number; unit: string } | null;
-  visibility: { value: number; unit: string } | null;
-  isDaytime: boolean | null;
-  observedAt: string | null;
-}
-
-interface WeatherForecast {
-  time: string;
-  temperature: { degrees: number; unit: string } | null;
-  conditions: string | null;
-  conditionType: string | null;
-  precipitationProbability: number | null;
-  windSpeed: { value: number; unit: string } | null;
-  isDaytime: boolean | null;
-}
-
-interface TrafficConditions {
-  summary: string | null;
-  incidents: { description: string; severity: string }[];
-  congestionLevel: "low" | "medium" | "high";
-  fetchedAt: string;
-}
 
 interface SchoolClosure {
   schoolName: string;
@@ -61,10 +21,9 @@ interface SchoolClosure {
 interface BriefingTabProps {
   snapshotId?: string;
   persistedData?: any | null;
-  persistedLoading?: boolean;
 }
 
-export default function BriefingTab({ snapshotId, persistedData, persistedLoading }: BriefingTabProps) {
+export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const [expandedWeather, setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedNews, setExpandedNews] = useState(true);
@@ -110,207 +69,11 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
       return response.json();
     },
     enabled: !!snapshotId,
-    staleTime: 45000, // News updates less frequently
+    staleTime: 45000,
   });
 
-  // Confirm TBD event details with Gemini
-  const confirmEventDetails = useCallback(async (events: any[]) => {
-    if (!events || events.length === 0) return events;
-    
-    // Check if any events have TBD details
-    const hasTBD = events.some(e => 
-      e.location?.includes('TBD') || 
-      e.event_time?.includes('TBD') || 
-      e.location === 'TBD'
-    );
-
-    if (!hasTBD) {
-      console.log('[BriefingTab] No TBD event details found');
-      return events;
-    }
-
-    try {
-      console.log('[BriefingTab] Confirming TBD event details with Gemini...');
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/briefing/confirm-event-details', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ events })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('[BriefingTab] ✅ Event details confirmed by Gemini');
-        return result.confirmed_events || events;
-      } else {
-        console.warn('[BriefingTab] Gemini confirmation failed, using original events');
-        return events;
-      }
-    } catch (err) {
-      console.error('[BriefingTab] Error confirming event details:', err);
-      return events; // Return original events on error
-    }
-  }, []);
-
-  const fetchBriefing = useCallback(async (forceRefresh = false) => {
-    console.log('[BriefingTab] fetchBriefing called:', { snapshotId, forceRefresh });
-    if (forceRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError(null);
-
-    try {
-      const endpoint = forceRefresh 
-        ? '/api/briefing/refresh'
-        : snapshotId 
-          ? `/api/briefing/snapshot/${snapshotId}`
-          : '/api/briefing/current';
-      
-      const token = localStorage.getItem('token');
-      const options = forceRefresh 
-        ? { 
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` }
-          }
-        : { 
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` }
-          };
-      
-      console.log('[BriefingTab] Fetching from:', endpoint);
-      const response = await fetch(endpoint, options);
-      const result = await response.json();
-      
-      console.log('[BriefingTab] Response:', { status: response.status, ok: response.ok, result });
-
-      if (response.ok) {
-        let briefingData = result;
-        
-        // Confirm TBD event details if events exist
-        if (result.briefing?.news?.filtered) {
-          const confirmedEvents = await confirmEventDetails(result.briefing.news.filtered);
-          briefingData = {
-            ...result,
-            briefing: {
-              ...result.briefing,
-              news: {
-                ...result.briefing.news,
-                filtered: confirmedEvents
-              }
-            }
-          };
-        }
-
-        if (forceRefresh && briefingData.briefing) {
-          setData({
-            snapshot_id: briefingData.snapshot_id || snapshotId || '',
-            location: briefingData.location || { city: '', state: '', lat: 0, lng: 0 },
-            briefing: briefingData.briefing,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-        } else {
-          console.log('[BriefingTab] Setting data:', briefingData);
-          setData(briefingData);
-        }
-      } else {
-        setError(result.error || "Failed to fetch briefing");
-      }
-    } catch (err) {
-      setError("Network error - please try again");
-      console.error("BriefingTab fetch error:", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [snapshotId, confirmEventDetails]);
-
-  // Fetch real-time traffic data separately for always-fresh conditions
-  const fetchRealtimeTraffic = useCallback(async () => {
-    if (!data?.location) return;
-    
-    try {
-      const params = new URLSearchParams({
-        lat: data.location.lat.toString(),
-        lng: data.location.lng.toString(),
-        city: data.location.city || 'Unknown',
-        state: data.location.state || ''
-      });
-
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/briefing/traffic/realtime?${params}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && data) {
-          setData({
-            ...data,
-            briefing: {
-              ...data.briefing,
-              traffic: result.traffic
-            },
-            updated_at: new Date().toISOString()
-          });
-        }
-      }
-    } catch (err) {
-      console.error("Traffic realtime fetch error:", err);
-    }
-  }, [data]);
-
-  // Fetch real-time weather data separately for always-fresh conditions
-  const fetchRealtimeWeather = useCallback(async () => {
-    if (!data?.location) return;
-    
-    try {
-      const params = new URLSearchParams({
-        lat: data.location.lat.toString(),
-        lng: data.location.lng.toString()
-      });
-
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/briefing/weather/realtime?${params}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && data) {
-          setData({
-            ...data,
-            briefing: {
-              ...data.briefing,
-              weather: result.weather
-            },
-            updated_at: new Date().toISOString()
-          });
-        }
-      }
-    } catch (err) {
-      console.error("Weather realtime fetch error:", err);
-    }
-  }, [data]);
-
-  // Use persisted data from parent when available, fetch independently only on tab switch if needed
-  useEffect(() => {
-    if (persistedData) {
-      console.log('[BriefingTab] Using persisted data from parent');
-      setData(persistedData);
-      setLoading(false);
-    } else if (snapshotId) {
-      console.log('[BriefingTab] useEffect triggered with no persisted data:', { snapshotId });
-      fetchBriefing();
-    }
-  }, [snapshotId, persistedData, fetchBriefing]);
-
-  const celsiusToFahrenheit = (celsius: number) => {
-    return Math.round((celsius * 9/5) + 32);
-  };
+  // Utility functions
+  const celsiusToFahrenheit = (celsius: number) => Math.round((celsius * 9/5) + 32);
 
   const getWeatherIcon = (conditionType?: string | null, isDaytime?: boolean | null) => {
     if (!conditionType) return <Cloud className="w-6 h-6 text-gray-500" />;
@@ -319,7 +82,7 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
     if (type.includes('clear') || type.includes('sunny')) {
       return isDaytime ? <Sun className="w-6 h-6 text-yellow-500" /> : <Cloud className="w-6 h-6 text-gray-400" />;
     }
-    if (type.includes('partly') || type.includes('cloud')) return <CloudSun className="w-6 h-6 text-gray-400" />;
+    if (type.includes('partly') || type.includes('cloud')) return <Sun className="w-6 h-6 text-gray-400" />;
     return <Cloud className="w-6 h-6 text-gray-500" />;
   };
 
@@ -339,56 +102,6 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
     }
   };
 
-  if (loading) {
-    return (
-      <Card data-testid="briefing-loading">
-        <CardContent className="p-6">
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader className="w-8 h-8 animate-spin text-indigo-600 mb-4" />
-            <p className="text-gray-600">Loading briefing data...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card data-testid="briefing-error">
-        <CardContent className="p-6">
-          <div className="flex flex-col items-center justify-center py-12">
-            <AlertTriangle className="w-8 h-8 text-red-500 mb-4" />
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={() => fetchBriefing()} variant="outline">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Try Again
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!data) {
-    return (
-      <Card data-testid="briefing-no-data">
-        <CardContent className="p-6">
-          <div className="flex flex-col items-center justify-center py-12">
-            <Newspaper className="w-8 h-8 text-gray-400 mb-4" />
-            <p className="text-gray-500">No briefing data available</p>
-            <p className="text-sm text-gray-400 mt-2">Create a new snapshot to generate a briefing</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const { briefing, location, updated_at } = data;
-  const allNews = briefing?.news?.filtered || briefing?.news?.items || [];
-  const weather = briefing?.weather;
-  const traffic = briefing?.traffic;
-  const allClosures = (briefing?.school_closures as SchoolClosure[]) || [];
-
   const formatDate = (dateStr: string) => {
     try {
       return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -397,25 +110,20 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
     }
   };
 
-  // Filter to show only active closures (during closure period)
   const isClosureActive = (closure: SchoolClosure): boolean => {
     try {
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Normalize to start of day
-      
+      today.setHours(0, 0, 0, 0);
       const closureStart = new Date(closure.closureStart);
       closureStart.setHours(0, 0, 0, 0);
-      
       const reopeningDate = new Date(closure.reopeningDate);
       reopeningDate.setHours(0, 0, 0, 0);
-      
       return today >= closureStart && today <= reopeningDate;
     } catch {
-      return true; // Show if date parsing fails
+      return true;
     }
   };
 
-  // Filter events to show only today's events
   const isEventToday = (event: any): boolean => {
     try {
       if (!event.event_date) return false;
@@ -427,6 +135,25 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
     }
   };
 
+  if (!snapshotId) {
+    return (
+      <Card data-testid="briefing-no-snapshot">
+        <CardContent className="p-6">
+          <div className="flex flex-col items-center justify-center py-12">
+            <Newspaper className="w-8 h-8 text-gray-400 mb-4" />
+            <p className="text-gray-500">No snapshot available</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Extract data from queries
+  const weather = weatherQuery.data?.weather;
+  const traffic = trafficQuery.data?.traffic;
+  const newsData = newsQuery.data;
+  const allClosures = (newsData?.school_closures as SchoolClosure[]) || [];
+  const allNews = newsData?.news?.filtered || newsData?.news?.items || [];
   const schoolClosures = allClosures.filter(isClosureActive);
   const newsItems = allNews.filter(isEventToday);
 
@@ -436,14 +163,9 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         <div className="flex items-center gap-2 flex-wrap">
           <Newspaper className="w-5 h-5 text-indigo-600" />
           <h2 className="text-lg font-semibold text-gray-800">Driver Briefing</h2>
-          {location?.city && (
-            <Badge variant="outline" className="ml-2">
-              {location.city}, {location.state}
-            </Badge>
-          )}
-          {data?.snapshot_id && (
+          {snapshotId && (
             <Badge variant="outline" className="text-xs font-mono bg-gray-100 text-gray-600">
-              Snapshot: {data.snapshot_id.slice(0, 8)}...
+              {snapshotId.slice(0, 8)}...
             </Badge>
           )}
         </div>
@@ -451,10 +173,10 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => fetchRealtimeWeather()}
-            disabled={refreshing}
+            onClick={() => weatherQuery.refetch()}
+            disabled={weatherQuery.isPending}
             data-testid="refresh-weather"
-            title="Refresh weather conditions"
+            title="Refresh weather"
           >
             <RefreshCw className="w-4 h-4" />
             <span className="ml-2 hidden sm:inline">Weather</span>
@@ -462,10 +184,10 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => fetchRealtimeTraffic()}
-            disabled={refreshing}
+            onClick={() => trafficQuery.refetch()}
+            disabled={trafficQuery.isPending}
             data-testid="refresh-traffic"
-            title="Refresh traffic conditions"
+            title="Refresh traffic"
           >
             <RefreshCw className="w-4 h-4" />
             <span className="ml-2 hidden sm:inline">Traffic</span>
@@ -473,33 +195,20 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => fetchBriefing(true)}
-            disabled={refreshing}
-            data-testid="refresh-briefing"
+            onClick={() => newsQuery.refetch()}
+            disabled={newsQuery.isPending}
+            data-testid="refresh-news"
+            title="Refresh news"
           >
-            {refreshing ? (
+            {newsQuery.isPending ? (
               <Loader className="w-4 h-4 animate-spin" />
             ) : (
               <RefreshCw className="w-4 h-4" />
             )}
-            <span className="ml-2 hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+            <span className="ml-2 hidden sm:inline">{newsQuery.isPending ? 'Loading...' : 'News'}</span>
           </Button>
         </div>
       </div>
-
-      {updated_at && data?.snapshot_id && (
-        <p className="text-xs text-gray-500 flex items-center gap-2">
-          <Clock className="w-3 h-3" />
-          <span>Last updated: {new Date(updated_at).toLocaleTimeString()}</span>
-          <span className="text-gray-400">• Snapshot ID: {data.snapshot_id}</span>
-        </p>
-      )}
-      {updated_at && !data?.snapshot_id && (
-        <p className="text-xs text-gray-500 flex items-center gap-1">
-          <Clock className="w-3 h-3" />
-          Last updated: {new Date(updated_at).toLocaleTimeString()}
-        </p>
-      )}
 
       {/* School Closures Section */}
       {schoolClosures.length > 0 && (
@@ -557,7 +266,7 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         </Card>
       )}
 
-      {/* Weather Card - Collapsible */}
+      {/* Weather Card */}
       <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200" data-testid="weather-card">
         <CardHeader 
           className="pb-2 cursor-pointer hover:bg-blue-100/50 transition-colors"
@@ -565,12 +274,18 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              {weather?.current && getWeatherIcon(weather.current.conditionType, weather.current.isDaytime)}
-              Current Weather
-              {weather?.current?.temperature && (
-                <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 ml-2">
-                  {celsiusToFahrenheit(weather.current.temperature.degrees)}°F
-                </Badge>
+              {weatherQuery.isLoading ? (
+                <Loader className="w-5 h-5 animate-spin text-blue-600" />
+              ) : (
+                <>
+                  {weather?.current && getWeatherIcon(weather.current.conditionType, weather.current.isDaytime)}
+                  Current Weather
+                  {weather?.current?.temperature && (
+                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 ml-2">
+                      {celsiusToFahrenheit(weather.current.temperature.degrees)}°F
+                    </Badge>
+                  )}
+                </>
               )}
             </CardTitle>
             {expandedWeather ? (
@@ -582,7 +297,12 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         </CardHeader>
         {expandedWeather && (
           <CardContent>
-            {weather?.current ? (
+            {weatherQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="w-5 h-5 animate-spin text-blue-600 mr-2" />
+                <span className="text-gray-600">Loading weather...</span>
+              </div>
+            ) : weather?.current ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
@@ -620,7 +340,6 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
                     )}
                   </div>
                 </div>
-
                 {weather.forecast && weather.forecast.length > 0 && (
                   <div className="pt-3 border-t border-blue-200">
                     <p className="text-sm font-medium text-gray-700 mb-2">6-Hour Forecast</p>
@@ -630,9 +349,7 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
                           <span className="text-xs text-gray-500 font-medium">
                             {hour.time ? new Date(hour.time).toLocaleTimeString([], { hour: 'numeric' }) : `+${idx + 1}h`}
                           </span>
-                          <div className="my-1">
-                            {getWeatherIcon(hour.conditionType, hour.isDaytime)}
-                          </div>
+                          <div className="my-1">{getWeatherIcon(hour.conditionType, hour.isDaytime)}</div>
                           <span className="text-sm font-medium text-gray-800">
                             {celsiusToFahrenheit(hour.temperature?.degrees || 0)}°F
                           </span>
@@ -652,7 +369,7 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         )}
       </Card>
 
-      {/* Traffic Card - Collapsible */}
+      {/* Traffic Card */}
       <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200" data-testid="traffic-card">
         <CardHeader 
           className="pb-2 cursor-pointer hover:bg-orange-100/50 transition-colors"
@@ -660,12 +377,18 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              <Car className="w-5 h-5 text-orange-600" />
-              Traffic Conditions
-              {traffic && (
-                <Badge variant="outline" className={`ml-2 ${getCongestionColor(traffic.congestionLevel).replace('text-', 'text-')} bg-orange-100 border-orange-300`}>
-                  {traffic.congestionLevel}
-                </Badge>
+              {trafficQuery.isLoading ? (
+                <Loader className="w-5 h-5 animate-spin text-orange-600" />
+              ) : (
+                <>
+                  <Car className="w-5 h-5 text-orange-600" />
+                  Traffic Conditions
+                  {traffic && (
+                    <Badge variant="outline" className={`ml-2 ${getCongestionColor(traffic.congestionLevel)} bg-orange-100 border-orange-300`}>
+                      {traffic.congestionLevel}
+                    </Badge>
+                  )}
+                </>
               )}
             </CardTitle>
             {expandedTraffic ? (
@@ -677,7 +400,12 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         </CardHeader>
         {expandedTraffic && (
           <CardContent>
-            {traffic ? (
+            {trafficQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="w-5 h-5 animate-spin text-orange-600 mr-2" />
+                <span className="text-gray-600">Loading traffic...</span>
+              </div>
+            ) : traffic ? (
               <div className="space-y-3">
                 <div className="p-3 bg-white/50 rounded-lg">
                   <p className="text-gray-700 font-medium">{traffic.summary || 'No significant traffic issues'}</p>
@@ -706,7 +434,7 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         )}
       </Card>
 
-      {/* News Card - Collapsible */}
+      {/* News Card */}
       <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200" data-testid="news-card">
         <CardHeader 
           className="pb-2 cursor-pointer hover:bg-purple-100/50 transition-colors"
@@ -714,12 +442,18 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              <Newspaper className="w-5 h-5 text-purple-600" />
-              Rideshare News
-              {newsItems.length > 0 && (
-                <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 ml-2">
-                  {newsItems.length}
-                </Badge>
+              {newsQuery.isLoading ? (
+                <Loader className="w-5 h-5 animate-spin text-purple-600" />
+              ) : (
+                <>
+                  <Newspaper className="w-5 h-5 text-purple-600" />
+                  Rideshare News
+                  {newsItems.length > 0 && (
+                    <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 ml-2">
+                      {newsItems.length}
+                    </Badge>
+                  )}
+                </>
               )}
             </CardTitle>
             {expandedNews ? (
@@ -731,7 +465,12 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         </CardHeader>
         {expandedNews && (
           <CardContent>
-            {newsItems.length > 0 ? (
+            {newsQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
+                <span className="text-gray-600">Loading news...</span>
+              </div>
+            ) : newsItems.length > 0 ? (
               <div className="space-y-3">
                 {newsItems.map((item, idx) => (
                   <article 
@@ -763,11 +502,10 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
                   </article>
                 ))}
               </div>
-            ) : briefing?.news?.error ? (
+            ) : newsQuery.isError ? (
               <div className="text-center py-4">
                 <AlertTriangle className="w-6 h-6 text-yellow-500 mx-auto mb-2" />
                 <p className="text-sm text-gray-600">Unable to fetch news</p>
-                <p className="text-xs text-gray-400 mt-1">{briefing.news.error}</p>
               </div>
             ) : (
               <p className="text-gray-500 text-sm text-center py-4">
@@ -778,5 +516,5 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         )}
       </Card>
     </div>
-  );==
+  );
 }
