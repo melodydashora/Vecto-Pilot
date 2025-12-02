@@ -273,7 +273,7 @@ async function convertNewsToEvents(newsItems, city, state, lat, lng) {
   }));
 }
 
-// Confirm TBD event details using Gemini 2.5 Pro
+// Confirm TBD event details using Gemini 3.0 Pro
 export async function confirmTBDEventDetails(events) {
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] Gemini API key not configured, skipping TBD confirmation');
@@ -314,7 +314,7 @@ For each event, provide ONLY a JSON object (no explanations) with:
 
 Return a JSON array with one object per event. If you cannot confirm details, set to 'Unable to confirm'.`;
 
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -322,11 +322,10 @@ Return a JSON array with one object per event. If you cannot confirm details, se
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.3,
+          temperature: 1.0,
           maxOutputTokens: 2000
         }
-      }),
-      params: new URLSearchParams({ key: GEMINI_API_KEY })
+      })
     });
 
     if (!response.ok) {
