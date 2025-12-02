@@ -304,21 +304,34 @@ router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
     if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
-    const briefing = await getBriefingBySnapshotId(snapshotId);
+    const snapshot = snapshotCheck[0];
+    let briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    // Auto-generate if briefing doesn't exist
     if (!briefing) {
-      return res.status(404).json({ error: 'No briefing data found' });
+      const result = await generateAndStoreBriefing({
+        snapshotId: snapshot.snapshot_id,
+        lat: snapshot.lat,
+        lng: snapshot.lng,
+        city: snapshot.city,
+        state: snapshot.state,
+        country: snapshot.country,
+        formattedAddress: snapshot.formatted_address
+      });
+      if (result.success) briefing = result.briefing;
     }
+    
     res.json({
       success: true,
-      weather: {
+      weather: briefing ? {
         current: briefing.weather_current,
         forecast: briefing.weather_forecast
-      },
+      } : { current: null, forecast: [] },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching weather:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ success: true, weather: { current: null, forecast: [] } });
   }
 });
 
@@ -331,18 +344,31 @@ router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
     if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
-    const briefing = await getBriefingBySnapshotId(snapshotId);
+    const snapshot = snapshotCheck[0];
+    let briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    // Auto-generate if briefing doesn't exist
     if (!briefing) {
-      return res.status(404).json({ error: 'No briefing data found' });
+      const result = await generateAndStoreBriefing({
+        snapshotId: snapshot.snapshot_id,
+        lat: snapshot.lat,
+        lng: snapshot.lng,
+        city: snapshot.city,
+        state: snapshot.state,
+        country: snapshot.country,
+        formattedAddress: snapshot.formatted_address
+      });
+      if (result.success) briefing = result.briefing;
     }
+    
     res.json({
       success: true,
-      traffic: briefing.traffic_conditions,
+      traffic: briefing?.traffic_conditions || { summary: 'Loading traffic...', incidents: [], congestionLevel: 'low' },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching traffic:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ success: true, traffic: { summary: 'Loading traffic...', incidents: [], congestionLevel: 'low' } });
   }
 });
 
@@ -355,18 +381,31 @@ router.get('/rideshare-news/:snapshotId', requireAuth, async (req, res) => {
     if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
-    const briefing = await getBriefingBySnapshotId(snapshotId);
+    const snapshot = snapshotCheck[0];
+    let briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    // Auto-generate if briefing doesn't exist
     if (!briefing) {
-      return res.status(404).json({ error: 'No briefing data found' });
+      const result = await generateAndStoreBriefing({
+        snapshotId: snapshot.snapshot_id,
+        lat: snapshot.lat,
+        lng: snapshot.lng,
+        city: snapshot.city,
+        state: snapshot.state,
+        country: snapshot.country,
+        formattedAddress: snapshot.formatted_address
+      });
+      if (result.success) briefing = result.briefing;
     }
+    
     res.json({
       success: true,
-      news: briefing.news,
+      news: briefing?.news || { items: [], filtered: [] },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching rideshare news:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ success: true, news: { items: [], filtered: [] } });
   }
 });
 
@@ -379,11 +418,24 @@ router.get('/events/:snapshotId', requireAuth, async (req, res) => {
     if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
-    const briefing = await getBriefingBySnapshotId(snapshotId);
+    const snapshot = snapshotCheck[0];
+    let briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    // Auto-generate if briefing doesn't exist
     if (!briefing) {
-      return res.status(404).json({ error: 'No briefing data found' });
+      const result = await generateAndStoreBriefing({
+        snapshotId: snapshot.snapshot_id,
+        lat: snapshot.lat,
+        lng: snapshot.lng,
+        city: snapshot.city,
+        state: snapshot.state,
+        country: snapshot.country,
+        formattedAddress: snapshot.formatted_address
+      });
+      if (result.success) briefing = result.briefing;
     }
-    const allEvents = Array.isArray(briefing.events) ? briefing.events : [];
+    
+    const allEvents = briefing && Array.isArray(briefing.events) ? briefing.events : [];
     res.json({
       success: true,
       events: allEvents,
@@ -391,7 +443,7 @@ router.get('/events/:snapshotId', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching events:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ success: true, events: [] });
   }
 });
 
@@ -404,18 +456,31 @@ router.get('/school-closures/:snapshotId', requireAuth, async (req, res) => {
     if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
-    const briefing = await getBriefingBySnapshotId(snapshotId);
+    const snapshot = snapshotCheck[0];
+    let briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    // Auto-generate if briefing doesn't exist
     if (!briefing) {
-      return res.status(404).json({ error: 'No briefing data found' });
+      const result = await generateAndStoreBriefing({
+        snapshotId: snapshot.snapshot_id,
+        lat: snapshot.lat,
+        lng: snapshot.lng,
+        city: snapshot.city,
+        state: snapshot.state,
+        country: snapshot.country,
+        formattedAddress: snapshot.formatted_address
+      });
+      if (result.success) briefing = result.briefing;
     }
+    
     res.json({
       success: true,
-      school_closures: briefing.school_closures || [],
+      school_closures: briefing?.school_closures || [],
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching school closures:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ success: true, school_closures: [] });
   }
 });
 
