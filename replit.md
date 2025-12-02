@@ -103,8 +103,38 @@ Supports Mono Mode and Split Mode, featuring health-gated entry points, unified 
 
 Every contribution directly supports ongoing development, infrastructure stability, and the ability to expand to more drivers. Donations accepted via the **About** tab (5th tab in Co-Pilot).
 
+## Data Architecture - Precise Location Denormalization Pattern
+
+Every table that references `snapshot_id` also stores the **resolved precise location** (formatted_address, city, state) to enable fast queries, relational consistency, and ML training without joins:
+
+**Tables with Denormalized Location:**
+- `briefings` - Event/weather/traffic briefing with location context
+- `rankings` - Venue rankings with location context
+- `triad_jobs` - Strategy job tracking with location context
+- `actions` - User actions with location context
+- `venue_feedback` - Venue feedback with location context
+- `strategy_feedback` - Strategy feedback with location context
+- `app_feedback` - App feedback with location context
+
+**Flow:**
+1. Snapshot created with resolved location (formatted_address, city, state) from geocoding API
+2. briefing-service.generateAndStoreBriefing() receives formatted_address parameter
+3. Location automatically denormalized to briefings table during insert/update
+4. All other tables populate location fields when their records are created
+5. Result: Every row has snapshot_id + full address context for fast filtering/analytics
+
+**What's NOT denormalized:**
+- Original GPS coordinates (lat/lng) - These stay in snapshots table only
+- Unresolved data - Only precise resolved location is copied to other tables
+
+**Why this matters:**
+- ✅ Fast queries by city/state without snapshot joins
+- ✅ ML training on precise context (not GPS noise)
+- ✅ Relational consistency across all feedback and analytics
+- ✅ All API calls, LLM prompts, and user actions tied to location context
+
 ## Recent Changes
-- **Dec 2, 2025 (FINAL)**: Refactored to Gemini 3.0 Pro ONLY for events (removed Perplexity/SerpAPI/NewsAPI). Added Google Places API integration for event enrichment (addresses, staging areas). Events now show full venue details with driver-ready staging recommendations. Denormalized location fields (lat, lng, city, state) to ALL snapshot-related tables (rankings, triad_jobs, actions, venue_feedback, strategy_feedback, app_feedback) for relational consistency and fast access without joins. Briefing table now stores location + events from snapshot context in parallel.
+- **Dec 2, 2025 (FINAL)**: Complete precise location denormalization across all snapshot-related tables. Each table now stores formatted_address + city + state denormalized from snapshot for relational consistency and fast access without joins. Gemini 3.0 Pro ONLY for events (removed Perplexity/SerpAPI/NewsAPI). Google Places API enriches events with full addresses + staging areas. Events show full venue details with driver-ready staging recommendations. Events now auto-land in briefing table with location context in parallel.
 - **Dec 2, 2025**: Fixed briefing data persistence - location fields now land in briefing table automatically when snapshot is created.
 - **Dec 2, 2025**: Added 5th "About/Donation" tab to Co-Pilot showcasing project investment, complexity, and sustainability needs. Direct donation link integrated.
 - **Dec 2, 2025**: Map tab now supports full zoom range (10-18) with pinch-to-zoom only (no +/- buttons) for mobile-first experience.
