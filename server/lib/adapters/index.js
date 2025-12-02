@@ -31,7 +31,10 @@ export async function callModel(role, { system, user }) {
   // Provider dispatch by model prefix
   if (model.startsWith("gpt-") || model.startsWith("o1-")) {
     const reasoningEffort = process.env[`${key}_REASONING_EFFORT`] || undefined;
-    return callOpenAI({ model, system, user, maxTokens, temperature, reasoningEffort });
+    // CRITICAL: GPT-5.1 and o1 models don't support temperature - pass undefined
+    const isGPT51OrO1 = model.includes('gpt-5.1') || model.startsWith('o1-');
+    const tempToPass = isGPT51OrO1 ? undefined : temperature;
+    return callOpenAI({ model, system, user, maxTokens, temperature: tempToPass, reasoningEffort });
   }
   
   if (model.startsWith("claude-")) {

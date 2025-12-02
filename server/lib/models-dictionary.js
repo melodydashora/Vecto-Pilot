@@ -314,7 +314,7 @@ replit_agent: {
   // CONSOLIDATOR - Strategy consolidation
   consolidator: {
     provider: 'openai',
-    model_id: 'gpt-5.1',
+    model_id: 'gpt-5.1-2025-11-13',
     model_name: 'GPT-5.1 (Consolidator)',
     context_window: 272000,
     max_output_tokens: 64000,
