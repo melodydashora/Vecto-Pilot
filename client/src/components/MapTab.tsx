@@ -62,7 +62,7 @@ const MapTab: React.FC<MapTabProps> = ({
           zoom: 12,
           mapTypeControl: true,
           fullscreenControl: true,
-          zoomControl: true,
+          zoomControl: false,
           streetViewControl: false,
           minZoom: 10,
           maxZoom: 18,
