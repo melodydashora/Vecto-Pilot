@@ -218,11 +218,20 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
       return sendOnce(400, { error: 'snapshot_required', message: 'snapshot_id is required' });
     }
 
+    // CRITICAL: Fetch snapshot FIRST to get location data
+    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    if (!snapshot) {
+      return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
+    }
+
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
     const { triad_jobs, briefings } = await import('../../shared/schema.js');
     try {
       const [job] = await db.insert(triad_jobs).values({
         snapshot_id: snapshotId,
+        formatted_address: snapshot.formatted_address,
+        city: snapshot.city,
+        state: snapshot.state,
         kind: 'triad',
         status: 'queued'
       }).onConflictDoNothing().returning();
@@ -237,8 +246,22 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
         const { generateEnhancedSmartBlocks } = await import('../lib/enhanced-smart-blocks.js');
         const { ensureStrategyRow } = await import('../lib/strategy-utils.js');
         
-        // Ensure strategy row exists
+        // Ensure strategy row exists with snapshot location data
         await ensureStrategyRow(snapshotId);
+        
+        // Pre-populate briefing endpoints to start auto-generation in background
+        console.log(`[blocks-fast POST] 🔄 Pre-warming briefing endpoints...`);
+        try {
+          await Promise.allSettled([
+            fetch(`http://localhost:5000/api/briefing/weather/${snapshotId}`).catch(() => null),
+            fetch(`http://localhost:5000/api/briefing/traffic/${snapshotId}`).catch(() => null),
+            fetch(`http://localhost:5000/api/briefing/rideshare-news/${snapshotId}`).catch(() => null),
+            fetch(`http://localhost:5000/api/briefing/events/${snapshotId}`).catch(() => null),
+            fetch(`http://localhost:5000/api/briefing/school-closures/${snapshotId}`).catch(() => null)
+          ]);
+        } catch (e) {
+          console.warn(`[blocks-fast POST] ⚠️ Briefing pre-warm failed (non-critical):`, e.message);
+        }
         
         // STEP 1: Run providers in parallel (10-15s)
         console.log(`[blocks-fast POST] 📡 Step 1/4: Providers...`);
@@ -250,7 +273,6 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
         
         // STEP 2: Fetch provider outputs (use denormalized location from snapshots)
         console.log(`[blocks-fast POST] 📚 Step 2/4: Fetching outputs...`);
-        const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
         console.log(`[blocks-fast POST] 📍 Driver location: ${snapshot?.lat}, ${snapshot?.lng} (${snapshot?.city}, ${snapshot?.state})`);
         const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
         const [briefing] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
