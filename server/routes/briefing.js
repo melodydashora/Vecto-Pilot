@@ -295,6 +295,101 @@ router.get('/weather/realtime', async (req, res) => {
   }
 });
 
+// Component-level endpoint: Weather only
+router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
+  try {
+    const { snapshotId } = req.params;
+    
+    // SECURITY: Verify user owns this snapshot
+    const snapshotCheck = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+      return res.status(404).json({ error: 'snapshot_not_found' });
+    }
+
+    const briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    if (!briefing) {
+      return res.status(404).json({ error: 'No briefing data found' });
+    }
+
+    res.json({
+      success: true,
+      weather: {
+        current: briefing.weather_current,
+        forecast: briefing.weather_forecast
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error fetching weather:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Component-level endpoint: Traffic only
+router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
+  try {
+    const { snapshotId } = req.params;
+    
+    // SECURITY: Verify user owns this snapshot
+    const snapshotCheck = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+      return res.status(404).json({ error: 'snapshot_not_found' });
+    }
+
+    const briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    if (!briefing) {
+      return res.status(404).json({ error: 'No briefing data found' });
+    }
+
+    res.json({
+      success: true,
+      traffic: briefing.traffic_conditions,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error fetching traffic:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Component-level endpoint: News/Events/School Closures (slower, separate fetch)
+router.get('/news/:snapshotId', requireAuth, async (req, res) => {
+  try {
+    const { snapshotId } = req.params;
+    
+    // SECURITY: Verify user owns this snapshot
+    const snapshotCheck = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+      return res.status(404).json({ error: 'snapshot_not_found' });
+    }
+
+    const briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    if (!briefing) {
+      return res.status(404).json({ error: 'No briefing data found' });
+    }
+
+    res.json({
+      success: true,
+      news: briefing.news,
+      events: briefing.events,
+      school_closures: briefing.school_closures,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error fetching news:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Confirm TBD event details endpoint
 router.post('/confirm-event-details', requireAuth, async (req, res) => {
   try {
