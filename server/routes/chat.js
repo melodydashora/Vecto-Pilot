@@ -118,18 +118,18 @@ function buildMessageContent(message, attachments) {
 }
 
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
-// Uses optional auth: allows unauthenticated requests now, will use auth tokens when available
-import { optionalAuth } from '../middleware/auth.js';
+// SECURITY: Requires authentication
+import { requireAuth } from '../middleware/auth.js';
 
-router.post('/', optionalAuth, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [] } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
   }
   
-  // SECURITY: Use authenticated user if not provided
-  const authUserId = req.auth?.userId || userId;
+  // SECURITY: Always use authenticated user, never trust client userId
+  const authUserId = req.auth.userId;
   console.log('[chat] Authenticated user:', authUserId);
 
   console.log('[chat] User:', userId || 'anonymous', '| Thread:', threadHistory.length, 'messages | Attachments:', attachments.length, '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));

@@ -2,6 +2,7 @@
 // server/routes/geocode-proxy.js
 // Secure proxy for geocoding API calls - prevents API key exposure
 import express from 'express';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -27,7 +28,8 @@ function checkRateLimit(ip) {
 }
 
 // Geocode endpoint - proxy to Google Maps API
-router.post('/geocode', async (req, res) => {
+// SECURITY: Requires authentication to prevent abuse
+router.post('/geocode', requireAuth, async (req, res) => {
   const clientIp = req.ip || req.connection.remoteAddress;
   
   // Rate limiting

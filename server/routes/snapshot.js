@@ -149,7 +149,9 @@ router.post("/", async (req, res) => {
 
 // GET /:snapshotId - Fetch snapshot for Coach context (early engagement backup)
 // Snapshot fields: city, state, weather (temp, condition), air (AQI), hour, dayPart, holiday, timezone, coordinates
-router.get("/:snapshotId", async (req, res) => {
+import { requireAuth } from '../middleware/auth.js';
+
+router.get("/:snapshotId", requireAuth, async (req, res) => {
   const { snapshotId } = req.params;
   
   if (!snapshotId) {
@@ -161,8 +163,8 @@ router.get("/:snapshotId", async (req, res) => {
       where: (t) => sql`${t.snapshot_id} = ${snapshotId}`,
     });
     
-    if (!snapshot) {
-      return res.status(404).json({ ok: false, error: 'SNAPSHOT_NOT_FOUND' });
+    if (!snapshot || snapshot.user_id !== req.auth.userId) {
+      return res.status(404).json({ ok: false, error: 'SNAPSHOT_NOT_FOUND' }); // 404 prevents enumeration
     }
     
     console.log('[snapshot-get]', {
