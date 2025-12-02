@@ -1,30 +1,28 @@
 // server/lib/strategy-generator.js
-// Three-stage AI pipeline: Claude Opus 4.1 → Gemini Briefing → GPT-5 Consolidation
+// Orchestrator for parallel multi-model strategy generation
+// Routes to strategy-generator-parallel.js for all strategy generation
 import { db } from '../db/drizzle.js';
-import { snapshots, strategies, users } from '../../shared/schema.js';
-import { eq, sql } from 'drizzle-orm';
-import { callGPT5WithBudget } from './model-retry.js';
-import { callClaude } from './adapters/anthropic-claude.js';
-import { capturelearning, LEARNING_EVENTS } from '../middleware/learning-capture.js';
-import { indexStrategy } from './semantic-search.js';
+import { snapshots, users } from '../../shared/schema.js';
+import { eq } from 'drizzle-orm';
 import { generateMultiStrategy } from './strategy-generator-parallel.js';
 
-// Feature flag for parallel multi-model strategy
-const MULTI_STRATEGY_ENABLED = process.env.MULTI_STRATEGY_ENABLED === 'true';
-
+/**
+ * Generate strategy for a snapshot using parallel multi-model orchestration
+ * This is the single authoritative path for all strategy generation
+ * @param {string} snapshot_id - UUID of snapshot
+ * @returns {Promise<string|null>} - Strategy text or null if failed
+ */
 export async function generateStrategyForSnapshot(snapshot_id) {
-  // Route to parallel orchestration if enabled
-  if (MULTI_STRATEGY_ENABLED) {
-    console.log(`[strategy] Routing to parallel multi-model orchestration (feature enabled)`);
-    // CRITICAL FIX: Fetch snapshot first, then get user location data
+  try {
+    // Fetch snapshot and user location data
     const [snap] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshot_id));
     
     if (!snap) {
-      console.warn(`[strategy] Snapshot not found: ${snapshot_id}`);
+      console.error(`[strategy-generator] Snapshot not found: ${snapshot_id}`);
       return null;
     }
     
-    // Fetch user location data (city, state, formatted_address from users table)
+    // Fetch user location data from users table
     let userLocation = { city: null, state: null, formatted_address: null };
     if (snap.user_id) {
       const [userData] = await db.select().from(users).where(eq(users.user_id, snap.user_id));
@@ -37,6 +35,7 @@ export async function generateStrategyForSnapshot(snapshot_id) {
       }
     }
     
+    // Run parallel multi-model strategy generation
     const strategyResult = await generateMultiStrategy({
       snapshotId: snapshot_id,
       userId: snap.user_id || null,
@@ -47,17 +46,15 @@ export async function generateStrategyForSnapshot(snapshot_id) {
     });
     
     if (strategyResult.ok) {
-      console.log(`[strategy] ✅ Parallel strategy complete: ${strategyResult.strategyId}`);
-      console.log(`[strategy] Audits: ${JSON.stringify(strategyResult.audits)}`);
       return strategyResult.strategy;
     } else {
-      console.error(`[strategy] ❌ Parallel strategy failed: ${strategyResult.reason}`);
+      console.error(`[strategy-generator] Strategy generation failed: ${strategyResult.reason}`);
       return null;
     }
+  } catch (error) {
+    console.error(`[strategy-generator] Error:`, error.message);
+    return null;
   }
-  
-  // Otherwise, fall through to sequential path
-  console.log(`[strategy] Using sequential strategy path (parallel disabled)`);
   
   const startTime = Date.now();
   
