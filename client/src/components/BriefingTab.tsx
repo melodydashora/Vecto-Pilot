@@ -4,9 +4,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Newspaper, Cloud, CloudRain, Sun, CloudSun, Wind, Droplets,
+  Newspaper, Cloud, CloudRain, Sun, Wind, Droplets,
   AlertTriangle, Car, RefreshCw, Loader, Clock, ExternalLink,
-  ChevronDown, ChevronUp, BookOpen
+  ChevronDown, ChevronUp, BookOpen, Music
 } from "lucide-react";
 
 interface SchoolClosure {
@@ -20,13 +20,15 @@ interface SchoolClosure {
 
 interface BriefingTabProps {
   snapshotId?: string;
-  persistedData?: any | null;
 }
 
 export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const [expandedWeather, setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedNews, setExpandedNews] = useState(true);
+  const [expandedEvents, setExpandedEvents] = useState(true);
+  const [expandedConcerts, setExpandedConcerts] = useState(true);
+  const [expandedClosures, setExpandedClosures] = useState(true);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   // Component-level queries - each loads independently
@@ -58,14 +60,56 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     staleTime: 30000,
   });
 
-  const newsQuery = useQuery({
-    queryKey: ['/api/briefing/news', snapshotId],
+  const rideshareNewsQuery = useQuery({
+    queryKey: ['/api/briefing/rideshare-news', snapshotId],
     queryFn: async () => {
       if (!snapshotId || !token) return null;
-      const response = await fetch(`/api/briefing/news/${snapshotId}`, {
+      const response = await fetch(`/api/briefing/rideshare-news/${snapshotId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to fetch news');
+      return response.json();
+    },
+    enabled: !!snapshotId,
+    staleTime: 45000,
+  });
+
+  const eventsQuery = useQuery({
+    queryKey: ['/api/briefing/events', snapshotId],
+    queryFn: async () => {
+      if (!snapshotId || !token) return null;
+      const response = await fetch(`/api/briefing/events/${snapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch events');
+      return response.json();
+    },
+    enabled: !!snapshotId,
+    staleTime: 45000,
+  });
+
+  const concertsQuery = useQuery({
+    queryKey: ['/api/briefing/concerts', snapshotId],
+    queryFn: async () => {
+      if (!snapshotId || !token) return null;
+      const response = await fetch(`/api/briefing/concerts/${snapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch concerts');
+      return response.json();
+    },
+    enabled: !!snapshotId,
+    staleTime: 45000,
+  });
+
+  const schoolClosuresQuery = useQuery({
+    queryKey: ['/api/briefing/school-closures', snapshotId],
+    queryFn: async () => {
+      if (!snapshotId || !token) return null;
+      const response = await fetch(`/api/briefing/school-closures/${snapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch school closures');
       return response.json();
     },
     enabled: !!snapshotId,
@@ -151,11 +195,14 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   // Extract data from queries
   const weather = weatherQuery.data?.weather;
   const traffic = trafficQuery.data?.traffic;
-  const newsData = newsQuery.data;
-  const allClosures = (newsData?.school_closures as SchoolClosure[]) || [];
-  const allNews = newsData?.news?.filtered || newsData?.news?.items || [];
+  const news = rideshareNewsQuery.data?.news;
+  const events = eventsQuery.data?.events || [];
+  const concerts = concertsQuery.data?.concerts || [];
+  const allClosures = schoolClosuresQuery.data?.school_closures || [];
   const schoolClosures = allClosures.filter(isClosureActive);
-  const newsItems = allNews.filter(isEventToday);
+  const eventsToday = events.filter(isEventToday);
+  const concertsToday = concerts.filter(isEventToday);
+  const newsItems = (news?.filtered || news?.items || []).filter(isEventToday);
 
   return (
     <div className="space-y-6" data-testid="briefing-container">
@@ -169,14 +216,13 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
             </Badge>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => weatherQuery.refetch()}
             disabled={weatherQuery.isPending}
             data-testid="refresh-weather"
-            title="Refresh weather"
           >
             <RefreshCw className="w-4 h-4" />
             <span className="ml-2 hidden sm:inline">Weather</span>
@@ -187,7 +233,6 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
             onClick={() => trafficQuery.refetch()}
             disabled={trafficQuery.isPending}
             data-testid="refresh-traffic"
-            title="Refresh traffic"
           >
             <RefreshCw className="w-4 h-4" />
             <span className="ml-2 hidden sm:inline">Traffic</span>
@@ -195,76 +240,77 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => newsQuery.refetch()}
-            disabled={newsQuery.isPending}
+            onClick={() => rideshareNewsQuery.refetch()}
+            disabled={rideshareNewsQuery.isPending}
             data-testid="refresh-news"
-            title="Refresh news"
           >
-            {newsQuery.isPending ? (
-              <Loader className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            <span className="ml-2 hidden sm:inline">{newsQuery.isPending ? 'Loading...' : 'News'}</span>
+            <RefreshCw className="w-4 h-4" />
+            <span className="ml-2 hidden sm:inline">News</span>
           </Button>
         </div>
       </div>
 
-      {/* School Closures Section */}
-      {schoolClosures.length > 0 && (
-        <Card data-testid="school-closures-card">
-          <CardHeader>
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedNews(!expandedNews)}>
-              <BookOpen className="w-5 h-5 text-purple-600" />
-              <CardTitle className="text-base">School Closures ({schoolClosures.length})</CardTitle>
-              {expandedNews ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </div>
-          </CardHeader>
-          {expandedNews && (
-            <CardContent className="space-y-3">
-              {schoolClosures.map((closure, idx) => (
-                <div
-                  key={idx}
-                  className="border rounded-lg p-3 bg-gradient-to-r from-purple-50 to-blue-50"
-                  data-testid={`closure-${closure.type}-${idx}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-gray-900">{closure.schoolName}</p>
-                        <Badge variant="outline" className="text-xs">
-                          {closure.type === 'college' ? '🎓 College' : '🏫 District'}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">{closure.reason}</p>
-                      <div className="flex items-center gap-4 text-xs">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-gray-500" />
-                          <span>Closed: {formatDate(closure.closureStart)}</span>
+      {/* School Closures Section - Always Visible */}
+      <Card data-testid="school-closures-card">
+        <CardHeader>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedClosures(!expandedClosures)}>
+            <BookOpen className="w-5 h-5 text-purple-600" />
+            <CardTitle className="text-base">School Closures ({schoolClosures.length})</CardTitle>
+            {expandedClosures ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        </CardHeader>
+        {expandedClosures && (
+          <CardContent>
+            {schoolClosuresQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
+                <span className="text-gray-600">Loading...</span>
+              </div>
+            ) : schoolClosures.length > 0 ? (
+              <div className="space-y-3">
+                {schoolClosures.map((closure, idx) => (
+                  <div
+                    key={idx}
+                    className="border rounded-lg p-3 bg-gradient-to-r from-purple-50 to-blue-50"
+                    data-testid={`closure-${closure.type}-${idx}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold text-gray-900">{closure.schoolName}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {closure.type === 'college' ? '🎓 College' : '🏫 District'}
+                          </Badge>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-green-600" />
-                          <span>Reopens: {formatDate(closure.reopeningDate)}</span>
+                        <p className="text-sm text-gray-600 mb-2">{closure.reason}</p>
+                        <div className="flex items-center gap-4 text-xs">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-gray-500" />
+                            <span>Closed: {formatDate(closure.closureStart)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-green-600" />
+                            <span>Reopens: {formatDate(closure.reopeningDate)}</span>
+                          </div>
                         </div>
                       </div>
+                      <Badge className={`${
+                        closure.impact === 'high' ? 'bg-red-100 text-red-700' :
+                        closure.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {closure.impact} impact
+                      </Badge>
                     </div>
-                    <Badge className={`${
-                      closure.impact === 'high' ? 'bg-red-100 text-red-700' :
-                      closure.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-green-100 text-green-700'
-                    }`}>
-                      {closure.impact} impact
-                    </Badge>
                   </div>
-                  <p className="text-xs text-gray-600 mt-2 italic">
-                    💡 Campus parking, pickup zones, and shuttle services may be unavailable during closures.
-                  </p>
-                </div>
-              ))}
-            </CardContent>
-          )}
-        </Card>
-      )}
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">No school closures reported</p>
+            )}
+          </CardContent>
+        )}
+      </Card>
 
       {/* Weather Card */}
       <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200" data-testid="weather-card">
@@ -434,15 +480,15 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         )}
       </Card>
 
-      {/* News Card */}
-      <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200" data-testid="news-card">
+      {/* Rideshare News Card */}
+      <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200" data-testid="rideshare-news-card">
         <CardHeader 
           className="pb-2 cursor-pointer hover:bg-purple-100/50 transition-colors"
           onClick={() => setExpandedNews(!expandedNews)}
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              {newsQuery.isLoading ? (
+              {rideshareNewsQuery.isLoading ? (
                 <Loader className="w-5 h-5 animate-spin text-purple-600" />
               ) : (
                 <>
@@ -465,7 +511,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedNews && (
           <CardContent>
-            {newsQuery.isLoading ? (
+            {rideshareNewsQuery.isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
                 <span className="text-gray-600">Loading news...</span>
@@ -502,15 +548,118 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
                   </article>
                 ))}
               </div>
-            ) : newsQuery.isError ? (
-              <div className="text-center py-4">
-                <AlertTriangle className="w-6 h-6 text-yellow-500 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">Unable to fetch news</p>
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">No rideshare news today</p>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Local Events Card */}
+      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200" data-testid="events-card">
+        <CardHeader 
+          className="pb-2 cursor-pointer hover:bg-green-100/50 transition-colors"
+          onClick={() => setExpandedEvents(!expandedEvents)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              {eventsQuery.isLoading ? (
+                <Loader className="w-5 h-5 animate-spin text-green-600" />
+              ) : (
+                <>
+                  <BookOpen className="w-5 h-5 text-green-600" />
+                  Local Events
+                  {eventsToday.length > 0 && (
+                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 ml-2">
+                      {eventsToday.length}
+                    </Badge>
+                  )}
+                </>
+              )}
+            </CardTitle>
+            {expandedEvents ? (
+              <ChevronUp className="w-5 h-5 text-green-600" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-green-600" />
+            )}
+          </div>
+        </CardHeader>
+        {expandedEvents && (
+          <CardContent>
+            {eventsQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="w-5 h-5 animate-spin text-green-600 mr-2" />
+                <span className="text-gray-600">Loading events...</span>
+              </div>
+            ) : eventsToday.length > 0 ? (
+              <div className="space-y-3">
+                {eventsToday.map((event, idx) => (
+                  <div key={idx} className="p-3 bg-white/50 rounded-lg border border-green-100" data-testid={`event-${idx}`}>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="font-medium text-gray-800 text-sm flex-1">{event.title}</h4>
+                    </div>
+                    {event.location && <p className="text-xs text-gray-600 mb-1">📍 {event.location}</p>}
+                    {event.event_time && <p className="text-xs text-gray-600">🕐 {event.event_time}</p>}
+                  </div>
+                ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm text-center py-4">
-                No rideshare-related news in the past 48 hours
-              </p>
+              <p className="text-gray-500 text-sm text-center py-4">No local events today</p>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Concerts Card */}
+      <Card className="bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" data-testid="concerts-card">
+        <CardHeader 
+          className="pb-2 cursor-pointer hover:bg-pink-100/50 transition-colors"
+          onClick={() => setExpandedConcerts(!expandedConcerts)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              {concertsQuery.isLoading ? (
+                <Loader className="w-5 h-5 animate-spin text-pink-600" />
+              ) : (
+                <>
+                  <Music className="w-5 h-5 text-pink-600" />
+                  Concerts & Music
+                  {concertsToday.length > 0 && (
+                    <Badge variant="outline" className="bg-pink-100 text-pink-700 border-pink-300 ml-2">
+                      {concertsToday.length}
+                    </Badge>
+                  )}
+                </>
+              )}
+            </CardTitle>
+            {expandedConcerts ? (
+              <ChevronUp className="w-5 h-5 text-pink-600" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-pink-600" />
+            )}
+          </div>
+        </CardHeader>
+        {expandedConcerts && (
+          <CardContent>
+            {concertsQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="w-5 h-5 animate-spin text-pink-600 mr-2" />
+                <span className="text-gray-600">Loading concerts...</span>
+              </div>
+            ) : concertsToday.length > 0 ? (
+              <div className="space-y-3">
+                {concertsToday.map((concert, idx) => (
+                  <div key={idx} className="p-3 bg-white/50 rounded-lg border border-pink-100" data-testid={`concert-${idx}`}>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="font-medium text-gray-800 text-sm flex-1">{concert.title}</h4>
+                    </div>
+                    {concert.location && <p className="text-xs text-gray-600 mb-1">🎵 {concert.location}</p>}
+                    {concert.event_time && <p className="text-xs text-gray-600">🕐 {concert.event_time}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">No concerts today</p>
             )}
           </CardContent>
         )}
