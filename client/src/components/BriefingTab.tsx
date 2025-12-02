@@ -311,7 +311,7 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
   }
 
   const { briefing, location, updated_at } = data;
-  const newsItems = briefing?.news?.filtered || briefing?.news?.items || [];
+  const allNews = briefing?.news?.filtered || briefing?.news?.items || [];
   const weather = briefing?.weather;
   const traffic = briefing?.traffic;
   const allClosures = (briefing?.school_closures as SchoolClosure[]) || [];
@@ -342,7 +342,20 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
     }
   };
 
+  // Filter events to show only today's events
+  const isEventToday = (event: any): boolean => {
+    try {
+      if (!event.event_date) return false;
+      const eventDate = new Date(event.event_date);
+      const today = new Date();
+      return eventDate.toDateString() === today.toDateString();
+    } catch {
+      return false;
+    }
+  };
+
   const schoolClosures = allClosures.filter(isClosureActive);
+  const newsItems = allNews.filter(isEventToday);
 
   return (
     <div className="space-y-6" data-testid="briefing-container">
