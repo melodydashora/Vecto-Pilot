@@ -46,7 +46,7 @@ try {
     .setIssuer('https://vectopilot.app')
     .setAudience('vectopilot-api')
     .setIssuedAt(now)
-    .setExpirationTime('15m')
+    .setExpirationTime('24h')
     .sign(privateKey);
   
   console.log('✅ JWT signed successfully\n');
@@ -56,13 +56,13 @@ try {
   console.log(`   Role: authenticated`);
   console.log(`   Issuer: https://vectopilot.app`);
   console.log(`   Audience: vectopilot-api`);
-  console.log(`   Expires: 15 minutes\n`);
+  console.log(`   Expires: 24 hours\n`);
   
   console.log('🎫 JWT Token:');
   console.log(jwt);
   console.log('\n📝 Usage:');
   console.log('   curl -H "Authorization: Bearer <token>" https://api.neon.tech/sql/v2?query=...');
-  console.log('\n⚠️  Token expires in 15 minutes. Generate a new one if expired.\n');
+  console.log('\n⚠️  Token expires in 24 hours. Generate a new one if expired.\n');
   
 } catch (error) {
   console.error('❌ Error signing token:', error.message);
