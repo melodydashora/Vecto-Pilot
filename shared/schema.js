@@ -451,6 +451,26 @@ export const cross_thread_memory = pgTable("cross_thread_memory", {
   idxExpires: sql`create index if not exists idx_cross_thread_memory_expires on ${table} (expires_at)`,
 }));
 
+// Eidolon snapshot storage for project/session state persistence
+export const eidolon_snapshots = pgTable("eidolon_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  snapshot_id: uuid("snapshot_id"),
+  user_id: uuid("user_id"),
+  session_id: text("session_id"),
+  scope: text("scope").notNull(),
+  state: jsonb("state").notNull(),
+  metadata: jsonb("metadata"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+}, (table) => ({
+  idxSnapshot: sql`create index if not exists idx_eidolon_snapshots_snapshot_id on ${table} (snapshot_id)`,
+  idxScope: sql`create index if not exists idx_eidolon_snapshots_scope on ${table} (scope)`,
+  idxUser: sql`create index if not exists idx_eidolon_snapshots_user on ${table} (user_id)`,
+  idxSession: sql`create index if not exists idx_eidolon_snapshots_session on ${table} (session_id)`,
+  idxExpires: sql`create index if not exists idx_eidolon_snapshots_expires on ${table} (expires_at)`,
+}));
+
 export const venue_events = pgTable("venue_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   venue_id: uuid("venue_id"),
