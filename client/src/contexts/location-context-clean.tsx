@@ -488,6 +488,28 @@ export function LocationProvider({ children }: LocationProviderProps) {
           console.log("[Global App] Weather:", weatherData?.available ? `${weatherData.temperature}°F` : 'unavailable');
           console.log("[Global App] Air Quality:", airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'unavailable');
 
+          // CRITICAL: Generate and store JWT token for authenticated API calls
+          if (locationData.user_id) {
+            try {
+              const tokenRes = await fetch('/api/auth/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: locationData.user_id })
+              });
+              if (tokenRes.ok) {
+                const tokenData = await tokenRes.json();
+                if (tokenData.token) {
+                  localStorage.setItem('token', tokenData.token);
+                  console.log('[LocationContext] ✅ JWT token stored in localStorage');
+                }
+              } else {
+                console.warn('[LocationContext] Token generation failed:', tokenRes.status);
+              }
+            } catch (tokenErr) {
+              console.error('[LocationContext] Token generation error:', tokenErr.message);
+            }
+          }
+
           // Build time context with timezone (from users table)
           const timeContext = buildTimeContext(locationData.timeZone);
           
