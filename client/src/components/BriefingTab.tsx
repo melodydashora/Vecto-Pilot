@@ -35,12 +35,17 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const weatherQuery = useQuery({
     queryKey: ['/api/briefing/weather', snapshotId],
     queryFn: async () => {
-      if (!snapshotId || !token) return null;
-      const response = await fetch(`/api/briefing/weather/${snapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch weather');
-      return response.json();
+      if (!snapshotId || !token) return { weather: null };
+      try {
+        const response = await fetch(`/api/briefing/weather/${snapshotId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return { weather: null };
+        return response.json();
+      } catch (error) {
+        console.log('Weather fetch error:', error);
+        return { weather: null };
+      }
     },
     enabled: !!snapshotId,
     staleTime: 30000,
@@ -49,12 +54,17 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const trafficQuery = useQuery({
     queryKey: ['/api/briefing/traffic', snapshotId],
     queryFn: async () => {
-      if (!snapshotId || !token) return null;
-      const response = await fetch(`/api/briefing/traffic/${snapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch traffic');
-      return response.json();
+      if (!snapshotId || !token) return { traffic: null };
+      try {
+        const response = await fetch(`/api/briefing/traffic/${snapshotId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return { traffic: null };
+        return response.json();
+      } catch (error) {
+        console.log('Traffic fetch error:', error);
+        return { traffic: null };
+      }
     },
     enabled: !!snapshotId,
     staleTime: 30000,
@@ -63,12 +73,17 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const rideshareNewsQuery = useQuery({
     queryKey: ['/api/briefing/rideshare-news', snapshotId],
     queryFn: async () => {
-      if (!snapshotId || !token) return null;
-      const response = await fetch(`/api/briefing/rideshare-news/${snapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch news');
-      return response.json();
+      if (!snapshotId || !token) return { news: null };
+      try {
+        const response = await fetch(`/api/briefing/rideshare-news/${snapshotId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return { news: null };
+        return response.json();
+      } catch (error) {
+        console.log('News fetch error:', error);
+        return { news: null };
+      }
     },
     enabled: !!snapshotId,
     staleTime: 45000,
@@ -78,12 +93,17 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const eventsQuery = useQuery({
     queryKey: ['/api/briefing/events', snapshotId],
     queryFn: async () => {
-      if (!snapshotId || !token) return null;
-      const response = await fetch(`/api/briefing/events/${snapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch events');
-      return response.json();
+      if (!snapshotId || !token) return { events: [] };
+      try {
+        const response = await fetch(`/api/briefing/events/${snapshotId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return { events: [] };
+        return response.json();
+      } catch (error) {
+        console.log('Events fetch error:', error);
+        return { events: [] };
+      }
     },
     enabled: !!snapshotId,
     staleTime: 45000,
@@ -92,12 +112,17 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const schoolClosuresQuery = useQuery({
     queryKey: ['/api/briefing/school-closures', snapshotId],
     queryFn: async () => {
-      if (!snapshotId || !token) return null;
-      const response = await fetch(`/api/briefing/school-closures/${snapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch school closures');
-      return response.json();
+      if (!snapshotId || !token) return { school_closures: [] };
+      try {
+        const response = await fetch(`/api/briefing/school-closures/${snapshotId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return { school_closures: [] };
+        return response.json();
+      } catch (error) {
+        console.log('School closures fetch error:', error);
+        return { school_closures: [] };
+      }
     },
     enabled: !!snapshotId,
     staleTime: 45000,
@@ -157,12 +182,12 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
 
   const isEventToday = (event: any): boolean => {
     try {
-      if (!event.event_date) return false;
+      if (!event.event_date) return true; // Show all events if no date
       const eventDate = new Date(event.event_date);
       const today = new Date();
       return eventDate.toDateString() === today.toDateString();
     } catch {
-      return false;
+      return true;
     }
   };
 
@@ -237,68 +262,6 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
           </Button>
         </div>
       </div>
-
-      {/* School Closures Section - Always Visible */}
-      <Card data-testid="school-closures-card">
-        <CardHeader>
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedClosures(!expandedClosures)}>
-            <BookOpen className="w-5 h-5 text-purple-600" />
-            <CardTitle className="text-base">School Closures ({schoolClosures.length})</CardTitle>
-            {expandedClosures ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </div>
-        </CardHeader>
-        {expandedClosures && (
-          <CardContent>
-            {schoolClosuresQuery.isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
-                <span className="text-gray-600">Loading...</span>
-              </div>
-            ) : schoolClosures.length > 0 ? (
-              <div className="space-y-3">
-                {schoolClosures.map((closure, idx) => (
-                  <div
-                    key={idx}
-                    className="border rounded-lg p-3 bg-gradient-to-r from-purple-50 to-blue-50"
-                    data-testid={`closure-${closure.type}-${idx}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold text-gray-900">{closure.schoolName}</p>
-                          <Badge variant="outline" className="text-xs">
-                            {closure.type === 'college' ? '🎓 College' : '🏫 District'}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">{closure.reason}</p>
-                        <div className="flex items-center gap-4 text-xs">
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-gray-500" />
-                            <span>Closed: {formatDate(closure.closureStart)}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-green-600" />
-                            <span>Reopens: {formatDate(closure.reopeningDate)}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <Badge className={`${
-                        closure.impact === 'high' ? 'bg-red-100 text-red-700' :
-                        closure.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-green-100 text-green-700'
-                      }`}>
-                        {closure.impact} impact
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-sm text-center py-4">No school closures reported</p>
-            )}
-          </CardContent>
-        )}
-      </Card>
 
       {/* Weather Card */}
       <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200" data-testid="weather-card">
@@ -650,6 +613,68 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
               </div>
             ) : (
               <p className="text-gray-500 text-sm text-center py-4">No concerts today</p>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* School Closures Section - LAST */}
+      <Card data-testid="school-closures-card">
+        <CardHeader>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedClosures(!expandedClosures)}>
+            <BookOpen className="w-5 h-5 text-purple-600" />
+            <CardTitle className="text-base">School Closures ({schoolClosures.length})</CardTitle>
+            {expandedClosures ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        </CardHeader>
+        {expandedClosures && (
+          <CardContent>
+            {schoolClosuresQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
+                <span className="text-gray-600">Loading...</span>
+              </div>
+            ) : schoolClosures.length > 0 ? (
+              <div className="space-y-3">
+                {schoolClosures.map((closure, idx) => (
+                  <div
+                    key={idx}
+                    className="border rounded-lg p-3 bg-gradient-to-r from-purple-50 to-blue-50"
+                    data-testid={`closure-${closure.type}-${idx}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold text-gray-900">{closure.schoolName}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {closure.type === 'college' ? '🎓 College' : '🏫 District'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">{closure.reason}</p>
+                        <div className="flex items-center gap-4 text-xs">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-gray-500" />
+                            <span>Closed: {formatDate(closure.closureStart)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-green-600" />
+                            <span>Reopens: {formatDate(closure.reopeningDate)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <Badge className={`${
+                        closure.impact === 'high' ? 'bg-red-100 text-red-700' :
+                        closure.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {closure.impact} impact
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">No school closures reported</p>
             )}
           </CardContent>
         )}
