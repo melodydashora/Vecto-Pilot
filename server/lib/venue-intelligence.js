@@ -55,9 +55,11 @@ async function enrichBarsWithPhones(venues) {
  * @param {string} params.state - State/region
  * @param {number} params.radiusMiles - Search radius in miles (default 15)
  * @param {string} [params.holiday] - Current holiday (e.g., "Thanksgiving") - affects hours
+ * @param {string} [params.timezone] - Snapshot timezone for accurate time context
+ * @param {Date} [params.localIso] - Snapshot local time for accurate closing calculations
  * @returns {Promise<Object>} Venue intelligence with sorted venues
  */
-export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 15, holiday = null }) {
+export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 15, holiday = null, timezone = null, localIso = null }) {
   const model = genAI.getGenerativeModel({ 
     model: "gemini-2.0-flash-exp",
     generationConfig: {
@@ -66,9 +68,22 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
       responseMimeType: "application/json",
     }
   });
-  const currentTime = new Date();
-  const currentHour = currentTime.getHours();
-  const currentMinutes = currentTime.getMinutes();
+  
+  // Use snapshot's local time if provided, otherwise fall back to server time
+  let currentTime;
+  let currentHour;
+  let currentMinutes;
+  
+  if (localIso) {
+    currentTime = new Date(localIso);
+    currentHour = currentTime.getHours();
+    currentMinutes = currentTime.getMinutes();
+  } else {
+    currentTime = new Date();
+    currentHour = currentTime.getHours();
+    currentMinutes = currentTime.getMinutes();
+  }
+  
   const timeString = `${currentHour}:${currentMinutes.toString().padStart(2, '0')}`;
   
   const holidayContext = holiday ? `\n⚠️ TODAY IS ${holiday.toUpperCase()} - Many venues may have special holiday hours!` : '';
@@ -278,11 +293,11 @@ Return ONLY valid JSON.`;
  * @param {string} [params.holiday] - Current holiday name (optional)
  * @returns {Promise<Object>} Combined intelligence
  */
-export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, holiday = null }) {
+export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, holiday = null, timezone = null, localIso = null }) {
   try {
     // Run venue discovery and traffic intelligence in parallel
     const [venueData, trafficData] = await Promise.all([
-      discoverNearbyVenues({ lat, lng, city, state, radiusMiles, holiday }),
+      discoverNearbyVenues({ lat, lng, city, state, radiusMiles, holiday, timezone, localIso }),
       getTrafficIntelligence({ lat, lng, city, state })
     ]);
 
