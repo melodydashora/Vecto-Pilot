@@ -59,11 +59,13 @@ const MapTab: React.FC<MapTabProps> = ({
       if (mapRef.current && window.google) {
         const map = new window.google.maps.Map(mapRef.current, {
           center: { lat: driverLat, lng: driverLng },
-          zoom: 13,
+          zoom: 12,
           mapTypeControl: true,
           fullscreenControl: true,
           zoomControl: true,
           streetViewControl: false,
+          minZoom: 10,
+          maxZoom: 18,
         });
 
         // Enable traffic layer
