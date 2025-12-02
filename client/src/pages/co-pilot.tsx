@@ -171,7 +171,7 @@ const CoPilot: React.FC = () => {
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
   
   // Bottom tab navigation
-  const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing' | 'map'>('strategy');
+  const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing' | 'map' | 'donation'>('strategy');
   
   // Persistent briefing data (loaded once per location, shared across tab switches)
   const [briefingData, setBriefingData] = useState<any>(null);
@@ -1942,16 +1942,16 @@ const CoPilot: React.FC = () => {
                   Live
                 </Badge>
               </div>
-              {snapshotData && (
+              {coords && (
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <MapPin className="w-4 h-4" />
-                  <span>{snapshotData.city}{snapshotData.state ? `, ${snapshotData.state}` : ''}</span>
+                  <span>{coords.city}{coords.state ? `, ${coords.state}` : ''}</span>
                 </div>
               )}
             </div>
             
-            {/* Location Context Card from Snapshot */}
-            {snapshotData && (
+            {/* Location Context Card from Coordinates */}
+            {coords && (
               <Card className="mb-4 border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
@@ -1960,15 +1960,15 @@ const CoPilot: React.FC = () => {
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-gray-800">
-                        {snapshotData.address || `${snapshotData.city}, ${snapshotData.state}`}
+                        {coords.city}{coords.state ? `, ${coords.state}` : ''}
                       </p>
                       <p className="text-sm text-gray-600 mt-1">
                         Showing bars and restaurants sorted by expense level ($$$$→$) with last-call alerts
                       </p>
-                      {snapshotData.timezone && (
+                      {venueLoading && (
                         <p className="text-xs text-gray-500 mt-1">
-                          <Clock className="w-3 h-3 inline mr-1" />
-                          Local time: {new Date().toLocaleTimeString('en-US', { timeZone: snapshotData.timezone, hour: 'numeric', minute: '2-digit' })}
+                          <Loader className="w-3 h-3 inline mr-1 animate-spin" />
+                          Loading nearby venues...
                         </p>
                       )}
                     </div>
@@ -1980,8 +1980,8 @@ const CoPilot: React.FC = () => {
             <SmartBlocks
               lat={snapshotData?.lat || coords?.latitude}
               lng={snapshotData?.lng || coords?.longitude}
-              city={snapshotData?.city}
-              state={snapshotData?.state}
+              city={snapshotData?.city || coords?.city}
+              state={snapshotData?.state || coords?.state}
               snapshotLat={snapshotData?.lat}
               snapshotLng={snapshotData?.lng}
               holiday={snapshotData?.holiday}
