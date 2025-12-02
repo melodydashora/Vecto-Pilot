@@ -6,21 +6,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from 'lucide-react';
 
-// Google Maps type declarations
-declare global {
-  interface Window {
-    google: {
-      maps: {
-        Map: any;
-        Marker: any;
-        InfoWindow: any;
-        TrafficLayer: any;
-        LatLngBounds: any;
-      };
-    };
-  }
-}
-
 interface Venue {
   id: string;
   name: string;

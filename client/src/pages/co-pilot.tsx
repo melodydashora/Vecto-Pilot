@@ -48,7 +48,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Map } from 'lucide-react';
+import { Map as MapIcon } from 'lucide-react';
 
 interface SmartBlock {
   name: string;
@@ -1994,7 +1994,7 @@ const CoPilot: React.FC = () => {
               }`}
               data-testid="tab-map"
             >
-              <Map className={`w-6 h-6 ${activeTab === 'map' ? 'text-green-600' : 'text-gray-400'}`} />
+              <MapIcon className={`w-6 h-6 ${activeTab === 'map' ? 'text-green-600' : 'text-gray-400'}`} />
               <span className="text-xs font-medium">Map</span>
             </button>
           </div>
