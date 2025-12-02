@@ -408,7 +408,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
         fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
         fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal: weatherAirSignal }).then(safeJsonParse).catch(() => null),
       ])
-        .then(([userLocationData, weatherData, airQualityData]) => {
+        .then(async ([userLocationData, weatherData, airQualityData]) => {
           // CRITICAL: Only update state if this is still the latest generation
           if (currentGeneration !== generationRef.current) {
             console.log(`⏭️ Generation #${currentGeneration} result ignored - newer generation #${generationRef.current} already started`);
