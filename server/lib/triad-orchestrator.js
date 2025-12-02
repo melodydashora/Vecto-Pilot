@@ -1,7 +1,7 @@
 // Claude → strategy, GPT-5 → staging + pro tips, Gemini → validate + seed additions.
 // Uses 2025 model IDs and endpoints with env-driven configuration.
 import { callClaude45Raw } from "./adapters/anthropic-sonnet45.js";
-import { callGPT5 } from "./adapters/openai-gpt5.js";
+import { callModel } from "./adapters/index.js";
 import { callGeminiGenerateContent } from "./adapters/gemini-2.5-pro.js";
 
 export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
@@ -81,13 +81,12 @@ export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
   const gptTimer = setTimeout(() => gptCtrl.abort(), Math.min(plannerDeadline, left()));
   let planner = {};
   try {
-    const response = await callGPT5({
-      developer: dev,
-      user: usr,
-      abortSignal: gptCtrl.signal
+    const response = await callModel('consolidator', {
+      system: dev,
+      user: usr
     });
-    console.log(`[triad] GPT-5 planner tokens: ${response.total_tokens} (${response.reasoning_tokens} reasoning)`);
-    planner = safeJson(response.text) || {};
+    console.log(`[triad] GPT-5 planner response: ${response.output ? response.output.length : 0} chars`);
+    planner = safeJson(response.output) || {};
   } finally { clearTimeout(gptTimer); }
 
   // 3) Gemini — validate planner and add seed additions strictly from catalog not in shortlist

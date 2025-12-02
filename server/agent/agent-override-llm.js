@@ -63,8 +63,8 @@ async function callGPT5({ system, user, json }) {
     ],
   };
 
-  // reasoning_effort and max_completion_tokens only valid for reasoning models
-  const reasoningModels = ["gpt-5", "gpt-4.1-turbo", "o1", "o1-mini", "o1-preview", "o3-mini"];
+  // CRITICAL: GPT-5.1 and o1 models don't support temperature - use reasoning_effort only
+  const reasoningModels = ["gpt-5", "gpt-5.1", "gpt-4.1-turbo", "o1", "o1-mini", "o1-preview", "o3-mini"];
   const isReasoningModel = reasoningModels.some(m => GPT5_MODEL.includes(m));
   
   if (isReasoningModel) {

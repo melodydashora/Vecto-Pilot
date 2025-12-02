@@ -12,14 +12,14 @@ if (!process.env.DATABASE_URL) {
 // Create a standard Postgres pool using the environment provided URL
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 35, // Increased pool size to handle concurrent traffic spikes
-  idleTimeoutMillis: 60000, // Increased from 30s to 60s to keep connections alive longer
-  connectionTimeoutMillis: 10000, // Increased from 2s to 10s for better acquisition time
+  max: 10, // FIXED: Reduced from 35 to 10 (Replit Postgres handles ~5-10 concurrent connections)
+  idleTimeoutMillis: 30000, // FIXED: Reduced from 60s to 30s to match Replit's connection lifecycle
+  connectionTimeoutMillis: 15000, // Slightly increased for safety during connection spikes
   statement_timeout: 30000, // 30 second statement timeout to prevent long-running queries from blocking
 });
 
 // Add connection acquisition monitoring to detect pool exhaustion
-const connectionWarningThreshold = 30; // Warn when 30/35 connections in use
+const connectionWarningThreshold = 8; // Warn when 8/10 connections in use
 let lastWarningTime = 0;
 
 pool.on('connect', (client) => {

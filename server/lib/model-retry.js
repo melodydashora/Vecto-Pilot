@@ -2,7 +2,7 @@
 // Model-agnostic retry logic with exponential backoff
 import { callModel } from './adapters/index.js';
 
-export async function callGPT5WithBudget(payload, { timeoutMs = 45000, maxRetries = 6 } = {}) {
+export async function callGPT5WithBudget(payload, { timeoutMs = 45000, maxRetries = 6, role = 'consolidator' } = {}) {
   const startTime = Date.now();
   const deadline = startTime + timeoutMs;
   let attempt = 0;
@@ -11,7 +11,7 @@ export async function callGPT5WithBudget(payload, { timeoutMs = 45000, maxRetrie
     attempt++;
     const budgetRemaining = deadline - Date.now();
     
-    console.log(`[retry] attempt=${attempt} budget_remaining=${budgetRemaining}ms`);
+    console.log(`[retry] attempt=${attempt} budget_remaining=${budgetRemaining}ms role=${role}`);
     
     if (budgetRemaining <= 0) {
       console.log(`[retry] attempt=${attempt} result=error reason=budget_exceeded`);
@@ -29,9 +29,9 @@ export async function callGPT5WithBudget(payload, { timeoutMs = 45000, maxRetrie
     const timeoutId = setTimeout(() => abortController.abort(), budgetRemaining);
 
     try {
-      const response = await callGPT5({
-        ...payload,
-        abortSignal: abortController.signal
+      const response = await callModel(role, {
+        system: payload.system,
+        user: payload.user
       });
       
       clearTimeout(timeoutId);
