@@ -156,7 +156,11 @@ export const rankings = pgTable("rankings", {
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id),
   correlation_id: uuid("correlation_id"),
   user_id: uuid("user_id"),
+  // Location context from snapshot (denormalized for quick access)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
   city: text("city"),
+  state: text("state"),
   ui: jsonb("ui"),
   model_name: text("model_name").notNull(),
   scoring_ms: integer("scoring_ms"),
@@ -228,6 +232,11 @@ export const actions = pgTable("actions", {
   ranking_id: uuid("ranking_id").references(() => rankings.ranking_id, { onDelete: 'cascade' }),
   snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   user_id: uuid("user_id"),
+  // Location context from snapshot (denormalized for quick access)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  city: text("city"),
+  state: text("state"),
   action: text("action").notNull(),
   block_id: text("block_id"),
   dwell_ms: integer("dwell_ms"),
@@ -287,6 +296,11 @@ export const block_jobs = pgTable("block_jobs", {
 export const triad_jobs = pgTable("triad_jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  // Location context from snapshot (denormalized for quick access)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  city: text("city"),
+  state: text("state"),
   kind: text("kind").notNull().default('triad'),
   status: text("status").notNull().default('queued'), // queued|running|ok|error
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -314,6 +328,11 @@ export const venue_feedback = pgTable("venue_feedback", {
   ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id, { onDelete: 'cascade' }),
   place_id: text("place_id"),
   venue_name: text("venue_name").notNull(),
+  // Location context from snapshot (denormalized for quick access)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  city: text("city"),
+  state: text("state"),
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
   comment: text("comment"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -332,6 +351,11 @@ export const strategy_feedback = pgTable("strategy_feedback", {
   user_id: uuid("user_id"),
   snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id, { onDelete: 'cascade' }),
+  // Location context from snapshot (denormalized for quick access)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  city: text("city"),
+  state: text("state"),
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
   comment: text("comment"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -344,6 +368,11 @@ export const strategy_feedback = pgTable("strategy_feedback", {
 export const app_feedback = pgTable("app_feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  // Location context from snapshot (denormalized for quick access)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  city: text("city"),
+  state: text("state"),
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
   comment: text("comment"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
