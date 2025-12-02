@@ -120,7 +120,8 @@ router.post("/", async (req, res) => {
           lat,
           lng,
           city: city || 'Unknown',
-          state: state || ''
+          state: state || '',
+          formattedAddress: formatted_address || null
         }).catch(err => {
           console.warn(`[briefing] enqueue.failed`, { snapshot_id, err: String(err) });
         });

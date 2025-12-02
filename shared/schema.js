@@ -120,7 +120,8 @@ export const strategies = pgTable("strategies", {
 export const briefings = pgTable("briefings", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
-  // Resolved location context for this briefing (precise city/state only)
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
   city: text("city"),
   state: text("state"),
   // NEW: Structured briefing data from external APIs
@@ -154,7 +155,8 @@ export const rankings = pgTable("rankings", {
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id),
   correlation_id: uuid("correlation_id"),
   user_id: uuid("user_id"),
-  // Resolved location from snapshot (precise city/state only)
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
   city: text("city"),
   state: text("state"),
   ui: jsonb("ui"),
@@ -228,7 +230,8 @@ export const actions = pgTable("actions", {
   ranking_id: uuid("ranking_id").references(() => rankings.ranking_id, { onDelete: 'cascade' }),
   snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   user_id: uuid("user_id"),
-  // Resolved location from snapshot (precise city/state only)
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
   city: text("city"),
   state: text("state"),
   action: text("action").notNull(),
@@ -290,7 +293,8 @@ export const block_jobs = pgTable("block_jobs", {
 export const triad_jobs = pgTable("triad_jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
-  // Resolved location from snapshot (precise city/state only)
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
   city: text("city"),
   state: text("state"),
   kind: text("kind").notNull().default('triad'),
@@ -320,7 +324,8 @@ export const venue_feedback = pgTable("venue_feedback", {
   ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id, { onDelete: 'cascade' }),
   place_id: text("place_id"),
   venue_name: text("venue_name").notNull(),
-  // Resolved location from snapshot (precise city/state only)
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
   city: text("city"),
   state: text("state"),
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
@@ -341,7 +346,8 @@ export const strategy_feedback = pgTable("strategy_feedback", {
   user_id: uuid("user_id"),
   snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id, { onDelete: 'cascade' }),
-  // Resolved location from snapshot (precise city/state only)
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
   city: text("city"),
   state: text("state"),
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
@@ -356,7 +362,8 @@ export const strategy_feedback = pgTable("strategy_feedback", {
 export const app_feedback = pgTable("app_feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
-  // Resolved location from snapshot (precise city/state only)
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
   city: text("city"),
   state: text("state"),
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
