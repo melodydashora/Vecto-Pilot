@@ -273,7 +273,7 @@ async function convertNewsToEvents(newsItems, city, state, lat, lng) {
   }));
 }
 
-// Confirm TBD event details using Gemini 3.0 Pro
+// Confirm TBD event details using Gemini 3.0 Pro (with fallback to 2.5 Pro)
 export async function confirmTBDEventDetails(events) {
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] Gemini API key not configured, skipping TBD confirmation');
@@ -291,7 +291,7 @@ export async function confirmTBDEventDetails(events) {
     return events; // No TBD events to confirm
   }
 
-  console.log(`[BriefingService] Found ${tbdEvents.length} events with TBD details, confirming with Gemini...`);
+  console.log(`[BriefingService] Found ${tbdEvents.length} events with TBD details, confirming with Gemini 3.0 Pro...`);
 
   try {
     // Build prompt for Gemini to confirm event details
@@ -314,19 +314,44 @@ For each event, provide ONLY a JSON object (no explanations) with:
 
 Return a JSON array with one object per event. If you cannot confirm details, set to 'Unable to confirm'.`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-latest:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2000
-        }
-      })
-    });
+    // Try Gemini 3.0 Pro first (with 15s timeout)
+    let response;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 1.0,
+            maxOutputTokens: 2000
+          }
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      console.log('[BriefingService] ✅ Gemini 3.0 Pro responded');
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        console.warn('[BriefingService] Gemini 3.0 Pro timeout, falling back to 2.5 Pro...');
+      }
+      // Fallback to Gemini 2.5 Pro
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-latest:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 2000
+          }
+        })
+      });
+      console.log('[BriefingService] Using Gemini 2.5 Pro for TBD confirmation');
+    }
 
     if (!response.ok) {
       console.error(`[BriefingService] Gemini API error: ${response.status}`);
