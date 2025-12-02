@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,47 +58,60 @@ interface SchoolClosure {
   impact: 'high' | 'medium' | 'low';
 }
 
-interface BriefingData {
-  snapshot_id: string;
-  location: {
-    city: string;
-    state: string;
-    lat: number;
-    lng: number;
-  };
-  briefing: {
-    news: {
-      items: NewsItem[];
-      filtered: NewsItem[];
-      fetchedAt: string;
-      error?: string;
-    } | null;
-    weather: {
-      current: WeatherCurrent | null;
-      forecast: WeatherForecast[] | null;
-    };
-    traffic: TrafficConditions | null;
-    events: unknown[] | null;
-    school_closures: SchoolClosure[] | null;
-  };
-  created_at: string;
-  updated_at: string;
-}
-
 interface BriefingTabProps {
   snapshotId?: string;
-  persistedData?: BriefingData | null;
+  persistedData?: any | null;
   persistedLoading?: boolean;
 }
 
 export default function BriefingTab({ snapshotId, persistedData, persistedLoading }: BriefingTabProps) {
-  const [data, setData] = useState<BriefingData | null>(persistedData || null);
-  const [loading, setLoading] = useState(persistedLoading || false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [expandedWeather, setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedNews, setExpandedNews] = useState(true);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+  // Component-level queries - each loads independently
+  const weatherQuery = useQuery({
+    queryKey: ['/api/briefing/weather', snapshotId],
+    queryFn: async () => {
+      if (!snapshotId || !token) return null;
+      const response = await fetch(`/api/briefing/weather/${snapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch weather');
+      return response.json();
+    },
+    enabled: !!snapshotId,
+    staleTime: 30000,
+  });
+
+  const trafficQuery = useQuery({
+    queryKey: ['/api/briefing/traffic', snapshotId],
+    queryFn: async () => {
+      if (!snapshotId || !token) return null;
+      const response = await fetch(`/api/briefing/traffic/${snapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch traffic');
+      return response.json();
+    },
+    enabled: !!snapshotId,
+    staleTime: 30000,
+  });
+
+  const newsQuery = useQuery({
+    queryKey: ['/api/briefing/news', snapshotId],
+    queryFn: async () => {
+      if (!snapshotId || !token) return null;
+      const response = await fetch(`/api/briefing/news/${snapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch news');
+      return response.json();
+    },
+    enabled: !!snapshotId,
+    staleTime: 45000, // News updates less frequently
+  });
 
   // Confirm TBD event details with Gemini
   const confirmEventDetails = useCallback(async (events: any[]) => {
@@ -764,5 +778,5 @@ export default function BriefingTab({ snapshotId, persistedData, persistedLoadin
         )}
       </Card>
     </div>
-  );
+  );==
 }
