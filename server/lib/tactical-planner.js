@@ -2,7 +2,7 @@
 // Tactical Planner: Takes strategic overview → tactical venue recommendations
 // Model-agnostic: uses STRATEGY_CONSOLIDATOR from env
 
-import { callGPT5 } from "./adapters/openai-gpt5.js";
+import { callModel } from "./adapters/index.js";
 import { z } from "zod";
 
 // GPT-5 response schema: venue coords + staging coords + category + pro tips
@@ -174,21 +174,16 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
   }, timeoutMs);
   
   try {
-    const rawResponse = await callGPT5({
-      developer,
-      user,
-      // CRITICAL: GPT-5 reasoning mode uses unpredictable amounts for thinking
-      // Even with minimal prompt, it can use 6144+ tokens for reasoning
-      // Must provide generous budget: 16384 allows ~10K reasoning + ~6K output
-      max_completion_tokens: parseInt(process.env.OPENAI_MAX_COMPLETION_TOKENS || '16384'),
-      abortSignal: abortCtrl.signal
+    const rawResponse = await callModel('consolidator', {
+      system: developer,
+      user
     });
 
     const duration = Date.now() - startTime;
-    console.log(`✅ [GPT-5 Tactical Planner] Generated plan in ${duration}ms (${rawResponse.total_tokens} tokens)`);
+    console.log(`✅ [GPT-5 Tactical Planner] Generated plan in ${duration}ms`);
 
     // Parse JSON response
-    const parsed = safeJsonParse(rawResponse.text);
+    const parsed = safeJsonParse(rawResponse.output);
     
     if (!parsed) {
       console.error('[GPT-5 Tactical Planner] Failed to parse JSON response');
