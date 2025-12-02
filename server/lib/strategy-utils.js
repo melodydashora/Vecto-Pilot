@@ -6,15 +6,49 @@ import { strategies } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
- * DEPRECATED: Strategy rows are now ONLY created by strategy-generator-parallel.js
- * This function is kept for backwards compatibility but does NOT create placeholders
+ * CRITICAL: Create strategy row with snapshot location data
+ * This ensures providers have a row to write to
  * @param {string} snapshotId - UUID of snapshot
  * @returns {Promise<void>}
  */
 export async function ensureStrategyRow(snapshotId) {
-  // REMOVED: No longer creates placeholder strategy rows
-  // Strategy generator creates the single authoritative row with model_name
-  return;
+  try {
+    // Check if strategy row already exists
+    const [existing] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId))
+      .limit(1);
+    
+    if (existing) {
+      return; // Row already exists
+    }
+    
+    // Fetch snapshot to get location data
+    const { snapshots } = await import('../../shared/schema.js');
+    const [snapshot] = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId))
+      .limit(1);
+    
+    if (!snapshot) {
+      console.warn(`[ensureStrategyRow] Snapshot ${snapshotId} not found`);
+      return;
+    }
+    
+    // Create strategy row with location data from snapshot
+    await db.insert(strategies).values({
+      snapshot_id: snapshotId,
+      user_id: snapshot.user_id,
+      lat: snapshot.lat,
+      lng: snapshot.lng,
+      city: snapshot.city,
+      state: snapshot.state,
+      user_address: snapshot.formatted_address,
+      status: 'pending'
+    }).onConflictDoNothing();
+    
+    console.log(`[ensureStrategyRow] ✅ Created strategy row for ${snapshotId} (${snapshot.city}, ${snapshot.state})`);
+  } catch (error) {
+    console.error(`[ensureStrategyRow] Error:`, error.message);
+  }
 }
 
 /**
