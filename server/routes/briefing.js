@@ -370,7 +370,7 @@ router.get('/rideshare-news/:snapshotId', requireAuth, async (req, res) => {
   }
 });
 
-// Component-level endpoint: Local Events only
+// Component-level endpoint: Local Events, Live Music & Concerts (single request with Places API resolution)
 router.get('/events/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
@@ -384,40 +384,13 @@ router.get('/events/:snapshotId', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'No briefing data found' });
     }
     const allEvents = Array.isArray(briefing.events) ? briefing.events : [];
-    const nonConcertEvents = allEvents.filter(e => e.event_type !== 'concert');
     res.json({
       success: true,
-      events: nonConcertEvents,
+      events: allEvents,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching local events:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Component-level endpoint: Concerts only
-router.get('/concerts/:snapshotId', requireAuth, async (req, res) => {
-  try {
-    const { snapshotId } = req.params;
-    const snapshotCheck = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    const briefing = await getBriefingBySnapshotId(snapshotId);
-    if (!briefing) {
-      return res.status(404).json({ error: 'No briefing data found' });
-    }
-    const allEvents = Array.isArray(briefing.events) ? briefing.events : [];
-    const concerts = allEvents.filter(e => e.event_type === 'concert');
-    res.json({
-      success: true,
-      concerts,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('[BriefingRoute] Error fetching concerts:', error);
+    console.error('[BriefingRoute] Error fetching events:', error);
     res.status(500).json({ error: error.message });
   }
 });
