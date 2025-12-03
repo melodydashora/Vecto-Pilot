@@ -1,125 +1,127 @@
-
-// Model Discovery Script - Uses Perplexity to research latest AI models
+// Model Discovery Script - Uses Google Gemini 3.0 to research latest AI models
 // Outputs structured data for updating model configurations
 // Run with: node tools/research/model-discovery.mjs
 
 import fs from 'fs/promises';
 import path from 'path';
 import 'dotenv/config';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
-const MODEL = 'sonar-pro';
+// Initialize Google AI
+const GoogleGenerativeAI(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);
 
-async function perplexitySearch(query, systemPrompt) {
-  if (!PERPLEXITY_API_KEY) {
-    throw new Error('PERPLEXITY_API_KEY not set');
+// UPDATED: Using the latest Gemini 3 Pro Preview (Released Nov 2025)
+const MODEL_NAME = 'gemini-3-pro-preview'; 
+
+if (!GoogleGenerativeAI(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)) {
+  console.error('❌ GOOGLE_GENERATIVE_AI_API_KEY is not set in .env file');
+  process.exit(1);
+}
+
+const genAI = new GoogleGenerativeAI(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);
+const model = genAI.getGenerativeModel({ 
+  model: MODEL_NAME,
+  tools: [{ googleSearch: {} }] // Enable Google Search Grounding
+});
+
+async function performGroundedResearch(query, systemPrompt) {
+  try {
+    // Combine context and query for the generative model
+    // Gemini 3.0 benefits from explicit "Thinking" instructions in the prompt
+    const combinedPrompt = `
+      CONTEXT: ${systemPrompt}
+
+      TASK: ${query}
+
+      REQUIREMENT: Use the Google Search tool to verify all technical details, version numbers, and parameters.
+      Ensure you verify the exact API strings (e.g., 'gemini-3-pro-preview' vs 'gemini-3-pro').
+    `;
+
+    const result = await model.generateContent(combinedPrompt);
+    const response = await result.response;
+    const text = response.text();
+
+    // Extract grounding metadata to form citations
+    const citations = [];
+    const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+
+    if (groundingMetadata?.groundingChunks) {
+      groundingMetadata.groundingChunks.forEach((chunk) => {
+        if (chunk.web?.uri) {
+          citations.push({
+            title: chunk.web.title || 'Source',
+            url: chunk.web.uri
+          });
+        }
+      });
+    }
+
+    return {
+      answer: text,
+      citations: [...new Set(citations.map(c => c.url))], // Deduplicate URLs
+      relatedQuestions: [] 
+    };
+
+  } catch (error) {
+    throw new Error(`Google Gemini API error: ${error.message}`);
   }
-
-  const response = await fetch('https://api.perplexity.ai/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: query }
-      ],
-      max_tokens: 2000,
-      temperature: 0.1,
-      search_recency_filter: 'month',
-      return_related_questions: true,
-      stream: false
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Perplexity API error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  return {
-    answer: data.choices?.[0]?.message?.content || '',
-    citations: data.citations || [],
-    relatedQuestions: data.choices?.[0]?.message?.related_questions || []
-  };
 }
 
 async function researchProvider(providerName) {
-  console.log(`\n🔍 Researching ${providerName}...`);
-  
-  let query, systemPrompt;
-  
-  if (providerName === 'News & Events APIs') {
-    query = `Compare these news/events discovery APIs for finding LOCAL events (concerts, games, comedy, live music) within 50 miles TODAY:
-    
-    1. **Perplexity AI API**
-       - What web search parameters enable real-time local event discovery?
-       - What values for search_recency_filter work best? (day/week/month)
-       - Does it have location-based filtering?
-       - Example: Finding events in Irving, TX
-    
-    2. **SerpAPI**
-       - Is there a Google Events engine (\`engine=google_events\`) for structured event listings?
-       - What parameters (\`tbm\`, \`tbs\`, location filters)?
-       - How does \`google_events\` differ from \`tbm=nws\` (news)?
-       - Time filtering: \`tbs=qdr:d\` for today?
-    
-    3. **NewsAPI**
-       - Can it filter by location or proximity?
-       - Best parameters for events: sortBy, searchIn, pageSize?
-       - Limitations for hyperlocal (50-mile radius) searches?
-    
-    4. **Google Gemini 2.5 Pro**
-       - Best parameters for structuring/geocoding event data?
-       - Can it extract coordinates and distances from text?
-       - What temperature/settings for accurate extraction?
-    
-    Provide exact parameter names, values, and API endpoint URLs for each.`;
-    
-    systemPrompt = `You are an expert on news and event discovery APIs. 
-    Provide precise, current information about API parameters for finding local events as of December 2025.
-    Focus on what works best for hyperlocal (50-mile radius) event discovery TODAY.
-    Include exact parameter names, endpoint URLs, and valid value ranges.
-    Cite specific documentation or recent API announcements.`;
-  } else {
-    query = `What are the current production AI models from ${providerName} as of December 2025? 
-    Include:
-    1. Latest model names/IDs (exact strings for API calls)
-    2. API endpoint URLs
-    3. Required HTTP headers
-    4. Supported parameters (temperature, max_tokens, etc.)
-    5. Context window sizes
-    6. Pricing per million tokens (input/output)
-    7. Special features or constraints
-    8. Any SDK package names
-    
-    Known flagship models to verify:
-    - OpenAI: gpt-5 (supports reasoning_effort: minimal/low/medium/high, NOT temperature/top_p)
-    - Anthropic: claude-sonnet-4-5-20250929 (Claude Sonnet 4.5)
-    - Google: gemini-2.5-pro (Gemini 2.5 Pro)
-    
-    Focus on models suitable for production use in chatbot/completion tasks.`;
+  console.log(`\n🔍 Researching ${providerName} via Google Grounding...`);
 
-    systemPrompt = `You are a technical researcher specializing in AI/LLM APIs. 
-    Provide precise, up-to-date information about production AI models as of December 2025.
-    Include exact API endpoint URLs, model IDs, and parameter names.
-    Format your response with clear sections for each piece of information.
-    Only include information from official documentation or reliable tech sources from 2024-2025.
-    
-    VERIFY these specific production models:
-    - claude-sonnet-4-5-20250929 (Anthropic's latest Sonnet)
-    - gpt-5 (OpenAI's latest, uses reasoning_effort not temperature)
-    - gemini-2.5-pro (Google's latest Gemini)`;
+  let query, systemPrompt;
+
+  if (providerName === 'News & Events APIs') {
+    query = `Compare the following APIs for finding LOCAL events (concerts, games, comedy) within a 50-mile radius TODAY.
+
+    1. **Google Search via Gemini API**
+       - How to prompt Gemini 3.0 with Google Search to return structured event JSON?
+       - Does the "Thinking" capability improve location filtering?
+
+    2. **SerpAPI (Google Events Engine)**
+       - Parameter \`engine=google_events\`
+       - Filtering for "Today" (\`htichips=date:today\`)
+       - Location parameter format (\`location=...\`)
+
+    3. **Ticketmaster Discovery API**
+       - \`latlong\` and \`radius\` parameters.
+       - \`startDateTime\` and \`endDateTime\` formatting.
+
+    Provide exact parameter names, API endpoint URLs, and a comparison of data freshness for "Today".`;
+
+    systemPrompt = `You are an expert on Event Discovery APIs.
+    Provide precise, current parameters for finding hyperlocal events.
+    Focus on exact API parameters (JSON keys, URL params).
+    Cite official documentation or developer portals.`;
+
+  } else {
+    // UPDATED QUERY: Recognizes Gemini 3 is out, looks for competitors/updates
+    query = `What are the current production AI models from ${providerName} available via API as of December 2025?
+
+    Include:
+    1. Latest specific Model IDs (exact strings for API calls).
+    2. API Endpoint URLs.
+    3. Supported features (Function calling, JSON mode, Vision, Reasoning).
+    4. Context window sizes.
+    5. Pricing (Input/Output per 1M tokens).
+
+    Verify the existence and API names of:
+    - OpenAI: Latest o1 (reasoning) versions or GPT-5 snapshots.
+    - Anthropic: Claude 3.5 Opus or Claude 3.7 Sonnet (if released).
+    - Google: Verify "gemini-3-pro-preview" parameters and any newer "Flash" variants.
+
+    Focus on valid, production-ready strings used in code.`;
+
+    systemPrompt = `You are a technical researcher specializing in LLM integrations.
+    Provide precise, verifiable information about AI Models.
+    Do not speculate. Focus on the exact API strings required for integration.`;
   }
 
-  const result = await perplexitySearch(query, systemPrompt);
-  
+  const result = await performGroundedResearch(query, systemPrompt);
+
   console.log(`✅ ${providerName} research complete (${result.citations.length} sources)`);
-  
+
   return {
     provider: providerName,
     timestamp: new Date().toISOString(),
@@ -131,33 +133,32 @@ async function researchProvider(providerName) {
 
 async function researchParameterConstraints() {
   console.log(`\n🔍 Researching model parameter constraints...`);
-  
-  const query = `For OpenAI GPT-5, Anthropic Claude Sonnet 4.5, and Google Gemini 2.5 Pro:
-  Which API parameters are supported vs deprecated?
-  Specifically:
-  - Does GPT-5 support temperature, top_p, frequency_penalty?
-  - What parameters does GPT-5's reasoning_effort replace?
-  - What are the valid values for reasoning_effort?
-  - Are there any breaking changes from GPT-4 to GPT-5?
-  - What parameters does Claude Sonnet 4.5 support?
-  - What parameters does Gemini 2.5 Pro support?
-  
-  Provide exact parameter names and valid ranges.`;
 
-  const systemPrompt = `You are an AI API expert. Provide precise information about API parameters.
-  Focus on what's currently supported in production as of October 2025.
-  Include any deprecation warnings or breaking changes.
-  
-  KEY FACTS TO VERIFY:
-  - GPT-5 does NOT support temperature, top_p, frequency_penalty, or presence_penalty
-  - GPT-5 only supports reasoning_effort (values: minimal, low, medium, high)
-  - Claude Sonnet 4.5 model ID is claude-sonnet-4-5-20250929
-  - Gemini 2.5 Pro supports standard temperature/max_tokens parameters`;
+  // UPDATED QUERY: Focuses on Gemini 3 "Thinking" and OpenAI "o1" changes
+  const query = `Compare API parameter constraints for the latest models (Dec 2025):
 
-  const result = await perplexitySearch(query, systemPrompt);
-  
+  1. **Google Gemini 3.0 Pro Preview**
+     - What is the \`thinking_level\` parameter? (low/high)
+     - Does it still support \`thinking_budget\` or is that deprecated?
+     - Are there breaking changes regarding "thought signatures" in function calling?
+
+  2. **OpenAI (o1 / GPT-5)**
+     - Confirmation of \`max_completion_tokens\` vs \`max_tokens\`.
+     - Is \`temperature\` supported in the latest reasoning models?
+
+  3. **Anthropic (Claude 3.5/3.7)**
+     - Latest \`anthropic-version\` header date.
+
+  Provide a table of breaking changes for these newest models.`;
+
+  const systemPrompt = `You are an API integration specialist.
+  Focus on BREAKING CHANGES in parameters for the absolute latest models (Gemini 3.0, OpenAI o1).
+  Identify parameters that must be omitted to avoid 400 Bad Request errors.`;
+
+  const result = await performGroundedResearch(query, systemPrompt);
+
   console.log(`✅ Parameter research complete`);
-  
+
   return {
     topic: 'parameter_constraints',
     timestamp: new Date().toISOString(),
@@ -168,23 +169,23 @@ async function researchParameterConstraints() {
 
 async function researchDeprecatedModels() {
   console.log(`\n🔍 Researching deprecated/superseded models...`);
-  
-  const query = `Which AI models have been deprecated or superseded in late 2024 and early 2025?
-  For OpenAI, Anthropic, and Google AI:
-  - Which older model names should no longer be used?
-  - What are the recommended replacements?
-  - Are there any sunset dates?
-  
-  Focus on models that were popular in 2024 but are now deprecated.`;
 
-  const systemPrompt = `You are tracking AI model lifecycle. Provide information about deprecated models.
-  Include exact old and new model names.
-  Only include confirmed deprecations from official sources.`;
+  const query = `Which major LLM API models have been deprecated or are scheduled for sunset in late 2025?
 
-  const result = await perplexitySearch(query, systemPrompt);
-  
+  Check specific status for:
+  - OpenAI: gpt-3.5 series, older gpt-4-turbo snapshots.
+  - Google: gemini-1.0-pro, gemini-1.5-pro-preview-0409 (specific old snapshots).
+  - Anthropic: Claude 2.1.
+
+  Provide exact dates for shutdown if available.`;
+
+  const systemPrompt = `You are tracking software lifecycles.
+  List only confirmed deprecations from official changelogs.`;
+
+  const result = await performGroundedResearch(query, systemPrompt);
+
   console.log(`✅ Deprecation research complete`);
-  
+
   return {
     topic: 'deprecated_models',
     timestamp: new Date().toISOString(),
@@ -201,17 +202,16 @@ async function generateReport(research) {
       month: 'long', 
       day: 'numeric' 
     }),
+    tool_used: 'Google Gemini 3.0 Pro Preview',
     providers: research.providers,
     parameter_constraints: research.parameters,
     deprecated_models: research.deprecated,
     recommendations: generateRecommendations(research),
     next_steps: [
-      'Review all findings against official documentation',
-      'Update server/lib/adapters/* files with new model names',
-      'Update docs/reference/LLM_MODELS_REFERENCE.md',
-      'Update .env.example with new model defaults',
-      'Test each model with tools/testing endpoints',
-      'Update ISSUES.md if deprecated models are still in use'
+      'Update server/lib/adapters/google-gemini.js to use "gemini-3-pro-preview"',
+      'Implement `thinking_level` parameter logic for Gemini 3 adapter',
+      'Verify "thought_signature" handling in multi-turn function calls',
+      'Update OpenAI adapter for `max_completion_tokens`'
     ]
   };
 
@@ -220,36 +220,35 @@ async function generateReport(research) {
 
 function generateRecommendations(research) {
   const recommendations = [];
-  
+
   try {
-    // Check for common issues in the research
     const allText = JSON.stringify(research).toLowerCase();
-    
-    if (allText.includes('gpt-5') && allText.includes('reasoning_effort')) {
+
+    // Logic to detect specific API shifts based on keyword presence in the research
+    if (allText.includes('thinking_level') || allText.includes('thought_signature')) {
       recommendations.push({
-        priority: 'HIGH',
-        item: 'GPT-5 Parameter Update',
-        detail: 'GPT-5 uses reasoning_effort instead of temperature. Update server/lib/adapters/openai-gpt5.js to remove unsupported parameters.',
-        snapshot_note: 'OpenAI may return snapshot IDs like gpt-5-2025-08-07. Adapter should check model family (startsWith) not exact match.'
+        priority: 'CRITICAL',
+        item: 'Gemini 3.0 Reasoning Update',
+        detail: 'Gemini 3.0 requires handling of `thinking_level` and strict `thought_signature` passing in function calls. Existing adapters may break on multi-turn tool use.',
       });
     }
-    
-    if (allText.includes('deprecated') || allText.includes('superseded')) {
+
+    if (allText.includes('max_completion_tokens')) {
       recommendations.push({
         priority: 'HIGH',
-        item: 'Model Deprecation',
-        detail: 'Some models may be deprecated. Review the deprecated_models section and update your codebase.'
+        item: 'OpenAI o1 Parameter Shift',
+        detail: 'Ensure OpenAI reasoning models use `max_completion_tokens` instead of `max_tokens`.'
       });
     }
-    
-    if (allText.includes('claude') && allText.includes('4.5')) {
+
+    if (allText.includes('deprecated') && allText.includes('1.0-pro')) {
       recommendations.push({
         priority: 'MEDIUM',
-        item: 'Claude 4.5 Verification',
-        detail: 'Verify Claude Sonnet 4.5 model ID matches what you have in server/lib/adapters/anthropic-sonnet45.js'
+        item: 'Legacy Model Cleanup',
+        detail: 'Remove references to Gemini 1.0 Pro or older PaLM models if confirmed deprecated.'
       });
     }
-    
+
     return recommendations;
   } catch (error) {
     console.error('Error generating recommendations:', error);
@@ -258,50 +257,47 @@ function generateRecommendations(research) {
 }
 
 async function main() {
-  console.log('🚀 AI Model Discovery & Research Tool');
-  console.log('=====================================');
-  console.log(`Using Perplexity model: ${MODEL}`);
-  console.log(`Research date: ${new Date().toLocaleDateString()}`);
-  
+  console.log('🚀 AI Model Discovery & Research Tool (Powered by Google Gemini 3.0)');
+  console.log('====================================================================');
+  console.log(`Using Model: ${MODEL_NAME}`);
+
   try {
     // Research each provider
     const providers = await Promise.all([
       researchProvider('OpenAI'),
       researchProvider('Anthropic'),
       researchProvider('Google AI (Gemini)'),
-      researchProvider('Perplexity AI'),
       researchProvider('News & Events APIs')
     ]);
-    
+
     // Research constraints and deprecations
     const parameters = await researchParameterConstraints();
     const deprecated = await researchDeprecatedModels();
-    
+
     // Generate comprehensive report
     const report = await generateReport({
       providers,
       parameters,
       deprecated
     });
-    
+
     // Save to file
     const outputDir = path.join(process.cwd(), 'tools', 'research');
     await fs.mkdir(outputDir, { recursive: true });
-    
+
     const timestamp = new Date().toISOString().split('T')[0];
     const outputPath = path.join(outputDir, `model-research-${timestamp}.json`);
-    
+
     await fs.writeFile(outputPath, JSON.stringify(report, null, 2));
-    
+
     console.log('\n✅ Research complete!');
     console.log(`📄 Report saved to: ${outputPath}`);
-    
+
     // Print summary
     console.log('\n📊 Summary:');
     console.log(`- Providers researched: ${report.providers.length}`);
-    console.log(`- Total citations: ${report.providers.reduce((sum, p) => sum + p.citations.length, 0) + report.parameter_constraints.citations.length + report.deprecated_models.citations.length}`);
-    console.log(`- Recommendations: ${report.recommendations.length}`);
-    
+    console.log(`- Total sources cited: ${report.providers.reduce((sum, p) => sum + p.citations.length, 0) + report.parameter_constraints.citations.length}`);
+
     if (report.recommendations.length > 0) {
       console.log('\n⚠️  Action Items:');
       report.recommendations.forEach(rec => {
@@ -309,11 +305,9 @@ async function main() {
         console.log(`      ${rec.detail}`);
       });
     }
-    
-    console.log('\n🔍 Review the full report for detailed findings and citations.');
-    
+
   } catch (error) {
-    console.error('❌ Research failed:', error.message);
+    console.error('❌ Research failed:', error);
     process.exit(1);
   }
 }

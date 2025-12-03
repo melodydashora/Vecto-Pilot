@@ -102,6 +102,7 @@
     "eventsource": "^4.0.0",
     "express": "^4.21.1",
     "express-rate-limit": "^8.2.1",
+    "googleapis": "^166.0.0",
     "h3-js": "^4.3.0",
     "helmet": "^8.1.0",
     "http-proxy": "^1.18.1",
