@@ -30,6 +30,13 @@ const optionalUuidSchema = z.string()
   .optional()
   .nullable();
 
+// Optional device ID (text, not UUID - can be any string identifier)
+const optionalDeviceIdSchema = z.string()
+  .min(1, 'Device ID cannot be empty')
+  .max(255, 'Device ID too long')
+  .optional()
+  .nullable();
+
 // Snapshot creation validation (supports both minimal and full SnapshotV1 formats)
 // Minimal format: {lat: 37.77, lng: -122.41}
 // Full SnapshotV1: {coord: {lat: 37.77, lng: -122.41}, resolved, time_context, ...}
@@ -45,7 +52,7 @@ export const snapshotMinimalSchema = z.union([
       .max(180, 'Longitude must be <= 180')
       .finite('Longitude must be a finite number'),
     userId: optionalUuidSchema,
-    device_id: optionalUuidSchema,
+    device_id: optionalDeviceIdSchema,
     session_id: optionalUuidSchema
   }).passthrough(),
   
@@ -62,7 +69,7 @@ export const snapshotMinimalSchema = z.union([
         .finite('Longitude must be a finite number')
     }).passthrough(),
     user_id: optionalUuidSchema,
-    device_id: optionalUuidSchema,
+    device_id: optionalDeviceIdSchema,
     session_id: optionalUuidSchema
   }).passthrough()
 ]).transform(data => {

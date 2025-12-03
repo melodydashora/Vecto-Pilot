@@ -134,6 +134,7 @@ Every table that references `snapshot_id` also stores the **resolved precise loc
 - ✅ All API calls, LLM prompts, and user actions tied to location context
 
 ## Recent Changes
+- **Dec 3, 2025**: Fixed critical database schema issues blocking waterfall pipeline. Changed `device_id` column from UUID to TEXT in `users` and `snapshots` tables (location API was crashing on non-UUID device identifiers). Added `formatted_address`, `city`, `state` columns to `triad_jobs` table for location denormalization. Updated validation schema to accept device_id as any string. Location API, snapshot creation, and strategy pipeline now working correctly.
 - **Dec 2, 2025 (FINAL)**: Complete precise location denormalization across all snapshot-related tables. Each table now stores formatted_address + city + state denormalized from snapshot for relational consistency and fast access without joins. Gemini 3.0 Pro ONLY for events (removed Perplexity/SerpAPI/NewsAPI). Google Places API enriches events with full addresses + staging areas. Events show full venue details with driver-ready staging recommendations. Events now auto-land in briefing table with location context in parallel.
 - **Dec 2, 2025**: Fixed briefing data persistence - location fields now land in briefing table automatically when snapshot is created.
 - **Dec 2, 2025**: Added 5th "About/Donation" tab to Co-Pilot showcasing project investment, complexity, and sustainability needs. Direct donation link integrated.

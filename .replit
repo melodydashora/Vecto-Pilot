@@ -8,7 +8,7 @@ run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-repli
 
 # Nix/packages configuration
 [nix]
-packages = ["at", "imagemagick_light", "jq", "lsof", "nodejs-22", "spidermonkey_91", "tree"]
+packages = ["at", "imagemagick_light", "jq", "lsof", "nodejs-22", "spidermonkey_91", "tree", "mailutils", "pgroll", "unpackerr"]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)
@@ -55,6 +55,6 @@ integrations = ["perplexity_v0:1.0.0"]
 STRATEGY_STRATEGIST = "claude-sonnet-4-5-20250929"
 STRATEGY_BRIEFER = "sonar-pro"
 STRATEGY_CONSOLIDATOR = "gpt-5.1"
-GEMINI_MODEL = "gemini-2.5-pro"
+GEMINI_MODEL = "gemini-3-pro-preview"
 STRATEGY_CONSOLIDATOR_MAX_TOKENS = "64000"
 STRATEGY_CONSOLIDATOR_REASONING_EFFORT = "medium"
