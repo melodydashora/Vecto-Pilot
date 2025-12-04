@@ -691,21 +691,27 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
     // Import traffic intelligence from venue service
     const { getTrafficIntelligence } = await import('./venue-intelligence.js');
     
-    // Add timeout to prevent hanging requests
+    // Add timeout to prevent hanging requests (120s max for Gemini)
+    console.log('[BriefingService] 🚗 Starting traffic fetch for', city, state);
     const trafficPromise = getTrafficIntelligence({ lat, lng, city, state });
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Traffic API timeout')), 8000)
+      setTimeout(() => reject(new Error('Traffic API timeout after 120s')), 120000)
     );
     
     let trafficIntel;
     try {
+      console.log('[BriefingService] ⏳ Waiting for traffic intelligence...');
+      const startTime = Date.now();
       trafficIntel = await Promise.race([trafficPromise, timeoutPromise]);
+      const duration = Date.now() - startTime;
+      console.log(`[BriefingService] ✅ Traffic intelligence received in ${duration}ms:`, trafficIntel?.density_level);
     } catch (timeoutErr) {
-      console.warn('[BriefingService] Traffic fetch timed out, using stub data:', timeoutErr.message);
+      const duration = Date.now() - startTime;
+      console.warn(`[BriefingService] ⚠️ Traffic fetch failed after ${duration}ms:`, timeoutErr.message);
       // Return stub data on timeout instead of erroring
       trafficIntel = {
         density_level: 'medium',
-        driver_advice: 'Unable to fetch real-time traffic. Check maps for current conditions.',
+        driver_advice: 'Real-time traffic data unavailable. Check Google Maps for current conditions.',
         congestion_areas: [],
         high_demand_zones: []
       };
