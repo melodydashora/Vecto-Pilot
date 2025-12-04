@@ -266,16 +266,23 @@ Return ONLY valid JSON (no explanation):
 }`;
 
   try {
+    console.log('[VenueIntelligence] 🚗 Calling Gemini 3.0 Pro Preview for traffic...');
     const result = await model.generateContent(prompt);
+    console.log('[VenueIntelligence] ✅ Gemini response received');
     const text = result.response.text();
+    console.log('[VenueIntelligence] Response text length:', text.length);
+    console.log('[VenueIntelligence] Response preview:', text.substring(0, 200));
     
     let trafficData;
     try {
       trafficData = JSON.parse(text);
+      console.log('[VenueIntelligence] ✅ Parsed traffic JSON:', trafficData.density_level);
     } catch (e) {
+      console.warn('[VenueIntelligence] JSON parse failed, trying to extract:', e.message);
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         trafficData = JSON.parse(jsonMatch[0]);
+        console.log('[VenueIntelligence] ✅ Extracted traffic JSON:', trafficData.density_level);
       } else {
         throw new Error('Could not parse traffic data');
       }
@@ -283,7 +290,7 @@ Return ONLY valid JSON (no explanation):
 
     return trafficData;
   } catch (error) {
-    console.error('[VenueIntelligence] Error getting traffic:', error);
+    console.error('[VenueIntelligence] ❌ Error getting traffic:', error.message);
     throw error;
   }
 }
