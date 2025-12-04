@@ -86,7 +86,7 @@ export async function fetchRideshareNews({ city, state, lat, lng, country = 'US'
 async function fetchEventsFromGeminiWithTimeout(city, state, lat, lng) {
   return Promise.race([
     fetchEventsFromGemini(city, state, lat, lng),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Event fetch timeout')), 30000))
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Event fetch timeout')), 120000))
   ]).catch(err => {
     console.warn('[BriefingService] Event timeout/error, returning empty:', err.message);
     return [];
@@ -106,7 +106,10 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 1.0,
-          maxOutputTokens: 16000
+          maxOutputTokens: 16000,
+          thinking: {
+            type: "low"
+          }
         }
       })
     });
@@ -631,8 +634,8 @@ export async function fetchWeatherConditions({ lat, lng }) {
 }
 
 export async function fetchSchoolClosures({ city, state, lat, lng }) {
-  if (!PERPLEXITY_API_KEY) {
-    console.log('[BriefingService] Skipping school closures (no Perplexity API key)');
+  if (!GEMINI_API_KEY) {
+    console.log('[BriefingService] Skipping school closures (no Gemini API key)');
     return [];
   }
 
@@ -656,24 +659,24 @@ Return ONLY valid JSON array:
   }
 ]
 
-RESPOND WITH ONLY VALID JSON ARRAY:`;
+RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
 
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('School closures timeout')), 30000)
+      setTimeout(() => reject(new Error('School closures timeout')), 120000)
     );
 
-    const responsePromise = fetch('https://api.perplexity.ai/chat/completions', {
+    const responsePromise = fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [{ role: 'user', content: prompt }],
-        search_recency_filter: 'month',
-        temperature: 0.1,
-        max_tokens: 2000
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 2000,
+          thinking: {
+            type: "low"
+          }
+        }
       })
     });
 
@@ -685,7 +688,7 @@ RESPOND WITH ONLY VALID JSON ARRAY:`;
     }
 
     const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || '[]';
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
