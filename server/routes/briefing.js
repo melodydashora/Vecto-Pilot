@@ -296,12 +296,12 @@ router.get('/weather/realtime', async (req, res) => {
 });
 
 // Component-level endpoint: Weather only
-router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
+router.get('/weather/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+    if (snapshotCheck.length === 0) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
     const snapshot = snapshotCheck[0];
@@ -336,12 +336,12 @@ router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
 });
 
 // Component-level endpoint: Traffic only
-router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
+router.get('/traffic/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+    if (snapshotCheck.length === 0) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
     const snapshot = snapshotCheck[0];
@@ -373,12 +373,12 @@ router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
 });
 
 // Component-level endpoint: Rideshare News only
-router.get('/rideshare-news/:snapshotId', requireAuth, async (req, res) => {
+router.get('/rideshare-news/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+    if (snapshotCheck.length === 0) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
     const snapshot = snapshotCheck[0];
@@ -410,12 +410,12 @@ router.get('/rideshare-news/:snapshotId', requireAuth, async (req, res) => {
 });
 
 // Component-level endpoint: Local Events, Live Music & Concerts (single request with Places API resolution)
-router.get('/events/:snapshotId', requireAuth, async (req, res) => {
+router.get('/events/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+    if (snapshotCheck.length === 0) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
     const snapshot = snapshotCheck[0];
@@ -448,12 +448,12 @@ router.get('/events/:snapshotId', requireAuth, async (req, res) => {
 });
 
 // Component-level endpoint: School Closures only
-router.get('/school-closures/:snapshotId', requireAuth, async (req, res) => {
+router.get('/school-closures/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+    if (snapshotCheck.length === 0) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
     const snapshot = snapshotCheck[0];
