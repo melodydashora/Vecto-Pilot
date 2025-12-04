@@ -225,65 +225,63 @@ Return ONLY valid JSON, no markdown.`;
  * @returns {Promise<Object>} Traffic intelligence
  */
 export async function getTrafficIntelligence({ lat, lng, city, state }) {
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-3-pro-preview",
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 4000,
+      thinking: {
+        type: "high",
+        budgetTokens: 100000
+      }
+    }
+  });
+  const currentTime = new Date();
+  const timeString = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  
+  const prompt = `You are a traffic intelligence assistant for rideshare drivers in ${city}, ${state}. Analyze CURRENT traffic conditions RIGHT NOW at coordinates (${lat}, ${lng}).
+
+Current time: ${timeString}
+
+Provide real-time traffic intelligence based on typical patterns for this time and location:
+1. Overall traffic density (1-10 scale, 10 = gridlock)
+2. Major congestion areas and why (events, accidents, construction, commute patterns)
+3. High-demand rideshare zones based on traffic patterns
+4. Best positioning advice for drivers
+
+Return ONLY valid JSON (no explanation):
+{
+  "query_time": "${timeString}",
+  "location": "${city}, ${state}",
+  "traffic_density": 7,
+  "density_level": "high|medium|low",
+  "congestion_areas": [
+    {"area": "specific street/highway", "reason": "detailed reason", "severity": 1-10}
+  ],
+  "high_demand_zones": [
+    {"zone": "area name", "why": "reason", "rideshare_opportunity": "high|medium|low"}
+  ],
+  "driver_advice": "actionable advice for drivers",
+  "sources": ["real-time analysis"]
+}`;
+
   try {
-    const now = new Date();
-    const hour = now.getHours();
-    const dayOfWeek = now.getDay();
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
     
-    // Return realistic traffic pattern without relying on slow Gemini
-    let density_level = 'low';
-    let traffic_density = 3;
-    let congestion_areas = [];
-    let driver_advice = 'Light traffic. Good time for rideshare.';
-    
-    // Morning rush (6-9am)
-    if (hour >= 6 && hour < 9) {
-      density_level = 'high';
-      traffic_density = 8;
-      congestion_areas = [
-        { area: 'Downtown corridor', reason: 'Morning commute', severity: 8 },
-        { area: 'Interstate 75', reason: 'Heavy outbound traffic', severity: 7 }
-      ];
-      driver_advice = 'Avoid major highways. Focus on local streets. High demand in residential areas.';
+    let trafficData;
+    try {
+      trafficData = JSON.parse(text);
+    } catch (e) {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        trafficData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Could not parse traffic data');
+      }
     }
-    // Evening rush (4-7pm)
-    else if (hour >= 16 && hour < 19) {
-      density_level = 'high';
-      traffic_density = 8;
-      congestion_areas = [
-        { area: 'Downtown exits', reason: 'Evening commute', severity: 8 },
-        { area: 'Shopping district', reason: 'High volume to commercial areas', severity: 6 }
-      ];
-      driver_advice = 'Peak demand for rideshare. Position near commercial areas and transit hubs.';
-    }
-    // Night (10pm-5am) - bars closing
-    else if (hour >= 22 || hour < 5) {
-      density_level = 'medium';
-      traffic_density = 4;
-      congestion_areas = [];
-      driver_advice = 'Late night traffic. Focus on entertainment districts and bars during peak hours.';
-    }
-    // Midday (9am-4pm)
-    else {
-      density_level = 'low';
-      traffic_density = 3;
-      congestion_areas = [];
-      driver_advice = 'Light traffic. Good time to reposition or take breaks.';
-    }
-    
-    return {
-      query_time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      location: `${city}, ${state}`,
-      traffic_density,
-      density_level,
-      congestion_areas,
-      high_demand_zones: [
-        { zone: `${city} downtown`, why: 'Business district activity', rideshare_opportunity: 'high' },
-        { zone: 'Shopping areas', why: 'High visitor volume', rideshare_opportunity: 'medium' }
-      ],
-      driver_advice,
-      sources: ['time-based-patterns']
-    };
+
+    return trafficData;
   } catch (error) {
     console.error('[VenueIntelligence] Error getting traffic:', error);
     throw error;
