@@ -108,7 +108,8 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
           temperature: 1.0,
           maxOutputTokens: 16000,
           thinking: {
-            type: "low"
+            type: "high",
+            budgetTokens: 100000
           }
         }
       })
@@ -674,7 +675,8 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
           temperature: 0.2,
           maxOutputTokens: 2000,
           thinking: {
-            type: "low"
+            type: "high",
+            budgetTokens: 100000
           }
         }
       })
