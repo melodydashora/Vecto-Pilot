@@ -168,7 +168,18 @@ router.post('/:snapshotId/retry', async (req, res) => {
     // Location data references user_id; only API-enriched fields are stored
     const newSnapshotId = crypto.randomUUID();
     const now = new Date();
-    const today = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Calculate "today" in the driver's local timezone (not server timezone)
+    // This ensures Hawaii, Alaska, etc. get the correct date
+    const driverTimezone = originalSnapshot.timezone || 'America/Chicago';
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: driverTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(now);
+    const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
     
     await db.insert(snapshots).values({
       snapshot_id: newSnapshotId,
