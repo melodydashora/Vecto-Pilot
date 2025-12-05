@@ -37,6 +37,8 @@ const LocalEventSchema = z.object({
 const LocalEventsArraySchema = z.array(LocalEventSchema);
 
 export async function fetchEventsForBriefing({ snapshot } = {}) {
+  console.log(`[fetchEventsForBriefing] Called with snapshot:`, snapshot ? `lat=${snapshot.lat}, lng=${snapshot.lng}, tz=${snapshot.timezone}, date=${snapshot.date}` : 'null');
+  
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] Gemini API key not configured');
     return [];
@@ -56,9 +58,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       date: snapshot.date
     });
     
+    console.log(`[fetchEventsForBriefing] Returning ${events.length} events`);
     return events || [];
   } catch (error) {
-    console.error('[BriefingService] Event discovery error:', error.message);
+    console.error('[BriefingService] Event discovery error:', error.message, error.stack);
     return [];
   }
 }
