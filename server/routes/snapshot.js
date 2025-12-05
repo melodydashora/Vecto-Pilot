@@ -55,7 +55,18 @@ router.post("/", async (req, res) => {
     
     // Build DB record
     const createdAtDate = snap.created_at ? new Date(snap.created_at) : new Date();
-    const today = createdAtDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Calculate "today" in the driver's local timezone (not server timezone)
+    // This ensures Hawaii, Alaska, etc. get the correct date
+    const driverTimezone = timezone || 'America/Chicago';
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: driverTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(createdAtDate);
+    const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
     
     const dbSnapshot = {
       snapshot_id,
