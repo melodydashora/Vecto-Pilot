@@ -36,29 +36,19 @@ const LocalEventSchema = z.object({
 
 const LocalEventsArraySchema = z.array(LocalEventSchema);
 
-export async function fetchRideshareNews({ snapshot } = {}) {
+export async function fetchEventsForBriefing({ snapshot } = {}) {
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] Gemini API key not configured');
-    return { 
-      items: [], 
-      filtered: [],
-      fetchedAt: new Date().toISOString(),
-      source: 'None'
-    };
+    return [];
   }
 
   if (!snapshot) {
     console.warn('[BriefingService] No snapshot provided');
-    return { 
-      items: [], 
-      filtered: [],
-      fetchedAt: new Date().toISOString(),
-      source: 'Error'
-    };
+    return [];
   }
 
   try {
-    // Use Gemini 3.0 Pro Preview with web search for event discovery
+    // Use Gemini 3 Pro Preview with web search for event discovery
     const events = await fetchEventsWithGemini3ProPreview({
       lat: snapshot.lat,
       lng: snapshot.lng,
@@ -66,29 +56,10 @@ export async function fetchRideshareNews({ snapshot } = {}) {
       date: snapshot.date
     });
     
-    if (events && events.length > 0) {
-      return {
-        items: events,
-        filtered: events,
-        fetchedAt: new Date().toISOString(),
-        source: 'Gemini 3 Pro Preview'
-      };
-    }
-    
-    return { 
-      items: [], 
-      filtered: [],
-      fetchedAt: new Date().toISOString(),
-      source: 'Gemini 3 Pro Preview'
-    };
+    return events || [];
   } catch (error) {
     console.error('[BriefingService] Event discovery error:', error.message);
-    return { 
-      items: [], 
-      filtered: [],
-      fetchedAt: new Date().toISOString(),
-      source: 'Error'
-    };
+    return [];
   }
 }
 
@@ -847,12 +818,9 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     console.warn('[BriefingService] Could not fetch snapshot for events discovery:', err.message);
   }
 
-  // Pass snapshot object to fetchRideshareNews if available
-  const newsResult = snapshot 
-    ? await fetchRideshareNews({ snapshot })
-    : await fetchRideshareNews({ snapshot: { lat, lng, timezone: 'America/Chicago', date: new Date().toISOString().split('T')[0] } });
-
-  const [weatherResult, trafficResult, schoolClosures] = await Promise.all([
+  // Fetch all briefing components in parallel
+  const [events, weatherResult, trafficResult, schoolClosures] = await Promise.all([
+    snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchWeatherConditions({ lat, lng }),
     fetchTrafficConditions({ lat, lng, city, state }),
     fetchSchoolClosures({ city, state, lat, lng })
@@ -863,11 +831,11 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     formatted_address: formattedAddress,
     city,
     state,
-    news: newsResult,
+    news: { items: [], filtered: [] },
     weather_current: weatherResult.current,
     weather_forecast: weatherResult.forecast,
     traffic_conditions: trafficResult,
-    events: newsResult.filtered || newsResult.items || [],
+    events: events || [],
     school_closures: schoolClosures.length > 0 ? schoolClosures : null,
     created_at: new Date(),
     updated_at: new Date()
