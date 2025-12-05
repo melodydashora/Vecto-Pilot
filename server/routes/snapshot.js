@@ -54,9 +54,13 @@ router.post("/", async (req, res) => {
     const local_iso = snap.time_context?.local_iso;
     
     // Build DB record
+    const createdAtDate = snap.created_at ? new Date(snap.created_at) : new Date();
+    const today = createdAtDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
     const dbSnapshot = {
       snapshot_id,
-      created_at: snap.created_at ? new Date(snap.created_at) : new Date(),
+      created_at: createdAtDate,
+      date: today,
       user_id,
       device_id: snap.device_id || uuid(),
       session_id: snap.session_id || uuid(),

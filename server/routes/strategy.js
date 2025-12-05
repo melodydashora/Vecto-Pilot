@@ -168,10 +168,12 @@ router.post('/:snapshotId/retry', async (req, res) => {
     // Location data references user_id; only API-enriched fields are stored
     const newSnapshotId = crypto.randomUUID();
     const now = new Date();
+    const today = now.toISOString().split('T')[0]; // YYYY-MM-DD format
     
     await db.insert(snapshots).values({
       snapshot_id: newSnapshotId,
       created_at: now,
+      date: today,
       user_id: originalSnapshot.user_id,
       device_id: originalSnapshot.device_id,
       session_id: originalSnapshot.session_id,

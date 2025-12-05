@@ -1028,9 +1028,13 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       return isNaN(d.getTime()) ? null : d;
     };
 
+    const createdAtDate = safeDate(snapshotV1.created_at) || new Date();
+    const today = createdAtDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+
     const dbSnapshot = {
       snapshot_id: snapshotV1.snapshot_id,
-      created_at: safeDate(snapshotV1.created_at) || new Date(),
+      created_at: createdAtDate,
+      date: today,
       user_id: (snapshotV1.user_id && snapshotV1.user_id.trim() !== '') ? snapshotV1.user_id : null,
       device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
