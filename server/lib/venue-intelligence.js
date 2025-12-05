@@ -225,17 +225,6 @@ Return ONLY valid JSON, no markdown.`;
  * @returns {Promise<Object>} Traffic intelligence
  */
 export async function getTrafficIntelligence({ lat, lng, city, state }) {
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-3-pro-preview",
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 4000,
-      thinking: {
-        type: "high",
-        budgetTokens: 100000
-      }
-    }
-  });
   const currentTime = new Date();
   const timeString = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   
@@ -267,9 +256,36 @@ Return ONLY valid JSON (no explanation):
 
   try {
     console.log('[VenueIntelligence] 🚗 Calling Gemini 3.0 Pro Preview for traffic...');
-    const result = await model.generateContent(prompt);
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": process.env.GEMINI_API_KEY,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
     console.log('[VenueIntelligence] ✅ Gemini response received');
-    const text = result.response.text();
+    
+    if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      throw new Error('No text in Gemini response');
+    }
+
+    const text = data.candidates[0].content.parts[0].text;
     console.log('[VenueIntelligence] Response text length:', text.length);
     console.log('[VenueIntelligence] Response preview:', text.substring(0, 200));
     
