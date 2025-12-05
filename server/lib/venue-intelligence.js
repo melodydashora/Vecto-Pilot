@@ -255,9 +255,9 @@ Return ONLY valid JSON (no explanation):
 }`;
 
   try {
-    console.log('[VenueIntelligence] 🚗 Calling Gemini 3.0 Pro Preview for traffic...');
+    console.log('[VenueIntelligence] 🚗 Calling Gemini 2.5 Pro for traffic...');
     const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent",
       {
         method: "POST",
         headers: {

@@ -99,7 +99,7 @@ async function fetchEventsFromGemini(city, state, lat, lng) {
 
 RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -668,7 +668,7 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
       setTimeout(() => reject(new Error('School closures timeout')), 120000)
     );
 
-    const responsePromise = fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
+    const responsePromise = fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
