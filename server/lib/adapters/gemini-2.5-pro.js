@@ -2,7 +2,7 @@
 // Model ID from env: GEMINI_MODEL (required)
 // Temperature from env: GEMINI_TEMPERATURE (default: 0.2)
 export async function callGeminiGenerateContent({
-  apiKey = process.env.GEMINI_API_KEY,
+  apiKey = process.env.GOOGLE_MAPS_API_KEY,
   model = process.env.GEMINI_MODEL,
   systemInstruction,
   userText,

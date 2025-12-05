@@ -35,7 +35,7 @@ export function validateStrategyEnv() {
   if (strategistModel?.startsWith('gpt-') && !process.env.OPENAI_API_KEY) {
     warnings.push('STRATEGY_STRATEGIST uses GPT but OPENAI_API_KEY is not set');
   }
-  if (strategistModel?.startsWith('gemini-') && !process.env.GEMINI_API_KEY) {
+  if (strategistModel?.startsWith('gemini-') && !process.env.GOOGLE_MAPS_API_KEY) {
     warnings.push('STRATEGY_STRATEGIST uses Gemini but GEMINI_API_KEY is not set');
   }
 
@@ -45,7 +45,7 @@ export function validateStrategyEnv() {
   if (brieferModel?.startsWith('gpt-') && !process.env.OPENAI_API_KEY) {
     warnings.push('STRATEGY_BRIEFER uses GPT but OPENAI_API_KEY is not set');
   }
-  if (brieferModel?.startsWith('gemini-') && !process.env.GEMINI_API_KEY) {
+  if (brieferModel?.startsWith('gemini-') && !process.env.GOOGLE_MAPS_API_KEY) {
     warnings.push('STRATEGY_BRIEFER uses Gemini but GEMINI_API_KEY is not set');
   }
 
@@ -55,7 +55,7 @@ export function validateStrategyEnv() {
   if (consolidatorModel?.startsWith('gpt-') && !process.env.OPENAI_API_KEY) {
     warnings.push('STRATEGY_CONSOLIDATOR uses GPT but OPENAI_API_KEY is not set');
   }
-  if (consolidatorModel?.startsWith('gemini-') && !process.env.GEMINI_API_KEY) {
+  if (consolidatorModel?.startsWith('gemini-') && !process.env.GOOGLE_MAPS_API_KEY) {
     warnings.push('STRATEGY_CONSOLIDATOR uses Gemini but GEMINI_API_KEY is not set');
   }
 

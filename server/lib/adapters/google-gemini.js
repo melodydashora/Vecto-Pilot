@@ -1,5 +1,5 @@
 // server/lib/adapters/google-gemini.js
-export async function callGemini({ apiKey = process.env.GEMINI_API_KEY, model = process.env.GEMINI_MODEL || "gemini-3-pro-preview", systemInstruction, user, max_output_tokens = 1024, temperature = 1.0, responseMimeType, abortSignal }) {
+export async function callGemini({ apiKey = process.env.GOOGLE_MAPS_API_KEY, model = process.env.GEMINI_MODEL || "gemini-3-pro-preview", systemInstruction, user, max_output_tokens = 1024, temperature = 1.0, responseMimeType, abortSignal }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const generationConfig = { temperature, maxOutputTokens: max_output_tokens };
   

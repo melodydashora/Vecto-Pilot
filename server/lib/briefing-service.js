@@ -12,12 +12,8 @@ import { z } from 'zod';
 // - All API calls (weather, traffic, news) are logged with snapshot_id for training data
 // - This enables full traceability and supervised learning on driver behavior patterns
 
-const SERP_API_KEY = process.env.SERP_API_KEY;
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+// Single unified Google API key for all 35 Google APIs
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
-const NEWS_API_KEY = process.env.NEWS_API_KEY;
-const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
 // Zod validation schema for local events
 const LocalEventSchema = z.object({

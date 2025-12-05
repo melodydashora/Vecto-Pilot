@@ -6,7 +6,7 @@ export async function validateWithGemini({
   model = process.env.GEMINI_MODEL || "gemini-2.5-pro",
   timeoutMs = Number(process.env.VALIDATOR_DEADLINE_MS || 1800)
 }) {
-  const key = process.env.GEMINI_API_KEY;
+  const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) throw new Error("Missing GEMINI_API_KEY");
 
   const controller = new AbortController();
