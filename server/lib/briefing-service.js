@@ -36,7 +36,7 @@ const LocalEventSchema = z.object({
 
 const LocalEventsArraySchema = z.array(LocalEventSchema);
 
-export async function fetchRideshareNews({ city, state, lat, lng, country = 'US' }) {
+export async function fetchRideshareNews({ snapshot } = {}) {
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] Gemini API key not configured');
     return { 
@@ -47,19 +47,31 @@ export async function fetchRideshareNews({ city, state, lat, lng, country = 'US'
     };
   }
 
+  if (!snapshot) {
+    console.warn('[BriefingService] No snapshot provided');
+    return { 
+      items: [], 
+      filtered: [],
+      fetchedAt: new Date().toISOString(),
+      source: 'Error'
+    };
+  }
+
   try {
-    // Use Gemini 3.0 Pro for event discovery with timeout
-    const events = await fetchEventsFromGeminiWithTimeout(city, state, lat, lng);
+    // Use Gemini 3.0 Pro Preview with web search for event discovery
+    const events = await fetchEventsWithGemini3ProPreview({
+      lat: snapshot.lat,
+      lng: snapshot.lng,
+      timezone: snapshot.timezone,
+      date: snapshot.date
+    });
     
-    if (events.length > 0) {
-      // Enhance events with Google Places API data (address, staging area)
-      const enhancedEvents = await enhanceEventsWithPlacesAPI(events, lat, lng);
-      
+    if (events && events.length > 0) {
       return {
-        items: enhancedEvents,
-        filtered: enhancedEvents,
+        items: events,
+        filtered: events,
         fetchedAt: new Date().toISOString(),
-        source: 'Gemini 3.0 Pro'
+        source: 'Gemini 3 Pro Preview'
       };
     }
     
@@ -67,7 +79,7 @@ export async function fetchRideshareNews({ city, state, lat, lng, country = 'US'
       items: [], 
       filtered: [],
       fetchedAt: new Date().toISOString(),
-      source: 'Gemini 3.0 Pro'
+      source: 'Gemini 3 Pro Preview'
     };
   } catch (error) {
     console.error('[BriefingService] Event discovery error:', error.message);
@@ -80,69 +92,118 @@ export async function fetchRideshareNews({ city, state, lat, lng, country = 'US'
   }
 }
 
-async function fetchEventsFromGeminiWithTimeout(city, state, lat, lng) {
-  return Promise.race([
-    fetchEventsFromGemini(city, state, lat, lng),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Event fetch timeout')), 120000))
-  ]).catch(err => {
-    console.warn('[BriefingService] Event timeout/error, returning empty:', err.message);
-    return [];
-  });
-}
-
-async function fetchEventsFromGemini(city, state, lat, lng) {
+async function fetchEventsWithGemini3ProPreview({ lat, lng, timezone, date }) {
   try {
-    const prompt = `Find local events happening TODAY in ${city}, ${state} area (within 50 miles of coordinates ${lat}, ${lng}). Focus on: concerts, games, sports, comedy shows, live music, festivals, performances, theater. Return ONLY a JSON array with event details. For each event include: title, location (venue name and address), event_date (ISO format), event_time (HH:MM format), type, estimated_distance_miles. Return empty array [] if no events found.
+    if (!lat || !lng || !timezone || !date) {
+      console.warn('[BriefingService] Missing required snapshot fields for event discovery');
+      return [];
+    }
 
-RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
+    // Build the exact prompt template from specification
+    const prompt = `You are an event finder agent. Use live web search (Google Search tool).
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent`, {
+Assume:
+- location = (${lat}, ${lng})
+- radius = 50 miles
+- date = ${date} (local date in ${timezone})
+- timezone = ${timezone}
+
+Find events happening on that date within the 50-mile radius. Events include:
+- concerts and other live music
+- sporting games and tournaments
+- watch-parties (sports or other major broadcasts)
+- festivals, fairs, holiday events, parades
+- road closures or major street disruptions
+- any other special local events likely to affect rideshare demand or routing
+
+Return exactly ONE JSON array and nothing else.
+Do NOT wrap it in markdown or code fences (no \`\`\`), and do NOT add any commentary, explanation, or metadata.
+
+Each item in the array should include as many of these fields as you can discover:
+
+- "title"
+- "venue"
+- "address"                       // if available
+- "event_date"                    // YYYY-MM-DD
+- "event_time"                    // HH:MM in local time, if available
+- "type"                          // one of: "demand_event", "road_closure", "other"
+- "subtype"                       // optional: a more detailed category such as "concert", "sports", "watch_party", "festival", "parade", "community_event", etc.
+- "estimated_distance_miles"      // approximate distance from (${lat}, ${lng}), rounded to one decimal, if you can estimate
+- "impact"                        // "high", "medium", or "low" if you can estimate
+- "recommended_driver_action"     // one of: "go_now", "avoid_area", "reposition_to:<area>", "wait" if you can estimate
+- "confidence"                    // "high", "medium", or "low" if you can estimate
+- "source"                        // URL of the web page where the event is listed, if available
+
+Important behavioral rules:
+
+- Treat ALL events (concerts, sports, festivals, etc.) as part of one combined list. Do NOT separate concerts into a different section or different array.
+- Use "type": "demand_event" for concerts, sports, watch-parties, festivals, and other demand-driving events.
+- Use "type": "road_closure" for street or highway closures that meaningfully affect routing.
+- Use "type": "other" for anything else that might still matter for demand or routing.
+- Use "subtype" to distinguish between concerts vs sports vs watch_party vs festival vs other categories.
+- If you cannot find a value for a field, you may omit that field.
+- You MUST still include an event if you have at least "title". If you also know "source" (URL), include it.
+
+Again: Output MUST be a single raw JSON array and nothing else.`;
+
+    console.log(`[BriefingService] 🔍 Discovering events at (${lat}, ${lng}) for ${date} using Gemini 3 Pro Preview with web search`);
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'x-goog-api-key': GEMINI_API_KEY
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ],
+        tools: [
+          { google_search: {} }
+        ],
         generationConfig: {
-          temperature: 1.0,
-          maxOutputTokens: 16000
+          temperature: 0.2,
+          topP: 0.9,
+          topK: 40
         }
       })
     });
 
     if (!response.ok) {
+      console.error(`[BriefingService] Gemini 3 Pro Preview error: ${response.status}`);
       return [];
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    
+    // Strip code fences if present
+    if (text.includes('```')) {
+      text = text.replace(/^```(?:json)?\s*/gm, '').replace(/\s*```$/gm, '').trim();
+    }
     
     try {
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        // Convert Gemini response to our schema
-        return parsed.map((event, idx) => ({
-          title: event.title || event.name || `Event ${idx + 1}`,
-          summary: `${event.type || 'Event'} at ${event.location || 'TBD'}. High demand for rideshare to/from this event.`,
-          impact: 'high',
-          source: 'Gemini 3.0 Pro',
-          event_type: event.type?.toLowerCase() || 'other',
-          latitude: event.latitude,
-          longitude: event.longitude,
-          distance_miles: event.estimated_distance_miles || event.distance_miles,
-          event_date: event.event_date || event.date,
-          event_time: event.event_time || event.time,
-          location: event.location,
-          link: event.link || event.url
-        }));
+        console.log(`[BriefingService] ✅ Found ${parsed.length} events`);
+        return parsed;
       }
-    } catch (e) {
+    } catch (parseErr) {
+      console.error('[BriefingService] JSON parse error:', parseErr.message);
       return [];
     }
+    
+    return [];
   } catch (error) {
-    console.error('[BriefingService] Gemini 3.0 Pro fetch error:', error.message);
+    console.error('[BriefingService] Event discovery error:', error.message);
     return [];
   }
 }
@@ -775,8 +836,23 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
 export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, state, formattedAddress, country = 'US' }) {
   console.log(`[BriefingService] Generating briefing for ${city}, ${state}, ${country} (${lat}, ${lng})`);
   
-  const [newsResult, weatherResult, trafficResult, schoolClosures] = await Promise.all([
-    fetchRideshareNews({ city, state, lat, lng, country }),
+  // Fetch the full snapshot to get timezone and date for events discovery
+  let snapshot = null;
+  try {
+    const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    if (snapshotResult.length > 0) {
+      snapshot = snapshotResult[0];
+    }
+  } catch (err) {
+    console.warn('[BriefingService] Could not fetch snapshot for events discovery:', err.message);
+  }
+
+  // Pass snapshot object to fetchRideshareNews if available
+  const newsResult = snapshot 
+    ? await fetchRideshareNews({ snapshot })
+    : await fetchRideshareNews({ snapshot: { lat, lng, timezone: 'America/Chicago', date: new Date().toISOString().split('T')[0] } });
+
+  const [weatherResult, trafficResult, schoolClosures] = await Promise.all([
     fetchWeatherConditions({ lat, lng }),
     fetchTrafficConditions({ lat, lng, city, state }),
     fetchSchoolClosures({ city, state, lat, lng })
