@@ -148,12 +148,16 @@ Again: Output MUST be a single raw JSON array and nothing else.`;
     });
 
     if (!response.ok) {
-      console.error(`[BriefingService] Gemini 3 Pro Preview error: ${response.status}`);
+      const errData = await response.text();
+      console.error(`[BriefingService] Gemini 3 Pro Preview error: ${response.status} - ${errData.substring(0, 200)}`);
       return [];
     }
 
     const data = await response.json();
+    console.log(`[BriefingService] 📡 Gemini raw response:`, JSON.stringify(data).substring(0, 500));
+    
     let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    console.log(`[BriefingService] 📝 Gemini text response length: ${text.length}, preview:`, text.substring(0, 200));
     
     // Strip code fences if present
     if (text.includes('```')) {
@@ -166,9 +170,11 @@ Again: Output MUST be a single raw JSON array and nothing else.`;
         const parsed = JSON.parse(jsonMatch[0]);
         console.log(`[BriefingService] ✅ Found ${parsed.length} events`);
         return parsed;
+      } else {
+        console.warn(`[BriefingService] ⚠️ No JSON array found in response. Text:`, text.substring(0, 300));
       }
     } catch (parseErr) {
-      console.error('[BriefingService] JSON parse error:', parseErr.message);
+      console.error('[BriefingService] JSON parse error:', parseErr.message, 'text:', text.substring(0, 300));
       return [];
     }
     
@@ -813,18 +819,23 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (snapshotResult.length > 0) {
       snapshot = snapshotResult[0];
+      console.log(`[BriefingService] ✅ Fetched snapshot: lat=${snapshot.lat}, lng=${snapshot.lng}, timezone=${snapshot.timezone}, date=${snapshot.date}`);
+    } else {
+      console.warn(`[BriefingService] ⚠️ Snapshot ${snapshotId} not found in DB`);
     }
   } catch (err) {
     console.warn('[BriefingService] Could not fetch snapshot for events discovery:', err.message);
   }
 
   // Fetch all briefing components in parallel
+  console.log(`[BriefingService] 🔍 Fetching events... snapshot=${!!snapshot}`);
   const [events, weatherResult, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchWeatherConditions({ lat, lng }),
     fetchTrafficConditions({ lat, lng, city, state }),
     fetchSchoolClosures({ city, state, lat, lng })
   ]);
+  console.log(`[BriefingService] ✅ Events fetched: ${events.length} events`);
 
   const briefingData = {
     snapshot_id: snapshotId,
