@@ -12,8 +12,9 @@ import { z } from 'zod';
 // - All API calls (weather, traffic, news) are logged with snapshot_id for training data
 // - This enables full traceability and supervised learning on driver behavior patterns
 
-// Single unified Google API key for all 35 Google APIs
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+// Google APIs: Split keys based on API requirements
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY; // Places, Geocoding, Weather, Routes, etc.
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Generative Language API (requires separate project)
 
 // Zod validation schema for local events
 const LocalEventSchema = z.object({
@@ -364,9 +365,12 @@ Return a JSON array with one object per event. If you cannot confirm details, se
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
       
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`, {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -383,9 +387,12 @@ Return a JSON array with one object per event. If you cannot confirm details, se
         console.warn('[BriefingService] Gemini 3.0 Pro timeout, falling back to 2.5 Pro...');
       }
       // Fallback to Gemini 2.5 Pro
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-latest:generateContent?key=${GEMINI_API_KEY}`, {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-latest:generateContent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -440,8 +447,8 @@ Return a JSON array with one object per event. If you cannot confirm details, se
 }
 
 async function filterNewsWithGemini(newsItems, city, state, country, lat, lng) {
-  if (!GOOGLE_API_KEY) {
-    console.warn('[BriefingService] GOOGLE_API_KEY not set, returning all news');
+  if (!GEMINI_API_KEY) {
+    console.warn('[BriefingService] GEMINI_API_KEY not set, returning all news');
     return newsItems.map(n => ({
       title: n.title,
       summary: n.snippet || n.title,
@@ -507,7 +514,7 @@ If no relevant items, return: []`;
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-goog-api-key': GOOGLE_API_KEY
+          'x-goog-api-key': GEMINI_API_KEY
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],

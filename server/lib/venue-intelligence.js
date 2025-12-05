@@ -7,9 +7,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from '../db/drizzle.js';
 import { nearby_venues } from '../../shared/schema.js';
 
-// Single unified Google API key for all 35 Google APIs
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
-const genAI = new GoogleGenerativeAI(GOOGLE_MAPS_API_KEY);
+// Google APIs: Split keys based on API requirements
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY; // Places, Geocoding, Weather, Routes, etc.
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Generative Language API (requires separate project)
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 /**
  * Enrich bar venues with phone numbers using Google Places API
