@@ -7,8 +7,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from '../db/drizzle.js';
 import { nearby_venues } from '../../shared/schema.js';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Single unified Google API key for all 35 Google APIs
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
+const genAI = new GoogleGenerativeAI(GOOGLE_MAPS_API_KEY);
 
 /**
  * Enrich bar venues with phone numbers using Google Places API
@@ -262,7 +263,7 @@ Return ONLY valid JSON (no explanation):
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GEMINI_API_KEY,
+          "x-goog-api-key": process.env.GOOGLE_MAPS_API_KEY,
         },
         body: JSON.stringify({
           contents: [

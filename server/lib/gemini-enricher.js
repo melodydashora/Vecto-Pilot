@@ -3,7 +3,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_MAPS_API_KEY);
 
 export async function enrichVenuesWithGemini({ venues, driverLocation, snapshot }) {
   const model = genAI.getGenerativeModel({ 

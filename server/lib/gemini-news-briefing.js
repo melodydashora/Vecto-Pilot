@@ -3,7 +3,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_MAPS_API_KEY);
 
 /**
  * Generate news briefing for next 60 minutes using Gemini

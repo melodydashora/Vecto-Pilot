@@ -165,7 +165,7 @@ function buildProviders() {
     });
   }
 
-  if (process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY) {
+  if (process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY) {
     const breaker = new CircuitBreaker({
       threshold: Number(cfg('CIRCUIT_ERROR_THRESHOLD','5')),
       cooldownMs: Number(cfg('CIRCUIT_COOLDOWN_MS','60000')),
@@ -185,7 +185,7 @@ function buildProviders() {
         controller.signal.addEventListener('abort', onAbort2, { once: true });
         composite.signal.addEventListener('abort', onAbort2, { once: true });
         try {
-          const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+          const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
           const parts = [{ text: user }];
           const resp = await fetch(url, {
