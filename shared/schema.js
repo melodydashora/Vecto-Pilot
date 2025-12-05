@@ -31,6 +31,7 @@ export const users = pgTable("users", {
 export const snapshots = pgTable("snapshots", {
   snapshot_id: uuid("snapshot_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
+  date: text("date"), // Today's date in YYYY-MM-DD format (e.g., "2025-12-05")
   // User tracking (NOT a FK - snapshots are self-contained)
   user_id: uuid("user_id"),
   device_id: text("device_id").notNull(),
