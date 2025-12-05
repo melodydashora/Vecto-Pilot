@@ -66,122 +66,120 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   }
 }
 
-async function fetchEventsWithGemini3ProPreview({ lat, lng, timezone, date }) {
-  try {
-    if (!lat || !lng || !timezone || !date) {
-      console.warn('[BriefingService] Missing required snapshot fields for event discovery');
-      return [];
-    }
-
-    // Build the exact prompt template from specification
-    const prompt = `You are an event finder agent. Use live web search (Google Search tool).
+function buildEventsPrompt({ lat, lng, date, timezone }) {
+  return `
+You are an event finder agent. Use live web search (Google Search tool).
 
 Assume:
 - location = (${lat}, ${lng})
 - radius = 50 miles
-- date = ${date} (local date in ${timezone})
+- date = ${date}
 - timezone = ${timezone}
 
-Find events happening on that date within the 50-mile radius. Events include:
-- concerts and other live music
-- sporting games and tournaments
-- watch-parties (sports or other major broadcasts)
-- festivals, fairs, holiday events, parades
-- road closures or major street disruptions
-- any other special local events likely to affect rideshare demand or routing
+Find any events on that date within the radius. Events include:
+- concerts
+- sporting games
+- watch-parties
+- festivals
+- road-closures
+- special local events
+- anything likely to affect rideshare demand or routing.
 
-Return exactly ONE JSON array and nothing else.
-Do NOT wrap it in markdown or code fences (no \`\`\`), and do NOT add any commentary, explanation, or metadata.
-
+Return exactly ONE JSON array (no explanation, no markdown).
 Each item in the array should include as many of these fields as you can discover:
 
-- "title"
-- "venue"
-- "address"                       // if available
-- "event_date"                    // YYYY-MM-DD
-- "event_time"                    // HH:MM in local time, if available
-- "type"                          // one of: "demand_event", "road_closure", "other"
-- "subtype"                       // optional: a more detailed category such as "concert", "sports", "watch_party", "festival", "parade", "community_event", etc.
-- "estimated_distance_miles"      // approximate distance from (${lat}, ${lng}), rounded to one decimal, if you can estimate
-- "impact"                        // "high", "medium", or "low" if you can estimate
-- "recommended_driver_action"     // one of: "go_now", "avoid_area", "reposition_to:<area>", "wait" if you can estimate
-- "confidence"                    // "high", "medium", or "low" if you can estimate
-- "source"                        // URL of the web page where the event is listed, if available
+- title
+- venue
+- address (if available)
+- event_date (YYYY-MM-DD)
+- event_time (HH:MM local, if available)
+- type — one of: demand_event, road_closure, other
+- subtype — optional; if known, a more detailed category (concert, sports, watch_party, festival, parade, theater, etc.)
+- estimated_distance_miles — approximate distance from (${lat}, ${lng}), rounded to one decimal (if you can estimate)
+- impact — high / medium / low (if you can estimate)
+- recommended_driver_action — go_now / avoid_area / reposition_to:<area> / wait (if you can estimate)
+- confidence — high / medium / low (if you can estimate)
 
-Important behavioral rules:
+If a field is missing because you couldn't find it, you may omit that field.
+But include the event if at least "title" is present.
 
-- Treat ALL events (concerts, sports, festivals, etc.) as part of one combined list. Do NOT separate concerts into a different section or different array.
-- Use "type": "demand_event" for concerts, sports, watch-parties, festivals, and other demand-driving events.
-- Use "type": "road_closure" for street or highway closures that meaningfully affect routing.
-- Use "type": "other" for anything else that might still matter for demand or routing.
-- Use "subtype" to distinguish between concerts vs sports vs watch_party vs festival vs other categories.
-- If you cannot find a value for a field, you may omit that field.
-- You MUST still include an event if you have at least "title". If you also know "source" (URL), include it.
+Important formatting rules:
+- Output ONLY a valid JSON array. No backticks, no \`\`\`json fences, no extra text.
+- Do NOT output any internal metadata, IDs, reasoning tokens, or debug info.
+`.trim();
+}
 
-Again: Output MUST be a single raw JSON array and nothing else.`;
-
-    console.log(`[BriefingService] 🔍 Discovering events at (${lat}, ${lng}) for ${date} using Gemini 3 Pro Preview with web search`);
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'x-goog-api-key': GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: prompt
-              }
-            ]
-          }
-        ],
-        tools: [
-          { google_search: {} }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          topP: 0.9,
-          topK: 40
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errData = await response.text();
-      console.error(`[BriefingService] Gemini 3 Pro Preview error: ${response.status} - ${errData.substring(0, 200)}`);
-      return [];
-    }
-
-    const data = await response.json();
-    console.log(`[BriefingService] 📡 Gemini raw response:`, JSON.stringify(data).substring(0, 500));
-    
-    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    console.log(`[BriefingService] 📝 Gemini text response length: ${text.length}, preview:`, text.substring(0, 200));
-    
-    // Strip code fences if present
-    if (text.includes('```')) {
-      text = text.replace(/^```(?:json)?\s*/gm, '').replace(/\s*```$/gm, '').trim();
-    }
-    
-    try {
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        console.log(`[BriefingService] ✅ Found ${parsed.length} events`);
-        return parsed;
-      } else {
-        console.warn(`[BriefingService] ⚠️ No JSON array found in response. Text:`, text.substring(0, 300));
-      }
-    } catch (parseErr) {
-      console.error('[BriefingService] JSON parse error:', parseErr.message, 'text:', text.substring(0, 300));
-      return [];
-    }
-    
+async function fetchEventsWithGemini3ProPreview({ lat, lng, timezone, date }) {
+  if (!GEMINI_API_KEY) {
+    console.warn('[BriefingService] GEMINI_API_KEY is not set; skipping events lookup.');
     return [];
+  }
+
+  const prompt = buildEventsPrompt({ lat, lng, date, timezone });
+
+  const body = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: prompt }]
+      }
+    ],
+    tools: [{ google_search: {} }],
+    generationConfig: {
+      temperature: 0.2,
+      topP: 0.9,
+      topK: 40
+    }
+  };
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY
+        },
+        body: JSON.stringify(body)
+      }
+    );
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('[BriefingService] Gemini events API error:', res.status, errText.substring(0, 200));
+      return [];
+    }
+
+    const data = await res.json();
+
+    let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]';
+
+    // Strip accidental ```json fences if the model still adds them
+    rawText = rawText
+      .replace(/^```json/i, '')
+      .replace(/^```/i, '')
+      .replace(/```$/i, '')
+      .trim();
+
+    // If there's extra junk, try to grab the first JSON array substring
+    let jsonToParse = rawText;
+    if (!rawText.trim().startsWith('[')) {
+      const match = rawText.match(/\[[\s\S]*\]/);
+      if (match) {
+        jsonToParse = match[0];
+      }
+    }
+
+    try {
+      const parsed = JSON.parse(jsonToParse);
+      const result = Array.isArray(parsed) ? parsed : [parsed];
+      console.log(`[BriefingService] ✅ Found ${result.length} events from Gemini`);
+      return result;
+    } catch (err) {
+      console.error('[BriefingService] Failed to parse Gemini events JSON:', err.message, 'rawText:', rawText.substring(0, 300));
+      return [];
+    }
   } catch (error) {
     console.error('[BriefingService] Event discovery error:', error.message);
     return [];
