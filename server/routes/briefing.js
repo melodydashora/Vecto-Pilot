@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { generateAndStoreBriefing, getBriefingBySnapshotId, fetchTrafficConditions, fetchWeatherConditions, confirmTBDEventDetails } from '../lib/briefing-service.js';
 import { db } from '../db/drizzle.js';
-import { snapshots, users } from '../../shared/schema.js';
+import { snapshots } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -59,6 +59,14 @@ router.post('/generate', requireAuth, async (req, res) => {
 
     if (!snapshotId) {
       return res.status(400).json({ error: 'snapshotId is required' });
+    }
+
+    // SECURITY: Verify user owns this snapshot
+    const snapshotCheck = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+      return res.status(404).json({ error: 'snapshot_not_found' });
     }
 
     // Just return cached briefing - generation happens in snapshot.js on creation
@@ -169,7 +177,7 @@ router.post('/refresh', requireAuth, async (req, res) => {
 });
 
 // Real-time traffic endpoint for briefing tab (always fresh, not cached)
-router.get('/traffic/realtime', async (req, res) => {
+router.get('/traffic/realtime', requireAuth, async (req, res) => {
   try {
     const { lat, lng, city, state } = req.query;
     
@@ -195,7 +203,7 @@ router.get('/traffic/realtime', async (req, res) => {
 });
 
 // Real-time weather endpoint for briefing tab (always fresh, not cached)
-router.get('/weather/realtime', async (req, res) => {
+router.get('/weather/realtime', requireAuth, async (req, res) => {
   try {
     const { lat, lng } = req.query;
     
@@ -219,9 +227,18 @@ router.get('/weather/realtime', async (req, res) => {
 });
 
 // Component-level endpoint: Weather only
-router.get('/weather/:snapshotId', async (req, res) => {
+router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
+    
+    // SECURITY: Verify user owns this snapshot
+    const snapshotCheck = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+      return res.status(404).json({ error: 'snapshot_not_found' });
+    }
+    
     let briefing = await getBriefingBySnapshotId(snapshotId);
     
     res.json({
@@ -234,14 +251,23 @@ router.get('/weather/:snapshotId', async (req, res) => {
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching weather:', error);
-    res.json({ success: true, weather: { current: null, forecast: [] } });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // Component-level endpoint: Traffic only
-router.get('/traffic/:snapshotId', async (req, res) => {
+router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
+    
+    // SECURITY: Verify user owns this snapshot
+    const snapshotCheck = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
+      return res.status(404).json({ error: 'snapshot_not_found' });
+    }
+    
     let briefing = await getBriefingBySnapshotId(snapshotId);
     
     res.json({
@@ -251,19 +277,22 @@ router.get('/traffic/:snapshotId', async (req, res) => {
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching traffic:', error);
-    res.json({ success: true, traffic: { summary: 'Loading traffic...', incidents: [], congestionLevel: 'low' } });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // Component-level endpoint: Rideshare News only
-router.get('/rideshare-news/:snapshotId', async (req, res) => {
+router.get('/rideshare-news/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0) {
+    
+    // SECURITY: Verify snapshot exists AND belongs to the user
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
+    
     const snapshot = snapshotCheck[0];
     let briefing = await getBriefingBySnapshotId(snapshotId);
     
@@ -299,19 +328,22 @@ router.get('/rideshare-news/:snapshotId', async (req, res) => {
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching rideshare news:', error);
-    res.json({ success: true, news: { items: [], filtered: [] } });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // Component-level endpoint: Local Events, Live Music & Concerts (single request with Places API resolution)
-router.get('/events/:snapshotId', async (req, res) => {
+router.get('/events/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0) {
+    
+    // SECURITY: Verify snapshot exists AND belongs to the user
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
+    
     const snapshot = snapshotCheck[0];
     let briefing = await getBriefingBySnapshotId(snapshotId);
     
@@ -337,19 +369,22 @@ router.get('/events/:snapshotId', async (req, res) => {
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching events:', error);
-    res.json({ success: true, events: [] });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // Component-level endpoint: School Closures only
-router.get('/school-closures/:snapshotId', async (req, res) => {
+router.get('/school-closures/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0) {
+    
+    // SECURITY: Verify snapshot exists AND belongs to the user
+    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
+    
     const snapshot = snapshotCheck[0];
     let briefing = await getBriefingBySnapshotId(snapshotId);
     
@@ -374,7 +409,7 @@ router.get('/school-closures/:snapshotId', async (req, res) => {
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching school closures:', error);
-    res.json({ success: true, school_closures: [] });
+    res.status(500).json({ error: error.message });
   }
 });
 
