@@ -91,13 +91,22 @@ export async function getSnapshotContext(snapshotId) {
     news_briefing: snapshot.news_briefing
   };
   
-  console.log('[getSnapshotContext] ✅ Retrieved snapshot context:', {
+  console.log('[getSnapshotContext] ✅ Retrieved FULL snapshot context:', {
     snapshot_id: ctx.snapshot_id,
     formatted_address: ctx.formatted_address,
+    lat: ctx.lat,
+    lng: ctx.lng,
+    city: ctx.city,
+    state: ctx.state,
     timezone: ctx.timezone,
     hour: ctx.hour,
     dow: ctx.dow,
-    day_part_key: ctx.day_part_key
+    day_part_key: ctx.day_part_key,
+    weather: ctx.weather ? { tempF: ctx.weather.tempF, conditions: ctx.weather.conditions } : null,
+    air: ctx.air ? { aqi: ctx.air.aqi, category: ctx.air.category } : null,
+    airport_context: ctx.airport_context ? { code: ctx.airport_context.airport_code, delays: ctx.airport_context.delay_minutes } : null,
+    holiday: ctx.holiday,
+    is_holiday: ctx.is_holiday
   });
   
   return ctx;
