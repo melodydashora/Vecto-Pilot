@@ -82,18 +82,12 @@ router.post('/run/:snapshotId', async (req, res) => {
   try {
     await ensureStrategyRow(snapshotId);
 
-    // Kick providers in parallel; consolidation will be triggered by NOTIFY
-    // IMPORTANT: Holiday check runs FIRST to show banner immediately
-    Promise.allSettled([
-      runHolidayCheck(snapshotId),    // FAST: writes strategies.holiday (1-2s)
-      runMinStrategy(snapshotId),     // writes strategies.minstrategy
-      runBriefing(snapshotId)         // writes briefings table (Perplexity comprehensive research)
-    ]).catch(() => { /* handled in provider logs */ });
-
+    console.log(`[strategy] ⚠️  POST /run endpoint deprecated - use POST /api/blocks-fast instead for complete pipeline`);
+    
     res.status(202).json({ 
-      status: 'pending', 
-      snapshot_id: snapshotId, 
-      kicked: ['holiday', 'minstrategy', 'briefing'] 
+      status: 'deprecated', 
+      message: 'Use POST /api/blocks-fast for complete pipeline',
+      snapshot_id: snapshotId 
     });
   } catch (error) {
     console.error(`[strategy] Run error:`, error);
@@ -212,12 +206,8 @@ router.post('/:snapshotId/retry', async (req, res) => {
     // Create strategy row and trigger generation
     await ensureStrategyRow(newSnapshotId);
     
-    // Kick providers in parallel
-    Promise.allSettled([
-      runHolidayCheck(newSnapshotId),
-      runMinStrategy(newSnapshotId),
-      runBriefing(newSnapshotId)
-    ]).catch(() => {});
+    // Retry uses the same blocks-fast pipeline
+    console.log(`[strategy] ℹ️  Retry: Use POST /api/blocks-fast with snapshot_id=${newSnapshotId} for complete pipeline`);
     
     console.log(`[strategy] ✅ Retry triggered: new snapshot ${newSnapshotId}`);
     
