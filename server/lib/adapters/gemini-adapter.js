@@ -42,10 +42,27 @@ export async function callGemini({ model, system, user, maxTokens, temperature, 
         console.log(`[model/gemini] 🧹 Removed markdown code block (${rawLength} → ${output.length} chars)`);
       }
       
-      // Strategy 2: If prompt asks for JSON and response contains {...}, extract it
-      if (user.toLowerCase().includes('json') && output.includes('{') && output.includes('}')) {
-        const jsonStart = output.indexOf('{');
-        const jsonEnd = output.lastIndexOf('}');
+      // Strategy 2: If prompt asks for JSON, extract {...} objects or [...] arrays
+      if (user.toLowerCase().includes('json')) {
+        let jsonStart = -1;
+        let jsonEnd = -1;
+        let isArray = false;
+        
+        // Look for array first [...], then object {...}
+        const arrayStart = output.indexOf('[');
+        const objectStart = output.indexOf('{');
+        
+        if (arrayStart !== -1 && (objectStart === -1 || arrayStart < objectStart)) {
+          // Array comes first
+          jsonStart = arrayStart;
+          jsonEnd = output.lastIndexOf(']');
+          isArray = true;
+        } else if (objectStart !== -1) {
+          // Object comes first (or only option)
+          jsonStart = objectStart;
+          jsonEnd = output.lastIndexOf('}');
+          isArray = false;
+        }
         
         if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
           // Only extract if there's wrapper text (not already pure JSON)
@@ -55,7 +72,7 @@ export async function callGemini({ model, system, user, maxTokens, temperature, 
             try {
               JSON.parse(extracted);
               output = extracted;
-              console.log(`[model/gemini] 🧹 Extracted JSON (${rawLength} → ${output.length} chars)`);
+              console.log(`[model/gemini] 🧹 Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
             } catch (e) {
               // Not valid JSON, keep original
               console.log(`[model/gemini] ⚠️ JSON extraction failed, keeping original output`);
