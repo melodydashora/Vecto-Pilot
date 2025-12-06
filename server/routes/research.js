@@ -14,7 +14,7 @@ router.get('/search', async (req, res) => {
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
     }
@@ -76,7 +76,7 @@ router.post('/deep', async (req, res) => {
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
     }

@@ -6,7 +6,7 @@ const AGENT_OVERRIDE_ORDER = (process.env.AGENT_OVERRIDE_ORDER || "anthropic,ope
 
 const CLAUDE_KEY = process.env.AGENT_OVERRIDE_API_KEY_C || process.env.ANTHROPIC_API_KEY;
 const GPT5_KEY = process.env.AGENT_OVERRIDE_API_KEY_5 || process.env.OPENAI_API_KEY;
-const GEMINI_KEY = process.env.AGENT_OVERRIDE_API_KEY_G || process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+const GEMINI_KEY = process.env.AGENT_OVERRIDE_API_KEY_G || process.env.GEMINI_API_KEY;
 
 // MAXIMUM CONTEXT MODELS - Claude Sonnet 4.5 Focused Mode
 // Updated to match Replit Agent's Claude version (20250514)
