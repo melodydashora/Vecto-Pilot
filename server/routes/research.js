@@ -1,9 +1,7 @@
-// Research API endpoint - Internet-powered research via Perplexity
+// Research API endpoint - Internet-powered research via Gemini 3 Pro Preview
 import express from 'express';
-import { PerplexityResearch } from '../lib/perplexity-research.js';
 
 const router = express.Router();
-const perplexity = new PerplexityResearch();
 
 // Quick research endpoint
 router.get('/search', async (req, res) => {
@@ -16,20 +14,47 @@ router.get('/search', async (req, res) => {
       });
     }
 
-    const result = await perplexity.search(q, {
-      systemPrompt: 'Provide concise, technical information for software development. Focus on best practices and actionable insights.',
-      maxTokens: 500,
-      searchRecencyFilter: 'month'
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
+
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `Provide concise, technical information for software development. Focus on best practices and actionable insights.\n\nQuery: ${q}`
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 500
+        }
+      })
     });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     res.json({
       ok: true,
       query: q,
-      answer: result.answer,
-      citations: result.citations,
-      relatedQuestions: result.relatedQuestions,
-      model: result.model,
-      timestamp: result.timestamp
+      answer: answer,
+      model: 'gemini-3-pro-preview',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[Research API] Error:', error);
@@ -51,11 +76,50 @@ router.post('/deep', async (req, res) => {
       });
     }
 
-    const result = await perplexity.researchTopic(topic, depth);
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
+
+    const depthInstruction = depth === 'deep' ? 'Provide comprehensive, detailed analysis.' : 'Provide concise summary.';
+    
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `${depthInstruction}\n\nTopic: ${topic}`
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 2000
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     res.json({
       ok: true,
-      ...result
+      topic: topic,
+      depth: depth,
+      answer: answer,
+      model: 'gemini-3-pro-preview',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[Research API] Deep research error:', error);
