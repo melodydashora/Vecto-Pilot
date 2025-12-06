@@ -558,7 +558,7 @@ Return a JSON array with one object per event. If you cannot confirm details, se
             { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
             { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
           ],
-          tools: [{ googleSearch: {} }],
+          tools: [{ google_search: {} }],
           generationConfig: {
             responseMimeType: "application/json",
             temperature: 0.2,

@@ -44,7 +44,7 @@ export async function callGemini({ model, system, user, maxTokens, temperature, 
     const result = await generativeModel.generateContent({
       contents: [{ role: "user", parts: [{ text: user }] }],
       // ISSUE #16 FIX: Enable Google Search tool for real-time data
-      tools: [{ googleSearch: {} }]
+      tools: [{ google_search: {} }]
     });
 
     let output = result?.response?.text()?.trim() || "";
