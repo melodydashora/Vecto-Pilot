@@ -2,7 +2,7 @@
 // Generic Gemini adapter - returns { ok, output } shape
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_MAPS_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export async function callGemini({ model, system, user, maxTokens, temperature, topP, topK }) {
   try {
