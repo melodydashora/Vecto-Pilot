@@ -104,8 +104,8 @@ Comprehensive codebase cleanup to reduce technical debt, remove dead code, and i
 - **Removed**: Test scripts (`test-*.js`, `check-api.js`)
 - **Kept**: `deploy-entry.js`, `health-server.js`, `README.md` (documentation)
 
-### Dead Code Removal (13 files)
-**Server/lib files removed**:
+### Dead Code Removal (18 files)
+**Server/lib files removed (Phase 1)**:
 - `blocks-queue.js`, `blocks-jobs.js` (unused async processing)
 - `triad-orchestrator.js` (deprecated multi-model orchestration)
 - `exploration.js`, `explore.js` (unused exploration features)
@@ -115,14 +115,27 @@ Comprehensive codebase cleanup to reduce technical debt, remove dead code, and i
 **Server/lib/adapters files removed**:
 - `anthropic-claude.js`, `openai-gpt5.js` (unused model adapters)
 
+**Server/lib files removed (Phase 2 - blocks-fast.js cleanup)**:
+- `scoring-engine.js` (replaced by enhanced-smart-blocks.js internal scoring)
+- `driveTime.js` (replaced by venue-enrichment.js)
+- `venue-generator.js` (replaced by tactical-planner.js)
+- `persist-ranking.js` (replaced by enhanced-smart-blocks.js direct DB writes)
+- `fast-tactical-reranker.js` (never integrated into workflow)
+
+### Shared Utilities Created
+- **`server/lib/geo.js`**: Consolidated haversineDistance (Km/Miles/Meters) functions
+- **`server/routes/utils/http-helpers.js`**: Consolidated httpError, isPlusCode, safeJsonParse functions
+
 ### Current Codebase Metrics
 | Metric | Before | After |
 |--------|--------|-------|
-| Server lib files | 68 | 54 |
+| Server lib files | 68 | 49 |
 | Console statements | 973 | 906 |
 | Data directory size | 6.4MB | 0MB |
 | Test snapshot files | 1,637 | 0 |
-| Dead code files | 13 | 0 |
+| Dead code files | 18 | 0 |
+| Duplicate functions | 9 | 0 |
+| blocks-fast.js imports | 25 | 16 |
 
 ### Files Still Active (Do Not Remove)
 - `faa-asws.js` - Used via dynamic import in `location.js`

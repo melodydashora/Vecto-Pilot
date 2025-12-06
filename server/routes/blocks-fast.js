@@ -4,16 +4,9 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
-import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates, strategies, venue_events, users, triad_jobs, briefings } from '../../shared/schema.js';
-import { eq, sql, and, lte, gte, or, isNotNull } from 'drizzle-orm';
-import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
-import { predictDriveMinutes } from '../lib/driveTime.js';
-import { rerankCandidates } from '../lib/fast-tactical-reranker.js';
-import { persistRankingTx } from '../lib/persist-ranking.js';
-import { generateVenueCoordinates } from '../lib/venue-generator.js';
+import { snapshots, rankings, ranking_candidates, strategies, triad_jobs, briefings } from '../../shared/schema.js';
+import { eq, sql } from 'drizzle-orm';
 import { isStrategyReady, ensureStrategyRow } from '../lib/strategy-utils.js';
-import { validateBody, validateQuery } from '../middleware/validate.js';
-import { blocksRequestSchema, snapshotIdQuerySchema } from '../validation/schemas.js';
 import { requireAuth } from '../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../middleware/rate-limit.js';
 import { runMinStrategy } from '../lib/providers/minstrategy.js';
@@ -25,17 +18,6 @@ import { resolveVenueAddressesBatch } from '../lib/venue-address-resolver.js';
 import { isPlusCode } from './utils/http-helpers.js';
 
 const router = Router();
-
-// Helper to safely calculate elapsed time and prevent NaN in responses
-function safeElapsedMs(row) {
-  const t0 = row?.created_at ? new Date(row.created_at).getTime() : Date.now();
-  const ms = Date.now() - t0;
-  return Number.isFinite(ms) && ms >= 0 ? ms : 0;
-}
-
-// Environment configuration
-const PLANNER_BUDGET_MS = parseInt(process.env.PLANNER_BUDGET_MS || '7000'); // 7 second wall clock
-const PLANNER_TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS || '5000'); // 5 second planner timeout
 
 // GET endpoint - return existing blocks for a snapshot
 // STRATEGY-FIRST GATING: Returns 202 until strategy is ready
