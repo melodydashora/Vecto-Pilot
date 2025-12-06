@@ -820,6 +820,46 @@ export async function fetchWeatherForecast({ snapshot }) {
   }
 }
 
+// Helper: Check if country uses metric system
+function usesMetric(country) {
+  const imperialCountries = ['US', 'United States', 'Bahamas', 'Cayman Islands', 'Palau', 'Marshall Islands', 'Myanmar'];
+  return !country || !imperialCountries.some(c => country?.toUpperCase().includes(c.toUpperCase()));
+}
+
+// Helper: Convert temperature based on country
+function formatTemperature(tempC, country) {
+  const metric = usesMetric(country);
+  if (metric) {
+    return {
+      tempC: Math.round(tempC),
+      tempF: Math.round((tempC * 9/5) + 32),
+      displayTemp: Math.round(tempC),
+      unit: '°C'
+    };
+  } else {
+    const tempF = Math.round((tempC * 9/5) + 32);
+    return {
+      tempC: Math.round(tempC),
+      tempF: tempF,
+      displayTemp: tempF,
+      unit: '°F'
+    };
+  }
+}
+
+// Helper: Convert wind speed based on country
+function formatWindSpeed(windSpeedMs, country) {
+  if (!windSpeedMs) return undefined;
+  const metric = usesMetric(country);
+  if (metric) {
+    // Convert m/s to km/h
+    return Math.round(windSpeedMs * 3.6);
+  } else {
+    // Convert m/s to mph
+    return Math.round(windSpeedMs * 2.237);
+  }
+}
+
 export async function fetchWeatherConditions({ snapshot }) {
   if (snapshot) {
     console.log('[fetchWeatherConditions] 📤 Fetching full weather data:', {
@@ -827,7 +867,8 @@ export async function fetchWeatherConditions({ snapshot }) {
       lat: snapshot.lat,
       lng: snapshot.lng,
       city: snapshot.city,
-      state: snapshot.state
+      state: snapshot.state,
+      country: snapshot.country
     });
   }
 
@@ -840,7 +881,8 @@ export async function fetchWeatherConditions({ snapshot }) {
     return { current: null, forecast: [], error: 'Missing coordinates' };
   }
 
-  const { lat, lng } = snapshot;
+  const { lat, lng, country } = snapshot;
+  const metric = usesMetric(country);
 
   try {
     const [currentRes, forecastRes] = await Promise.all([
@@ -856,24 +898,33 @@ export async function fetchWeatherConditions({ snapshot }) {
       console.log('[fetchWeatherConditions] Current weather response:', JSON.stringify(currentData).substring(0, 200));
       // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
       const tempC = currentData.temperature?.degrees ?? currentData.temperature;
-      const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
       const feelsLikeC = currentData.feelsLikeTemperature?.degrees ?? currentData.feelsLikeTemperature;
-      const feelsLikeF = feelsLikeC ? Math.round((feelsLikeC * 9/5) + 32) : null;
+      const windSpeedMs = currentData.windSpeed?.value ?? currentData.windSpeed;
+      
+      const tempData = formatTemperature(tempC, country);
+      const feelsData = formatTemperature(feelsLikeC, country);
+      const windSpeedDisplay = formatWindSpeed(windSpeedMs, country);
       
       current = {
-        temperature: tempF,
-        tempF: tempF,
-        feelsLike: feelsLikeF,
+        temperature: tempData.displayTemp,
+        tempF: tempData.tempF,
+        tempC: tempData.tempC,
+        tempUnit: tempData.unit,
+        feelsLike: feelsData.displayTemp,
+        feelsLikeF: feelsData.tempF,
+        feelsLikeC: feelsData.tempC,
         conditions: currentData.weatherCondition?.description?.text,
         conditionType: currentData.weatherCondition?.type,
         humidity: currentData.relativeHumidity?.value ?? currentData.relativeHumidity,
-        windSpeed: currentData.windSpeed?.value ?? currentData.windSpeed,
+        windSpeed: windSpeedDisplay,
+        windSpeedUnit: metric ? 'km/h' : 'mph',
         windDirection: currentData.wind?.direction?.cardinal,
         uvIndex: currentData.uvIndex,
         precipitation: currentData.precipitation,
         visibility: currentData.visibility,
         isDaytime: currentData.isDaytime,
-        observedAt: currentData.currentTime
+        observedAt: currentData.currentTime,
+        country: country
       };
       console.log('[fetchWeatherConditions] ✅ Parsed current weather:', current);
     } else {
@@ -886,7 +937,10 @@ export async function fetchWeatherConditions({ snapshot }) {
       forecast = (forecastData.forecastHours || []).map((hour, idx) => {
         // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
         const tempC = hour.temperature?.degrees ?? hour.temperature;
-        const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
+        const windSpeedMs = hour.windSpeed?.value ?? hour.wind?.speed;
+        
+        const tempData = formatTemperature(tempC, country);
+        const windSpeedDisplay = formatWindSpeed(windSpeedMs, country);
         
         // Ensure time is a valid ISO string - use time if valid, otherwise generate from current time
         let timeValue = hour.time;
@@ -899,12 +953,15 @@ export async function fetchWeatherConditions({ snapshot }) {
         
         return {
           time: timeValue,
-          temperature: tempF,
-          tempF: tempF,
+          temperature: tempData.displayTemp,
+          tempF: tempData.tempF,
+          tempC: tempData.tempC,
+          tempUnit: tempData.unit,
           conditions: hour.condition?.text ?? hour.weatherCondition?.description?.text,
           conditionType: hour.weatherCondition?.type,
           precipitationProbability: hour.precipitationProbability?.value ?? hour.precipitation?.probability?.percent,
-          windSpeed: hour.windSpeed?.value ?? hour.wind?.speed,
+          windSpeed: windSpeedDisplay,
+          windSpeedUnit: metric ? 'km/h' : 'mph',
           isDaytime: hour.isDaytime
         };
       });
