@@ -556,10 +556,15 @@ router.get('/weather', async (req, res) => {
 
     if (currentRes.ok) {
       const currentData = await currentRes.json();
+      // Google Weather API returns Celsius - convert to Fahrenheit
+      const tempF = currentData.temperature ? Math.round((currentData.temperature * 9/5) + 32) : null;
+      const feelsLikeF = currentData.feelsLikeTemperature ? Math.round((currentData.feelsLikeTemperature * 9/5) + 32) : null;
+      
       current = {
         available: true,
-        temperature: currentData.temperature,
-        feelsLike: currentData.feelsLikeTemperature,
+        temperature: tempF,
+        tempF: tempF,
+        feelsLike: feelsLikeF,
         conditions: currentData.weatherCondition?.description?.text,
         description: currentData.weatherCondition?.description?.text || 'Unknown',
         humidity: currentData.relativeHumidity,
@@ -574,14 +579,18 @@ router.get('/weather', async (req, res) => {
 
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
-      forecast = (forecastData.forecastHours || []).slice(0, 6).map((hour) => ({
-        time: hour.displayDateTime,
-        temperature: hour.temperature,
-        conditions: hour.weatherCondition?.description?.text,
-        precipitationProbability: hour.precipitation?.probability?.percent,
-        windSpeed: hour.wind?.speed,
-        isDaytime: hour.isDaytime
-      }));
+      forecast = (forecastData.forecastHours || []).slice(0, 6).map((hour) => {
+        const tempF = hour.temperature ? Math.round((hour.temperature * 9/5) + 32) : null;
+        return {
+          time: hour.displayDateTime,
+          temperature: tempF,
+          tempF: tempF,
+          conditions: hour.weatherCondition?.description?.text,
+          precipitationProbability: hour.precipitation?.probability?.percent,
+          windSpeed: hour.wind?.speed,
+          isDaytime: hour.isDaytime
+        };
+      });
     }
 
     console.log(`[Location API] 🌤️ Weather fetched:`, {
