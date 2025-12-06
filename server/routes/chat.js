@@ -111,7 +111,6 @@ router.post('/', requireAuth, async (req, res) => {
 - Location and timing advice for maximizing rides
 - Understanding market patterns and demand
 - Analyzing uploaded content (images, heat maps, documents, earnings screenshots, etc.)
-- **Web Search:** You can search the web for current information about local events, traffic conditions, weather, and rideshare trends
 
 **File Analysis Capabilities:**
 - When drivers upload images (heat maps, screenshots, earnings data, venue photos), analyze them thoroughly
@@ -166,7 +165,7 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
         }
       ]);
 
-    console.log(`[chat] Sending ${messageHistory.length} messages to Gemini with web search enabled`);
+    console.log(`[chat] Sending ${messageHistory.length} messages to Gemini...`);
 
     // Call Gemini 3.0 Pro with web search via HTTP
     const apiKey = process.env.GEMINI_API_KEY;
@@ -176,19 +175,23 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
     }
 
     try {
-      console.log(`[chat] Calling Gemini 3.0 Pro with web search...`);
+      console.log(`[chat] Calling Gemini 3.0 Pro...`);
+      
+      // Create abort controller with 25 second timeout
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 25000);
       
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: abortController.signal,
           body: JSON.stringify({
             systemInstruction: {
               parts: [{ text: systemPrompt }]
             },
             contents: messageHistory,
-            tools: [{ google_search: {} }],
             generationConfig: {
               temperature: 0.7,
               topP: 0.95,
@@ -201,6 +204,8 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
           })
         }
       );
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errText = await response.text();
