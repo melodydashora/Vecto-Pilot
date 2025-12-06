@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateAndStoreBriefing, getBriefingBySnapshotId, confirmTBDEventDetails } from '../lib/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, confirmTBDEventDetails, fetchWeatherConditions } from '../lib/briefing-service.js';
 import { db } from '../db/drizzle.js';
 import { snapshots } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
@@ -313,8 +313,7 @@ router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
     
     // Fetch fresh weather from API (includes 6-hour forecast)
     const freshWeather = await fetchWeatherConditions({
-      lat: snapshot.lat,
-      lng: snapshot.lng
+      snapshot
     });
     
     // Format for response
