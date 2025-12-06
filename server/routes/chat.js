@@ -177,9 +177,9 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
     try {
       console.log(`[chat] Calling Gemini 3.0 Pro...`);
       
-      // Create abort controller with 25 second timeout
+      // Create abort controller with 90 second timeout (web search needs more time)
       const abortController = new AbortController();
-      const timeoutId = setTimeout(() => abortController.abort(), 25000);
+      const timeoutId = setTimeout(() => abortController.abort(), 90000);
       
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
@@ -192,6 +192,7 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
               parts: [{ text: systemPrompt }]
             },
             contents: messageHistory,
+            tools: [{ google_search: {} }],
             generationConfig: {
               temperature: 0.7,
               topP: 0.95,
