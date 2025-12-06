@@ -701,6 +701,79 @@ const CoPilot: React.FC = () => {
     retryDelay: (attemptIndex) => Math.min(3000 * 2 ** attemptIndex, 10000), // Exponential backoff: 3s, 6s, 10s max
   });
 
+  // Separate query for venue-specific bars/nightlife blocks (for Venues tab)
+  const { data: venueBlocksData, isLoading: venueBlocksLoading } = useQuery<BlocksResponse>({
+    queryKey: ['/api/blocks-venues', lastSnapshotId],
+    queryFn: async () => {
+      if (!lastSnapshotId) throw new Error('No snapshot');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 230000);
+      
+      try {
+        // Fetch bars/nightlife specific blocks
+        const response = await fetch(`/api/blocks-fast?snapshotId=${lastSnapshotId}&venueType=nightlife`, {
+          method: 'GET',
+          signal: controller.signal,
+          headers: { ...getAuthHeader() }
+        });
+        clearTimeout(timeoutId);
+        
+        if (!response.ok && response.status !== 202) {
+          throw new Error(`Failed to fetch venue blocks: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const transformed = {
+          now: data.generatedAt || new Date().toISOString(),
+          timezone: 'America/Chicago',
+          strategy: data.strategy_for_now,
+          blocks: data.blocks?.map((v: any) => ({
+            name: v.name,
+            address: v.address,
+            category: v.category,
+            placeId: v.placeId,
+            coordinates: { lat: v.coordinates?.lat ?? v.lat, lng: v.coordinates?.lng ?? v.lng },
+            estimated_distance_miles: Number(v.estimated_distance_miles ?? v.distance ?? 0),
+            driveTimeMinutes: Number(v.driveTimeMinutes ?? v.drive_time ?? 0),
+            distanceSource: v.distanceSource ?? "routes_api",
+            estimatedEarningsPerRide: v.estimated_earnings ?? v.estimatedEarningsPerRide ?? null,
+            earnings_per_mile: v.earnings_per_mile ?? null,
+            value_per_min: v.value_per_min ?? null,
+            value_grade: v.value_grade ?? null,
+            not_worth: !!v.not_worth,
+            surge: v.surge ?? null,
+            estimatedWaitTime: v.estimatedWaitTime,
+            demandLevel: v.demandLevel,
+            businessHours: v.businessHours,
+            isOpen: v.isOpen,
+            businessStatus: v.businessStatus,
+            closed_venue_reasoning: v.closed_venue_reasoning,
+            stagingArea: v.stagingArea,
+            proTips: v.proTips || v.pro_tips || []
+          })) || [],
+          ranking_id: data.ranking_id || data.correlationId,
+          metadata: {
+            totalBlocks: data.blocks?.length || 0,
+            processingTimeMs: data.elapsed_ms || 0,
+            modelRoute: data.model_route,
+            validation: data.validation
+          }
+        };
+        return transformed;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    },
+    enabled: !!lastSnapshotId && activeTab === 'venues',
+    retry: 2,
+    refetchInterval: (query) => {
+      const hasBlocks = query.state.data?.blocks && query.state.data.blocks.length > 0;
+      return hasBlocks ? false : 5000;
+    }
+  });
+
   // Stop enrichment when blocks are loaded (must be after useQuery that defines blocksData)
   useEffect(() => {
     if (blocksData?.blocks && blocksData.blocks.length > 0) {
@@ -2014,19 +2087,20 @@ const CoPilot: React.FC = () => {
             )}
             
             {/* Venues Loading State */}
-            {isLoading && (
+            {venueBlocksLoading && (
               <Card className="p-6 border-purple-100 bg-purple-50/50 mb-6">
                 <div className="flex items-center gap-3">
                   <Loader className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />
                   <div>
-                    <p className="text-gray-800 font-semibold text-sm">Finding nearby venues...</p>
-                    <p className="text-gray-600 text-xs">Analyzing location, demand, and earnings</p>
+                    <p className="text-gray-800 font-semibold text-sm">Finding nearby bars & venues...</p>
+                    <p className="text-gray-600 text-xs">Analyzing last call times and business hours</p>
                   </div>
                 </div>
               </Card>
             )}
             
-            {!isLoading && <SmartBlocks blocks={blocks} />}
+            {!venueBlocksLoading && <BarsTable blocks={venueBlocksData?.blocks} />}
+            {!venueBlocksLoading && <SmartBlocks blocks={venueBlocksData?.blocks} />}
           </div>
         )}
 
