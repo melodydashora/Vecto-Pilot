@@ -52,16 +52,68 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     } : null;
     
     // GATE 2: Find ranking for this snapshot
-    const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+    let [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
     
     if (!ranking) {
-      return res.status(202).json({ 
-        ok: false,
-        reason: 'blocks_generating',
-        status: 'pending_blocks',
-        message: 'Venue recommendations are being generated',
-        blocks: []
-      });
+      // Strategy is ready but blocks don't exist - trigger generation now
+      console.log(`[blocks-fast GET] 🔨 Strategy ready but no ranking - generating SmartBlocks for ${snapshotId}`);
+      
+      try {
+        // Fetch snapshot for block generation
+        const [snapshot] = await db.select().from(snapshots)
+          .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+        
+        if (!snapshot) {
+          return res.status(404).json({ error: 'snapshot_not_found' });
+        }
+        
+        // Fetch briefing (optional)
+        const [briefingRow] = await db.select().from(briefings)
+          .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+        
+        // Create fallback briefing if none exists
+        const fallbackBriefing = {
+          events: [],
+          news: { items: [] },
+          traffic_conditions: { summary: 'Traffic data loading...', congestionLevel: 'medium', incidents: [] },
+          weather_current: snapshot.weather ? (typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather) : null,
+          school_closures: []
+        };
+        
+        // Generate SmartBlocks
+        await generateEnhancedSmartBlocks({
+          snapshotId,
+          consolidated: strategyRow.consolidated_strategy,
+          briefing: briefingRow || fallbackBriefing,
+          snapshot: snapshot,
+          user_id: null
+        });
+        
+        // Fetch the newly created ranking
+        [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+        
+        if (!ranking) {
+          console.error(`[blocks-fast GET] ⚠️ SmartBlocks generated but no ranking found`);
+          return res.status(202).json({ 
+            ok: false,
+            reason: 'blocks_generating',
+            status: 'pending_blocks',
+            message: 'Venue recommendations are still being generated',
+            blocks: []
+          });
+        }
+        
+        console.log(`[blocks-fast GET] ✅ SmartBlocks generated successfully for ${snapshotId}`);
+      } catch (genError) {
+        console.error(`[blocks-fast GET] ❌ SmartBlocks generation failed:`, genError.message);
+        return res.status(202).json({ 
+          ok: false,
+          reason: 'blocks_generating',
+          status: 'pending_blocks',
+          message: 'Venue recommendations are being generated',
+          blocks: []
+        });
+      }
     }
 
     // Get candidates for this ranking
