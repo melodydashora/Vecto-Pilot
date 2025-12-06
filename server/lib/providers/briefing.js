@@ -22,8 +22,6 @@ import { generateAndStoreBriefing } from '../briefing-service.js';
  */
 export async function runBriefing(snapshotId) {
   try {
-    console.log(`[briefing] Starting Gemini-based briefing for ${snapshotId}`);
-    
     // Fetch snapshot with full location context
     const [snapshot] = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
