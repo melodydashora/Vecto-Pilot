@@ -355,7 +355,7 @@ const CoPilot: React.FC = () => {
       return data;
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000, // Cache weather for 5 minutes to prevent repeated fetches
   });
 
   const { data: trafficData, isLoading: trafficLoading } = useQuery({
@@ -375,7 +375,7 @@ const CoPilot: React.FC = () => {
       return data;
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000, // Cache traffic for 5 minutes to prevent repeated fetches
   });
 
   const { data: newsData } = useQuery({
@@ -412,7 +412,7 @@ const CoPilot: React.FC = () => {
       return data;
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    staleTime: 45000,
+    staleTime: 5 * 60 * 1000, // Cache events for 5 minutes to prevent repeated fetches
   });
 
   const { data: schoolClosuresData } = useQuery({

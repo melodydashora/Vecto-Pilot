@@ -243,16 +243,16 @@ router.post('/', async (req, res) => {
       });
     }
     
-    // If strategy is COMPLETE/OK but no ranking exists yet, generate SmartBlocks
-    if (existingStrategy && ['complete', 'ok'].includes(existingStrategy.status)) {
+    // If strategy is COMPLETE/OK/PENDING_BLOCKS, generate SmartBlocks if not already done
+    if (existingStrategy && ['complete', 'ok', 'pending_blocks'].includes(existingStrategy.status)) {
       const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
-        console.log(`[blocks-fast POST] ✅ Strategy already ok and blocks ready for ${snapshotId}`);
+        console.log(`[blocks-fast POST] ✅ Strategy ready and blocks already exist for ${snapshotId}`);
         // Blocks already exist, GET request will fetch them
         return sendOnce(200, { ok: true, reason: 'blocks_ready' });
       }
-      // Strategy is complete but blocks don't exist yet - generate them
-      console.log(`[blocks-fast POST] 🔨 Strategy complete but blocks missing, generating now for ${snapshotId}`);
+      // Strategy is ready but blocks don't exist yet - generate them
+      console.log(`[blocks-fast POST] 🔨 Strategy status=${existingStrategy.status}, generating SmartBlocks now for ${snapshotId}`);
     }
 
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
