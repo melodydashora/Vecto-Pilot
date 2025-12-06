@@ -178,13 +178,16 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const state = snapshot?.state || 'TX';
   const lat = snapshot?.lat || 33.1285;
   const lng = snapshot?.lng || -96.8756;
-  console.log(`[BriefingService] 🎯 Fetching events: city=${city}, state=${state}, lat=${lat}, lng=${lng}, date=${date}`);
+  const hour = snapshot?.hour || 22;
+  const timezone = snapshot?.timezone || 'America/Chicago';
+  const currentTime = `${String(hour).padStart(2, '0')}:00`;
+  console.log(`[BriefingService] 🎯 Fetching events: city=${city}, state=${state}, lat=${lat}, lng=${lng}, date=${date}, time=${currentTime}`);
   
   const prompt = `TASK: Find ALL major events happening in ${city}, ${state} TODAY (${date}) and nearby cities that affect rideshare demand. Use Google Search tool now.
 
 LOCATION: ${city}, ${state} (${lat}, ${lng}) - 50 mile radius (include nearby cities within this radius)
-DATE: ${date} ONLY - NO future dates, NO past events
-TIMEZONE: ${snapshot?.timezone || 'America/Chicago'}
+DATE: ${date} (TODAY) - Current time: ${currentTime} (${timezone})
+TIMEZONE: ${timezone}
 
 SEARCH QUERIES (execute all - include nearby cities):
 1. "major events today in ${city} ${state} and nearby cities"
@@ -212,11 +215,11 @@ CRITICAL REQUIREMENTS FOR EACH EVENT:
 ✓ Impact level on rideshare demand (high/medium/low)
 
 FILTERING RULES:
-- ONLY include events happening TODAY (${date})
-- EXCLUDE any past events (ones that have already ended)
-- EXCLUDE future dates or weekend references
+- Include events happening TODAY (${date}) that are CURRENTLY HAPPENING or HAPPENING LATER TONIGHT
+- EXCLUDE events that have already ended (compare event end_time to current time: 10:47 PM)
+- EXCLUDE future dates (tomorrow, weekend, next week)
 - EXCLUDE events with missing start/end times
-- Prioritize high-impact demand events
+- Prioritize high-impact demand events (if event is still ongoing or starts soon, INCLUDE IT)
 
 MINIMUM REQUIREMENTS:
 - Return AT LEAST 5-10 major events if available
