@@ -1,4 +1,5 @@
 // gateway-server.js - MONO + SPLIT capable
+// Server restart trigger: 2025-12-06 21:19
 import http from "node:http";
 import { spawn } from "node:child_process";
 import express from "express";
