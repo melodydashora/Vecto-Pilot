@@ -192,13 +192,18 @@ Important formatting rules:
 `.trim();
 }
 
-async function fetchEventsWithGemini3ProPreview({ lat, lng, timezone, date }) {
+async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] GEMINI_API_KEY is not set; skipping events lookup.');
     return [];
   }
 
-  const prompt = buildEventsPrompt({ lat, lng, date, timezone });
+  const prompt = `Based on this snapshot context, are there any events nearby or in nearby cities I need to be aware of?
+
+Snapshot:
+${JSON.stringify(snapshot, null, 2)}
+
+Return ONLY valid JSON array with event details (title, venue, date, time, type, distance, impact). If no events, return: []`;
 
   const body = {
     contents: [
@@ -842,7 +847,7 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
   }
 }
 
-export async function fetchTrafficConditions({ lat, lng, city, state, snapshot }) {
+export async function fetchTrafficConditions({ snapshot }) {
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] GEMINI_API_KEY not set, returning stub traffic data');
     return { 
@@ -854,51 +859,26 @@ export async function fetchTrafficConditions({ lat, lng, city, state, snapshot }
   }
 
   try {
-    // Use snapshot context: date, timezone, daypart for intelligent analysis
-    const snapshotDate = snapshot?.date || new Date().toISOString().split('T')[0];
-    const timezone = snapshot?.timezone || 'America/Chicago';
+    const city = snapshot?.city || 'Unknown';
+    const state = snapshot?.state || 'Unknown';
     
-    // Calculate current time in driver's timezone - use correct formatting
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
+    console.log(`[BriefingService] 🚗 Fetching traffic for ${city}, ${state}...`);
     
-    // Get date in driver's timezone
-    const dateFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric'
-    });
-    
-    const timeString = formatter.format(now);
-    const driverDate = dateFormatter.format(now);
-    
-    console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state} at ${timeString} ${timezone} on ${driverDate}`);
-    
-    const prompt = `Analyze traffic conditions for ${city}, ${state} RIGHT NOW. Provide practical driving guidance based on current conditions.
+    const prompt = `Based on this snapshot context, are there any traffic incidents or routing issues I need to be aware of?
 
-DRIVER CONTEXT:
-- Location: ${city}, ${state}
-- Current Local Time: ${timeString} on ${driverDate}
-- Timezone: ${timezone}
+Snapshot:
+${JSON.stringify(snapshot, null, 2)}
 
-YOUR JOB: Report traffic conditions and provide practical route/driving guidance. Examples: "I-35 has 3 accidents, avoid it - use Tollway instead", "Downtown gridlock, use surface streets", "Highway clear, good for highway routes".
-
-RETURN ONLY valid JSON - no markdown or explanation:
+Return ONLY valid JSON - no markdown:
 {
-  "summary": "One sentence summary of traffic conditions with practical driving guidance",
+  "summary": "brief summary of traffic conditions and routing guidance",
   "congestionLevel": "low" | "medium" | "high",
   "incidents": [
-    {"description": "specific traffic incident and practical guidance (e.g., 'I-121 blocked by 3 accidents - take Tollway')", "severity": "high" | "medium" | "low"}
+    {"description": "traffic incident and practical route guidance", "severity": "high" | "medium" | "low"}
   ]
 }
 
-Return ONLY JSON.`;
+If no significant traffic, return empty incidents array.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     
@@ -972,47 +952,37 @@ Return ONLY JSON.`;
 }
 
 /**
- * Fetch rideshare-relevant news for a location using Gemini with Google search
- * Gemini analyzes and returns the most relevant news for drivers
+ * Fetch rideshare-relevant news using Gemini with Google search
  */
-async function fetchRideshareNews({ city, state, country, lat, lng }) {
+async function fetchRideshareNews({ snapshot }) {
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] GEMINI_API_KEY not set, skipping news fetch');
     return [];
   }
 
   try {
-    console.log(`[BriefingService] 📰 Fetching rideshare news for ${city}, ${state} via Gemini search...`);
+    const city = snapshot?.city || 'Unknown';
+    const state = snapshot?.state || 'Unknown';
     
-    const prompt = `You are a rideshare driver intelligence system. Search for and analyze TODAY'S news relevant to rideshare drivers in ${city}, ${state}, ${country}.
+    console.log(`[BriefingService] 📰 Fetching news for ${city}, ${state}...`);
+    
+    const prompt = `Based on this snapshot context, brief me on news that affects me as a rideshare driver. Skip traffic and events (those are separate). Focus on regulations, safety, market conditions.
 
-SEARCH QUERIES:
-1. "rideshare news ${city} ${state} today"
-2. "uber lyft driver news ${city} today"
-3. "${city} traffic events incidents today"
-4. "concerts games events ${city} ${state} today"
+Snapshot:
+${JSON.stringify(snapshot, null, 2)}
 
-For each search result, determine if it's relevant to a rideshare driver's earning potential and safety. Focus on:
-- Demand-driving events (concerts, games, festivals, parades)
-- Road closures or traffic incidents
-- Local regulations affecting rideshare
-- Weather impacts on driving
-- Airport/hotel activity
-- Safety incidents or alerts
-
-CRITICAL: Return ONLY a valid JSON array with this structure:
+Return ONLY valid JSON array with this structure:
 [
   {
     "title": "headline",
-    "summary": "one sentence actionable insight for rideshare drivers",
+    "summary": "actionable insight for rideshare drivers",
     "impact": "high" | "medium" | "low",
     "source": "source name",
-    "link": "url if available",
-    "event_type": "demand_event" | "road_closure" | "weather" | "safety" | "regulation" | "other"
+    "link": "url if available"
   }
 ]
 
-Return ONLY the JSON array, no markdown, no explanation. If no relevant news found, return: []`;
+If no relevant news, return: []`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini with search to analyze ${city}, ${state} news...`);
     
@@ -1083,9 +1053,9 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
   console.log(`[BriefingService] 🔍 Fetching events, news, weather, traffic, school closures... snapshot=${!!snapshot}`);
   const [rawEvents, newsItems, weatherResult, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
-    fetchRideshareNews({ city, state, country, lat, lng }),
+    fetchRideshareNews({ snapshot }),
     fetchWeatherConditions({ lat, lng }),
-    fetchTrafficConditions({ lat, lng, city, state, snapshot }),
+    fetchTrafficConditions({ snapshot }),
     fetchSchoolClosures({ city, state, lat, lng })
   ]);
   console.log(`[BriefingService] ✅ Events fetched from Gemini: ${rawEvents.length} raw events`);
