@@ -1298,6 +1298,11 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     fetchSchoolClosures({ snapshot })
   ]);
   console.log(`[BriefingService] ✅ APIs returned: events=${rawEvents.length}, news=${newsItems.length}`);
+  console.log(`[BriefingService] 🚗 Traffic result:`, {
+    summary: trafficResult?.summary?.substring(0, 60),
+    incidents_count: trafficResult?.incidents?.length || 0,
+    congestionLevel: trafficResult?.congestionLevel
+  });
 
   // 1) Normalize Gemini output into LocalEventSchema
   let normalizedEvents = mapGeminiEventsToLocalEvents(rawEvents, { lat, lng });
@@ -1311,7 +1316,20 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   }
 
   // Parse snapshot weather (it may be JSON string or object)
-  const snapshotWeather = typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather;
+  let snapshotWeather = null;
+  try {
+    snapshotWeather = typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather;
+    console.log(`[BriefingService] 🌡️ Parsed snapshot weather:`, {
+      has_weather: !!snapshotWeather,
+      tempF: snapshotWeather?.tempF,
+      conditions: snapshotWeather?.conditions,
+      has_forecast: !!snapshotWeather?.forecast,
+      forecast_length: snapshotWeather?.forecast?.length || 0
+    });
+  } catch (e) {
+    console.error('[BriefingService] ❌ Failed to parse snapshot weather:', e.message);
+    snapshotWeather = null;
+  }
   
   const briefingData = {
     snapshot_id: snapshotId,
