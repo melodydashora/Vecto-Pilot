@@ -32,7 +32,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
 
   // Component-level queries - each loads independently
   const weatherQuery = useQuery({
-    queryKey: ['/api/briefing/weather', snapshotId],
+    queryKey: ['/api/briefing/weather', snapshotId, token],
     queryFn: async () => {
       if (!snapshotId || !token) return { weather: null };
       try {
@@ -46,12 +46,12 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         return { weather: null };
       }
     },
-    enabled: !!snapshotId,
+    enabled: !!snapshotId && !!token,
     staleTime: 30000,
   });
 
   const trafficQuery = useQuery({
-    queryKey: ['/api/briefing/traffic', snapshotId],
+    queryKey: ['/api/briefing/traffic', snapshotId, token],
     queryFn: async () => {
       if (!snapshotId || !token) return { traffic: null };
       try {
@@ -65,12 +65,12 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         return { traffic: null };
       }
     },
-    enabled: !!snapshotId,
+    enabled: !!snapshotId && !!token,
     staleTime: 30000,
   });
 
   const rideshareNewsQuery = useQuery({
-    queryKey: ['/api/briefing/rideshare-news', snapshotId],
+    queryKey: ['/api/briefing/rideshare-news', snapshotId, token],
     queryFn: async () => {
       if (!snapshotId || !token) return { news: null };
       try {
@@ -84,13 +84,13 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         return { news: null };
       }
     },
-    enabled: !!snapshotId,
+    enabled: !!snapshotId && !!token,
     staleTime: 45000,
   });
 
   // Single events query that fetches all events (local events + live music + concerts) with Places API resolution
   const eventsQuery = useQuery({
-    queryKey: ['/api/briefing/events', snapshotId],
+    queryKey: ['/api/briefing/events', snapshotId, token],
     queryFn: async () => {
       if (!snapshotId || !token) return { events: [] };
       try {
@@ -104,12 +104,12 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         return { events: [] };
       }
     },
-    enabled: !!snapshotId,
+    enabled: !!snapshotId && !!token,
     staleTime: 45000,
   });
 
   const schoolClosuresQuery = useQuery({
-    queryKey: ['/api/briefing/school-closures', snapshotId],
+    queryKey: ['/api/briefing/school-closures', snapshotId, token],
     queryFn: async () => {
       if (!snapshotId || !token) return { school_closures: [] };
       try {
@@ -123,7 +123,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         return { school_closures: [] };
       }
     },
-    enabled: !!snapshotId,
+    enabled: !!snapshotId && !!token,
     staleTime: 45000,
   });
 
