@@ -1014,7 +1014,7 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
     const result = await callGemini({
       model: 'gemini-3-pro-preview',
       user: prompt,
-      maxTokens: 2000,
+      maxTokens: 8192,
       temperature: 0.2
     });
 
