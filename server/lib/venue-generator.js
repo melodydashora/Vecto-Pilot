@@ -26,8 +26,26 @@ export async function generateVenueCoordinates({
   state,
   currentTime,
   weather,
+  snapshot,
   maxDistance = 15
 }) {
+  if (snapshot) {
+    console.log('[generateVenueCoordinates] 📤 SENT SNAPSHOT TO GPT FOR VENUES:', {
+      snapshot_id: snapshot.snapshot_id,
+      lat: snapshot.lat,
+      lng: snapshot.lng,
+      city: snapshot.city,
+      state: snapshot.state,
+      timezone: snapshot.timezone,
+      date: snapshot.date,
+      dow: snapshot.dow,
+      hour: snapshot.hour,
+      day_part_key: snapshot.day_part_key,
+      weather: snapshot.weather ? { tempF: snapshot.weather.tempF, conditions: snapshot.weather.conditions } : 'none',
+      air: snapshot.air ? { aqi: snapshot.air.aqi, category: snapshot.air.category } : 'none'
+    });
+  }
+  
   console.log(`[Venue Generator] Generating venues within ${maxDistance} miles of ${city}, ${state}...`);
   
   const systemPrompt = `You are a rideshare venue intelligence system. Generate specific venue recommendations with precise GPS coordinates.
