@@ -71,3 +71,16 @@ Every table referencing `snapshot_id` also stores the resolved precise location 
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+## GPS Location Behavior
+**Design: Manual Refresh Only (No Auto-Polling)**
+- **App Open**: Browser requests location permission fresh (`maximumAge: 0`)
+- **User In App**: Manual "Refresh Location" button only - no automatic polling
+- **App Reopen**: Permission requested again (fresh, never cached)
+- **Implementation**: `useGeoPosition.ts` with `maximumAge: 0` forces fresh requests on each permission prompt
+
+## Recent Changes & Fixes
+- **Dec 6, 2025 (DUPLICATE API OPTIMIZATION)**:
+  - ✅ Fixed "lat is not defined" bug in briefing-service.js (line 1207) - critical blocker
+  - ✅ Fixed Weather API duplication by reusing `snapshot.weather` instead of re-fetching
+  - ✅ Confirmed GPS behavior: Manual refresh only, permission on app reopen
+  - Waterfall pipeline now completes successfully with all tabs displaying data
