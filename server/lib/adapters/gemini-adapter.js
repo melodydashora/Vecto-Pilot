@@ -12,21 +12,33 @@ export async function callGemini({ model, system, user, maxTokens, temperature, 
     const expectsJson = user.toLowerCase().includes('json') || 
                         (system && system.toLowerCase().includes('json'));
     
+    // ISSUE #16 FIX: Set temperature to 0.2 for structured data (JSON)
+    const finalTemperature = expectsJson ? 0.2 : (temperature || 0.7);
+    
     const generativeModel = genAI.getGenerativeModel({
       model,
       systemInstruction: system ? { parts: [{ text: system }] } : undefined,
       generationConfig: {
         maxOutputTokens: maxTokens,
-        temperature,
+        temperature: finalTemperature,
         ...(topP !== undefined && { topP }),
         ...(topK !== undefined && { topK }),
-        // Request JSON format if detected, otherwise plain text
+        // ISSUE #16 FIX: Force JSON format for structured responses
         responseMimeType: expectsJson ? "application/json" : "text/plain"
-      }
+      },
+      // ISSUE #16 FIX: Disable safety filters to prevent blocking traffic/event data
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+      ]
     });
 
     const result = await generativeModel.generateContent({
-      contents: [{ role: "user", parts: [{ text: user }] }]
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      // ISSUE #16 FIX: Enable Google Search tool for real-time data
+      tools: [{ googleSearch: {} }]
     });
 
     let output = result?.response?.text()?.trim() || "";
