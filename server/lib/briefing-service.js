@@ -1203,6 +1203,9 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     air: snapshot.air
   });
   
+  // Destructure snapshot fields
+  const { lat, lng, city, state, formatted_address } = snapshot;
+  
   // Call all APIs directly in parallel with this snapshot
   console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, closures) + Google (weather) in parallel`);
   const [rawEvents, newsItems, weatherResult, trafficResult, schoolClosures] = await Promise.all([
