@@ -3,7 +3,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export async function callGemini({ model, system, user, maxTokens, temperature, topP, topK }) {
+export async function callGemini({ model, system, user, maxTokens, temperature, topP, topK, useSearch = false }) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -14,11 +14,9 @@ export async function callGemini({ model, system, user, maxTokens, temperature, 
     const genAI = new GoogleGenerativeAI(apiKey);
     console.log(`[model/gemini] calling ${model} with max_tokens=${maxTokens}`);
 
-    // Detect if JSON response is expected (prompt contains "JSON" or "json")
+    // Use lower temperature for JSON responses
     const expectsJson = user.toLowerCase().includes('json') || 
                         (system && system.toLowerCase().includes('json'));
-    
-    // ISSUE #16 FIX: Set temperature to 0.2 for structured data (JSON)
     const finalTemperature = expectsJson ? 0.2 : (temperature || 0.7);
     
     const generativeModel = genAI.getGenerativeModel({
@@ -28,9 +26,7 @@ export async function callGemini({ model, system, user, maxTokens, temperature, 
         maxOutputTokens: maxTokens,
         temperature: finalTemperature,
         ...(topP !== undefined && { topP }),
-        ...(topK !== undefined && { topK }),
-        // ISSUE #16 FIX: Force JSON format for structured responses
-        responseMimeType: expectsJson ? "application/json" : "text/plain"
+        ...(topK !== undefined && { topK })
       },
       // ISSUE #16 FIX: Disable safety filters to prevent blocking traffic/event data
       safetySettings: [
@@ -43,8 +39,7 @@ export async function callGemini({ model, system, user, maxTokens, temperature, 
 
     const result = await generativeModel.generateContent({
       contents: [{ role: "user", parts: [{ text: user }] }],
-      // ISSUE #16 FIX: Enable Google Search tool for real-time data
-      tools: [{ google_search: {} }]
+      ...(useSearch && { tools: [{ google_search: {} }] })
     });
 
     let output = result?.response?.text()?.trim() || "";
