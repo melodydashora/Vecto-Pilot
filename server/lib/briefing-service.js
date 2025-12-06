@@ -18,6 +18,9 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY; // Places, Geocodin
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Generative Language API (requires separate project)
 console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!GEMINI_API_KEY);
 
+// In-flight request deduplication cache to prevent duplicate API calls for same snapshot
+const inFlightBriefings = new Map(); // snapshot_id -> Promise<briefing>
+
 // Zod validation schema for local events
 const LocalEventSchema = z.object({
   title: z.string().describe('Event name'),
@@ -1250,6 +1253,25 @@ Return ONLY JSON array - no markdown, no explanation.`;
 }
 
 export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
+  // DEDUPLICATION: If same snapshot is already being processed, wait for that result instead of making duplicate API calls
+  if (inFlightBriefings.has(snapshotId)) {
+    console.log(`[BriefingService] ⏳ Briefing already in flight for ${snapshotId}, waiting for result...`);
+    return inFlightBriefings.get(snapshotId);
+  }
+  
+  // Create promise for this request and cache it
+  const briefingPromise = generateBriefingInternal({ snapshotId, snapshot });
+  inFlightBriefings.set(snapshotId, briefingPromise);
+  
+  // Clean up cache when done (success or failure)
+  briefingPromise.finally(() => {
+    inFlightBriefings.delete(snapshotId);
+  });
+  
+  return briefingPromise;
+}
+
+async function generateBriefingInternal({ snapshotId, snapshot }) {
   // ALWAYS fetch complete snapshot from DB to ensure all fields (including weather) are loaded
   try {
     const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
