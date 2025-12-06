@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { db } from '../db/drizzle.js';
 import { sql, eq } from 'drizzle-orm';
 import { strategies, snapshots } from '../../shared/schema.js';
-import { requireAuth } from '../middleware/auth.ts';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 

@@ -2,7 +2,7 @@
 // Parallel enrichment: GPT-5 explains why closed venues are still worth visiting
 import express from 'express';
 import { OpenAI } from 'openai';
-import { requireAuth } from '../middleware/auth.ts';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
