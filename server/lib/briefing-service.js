@@ -1098,22 +1098,26 @@ Return ONLY JSON array - no markdown, no explanation.`;
   }
 }
 
-export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, state, formattedAddress, country = 'US' }) {
-  console.log(`[BriefingService] Generating briefing for ${city}, ${state}, ${country} (${lat}, ${lng})`);
-  
-  // Fetch the full snapshot to get timezone and date for events discovery
-  let snapshot = null;
-  try {
-    const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotResult.length > 0) {
-      snapshot = snapshotResult[0];
-      console.log(`[BriefingService] ✅ Fetched snapshot: lat=${snapshot.lat}, lng=${snapshot.lng}, timezone=${snapshot.timezone}, date=${snapshot.date}`);
-    } else {
-      console.warn(`[BriefingService] ⚠️ Snapshot ${snapshotId} not found in DB`);
+export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
+  // Use passed snapshot or fetch from DB if needed
+  if (!snapshot) {
+    try {
+      const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+      if (snapshotResult.length > 0) {
+        snapshot = snapshotResult[0];
+      } else {
+        console.warn(`[BriefingService] ⚠️ Snapshot ${snapshotId} not found in DB`);
+        return { success: false, error: 'Snapshot not found' };
+      }
+    } catch (err) {
+      console.warn('[BriefingService] Could not fetch snapshot:', err.message);
+      return { success: false, error: err.message };
     }
-  } catch (err) {
-    console.warn('[BriefingService] Could not fetch snapshot for events discovery:', err.message);
   }
+  
+  const { lat, lng, city, state, country, formatted_address, timezone, date } = snapshot;
+  console.log(`[BriefingService] Generating briefing for ${city}, ${state}, ${country} (${lat}, ${lng})`);
+  console.log(`[BriefingService] ✅ Using full snapshot: lat=${lat}, lng=${lng}, timezone=${timezone}, date=${date}`);
 
   // Fetch all briefing components in parallel
   console.log(`[BriefingService] 🔍 Fetching events, news, weather, traffic, school closures... snapshot=${!!snapshot}`);
@@ -1140,7 +1144,7 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
 
   const briefingData = {
     snapshot_id: snapshotId,
-    formatted_address: formattedAddress,
+    formatted_address: formatted_address,
     city,
     state,
     news: { items: newsItems, filtered: newsItems },
