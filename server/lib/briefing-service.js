@@ -198,12 +198,39 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     return [];
   }
 
-  const prompt = `Based on this snapshot context, are there any events nearby or in nearby cities I need to be aware of?
+  const date = snapshot?.date || new Date().toISOString().split('T')[0];
+  const city = snapshot?.city || 'Unknown';
+  const state = snapshot?.state || 'Unknown';
+  const lat = snapshot?.lat;
+  const lng = snapshot?.lng;
+  
+  const prompt = `Search for events happening SOON in and around ${city}, ${state} (coordinates: ${lat}, ${lng}) that create rideshare demand.
 
-Snapshot:
-${JSON.stringify(snapshot, null, 2)}
+SEARCH for:
+1. Concerts, live music, festivals in ${city} and nearby cities
+2. Sports games, watch parties, sporting events
+3. Theater, comedy shows, cultural events
+4. Parades, fairs, markets, conventions
+5. Special events at major venues or arenas
 
-Return ONLY valid JSON array with event details (title, venue, date, time, type, distance, impact). If no events, return: []`;
+Focus on events that increase rideshare demand (after-events, bar crawls, transportation hubs).
+
+Return ONLY valid JSON array. Include title, venue name, date, time, type, distance, and driver impact:
+[
+  {
+    "title": "event name",
+    "venue": "venue name",
+    "address": "full address if known",
+    "event_date": "YYYY-MM-DD",
+    "event_time": "HH:MM",
+    "type": "demand_event" | "watch_party" | "other",
+    "estimated_distance_miles": 5.2,
+    "impact": "high" | "medium" | "low",
+    "recommended_driver_action": "reposition_now" | "position_by_9pm" | "monitor"
+  }
+]
+
+Return empty [] only if absolutely no events found. Otherwise include events found.`;
 
   const body = {
     contents: [
@@ -861,24 +888,37 @@ export async function fetchTrafficConditions({ snapshot }) {
   try {
     const city = snapshot?.city || 'Unknown';
     const state = snapshot?.state || 'Unknown';
+    const lat = snapshot?.lat;
+    const lng = snapshot?.lng;
+    const date = snapshot?.date;
+    const timezone = snapshot?.timezone || 'America/Chicago';
     
-    console.log(`[BriefingService] 🚗 Fetching traffic for ${city}, ${state}...`);
+    console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state}...`);
     
-    const prompt = `Based on this snapshot context, are there any traffic incidents or routing issues I need to be aware of?
+    const prompt = `You are a rideshare driver assistant. Analyze CURRENT traffic conditions for a driver at (${lat}, ${lng}) in ${city}, ${state} ${date}.
 
-Snapshot:
-${JSON.stringify(snapshot, null, 2)}
+DRIVER CONTEXT:
+- Location: ${city}, ${state}
+- Coordinates: ${lat}, ${lng}
+- Date: ${date}
+- Timezone: ${timezone}
 
-Return ONLY valid JSON - no markdown:
+SEARCH for and analyze:
+1. Current traffic incidents in and around ${city}, ${state}
+2. Road closures, accidents, or delays
+3. Major commute corridors and congestion patterns
+4. Practical routing alternatives
+
+Return ONLY valid JSON with practical driving guidance:
 {
-  "summary": "brief summary of traffic conditions and routing guidance",
+  "summary": "Brief summary of current traffic conditions with practical routing advice",
   "congestionLevel": "low" | "medium" | "high",
   "incidents": [
-    {"description": "traffic incident and practical route guidance", "severity": "high" | "medium" | "low"}
+    {"description": "Specific incident (e.g., 'I-35 southbound: 3 accidents near downtown, avoid - use I-44 instead')", "severity": "high" | "medium" | "low"}
   ]
 }
 
-If no significant traffic, return empty incidents array.`;
+Return empty incidents array if no significant congestion found.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     
@@ -964,26 +1004,37 @@ async function fetchRideshareNews({ snapshot }) {
   try {
     const city = snapshot?.city || 'Unknown';
     const state = snapshot?.state || 'Unknown';
+    const date = snapshot?.date || new Date().toISOString().split('T')[0];
     
-    console.log(`[BriefingService] 📰 Fetching news for ${city}, ${state}...`);
+    console.log(`[BriefingService] 📰 Fetching rideshare news for ${city}, ${state}...`);
     
-    const prompt = `Based on this snapshot context, brief me on news that affects me as a rideshare driver. Skip traffic and events (those are separate). Focus on regulations, safety, market conditions.
+    const prompt = `Search for and summarize TODAY'S news relevant to rideshare drivers in ${city}, ${state}. Exclude traffic incidents and local events (those handled separately).
 
-Snapshot:
-${JSON.stringify(snapshot, null, 2)}
+SEARCH QUERIES to use:
+1. "rideshare news ${city} ${state} today"
+2. "uber lyft driver news ${city} today"
+3. "gig economy regulations ${state} today"
+4. "rideshare driver safety alerts ${city}"
 
-Return ONLY valid JSON array with this structure:
+Focus on:
+- Driver earnings, platform changes, or pay rate updates
+- Regulations or policy changes affecting rideshare
+- Driver safety incidents or alerts
+- Market conditions affecting demand
+- Airport or major hub activity
+
+Return ONLY valid JSON array with this structure. Include AT LEAST one relevant story if found:
 [
   {
     "title": "headline",
-    "summary": "actionable insight for rideshare drivers",
+    "summary": "actionable insight for rideshare drivers (one sentence)",
     "impact": "high" | "medium" | "low",
-    "source": "source name",
+    "source": "news source",
     "link": "url if available"
   }
 ]
 
-If no relevant news, return: []`;
+Return empty array [] only if absolutely no relevant news found.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini with search to analyze ${city}, ${state} news...`);
     
