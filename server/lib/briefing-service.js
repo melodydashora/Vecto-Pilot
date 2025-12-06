@@ -1259,20 +1259,18 @@ Return ONLY JSON array - no markdown, no explanation.`;
 }
 
 export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
-  // Use passed snapshot or fetch from DB if needed
-  if (!snapshot) {
-    try {
-      const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-      if (snapshotResult.length > 0) {
-        snapshot = snapshotResult[0];
-      } else {
-        console.warn(`[BriefingService] ⚠️ Snapshot ${snapshotId} not found in DB`);
-        return { success: false, error: 'Snapshot not found' };
-      }
-    } catch (err) {
-      console.warn('[BriefingService] Could not fetch snapshot:', err.message);
-      return { success: false, error: err.message };
+  // ALWAYS fetch complete snapshot from DB to ensure all fields (including weather) are loaded
+  try {
+    const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    if (snapshotResult.length > 0) {
+      snapshot = snapshotResult[0];
+    } else {
+      console.warn(`[BriefingService] ⚠️ Snapshot ${snapshotId} not found in DB`);
+      return { success: false, error: 'Snapshot not found' };
     }
+  } catch (err) {
+    console.warn('[BriefingService] Could not fetch snapshot:', err.message);
+    return { success: false, error: err.message };
   }
   
   console.log(`[BriefingService] 📸 Snapshot:`, {

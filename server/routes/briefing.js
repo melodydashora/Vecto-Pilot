@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateAndStoreBriefing, getBriefingBySnapshotId, fetchTrafficConditions, fetchWeatherConditions, confirmTBDEventDetails } from '../lib/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, confirmTBDEventDetails } from '../lib/briefing-service.js';
 import { db } from '../db/drizzle.js';
 import { snapshots } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
@@ -296,7 +296,7 @@ router.get('/weather/realtime', requireAuth, async (req, res) => {
   }
 });
 
-// Component-level endpoint: Weather only
+// Component-level endpoint: Weather only - returns snapshot weather directly
 router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
@@ -309,20 +309,32 @@ router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
     
-    let briefing = await getBriefingBySnapshotId(snapshotId);
-    console.log('[BriefingRoute] /weather/:snapshotId - Raw briefing:', {
-      has_briefing: !!briefing,
-      weather_current_raw: briefing?.weather_current,
-      weather_forecast_raw: briefing?.weather_forecast
-    });
-    briefing = parseBriefingData(briefing);
+    const snapshot = snapshotCheck[0];
+    let snapshotWeather = null;
+    
+    // Parse weather from snapshot (already fetched at snapshot creation time from Google Weather API)
+    try {
+      snapshotWeather = typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather;
+    } catch (e) {
+      console.warn('[BriefingRoute] Failed to parse snapshot weather:', e.message);
+      snapshotWeather = null;
+    }
+    
+    // Format weather for response - handle both simple and full weather objects
+    const weatherResponse = snapshotWeather ? {
+      current: {
+        tempF: snapshotWeather.tempF || null,
+        conditions: snapshotWeather.conditions || null,
+        humidity: snapshotWeather.humidity || null,
+        windDirection: snapshotWeather.windDirection || null,
+        isDaytime: snapshotWeather.isDaytime !== undefined ? snapshotWeather.isDaytime : null
+      },
+      forecast: snapshotWeather.forecast || []
+    } : { current: null, forecast: [] };
     
     res.json({
       success: true,
-      weather: briefing ? {
-        current: briefing.weather_current,
-        forecast: briefing.weather_forecast
-      } : { current: null, forecast: [] },
+      weather: weatherResponse,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -384,26 +396,10 @@ router.get('/rideshare-news/:snapshotId', requireAuth, async (req, res) => {
     const snapshot = snapshotCheck[0];
     let briefing = await getBriefingBySnapshotId(snapshotId);
     
-    console.log(`[BriefingRoute] GET /briefing/rideshare-news/${snapshotId} - briefing exists: ${!!briefing}, has news: ${!!briefing?.news}`);
-    
     // Auto-generate if briefing doesn't exist
     if (!briefing) {
-      console.log(`[BriefingRoute] Auto-generating briefing for ${snapshotId}...`);
-      const result = await generateAndStoreBriefing({
-        snapshotId: snapshot.snapshot_id,
-        lat: snapshot.lat,
-        lng: snapshot.lng,
-        city: snapshot.city,
-        state: snapshot.state,
-        country: snapshot.country,
-        formattedAddress: snapshot.formatted_address
-      });
-      if (result.success) {
-        briefing = result.briefing;
-        console.log(`[BriefingRoute] ✅ Generated briefing - news items: ${briefing.news?.items?.length || 0}`);
-      } else {
-        console.warn(`[BriefingRoute] ⚠️ Briefing generation returned success=false`);
-      }
+      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
+      if (result.success) briefing = result.briefing;
     }
     
     briefing = parseBriefingData(briefing);
@@ -438,15 +434,7 @@ router.get('/events/:snapshotId', requireAuth, async (req, res) => {
     
     // Auto-generate if briefing doesn't exist
     if (!briefing) {
-      const result = await generateAndStoreBriefing({
-        snapshotId: snapshot.snapshot_id,
-        lat: snapshot.lat,
-        lng: snapshot.lng,
-        city: snapshot.city,
-        state: snapshot.state,
-        country: snapshot.country,
-        formattedAddress: snapshot.formatted_address
-      });
+      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
       if (result.success) briefing = result.briefing;
     }
     
@@ -480,15 +468,7 @@ router.get('/school-closures/:snapshotId', requireAuth, async (req, res) => {
     
     // Auto-generate if briefing doesn't exist
     if (!briefing) {
-      const result = await generateAndStoreBriefing({
-        snapshotId: snapshot.snapshot_id,
-        lat: snapshot.lat,
-        lng: snapshot.lng,
-        city: snapshot.city,
-        state: snapshot.state,
-        country: snapshot.country,
-        formattedAddress: snapshot.formatted_address
-      });
+      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
       if (result.success) briefing = result.briefing;
     }
     
