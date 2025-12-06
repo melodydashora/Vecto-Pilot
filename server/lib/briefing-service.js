@@ -166,8 +166,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 }
 
 async function fetchEventsWithGemini3ProPreview({ snapshot }) {
+  console.log(`[fetchEventsWithGemini3ProPreview] CALLED - GEMINI_API_KEY exists: ${!!GEMINI_API_KEY}`);
+  
   if (!GEMINI_API_KEY) {
-    console.warn('[BriefingService] GEMINI_API_KEY is not set; skipping events lookup.');
+    console.error('[BriefingService] ❌ GEMINI_API_KEY is NOT set - cannot fetch events');
     return [];
   }
 
@@ -261,6 +263,7 @@ RULES:
   };
 
   try {
+    console.log('[BriefingService] 📡 Calling Gemini 3 Pro Preview API for events...');
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
       {
@@ -273,15 +276,20 @@ RULES:
       }
     );
 
+    console.log(`[BriefingService] Gemini API response status: ${res.status}`);
+
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
-      console.error('[BriefingService] Gemini events API error:', res.status, errText.substring(0, 200));
+      console.error('[BriefingService] ❌ Gemini events API error:', res.status, errText.substring(0, 500));
       return [];
     }
 
     const data = await res.json();
+    console.log('[BriefingService] Gemini response received - parsing...');
 
     let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]';
+
+    console.log(`[BriefingService] Raw Gemini response (first 500 chars): ${rawText.substring(0, 500)}`);
 
     // Strip accidental ```json fences if the model still adds them
     rawText = rawText
@@ -303,13 +311,17 @@ RULES:
       const parsed = JSON.parse(jsonToParse);
       const result = Array.isArray(parsed) ? parsed : [parsed];
       console.log(`[BriefingService] ✅ Found ${result.length} events from Gemini`);
+      if (result.length === 0) {
+        console.warn('[BriefingService] ⚠️ Gemini returned 0 events - check if events actually exist for this location/date');
+      }
       return result;
     } catch (err) {
-      console.error('[BriefingService] Failed to parse Gemini events JSON:', err.message, 'rawText:', rawText.substring(0, 300));
+      console.error('[BriefingService] ❌ Failed to parse Gemini events JSON:', err.message);
+      console.log('[BriefingService] Raw text that failed to parse:', rawText.substring(0, 500));
       return [];
     }
   } catch (error) {
-    console.error('[BriefingService] Event discovery error:', error.message);
+    console.error('[BriefingService] ❌ Event discovery error:', error.message, error.stack);
     return [];
   }
 }
