@@ -152,108 +152,35 @@ export default function BriefingTab({
         </div>
       </div>
 
-      {/* Weather Card */}
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200" data-testid="weather-card">
-        <CardHeader 
-          className="pb-2 cursor-pointer hover:bg-blue-100/50 transition-colors"
-          onClick={() => setExpandedWeather(!expandedWeather)}
-        >
-          <div className="flex items-center justify-between">
+      {/* Weather Forecast Card - 6 Hour Only */}
+      {weather?.forecast && weather.forecast.length > 0 && (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200" data-testid="weather-card">
+          <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              {!weather ? (
-                <Loader className="w-5 h-5 animate-spin text-blue-600" />
-              ) : (
-                <>
-                  {weather?.current && getWeatherIcon(weather.current.conditions, weather.current.isDaytime)}
-                  Current Weather
-                  {weather?.current?.tempF && (
-                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 ml-2">
-                      {weather.current.tempF}°F
-                    </Badge>
-                  )}
-                </>
-              )}
+              <Cloud className="w-5 h-5 text-blue-600" />
+              6-Hour Forecast
             </CardTitle>
-            {expandedWeather ? (
-              <ChevronUp className="w-5 h-5 text-blue-600" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-blue-600" />
-            )}
-          </div>
-        </CardHeader>
-        {expandedWeather && (
+          </CardHeader>
           <CardContent>
-            {!weather?.current ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader className="w-5 h-5 animate-spin text-blue-600 mr-2" />
-                <span className="text-gray-600">Loading weather...</span>
-              </div>
-            ) : weather?.current ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="text-4xl font-bold text-gray-800">
-                      {weather.current.tempF || 0}°
-                      <span className="text-lg font-normal text-gray-500">F</span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-gray-700 font-medium truncate">{weather.current.conditions}</p>
-                      {weather.current.feelsLike && (
-                        <p className="text-sm text-gray-500 truncate">
-                          Feels like {weather.current.feelsLike}°F
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
-                    {weather.current.humidity !== null && (
-                      <div className="flex items-center gap-1">
-                        <Droplets className="w-4 h-4 text-blue-400" />
-                        <div className="text-center">
-                          <div className="font-medium">{weather.current.humidity}%</div>
-                          <div className="text-xs">Humidity</div>
-                        </div>
-                      </div>
-                    )}
-                    {weather.current.windDirection && (
-                      <div className="flex items-center gap-1">
-                        <Wind className="w-4 h-4 text-gray-400" />
-                        <div className="text-center">
-                          <div className="font-medium">{weather.current.windDirection}</div>
-                          <div className="text-xs">Wind</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {weather.forecast.slice(0, 6).map((hour, idx) => (
+                <div key={idx} className="flex flex-col items-center min-w-[70px] text-center p-2 bg-white/50 rounded">
+                  <span className="text-xs text-gray-500 font-medium">
+                    {hour.time ? new Date(hour.time).toLocaleTimeString([], { hour: 'numeric' }) : `+${idx + 1}h`}
+                  </span>
+                  <div className="my-1">{getWeatherIcon(hour.conditionType, hour.isDaytime)}</div>
+                  <span className="text-sm font-medium text-gray-800">
+                    {hour.tempF || 0}°F
+                  </span>
+                  {hour.precipitationProbability !== null && hour.precipitationProbability > 0 && (
+                    <span className="text-xs text-blue-600 font-medium">{hour.precipitationProbability}% rain</span>
+                  )}
                 </div>
-                {weather.forecast && weather.forecast.length > 0 && (
-                  <div className="pt-3 border-t border-blue-200">
-                    <p className="text-sm font-medium text-gray-700 mb-2">6-Hour Forecast</p>
-                    <div className="flex gap-3 overflow-x-auto pb-2">
-                      {weather.forecast.slice(0, 6).map((hour, idx) => (
-                        <div key={idx} className="flex flex-col items-center min-w-[70px] text-center p-2 bg-white/50 rounded">
-                          <span className="text-xs text-gray-500 font-medium">
-                            {hour.time ? new Date(hour.time).toLocaleTimeString([], { hour: 'numeric' }) : `+${idx + 1}h`}
-                          </span>
-                          <div className="my-1">{getWeatherIcon(hour.conditionType, hour.isDaytime)}</div>
-                          <span className="text-sm font-medium text-gray-800">
-                            {hour.tempF || 0}°F
-                          </span>
-                          {hour.precipitationProbability !== null && hour.precipitationProbability > 0 && (
-                            <span className="text-xs text-blue-600 font-medium">{hour.precipitationProbability}% rain</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-sm">Weather data not available</p>
-            )}
+              ))}
+            </div>
           </CardContent>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {/* Traffic Card */}
       <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200" data-testid="traffic-card">
