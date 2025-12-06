@@ -276,7 +276,24 @@ RULES:
     }
 
     try {
-      const parsed = JSON.parse(result.output);
+      let parsed;
+      try {
+        // First attempt: direct JSON parse
+        parsed = JSON.parse(result.output);
+      } catch (parseErr) {
+        // Second attempt: extract JSON from markdown code blocks
+        console.warn('[BriefingService] Direct parse failed, trying to extract from markdown');
+        let jsonStr = result.output.match(/```(?:json)?\s*([\s\S]*?)\s*```/)?.[1];
+        if (!jsonStr) {
+          // Third attempt: extract raw JSON array
+          jsonStr = result.output.match(/\[[\s\S]*\]/)?.[0];
+        }
+        if (!jsonStr) {
+          throw new Error(`Could not extract JSON from response: ${result.output.substring(0, 100)}`);
+        }
+        parsed = JSON.parse(jsonStr.trim());
+      }
+
       let events = Array.isArray(parsed) ? parsed : [parsed];
       
       // Return sample events if Gemini returns empty
