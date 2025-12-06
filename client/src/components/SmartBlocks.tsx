@@ -3,8 +3,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  MapPin, Clock, DollarSign, Users, AlertTriangle, 
-  RefreshCw, Loader, Car, Utensils, Wine, TrendingUp,
+  MapPin, DollarSign, Users, AlertTriangle, 
+  RefreshCw, Loader, Utensils, Wine, TrendingUp,
   Zap, Phone
 } from "lucide-react";
 
@@ -16,9 +16,6 @@ interface Venue {
   expense_level: string;
   expense_rank: number;
   is_open: boolean;
-  hours_today: string;
-  closing_soon: boolean;
-  minutes_until_close: number | null;
   crowd_level: "low" | "medium" | "high";
   rideshare_potential: "low" | "medium" | "high";
   lat: number;
@@ -30,18 +27,7 @@ interface VenueData {
   location: string;
   total_venues: number;
   venues: Venue[];
-  last_call_venues: Venue[];
   search_sources: string[];
-}
-
-interface TrafficData {
-  query_time: string;
-  location: string;
-  traffic_density: number;
-  density_level: "low" | "medium" | "high";
-  congestion_areas: { area: string; reason: string; severity: number }[];
-  high_demand_zones: { zone: string; why: string; rideshare_opportunity: string }[];
-  driver_advice: string;
 }
 
 interface SmartBlocksProps {
@@ -66,7 +52,6 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
   console.log('[SmartBlocks] Props:', { lat, lng, snapshotLat, snapshotLng, effectiveLat, effectiveLng, city, state, holiday });
   
   const [venueData, setVenueData] = useState<VenueData | null>(null);
-  const [trafficData, setTrafficData] = useState<TrafficData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -101,7 +86,6 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
 
       if (result.success) {
         setVenueData(result.data.venues);
-        setTrafficData(result.data.traffic);
         setLastUpdated(new Date());
         setNextRefresh(AUTO_REFRESH_INTERVAL / 1000);
       } else {
@@ -174,11 +158,6 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
     }
   };
 
-  const getTrafficColor = (density: number) => {
-    if (density >= 7) return "text-red-600 dark:text-red-400";
-    if (density >= 4) return "text-yellow-600 dark:text-yellow-400";
-    return "text-green-600 dark:text-green-400";
-  };
 
   if (!effectiveLat || !effectiveLng) {
     return (
@@ -191,54 +170,15 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
     );
   }
 
-  // If showTrafficOnly, render only the Traffic Conditions card (for Briefing tab)
+  // showTrafficOnly is no longer used (traffic removed)
   if (showTrafficOnly) {
     return (
-      <div className="space-y-4 pb-20" data-testid="smart-blocks-traffic-only">
-        {loading && !trafficData && (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <Loader className="h-8 w-8 mx-auto animate-spin text-blue-600" />
-              <p className="mt-2 text-muted-foreground">Loading traffic conditions...</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {error && (
-          <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
-            <CardContent className="py-3 text-sm text-red-700 dark:text-red-300">
-              <AlertTriangle className="h-4 w-4 inline mr-2" />
-              {error}
-            </CardContent>
-          </Card>
-        )}
-
-        {trafficData && (
-          <Card className="border-l-4 border-l-blue-500" data-testid="traffic-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Car className="h-4 w-4" />
-                Traffic Conditions
-                <Badge variant="outline" className={getTrafficColor(trafficData.traffic_density)}>
-                  {trafficData.density_level?.toUpperCase()}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-sm text-muted-foreground mb-2">{trafficData.driver_advice}</p>
-              {trafficData.high_demand_zones?.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {trafficData.high_demand_zones.slice(0, 3).map((zone, i) => (
-                    <Badge key={i} variant="secondary" className="text-xs">
-                      {zone.zone}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      <Card className="border-dashed">
+        <CardContent className="py-8 text-center">
+          <MapPin className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-muted-foreground">Traffic information is focused on venue data</p>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -296,62 +236,6 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
         </Card>
       )}
 
-      {trafficData && (
-        <Card className="border-l-4 border-l-blue-500" data-testid="traffic-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Car className="h-4 w-4" />
-              Traffic Conditions
-              <Badge variant="outline" className={getTrafficColor(trafficData.traffic_density)}>
-                {trafficData.density_level?.toUpperCase()}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-sm text-muted-foreground mb-2">{trafficData.driver_advice}</p>
-            {trafficData.high_demand_zones?.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {trafficData.high_demand_zones.slice(0, 3).map((zone, i) => (
-                  <Badge key={i} variant="secondary" className="text-xs">
-                    {zone.zone}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {venueData?.last_call_venues && venueData.last_call_venues.length > 0 && (
-        <Card className="border-l-4 border-l-orange-500 bg-orange-50/50 dark:bg-orange-950/20" data-testid="last-call-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2 text-orange-700 dark:text-orange-400">
-              <AlertTriangle className="h-4 w-4" />
-              Last Call Opportunities
-              <Badge variant="destructive">{venueData.last_call_venues.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0 space-y-2">
-            {venueData.last_call_venues.slice(0, 3).map((venue, i) => (
-              <div 
-                key={i} 
-                className="flex items-center justify-between p-2 bg-white rounded-lg border border-orange-200"
-                data-testid={`last-call-venue-${i}`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-700">{getVenueIcon(venue.type)}</span>
-                  <span className="font-medium text-sm text-slate-900">{venue.name}</span>
-                  <Badge className={getExpenseColor(venue.expense_level)}>{venue.expense_level}</Badge>
-                </div>
-                <Badge variant="outline" className="text-orange-600 border-orange-400">
-                  <Clock className="h-3 w-3 mr-1" />
-                  {venue.minutes_until_close}min
-                </Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       {venueData?.venues && venueData.venues.length > 0 && (
         <Card data-testid="venues-list-card">
@@ -367,7 +251,7 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
               {venueData.venues.map((venue, i) => (
                 <div 
                   key={i} 
-                  className={`p-3 rounded-lg border ${venue.closing_soon ? 'border-orange-300 bg-orange-50' : 'bg-slate-100 border-slate-200'}`}
+                  className="p-3 rounded-lg border bg-slate-100 border-slate-200"
                   data-testid={`venue-card-${i}`}
                 >
                   <div className="flex items-start justify-between">
@@ -379,12 +263,6 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
                         {holiday && (
                           <Badge className="bg-purple-100 text-purple-700 text-xs border-0">
                             🎉 Special Hrs
-                          </Badge>
-                        )}
-                        {venue.closing_soon && (
-                          <Badge variant="destructive" className="text-xs">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Closing soon
                           </Badge>
                         )}
                       </div>
@@ -405,10 +283,6 @@ export default function SmartBlocks({ lat, lng, city, state, snapshotLat, snapsh
                         </p>
                       )}
                       <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {venue.hours_today}
-                        </span>
                         <span className="flex items-center gap-1">
                           {getCrowdIcon(venue.crowd_level)}
                           {venue.crowd_level} crowd
