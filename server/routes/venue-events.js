@@ -1,5 +1,5 @@
 // server/routes/venue-events.js
-// Check for events at a venue using Perplexity API
+// Check for events at a venue using Gemini 3 Pro Preview
 
 import express from 'express';
 
@@ -21,35 +21,40 @@ router.post('/events', async (req, res) => {
     const searchDate = date || 'today';
     const query = `What events are happening at ${venueName} (${venueAddress}) ${searchDate}? Include event name, time, and expected crowd size.`;
 
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
+
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}`
+        'x-goog-api-key': apiKey
       },
       body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [
+        contents: [
           {
-            role: 'system',
-            content: 'You are a helpful assistant that finds current events at venues. Return concise information about events including name, time, and crowd expectations.'
-          },
-          {
-            role: 'user',
-            content: query
+            parts: [
+              {
+                text: query
+              }
+            ]
           }
         ],
-        temperature: 0.0,
-        max_tokens: 500
+        generationConfig: {
+          temperature: 0.0,
+          maxOutputTokens: 500
+        }
       })
     });
 
     if (!response.ok) {
-      throw new Error(`Perplexity API failed: ${response.status}`);
+      throw new Error(`Gemini API failed: ${response.status}`);
     }
 
     const data = await response.json();
-    const eventInfo = data.choices[0]?.message?.content || 'No events found';
+    const eventInfo = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No events found';
 
     // Parse event info (simple extraction)
     const hasEvents = !eventInfo.toLowerCase().includes('no events') && 
