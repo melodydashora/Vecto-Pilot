@@ -1560,14 +1560,8 @@ const CoPilot: React.FC = () => {
               {blocks.map((block, index) => {
                 const isSelected = selectedBlocks.has(index);
 
-                // Determine card gradient based on value grade
-                const cardGradient = block.value_grade === 'A' 
-                  ? 'bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 border-emerald-300' 
-                  : block.value_grade === 'B'
-                  ? 'bg-gradient-to-br from-blue-50 via-indigo-50 to-sky-50 border-blue-300'
-                  : block.value_grade === 'C'
-                  ? 'bg-gradient-to-br from-purple-50 via-violet-50 to-fuchsia-50 border-purple-300'
-                  : 'bg-gradient-to-br from-gray-50 via-slate-50 to-zinc-50 border-gray-300';
+                // Simple neutral card styling - grade-based coloring removed
+                const cardGradient = 'bg-white border-gray-200';
 
                 return (
                   <Card
