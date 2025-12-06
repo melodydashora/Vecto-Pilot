@@ -41,6 +41,7 @@ import CoachChat from '@/components/CoachChat';
 import { subscribeStrategyReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 import SmartBlocks from '@/components/SmartBlocks';
+import BarsTable from '@/components/BarsTable';
 import BriefingTab from '@/components/BriefingTab';
 import MapTab from '@/components/MapTab';
 import { DonationTab } from '@/components/DonationTab';
@@ -1477,6 +1478,9 @@ const CoPilot: React.FC = () => {
             </Card>
           )}
 
+            {/* Bars Table - ML Training Data */}
+            {blocks.length > 0 && <BarsTable blocks={blocks} />}
+
             {/* Blocks List */}
             {blocks.length > 0 && (
             <div className="space-y-4" data-testid="blocks-list">
@@ -2009,16 +2013,7 @@ const CoPilot: React.FC = () => {
               </Card>
             )}
             
-            <SmartBlocks
-              lat={snapshotData?.lat || coords?.latitude}
-              lng={snapshotData?.lng || coords?.longitude}
-              city={snapshotData?.city || coords?.city}
-              state={snapshotData?.state || coords?.state}
-              snapshotLat={snapshotData?.lat}
-              snapshotLng={snapshotData?.lng}
-              holiday={snapshotData?.holiday}
-              blocks={blocks}
-            />
+            <SmartBlocks blocks={blocks} />
           </div>
         )}
 
