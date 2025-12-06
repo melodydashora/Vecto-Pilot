@@ -15,6 +15,7 @@ import { z } from 'zod';
 // Google APIs: Split keys based on API requirements
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY; // Places, Geocoding, Weather, Routes, etc.
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Generative Language API (requires separate project)
+console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!GEMINI_API_KEY);
 
 // Zod validation schema for local events
 const LocalEventSchema = z.object({
@@ -125,6 +126,7 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
 
 export async function fetchEventsForBriefing({ snapshot } = {}) {
   console.log(`[fetchEventsForBriefing] Called with snapshot:`, snapshot ? `lat=${snapshot.lat}, lng=${snapshot.lng}, tz=${snapshot.timezone}, date=${snapshot.date}` : 'null');
+  console.log('[fetchEventsForBriefing] 🔑 Checking GEMINI_API_KEY - exists:', !!GEMINI_API_KEY);
   
   if (snapshot) {
     console.log('[fetchEventsForBriefing] 📤 SENT SNAPSHOT TO GEMINI FOR EVENTS:', {
@@ -144,7 +146,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   }
   
   if (!GEMINI_API_KEY) {
-    console.warn('[BriefingService] Gemini API key not configured');
+    console.warn('[BriefingService] ❌ Gemini API key not configured');
     return [];
   }
 
@@ -962,8 +964,9 @@ export async function fetchTrafficConditions({ snapshot }) {
     });
   }
 
+  console.log('[fetchTrafficConditions] 🔑 Checking GEMINI_API_KEY - exists:', !!GEMINI_API_KEY);
   if (!GEMINI_API_KEY) {
-    console.warn('[BriefingService] GEMINI_API_KEY not set, returning stub traffic data');
+    console.warn('[BriefingService] ❌ GEMINI_API_KEY not set, returning stub traffic data');
     return { 
       summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
       incidents: [], 
