@@ -2,7 +2,6 @@ import { db } from '../db/drizzle.js';
 import { briefings, snapshots } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { callGemini } from './adapters/gemini-adapter.js';
 
 // Briefing Service Architecture:
 // ================================
@@ -22,6 +21,64 @@ function getGeminiApiKey() {
   return process.env.GEMINI_API_KEY;
 }
 console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!process.env.GEMINI_API_KEY);
+
+/**
+ * Raw fetch to Gemini 3.0 Pro Preview with Google Search and safety overrides
+ * @param {Object} options - { prompt, maxTokens, useSearch }
+ * @returns {Promise<{ ok: boolean, output?: string, error?: string }>}
+ */
+async function callGeminiWithSearch({ prompt, maxTokens = 4096, useSearch = true }) {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    return { ok: false, error: 'GEMINI_API_KEY not configured' };
+  }
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          ...(useSearch && { tools: [{ google_search: {} }] }),
+          safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: maxTokens,
+            responseMimeType: "application/json"
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[BriefingService] Gemini API Error ${response.status}: ${errText.substring(0, 200)}`);
+      return { ok: false, error: `API error ${response.status}` };
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      console.warn('[BriefingService] Empty response from Gemini');
+      return { ok: false, error: 'Empty response' };
+    }
+
+    return { ok: true, output: text };
+  } catch (error) {
+    console.error('[BriefingService] Gemini fetch error:', error.message);
+    return { ok: false, error: error.message };
+  }
+}
 
 // In-flight request deduplication cache to prevent duplicate API calls for same snapshot
 const inFlightBriefings = new Map(); // snapshot_id -> Promise<briefing>
@@ -264,15 +321,10 @@ RULES:
   try {
     console.log('[BriefingService] 📡 Calling Gemini 3 Pro Preview API for events...');
     
-    // ISSUE #16 FIX: Use gemini-3-pro-preview with web search for better event discovery
-    // 2.0-flash doesn't call web search reliably for event discovery
-    const result = await callGemini({
-      model: 'gemini-3-pro-preview',
-      user: prompt,
+    const result = await callGeminiWithSearch({
+      prompt,
       maxTokens: 4096,
-      temperature: 0.2,
-      topP: 0.95,
-      topK: 40
+      useSearch: true
     });
 
     if (!result.ok) {
@@ -1016,11 +1068,10 @@ Return ONLY valid JSON array:
 
 RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
 
-    const result = await callGemini({
-      model: 'gemini-3-pro-preview',
-      user: prompt,
+    const result = await callGeminiWithSearch({
+      prompt,
       maxTokens: 8192,
-      temperature: 0.2
+      useSearch: true
     });
 
     if (!result.ok) {
@@ -1086,12 +1137,10 @@ CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSO
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     
-    const result = await callGemini({
-      model: 'gemini-3-pro-preview',
-      user: prompt,
+    const result = await callGeminiWithSearch({
+      prompt,
       maxTokens: 1500,
-      temperature: 0.2,
-      topP: 1
+      useSearch: true
     });
 
     if (!result.ok) {
@@ -1192,13 +1241,10 @@ Return ONLY JSON array - no markdown, no explanation.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini with search to analyze ${city}, ${state} news...`);
     
-    // ISSUE #16 FIX: Updated for safety settings + low temperature
-    const result = await callGemini({
-      model: 'gemini-3-pro-preview',
-      user: prompt,
+    const result = await callGeminiWithSearch({
+      prompt,
       maxTokens: 2048,
-      temperature: 0.2,
-      topP: 0.95
+      useSearch: true
     });
 
     if (!result.ok) {
