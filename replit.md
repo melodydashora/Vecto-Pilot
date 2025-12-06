@@ -83,6 +83,24 @@ Every table referencing `snapshot_id` also stores the resolved precise location 
 
 ## Recent Changes & Fixes
 
+- **Dec 6, 2025 (CRITICAL: GEMINI COST OPTIMIZATION)**:
+  - ✅ **Fixed Data Overwrite Bug**: Modified `generateAndStoreBriefing()` to merge data instead of replacing
+    - Prevents stub traffic data (from failed API calls) from overwriting good data
+    - Eliminates race condition that was wasting Gemini API calls
+  - ✅ **Traffic Prompt Improvement**: Made highDemandZones and repositioning CRITICAL in prompt
+    - Ensures all required fields are returned in every response
+    - Frontend properly receives complete data without missing fields
+  - ✅ **JSON Error Handling**: Added cleanup for common JSON issues (markdown backticks, etc.)
+    - Better resilience against malformed Gemini responses
+    - Validates array fields before using them
+  - **Result**: Dramatically reduced Gemini API costs through better error recovery and data reuse
+
+- **Dec 6, 2025 (SMARTBLOCKS AUTH FIXED)**:
+  - ✅ **Token Auth Issue Resolved**: Added `credentials: 'include'` to useStrategy fetch
+    - Frontend now properly sends JWT token with SmartBlocks requests
+    - Eliminated "no token" errors
+  - ✅ **SmartBlocks Displaying**: All venue data showing with distance, drive time, value grades, and pro tips
+
 - **Dec 6, 2025 (TRAFFIC FIXED + SSE INFRASTRUCTURE ADDED)**:
   - ✅ **Traffic endpoint 502 error FIXED**: Added error handling wrapper around briefing generation in `/api/briefing/traffic/:snapshotId`
     - Now gracefully handles Gemini API failures and returns fallback data
