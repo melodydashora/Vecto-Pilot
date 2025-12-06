@@ -87,6 +87,49 @@ Added ML-focused bars and premium venues table to the Venues tab for structured 
 - Clean table layout optimized for data export and analysis
 - Marked with "ML Training Data" badge for clarity
 
+## Codebase Cleanup ✅
+
+**COMPLETED (December 6, 2025)**
+
+### Cleanup Summary
+Comprehensive codebase cleanup to reduce technical debt, remove dead code, and improve maintainability.
+
+### Data Directory Cleanup
+- **Removed**: 1,637 test snapshot files from `data/context-snapshots/`
+- **Savings**: 6.4MB of test artifacts removed
+- **Result**: Clean data directory with only runtime-generated files
+
+### Archived Files Cleanup
+- **Removed**: `gpt5-agent-package/` (export artifact, not used in runtime)
+- **Removed**: Test scripts (`test-*.js`, `check-api.js`)
+- **Kept**: `deploy-entry.js`, `health-server.js`, `README.md` (documentation)
+
+### Dead Code Removal (13 files)
+**Server/lib files removed**:
+- `blocks-queue.js`, `blocks-jobs.js` (unused async processing)
+- `triad-orchestrator.js` (deprecated multi-model orchestration)
+- `exploration.js`, `explore.js` (unused exploration features)
+- `ability-routes.js`, `cache-routes.js`, `capabilities.js` (unused routes)
+- `anthropic-extended.js`, `receipt.js`, `priors.js` (unused utilities)
+
+**Server/lib/adapters files removed**:
+- `anthropic-claude.js`, `openai-gpt5.js` (unused model adapters)
+
+### Current Codebase Metrics
+| Metric | Before | After |
+|--------|--------|-------|
+| Server lib files | 68 | 54 |
+| Console statements | 973 | 906 |
+| Data directory size | 6.4MB | 0MB |
+| Test snapshot files | 1,637 | 0 |
+| Dead code files | 13 | 0 |
+
+### Files Still Active (Do Not Remove)
+- `faa-asws.js` - Used via dynamic import in `location.js`
+- `holiday-detector.js` - Used via dynamic import in `location.js`
+- `gemini-2.5-pro.js` - Used by `venue-event-verifier.js`, `fast-tactical-reranker.js`
+- `anthropic-sonnet45.js` - Still referenced (verify before removal)
+
 ## System Architecture
 Vecto Pilot is a full-stack Node.js application with a multi-service architecture, supporting both monolithic and split deployments.
 
