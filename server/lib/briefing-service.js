@@ -1244,16 +1244,28 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     const existing = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     
     if (existing.length > 0) {
-      const existingBriefing = existing[0];
+      const current = existing[0];
       
-      // CRITICAL FIX: Merge data instead of overwriting to prevent stub data from overwriting good data
-      // Keep good traffic data if new data is a stub (e.g., "Real-time traffic data unavailable")
+      // CRITICAL FIX: Smart Merge - Only overwrite if new data is valid/non-empty
+      // Prevents empty data (from API failures) from overwriting good data
+      
+      // Smart merge news: Keep existing if new is empty
+      const mergedNews = (briefingData.news?.items?.length > 0) 
+        ? briefingData.news 
+        : (current.news || briefingData.news);
+      
+      // Smart merge events: Keep existing if new is empty
+      const mergedEvents = (briefingData.events?.length > 0) 
+        ? briefingData.events 
+        : (current.events || []);
+      
+      // Smart merge traffic: Keep existing if new is a stub (unavailable)
       let mergedTraffic = briefingData.traffic_conditions;
-      if (existingBriefing.traffic_conditions && 
+      if (current.traffic_conditions && 
           briefingData.traffic_conditions?.summary?.includes('unavailable') &&
-          existingBriefing.traffic_conditions?.incidents?.length > 0) {
+          current.traffic_conditions?.incidents?.length > 0) {
         console.log('[BriefingService] ⚠️ New traffic is stub - keeping existing good data');
-        mergedTraffic = existingBriefing.traffic_conditions;
+        mergedTraffic = current.traffic_conditions;
       }
       
       await db.update(briefings)
@@ -1261,16 +1273,16 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
           formatted_address: briefingData.formatted_address,
           city: briefingData.city,
           state: briefingData.state,
-          news: briefingData.news,
+          news: mergedNews,
           weather_current: briefingData.weather_current,
           weather_forecast: briefingData.weather_forecast,
           traffic_conditions: mergedTraffic,
-          events: briefingData.events && briefingData.events.length > 0 ? briefingData.events : existingBriefing.events,
+          events: mergedEvents,
           school_closures: briefingData.school_closures,
           updated_at: new Date()
         })
         .where(eq(briefings.snapshot_id, snapshotId));
-      console.log(`[BriefingService] ✅ Updated existing briefing for snapshot ${snapshotId} with ${briefingData.news?.items?.length || 0} news items`);
+      console.log(`[BriefingService] ✅ Updated existing briefing for snapshot ${snapshotId} with smart merge (news=${mergedNews?.items?.length || 0}, events=${mergedEvents.length || 0})`);
     } else {
       await db.insert(briefings).values(briefingData);
       console.log(`[BriefingService] ✅ Created new briefing for snapshot ${snapshotId} with ${briefingData.news?.items?.length || 0} news items`);

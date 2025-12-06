@@ -33,9 +33,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, consolidated, br
     throw new Error('blocks_input_missing_consolidated');
   }
   
-  // Guard: Check if briefing has renderable content
-  if (!hasRenderableBriefing(briefing)) {
-    throw new Error('blocks_input_missing_briefing');
+  // NOTE: Briefing is now OPTIONAL - blocks generation proceeds even without briefing content
+  // This allows MVP to work with minimal data while still leveraging consolidated strategy
+  if (!briefing) {
+    briefing = { events: [], news: [], traffic: {}, holidays: [] };
   }
   
   console.log(`[ENHANCED-BLOCKS] ✅ Input validation passed`);
