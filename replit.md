@@ -83,6 +83,13 @@ Every table referencing `snapshot_id` also stores the resolved precise location 
 
 ## Recent Changes & Fixes
 
+- **Dec 6, 2025 (FINAL: GEMINI ADAPTER ARRAY HANDLING FIX)**:
+  - ✅ **Fixed JSON Extraction for Arrays**: Updated `gemini-adapter.js` to handle `[...]` arrays in addition to `{...}` objects
+    - Events endpoint returns arrays but adapter was only looking for objects
+    - Now correctly extracts both types: detects array first `[`, then object `{`
+    - Validates extracted JSON before replacing to prevent parsing errors
+  - **Result**: No more "Failed to parse Gemini JSON" errors; all endpoints work reliably
+
 - **Dec 6, 2025 (CRITICAL: RACE CONDITION & SMART MERGE FIX)**:
   - ✅ **Fixed Race Condition Data Overwrites**: Implemented smart merge logic in `generateAndStoreBriefing()`
     - When multiple processes generate briefing data for same snapshot, now merges instead of overwrites
