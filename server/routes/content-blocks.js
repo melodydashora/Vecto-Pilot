@@ -5,6 +5,7 @@ import { Router } from 'express';
 import { db } from '../db/drizzle.js';
 import { strategies, snapshots, rankings, ranking_candidates } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
+import { requireAuth } from '../middleware/auth.js';
 
 export const router = Router();
 
@@ -12,7 +13,7 @@ export const router = Router();
  * GET /api/blocks/strategy/:snapshotId
  * Returns structured content blocks for a strategy
  */
-router.get('/strategy/:snapshotId', async (req, res) => {
+router.get('/strategy/:snapshotId', requireAuth, async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
