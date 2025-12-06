@@ -2007,6 +2007,7 @@ const CoPilot: React.FC = () => {
               snapshotLat={snapshotData?.lat}
               snapshotLng={snapshotData?.lng}
               holiday={snapshotData?.holiday}
+              blocks={blocks}
             />
           </div>
         )}
