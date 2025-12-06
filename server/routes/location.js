@@ -1129,7 +1129,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     console.log('  → snapshot_id:', dbSnapshot.snapshot_id);
     console.log('  → LOCATION: lat=%s lng=%s city=%s state=%s timezone=%s', 
       dbSnapshot.lat, dbSnapshot.lng, dbSnapshot.city, dbSnapshot.state, dbSnapshot.timezone);
-    console.log('  → TIME: hour=%s dow=%s day_part=%s', dbSnapshot.hour, dbSnapshot.dow, dbSnapshot.day_part_key);
+    console.log('  → TIME: date=%s hour=%s dow=%s day_part=%s', dbSnapshot.date, dbSnapshot.hour, dbSnapshot.dow, dbSnapshot.day_part_key);
     console.log('  → weather:', dbSnapshot.weather);
     console.log('  → air:', dbSnapshot.air);
     console.log('  → airport_context:', dbSnapshot.airport_context);
