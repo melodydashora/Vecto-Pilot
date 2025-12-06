@@ -208,16 +208,40 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddres
     const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'unknown';
     const fullModelChain = `${strategist}→${briefer}→${consolidator}`;
     
+    // GLOBAL DEDUPLICATION: Check if strategy already running for this snapshot
+    const [existingStrategy] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    
+    if (existingStrategy && existingStrategy.status === 'running') {
+      const elapsedMs = Date.now() - new Date(existingStrategy.updated_at).getTime();
+      if (elapsedMs < 30000) { // Less than 30 seconds old
+        console.log(`[strategy-pipeline] 🛑 Strategy already running for ${snapshotId} (${elapsedMs}ms old), aborting duplicate run`);
+        return { ok: true, status: 'deduplicated', reason: 'strategy_already_running' };
+      }
+    }
+
     // Create initial strategy row with model_name - ensures exactly ONE row per snapshot
     // Using onConflictDoNothing to handle race conditions (first writer wins)
-    await db.insert(strategies).values({
+    const [insertedStrategy] = await db.insert(strategies).values({
       snapshot_id: snapshotId,
       user_id: userId,
       status: 'pending',
       model_name: fullModelChain,
       created_at: new Date(),
       updated_at: new Date()
-    }).onConflictDoNothing();
+    }).onConflictDoNothing().returning();
+    
+    // If row already existed, another process is handling it
+    if (!insertedStrategy) {
+      console.log(`[strategy-pipeline] 🛑 Another process already handling strategy for ${snapshotId}, aborting`);
+      return { ok: true, status: 'deduplicated', reason: 'race_condition_detected' };
+    }
+    
+    // Set status to running to mark this process as active
+    await db.update(strategies).set({
+      status: 'running',
+      updated_at: new Date()
+    }).where(eq(strategies.snapshot_id, snapshotId));
     
     // Import providers
     const { runMinStrategy } = await import('./providers/minstrategy.js');
