@@ -230,17 +230,29 @@ router.post('/', async (req, res) => {
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
 
-    // DEDUPLICATION CHECK: If strategy already exists (pending/running/complete/ok), don't re-trigger it
+    // DEDUPLICATION CHECK: If strategy already running, don't re-trigger it
     const [existingStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    if (existingStrategy && ['pending', 'running', 'complete', 'ok'].includes(existingStrategy.status)) {
+    if (existingStrategy && ['pending', 'running'].includes(existingStrategy.status)) {
       console.log(`[blocks-fast POST] ⏭️ Strategy already ${existingStrategy.status} for ${snapshotId}, skipping re-trigger`);
       return sendOnce(202, { 
         ok: false, 
-        reason: 'strategy_already_exists',
+        reason: 'strategy_already_running',
         status: existingStrategy.status,
         message: `Strategy is ${existingStrategy.status} - polling/waiting...`,
         snapshot_id: snapshotId
       });
+    }
+    
+    // If strategy is COMPLETE/OK but no ranking exists yet, generate SmartBlocks
+    if (existingStrategy && ['complete', 'ok'].includes(existingStrategy.status)) {
+      const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
+      if (ranking) {
+        console.log(`[blocks-fast POST] ✅ Strategy already ok and blocks ready for ${snapshotId}`);
+        // Blocks already exist, GET request will fetch them
+        return sendOnce(200, { ok: true, reason: 'blocks_ready' });
+      }
+      // Strategy is complete but blocks don't exist yet - generate them
+      console.log(`[blocks-fast POST] 🔨 Strategy complete but blocks missing, generating now for ${snapshotId}`);
     }
 
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
@@ -397,31 +409,49 @@ router.post('/', async (req, res) => {
           });
         }
       } else {
-        // Job already exists - check if blocks are ready
-        console.log(`[blocks-fast POST] Job already queued for ${snapshotId}, checking for existing blocks...`);
+        // Job already exists - if strategy is complete but blocks missing, generate them now
+        console.log(`[blocks-fast POST] Job already exists for ${snapshotId}, checking if blocks need generation...`);
         
-        // SECURITY FIX: Join with rankings table to find candidates by snapshot
-        const [existing] = await db.select()
-          .from(ranking_candidates)
-          .innerJoin(rankings, eq(ranking_candidates.ranking_id, rankings.ranking_id))
-          .where(eq(rankings.snapshot_id, snapshotId))
-          .limit(1);
+        const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+        const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
         
-        if (existing) {
-          return sendOnce(200, {
-            status: 'ok',
-            snapshot_id: snapshotId,
-            blocks: [],
-            message: 'Smart Blocks ready - use GET /api/blocks-fast to retrieve'
-          });
-        } else {
-          return sendOnce(202, {
-            status: 'pending',
-            snapshot_id: snapshotId,
-            blocks: [],
-            message: 'Smart Blocks generating - they will appear automatically when ready'
-          });
+        // If strategy is complete but ranking missing, generate SmartBlocks now
+        if (strategy && ['complete', 'ok'].includes(strategy.status) && !ranking) {
+          console.log(`[blocks-fast POST] 🔨 Generating missing SmartBlocks for existing job (snapshot: ${snapshotId})`);
+          
+          const [briefing] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+          
+          if (strategy?.consolidated_strategy) {
+            try {
+              await generateEnhancedSmartBlocks({
+                snapshotId,
+                consolidated: strategy.consolidated_strategy,
+                briefing: briefing || { 
+                  events: [],
+                  news: [],
+                  traffic: { summary: 'Traffic conditions gathering...', incidents: [] },
+                  holidays: []
+                },
+                snapshot: snapshot,
+                user_id: null
+              });
+              console.log(`[blocks-fast POST] ✅ SmartBlocks generated for existing job`);
+            } catch (blocksError) {
+              console.error(`[blocks-fast POST] SmartBlocks generation failed:`, blocksError.message);
+              return sendOnce(500, {
+                error: 'blocks_generation_failed',
+                message: blocksError.message
+              });
+            }
+          }
         }
+        
+        return sendOnce(202, {
+          status: 'pending',
+          snapshot_id: snapshotId,
+          blocks: [],
+          message: 'Smart Blocks generating - they will appear automatically when ready'
+        });
       }
     } catch (jobErr) {
       console.error(`[blocks-fast POST] Waterfall error:`, jobErr.message);
