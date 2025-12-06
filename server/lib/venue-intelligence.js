@@ -437,7 +437,18 @@ Return ONLY valid JSON (no explanation):
       }
     }
 
-    return trafficData;
+    // MAP TO UNIFIED SCHEMA for briefing-service compatibility
+    return {
+      summary: trafficData.summary || trafficData.driver_advice || '',
+      congestionLevel: trafficData.density_level || 'low',  // Map density_level → congestionLevel
+      incidents: (trafficData.congestion_areas || []).map(c => ({
+        description: c.area + ': ' + c.reason,
+        severity: c.severity ? (c.severity > 7 ? 'high' : c.severity > 3 ? 'medium' : 'low') : 'medium'
+      })),
+      highDemandZones: trafficData.high_demand_zones || [],
+      driver_advice: trafficData.driver_advice || '',
+      fetchedAt: new Date().toISOString()
+    };
   } catch (error) {
     console.error('[VenueIntelligence] ❌ Error getting traffic:', error.message);
     throw error;

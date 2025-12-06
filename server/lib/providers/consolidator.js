@@ -189,16 +189,28 @@ ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
       throw new Error('Consolidator returned empty output');
     }
     
-    // Step 5: Parse JSON response or extract from plain text
+    // Step 5: Parse JSON response robustly
     let parsedOutput;
     try {
-      // Try to extract JSON from markdown code blocks if present
-      const jsonMatch = consolidatedStrategy.match(/```json\s*([\s\S]*?)\s*```/) || consolidatedStrategy.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : consolidatedStrategy;
-      parsedOutput = JSON.parse(jsonStr);
-      console.log(`[consolidator] ✅ Parsed JSON response`);
-    } catch (parseErr) {
-      console.warn(`[consolidator] ⚠️  Failed to parse JSON, attempting plain text extraction:`, parseErr.message);
+      // First attempt: try direct JSON parse
+      parsedOutput = JSON.parse(consolidatedStrategy);
+      console.log(`[consolidator] ✅ Parsed JSON response directly`);
+    } catch (directErr) {
+      try {
+        // Second attempt: extract JSON from markdown code blocks
+        let jsonStr = consolidatedStrategy.match(/```json\s*([\s\S]*?)\s*```/)?.[1];
+        if (!jsonStr) {
+          // Third attempt: extract raw JSON object
+          jsonStr = consolidatedStrategy.match(/\{[\s\S]*\}$/)?.[0];
+        }
+        if (!jsonStr) {
+          throw new Error('No JSON found in response');
+        }
+        parsedOutput = JSON.parse(jsonStr.trim());
+        console.log(`[consolidator] ✅ Extracted and parsed JSON from response`);
+      } catch (extractErr) {
+        console.warn(`[consolidator] ⚠️  Failed to parse JSON, attempting plain text extraction:`, extractErr.message);
+      }
       
       // Fallback: Parse plain text format
       // Expected format:
