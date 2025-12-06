@@ -30,31 +30,52 @@ Preferred communication style: Simple, everyday language. Do not say "done" unti
 
 ## SmartBlocks Loading Status ✅
 
-**RESOLVED (December 6, 2025 - Initial Fix)**
+**RESOLVED (December 6, 2025 - Race Condition Fix)**
 
 ### Problem
-SmartBlocks waterfall was completing successfully on the server and generating venue recommendations with full enrichment data, but the frontend couldn't fetch them from the API. Frontend errors: `Failed to execute 'json' on 'Response': Unexpected token '<'` (HTML error response instead of JSON).
+SmartBlocks were returning empty (count: 0) even after strategy reached "pending_blocks" status. The strategy was generating successfully, but `generateEnhancedSmartBlocks` was never being called.
 
 ### Root Cause
-**Missing JWT Authentication Headers** - The frontend POST and GET requests to `/api/blocks-fast` were not including the `Authorization: Bearer <token>` header, causing the backend to reject requests and return HTML error pages instead of JSON responses.
+**Race Condition in blocks-fast.js** - When the POST endpoint returned early with "strategy_already_running" (because strategy was "pending"), the strategy would later complete via background process, but no SmartBlocks were ever generated. The GET endpoint would then poll and return "blocks_generating" without actually triggering generation.
 
 ### Solution
-Added JWT authentication headers to both SmartBlocks API requests in `client/src/pages/co-pilot.tsx`:
+Modified GET endpoint in `server/routes/blocks-fast.js` to trigger SmartBlocks generation when strategy is ready but no ranking exists:
 
-**File: `client/src/pages/co-pilot.tsx`**
-- **Line 199-203**: Created `getAuthHeader()` helper function to retrieve JWT token from localStorage
-- **Line 219**: POST request to `/api/blocks-fast` waterfall now includes `...getAuthHeader()`
-- **Line 586**: GET request to `/api/blocks-fast?snapshotId=...` retrieval now includes `...getAuthHeader()`
-
-**Related File: `server/routes/blocks-fast.js`**
-- **Line 187**: Replaced `validateBody(blocksRequestSchema)` middleware with manual UUID validation to avoid HTML error pages from middleware
+**File: `server/routes/blocks-fast.js`**
+- **Lines 60-120**: Added logic to detect when strategy is complete but ranking is missing
+- When this condition is met, the GET endpoint now calls `generateEnhancedSmartBlocks()` directly
+- Fetches snapshot and briefing data, then generates blocks on-demand
 
 ### Result
-✅ SmartBlocks now load and render successfully:
+✅ SmartBlocks now generate and load correctly:
 - **5 venue recommendations** appear on the Venues tab
-- Each block displays: venue name, address, distance, drive time, value per minute, grade (A/B/C), and pro tips
-- Frontend logs confirm: `✅ SmartBlocks rendering: { count: 5, firstBlock: "Kroger Marketplace (Main St & FM 423)" }`
-- Full data enrichment pipeline working: Strategy → Consolidation → SmartBlocks Generation → Database Persistence → Frontend Retrieval
+- Each block displays: venue name, address, distance, drive time, value per minute, grade, and pro tips
+- Frontend logs confirm: `✅ SmartBlocks rendering: { count: 5, firstBlock: "Comerica Center" }`
+
+## Holiday Detector API Key Fix ✅
+
+**RESOLVED (December 6, 2025)**
+
+### Problem
+Holiday detector was returning 403 Forbidden errors with message "Your API key was reported as leaked."
+
+### Root Cause
+The `holiday-detector.js` and `holiday-checker.js` files had fallback logic that used `GOOGLE_MAPS_API_KEY` when `GEMINI_API_KEY` was missing. The Google Maps API key had been flagged as leaked by Google.
+
+### Solution
+Removed all fallback API key logic:
+
+**File: `server/lib/holiday-detector.js`**
+- Changed from: `process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY`
+- Changed to: `process.env.GEMINI_API_KEY` (no fallback)
+
+**File: `server/lib/providers/holiday-checker.js`**
+- Changed from: `process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY`
+- Changed to: `process.env.GEMINI_API_KEY` (no fallback)
+
+### Result
+✅ Holiday detection now works without 403 errors
+- Browser logs show: `Holiday: "none"` (successful detection, no error)
 
 ## Bars & Premium Venues Table ✅
 
