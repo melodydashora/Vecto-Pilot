@@ -142,7 +142,9 @@ const CoPilot: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<'gemini' | 'gpt-5' | 'claude' | null>(null);
   const [modelParameter, setModelParameter] = useState<string>('0.7');
   const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
-  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
+  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(() => {
+    return localStorage.getItem('vecto_strategy_snapshot_id');
+  });
   const [testMode, setTestMode] = useState(false); // Manual test trigger
   const [fastTacticalMode, setFastTacticalMode] = useState<boolean>(() => {
     return localStorage.getItem('vecto_fast_tactical_mode') === 'true';
