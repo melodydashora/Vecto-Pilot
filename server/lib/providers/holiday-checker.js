@@ -6,7 +6,7 @@ import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 /**
  * Fast holiday check using Gemini 3 Pro Preview
