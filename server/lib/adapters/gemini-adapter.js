@@ -2,10 +2,16 @@
 // Generic Gemini adapter - returns { ok, output } shape
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export async function callGemini({ model, system, user, maxTokens, temperature, topP, topK }) {
   try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('[model/gemini] ❌ GEMINI_API_KEY not configured');
+      return { ok: false, error: 'GEMINI_API_KEY not configured' };
+    }
+    
+    const genAI = new GoogleGenerativeAI(apiKey);
     console.log(`[model/gemini] calling ${model} with max_tokens=${maxTokens}`);
 
     // Detect if JSON response is expected (prompt contains "JSON" or "json")

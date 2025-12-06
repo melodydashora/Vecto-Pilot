@@ -16,8 +16,6 @@ const {
   ANTHROPIC_VERSION = "2023-06-01",
   OPENAI_MODEL = "gpt-5.1",
   OPENAI_API_KEY = "",
-  GEMINI_MODEL = "gemini-2.5-pro",
-  GEMINI_API_KEY = "",
   PERPLEXITY_API_KEY = "",
   PERPLEXITY_MODEL = "sonar-pro",
   EIDOLON_TOKEN = "",
@@ -28,6 +26,10 @@ const {
   REPL_OWNER = "",
   REPL_ID = "",
 } = process.env;
+
+// Gemini: Always use gemini-3-pro-preview (not 2.5), read API key at runtime
+const GEMINI_MODEL = "gemini-3-pro-preview";
+const getGeminiApiKey = () => process.env.GEMINI_API_KEY || "";
 
 const FAIL = (res: Response, code: number, msg: string) =>
   res.status(code).json({ ok: false, error: msg });
@@ -66,9 +68,12 @@ const eidolonReply = async (payload: any) => {
     }),
   }).then(r => r.json());
 
-  const validator = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent?key=" + GEMINI_API_KEY, {
+  const validator = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { 
+      "content-type": "application/json",
+      "x-goog-api-key": getGeminiApiKey()
+    },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: validatePrompt(planner) }]}],
       generationConfig: { temperature: 0.2, maxOutputTokens: 2048, responseMimeType: "application/json" },
