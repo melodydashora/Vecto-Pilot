@@ -55,6 +55,40 @@ router.get('/strategies', (req, res) => {
   });
 });
 
+// ISSUE #27 FIX: Prometheus metrics endpoint for monitoring
+router.get('/metrics', (req, res) => {
+  try {
+    const poolStats = getPoolStats();
+    const memUsage = process.memoryUsage();
+    
+    const metrics = [
+      '# HELP db_connections Database connection pool metrics',
+      '# TYPE db_connections gauge',
+      `db_connections_idle{pool="main"} ${poolStats.idle || 0}`,
+      `db_connections_active{pool="main"} ${(poolStats.total || 0) - (poolStats.idle || 0)}`,
+      `db_connections_total{pool="main"} ${poolStats.total || 0}`,
+      `db_connections_waiting{pool="main"} ${poolStats.waiting || 0}`,
+      `db_connections_max{pool="main"} ${poolStats.max || 25}`,
+      '',
+      '# HELP process_uptime_seconds Process uptime in seconds',
+      '# TYPE process_uptime_seconds gauge',
+      `process_uptime_seconds ${process.uptime().toFixed(2)}`,
+      '',
+      '# HELP process_memory_bytes Process memory usage in bytes',
+      '# TYPE process_memory_bytes gauge',
+      `process_memory_rss_bytes ${memUsage.rss}`,
+      `process_memory_heap_used_bytes ${memUsage.heapUsed}`,
+      `process_memory_heap_total_bytes ${memUsage.heapTotal}`
+    ];
+    
+    res.set('Content-Type', 'text/plain; version=0.0.4');
+    res.send(metrics.join('\n') + '\n');
+  } catch (error) {
+    console.error('[Metrics] Error:', error.message);
+    res.status(500).send('# Error collecting metrics\n');
+  }
+});
+
 export default router;
 
 export function healthRoutes(app) {

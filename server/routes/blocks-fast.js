@@ -15,6 +15,7 @@ import { isStrategyReady, ensureStrategyRow } from '../lib/strategy-utils.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
 import { blocksRequestSchema, snapshotIdQuerySchema } from '../validation/schemas.js';
 import { requireAuth } from '../middleware/auth.js';
+import { expensiveEndpointLimiter } from '../middleware/rate-limit.js';
 import { runMinStrategy } from '../lib/providers/minstrategy.js';
 import { runBriefing } from '../lib/providers/briefing.js';
 import { runHolidayCheck } from '../lib/providers/holiday-checker.js';
@@ -46,7 +47,8 @@ const PLANNER_TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS || '5000'); /
 
 // GET endpoint - return existing blocks for a snapshot
 // STRATEGY-FIRST GATING: Returns 202 until strategy is ready
-router.get('/', requireAuth, async (req, res) => {
+// ISSUE #24 FIX: Rate limited to prevent quota exhaustion
+router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   const snapshotId = req.query.snapshotId || req.query.snapshot_id;
   
   if (!snapshotId) {
