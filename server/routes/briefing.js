@@ -4,6 +4,7 @@ import { db } from '../db/drizzle.js';
 import { snapshots } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
+import { expensiveEndpointLimiter } from '../middleware/rate-limit.js';
 
 const router = Router();
 
@@ -123,7 +124,8 @@ router.get('/current', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/generate', requireAuth, async (req, res) => {
+// ISSUE #24 FIX: Rate limited to prevent Gemini API quota exhaustion
+router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.body;
 
@@ -203,7 +205,8 @@ router.get('/snapshot/:snapshotId', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/refresh', requireAuth, async (req, res) => {
+// ISSUE #24 FIX: Rate limited to prevent Gemini API quota exhaustion
+router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   try {
     const latestSnapshot = await db.select()
       .from(snapshots)
