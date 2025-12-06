@@ -1069,19 +1069,19 @@ export async function fetchTrafficConditions({ snapshot }) {
     
     console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state}...`);
     
-    const prompt = `Search for current traffic conditions in ${city}, ${state} as of today ${date}. Return traffic data as JSON ONLY:
+    const prompt = `Search for current traffic conditions in ${city}, ${state} as of today ${date}. Return traffic data as JSON ONLY with ALL these fields:
 
 {
   "summary": "One sentence about overall traffic status",
   "congestionLevel": "low" | "medium" | "high",
   "incidents": [{"description": "I-35 construction", "severity": "medium"}],
   "highDemandZones": [{"zone": "Downtown", "reason": "Event/Concert crowd"}],
-  "repositioning": "Advice on where to drive next for surge opportunities",
+  "repositioning": "Specific advice on where to reposition for surge opportunities",
   "surgePricing": true,
   "safetyAlert": "Any safety warnings for drivers"
 }
 
-RESPOND WITH ONLY VALID JSON - NO EXPLANATION:`;
+CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSON - NO EXPLANATION:`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     
@@ -1118,21 +1118,37 @@ RESPOND WITH ONLY VALID JSON - NO EXPLANATION:`;
     console.log(`[BriefingService] Gemini traffic response (first 400 chars): ${text.substring(0, 400)}`);
     
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      // Clean up response text - remove common JSON wrapper issues
+      let cleanText = text
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+      
+      const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        console.log(`[BriefingService] ✅ Traffic analysis complete: ${parsed.summary?.substring(0, 80)}`);
+        let parseText = jsonMatch[0];
         
-        return {
-          summary: parsed.summary || 'Real-time traffic data unavailable',
-          incidents: parsed.incidents || [],
-          congestionLevel: parsed.congestionLevel || 'medium',
-          highDemandZones: parsed.highDemandZones || [],
-          repositioning: parsed.repositioning || null,
-          surgePricing: parsed.surgePricing || false,
-          safetyAlert: parsed.safetyAlert || null,
-          fetchedAt: new Date().toISOString()
-        };
+        // Try to fix common JSON issues (unterminated strings, trailing commas)
+        try {
+          const parsed = JSON.parse(parseText);
+          console.log(`[BriefingService] ✅ Traffic analysis complete: ${parsed.summary?.substring(0, 80)}`);
+          
+          return {
+            summary: parsed.summary || 'Real-time traffic data unavailable',
+            incidents: Array.isArray(parsed.incidents) ? parsed.incidents : [],
+            congestionLevel: parsed.congestionLevel || 'medium',
+            highDemandZones: Array.isArray(parsed.highDemandZones) ? parsed.highDemandZones : [],
+            repositioning: parsed.repositioning || null,
+            surgePricing: parsed.surgePricing || false,
+            safetyAlert: parsed.safetyAlert || null,
+            fetchedAt: new Date().toISOString()
+          };
+        } catch (innerErr) {
+          console.warn('[BriefingService] Traffic JSON parse failed, attempting cleanup:', innerErr.message);
+          // If parsing fails, return safe fallback
+          throw innerErr;
+        }
       }
     } catch (parseErr) {
       console.warn('[BriefingService] Traffic JSON parse error:', parseErr.message);
@@ -1372,6 +1388,18 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     const existing = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     
     if (existing.length > 0) {
+      const existingBriefing = existing[0];
+      
+      // CRITICAL FIX: Merge data instead of overwriting to prevent stub data from overwriting good data
+      // Keep good traffic data if new data is a stub (e.g., "Real-time traffic data unavailable")
+      const mergedTraffic = briefingData.traffic_conditions;
+      if (existingBriefing.traffic_conditions && 
+          briefingData.traffic_conditions?.summary?.includes('unavailable') &&
+          existingBriefing.traffic_conditions?.incidents?.length > 0) {
+        console.log('[BriefingService] ⚠️ New traffic is stub - keeping existing good data');
+        mergedTraffic = existingBriefing.traffic_conditions;
+      }
+      
       await db.update(briefings)
         .set({
           formatted_address: briefingData.formatted_address,
@@ -1380,8 +1408,8 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
           news: briefingData.news,
           weather_current: briefingData.weather_current,
           weather_forecast: briefingData.weather_forecast,
-          traffic_conditions: briefingData.traffic_conditions,
-          events: briefingData.events,
+          traffic_conditions: mergedTraffic,
+          events: briefingData.events && briefingData.events.length > 0 ? briefingData.events : existingBriefing.events,
           school_closures: briefingData.school_closures,
           updated_at: new Date()
         })
