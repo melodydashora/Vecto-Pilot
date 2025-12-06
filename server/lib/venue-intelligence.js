@@ -375,9 +375,9 @@ Return ONLY valid JSON:
 }`;
 
   try {
-    console.log('[VenueIntelligence] 🚗 Calling Gemini 2.0 Flash (Adapter) for traffic...');
+    console.log('[VenueIntelligence] 🚗 Calling Gemini 3 Pro Preview with google tool for traffic...');
     const result = await callGemini({
-      model: 'gemini-2.0-flash', // Faster and more stable than 2.5-pro
+      model: 'gemini-3-pro-preview', // Always use 3-pro-preview with google tool
       system: 'You are a traffic intelligence system. Return ONLY valid JSON with no preamble.',
       user: prompt,
       maxTokens: 1500,
