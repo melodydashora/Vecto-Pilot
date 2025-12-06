@@ -83,16 +83,17 @@ Every table referencing `snapshot_id` also stores the resolved precise location 
 
 ## Recent Changes & Fixes
 
-- **Dec 6, 2025 (TRAFFIC & EVENTS NOW WORKING)**:
-  - ✅ **Traffic Intelligence Complete**: All fields now returning properly
-    - Updated Gemini prompt to explicitly request: `summary`, `congestionLevel`, `incidents`, `highDemandZones`, `repositioning`, `surgePricing`, `safetyAlert`
-    - Changed fallback values from `undefined` to `null`/empty arrays so JSON fields don't disappear
-    - Traffic endpoint auto-generates briefing if missing (matching news pattern)
-  - ✅ **Events Displaying**: Major events (5-10+) showing with full details from Gemini + Google Places
+- **Dec 6, 2025 (ALL 5 BRIEFING SOURCES NOW WORKING)**:
+  - ✅ **Weather Fixed**: Now displaying correct temperature (42°F) instead of incorrect conversion (32°F)
+    - Root cause: BriefingTab component was calling `celsiusToFahrenheit()` on data already in Fahrenheit
+    - Fixed: Use `tempF` field directly from API response without conversion
+    - Consolidated: Single `generateAndStoreBriefing()` function across all endpoints
+    - Returns snapshot weather via `/api/briefing/weather/:snapshotId` endpoint
+  - ✅ **Traffic Intelligence Complete**: All fields returning (summary, incidents, congestionLevel, highDemandZones, repositioning, surgePricing, safetyAlert)
+  - ✅ **Events Displaying**: Major events (5-10+) with full details from Gemini + Google Places
   - ✅ **News Working**: Rideshare-relevant content from Gemini 3.0 Pro with web search
-  - ✅ **School Closures Working**: Today's closures fetching via Gemini web search
-  - ⚠️ **Weather Issue**: Snapshot contains full weather data (tempF, conditions, humidity, forecast) but briefing endpoint returns null. Root cause: snapshot weather field access mismatch when building briefing record - needs investigation of snapshot.weather field structure
-  - **Result**: 4 of 5 briefing data sources fully functional; weather data exists in snapshot but not flowing to briefing display
+  - ✅ **School Closures Working**: Today's closures via Gemini web search
+  - **Result**: ✅ ALL 5 briefing data sources fully functional and displaying correctly
 
 - **Dec 6, 2025 (PREVIOUS: BRIEFING QUERIES NOW WORKING)**:
   - ✅ **Identified root cause**: Both `location-context-clean.tsx` AND `GlobalHeader.tsx` were independently creating and POSTing snapshots
