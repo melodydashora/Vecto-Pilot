@@ -4,16 +4,23 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
-import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates, strategies, venue_events, users } from '../../shared/schema.js';
+import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates, strategies, venue_events, users, triad_jobs, briefings } from '../../shared/schema.js';
 import { eq, sql, and, lte, gte, or, isNotNull } from 'drizzle-orm';
 import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
 import { predictDriveMinutes } from '../lib/driveTime.js';
 import { rerankCandidates } from '../lib/fast-tactical-reranker.js';
 import { persistRankingTx } from '../lib/persist-ranking.js';
 import { generateVenueCoordinates } from '../lib/venue-generator.js';
-import { isStrategyReady } from '../lib/strategy-utils.js';
+import { isStrategyReady, ensureStrategyRow } from '../lib/strategy-utils.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
 import { blocksRequestSchema, snapshotIdQuerySchema } from '../validation/schemas.js';
+import { requireAuth } from '../middleware/auth.js';
+import { runMinStrategy } from '../lib/providers/minstrategy.js';
+import { runBriefing } from '../lib/providers/briefing.js';
+import { runHolidayCheck } from '../lib/providers/holiday-checker.js';
+import { consolidateStrategy } from '../lib/strategy-generator-parallel.js';
+import { generateEnhancedSmartBlocks } from '../lib/enhanced-smart-blocks.js';
+import { resolveVenueAddressesBatch } from '../lib/venue-address-resolver.js';
 
 const router = Router();
 
@@ -39,7 +46,7 @@ const PLANNER_TIMEOUT_MS = parseInt(process.env.PLANNER_TIMEOUT_MS || '5000'); /
 
 // GET endpoint - return existing blocks for a snapshot
 // STRATEGY-FIRST GATING: Returns 202 until strategy is ready
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   const snapshotId = req.query.snapshotId || req.query.snapshot_id;
   
   if (!snapshotId) {
@@ -100,7 +107,6 @@ router.get('/', async (req, res) => {
     };
     
     // Batch resolve venue addresses for all candidates in parallel
-    const { resolveVenueAddressesBatch } = await import('../lib/venue-address-resolver.js');
     const venueKeys = candidates.map(c => ({ lat: c.lat, lng: c.lng, name: c.name }));
     const addressMap = await resolveVenueAddressesBatch(venueKeys);
     
@@ -210,7 +216,6 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
     }
 
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
-    const { triad_jobs, briefings } = await import('../../shared/schema.js');
     try {
       const [job] = await db.insert(triad_jobs).values({
         snapshot_id: snapshotId,
@@ -223,22 +228,23 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
       
       if (job) {
         // New job created - run full pipeline synchronously (no worker needed)
-        const { runMinStrategy } = await import('../lib/providers/minstrategy.js');
-        const { runBriefing } = await import('../lib/providers/briefing.js');
-        const { runHolidayCheck } = await import('../lib/providers/holiday-checker.js');
-        const { consolidateStrategy } = await import('../lib/strategy-generator-parallel.js');
-        const { generateEnhancedSmartBlocks } = await import('../lib/enhanced-smart-blocks.js');
-        const { ensureStrategyRow } = await import('../lib/strategy-utils.js');
         
         // Ensure strategy row exists with snapshot location data
         await ensureStrategyRow(snapshotId);
         
-        // Run providers in parallel
-        await Promise.all([
+        // Run providers in parallel (allSettled allows briefing to fail gracefully)
+        const results = await Promise.allSettled([
           runHolidayCheck(snapshotId),
           runMinStrategy(snapshotId),
           runBriefing(snapshotId)
         ]);
+        
+        // Check if MinStrategy (Critical) failed
+        if (results[1].status === 'rejected') {
+          throw new Error(`Critical Strategy Error: ${results[1].reason}`);
+        }
+        
+        // Briefing (Optional) - we don't care if results[2] rejected
         
         // Fetch provider outputs
         const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
@@ -284,7 +290,6 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
                 .orderBy(ranking_candidates.rank);
               
               // Batch resolve venue addresses
-              const { resolveVenueAddressesBatch } = await import('../lib/venue-address-resolver.js');
               const venueKeys = candidates.map(c => ({ lat: c.lat, lng: c.lng, name: c.name }));
               const addressMap = await resolveVenueAddressesBatch(venueKeys);
               
@@ -362,8 +367,11 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
         // Job already exists - check if blocks are ready
         console.log(`[blocks-fast POST] Job already queued for ${snapshotId}, checking for existing blocks...`);
         
-        const [existing] = await db.select().from(ranking_candidates)
-          .where(eq(ranking_candidates.snapshot_id, snapshotId))
+        // SECURITY FIX: Join with rankings table to find candidates by snapshot
+        const [existing] = await db.select()
+          .from(ranking_candidates)
+          .innerJoin(rankings, eq(ranking_candidates.ranking_id, rankings.ranking_id))
+          .where(eq(rankings.snapshot_id, snapshotId))
           .limit(1);
         
         if (existing) {
