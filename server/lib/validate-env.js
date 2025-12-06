@@ -24,8 +24,8 @@ export function validateEnvironment() {
   }
   
   // CRITICAL: Google Maps (required for location services)
-  if (!process.env.GOOGLE_MAPS_API_KEY && !process.env.VITE_GOOGLE_MAPS_API_KEY) {
-    errors.push('GOOGLE_MAPS_API_KEY or VITE_GOOGLE_MAPS_API_KEY is required for location services');
+  if (!process.env.GOOGLE_MAPS_API_KEY) {
+    errors.push('GOOGLE_MAPS_API_KEY is required for location services');
   }
   
   // WARNINGS: Optional but recommended services

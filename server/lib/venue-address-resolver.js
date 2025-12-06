@@ -2,7 +2,7 @@
 // Resolve venue coordinates to addresses using Google Geocoding + Places API fallback
 import { isPlusCode } from '../routes/utils/http-helpers.js';
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
 /**
  * Resolve venue coordinates to a formatted address

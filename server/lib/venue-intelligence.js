@@ -8,7 +8,7 @@ import { db } from '../db/drizzle.js';
 import { nearby_venues } from '../../shared/schema.js';
 
 // API Keys
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY; // Places, Geocoding, Weather, Routes, etc.
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
