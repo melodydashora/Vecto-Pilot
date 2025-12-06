@@ -230,6 +230,18 @@ router.post('/', async (req, res) => {
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
 
+    // DEDUPLICATION CHECK: If strategy already running, don't re-trigger it
+    const [existingStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    if (existingStrategy && (existingStrategy.status === 'pending' || existingStrategy.status === 'running')) {
+      console.log(`[blocks-fast POST] ⏳ Strategy already ${existingStrategy.status} for ${snapshotId}, returning 202`);
+      return sendOnce(202, { 
+        ok: false, 
+        reason: 'strategy_already_pending',
+        status: existingStrategy.status,
+        message: `Strategy ${existingStrategy.status}, please wait...`
+      });
+    }
+
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
     try {
       const [job] = await db.insert(triad_jobs).values({
