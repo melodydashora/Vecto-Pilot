@@ -345,7 +345,7 @@ Return ONLY valid JSON, no markdown.`;
 }
 
 /**
- * Get traffic density for a specific area using Gemini web search
+ * Get traffic density for a specific area using robust Gemini adapter
  * @param {Object} params - Traffic query parameters
  * @param {number} params.lat - Latitude
  * @param {number} params.lng - Longitude
@@ -356,91 +356,45 @@ export async function getTrafficIntelligence({ lat, lng, city, state }) {
   const currentTime = new Date();
   const timeString = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   
-  const prompt = `You are a traffic intelligence assistant for rideshare drivers in ${city}, ${state}. Analyze CURRENT traffic conditions RIGHT NOW at coordinates (${lat}, ${lng}).
-
+  const prompt = `Analyze CURRENT traffic conditions RIGHT NOW at coordinates (${lat}, ${lng}) in ${city}, ${state}.
 Current time: ${timeString}
 
-Provide real-time traffic intelligence based on typical patterns for this time and location:
+Provide real-time traffic intelligence:
 1. Overall traffic density (1-10 scale, 10 = gridlock)
 2. Major congestion areas and why (events, accidents, construction, commute patterns)
 3. High-demand rideshare zones based on traffic patterns
 4. Best positioning advice for drivers
 
-Return ONLY valid JSON (no explanation):
+Return ONLY valid JSON:
 {
-  "query_time": "${timeString}",
-  "location": "${city}, ${state}",
   "traffic_density": 7,
   "density_level": "high|medium|low",
-  "congestion_areas": [
-    {"area": "specific street/highway", "reason": "detailed reason", "severity": 1-10}
-  ],
-  "high_demand_zones": [
-    {"zone": "area name", "why": "reason", "rideshare_opportunity": "high|medium|low"}
-  ],
-  "driver_advice": "actionable advice for drivers",
-  "sources": ["real-time analysis"]
+  "congestion_areas": [{"area": "specific street", "reason": "detailed reason", "severity": 1-10}],
+  "high_demand_zones": [{"zone": "area name", "why": "reason"}],
+  "driver_advice": "actionable advice for drivers"
 }`;
 
   try {
-    console.log('[VenueIntelligence] 🚗 Calling Gemini 3 Pro Preview for traffic...');
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GOOGLE_MAPS_API_KEY,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-        }),
-      }
-    );
+    console.log('[VenueIntelligence] 🚗 Calling Gemini 2.0 Flash (Adapter) for traffic...');
+    const result = await callGemini({
+      model: 'gemini-2.0-flash', // Faster and more stable than 2.5-pro
+      system: 'You are a traffic intelligence system. Return ONLY valid JSON with no preamble.',
+      user: prompt,
+      maxTokens: 1500,
+      temperature: 0.1
+    });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+    if (!result.ok) {
+      throw new Error(result.error);
     }
 
-    const data = await response.json();
-    console.log('[VenueIntelligence] ✅ Gemini response received');
-    
-    if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-      throw new Error('No text in Gemini response');
-    }
-
-    const text = data.candidates[0].content.parts[0].text;
-    console.log('[VenueIntelligence] Response text length:', text.length);
-    console.log('[VenueIntelligence] Response preview:', text.substring(0, 200));
-    
-    let trafficData;
-    try {
-      trafficData = JSON.parse(text);
-      console.log('[VenueIntelligence] ✅ Parsed traffic JSON:', trafficData.density_level);
-    } catch (e) {
-      console.warn('[VenueIntelligence] JSON parse failed, trying to extract:', e.message);
-      // Try to extract JSON from markdown code blocks (```json ... ```)
-      let jsonStr = text.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1];
-      if (!jsonStr) {
-        // Fallback: try to extract raw JSON object
-        jsonStr = text.match(/\{[\s\S]*\}$/)?.[0];
-      }
-      if (jsonStr) {
-        trafficData = JSON.parse(jsonStr.trim());
-        console.log('[VenueIntelligence] ✅ Extracted traffic JSON:', trafficData.density_level);
-      } else {
-        throw new Error('Could not parse traffic data - no JSON found');
-      }
-    }
+    const trafficData = JSON.parse(result.output);
+    console.log('[VenueIntelligence] ✅ Parsed traffic JSON:', trafficData.density_level);
 
     // MAP TO UNIFIED SCHEMA for briefing-service compatibility
     return {
-      summary: trafficData.summary || trafficData.driver_advice || '',
-      congestionLevel: trafficData.density_level || 'low',  // Map density_level → congestionLevel
+      summary: trafficData.driver_advice || '',
+      congestionLevel: trafficData.density_level || 'low',
       incidents: (trafficData.congestion_areas || []).map(c => ({
         description: c.area + ': ' + c.reason,
         severity: c.severity ? (c.severity > 7 ? 'high' : c.severity > 3 ? 'medium' : 'low') : 'medium'
@@ -450,8 +404,16 @@ Return ONLY valid JSON (no explanation):
       fetchedAt: new Date().toISOString()
     };
   } catch (error) {
-    console.error('[VenueIntelligence] ❌ Error getting traffic:', error.message);
-    throw error;
+    console.error('[VenueIntelligence] ❌ Traffic Error:', error.message);
+    // Return safe fallback
+    return {
+      summary: 'Traffic data currently unavailable',
+      congestionLevel: 'medium',
+      incidents: [],
+      highDemandZones: [],
+      driver_advice: 'Traffic data currently unavailable',
+      fetchedAt: new Date().toISOString()
+    };
   }
 }
 
@@ -540,9 +502,10 @@ export async function persistVenuesToDatabase(venues, context) {
       correction_count: 0,
     }));
 
-    const inserted = await db.insert(nearby_venues).values(records).returning();
-    console.log(`[VenueIntelligence] Persisted ${inserted.length} venues to database`);
-    return inserted;
+    // Use onConflictDoNothing to make batch insert resilient to unique key violations
+    const inserted = await db.insert(nearby_venues).values(records).onConflictDoNothing().returning();
+    console.log(`[VenueIntelligence] Persisted ${inserted?.length || 0} venues to database`);
+    return inserted || [];
   } catch (error) {
     console.warn('[VenueIntelligence] Failed to persist venues:', error.message);
     // Don't throw - allow API to continue even if DB persistence fails

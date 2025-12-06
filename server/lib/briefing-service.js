@@ -260,8 +260,9 @@ RULES:
     console.log('[BriefingService] 📡 Calling Gemini 3 Pro Preview API for events...');
     
     // ISSUE #16 FIX: callGemini now handles safety settings + JSON mode automatically
+    // Use gemini-2.0-flash instead of 3-pro-preview for speed and stability
     const result = await callGemini({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-2.0-flash',
       user: prompt,
       maxTokens: 4096,
       temperature: 0.2,
