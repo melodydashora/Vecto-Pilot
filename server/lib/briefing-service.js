@@ -1188,7 +1188,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     }
   }
   
-  console.log(`[BriefingService] 📸 Full snapshot for this briefing:`, {
+  console.log(`[BriefingService] 📸 Snapshot:`, {
     snapshot_id: snapshot.snapshot_id,
     lat: snapshot.lat,
     lng: snapshot.lng,
@@ -1203,7 +1203,8 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     air: snapshot.air
   });
   
-  console.log(`[BriefingService] 🚀 Sending this snapshot to: fetchEvents, fetchNews, fetchWeather, fetchTraffic, fetchSchoolClosures in parallel`);
+  // Call all APIs directly in parallel with this snapshot
+  console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, closures) + Google (weather) in parallel`);
   const [rawEvents, newsItems, weatherResult, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchRideshareNews({ snapshot }),
@@ -1211,7 +1212,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     fetchTrafficConditions({ snapshot }),
     fetchSchoolClosures({ snapshot })
   ]);
-  console.log(`[BriefingService] ✅ Services completed: events=${rawEvents.length}, news=${newsItems.length}`);
+  console.log(`[BriefingService] ✅ APIs returned: events=${rawEvents.length}, news=${newsItems.length}`);
 
   // 1) Normalize Gemini output into LocalEventSchema
   let normalizedEvents = mapGeminiEventsToLocalEvents(rawEvents, { lat, lng });
