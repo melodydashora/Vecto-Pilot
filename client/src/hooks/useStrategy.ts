@@ -62,7 +62,8 @@ export function useStrategy(snapshotId?: string) {
         if (!active) return;
         
         const response = await fetch(`/api/blocks/strategy/${snapshotId}`, {
-          signal: abortController.signal
+          signal: abortController.signal,
+          credentials: 'include'
         });
         
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
