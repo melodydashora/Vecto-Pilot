@@ -755,6 +755,82 @@ If no relevant items, return: []`;
   }
 }
 
+export async function fetchWeatherForecast({ snapshot }) {
+  if (snapshot) {
+    console.log('[fetchWeatherForecast] 📤 Fetching 4-6 hour weather forecast:', {
+      snapshot_id: snapshot.snapshot_id,
+      city: snapshot.city,
+      state: snapshot.state,
+      date: snapshot.date
+    });
+  }
+
+  if (!GEMINI_API_KEY) {
+    console.warn('[BriefingService] GEMINI_API_KEY not set for weather forecast');
+    return { current: null, forecast: [], error: 'GEMINI_API_KEY not configured' };
+  }
+
+  if (!snapshot?.city || !snapshot?.state || !snapshot?.date) {
+    return { current: null, forecast: [], error: 'Missing location/date' };
+  }
+
+  try {
+    const { city, state, date } = snapshot;
+    const prompt = `Get the 4-6 hour weather forecast for ${city}, ${state} for ${date}. Return ONLY valid JSON with no explanation:
+{
+  "current": {
+    "tempF": number,
+    "conditions": "string",
+    "humidity": number,
+    "windSpeed": number
+  },
+  "forecast": [
+    {"time": "HH:MM", "tempF": number, "conditions": "string", "precipitationProbability": number}
+  ]
+}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
+      {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          tools: [{ google_search: {} }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(`[fetchWeatherForecast] Gemini error ${response.status}`);
+      return { current: null, forecast: [] };
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const weatherData = JSON.parse(jsonMatch[0]);
+        console.log('[fetchWeatherForecast] ✅ Got forecast:', { current: !!weatherData.current, forecast_hours: weatherData.forecast?.length || 0 });
+        return weatherData;
+      }
+    } catch (parseErr) {
+      console.error('[fetchWeatherForecast] Parse error:', parseErr.message);
+    }
+    
+    return { current: null, forecast: [] };
+  } catch (error) {
+    console.error('[fetchWeatherForecast] Error:', error.message);
+    return { current: null, forecast: [] };
+  }
+}
+
 export async function fetchWeatherConditions({ snapshot }) {
   if (snapshot) {
     console.log('[fetchWeatherConditions] 📤 Fetching full weather data:', {
@@ -788,6 +864,7 @@ export async function fetchWeatherConditions({ snapshot }) {
 
     if (currentRes.ok) {
       const currentData = await currentRes.json();
+      console.log('[fetchWeatherConditions] Current weather response:', JSON.stringify(currentData).substring(0, 200));
       // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
       const tempC = currentData.temperature?.degrees ?? currentData.temperature;
       const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
@@ -809,10 +886,14 @@ export async function fetchWeatherConditions({ snapshot }) {
         isDaytime: currentData.isDaytime,
         observedAt: currentData.currentTime
       };
+      console.log('[fetchWeatherConditions] ✅ Parsed current weather:', current);
+    } else {
+      console.error('[fetchWeatherConditions] Current conditions request failed:', currentRes.status, await currentRes.text());
     }
 
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
+      console.log('[fetchWeatherConditions] Forecast response hours count:', forecastData.forecastHours?.length || 0);
       forecast = (forecastData.forecastHours || []).map((hour, idx) => {
         // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
         const tempC = hour.temperature?.degrees ?? hour.temperature;
@@ -838,6 +919,9 @@ export async function fetchWeatherConditions({ snapshot }) {
           isDaytime: hour.isDaytime
         };
       });
+      console.log('[fetchWeatherConditions] ✅ Parsed forecast hours:', forecast.length);
+    } else {
+      console.error('[fetchWeatherConditions] Forecast request failed:', forecastRes.status, await forecastRes.text());
     }
 
     return {
@@ -1015,7 +1099,7 @@ If you find incidents, add them to the incidents array: [{"description": "I-35 c
 
     if (!response.ok) {
       const errData = await response.text();
-      console.warn(`[BriefingService] Gemini traffic analysis error ${response.status}, using fallback`);
+      console.warn(`[BriefingService] Gemini traffic analysis error ${response.status}: ${errData.substring(0, 200)}`);
       return { 
         summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
         incidents: [], 
@@ -1206,11 +1290,11 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   const { lat, lng, city, state, formatted_address } = snapshot;
   
   // Call all APIs directly in parallel with this snapshot
-  console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, closures) + Google (weather) in parallel`);
+  console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, weather, closures) in parallel`);
   const [rawEvents, newsItems, weatherResult, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchRideshareNews({ snapshot }),
-    fetchWeatherConditions({ snapshot }),
+    fetchWeatherForecast({ snapshot }),
     fetchTrafficConditions({ snapshot }),
     fetchSchoolClosures({ snapshot })
   ]);
@@ -1246,7 +1330,8 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     console.log(`[BriefingService] 💾 Storing briefing data:`, {
       snapshot_id: snapshotId,
       news_items: briefingData.news?.items?.length || 0,
-      weather_current: !!briefingData.weather_current,
+      weather_current: briefingData.weather_current,
+      weather_forecast_count: briefingData.weather_forecast?.length || 0,
       events: briefingData.events?.length || 0,
       traffic_summary: briefingData.traffic_conditions?.summary?.substring(0, 50) || 'none'
     });

@@ -40,6 +40,16 @@ export default function BriefingTab({
   const [expandedNews, setExpandedNews] = useState(true);
   const [expandedClosures, setExpandedClosures] = useState(true);
 
+  // Log data received for debugging
+  console.log('[BriefingTab] Received data:', { 
+    snapshotId, 
+    weatherData, 
+    trafficData, 
+    newsData,
+    eventsData, 
+    schoolClosuresData 
+  });
+
   // Utility functions
   const celsiusToFahrenheit = (celsius: number) => Math.round((celsius * 9/5) + 32);
 

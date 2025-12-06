@@ -310,6 +310,11 @@ router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
     }
     
     let briefing = await getBriefingBySnapshotId(snapshotId);
+    console.log('[BriefingRoute] /weather/:snapshotId - Raw briefing:', {
+      has_briefing: !!briefing,
+      weather_current_raw: briefing?.weather_current,
+      weather_forecast_raw: briefing?.weather_forecast
+    });
     briefing = parseBriefingData(briefing);
     
     res.json({
