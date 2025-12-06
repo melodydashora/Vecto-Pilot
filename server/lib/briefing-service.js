@@ -1290,11 +1290,10 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   const { lat, lng, city, state, formatted_address } = snapshot;
   
   // Call all APIs directly in parallel with this snapshot
-  console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, weather, closures) in parallel`);
-  const [rawEvents, newsItems, weatherResult, trafficResult, schoolClosures] = await Promise.all([
+  console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, closures) in parallel`);
+  const [rawEvents, newsItems, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchRideshareNews({ snapshot }),
-    fetchWeatherForecast({ snapshot }),
     fetchTrafficConditions({ snapshot }),
     fetchSchoolClosures({ snapshot })
   ]);
@@ -1311,14 +1310,17 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     console.warn('[BriefingService] Places enhancement failed, using normalized events only:', err.message);
   }
 
+  // Parse snapshot weather (it may be JSON string or object)
+  const snapshotWeather = typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather;
+  
   const briefingData = {
     snapshot_id: snapshotId,
     formatted_address: formatted_address,
     city,
     state,
     news: { items: newsItems, filtered: newsItems },
-    weather_current: weatherResult.current,
-    weather_forecast: weatherResult.forecast,
+    weather_current: snapshotWeather,
+    weather_forecast: snapshotWeather?.forecast || [],
     traffic_conditions: trafficResult,
     events: normalizedEvents || [],
     school_closures: schoolClosures.length > 0 ? schoolClosures : null,
