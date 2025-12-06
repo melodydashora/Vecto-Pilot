@@ -139,22 +139,10 @@ router.post('/refresh', requireAuth, async (req, res) => {
 
     const snapshot = latestSnapshot[0];
     
-    // Only regenerate if explicitly requested (rare)
+    // Regenerate if explicitly requested - pass snapshot row directly
     const result = await generateAndStoreBriefing({
       snapshotId: snapshot.snapshot_id,
-      snapshot: {
-        snapshot_id: snapshot.snapshot_id,
-        lat: snapshot.lat,
-        lng: snapshot.lng,
-        city: snapshot.city,
-        state: snapshot.state,
-        formatted_address: snapshot.formatted_address,
-        timezone: snapshot.timezone,
-        date: snapshot.date,
-        hour: snapshot.hour,
-        dow: snapshot.dow,
-        day_part_key: snapshot.day_part_key
-      }
+      snapshot
     });
 
     if (result.success) {
