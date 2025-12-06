@@ -9,7 +9,7 @@
  */
 export async function detectHoliday(context) {
   try {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.warn('[holiday-detector] ⚠️  GEMINI_API_KEY not set - skipping holiday detection');
       return { holiday: null, is_holiday: false };
