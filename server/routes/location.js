@@ -11,7 +11,6 @@ import { validateLocationFreshness } from '../lib/validation-gates.js';
 import { uuidOrNull } from '../util/uuid.js';
 import { makeCircuit } from '../util/circuit.js';
 import { jobQueue } from '../lib/job-queue.js';
-import { generateNewsBriefing } from '../lib/gemini-news-briefing.js';
 import { validateBody, validateQuery } from '../middleware/validate.js';
 import { snapshotMinimalSchema, locationResolveSchema, newsBriefingSchema } from '../validation/schemas.js';
 
@@ -1306,12 +1305,21 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
       airport_context: null // Will be determined by Gemini
     };
 
-    // Generate news briefing using Gemini
-    const briefing = await generateNewsBriefing(snapshot);
+    // Generate news briefing using briefing-service
+    const { generateAndStoreBriefing } = await import('../lib/briefing-service.js');
+    const result = await generateAndStoreBriefing({
+      snapshotId: snapshot.snapshot_id,
+      lat: latitude,
+      lng: longitude,
+      city: snapshot.city,
+      state: snapshot.state,
+      country: 'United States',
+      formattedAddress: address
+    });
 
     res.json({
       ok: true,
-      briefing,
+      briefing: result.briefing || {},
       generated_at: new Date().toISOString(),
       location: { 
         latitude, 
