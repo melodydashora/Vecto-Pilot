@@ -6,6 +6,34 @@ Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximiz
 ## User Preferences
 Preferred communication style: Simple, everyday language. Do not say "done" until features are actually verified working.
 
+## SmartBlocks Loading Status ✅
+
+**RESOLVED (December 6, 2025)**
+
+### Problem
+SmartBlocks waterfall was completing successfully on the server and generating venue recommendations with full enrichment data, but the frontend couldn't fetch them from the API. Frontend errors: `Failed to execute 'json' on 'Response': Unexpected token '<'` (HTML error response instead of JSON).
+
+### Root Cause
+**Missing JWT Authentication Headers** - The frontend POST and GET requests to `/api/blocks-fast` were not including the `Authorization: Bearer <token>` header, causing the backend to reject requests and return HTML error pages instead of JSON responses.
+
+### Solution
+Added JWT authentication headers to both SmartBlocks API requests in `client/src/pages/co-pilot.tsx`:
+
+**File: `client/src/pages/co-pilot.tsx`**
+- **Line 199-203**: Created `getAuthHeader()` helper function to retrieve JWT token from localStorage
+- **Line 219**: POST request to `/api/blocks-fast` waterfall now includes `...getAuthHeader()`
+- **Line 586**: GET request to `/api/blocks-fast?snapshotId=...` retrieval now includes `...getAuthHeader()`
+
+**Related File: `server/routes/blocks-fast.js`**
+- **Line 187**: Replaced `validateBody(blocksRequestSchema)` middleware with manual UUID validation to avoid HTML error pages from middleware
+
+### Result
+✅ SmartBlocks now load and render successfully:
+- **5 venue recommendations** appear on the Venues tab
+- Each block displays: venue name, address, distance, drive time, value per minute, grade (A/B/C), and pro tips
+- Frontend logs confirm: `✅ SmartBlocks rendering: { count: 5, firstBlock: "Kroger Marketplace (Main St & FM 423)" }`
+- Full data enrichment pipeline working: Strategy → Consolidation → SmartBlocks Generation → Database Persistence → Frontend Retrieval
+
 ## System Architecture
 Vecto Pilot is a full-stack Node.js application with a multi-service architecture, supporting both monolithic and split deployments.
 
