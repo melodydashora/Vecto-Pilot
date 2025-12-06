@@ -192,3 +192,8 @@ private.pem
 !public.pem
 keys/
 !keys/.gitkeep
+
+# Shared env files with hardcoded secrets - NEVER commit!
+env/shared.env
+*.env.shared
+shared.env
