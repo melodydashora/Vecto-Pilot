@@ -292,10 +292,19 @@ router.post('/', async (req, res) => {
         
         // Make briefing OPTIONAL - consolidation proceeds even if Perplexity fails
         if (snapshot && strategy?.minstrategy) {
+          // Create a robust fallback using the snapshot's own weather data
+          const fallbackBriefing = {
+            events: [],
+            news: { items: [] },
+            traffic_conditions: { summary: 'Loading traffic...', congestionLevel: 'medium', incidents: [] },
+            weather_current: snapshot.weather ? (typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather) : null,
+            school_closures: []
+          };
+
           await consolidateStrategy({
             snapshotId,
             claudeStrategy: strategy.minstrategy,
-            briefing: briefing || { events: [], news: [], traffic: [] },
+            briefing: briefing || fallbackBriefing,
             user: null,
             snapshot: snapshot,
             holiday: strategy.holiday
@@ -305,16 +314,20 @@ router.post('/', async (req, res) => {
           const [consolidated] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
           
           if (consolidated?.consolidated_strategy) {
+            // Create a robust fallback using the snapshot's own weather data
+            const fallbackBriefing = {
+              events: [],
+              news: { items: [] },
+              traffic_conditions: { summary: 'Traffic conditions gathering...', congestionLevel: 'medium', incidents: [] },
+              weather_current: snapshot.weather ? (typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather) : null,
+              school_closures: []
+            };
+
             try {
               await generateEnhancedSmartBlocks({
                 snapshotId,
                 consolidated: consolidated.consolidated_strategy,
-                briefing: briefing || { 
-                  events: [],
-                  news: [],
-                  traffic: { summary: 'Traffic conditions gathering...', incidents: [] },
-                  holidays: []
-                },
+                briefing: briefing || fallbackBriefing,
                 snapshot: snapshot,
                 user_id: null
               });
@@ -422,16 +435,20 @@ router.post('/', async (req, res) => {
           const [briefing] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
           
           if (strategy?.consolidated_strategy) {
+            // Create a robust fallback using the snapshot's own weather data
+            const fallbackBriefing = {
+              events: [],
+              news: { items: [] },
+              traffic_conditions: { summary: 'Traffic conditions gathering...', congestionLevel: 'medium', incidents: [] },
+              weather_current: snapshot.weather ? (typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather) : null,
+              school_closures: []
+            };
+
             try {
               await generateEnhancedSmartBlocks({
                 snapshotId,
                 consolidated: strategy.consolidated_strategy,
-                briefing: briefing || { 
-                  events: [],
-                  news: [],
-                  traffic: { summary: 'Traffic conditions gathering...', incidents: [] },
-                  holidays: []
-                },
+                briefing: briefing || fallbackBriefing,
                 snapshot: snapshot,
                 user_id: null
               });

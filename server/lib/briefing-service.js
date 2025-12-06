@@ -1299,6 +1299,28 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   
   // Call all APIs directly in parallel with this snapshot
   console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, closures) in parallel`);
+  
+  // ⚡ OPTIMIZATION: Reuse weather from snapshot instead of fetching again
+  let weatherResult = null;
+  let existingWeather = null;
+  try {
+    existingWeather = typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather;
+  } catch (e) {
+    console.warn('[BriefingService] Failed to parse snapshot weather:', e.message);
+  }
+
+  if (existingWeather && existingWeather.temperature !== undefined) {
+    console.log(`[BriefingService] ⚡ Reusing weather from snapshot (Skipping API call)`);
+    weatherResult = {
+      current: existingWeather,
+      forecast: existingWeather.forecast || []
+    };
+  } else {
+    console.log(`[BriefingService] ☁️ Snapshot has no weather data, skipping fetch (will use fallback)`);
+    weatherResult = { current: null, forecast: [] };
+  }
+
+  // Fetch other APIs in parallel (NOT weather - we already have it from snapshot)
   const [rawEvents, newsItems, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchRideshareNews({ snapshot }),
@@ -1323,31 +1345,8 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     console.warn('[BriefingService] Places enhancement failed, using normalized events only:', err.message);
   }
 
-  // Extract weather from snapshot (already fetched via Google Weather API at snapshot creation)
-  let snapshotWeather = null;
-  try {
-    snapshotWeather = typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather;
-  } catch (e) {
-    console.warn('[BriefingService] Failed to parse snapshot weather:', e.message);
-    snapshotWeather = null;
-  }
-  
-  console.log(`[BriefingService] 🌡️ Snapshot weather raw:`, snapshotWeather);
-  console.log(`[BriefingService] 🌡️ Weather extraction:`, {
-    has_weather: !!snapshotWeather,
-    tempF: snapshotWeather?.tempF,
-    conditions: snapshotWeather?.conditions,
-    has_forecast: !!snapshotWeather?.forecast,
-    forecast_length: snapshotWeather?.forecast?.length || 0
-  });
-  
-  const weatherCurrent = snapshotWeather ? { 
-    tempF: snapshotWeather.tempF, 
-    conditions: snapshotWeather.conditions, 
-    humidity: snapshotWeather.humidity, 
-    windDirection: snapshotWeather.windDirection, 
-    isDaytime: snapshotWeather.isDaytime 
-  } : null;
+  // Use weather from the parallel fetch optimization above
+  const weatherCurrent = weatherResult?.current || null;
   
   // Ensure news/events always have fallback data
   let finalNews = newsItems && newsItems.length > 0 ? newsItems : [

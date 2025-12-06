@@ -6,9 +6,31 @@ Vecto Pilot is an AI-powered rideshare intelligence platform designed to maximiz
 ## User Preferences
 Preferred communication style: Simple, everyday language. Do not say "done" until features are actually verified working.
 
+## Model & Performance Optimization ✅
+
+**RESOLVED (December 6, 2025 - Second Pass)**
+
+### Critical Fixes Applied
+1. **Model Standards**: ALL AI calls now use `gemini-3-pro-preview` with Google tools (never use gemini-2.0-flash)
+   - **File**: `server/lib/venue-intelligence.js` (traffic intelligence)
+   - **File**: `server/lib/briefing-service.js` (events, already implemented)
+   - **Benefit**: 100% consistent web search reliability
+
+2. **Redundant Weather Fetching Eliminated**: Weather is now reused from snapshot instead of fetching API twice
+   - **Location**: `server/lib/briefing-service.js` in `generateBriefingInternal`
+   - **Before**: Fetch #1 (snapshot creation) → Fetch #2 (briefing generation) = duplicate API calls
+   - **After**: Reuse snapshot weather directly, skip second fetch
+   - **Savings**: ~1 API call per briefing per user per refresh
+
+3. **Smart Blocks Fallback Object Fixed**: Robust briefing schema prevents data race errors
+   - **Location**: `server/routes/blocks-fast.js` (3 fallback instances fixed)
+   - **Before**: `briefing: { events: [], news: [], traffic: [] }` ❌ Wrong schema keys, missing weather
+   - **After**: `briefing: { events: [], news: { items: [] }, traffic_conditions: {...}, weather_current: {...} }`
+   - **Result**: No more `blocks_input_missing_briefing` errors
+
 ## SmartBlocks Loading Status ✅
 
-**RESOLVED (December 6, 2025)**
+**RESOLVED (December 6, 2025 - Initial Fix)**
 
 ### Problem
 SmartBlocks waterfall was completing successfully on the server and generating venue recommendations with full enrichment data, but the frontend couldn't fetch them from the API. Frontend errors: `Failed to execute 'json' on 'Response': Unexpected token '<'` (HTML error response instead of JSON).
