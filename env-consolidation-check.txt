@@ -1,20 +1,8 @@
-
 # ===============================
 # Vecto Pilot — CONSOLIDATED Environment Configuration
 # All services (Agent, Eidolon, Assistant) with identical capabilities
-# Merged from: mono-mode.env, shared.env, mono-mode.env.example, worker.env, webservice.env
 # For verification of latest models and parameters
 # ===============================
-
-# -------------------------------
-# Deployment Mode Configuration
-# -------------------------------
-# APP_MODE options:
-#   - mono: Single process (development/Reserved VM) - all services in gateway
-#   - webservice: HTTP only (Autoscale) - no background worker
-#   - worker: Background queue only (Reserved VM) - no HTTP endpoints
-APP_MODE=mono
-NODE_ENV=production
 
 # -------------------------------
 # Security / Auth (Generate with: openssl rand -hex 32)
@@ -25,7 +13,7 @@ ASSISTANT_OVERRIDE_TOKEN=your_64_char_hex_token_here
 GW_KEY=your_64_char_hex_token_here
 
 # -------------------------------
-# AI Provider API Keys (CRITICAL - All Required)
+# AI Provider API Keys (CRITICAL)
 # -------------------------------
 OPENAI_API_KEY=${OPENAI_API_KEY}
 ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -37,17 +25,29 @@ GOOGLEAQ_API_KEY=${GOOGLEAQ_API_KEY}
 GEMINI_API_KEY=${GEMINI_API_KEY}
 GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
 
-# Frontend Google Maps (required for client-side map rendering)
+# Frontend Google Maps
 VITE_GOOGLE_MAPS_API_KEY=${VITE_GOOGLE_MAPS_API_KEY}
 
 # -------------------------------
-# Server Configuration
+# Deployment Mode Configuration
 # -------------------------------
-# Ports
+# mono = single process (development/Reserved VM)
+# webservice = HTTP only (Autoscale)
+# worker = background queue only (Reserved VM)
+APP_MODE=mono
+NODE_ENV=production
+
+# -------------------------------
+# Processes / Ports / Paths
+# -------------------------------
 PORT=5000
 GATEWAY_PORT=5000
 EIDOLON_PORT=3101
 AGENT_PORT=43717
+BASE_DIR=/home/runner/workspace
+STATE_DIR=./data/state
+SNAPSHOT_DIR=./data/snapshots
+CONTEXT_CACHE_DIR=./data/cache
 
 # Service Embedding (for webservice/mono modes)
 DISABLE_SPAWN_SDK=1
@@ -60,21 +60,12 @@ WS_PUBLIC_PATH=/agent/ws
 SOCKET_IO_PATH=/socket.io
 
 # -------------------------------
-# Paths & Directories
-# -------------------------------
-BASE_DIR=/home/runner/workspace
-STATE_DIR=./data/state
-SNAPSHOT_DIR=./data/snapshots
-CONTEXT_CACHE_DIR=./data/cache
-
-# -------------------------------
 # Database (Replit PostgreSQL)
 # -------------------------------
-# Replit automatically provides DATABASE_URL - no manual configuration needed
 DATABASE_URL=${DATABASE_URL}
 PGSSLMODE=require
 
-# Database pool settings (optimized for Replit PostgreSQL)
+# Database pool settings
 PG_MAX=10
 PG_MIN=2
 PG_IDLE_TIMEOUT_MS=30000
@@ -116,7 +107,7 @@ STRATEGY_CONSOLIDATOR=gpt-5.1
 STRATEGY_CONSOLIDATOR_MAX_TOKENS=32000
 STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
 
-# Holiday Checker: CHECK - Is sonar-pro still recommended?
+# Holiday Checker: CHECK - Is sonar-pro still recommended or llama-3.1-sonar-small-128k-online?
 STRATEGY_HOLIDAY_CHECKER=sonar-pro
 
 # -------------------------------
@@ -137,6 +128,7 @@ TRIAD_INVARIANT_WORD_CAPS=true
 # Gemini Configuration (VERIFY THESE)
 # -------------------------------
 # CHECK: Is gemini-3-pro-preview the latest? Or is there gemini-2.5-pro/gemini-ultra?
+GEMINI_API_KEY=${GEMINI_API_KEY}
 GEMINI_MODEL=gemini-3-pro-preview
 GEMINI_TEMPERATURE=1.0
 GEMINI_MAX_TOKENS=8192
@@ -164,11 +156,6 @@ ANTHROPIC_TIMEOUT_MS=60000
 PERPLEXITY_ENABLED=true
 PERPLEXITY_MODEL=sonar-pro
 PERPLEXITY_MAX_TOKENS=4096
-
-# -------------------------------
-# Research & Web Search
-# -------------------------------
-WEB_SEARCH_ENABLED=true
 
 # -------------------------------
 # AGENT - Full Capabilities (Complete Permissions)
@@ -273,14 +260,8 @@ EIDOLON_PERPLEXITY_ENABLED=true
 # -------------------------------
 # Background Worker
 # -------------------------------
-# Enable background worker for strategy generation
 ENABLE_BACKGROUND_WORKER=true
-
-# LISTEN mode: use PostgreSQL LISTEN/NOTIFY instead of HTTP polling
-# Set to true for worker-only deployments, false for mono mode
-USE_LISTEN_MODE=false
-
-# Seed a test job on boot if queue is empty (for testing)
+USE_LISTEN_MODE=true
 SEED_JOB_ON_BOOT=false
 
 # -------------------------------
@@ -300,6 +281,11 @@ THREAD_SEMANTIC_LINKING=true
 CROSS_THREAD_MEMORY_ENABLED=true
 CROSS_THREAD_GLOBAL_CONTEXT=true
 UNIFIED_MEMORY_ARCHITECTURE=true
+
+# -------------------------------
+# Research & Web Search
+# -------------------------------
+WEB_SEARCH_ENABLED=true
 
 # -------------------------------
 # Budgets / Deadlines (VERIFY THESE TIMEOUTS)
@@ -379,31 +365,6 @@ REPLIT_DEV_DOMAIN=${REPLIT_DEV_DOMAIN}
 REPL_SLUG=${REPL_SLUG}
 
 # ===============================
-# DEPLOYMENT MODE SPECIFIC NOTES
-# ===============================
-
-# MONO MODE (APP_MODE=mono):
-# - Single process runs gateway + agent + background worker
-# - All services embedded in gateway on PORT 5000
-# - DISABLE_SPAWN_SDK=1 and DISABLE_SPAWN_AGENT=1
-# - USE_LISTEN_MODE=false (uses in-process job queue)
-# - Best for: Development, Reserved VM deployments
-
-# WEBSERVICE MODE (APP_MODE=webservice):
-# - HTTP/WebSocket only, no background worker
-# - Services embedded in gateway
-# - ENABLE_BACKGROUND_WORKER=false
-# - Best for: Replit Autoscale deployments
-# - NOTE: Requires separate worker deployment for strategy generation
-
-# WORKER MODE (APP_MODE=worker):
-# - Background queue processing only
-# - No HTTP endpoints (no PORT binding)
-# - ENABLE_BACKGROUND_WORKER=true
-# - USE_LISTEN_MODE=true (PostgreSQL LISTEN/NOTIFY)
-# - Best for: Reserved VM background processing
-
-# ===============================
 # VERIFICATION CHECKLIST
 # ===============================
 # Please verify via web search:
@@ -435,17 +396,3 @@ REPL_SLUG=${REPL_SLUG}
 # 6. Feature Flags:
 #    - Are all capability flags still valid/supported?
 #    - Any new flags needed for latest model features?
-#
-# 7. Database Settings:
-#    - Are connection pool settings optimal for Replit PostgreSQL?
-#    - Is PG_MAX_USES=7500 still recommended?
-
-# ===============================
-# SOURCE FILES MERGED
-# ===============================
-# This file consolidates configuration from:
-# - mono-mode.env (development configuration)
-# - shared.env (shared variables for all modes)
-# - mono-mode.env.example (example/template)
-# - worker.env (worker-specific settings)
-# - webservice.env (webservice-specific settings)
