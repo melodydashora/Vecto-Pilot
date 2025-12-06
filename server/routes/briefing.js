@@ -344,7 +344,18 @@ router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
     
+    const snapshot = snapshotCheck[0];
     let briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    // Auto-generate if briefing doesn't exist
+    if (!briefing) {
+      console.log(`[BriefingRoute] Auto-generating briefing for traffic: ${snapshotId}`);
+      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
+      if (result.success) {
+        briefing = result.briefing;
+      }
+    }
+    
     briefing = parseBriefingData(briefing);
     
     res.json({
