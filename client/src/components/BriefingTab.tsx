@@ -504,117 +504,19 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         )}
       </Card>
 
-      {/* Local Events & Live Music Card (non-concerts) */}
-      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200" data-testid="events-card">
-        <CardHeader 
-          className="pb-2 cursor-pointer hover:bg-green-100/50 transition-colors"
-          onClick={() => setExpandedEvents(!expandedEvents)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              {eventsQuery.isLoading ? (
-                <Loader className="w-5 h-5 animate-spin text-green-600" />
-              ) : (
-                <>
-                  <BookOpen className="w-5 h-5 text-green-600" />
-                  Local Events & Live Music
-                  {eventsToday.length > 0 && (
-                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 ml-2">
-                      {eventsToday.length}
-                    </Badge>
-                  )}
-                </>
-              )}
-            </CardTitle>
-            {expandedEvents ? (
-              <ChevronUp className="w-5 h-5 text-green-600" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-green-600" />
-            )}
-          </div>
-        </CardHeader>
-        {expandedEvents && (
-          <CardContent>
-            {eventsQuery.isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader className="w-5 h-5 animate-spin text-green-600 mr-2" />
-                <span className="text-gray-600">Loading events...</span>
-              </div>
-            ) : eventsToday.length > 0 ? (
-              <div className="space-y-3">
-                {eventsToday.map((event, idx) => (
-                  <div key={idx} className="p-3 bg-white/50 rounded-lg border border-green-100" data-testid={`event-${idx}`}>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h4 className="font-medium text-gray-800 text-sm flex-1">{event.title}</h4>
-                    </div>
-                    {event.location && <p className="text-xs text-gray-600 mb-1">📍 {event.location}</p>}
-                    {event.event_time && <p className="text-xs text-gray-600">🕐 {event.event_time}</p>}
-                    {event.staging_area && <p className="text-xs text-green-600 font-medium">📍 Staging: {event.staging_area}</p>}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-sm text-center py-4">No local events or live music today</p>
-            )}
+      {/* All Events - Consolidated Component */}
+      {eventsQuery.isLoading ? (
+        <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center py-8">
+              <Loader className="w-5 h-5 animate-spin text-indigo-600 mr-2" />
+              <span className="text-gray-600">Loading events...</span>
+            </div>
           </CardContent>
-        )}
-      </Card>
-
-      {/* Concerts & Music Card */}
-      <Card className="bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" data-testid="concerts-card">
-        <CardHeader 
-          className="pb-2 cursor-pointer hover:bg-pink-100/50 transition-colors"
-          onClick={() => setExpandedConcerts(!expandedConcerts)}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              {eventsQuery.isLoading ? (
-                <Loader className="w-5 h-5 animate-spin text-pink-600" />
-              ) : (
-                <>
-                  <Music className="w-5 h-5 text-pink-600" />
-                  Concerts & Music
-                  {concertsToday.length > 0 && (
-                    <Badge variant="outline" className="bg-pink-100 text-pink-700 border-pink-300 ml-2">
-                      {concertsToday.length}
-                    </Badge>
-                  )}
-                </>
-              )}
-            </CardTitle>
-            {expandedConcerts ? (
-              <ChevronUp className="w-5 h-5 text-pink-600" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-pink-600" />
-            )}
-          </div>
-        </CardHeader>
-        {expandedConcerts && (
-          <CardContent>
-            {eventsQuery.isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader className="w-5 h-5 animate-spin text-pink-600 mr-2" />
-                <span className="text-gray-600">Loading concerts...</span>
-              </div>
-            ) : concertsToday.length > 0 ? (
-              <div className="space-y-3">
-                {concertsToday.map((concert, idx) => (
-                  <div key={idx} className="p-3 bg-white/50 rounded-lg border border-pink-100" data-testid={`concert-${idx}`}>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h4 className="font-medium text-gray-800 text-sm flex-1">{concert.title}</h4>
-                    </div>
-                    {concert.location && <p className="text-xs text-gray-600 mb-1">🎵 {concert.location}</p>}
-                    {concert.event_time && <p className="text-xs text-gray-600">🕐 {concert.event_time}</p>}
-                    {concert.staging_area && <p className="text-xs text-pink-600 font-medium">📍 Staging: {concert.staging_area}</p>}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-sm text-center py-4">No concerts today</p>
-            )}
-          </CardContent>
-        )}
-      </Card>
+        </Card>
+      ) : (
+        <EventsComponent events={eventsToday} isLoading={eventsQuery.isLoading} />
+      )}
 
       {/* School Closures Section - LAST */}
       <Card data-testid="school-closures-card">
