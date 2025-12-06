@@ -178,18 +178,18 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const lng = snapshot?.lng || -96.8756;
   console.log(`[BriefingService] 🎯 Fetching events: city=${city}, state=${state}, lat=${lat}, lng=${lng}, date=${date}`);
   
-  const prompt = `TASK: Find ALL major events happening in ${city}, ${state} TODAY (${date}) that affect rideshare demand. Use Google Search tool now.
+  const prompt = `TASK: Find ALL major events happening in ${city}, ${state} TODAY (${date}) and nearby cities that affect rideshare demand. Use Google Search tool now.
 
-LOCATION: ${city}, ${state} (${lat}, ${lng}) - 50 mile radius
+LOCATION: ${city}, ${state} (${lat}, ${lng}) - 50 mile radius (include nearby cities within this radius)
 DATE: ${date} ONLY - NO future dates, NO past events
 TIMEZONE: ${snapshot?.timezone || 'America/Chicago'}
 
-SEARCH QUERIES (execute all):
-1. "major events today in ${city} ${state}"
-2. "concerts games tonight ${city}"
-3. "sports matches games ${city} today"
-4. "bars venues events ${city} tonight"
-5. "festivals watch parties ${city} today"
+SEARCH QUERIES (execute all - include nearby cities):
+1. "major events today in ${city} ${state} and nearby cities"
+2. "concerts games tonight ${city} area"
+3. "sports matches games ${city} metro today"
+4. "bars venues events ${city} surrounding cities tonight"
+5. "festivals watch parties ${city} region today"
 
 EVENT TYPES TO FIND:
 - Concerts, live music, festivals
