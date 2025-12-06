@@ -24,16 +24,23 @@ console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!pro
 
 /**
  * Raw fetch to Gemini 3.0 Pro Preview with Google Search and safety overrides
- * @param {Object} options - { prompt, maxTokens, useSearch }
+ * CRITICAL: Reads API key at runtime (not module load) to support key rotation
+ * @param {Object} options - { prompt, maxTokens }
  * @returns {Promise<{ ok: boolean, output?: string, error?: string }>}
  */
-async function callGeminiWithSearch({ prompt, maxTokens = 4096, useSearch = true }) {
-  const apiKey = getGeminiApiKey();
+async function callGeminiWithSearch({ prompt, maxTokens = 4096 }) {
+  const apiKey = process.env.GEMINI_API_KEY; // Runtime read - NOT cached
+  const callStart = Date.now();
+  console.log(`[BriefingService] 🔄 callGeminiWithSearch START at ${new Date().toISOString()}`);
+  console.log(`[BriefingService] 🔑 API Key exists: ${!!apiKey}, length: ${apiKey?.length || 0}`);
+  
   if (!apiKey) {
+    console.error('[BriefingService] ❌ GEMINI_API_KEY not configured at runtime');
     return { ok: false, error: 'GEMINI_API_KEY not configured' };
   }
 
   try {
+    console.log(`[BriefingService] 📡 Sending Gemini request...`);
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
       {
@@ -41,7 +48,7 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, useSearch = true
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          ...(useSearch && { tools: [{ google_search: {} }] }),
+          tools: [{ google_search: {} }],
           safetySettings: [
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -59,6 +66,9 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, useSearch = true
       }
     );
 
+    const elapsed = Date.now() - callStart;
+    console.log(`[BriefingService] 📥 Gemini response received in ${elapsed}ms, status: ${response.status}`);
+    
     if (!response.ok) {
       const errText = await response.text();
       console.error(`[BriefingService] Gemini API Error ${response.status}: ${errText.substring(0, 200)}`);
@@ -70,12 +80,26 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, useSearch = true
 
     if (!text) {
       console.warn('[BriefingService] Empty response from Gemini');
+      console.warn('[BriefingService] Response structure:', JSON.stringify({
+        hasData: !!data,
+        hasCandidates: !!data.candidates,
+        candidatesLength: data.candidates?.length,
+        hasContent: !!data.candidates?.[0]?.content,
+        hasParts: !!data.candidates?.[0]?.content?.parts,
+        partsLength: data.candidates?.[0]?.content?.parts?.length,
+        firstPartKeys: data.candidates?.[0]?.content?.parts?.[0] ? Object.keys(data.candidates[0].content.parts[0]) : [],
+        promptFeedback: data.promptFeedback,
+        finishReason: data.candidates?.[0]?.finishReason
+      }));
       return { ok: false, error: 'Empty response' };
     }
 
-    return { ok: true, output: text };
+    console.log(`[BriefingService] ✅ Gemini returned ${text.length} chars in ${Date.now() - callStart}ms`);
+    const cleanText = text.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    return { ok: true, output: cleanText };
   } catch (error) {
-    console.error('[BriefingService] Gemini fetch error:', error.message);
+    const elapsed = Date.now() - callStart;
+    console.error(`[BriefingService] Gemini fetch error after ${elapsed}ms:`, error.message);
     return { ok: false, error: error.message };
   }
 }
@@ -321,11 +345,7 @@ RULES:
   try {
     console.log('[BriefingService] 📡 Calling Gemini 3 Pro Preview API for events...');
     
-    const result = await callGeminiWithSearch({
-      prompt,
-      maxTokens: 4096,
-      useSearch: true
-    });
+    const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
 
     if (!result.ok) {
       console.error('[BriefingService] ❌ Gemini events error:', result.error);
@@ -341,7 +361,10 @@ RULES:
         parsed = JSON.parse(result.output);
       } catch (parseErr) {
         // Second attempt: extract JSON from markdown code blocks
-        console.warn('[BriefingService] Direct parse failed, trying markdown extraction');
+        console.warn('[BriefingService] Direct parse failed:', parseErr.message);
+        console.warn('[BriefingService] First 50 chars:', JSON.stringify(result.output.substring(0, 50)));
+        console.warn('[BriefingService] Last 50 chars:', JSON.stringify(result.output.substring(result.output.length - 50)));
+        console.warn('[BriefingService] Trying markdown extraction...');
         let jsonStr = result.output.match(/```(?:json)?\s*([\s\S]*?)\s*```/)?.[1];
         if (!jsonStr) {
           // Third attempt: extract raw JSON array
@@ -1068,11 +1091,7 @@ Return ONLY valid JSON array:
 
 RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
 
-    const result = await callGeminiWithSearch({
-      prompt,
-      maxTokens: 8192,
-      useSearch: true
-    });
+    const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
 
     if (!result.ok) {
       console.warn(`[BriefingService] School closures error: ${result.error}`);
@@ -1137,11 +1156,7 @@ CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSO
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     
-    const result = await callGeminiWithSearch({
-      prompt,
-      maxTokens: 1500,
-      useSearch: true
-    });
+    const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
 
     if (!result.ok) {
       console.warn(`[BriefingService] Gemini traffic error: ${result.error}`);
@@ -1241,11 +1256,7 @@ Return ONLY JSON array - no markdown, no explanation.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini with search to analyze ${city}, ${state} news...`);
     
-    const result = await callGeminiWithSearch({
-      prompt,
-      maxTokens: 2048,
-      useSearch: true
-    });
+    const result = await callGeminiWithSearch({ prompt, maxTokens: 2048 });
 
     if (!result.ok) {
       console.warn(`[BriefingService] Gemini news error: ${result.error}`);
