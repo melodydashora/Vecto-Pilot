@@ -1,7 +1,6 @@
 // server/routes/chat.js
-// AI Strategy Coach - Conversational assistant for drivers
+// AI Strategy Coach - Conversational assistant for drivers with web search
 import { Router } from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
@@ -37,8 +36,6 @@ router.get('/context/:snapshotId', async (req, res) => {
     });
   }
 });
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
@@ -171,47 +168,63 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
 
     console.log(`[chat] Sending ${messageHistory.length} messages to Gemini with web search enabled`);
 
-    // Use Gemini with web search capability
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-3-pro-preview',
-      tools: [
-        {
-          googleSearch: {}
-        }
-      ]
-    });
+    // Call Gemini 3.0 Pro with web search via HTTP
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.write(`data: ${JSON.stringify({ error: 'GEMINI_API_KEY not configured' })}\n\n`);
+      return res.end();
+    }
 
     try {
-      // Generate response with streaming
-      const result = await model.generateContentStream({
-        contents: messageHistory,
-        systemInstruction: systemPrompt,
-        generationConfig: {
-          maxOutputTokens: 1024,
-          temperature: 0.7,
-        },
-        safetySettings: [
-          {
-            category: 'HARM_CATEGORY_HARASSMENT',
-            threshold: 'BLOCK_ONLY_HIGH',
-          },
-        ],
-      });
-
-      // Stream response chunks
-      for await (const chunk of result.stream) {
-        if (chunk.text) {
-          res.write(`data: ${JSON.stringify({ delta: chunk.text })}\n\n`);
+      console.log(`[chat] Calling Gemini 3.0 Pro with web search...`);
+      
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: systemPrompt }]
+            },
+            contents: messageHistory,
+            tools: [{ google_search: {} }],
+            generationConfig: {
+              temperature: 0.7,
+              topP: 0.95,
+              topK: 40,
+              maxOutputTokens: 1024,
+            },
+            safetySettings: [
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' }
+            ]
+          })
         }
+      );
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[chat] Gemini API error ${response.status}: ${errText.substring(0, 200)}`);
+        res.write(`data: ${JSON.stringify({ error: `API error ${response.status}` })}\n\n`);
+        return res.end();
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        console.warn('[chat] Empty response from Gemini');
+        res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
+      } else {
+        console.log(`[chat] ✅ Gemini response: ${text.substring(0, 100)}...`);
+        res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
       }
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (error) {
-      console.error('[chat] Gemini stream error:', error);
-      if (!res.headersSent) {
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-      }
+      console.error('[chat] Gemini request error:', error.message);
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();
     }
 
