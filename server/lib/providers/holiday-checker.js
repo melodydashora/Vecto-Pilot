@@ -6,8 +6,6 @@ import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
 /**
  * Fast holiday check using Gemini 3 Pro Preview
  * Runs EARLY in pipeline to show holiday banner while main AI processes
@@ -17,7 +15,8 @@ export async function runHolidayCheck(snapshotId) {
   const startTime = Date.now();
   console.log(`[holiday-check] 🎉 Starting for snapshot ${snapshotId}`);
   
-  if (!GEMINI_API_KEY) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
     console.warn('[holiday-check] ⚠️ GEMINI_API_KEY not configured, skipping');
     return { ok: false, reason: 'no_api_key' };
   }
@@ -44,7 +43,7 @@ export async function runHolidayCheck(snapshotId) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': GEMINI_API_KEY
+        'x-goog-api-key': apiKey
       },
       body: JSON.stringify({
         contents: [

@@ -14,9 +14,14 @@ import { callGemini } from './adapters/gemini-adapter.js';
 // - This enables full traceability and supervised learning on driver behavior patterns
 
 // Google APIs: Split keys based on API requirements
+// GOOGLE_MAPS_API_KEY is cached at module load (okay for Maps/Places/Weather which use same key)
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY; // Places, Geocoding, Weather, Routes, etc.
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Generative Language API (requires separate project)
-console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!GEMINI_API_KEY);
+// GEMINI_API_KEY is read at runtime in each function to support key rotation
+// Helper function to get fresh GEMINI_API_KEY at runtime (avoids module-level caching)
+function getGeminiApiKey() {
+  return process.env.GEMINI_API_KEY;
+}
+console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!process.env.GEMINI_API_KEY);
 
 // In-flight request deduplication cache to prevent duplicate API calls for same snapshot
 const inFlightBriefings = new Map(); // snapshot_id -> Promise<briefing>
@@ -542,7 +547,7 @@ Return a JSON array with one object per event. If you cannot confirm details, se
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
+          'x-goog-api-key': getGeminiApiKey()
         },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -683,7 +688,7 @@ If no relevant items, return: []`;
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
+          'x-goog-api-key': getGeminiApiKey()
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
@@ -780,7 +785,7 @@ export async function fetchWeatherForecast({ snapshot }) {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
+          'x-goog-api-key': getGeminiApiKey()
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
