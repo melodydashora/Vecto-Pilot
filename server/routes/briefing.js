@@ -384,8 +384,11 @@ router.get('/rideshare-news/:snapshotId', async (req, res) => {
     const snapshot = snapshotCheck[0];
     let briefing = await getBriefingBySnapshotId(snapshotId);
     
+    console.log(`[BriefingRoute] GET /briefing/rideshare-news/${snapshotId} - briefing exists: ${!!briefing}, has news: ${!!briefing?.news}`);
+    
     // Auto-generate if briefing doesn't exist
     if (!briefing) {
+      console.log(`[BriefingRoute] Auto-generating briefing for ${snapshotId}...`);
       const result = await generateAndStoreBriefing({
         snapshotId: snapshot.snapshot_id,
         lat: snapshot.lat,
@@ -395,12 +398,20 @@ router.get('/rideshare-news/:snapshotId', async (req, res) => {
         country: snapshot.country,
         formattedAddress: snapshot.formatted_address
       });
-      if (result.success) briefing = result.briefing;
+      if (result.success) {
+        briefing = result.briefing;
+        console.log(`[BriefingRoute] ✅ Generated briefing - news items: ${briefing.news?.items?.length || 0}`);
+      } else {
+        console.warn(`[BriefingRoute] ⚠️ Briefing generation returned success=false`);
+      }
     }
+    
+    const newsData = briefing?.news || { items: [], filtered: [] };
+    console.log(`[BriefingRoute] ✅ Returning ${newsData.items?.length || 0} news items`);
     
     res.json({
       success: true,
-      news: briefing?.news || { items: [], filtered: [] },
+      news: newsData,
       timestamp: new Date().toISOString()
     });
   } catch (error) {

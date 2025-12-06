@@ -292,7 +292,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedWeather && (
           <CardContent>
-            {weatherQuery.isLoading ? (
+            {weatherQuery.isLoading || !weather?.current ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-blue-600 mr-2" />
                 <span className="text-gray-600">Loading weather...</span>
@@ -395,7 +395,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedTraffic && (
           <CardContent>
-            {trafficQuery.isLoading ? (
+            {trafficQuery.isLoading || !traffic ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-orange-600 mr-2" />
                 <span className="text-gray-600">Loading traffic...</span>
@@ -460,7 +460,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedNews && (
           <CardContent>
-            {rideshareNewsQuery.isLoading ? (
+            {rideshareNewsQuery.isLoading || !rideshareNewsQuery.data ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
                 <span className="text-gray-600">Loading news...</span>
@@ -505,7 +505,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
       </Card>
 
       {/* All Events - Consolidated Component */}
-      {eventsQuery.isLoading ? (
+      {eventsQuery.isLoading || !eventsQuery.data ? (
         <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
           <CardContent className="p-6">
             <div className="flex items-center justify-center py-8">
@@ -529,7 +529,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedClosures && (
           <CardContent>
-            {schoolClosuresQuery.isLoading ? (
+            {schoolClosuresQuery.isLoading || !schoolClosuresQuery.data ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
                 <span className="text-gray-600">Loading...</span>
