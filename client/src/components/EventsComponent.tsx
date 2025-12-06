@@ -9,6 +9,7 @@ interface Event {
   address?: string;
   event_date?: string;
   event_time?: string;
+  event_end_time?: string;
   type?: string;
   subtype?: string;
   estimated_distance_miles?: number;
@@ -28,7 +29,7 @@ export default function EventsComponent({ events, isLoading }: EventsComponentPr
     sports: true,
     festivals: true,
     conventions: true,
-    other: false,
+    other: true,
   });
 
   const getImpactColor = (impact?: string) => {
@@ -84,7 +85,7 @@ export default function EventsComponent({ events, isLoading }: EventsComponentPr
     sports: "🏀 Sports & Games",
     festivals: "🎉 Festivals & Events",
     conventions: "🎪 Conventions & Expos",
-    other: "📍 Other Events",
+    other: "📍 Events",
   };
 
   const categoryColors: Record<string, string> = {
@@ -171,10 +172,13 @@ export default function EventsComponent({ events, isLoading }: EventsComponentPr
                           </div>
                         )}
 
-                        {event.event_time && (
+                        {(event.event_time || event.event_end_time) && (
                           <div className="flex items-center gap-2">
                             <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                            <span>{event.event_time}</span>
+                            <span>
+                              {event.event_time}
+                              {event.event_end_time && event.event_time ? ` - ${event.event_end_time}` : event.event_end_time ? event.event_end_time : ""}
+                            </span>
                           </div>
                         )}
 
