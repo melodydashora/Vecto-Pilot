@@ -79,6 +79,14 @@ Every table referencing `snapshot_id` also stores the resolved precise location 
 - **Implementation**: `useGeoPosition.ts` with `maximumAge: 0` forces fresh requests on each permission prompt
 
 ## Recent Changes & Fixes
+- **Dec 6, 2025 (CRITICAL CLEANUP & SECURITY HARDENING)**:
+  - ✅ **Code Debt Elimination**: Deleted 170+ lines of dead code from `strategy-generator.js` (old Claude Opus pipeline)
+  - ✅ **Architecture Cleanup**: Removed `runParallelProviders` function (100 lines, "OLD ARCHITECTURE") from `strategy-generator-parallel.js`
+  - ✅ **Duplicate Files**: Deleted legacy `llm-router.js` and unused `google-gemini.js` adapter
+  - ✅ **Security Hardening - briefing.js**: Added `requireAuth` to all endpoints + ownership checks (IDOR protection)
+  - ✅ **Stability Fixes - blocks-fast.js**: Changed `Promise.all` → `Promise.allSettled` (briefing now optional), fixed SQL schema mismatch with proper joins, moved dynamic imports to top for performance, added authentication
+  - **Result**: Codebase reduced complexity, improved stability, closed security vulnerabilities
+
 - **Dec 6, 2025 (DUPLICATE API OPTIMIZATION)**:
   - ✅ Fixed "lat is not defined" bug in briefing-service.js (line 1207) - critical blocker
   - ✅ Fixed Weather API duplication by reusing `snapshot.weather` instead of re-fetching
