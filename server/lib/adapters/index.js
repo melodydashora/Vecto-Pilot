@@ -47,8 +47,9 @@ export async function callModel(role, { system, user }) {
     return callGemini({ model, system, user, maxTokens, temperature, topP, topK });
   }
   
+  // Perplexity disabled - briefing system uses Gemini 3.0 Pro directly
   if (model.startsWith("sonar-")) {
-    return callPerplexity({ model, system, user, maxTokens, temperature });
+    throw new Error(`Perplexity (sonar-pro) disabled for briefing pipeline. Use Gemini 3.0 Pro instead for role: ${role}`);
   }
 
   throw new Error(`Unsupported model for role ${role}: ${model}`);
