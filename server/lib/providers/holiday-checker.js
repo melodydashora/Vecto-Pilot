@@ -1,15 +1,15 @@
 // server/lib/providers/holiday-checker.js
-// Early holiday detection using Perplexity for instant UI feedback
+// Early holiday detection using Gemini 3 Pro Preview for instant UI feedback
 
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 
-const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
 /**
- * Fast holiday check using Perplexity
+ * Fast holiday check using Gemini 3 Pro Preview
  * Runs EARLY in pipeline to show holiday banner while main AI processes
  * @param {string} snapshotId - UUID of snapshot
  */
@@ -17,8 +17,8 @@ export async function runHolidayCheck(snapshotId) {
   const startTime = Date.now();
   console.log(`[holiday-check] 🎉 Starting for snapshot ${snapshotId}`);
   
-  if (!PERPLEXITY_API_KEY) {
-    console.warn('[holiday-check] ⚠️ PERPLEXITY_API_KEY not configured, skipping');
+  if (!GEMINI_API_KEY) {
+    console.warn('[holiday-check] ⚠️ GEMINI_API_KEY not configured, skipping');
     return { ok: false, reason: 'no_api_key' };
   }
   
@@ -26,7 +26,7 @@ export async function runHolidayCheck(snapshotId) {
     // Get snapshot context for date/time
     const ctx = await getSnapshotContext(snapshotId);
     
-    // Format date/time for Perplexity
+    // Format date/time for Gemini
     const currentTime = new Date(ctx.created_at);
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -40,41 +40,37 @@ export async function runHolidayCheck(snapshotId) {
     
     console.log(`[holiday-check] 📅 Checking date: ${formattedDate}`);
     
-    // Call Perplexity with focused holiday question
-    const model = process.env.STRATEGY_HOLIDAY_CHECKER || 'llama-3.1-sonar-small-128k-online';
-    
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-goog-api-key': GEMINI_API_KEY
       },
       body: JSON.stringify({
-        model: model,
-        messages: [
+        contents: [
           {
-            role: 'system',
-            content: 'You are a holiday expert. Answer with ONLY the holiday name, or "none" if no holiday.'
-          },
-          {
-            role: 'user',
-            content: `What holiday is celebrated on ${formattedDate} in the United States? Include cultural holidays like Día de los Muertos. Answer with ONLY the holiday name (e.g., "Día de los Muertos", "Halloween", "Independence Day") or "none".`
+            parts: [
+              {
+                text: `What holiday is celebrated on ${formattedDate} in the United States? Include cultural holidays like Día de los Muertos. Answer with ONLY the holiday name (e.g., "Día de los Muertos", "Halloween", "Independence Day") or "none".`
+              }
+            ]
           }
         ],
-        temperature: 0.2,
-        max_tokens: 50,
-        stream: false
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 50
+        }
       }),
       signal: AbortSignal.timeout(5000) // 5 second timeout
     });
     
     if (!response.ok) {
-      console.error(`[holiday-check] ❌ Perplexity API error: ${response.status}`);
+      console.error(`[holiday-check] ❌ Gemini API error: ${response.status}`);
       return { ok: false, error: `api_error_${response.status}` };
     }
     
     const data = await response.json();
-    const holidayText = data.choices?.[0]?.message?.content?.trim() || '';
+    const holidayText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
     
     // Parse holiday (clean up response)
     let holiday = null;

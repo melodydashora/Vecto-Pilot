@@ -1,17 +1,17 @@
 // server/lib/holiday-detector.js
-// Fast holiday detection using Perplexity - runs during snapshot creation
+// Fast holiday detection using Gemini 3 Pro Preview - runs during snapshot creation
 
 /**
- * Detect holiday for a given date/location using Perplexity API
+ * Detect holiday for a given date/location using Gemini 3 Pro Preview
  * Runs in parallel with airport/weather enrichment during snapshot creation
  * @param {Object} context - { created_at, city, state, country, timezone }
  * @returns {Promise<{ holiday: string|null, is_holiday: boolean }>}
  */
 export async function detectHoliday(context) {
   try {
-    const apiKey = process.env.PERPLEXITY_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
-      console.warn('[holiday-detector] ⚠️  PERPLEXITY_API_KEY not set - skipping holiday detection');
+      console.warn('[holiday-detector] ⚠️  GEMINI_API_KEY not set - skipping holiday detection');
       return { holiday: null, is_holiday: false };
     }
 
@@ -34,22 +34,18 @@ export async function detectHoliday(context) {
     
     const formattedDateTime = dateFormatter.format(utcTime);
 
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
       },
       body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [
+        contents: [
           {
-            role: 'system',
-            content: 'You are a holiday detection assistant. Use live web search to verify holidays. Return ONLY the primary holiday name or empty string if not a holiday.'
-          },
-          {
-            role: 'user',
-            content: `Date: ${formattedDateTime}
+            parts: [
+              {
+                text: `Date: ${formattedDateTime}
 Timezone: ${context.timezone}
 Location: ${context.city}, ${context.state}, ${context.country}
 
@@ -68,18 +64,20 @@ DO NOT RETURN:
 - Election days (unless it's a major national election)
 
 Return ONLY the holiday name if one exists, otherwise return empty string.`
+              }
+            ]
           }
         ],
-        max_tokens: 100,
-        temperature: 0.1,
-        search_recency_filter: 'day',
-        stream: false
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 100
+        }
       })
     });
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error('[holiday-detector] ❌ Perplexity API error:', {
+      console.error('[holiday-detector] ❌ Gemini API error:', {
         status: response.status,
         statusText: response.statusText,
         error: errorBody
@@ -88,7 +86,7 @@ Return ONLY the holiday name if one exists, otherwise return empty string.`
     }
 
     const data = await response.json();
-    const holidayText = data.choices?.[0]?.message?.content?.trim() || '';
+    const holidayText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
     
     // Clean up response - remove extra text, just get the holiday name
     let cleanHoliday = holidayText
