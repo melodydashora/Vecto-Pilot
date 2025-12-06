@@ -165,49 +165,6 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   }
 }
 
-function buildEventsPrompt({ lat, lng, date, timezone }) {
-  return `
-You are an event finder agent. Use live web search (Google Search tool).
-
-Assume:
-- location = (${lat}, ${lng})
-- radius = 50 miles
-- date = ${date}
-- timezone = ${timezone}
-
-Find any events on that date within the radius. Events include:
-- concerts
-- sporting games
-- watch-parties
-- festivals
-- road-closures
-- special local events
-- anything likely to affect rideshare demand or routing.
-
-Return exactly ONE JSON array (no explanation, no markdown).
-Each item in the array should include as many of these fields as you can discover:
-
-- title
-- venue
-- address (if available)
-- event_date (YYYY-MM-DD)
-- event_time (HH:MM local, if available)
-- type — one of: demand_event, road_closure, other
-- subtype — optional; if known, a more detailed category (concert, sports, watch_party, festival, parade, theater, etc.)
-- estimated_distance_miles — approximate distance from (${lat}, ${lng}), rounded to one decimal (if you can estimate)
-- impact — high / medium / low (if you can estimate)
-- recommended_driver_action — go_now / avoid_area / reposition_to:<area> / wait (if you can estimate)
-- confidence — high / medium / low (if you can estimate)
-
-If a field is missing because you couldn't find it, you may omit that field.
-But include the event if at least "title" is present.
-
-Important formatting rules:
-- Output ONLY a valid JSON array. No backticks, no \`\`\`json fences, no extra text.
-- Do NOT output any internal metadata, IDs, reasoning tokens, or debug info.
-`.trim();
-}
-
 async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] GEMINI_API_KEY is not set; skipping events lookup.');
@@ -221,41 +178,72 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const lng = snapshot?.lng || -96.8756;
   console.log(`[BriefingService] 🎯 Fetching events: city=${city}, state=${state}, lat=${lat}, lng=${lng}, date=${date}`);
   
-  const prompt = `You MUST find and return events happening in ${city}, ${state} area. Search the web NOW.
+  const prompt = `TASK: Find ALL major events happening in ${city}, ${state} TODAY (${date}) that affect rideshare demand. Use Google Search tool now.
 
-Location: ${city}, ${state} (${lat}, ${lng})
-Search Date: ${date}
+LOCATION: ${city}, ${state} (${lat}, ${lng}) - 50 mile radius
+DATE: ${date} ONLY - NO future dates, NO past events
+TIMEZONE: ${snapshot?.timezone || 'America/Chicago'}
 
-MANDATORY SEARCHES:
-1. Search: "events happening today in ${city} ${state}"
-2. Search: "concerts games festivals ${city} tonight"
-3. Search: "${city} Texas events this weekend"
-4. Search: "sports games watch parties ${city}"
+SEARCH QUERIES (execute all):
+1. "major events today in ${city} ${state}"
+2. "concerts games tonight ${city}"
+3. "sports matches games ${city} today"
+4. "bars venues events ${city} tonight"
+5. "festivals watch parties ${city} today"
 
-RETURN events in this exact JSON structure:
+EVENT TYPES TO FIND:
+- Concerts, live music, festivals
+- Sports games, matches, watch parties
+- Comedy shows, theaters, performances
+- Major venue events (bars, clubs, restaurants with events)
+- Parades, street fairs, community events
+- Anything with major expected crowd/rideshare demand TODAY
+
+CRITICAL REQUIREMENTS FOR EACH EVENT:
+✓ Event title (exact name)
+✓ Venue name (specific location)
+✓ Full street address (street, city, state, zip)
+✓ Event start time (HH:MM AM/PM local time)
+✓ Event end time (HH:MM AM/PM local time) - REQUIRED
+✓ Estimated distance in miles from (${lat}, ${lng})
+✓ Staging/parking area recommendations for rideshare drivers
+✓ Impact level on rideshare demand (high/medium/low)
+
+FILTERING RULES:
+- ONLY include events happening TODAY (${date})
+- EXCLUDE any past events (ones that have already ended)
+- EXCLUDE future dates or weekend references
+- EXCLUDE events with missing start/end times
+- Prioritize high-impact demand events
+
+MINIMUM REQUIREMENTS:
+- Return AT LEAST 5-10 major events if available
+- If fewer than 5 found, still return all found events
+- Never return empty array if any events exist
+
+RETURN FORMAT (ONLY this JSON, no markdown):
 [
   {
     "title": "Event Name",
-    "venue": "Venue Name", 
-    "address": "Full Street Address, City",
-    "event_date": "2025-12-06",
+    "venue": "Venue Name",
+    "address": "123 Main St, City, ST 12345",
+    "event_date": "${date}",
     "event_time": "7:00 PM",
     "event_end_time": "11:00 PM",
     "type": "demand_event",
-    "estimated_distance_miles": 5.0,
+    "subtype": "concert",
+    "estimated_distance_miles": 5.2,
     "impact": "high",
+    "staging_area": "North parking lot, enter via Main St",
     "recommended_driver_action": "reposition_now"
   }
 ]
 
 RULES:
-- You MUST return at least 1-2 events ALWAYS
-- Search until you find results
-- Never return empty array []
-- Include full addresses
-- Focus on demand-driving events (games, concerts, bars, venues)
-
-Return ONLY JSON array - no markdown, no explanation.`;
+- Output ONLY valid JSON array - NO markdown, NO backticks, NO explanation
+- ALWAYS include: title, venue, address, event_date, event_time, event_end_time, impact
+- Never pad with fake events
+- Use actual web search results only`;
 
   const body = {
     contents: [
