@@ -154,9 +154,9 @@ SORT ORDER:
 Return ONLY valid JSON, no markdown.`;
 
   try {
-    console.log(`[VenueIntelligence] 🎯 Calling GPT-4-Turbo for venue discovery in ${city}, ${state}`);
+    console.log(`[VenueIntelligence] 🎯 Calling GPT-5.1 for venue discovery in ${city}, ${state}`);
     const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
+      model: 'gpt-5.1',
       messages: [
         {
           role: 'user',
@@ -168,7 +168,7 @@ Return ONLY valid JSON, no markdown.`;
       response_format: { type: 'json_object' }
     });
     const text = response.choices[0]?.message?.content || '';
-    console.log(`[VenueIntelligence] ✅ GPT-4-Turbo venue discovery returned ${text.length} chars`);
+    console.log(`[VenueIntelligence] ✅ GPT-5.1 venue discovery returned ${text.length} chars`);
     
     // Parse JSON response - handle both raw JSON and markdown-wrapped JSON
     let venueData;
