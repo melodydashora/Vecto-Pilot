@@ -545,10 +545,14 @@ router.get('/weather', async (req, res) => {
       });
     }
 
-    // Use Google Weather API (same as briefing-service for consistency)
+    // Use Google Weather API with all required fields
     const [currentRes, forecastRes] = await Promise.all([
-      fetch(`https://weather.googleapis.com/v1/currentConditions:lookup?location.latitude=${lat}&location.longitude=${lng}&key=${GOOGLE_MAPS_API_KEY}`),
-      fetch(`https://weather.googleapis.com/v1/forecast/hours:lookup?location.latitude=${lat}&location.longitude=${lng}&hours=6&key=${GOOGLE_MAPS_API_KEY}`)
+      fetch(`https://weather.googleapis.com/v1/currentConditions:lookup?location.latitude=${lat}&location.longitude=${lng}&key=${GOOGLE_MAPS_API_KEY}`, {
+        headers: { 'X-Goog-Api-Client': 'gl-node/' }
+      }),
+      fetch(`https://weather.googleapis.com/v1/forecast/hourly?location.latitude=${lat}&location.longitude=${lng}&key=${GOOGLE_MAPS_API_KEY}`, {
+        headers: { 'X-Goog-Api-Client': 'gl-node/' }
+      })
     ]);
 
     let current = null;
@@ -556,9 +560,14 @@ router.get('/weather', async (req, res) => {
 
     if (currentRes.ok) {
       const currentData = await currentRes.json();
-      // Google Weather API returns Celsius - convert to Fahrenheit
-      const tempF = currentData.temperature ? Math.round((currentData.temperature * 9/5) + 32) : null;
-      const feelsLikeF = currentData.feelsLikeTemperature ? Math.round((currentData.feelsLikeTemperature * 9/5) + 32) : null;
+      // Log raw response to debug structure
+      console.log('[Location API] Raw weather response:', JSON.stringify(currentData).substring(0, 500));
+      
+      // Google Weather API returns Celsius in 'temperature' object with 'value' field
+      const tempC = currentData.temperature?.value ?? currentData.temperature;
+      const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
+      const feelsLikeC = currentData.feelsLikeTemperature?.value ?? currentData.feelsLikeTemperature;
+      const feelsLikeF = feelsLikeC ? Math.round((feelsLikeC * 9/5) + 32) : null;
       
       current = {
         available: true,
@@ -567,8 +576,8 @@ router.get('/weather', async (req, res) => {
         feelsLike: feelsLikeF,
         conditions: currentData.weatherCondition?.description?.text,
         description: currentData.weatherCondition?.description?.text || 'Unknown',
-        humidity: currentData.relativeHumidity,
-        windSpeed: currentData.wind?.speed,
+        humidity: currentData.relativeHumidity?.value ?? currentData.relativeHumidity,
+        windSpeed: currentData.windSpeed?.value ?? currentData.windSpeed,
         windDirection: currentData.wind?.direction?.cardinal,
         uvIndex: currentData.uvIndex,
         precipitation: currentData.precipitation,
@@ -580,14 +589,15 @@ router.get('/weather', async (req, res) => {
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
       forecast = (forecastData.forecastHours || []).slice(0, 6).map((hour) => {
-        const tempF = hour.temperature ? Math.round((hour.temperature * 9/5) + 32) : null;
+        const tempC = hour.temperature?.value ?? hour.temperature;
+        const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
         return {
-          time: hour.displayDateTime,
+          time: hour.time,
           temperature: tempF,
           tempF: tempF,
-          conditions: hour.weatherCondition?.description?.text,
-          precipitationProbability: hour.precipitation?.probability?.percent,
-          windSpeed: hour.wind?.speed,
+          conditions: hour.condition?.text ?? hour.weatherCondition?.description?.text,
+          precipitationProbability: hour.precipitationProbability?.value ?? hour.precipitation?.probability?.percent,
+          windSpeed: hour.windSpeed?.value ?? hour.wind?.speed,
           isDaytime: hour.isDaytime
         };
       });
