@@ -35,13 +35,6 @@ const googleMapsCircuit = makeCircuit({
   timeoutMs: 5000 
 });
 
-const openWeatherCircuit = makeCircuit({ 
-  name: 'openweather', 
-  failureThreshold: 3, 
-  resetAfterMs: 30000, 
-  timeoutMs: 3000 
-});
-
 const googleAQCircuit = makeCircuit({ 
   name: 'google-airquality', 
   failureThreshold: 3, 
@@ -55,7 +48,6 @@ function httpError(res, status, code, message, reqId, extra = {}) {
 }
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
-const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;
 
 // UNIFIED: Accept manual city overrides consistently (test and debug feature)
@@ -535,7 +527,7 @@ router.get('/resolve', async (req, res) => {
 });
 
 // GET /api/location/weather?lat=&lng=
-// Get current weather conditions for coordinates
+// Get current weather conditions for coordinates using Google Weather API
 router.get('/weather', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
@@ -545,59 +537,65 @@ router.get('/weather', async (req, res) => {
       return res.status(400).json({ error: 'lat/lng required' });
     }
 
-    if (!OPENWEATHER_API_KEY) {
-      console.warn('[location] No OpenWeather API key configured');
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn('[location] No Google Maps API key configured');
       return res.json({ 
         available: false,
         error: 'API key not configured' 
       });
     }
 
-    const url = new URL('https://api.openweathermap.org/data/2.5/weather');
-    url.searchParams.set('lat', String(lat));
-    url.searchParams.set('lon', String(lng));
-    url.searchParams.set('appid', OPENWEATHER_API_KEY);
-    url.searchParams.set('units', 'imperial'); // Fahrenheit, mph
+    // Use Google Weather API (same as briefing-service for consistency)
+    const [currentRes, forecastRes] = await Promise.all([
+      fetch(`https://weather.googleapis.com/v1/currentConditions:lookup?location.latitude=${lat}&location.longitude=${lng}&key=${GOOGLE_MAPS_API_KEY}`),
+      fetch(`https://weather.googleapis.com/v1/forecast/hours:lookup?location.latitude=${lat}&location.longitude=${lng}&hours=6&key=${GOOGLE_MAPS_API_KEY}`)
+    ]);
 
-    const data = await openWeatherCircuit(async (signal) => {
-      const response = await fetch(url.toString(), { signal });
-      if (!response.ok) {
-        throw new Error(`OpenWeather API error: ${response.status}`);
-      }
-      return await response.json();
-    });
+    let current = null;
+    let forecast = [];
 
-    if (data.cod !== 200) {
-      console.error('[location] Weather API error:', data.message);
-      return res.status(500).json({ 
-        available: false,
-        error: data.message 
-      });
+    if (currentRes.ok) {
+      const currentData = await currentRes.json();
+      current = {
+        available: true,
+        temperature: currentData.temperature,
+        feelsLike: currentData.feelsLikeTemperature,
+        conditions: currentData.weatherCondition?.description?.text,
+        description: currentData.weatherCondition?.description?.text || 'Unknown',
+        humidity: currentData.relativeHumidity,
+        windSpeed: currentData.wind?.speed,
+        windDirection: currentData.wind?.direction?.cardinal,
+        uvIndex: currentData.uvIndex,
+        precipitation: currentData.precipitation,
+        visibility: currentData.visibility,
+        isDaytime: currentData.isDaytime
+      };
     }
 
-    const weatherData = {
-      available: true,
-      temperature: Math.round(data.main?.temp || 0),
-      feelsLike: Math.round(data.main?.feels_like || 0),
-      conditions: data.weather?.[0]?.main || 'Unknown',
-      description: data.weather?.[0]?.description || '',
-      humidity: data.main?.humidity || 0,
-      windSpeed: Math.round(data.wind?.speed || 0),
-      precipitation: data.rain?.['1h'] || data.snow?.['1h'] || 0,
-      icon: data.weather?.[0]?.icon || '',
-    };
-    
+    if (forecastRes.ok) {
+      const forecastData = await forecastRes.json();
+      forecast = (forecastData.forecastHours || []).slice(0, 6).map((hour) => ({
+        time: hour.displayDateTime,
+        temperature: hour.temperature,
+        conditions: hour.weatherCondition?.description?.text,
+        precipitationProbability: hour.precipitation?.probability?.percent,
+        windSpeed: hour.wind?.speed,
+        isDaytime: hour.isDaytime
+      }));
+    }
+
     console.log(`[Location API] 🌤️ Weather fetched:`, {
       lat,
       lng,
-      temp: weatherData.temperature,
-      feelsLike: weatherData.feelsLike,
-      conditions: weatherData.conditions,
-      humidity: weatherData.humidity,
-      windSpeed: weatherData.windSpeed
+      temp: current?.temperature,
+      conditions: current?.conditions,
+      humidity: current?.humidity
     });
     
-    res.json(weatherData);
+    res.json({
+      ...current,
+      forecast
+    });
   } catch (err) {
     console.error('[location] weather error', err);
     res.status(500).json({ 
