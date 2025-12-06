@@ -728,11 +728,17 @@ If no relevant items, return: []`;
   }
 }
 
-export async function fetchWeatherConditions({ lat, lng }) {
+export async function fetchWeatherConditions({ snapshot }) {
   if (!GOOGLE_MAPS_API_KEY) {
     console.warn('[BriefingService] GOOGLE_MAPS_API_KEY not set, skipping weather fetch');
     return { current: null, forecast: [], error: 'GOOGLE_MAPS_API_KEY not configured' };
   }
+
+  if (!snapshot?.lat || !snapshot?.lng) {
+    return { current: null, forecast: [], error: 'Missing coordinates' };
+  }
+
+  const { lat, lng } = snapshot;
 
   try {
     const [currentRes, forecastRes] = await Promise.all([
@@ -808,11 +814,17 @@ export async function fetchWeatherConditions({ lat, lng }) {
   }
 }
 
-export async function fetchSchoolClosures({ city, state, lat, lng }) {
+export async function fetchSchoolClosures({ snapshot }) {
   if (!GEMINI_API_KEY) {
     console.log('[BriefingService] Skipping school closures (no Gemini API key)');
     return [];
   }
+
+  if (!snapshot?.city || !snapshot?.state || !snapshot?.lat || !snapshot?.lng) {
+    return [];
+  }
+
+  const { city, state, lat, lng } = snapshot;
 
   try {
     const prompt = `Find upcoming school closures/breaks for ${city}, ${state} within 15 miles of coordinates (${lat}, ${lng}) for the next 30 days.
@@ -1122,14 +1134,14 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   console.log(`[BriefingService] Generating briefing for ${city}, ${state}, ${country} (${lat}, ${lng})`);
   console.log(`[BriefingService] ✅ Using full snapshot: lat=${lat}, lng=${lng}, timezone=${timezone}, date=${date}`);
 
-  // Fetch all briefing components in parallel
+  // Fetch all briefing components in parallel - pass FULL snapshot to all functions
   console.log(`[BriefingService] 🔍 Fetching events, news, weather, traffic, school closures... snapshot=${!!snapshot}`);
   const [rawEvents, newsItems, weatherResult, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchRideshareNews({ snapshot }),
-    fetchWeatherConditions({ lat, lng }),
+    fetchWeatherConditions({ snapshot }),
     fetchTrafficConditions({ snapshot }),
-    fetchSchoolClosures({ city, state, lat, lng })
+    fetchSchoolClosures({ snapshot })
   ]);
   console.log(`[BriefingService] ✅ Events fetched from Gemini: ${rawEvents.length} raw events`);
   console.log(`[BriefingService] ✅ News fetched: ${newsItems.length} items`);
