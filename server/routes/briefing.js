@@ -299,27 +299,7 @@ router.get('/weather/realtime', async (req, res) => {
 router.get('/weather/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
-    const snapshotCheck = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    const snapshot = snapshotCheck[0];
     let briefing = await getBriefingBySnapshotId(snapshotId);
-    
-    // Auto-generate if briefing doesn't exist
-    if (!briefing) {
-      const result = await generateAndStoreBriefing({
-        snapshotId: snapshot.snapshot_id,
-        lat: snapshot.lat,
-        lng: snapshot.lng,
-        city: snapshot.city,
-        state: snapshot.state,
-        country: snapshot.country,
-        formattedAddress: snapshot.formatted_address
-      });
-      if (result.success) briefing = result.briefing;
-    }
     
     res.json({
       success: true,
@@ -339,27 +319,7 @@ router.get('/weather/:snapshotId', async (req, res) => {
 router.get('/traffic/:snapshotId', async (req, res) => {
   try {
     const { snapshotId } = req.params;
-    const snapshotCheck = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotCheck.length === 0) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    const snapshot = snapshotCheck[0];
     let briefing = await getBriefingBySnapshotId(snapshotId);
-    
-    // Auto-generate if briefing doesn't exist
-    if (!briefing) {
-      const result = await generateAndStoreBriefing({
-        snapshotId: snapshot.snapshot_id,
-        lat: snapshot.lat,
-        lng: snapshot.lng,
-        city: snapshot.city,
-        state: snapshot.state,
-        country: snapshot.country,
-        formattedAddress: snapshot.formatted_address
-      });
-      if (result.success) briefing = result.briefing;
-    }
     
     res.json({
       success: true,
