@@ -79,6 +79,13 @@ Every table referencing `snapshot_id` also stores the resolved precise location 
 - **Implementation**: `useGeoPosition.ts` with `maximumAge: 0` forces fresh requests on each permission prompt
 
 ## Recent Changes & Fixes
+- **Dec 6, 2025 (DUPLICATE SNAPSHOT SENDS ELIMINATED)**:
+  - ✅ **Identified root cause**: Both `location-context-clean.tsx` AND `GlobalHeader.tsx` were independently creating and POSTing snapshots
+  - ✅ **Removed duplicate**: Deleted `persistSnapshot()` and `buildAndSaveSnapshot()` functions from GlobalHeader (170+ lines)
+  - ✅ **Single source of truth**: Only `location-context-clean.tsx` now creates snapshots (verified no other callers)
+  - ✅ **Briefing queries moved**: All 5 briefing data queries moved to `co-pilot.tsx` page level, run in parallel regardless of active tab
+  - **Result**: No more duplicate snapshot POSTs, faster briefing data loading, cleaner architecture
+
 - **Dec 6, 2025 (CRITICAL CLEANUP & SECURITY HARDENING)**:
   - ✅ **Code Debt Elimination**: Deleted 170+ lines of dead code from `strategy-generator.js` (old Claude Opus pipeline)
   - ✅ **Architecture Cleanup**: Removed `runParallelProviders` function (100 lines, "OLD ARCHITECTURE") from `strategy-generator-parallel.js`
