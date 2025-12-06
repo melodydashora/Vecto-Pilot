@@ -436,6 +436,13 @@ router.get('/events/:snapshotId', requireAuth, async (req, res) => {
     
     briefing = parseBriefingData(briefing);
     const allEvents = briefing && Array.isArray(briefing.events) ? briefing.events : [];
+    console.log(`[BriefingRoute] 📍 Events endpoint - briefing:`, {
+      hasEvents: !!briefing?.events,
+      eventsType: typeof briefing?.events,
+      eventsLength: allEvents.length,
+      eventsIsArray: Array.isArray(briefing?.events),
+      firstEvent: allEvents[0] ? { title: allEvents[0].title, venue: allEvents[0].venue } : null
+    });
     res.json({
       success: true,
       events: allEvents,
