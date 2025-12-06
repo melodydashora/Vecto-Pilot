@@ -1560,8 +1560,21 @@ const CoPilot: React.FC = () => {
               {blocks.map((block, index) => {
                 const isSelected = selectedBlocks.has(index);
 
-                // Simple neutral card styling - grade-based coloring removed
-                const cardGradient = 'bg-white border-gray-200';
+                // Gradient colors based on ranking icons
+                let cardGradient = 'bg-white border-gray-200';
+                if (index <= 1) {
+                  // 🔥 HIGH VALUE - Red/Orange gradient
+                  cardGradient = 'bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 border-orange-300';
+                } else if (index <= 3) {
+                  // ⭐ GOOD OPPORTUNITY - Yellow/Gold gradient
+                  cardGradient = 'bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 border-yellow-300';
+                } else if (Number(block.estimated_distance_miles ?? 0) <= 5) {
+                  // 📍 NEARBY OPTION - Blue gradient
+                  cardGradient = 'bg-gradient-to-br from-blue-50 via-cyan-50 to-sky-50 border-blue-300';
+                } else {
+                  // 💡 STRATEGIC - Purple gradient
+                  cardGradient = 'bg-gradient-to-br from-purple-50 via-violet-50 to-fuchsia-50 border-purple-300';
+                }
 
                 return (
                   <Card
