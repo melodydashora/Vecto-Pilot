@@ -87,11 +87,23 @@ function validateEnvContract() {
  * Priority: Replit Secrets > mode-specific.env > shared.env > mono-mode.env (fallback)
  */
 export function loadEnvironment() {
+  const isReplitDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
   const deployMode = process.env.DEPLOY_MODE || null;
   
   console.log('[env-loader] ========================================');
   console.log('[env-loader] Environment Contract Loader');
   console.log('[env-loader] ========================================');
+
+  // In Replit deployment, skip file loading and use only process.env from Replit Secrets
+  if (isReplitDeployment) {
+    console.log('[env-loader] ✅ Replit deployment detected - using Replit Secrets (skipping .env files)');
+    console.log('[env-loader] DEPLOY_MODE=' + (deployMode || 'mono'));
+    console.log('[env-loader] Validating environment contract...');
+    validateEnvContract();
+    console.log('[env-loader] ✅ Contract validation passed');
+    console.log('[env-loader] ========================================');
+    return;
+  }
 
   if (!deployMode) {
     // Fallback to mono-mode.env for backward compatibility
@@ -105,7 +117,7 @@ export function loadEnvironment() {
     return;
   }
 
-  // New contract-driven approach
+  // New contract-driven approach (development only)
   console.log(`[env-loader] DEPLOY_MODE=${deployMode}`);
 
   // Step 1: Load shared.env (common variables - loaded FIRST as baseline)
@@ -113,7 +125,7 @@ export function loadEnvironment() {
   if (loadEnvFile(sharedPath)) {
     console.log('[env-loader] ✅ Loaded: env/shared.env (baseline)');
   } else {
-    console.warn('[env-loader] ⚠️  env/shared.env not found (OK in deployment - using Replit Secrets)');
+    console.warn('[env-loader] ⚠️  env/shared.env not found');
   }
 
   // Step 2: Load mode-specific env file (OVERRIDES shared values)
@@ -137,7 +149,7 @@ export function loadEnvironment() {
       console.warn(`[env-loader] ⚠️  ${modeFile} could not be loaded`);
     }
   } else {
-    console.warn(`[env-loader] ⚠️  ${modeFile} not found (OK in deployment - using Replit Secrets)`);
+    console.warn(`[env-loader] ⚠️  ${modeFile} not found`);
   }
 
   // Step 3: Validate contract
