@@ -905,7 +905,7 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
 
 /**
  * Fetch rideshare-relevant news for a location
- * Combines SerpAPI news fetching with Gemini filtering
+ * Gets news and filters for rideshare driver relevance
  */
 async function fetchRideshareNews({ city, state, country, lat, lng }) {
   try {
@@ -917,8 +917,8 @@ async function fetchRideshareNews({ city, state, country, lat, lng }) {
 
     console.log(`[BriefingService] 📰 Fetching rideshare news for ${city}, ${state}...`);
     
-    // Fetch news from SerpAPI
-    const query = `rideshare ${city} ${state} events news`;
+    // Fetch news from SerpAPI - search for rideshare/driver/uber/lyft relevant news
+    const query = `uber lyft rideshare driver ${city} ${state}`;
     const response = await fetch(
       `https://serpapi.com/search?q=${encodeURIComponent(query)}&tbm=nws&api_key=${SERP_API_KEY}&num=10`
     );
@@ -936,11 +936,19 @@ async function fetchRideshareNews({ city, state, country, lat, lng }) {
       return [];
     }
 
-    // Filter with Gemini
-    const filteredNews = await filterNewsWithGemini(newsResults, city, state, country, lat, lng);
-    console.log(`[BriefingService] ✅ Filtered ${newsResults.length} news items → ${filteredNews.length} relevant`);
+    console.log(`[BriefingService] ✅ Got ${newsResults.length} news items from SerpAPI`);
     
-    return filteredNews;
+    // Transform to briefing format - keep what's new and useful
+    const rideshareNews = newsResults.map(item => ({
+      title: item.title,
+      summary: item.snippet || item.title,
+      impact: 'medium',
+      source: item.source || 'News',
+      link: item.link,
+      date: item.date
+    }));
+    
+    return rideshareNews;
   } catch (error) {
     console.error('[BriefingService] Rideshare news fetch error:', error.message);
     return [];
@@ -1003,6 +1011,14 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
   };
 
   try {
+    console.log(`[BriefingService] 💾 Storing briefing data:`, {
+      snapshot_id: snapshotId,
+      news_items: briefingData.news?.items?.length || 0,
+      weather_current: !!briefingData.weather_current,
+      events: briefingData.events?.length || 0,
+      traffic_summary: briefingData.traffic_conditions?.summary?.substring(0, 50) || 'none'
+    });
+    
     const existing = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     
     if (existing.length > 0) {
@@ -1020,10 +1036,10 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
           updated_at: new Date()
         })
         .where(eq(briefings.snapshot_id, snapshotId));
-      console.log(`[BriefingService] Updated existing briefing for snapshot ${snapshotId}`);
+      console.log(`[BriefingService] ✅ Updated existing briefing for snapshot ${snapshotId} with ${briefingData.news?.items?.length || 0} news items`);
     } else {
       await db.insert(briefings).values(briefingData);
-      console.log(`[BriefingService] Created new briefing for snapshot ${snapshotId}`);
+      console.log(`[BriefingService] ✅ Created new briefing for snapshot ${snapshotId} with ${briefingData.news?.items?.length || 0} news items`);
     }
 
     return {
