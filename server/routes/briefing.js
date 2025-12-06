@@ -7,6 +7,75 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
+// Helper function to safely parse JSON fields from database
+function parseBriefingData(briefing) {
+  if (!briefing) return null;
+  
+  const parsed = { ...briefing };
+  
+  // Parse events if it's a string
+  if (typeof parsed.events === 'string') {
+    try {
+      parsed.events = JSON.parse(parsed.events);
+    } catch (e) {
+      console.warn('[BriefingRoute] Failed to parse events JSON:', e.message);
+      parsed.events = [];
+    }
+  }
+  
+  // Parse news if it's a string
+  if (typeof parsed.news === 'string') {
+    try {
+      parsed.news = JSON.parse(parsed.news);
+    } catch (e) {
+      console.warn('[BriefingRoute] Failed to parse news JSON:', e.message);
+      parsed.news = { items: [], filtered: [] };
+    }
+  }
+  
+  // Parse weather_current if it's a string
+  if (typeof parsed.weather_current === 'string') {
+    try {
+      parsed.weather_current = JSON.parse(parsed.weather_current);
+    } catch (e) {
+      console.warn('[BriefingRoute] Failed to parse weather_current JSON:', e.message);
+      parsed.weather_current = null;
+    }
+  }
+  
+  // Parse weather_forecast if it's a string
+  if (typeof parsed.weather_forecast === 'string') {
+    try {
+      parsed.weather_forecast = JSON.parse(parsed.weather_forecast);
+    } catch (e) {
+      console.warn('[BriefingRoute] Failed to parse weather_forecast JSON:', e.message);
+      parsed.weather_forecast = [];
+    }
+  }
+  
+  // Parse traffic_conditions if it's a string
+  if (typeof parsed.traffic_conditions === 'string') {
+    try {
+      parsed.traffic_conditions = JSON.parse(parsed.traffic_conditions);
+    } catch (e) {
+      console.warn('[BriefingRoute] Failed to parse traffic_conditions JSON:', e.message);
+      parsed.traffic_conditions = { summary: 'Loading...', incidents: [] };
+    }
+  }
+  
+  // Parse school_closures if it's a string
+  if (typeof parsed.school_closures === 'string') {
+    try {
+      parsed.school_closures = JSON.parse(parsed.school_closures);
+    } catch (e) {
+      console.warn('[BriefingRoute] Failed to parse school_closures JSON:', e.message);
+      parsed.school_closures = [];
+    }
+  }
+  
+  return parsed;
+}
+
 router.get('/current', requireAuth, async (req, res) => {
   try {
     const latestSnapshot = await db.select()
@@ -20,7 +89,8 @@ router.get('/current', requireAuth, async (req, res) => {
     }
 
     const snapshot = latestSnapshot[0];
-    const briefing = await getBriefingBySnapshotId(snapshot.snapshot_id);
+    let briefing = await getBriefingBySnapshotId(snapshot.snapshot_id);
+    briefing = parseBriefingData(briefing);
 
     if (!briefing) {
       return res.status(404).json({ error: 'Briefing not yet generated - try again in a moment' });
@@ -240,6 +310,7 @@ router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
     }
     
     let briefing = await getBriefingBySnapshotId(snapshotId);
+    briefing = parseBriefingData(briefing);
     
     res.json({
       success: true,
@@ -269,6 +340,7 @@ router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
     }
     
     let briefing = await getBriefingBySnapshotId(snapshotId);
+    briefing = parseBriefingData(briefing);
     
     res.json({
       success: true,
@@ -318,6 +390,7 @@ router.get('/rideshare-news/:snapshotId', requireAuth, async (req, res) => {
       }
     }
     
+    briefing = parseBriefingData(briefing);
     const newsData = briefing?.news || { items: [], filtered: [] };
     console.log(`[BriefingRoute] ✅ Returning ${newsData.items?.length || 0} news items`);
     
@@ -361,6 +434,7 @@ router.get('/events/:snapshotId', requireAuth, async (req, res) => {
       if (result.success) briefing = result.briefing;
     }
     
+    briefing = parseBriefingData(briefing);
     const allEvents = briefing && Array.isArray(briefing.events) ? briefing.events : [];
     res.json({
       success: true,
@@ -402,6 +476,7 @@ router.get('/school-closures/:snapshotId', requireAuth, async (req, res) => {
       if (result.success) briefing = result.briefing;
     }
     
+    briefing = parseBriefingData(briefing);
     res.json({
       success: true,
       school_closures: briefing?.school_closures || [],
