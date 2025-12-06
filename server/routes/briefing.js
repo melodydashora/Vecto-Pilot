@@ -358,9 +358,15 @@ router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
     // Auto-generate if briefing doesn't exist
     if (!briefing) {
       console.log(`[BriefingRoute] Auto-generating briefing for traffic: ${snapshotId}`);
-      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
-      if (result.success) {
-        briefing = result.briefing;
+      try {
+        const result = await generateAndStoreBriefing({ snapshotId, snapshot });
+        if (result.success) {
+          briefing = result.briefing;
+        } else {
+          console.warn('[BriefingRoute] Briefing generation returned non-success:', result.error);
+        }
+      } catch (genErr) {
+        console.error('[BriefingRoute] Error during briefing generation:', genErr.message);
       }
     }
     

@@ -260,6 +260,14 @@ process.on('unhandledRejection', (reason, promise) => {
         console.error("[mono] Briefing endpoint failed:", e?.message, e?.stack);
       }
       try {
+        console.log("[gateway] Loading Events (SSE) endpoint...");
+        const eventsRouter = (await import("./server/routes/events.js")).default;
+        app.use("/events", eventsRouter);
+        console.log("[gateway] ✅ Events (SSE) endpoint mounted at /events");
+      } catch (e) {
+        console.error("[mono] Events endpoint failed:", e?.message, e?.stack);
+      }
+      try {
         console.log("[gateway] Loading Auth endpoint...");
         const authRouter = (await import("./server/routes/auth.js")).default;
         app.use("/api/auth", authRouter);
