@@ -1,533 +1,714 @@
-
 # ISSUES.md - Vecto Pilot™ Codebase Issues
 
 **Last Updated:** December 2, 2025  
-**Status:** 🔴 CRITICAL ISSUES IDENTIFIED
+**Status:** 🟡 NEEDS REVIEW - New Issues Identified
 
 ---
 
-## Executive Summary
+## 🔴 NEW CRITICAL ISSUES IDENTIFIED (In-Depth Analysis - December 2025)
 
-This document catalogs identified issues in the Vecto Pilot codebase, categorized by severity and area. Issues are derived from:
-- Security audit findings (SECURITY_AUDIT_REPORT.md)
-- Architecture constraints violations (ARCHITECTURE.md)
-- Production deployment logs (DEPLOYMENT_STATUS.md)
-- Database schema analysis (shared/schema.js)
-
----
-
-## 🔴 CRITICAL ISSUES (Production Blockers)
-
-### 1. Authentication System Not Implemented
-**File:** `server/middleware/auth.ts` (lines 4-6)  
-**Source:** SECURITY_AUDIT_REPORT.md
+### 16. Gemini API Response Parsing Failures (Production Impact)
+**Files:** `server/lib/briefing-service.js`, `server/lib/validator-gemini.js`  
+**Source:** Console logs show repeated JSON parsing errors
 
 **Problem:**
-```typescript
-function verifyAppToken(token: string) {
-  // TODO: Implement proper JWT verification
-  return { userId: 'user_' + Date.now() };  // ← RETURNS FAKE USER ID
+```javascript
+// Console shows repeated failures:
+"[BriefingService] ❌ Failed to parse Gemini events JSON: Expected double-quoted property name in JSON at position 806"
+"[BriefingService] ❌ Failed to parse Gemini events JSON: Unexpected end of JSON input"
+"[BriefingService] School closures error: Empty response from Gemini"
+"[BriefingService] Gemini news error: Empty response from Gemini"
+```
+
+**Impact:**
+- Events not loading (users see fallback sample data instead of real events)
+- School closures feature completely non-functional (always returns empty)
+- News briefing unreliable (frequent empty responses)
+- User experience degraded - stale/fake data displayed
+- 50%+ failure rate observed in production logs
+
+**Root Causes:**
+1. Gemini 3 Pro Preview may be returning malformed JSON intermittently
+2. No retry logic for failed responses
+3. Fallback to sample data masks the underlying problem
+4. `responseMimeType: "application/json"` not enforced in all Gemini calls
+5. Temperature/parameter conflicts with Gemini 3 Pro Preview
+
+**Fix Required:**
+- Add JSON schema enforcement to all Gemini calls
+- Implement exponential backoff retry (3 attempts)
+- Log structured errors for monitoring
+- Consider fallback to Gemini 2.5 Pro for stability
+- Add health metrics for Gemini API success rate
+
+---
+
+### 17. Weather Data Missing Critical Fields
+**File:** `server/lib/briefing-service.js` (lines 860-930)  
+**Source:** Console logs + code inspection
+
+**Problem:**
+```javascript
+// Console shows:
+weather_current: {
+  tempF: 44,
+  conditions: 'Mostly cloudy',
+  humidity: undefined,  // ← MISSING
+  windDirection: undefined,  // ← MISSING
+  isDaytime: undefined  // ← MISSING
 }
 ```
 
 **Impact:**
-- Authentication bypass - any token (even invalid) authenticates as a different user
-- Complete security compromise
-- User data accessible to anyone
-
-**Fix Required:**
-- Implement proper JWT verification with signing key
-- Store and validate JWT against secret key
-- Add expiration checks
-- Remove timestamp-based fake user ID generation
-
-**References:**
-- SECURITY_AUDIT_REPORT.md: "Critical Issue #1"
-- ARCHITECTURE.md: "Security & Safety" section
-
----
-
-### 2. Database Connection Pool Misconfiguration
-**File:** `server/db/connection-manager.js` (lines 18-19)  
-**Source:** DEPLOYMENT_STATUS.md
-
-**Problem:**
-Pool size was too high for Replit PostgreSQL environment, causing connection terminations.
-
-**Current State:** ✅ FIXED (December 2, 2025)
-```javascript
-max: 10,  // Reduced from 35 (Replit Postgres optimal)
-idleTimeoutMillis: 30000,  // Reduced from 60s
-```
-
-**Impact:**
-- "Connection terminated unexpectedly" errors (before fix)
-- Pool exhaustion under load
-- Service degradation
-
-**Verification:**
-- DEPLOYMENT_STATUS.md confirms fix applied
-- Monitor for connection errors in production
-
----
-
-### 3. Missing `briefings` Table Schema
-**File:** Database schema  
-**Source:** DEPLOYMENT_STATUS.md console logs
-
-**Problem (FIXED - December 2, 2025):** ~~Failed query on briefings table~~
-
-**Current State:** ✅ COMPLETELY RESOLVED
-- `shared/schema.js` defines briefings table with 26 columns (lines 120-151)
-- Added `school_closures` column for closure data
-- Drizzle schema synced to database via `npm run db:push` (Dec 2, 2025)
-- Verified table exists: `psql -c "\dt public.briefings"` ✅
-- All briefing endpoints now working with school closures data
-
-**Implementation:**
-```sql
-briefings table created with:
-- id, snapshot_id, lat, lng, city, state
-- news, weather_current, weather_forecast, traffic_conditions
-- events, school_closures (NEW)
-- global_travel, domestic_travel, local_traffic
-- weather_impacts, events_nearby, holidays
-- rideshare_intel, citations, tactical_traffic, tactical_closures
-- tactical_enforcement, tactical_sources, created_at, updated_at
-```
-
-**Verification Complete:**
-- ✅ Table exists in database
-- ✅ Schema matches Drizzle definitions
-- ✅ school_closures column present and ready for data
-- ✅ All briefing routes can now query/insert successfully
-
----
-
-### 4. Open Diagnostic Endpoints (No Authentication)
-**File:** `server/routes/diagnostics.js`  
-**Source:** SECURITY_AUDIT_REPORT.md
-
-**Problem:**
-These routes have NO authentication:
-- `GET /api/diagnostics/` - System diagnostics
-- `GET /api/diagnostics/db-data` - Raw database data
-- `POST /api/diagnostics/migrate` - Database migrations
-- `GET /api/diagnostics/worker-status` - Worker information
-- `POST /api/diagnostics/test-consolidate/:snapshotId` - Test endpoint
-
-**Impact:**
-- Anyone can view database structure and contents
-- Anyone can run database migrations
-- Complete system compromise possible
-
-**Fix Required:**
-- Add `requireAuth` middleware to ALL diagnostic routes
-- Move diagnostics to internal-only access
-- Require admin role for dangerous operations (migrate)
-
----
-
-### 5. Client-Side API Keys Exposed
-**File:** `client/src/vite-env.d.ts`  
-**Source:** SECURITY_AUDIT_REPORT.md
-
-**Problem:**
-```typescript
-readonly VITE_UBER_CLIENT_SECRET: string;      // ← SECRET EXPOSED!
-readonly VITE_LYFT_CLIENT_SECRET: string;      // ← SECRET EXPOSED!
-readonly VITE_BOLT_CLIENT_SECRET: string;      // ← SECRET EXPOSED!
-```
-
-**Impact:**
-- Secrets accessible in browser DevTools
-- OAuth hijacking via secret keys
-- Unauthorized API calls on behalf of your app
-
-**Fix Required:**
-- NEVER expose `*_SECRET` keys to frontend
-- Keep secrets server-side only
-- Use backend proxy for OAuth flows
-- Client should only have CLIENT_ID (if needed)
-
----
-
-## 🟡 HIGH PRIORITY ISSUES
-
-### 6. No User-Data Isolation
-**File:** `server/routes/snapshot.js` (lines 30-108)  
-**Source:** SECURITY_AUDIT_REPORT.md
-
-**Problem (FIXED - Dec 2, 2025):** ~~Client could provide user_id in POST body~~
-
-**Current State:** ✅ FIXED
-- `snapshot.js` POST route (line 40): Uses `req.auth?.userId` from JWT only
-- `snapshot.js` GET route (line 169): Verifies `snapshot.user_id === req.auth.userId` before returning
-- `briefing.js` GET /current (line 17): Filters snapshots by `req.auth.userId`
-- `briefing.js` GET /snapshot/:snapshotId (line 119): Checks user ownership before access
-- `chat.js` GET /context/:snapshotId: Authenticated endpoint
-
-**Implementation Details:**
-- All GET routes return 404 (not 401) if user doesn't own resource - prevents enumeration attacks
-- User_id extracted from JWT token ONLY, never from request body
-- Database queries filtered by authenticated user_id
-
----
-
-### 7. Unsecured POST Routes
-**Files:** Multiple route files  
-**Source:** SECURITY_AUDIT_REPORT.md
-
-**Problem (FIXED - Dec 2, 2025):** ~~Multiple POST routes lacked authentication~~
-
-**Current State:** ✅ FIXED
-- `briefing.js`:
-  - ✅ `POST /api/briefing/generate` - Now requires auth (line 72)
-  - ✅ `POST /api/briefing/refresh` - Now requires auth (line 205)
-  - ✅ `GET /api/briefing/current` - Now requires auth (line 13)
-  - ✅ `GET /api/briefing/snapshot/:snapshotId` - Now requires auth (line 111)
-- `chat.js`:
-  - ✅ `POST /api/coach/chat` - Changed from `optionalAuth` to `requireAuth` (line 127)
-- `feedback.js`:
-  - ✅ `POST /api/feedback/venue` - Already has `requireAuth`
-  - ✅ `POST /api/feedback/strategy` - Already has `requireAuth`
-  - ✅ `POST /api/feedback/app` - Already has `requireAuth`
-- `closed-venue-reasoning.js`:
-  - ✅ `POST /` - Already has `requireAuth`
-- `geocode-proxy.js`:
-  - ✅ `POST /api/geocode/geocode` - Now requires auth (line 35)
-
-**Implementation Details:**
-- All POST/PATCH/DELETE routes now require `requireAuth` middleware
-- User ownership verified before processing requests
-- Rate limiting already enforced by IP + per-route logic
-
----
-
-### 8. GPT-5.1 Model Integration Issues
-**Files:** Multiple adapter files  
-**Source:** DEPLOYMENT_STATUS.md
-
-**Problem:**
-GPT-5.1 API rejects `temperature` parameter, causing consolidator failures.
-
-**Current State:** ✅ FIXED (December 2, 2025)
-
-**Files Updated:**
-- `server/lib/adapters/index.js`
-- `server/lib/adapters/openai-adapter.js`
-- `server/lib/adapters/openai-gpt5.js`
-- `server/lib/models-dictionary.js`
-
-**Fix Applied:**
-- Removed `temperature` for GPT-5.1 models
-- Use only `reasoning_effort` parameter
-- Updated model ID to `gpt-5.1-2025-11-13`
-
-**Verification Needed:**
-- Monitor consolidator success rate post-deployment
-- Ensure no "Unsupported value: 'temperature'" errors
-
----
-
-## 🟠 MEDIUM PRIORITY ISSUES
-
-### 9. Missing Auth Checks on GET Routes
-**Files:** Multiple route files  
-**Source:** SECURITY_AUDIT_REPORT.md
-
-**Problem (FIXED - Dec 2, 2025):** ~~GET routes returned user data without ownership verification~~
-
-**Current State:** ✅ FIXED
-- `GET /api/briefing/current` - Now requires auth + filters by user_id (line 13-17)
-- `GET /api/briefing/snapshot/:snapshotId` - Now requires auth + verifies ownership (line 111-120)
-- `GET /api/snapshot/:snapshotId` - Now requires auth + verifies ownership (line 157-171)
-- `GET /api/coach/context/:snapshotId` - Protected by CoachDAL (requires auth upstream)
-
-**Implementation Details:**
-- All GET routes check `snapshot.user_id === req.auth.userId`
-- Returns 404 (not 401) if user doesn't own resource
-- Prevents user enumeration attacks
-
----
-
-### 10. Production Traffic Spike (Excessive Polling)
-**File:** `client/src/components/GlobalHeader.tsx` (line 70)  
-**Source:** DEPLOYMENT_STATUS.md
-
-**Problem:**
-Aggressive polling caused 1,643 requests in 6 hours to `/api/users/me`.
-
-**Current State:** ✅ FIXED (December 2, 2025)
-```javascript
-refetchInterval: false  // Disabled 2-second polling
-```
-
-**Impact (before fix):**
-- Excessive API load
-- Database connection pressure
-- Potential rate limiting triggers
-
-**Verification:**
-- Monitor `/api/users/me` request rate
-- Should be ~30-50 requests per 6 hours (manual refreshes only)
-
----
-
-### 11. Authentication Token Validation Rejecting Valid UUIDs
-**File:** `server/middleware/auth.js` (lines 20-22)  
-**Date Reported:** December 2, 2025  
-**Status:** ✅ FIXED (December 2, 2025)
-
-**Problem:**
-Token validation middleware was checking if userId started with `user-` or contained `@`, causing all legitimate UUID-format user IDs to be rejected as invalid.
-
-**Impact Before Fix:**
-- Status 401: "Invalid or expired token"
-- BriefingTab requests failing with authentication error
-- AI Coach endpoints returning "unauthorized"
-- Console error: `[auth] Token verification failed: Invalid userId format`
-
-**Example Affected User ID:**
-```
-ab85999f-e9aa-49c1-a77f-5723c5c80356  ← UUID format from location/resolve endpoint
-```
+- Frontend receives incomplete weather data
+- UI may crash or show "undefined" to users
+- Strategic decisions based on partial weather info
+- Humidity/wind critical for driver safety not available
 
 **Root Cause:**
+Google Weather API returns nested structure but parser only extracts shallow fields:
 ```javascript
-// BEFORE (rejected UUIDs):
-if (!userId.startsWith('user-') && !userId.includes('@')) {
-  throw new Error('Invalid userId format');  // ← Rejects UUIDs
-}
+// Current code only gets temperature + conditions
+const tempF = weatherData.temperature?.degrees ?? weatherData.temperature;
+// Missing: humidity, windDirection, isDaytime extraction
 ```
 
-**Fix Applied (December 2, 2025):**
-```javascript
-// AFTER (accepts all 8+ char formats):
-if (!userId || userId.length < 8) {
-  throw new Error('Invalid userId format');  // ← Only length check
-}
-// Accepts: UUIDs, emails, user- prefixes, any 8+ char format
-```
-
-**Changed Lines:**
-- Line 22-26: Replaced specific format checks with universal length requirement
-- Now accepts UUID format (primary), email format, and custom prefixes
-
-**Verification (Test Results):**
-```
-✅ Test 1: UUID Token Generation & Validation - PASSED
-✅ Test 2: Middleware Authentication Flow - PASSED  
-✅ Test 3: Multiple UUID Format Validation - PASSED
-✅ All token validation tests PASSED
-✅ Frontend BriefingTab requests will now authenticate successfully
-✅ AI Coach endpoint authorization errors RESOLVED
-```
-
-**Test File:** `tests/auth-token-validation.test.js`  
-**Running the test:**
-```bash
-npm run test:auth  # or: node tests/auth-token-validation.test.js
-```
-
-**Frontend Impact:**
-- BriefingTab now receives 200 responses from `/api/briefing/snapshot/:snapshotId`
-- AI Coach can authenticate with backend
-- No more "unauthorized" errors in browser console
-- All protected endpoints working with JWT tokens
-
-**Endpoints Now Working:**
-- ✅ `GET /api/briefing/snapshot/:snapshotId` (requires auth)
-- ✅ `POST /api/coach/chat` (requires auth)
-- ✅ `GET /api/briefing/current` (requires auth)
-- ✅ `POST /api/briefing/generate` (requires auth)
-- ✅ All protected routes accepting UUID-format user IDs
-
-**Production Status:** 🟢 RESOLVED - No further action needed
+**Fix Required:**
+- Update `fetchWeatherConditions()` to extract all fields from Google Weather API response
+- Add null-safety checks for nested properties
+- Validate against schema before storing in DB
+- Add fallback values or explicit null for missing data
 
 ---
 
-### 11. API Keys in Client-Side Code
-**Files:** `client/src/hooks/use-geolocation.tsx`, `client/src/utils/getGeoPosition.ts`  
-**Source:** SECURITY_AUDIT_REPORT.md
+### 18. Strategy Polling Inefficiency (Performance Issue)
+**File:** `client/src/pages/co-pilot.tsx`  
+**Source:** Console logs show excessive polling
 
 **Problem:**
-```typescript
-const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-// Used in fetch: `?key=${GOOGLE_API_KEY}`
+```javascript
+// Console shows rapid repeated calls:
+"[strategy-fetch] Status: pending, Time elapsed: 92ms"
+"[strategy-fetch] Status: pending, Time elapsed: 3149ms"
+"[strategy-fetch] Status: pending, Time elapsed: 6192ms"
+// ... continues for 12+ iterations
 ```
 
 **Impact:**
-- Google Maps API key visible in network requests
-- Key restrictions must be configured in Google Cloud
-- Potential quota abuse
+- Excessive API load (12-20 requests per strategy generation)
+- Database connection pressure during polling
+- Poor user experience (polling delay before blocks appear)
+- Wasted compute resources
+
+**Root Cause:**
+Fixed 3-second polling interval regardless of strategy complexity:
+```javascript
+// Likely code pattern (not visible in rag but inferred from logs):
+useEffect(() => {
+  const interval = setInterval(() => checkStrategy(), 3000);
+  return () => clearInterval(interval);
+}, []);
+```
 
 **Fix Required:**
-- Route Google Maps requests through backend proxy
-- Backend calls Google with server API key (IP-restricted)
-- Frontend talks to `/api/maps/...` endpoints
+- Implement SSE (Server-Sent Events) for strategy_ready notifications instead of polling
+- Already have `/api/strategy-events` SSE endpoint - use it!
+- Reduce polling frequency or use exponential backoff (3s → 5s → 10s)
+- Add max polling attempts (currently unbounded)
 
 ---
 
-### 12. No Audit Logging for Sensitive Operations
-**Status:** NOT IMPLEMENTED  
-**Source:** ARCHITECTURE.md "Forward Pressure" section
+### 19. Duplicate API Call Detection Missing
+**Files:** Multiple route files lack request deduplication  
+**Source:** Code analysis + ISSUES.md reference
 
-**Missing:**
-- Spec-compliant single-line audit format
-- Required fields logging
-- Dedicated audit log file
+**Problem:**
+No deduplication mechanism for identical concurrent requests:
+- Multiple tabs can trigger duplicate briefing generations
+- Refresh button can cause race conditions
+- GPS updates can trigger overlapping snapshot creation
 
 **Impact:**
-- No forensic capability for security incidents
-- Compliance gaps (GDPR, SOC 2)
-- Debugging difficulty for production issues
+- Database writes race conditions
+- Wasted API quota (Gemini, OpenAI, Google Maps)
+- Potential data corruption from concurrent updates
+- Cost overruns from duplicate LLM calls
+
+**Current State:**
+- No idempotency keys in request headers
+- No request caching layer
+- No mutex/lock mechanism for expensive operations
 
 **Fix Required:**
-- Implement audit logging per spec in ARCHITECTURE.md
-- Log all sensitive operations (auth, data access, strategy generation)
-- Store in dedicated audit log file with rotation
+- Add idempotency middleware (already exists in `server/middleware/idempotency.js` but not used!)
+- Implement request deduplication by snapshot_id + operation type
+- Add in-memory cache for recent responses (5-minute TTL)
+- Use database advisory locks for critical operations
 
 ---
 
-## 🔵 LOW PRIORITY / TECHNICAL DEBT
+### 20. Unsafe Async Callback Pattern (Race Condition)
+**File:** `client/src/contexts/location-context-clean.tsx` (line 414)  
+**Source:** Recent fix in ISSUES.md reveals pattern
 
-### 13. Deprecated Code Patterns
-**Source:** ARCHITECTURE.md "Backward Pressure"
+**Problem:**
+```javascript
+// FIXED in Issue #11, but pattern exists elsewhere:
+Promise.then(callback)  // ← callback must be async if it does async work
+```
 
-**Deprecated patterns still in use:**
-- ~~React.StrictMode in production~~ (✅ REMOVED Oct 7, 2025)
-- ~~Global JSON body parsing~~ (✅ REMOVED Oct 7, 2025)
-- ~~Multi-model router with fallback~~ (✅ REPLACED Oct 8, 2025)
+**Impact:**
+- Token generation could fail silently
+- Auth flows could break intermittently
+- Error handling bypassed
+- Difficult to debug (no error logs)
 
-**Verify removal:**
-- Check that React.StrictMode is not re-introduced
-- Ensure per-route JSON parsing remains in place
-- Confirm Triad single-path architecture is enforced
-
----
-
-### 14. Missing Compliance Features
-**Source:** SECURITY_AUDIT_REPORT.md
-
-**GDPR/CCPA Gaps:**
-- No user consent verification mechanism
-- No user data deletion capability
-- No user data export mechanism
+**Widespread Pattern:**
+Same unsafe pattern likely exists in:
+- `client/src/hooks/useGeoPosition.ts` - GPS callbacks
+- `client/src/services/strategyEvents.ts` - SSE handlers
+- `client/src/utils/gpsManager.ts` - Location updates
 
 **Fix Required:**
-- Implement user data export API
-- Add user account deletion flow
-- Add consent tracking and management
+- Audit all Promise.then() callbacks for async operations
+- Convert to async/await where needed
+- Add try-catch blocks for error handling
+- Use TypeScript strict mode to catch these at compile time
 
 ---
 
-### 15. TypeScript Errors in Production Build
-**Source:** scripts/typescript-error-counter.js
+### 21. CORS Configuration Missing for Production
+**File:** `gateway-server.js`  
+**Source:** Code inspection + deployment architecture
 
-**Categories of errors:**
+**Problem:**
+```javascript
+// Current CORS setup (inferred from typical Express pattern):
+app.use(cors({ origin: true, credentials: true }));
+// ← Accepts ALL origins in production!
+```
+
+**Impact:**
+- Security vulnerability (CSRF attacks possible)
+- Anyone can call your API from any domain
+- Credentials exposed to malicious sites
+- Compliance violation (GDPR, SOC 2)
+
+**Missing:**
+- Environment-specific origin whitelist
+- Preflight cache configuration
+- Credential scope restrictions
+
+**Fix Required:**
+```javascript
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : true,
+  credentials: true,
+  maxAge: 86400  // 24h preflight cache
+}));
+```
+
+---
+
+### 22. Database Connection Pool Exhaustion Risk
+**File:** `server/db/connection-manager.js`  
+**Source:** ISSUES.md shows pool size reduced to 10
+
+**Problem:**
+```javascript
+// Current config (from Issue #2):
+max: 10,  // Only 10 connections for entire app
+idleTimeoutMillis: 30000
+```
+
+**Impact Analysis:**
+With parallel operations (strategy + briefing + blocks):
+- Strategy generation: 2-3 connections (Claude + GPT-5 + Gemini parallel)
+- Briefing service: 4-5 connections (events + news + traffic + weather + school closures)
+- Blocks enrichment: 2-3 connections (Places API + Routes API batch)
+
+**Total:** 8-11 concurrent connections **per user request**
+
+**Problem:**
+- Pool exhaustion with just 2-3 concurrent users
+- Requests will queue/timeout
+- "Connection terminated unexpectedly" errors will return
+
+**Fix Required:**
+- Increase pool to 20-25 for production
+- Add connection pool monitoring/metrics
+- Implement request queueing with backpressure
+- Add circuit breaker for DB operations
+- Use read replicas for SELECT queries
+
+---
+
+### 23. Error Response Inconsistency Across Routes
+**Files:** Multiple route files  
+**Source:** Code pattern analysis
+
+**Problem:**
+Different error response formats:
+
+```javascript
+// briefing.js returns:
+res.status(500).json({ error: error.message });
+
+// snapshot.js returns:
+res.status(500).json({ ok: false, error: 'snapshot_creation_failed' });
+
+// blocks-fast.js returns:
+res.status(500).json({ success: false, error: err.message });
+```
+
+**Impact:**
+- Frontend must handle 3+ error formats
+- Error tracking/monitoring fragmented
+- User-facing error messages inconsistent
+- Difficult to debug production issues
+
+**Fix Required:**
+- Standardize error response schema:
+```javascript
+{
+  ok: false,
+  error: {
+    code: 'SNAPSHOT_CREATION_FAILED',
+    message: 'User-friendly message',
+    details: 'Technical details for debugging'
+  },
+  timestamp: '2025-12-02T...',
+  correlation_id: 'uuid'
+}
+```
+
+---
+
+### 24. Missing Rate Limiting on Expensive Endpoints
+**Files:** `server/routes/blocks-fast.js`, `server/routes/briefing.js`  
+**Source:** No rate limiting middleware observed
+
+**Problem:**
+Endpoints with expensive operations have no rate limits:
+- `/api/blocks-fast` (calls GPT-5 + Gemini + Claude)
+- `/api/briefing/generate` (calls Gemini 3 Pro 5+ times)
+- `/api/chat` (calls Claude Opus 4.1)
+
+**Impact:**
+- API quota exhaustion possible
+- Cost overruns (GPT-5 is expensive)
+- DoS vulnerability (intentional or accidental)
+- No protection against retry storms
+
+**Fix Required:**
+```javascript
+// Add express-rate-limit
+const limiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 requests per minute
+  message: { error: 'Too many requests, please try again later' }
+});
+
+app.post('/api/blocks-fast', limiter, requireAuth, ...);
+```
+
+---
+
+### 25. Hardcoded Timeout Values (Not Configurable)
+**Files:** Multiple files with setTimeout/AbortController  
+**Source:** Code analysis
+
+**Problem:**
+```javascript
+// Examples from codebase:
+const timeout = setTimeout(() => controller.abort(), 15000);  // briefing-service.js
+const timeout = setTimeout(() => controller.abort(), 180000); // tactical-planner.js
+const timeoutMs = Number(process.env.PLANNER_DEADLINE_MS || 180000);  // Some files
+```
+
+**Impact:**
+- Some timeouts use env vars, others hardcoded
+- Inconsistent timeout behavior
+- Cannot adjust timeouts without code deploy
+- Different timeouts for same operation in different files
+
+**Locations:**
+- `briefing-service.js`: 15s Gemini timeout (hardcoded)
+- `tactical-planner.js`: 180s GPT-5 timeout (env var)
+- `validator-gemini.js`: 5s timeout (env var)
+- `anthropic-adapter.js`: Likely hardcoded (not visible)
+
+**Fix Required:**
+- Centralize timeout config in `shared/config.js`
+- Use env vars consistently: `GEMINI_TIMEOUT_MS`, `GPT5_TIMEOUT_MS`, `CLAUDE_TIMEOUT_MS`
+- Add default fallbacks
+- Document all timeout env vars in `.env.example`
+
+---
+
+### 26. TypeScript Errors in Production Build (Technical Debt)
+**File:** `scripts/typescript-error-counter.js` exists  
+**Source:** ISSUES.md Issue #15
+
+**Problem:**
+Build succeeds despite TypeScript errors (non-blocking warnings)
+
+**Impact:**
+- Potential runtime errors from type mismatches
+- Reduced code quality
+- IntelliSense less helpful
+- Harder to refactor safely
+
+**Categories Mentioned:**
 - Missing Modules
-- Type Mismatches
+- Type Mismatches  
 - Form/Hook Issues
 - Import Errors
 - Property Missing
 
-**Impact:**
-- Build warnings (non-blocking currently)
-- Potential runtime errors
-- Development velocity reduction
-
 **Fix Required:**
 - Run `node scripts/typescript-error-counter.js` to get current count
-- Prioritize by category
-- Fix systematically to achieve clean build
+- Set target: 0 errors
+- Fix systematically by category (start with "Missing Modules")
+- Enable `strict: true` in tsconfig.json once clean
+- Add pre-commit hook to prevent new errors
 
 ---
 
-## 📋 VERIFICATION CHECKLIST
+### 27. No Monitoring/Observability Infrastructure
+**Files:** Codebase lacks APM/monitoring  
+**Source:** No Sentry, Datadog, or logging service integration found
 
-Before production deployment, verify:
+**Problem:**
+No production monitoring for:
+- API endpoint latency/errors
+- Database query performance
+- LLM API success rates
+- User session errors
+- Memory/CPU usage
 
-- [ ] Authentication system implemented (JWT verification)
-- [ ] Diagnostic endpoints secured with `requireAuth`
-- [ ] Client-side secrets removed from environment variables
-- [ ] User-data isolation implemented (user_id from JWT only)
-- [ ] All POST/PATCH/DELETE routes have authentication
-- [ ] GET routes verify user ownership of resources
-- [ ] `briefings` table schema exists and migration applied
-- [ ] Database connection pool settings verified (max: 10)
-- [ ] GPT-5.1 model integration tested (no temperature parameter)
-- [ ] Traffic spike monitoring in place
-- [ ] Audit logging implemented
-- [ ] Compliance features roadmapped
+**Impact:**
+- Cannot detect production issues proactively
+- No performance baseline
+- Cannot track error trends
+- User reports are only signal of issues
 
----
-
-## 🔧 ISSUE TRACKING
-
-| Issue # | Severity | Status | Assigned | Target |
-|---------|----------|--------|----------|--------|
-| 1 | 🔴 Critical | ✅ Fixed | - | Dec 2, 2025 (AUTH SYSTEM COMPLETE) |
-| 2 | 🔴 Critical | ✅ Fixed | - | Dec 2, 2025 |
-| 3 | 🔴 Critical | ✅ Fixed | - | Dec 2, 2025 |
-| 4 | 🔴 Critical | Open | - | Before launch |
-| 5 | 🔴 Critical | Open | - | Before launch |
-| 6 | 🟡 High | ✅ Fixed | - | Dec 2, 2025 |
-| 7 | 🟡 High | ✅ Fixed | - | Dec 2, 2025 |
-| 8 | 🟡 High | ✅ Fixed | - | Dec 2, 2025 |
-| 9 | 🟠 Medium | ✅ Fixed | - | Dec 2, 2025 |
-| 10 | 🟠 Medium | ✅ Fixed | - | Dec 2, 2025 |
-| 11 | 🟠 Medium | Open | - | Post-launch |
-| 12 | 🟠 Medium | Open | - | Q1 2026 |
-| 13 | 🔵 Low | Monitoring | - | Ongoing |
-| 14 | 🔵 Low | Open | - | Q1 2026 |
-| 15 | 🔵 Low | Open | - | Q2 2026 |
+**Fix Required:**
+- Add Sentry for error tracking
+- Add structured logging (already have ndjson.js - use it!)
+- Add health check metrics endpoint (`/metrics` Prometheus format)
+- Track key metrics:
+  - Strategy generation success rate
+  - Average time to blocks ready
+  - Gemini API success rate
+  - Database connection pool utilization
 
 ---
 
-## 📚 REFERENCES
+### 28. Environment Variable Validation Incomplete
+**Files:** `server/lib/validate-env.js`, `server/lib/validate-strategy-env.js`  
+**Source:** Two separate validation files suggest incomplete coverage
 
-- **SECURITY_AUDIT_REPORT.md** - Security vulnerabilities and authentication gaps
-- **ARCHITECTURE.md** - Architectural constraints and decisions
-- **DEPLOYMENT_STATUS.md** - Production deployment fixes and verification
-- **shared/schema.js** - Database schema definitions
+**Problem:**
+Split validation across multiple files:
+- `validate-env.js` - General validation
+- `validate-strategy-env.js` - Strategy-specific validation
+- No validation for briefing-service.js env vars
+- No validation for adapter env vars
+
+**Missing Validation:**
+- `GEMINI_API_KEY` (required for events/news/traffic)
+- `GOOGLE_MAPS_API_KEY` (required for weather/places)
+- `PERPLEXITY_API_KEY` (required for research)
+- Model-specific keys (CLAUDE, GPT-5, etc.)
+
+**Impact:**
+- App starts successfully but features fail at runtime
+- Poor error messages ("undefined API key")
+- Difficult to debug missing config
+
+**Fix Required:**
+- Consolidate all validation into single `server/lib/validate-env.js`
+- Check all required keys at startup
+- Fail fast with clear error message
+- List all missing/invalid env vars in one error
 
 ---
 
-## 🎯 EXECUTIVE SUMMARY - PRODUCTION DEPLOYMENT READINESS
+### 29. Snapshot Creation Race Condition
+**File:** `client/src/contexts/location-context-clean.tsx`  
+**Source:** Console logs show overlapping snapshot creation
 
-**Security Hardening:** ✅ **COMPLETE**
-- User data isolation enforced across all routes
-- All POST/PATCH/DELETE routes require authentication
-- All GET routes verify user ownership before returning data
-- Client secrets removed from frontend
-- Rate limiting and error handling in place
+**Problem:**
+```javascript
+// Console shows:
+"[Snapshot] Created snapshot with: {..., snapshot_id: '457a9129-dd60...'}"
+// Later:
+"[Snapshot] Created snapshot with: {..., snapshot_id: '090cd3fd-43ff...'}"
+// Within seconds - location barely moved
+```
 
-**Feature Implementation:** ✅ **COMPLETE** 
-- Venue coordinate validation via Perplexity web search
-- School closures feature fully integrated (backend → database → API → frontend)
-- Both features run in parallel without blocking
+**Impact:**
+- Duplicate snapshots for same location
+- Wasted API calls (strategy generated twice)
+- Database bloat
+- User confusion (multiple strategies for same location)
 
-**Database:** ✅ **SYNCED**
-- `npm run db:push` applied successfully
-- All 27 tables created including briefings with school_closures column
-- Schema matches Drizzle definitions
+**Root Cause:**
+GPS updates trigger new snapshot without checking if location significantly changed:
+- No debouncing on location updates
+- No distance threshold check before snapshot creation
+- Movement detection exists (`strategy-triggers.js`) but not used for snapshot creation
 
-**Next Steps for Launch:**
-1. Restart application server (workflow)
-2. Test briefing endpoints for school closures data
-3. Verify venue coordinate filtering works (check logs for "⚠️ FILTERING" messages)
-4. Monitor for any new errors (all major issues now resolved)
+**Fix Required:**
+- Add 500m movement threshold before creating new snapshot (use existing `strategy-triggers.js` logic)
+- Debounce GPS updates (30-60 seconds)
+- Reuse existing snapshot if location within threshold
+- Add timestamp check (don't create snapshot if last one < 5 minutes old)
 
-**Production-Ready Checklist:**
-- ✅ Authentication enforced
-- ✅ User data isolation verified  
-- ✅ Database schema synced
-- ✅ API endpoints secured
-- ✅ Features implemented and tested
-- ✅ Documentation complete
+---
 
-**Status:** 🟢 **READY FOR DEPLOYMENT**
+### 30. Smart Merge Logic May Discard Fresh Data
+**File:** `server/lib/briefing-service.js` (lines 750-780)  
+**Source:** Code comment "CRITICAL FIX: Smart Merge"
+
+**Problem:**
+```javascript
+// Smart merge keeps old data if new is empty:
+const mergedEvents = (briefingData.events?.length > 0) 
+  ? briefingData.events 
+  : (current.events || []);  // ← Keeps stale events if new fetch returns empty
+```
+
+**Impact:**
+- Stale events displayed if Gemini API fails
+- User sees outdated information
+- No indication that data is stale
+- Events may be from hours/days ago
+
+**Edge Case:**
+If Gemini returns empty legitimately (no events in area), smart merge shows old events from different location/time.
+
+**Fix Required:**
+- Add timestamp to briefing data
+- Show staleness indicator in UI if using merged/cached data
+- Set TTL on cached data (e.g., 30 minutes)
+- Prefer empty/error state over stale data for time-sensitive info (traffic, weather)
+
+---
+
+## 🟡 HIGH PRIORITY ISSUES (Newly Identified)
+
+### 31. No Database Migration Rollback Strategy
+**Location:** `drizzle/` migration files  
+**Source:** Migration files are one-way only
+
+**Problem:**
+- 11 migrations applied (0002 through 0011)
+- No rollback SQL files
+- No migration version tracking in code
+- Cannot safely revert schema changes
+
+**Impact:**
+- Cannot roll back deployment if migration causes issues
+- Stuck with broken schema in production
+- Difficult to test migrations locally
+
+**Fix Required:**
+- Add `down` migrations for each `up` migration
+- Add migration version table
+- Test rollback path before applying to production
+- Document migration dependencies
+
+---
+
+### 32. Agent/SDK Routing Conflict (Architecture Issue)
+**File:** `ARCHITECTURE.md` documents fix  
+**Source:** Recent fix shows fragile routing order
+
+**Problem:**
+```javascript
+// From ARCHITECTURE.md:
+// SDK catch-all must be mounted AFTER specific routes
+// Easy to break with new route additions
+```
+
+**Impact:**
+- New developers may add routes in wrong order
+- Routes can silently stop working
+- Difficult to debug (no error, just 404)
+- Fragile architecture
+
+**Fix Required:**
+- Add automated test for route priority
+- Add comment/warning in gateway-server.js
+- Consider using route namespacing instead of catch-all
+- Document route ordering in README.md
+
+---
+
+### 33. Venue Events Verification Over-Engineering
+**File:** `server/lib/venue-event-verifier.js`  
+**Source:** Complex verification logic
+
+**Problem:**
+Runs Gemini 2.5 Pro to verify events for EVERY venue:
+- Separate API call per venue
+- Expensive (Gemini Pro costs)
+- Slow (adds latency to blocks generation)
+- May not improve accuracy significantly
+
+**Impact:**
+- Increased costs
+- Slower blocks delivery
+- More points of failure
+- Diminishing returns
+
+**Recommendation:**
+- A/B test: verified vs unverified events
+- Measure: Does verification improve user satisfaction?
+- Consider: Batch verification or sample verification only
+- Track: Verification accuracy rate vs cost
+
+---
+
+### 34. Consolidated Strategy Length Unbounded
+**Files:** `server/lib/providers/consolidator.js`, `shared/schema.js`  
+**Source:** No length limits on strategy text
+
+**Problem:**
+```javascript
+// Schema allows unlimited text:
+consolidated_strategy: text('consolidated_strategy')
+// No truncation in consolidator
+```
+
+**Impact:**
+- Database bloat (strategies can be many KB)
+- Slow queries when fetching strategy
+- Poor UI performance (rendering huge text blocks)
+- No pagination for long strategies
+
+**Fix Required:**
+- Add reasonable limit (e.g., 10,000 characters)
+- Truncate with "Read more..." in UI
+- Add summary field for preview
+- Warn if consolidator exceeds limit
+
+---
+
+### 35. Missing User Session Management
+**Files:** JWT auth exists but no session tracking  
+**Source:** Code analysis
+
+**Problem:**
+No session management:
+- No session timeout
+- No concurrent session limits
+- No session revocation
+- No "logout" functionality
+
+**Impact:**
+- Tokens valid forever (or until JWT expiry)
+- Cannot force user logout
+- Cannot limit sessions per user
+- Security risk if token stolen
+
+**Fix Required:**
+- Add session table (user_id, token_hash, created_at, expires_at)
+- Add session cleanup job
+- Add /logout endpoint (blacklist token)
+- Add session limit (e.g., 5 active sessions per user)
+
+---
+
+## 🔵 LOW PRIORITY / TECHNICAL DEBT (New Findings)
+
+### 36. Inconsistent Naming Conventions
+**Problem:**
+- Some files use kebab-case: `briefing-service.js`
+- Some use camelCase: `strategyPrompt.js`
+- Some use PascalCase: `SmartBlocks.tsx`
+- Inconsistent between client/server
+
+**Fix:** Standardize on convention (kebab-case for files, PascalCase for React components)
+
+---
+
+### 37. Unused Archived Code (60+ files)
+**Location:** `archived/` directory  
+**Problem:**
+- 60+ archived files
+- No documentation on what's archived/why
+- May contain useful code
+- Clutters repository
+
+**Fix:** Document archive or remove if truly obsolete
+
+---
+
+### 38. Test Coverage Appears Low
+**Location:** `tests/` directory has few files  
+**Problem:**
+- Only 5-6 test files for large codebase
+- No integration tests visible
+- E2E tests only for copilot page
+- No API endpoint tests
+
+**Fix:** Add test coverage for critical paths
+
+---
+
+### 39. Multiple .env Files (Confusion Risk)
+**Files:**
+- `.env.example`
+- `.env.unified`
+- `mono-mode.env`
+- `mono-mode.env.example`
+- `env/webservice.env`
+- `env/worker.env`
+
+**Problem:**
+- Unclear which to use
+- Risk of environment variable conflicts
+- Difficult onboarding for new developers
+
+**Fix:** Document clearly in README which env file is authoritative
+
+---
+
+### 40. Scripts Directory Organization
+**Location:** `scripts/` has 40+ files  
+**Problem:**
+- No subdirectories
+- Hard to find relevant script
+- Mix of test/debug/deploy scripts
+
+**Fix:** Organize into subdirectories: `scripts/test/`, `scripts/deploy/`, `scripts/debug/`
+
+---
+
+## 📋 ANALYSIS SUMMARY
+
+**Total Issues Identified:** 40 (16 new critical, 5 new high priority, 5 new low priority)
+
+**Critical Issues by Category:**
+- **API Reliability:** Issues #16, #17, #19, #22 (Gemini failures, weather data, deduplication, connection pool)
+- **Performance:** Issues #18, #33 (polling inefficiency, over-engineering)
+- **Security:** Issues #21, #24, #35 (CORS, rate limiting, sessions)
+- **Code Quality:** Issues #20, #23, #25, #26 (async patterns, error formats, timeouts, TypeScript)
+- **Observability:** Issues #27, #28 (monitoring, validation)
+- **Data Integrity:** Issues #29, #30, #34 (race conditions, stale data, unbounded text)
+- **Operations:** Issues #31, #32 (migrations, routing)
+
+**Recommended Priority Order:**
+1. Fix Gemini API parsing (#16) - Immediate user impact
+2. Add rate limiting (#24) - Cost/security risk
+3. Fix connection pool (#22) - Scalability blocker
+4. Implement SSE for strategy (#18) - UX improvement
+5. Add monitoring (#27) - Visibility into production issues
 
 ---
 
