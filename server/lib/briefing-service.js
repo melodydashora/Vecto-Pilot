@@ -1380,7 +1380,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     state,
     news: { items: finalNews, filtered: finalNews },
     weather_current: weatherCurrent,
-    weather_forecast: snapshotWeather?.forecast || [],
+    weather_forecast: weatherResult?.forecast || [],
     traffic_conditions: trafficResult,
     events: finalEvents,
     school_closures: schoolClosures.length > 0 ? schoolClosures : null,
