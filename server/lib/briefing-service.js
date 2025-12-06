@@ -710,9 +710,14 @@ export async function fetchWeatherConditions({ lat, lng }) {
 
     if (currentRes.ok) {
       const currentData = await currentRes.json();
+      // Google Weather API returns Celsius - convert to Fahrenheit
+      const tempF = currentData.temperature ? Math.round((currentData.temperature * 9/5) + 32) : null;
+      const feelsLikeF = currentData.feelsLikeTemperature ? Math.round((currentData.feelsLikeTemperature * 9/5) + 32) : null;
+      
       current = {
-        temperature: currentData.temperature,
-        feelsLike: currentData.feelsLikeTemperature,
+        temperature: tempF,
+        tempF: tempF,
+        feelsLike: feelsLikeF,
         conditions: currentData.weatherCondition?.description?.text,
         conditionType: currentData.weatherCondition?.type,
         humidity: currentData.relativeHumidity,
@@ -729,6 +734,9 @@ export async function fetchWeatherConditions({ lat, lng }) {
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
       forecast = (forecastData.forecastHours || []).map((hour, idx) => {
+        // Google Weather API returns Celsius - convert to Fahrenheit
+        const tempF = hour.temperature ? Math.round((hour.temperature * 9/5) + 32) : null;
+        
         // Ensure time is a valid ISO string - use displayDateTime if valid, otherwise generate from current time
         let timeValue = hour.displayDateTime;
         if (!timeValue || isNaN(new Date(timeValue).getTime())) {
@@ -740,7 +748,8 @@ export async function fetchWeatherConditions({ lat, lng }) {
         
         return {
           time: timeValue,
-          temperature: hour.temperature,
+          temperature: tempF,
+          tempF: tempF,
           conditions: hour.weatherCondition?.description?.text,
           conditionType: hour.weatherCondition?.type,
           precipitationProbability: hour.precipitation?.probability?.percent,
