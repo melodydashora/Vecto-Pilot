@@ -8,13 +8,9 @@ import { generateStrategyForSnapshot } from "../lib/strategy-generator.js";
 import { validateIncomingSnapshot } from "../util/validate-snapshot.js";
 import { uuidOrNull } from "../util/uuid.js";
 import { generateAndStoreBriefing } from "../lib/briefing-service.js";
+import { httpError } from "./utils/http-helpers.js";
 
 const router = Router();
-
-// Helper for consistent error responses with correlation ID
-function httpError(res, status, code, message, reqId, extra = {}) {
-  return res.status(status).json({ ok: false, error: code, message, req_id: reqId, ...extra });
-}
 
 router.use(express.json({ limit: "1mb", strict: true }));
 

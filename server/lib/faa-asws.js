@@ -1,5 +1,6 @@
 // Using Node.js built-in fetch (available in Node 18+)
 import { parseStringPromise } from 'xml2js';
+import { haversineDistanceMiles } from './geo.js';
 
 const PUBLIC_API_URL = 'https://nasstatus.faa.gov/api/airport-status-information';
 const AUTH_API_BASE = 'https://external-api.faa.gov/asws';
@@ -309,7 +310,7 @@ export async function getNearestMajorAirport(latitude, longitude, maxDistanceMil
     const coords = airportCoordinates[airport.code];
     if (!coords) return null;
     
-    const distance = haversineDistance(latitude, longitude, coords.lat, coords.lon);
+    const distance = haversineDistanceMiles(latitude, longitude, coords.lat, coords.lon);
     return { ...airport, distance };
   }).filter(a => a && a.distance <= maxDistanceMiles);
 
@@ -317,15 +318,4 @@ export async function getNearestMajorAirport(latitude, longitude, maxDistanceMil
   distances.sort((a, b) => a.distance - b.distance);
   
   return distances[0] || null;
-}
-
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 3959;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
 }

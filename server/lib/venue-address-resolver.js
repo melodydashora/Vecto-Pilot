@@ -1,19 +1,8 @@
 // server/lib/venue-address-resolver.js
 // Resolve venue coordinates to addresses using Google Geocoding + Places API fallback
+import { isPlusCode } from '../routes/utils/http-helpers.js';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
-
-/**
- * Check if an address is a plus code (e.g., "C4PW+2V Waxahachie, TX, USA" or "35RH+H9 Frisco, TX, USA")
- * Plus codes are garbage - filter them out
- */
-function isPlusCode(address) {
-  if (!address) return false;
-  const trimmed = address.trim();
-  // Google Plus Codes: 4-6 alphanumerics, plus sign, 2-3 alphanumerics, optional space and location
-  // Examples: "C4PW+2V", "35XR+RV", "C4PW+2V Waxahachie, TX, USA"
-  return /^[A-Z0-9]{4,6}\+[A-Z0-9]{2,3}(\s|$)/.test(trimmed);
-}
 
 /**
  * Resolve venue coordinates to a formatted address

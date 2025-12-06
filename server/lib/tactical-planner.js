@@ -4,6 +4,7 @@
 
 import { callModel } from "./adapters/index.js";
 import { z } from "zod";
+import { safeJsonParse } from "../routes/utils/http-helpers.js";
 
 // GPT-5 response schema: venue coords + staging coords + category + pro tips
 // Addresses, distances, and place details resolved via Google Places API (New) + Routes API (New)
@@ -241,39 +242,3 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
   }
 }
 
-/**
- * Safe JSON parsing with fallback
- */
-function safeJsonParse(text) {
-  try {
-    // Try direct parse
-    return JSON.parse(text);
-  } catch {
-    // Try to extract JSON from markdown code blocks
-    const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/```\s*([\s\S]*?)\s*```/);
-    if (match) {
-      try {
-        return JSON.parse(match[1]);
-      } catch {}
-    }
-    
-    // Try to find first balanced JSON object
-    let depth = 0;
-    let start = -1;
-    for (let i = 0; i < text.length; i++) {
-      if (text[i] === '{') {
-        if (depth === 0) start = i;
-        depth++;
-      } else if (text[i] === '}') {
-        depth--;
-        if (depth === 0 && start !== -1) {
-          try {
-            return JSON.parse(text.slice(start, i + 1));
-          } catch {}
-        }
-      }
-    }
-    
-    return null;
-  }
-}

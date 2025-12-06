@@ -22,17 +22,9 @@ import { runHolidayCheck } from '../lib/providers/holiday-checker.js';
 import { consolidateStrategy } from '../lib/strategy-generator-parallel.js';
 import { generateEnhancedSmartBlocks } from '../lib/enhanced-smart-blocks.js';
 import { resolveVenueAddressesBatch } from '../lib/venue-address-resolver.js';
+import { isPlusCode } from './utils/http-helpers.js';
 
 const router = Router();
-
-// Helper to detect Plus Codes (e.g., "C4PW+2V Waxahachie, TX, USA" or "35XR+RV Frisco, TX, USA")
-function isPlusCode(address) {
-  if (!address) return false;
-  const trimmed = address.trim();
-  // Google Plus Codes: 4-6 alphanumerics, plus sign, 2-3 alphanumerics, optional space and location
-  // Examples: "C4PW+2V", "35XR+RV", "C4PW+2V Waxahachie, TX, USA"
-  return /^[A-Z0-9]{4,6}\+[A-Z0-9]{2,3}(\s|$)/.test(trimmed);
-}
 
 // Helper to safely calculate elapsed time and prevent NaN in responses
 function safeElapsedMs(row) {

@@ -1,4 +1,5 @@
 import { latLngToCell, cellToLatLng, gridDistance } from 'h3-js';
+import { haversineDistanceKm } from './geo.js';
 
 export function scoreCandidate(venue, context) {
   const proximityBand = calculateProximityBand(venue, context);
@@ -17,7 +18,7 @@ function calculateProximityBand(venue, context) {
   
   // First check: Is this venue even in the same geographic region?
   // Use haversine to calculate actual distance - if > 100km, skip H3 (different regions)
-  const haversineKm = haversineDistance(
+  const haversineKm = haversineDistanceKm(
     context.lat, context.lng,
     venue.lat, venue.lng
   );
@@ -42,19 +43,6 @@ function calculateProximityBand(venue, context) {
     // H3 error - likely different continents/hemispheres
     return 0.0; // Skip this venue entirely
   }
-}
-
-// Haversine distance in kilometers
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
 }
 
 function calculatePersonalizationBoost(venue, context) {
