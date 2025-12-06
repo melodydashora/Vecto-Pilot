@@ -892,6 +892,7 @@ If no significant traffic, return empty incidents array.`;
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
+          tools: [{ google_search: {} }],
           generationConfig: { temperature: 0.2, maxOutputTokens: 1500, topP: 1 }
         })
       }
@@ -996,6 +997,7 @@ If no relevant news, return: []`;
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
+          tools: [{ google_search: {} }],
           generationConfig: { temperature: 0.3, maxOutputTokens: 2048, topP: 1 }
         })
       }
