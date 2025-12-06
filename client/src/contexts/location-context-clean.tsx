@@ -47,7 +47,17 @@ export interface OverrideCoordinates {
   latitude: number;
   longitude: number;
   city: string;
+  state?: string;
   source: 'manual_city_search';
+}
+
+// GPS coordinates with resolved location (city/state)
+export interface ResolvedCoordinates {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  city?: string;
+  state?: string;
 }
 
 // Updated interface for LocationContext to properly type it
@@ -58,7 +68,7 @@ export interface LocationContextValue {
   requestPermission: () => Promise<void>;
 
   // GPS and location data
-  currentCoords: GeolocationCoordinates | null;
+  currentCoords: ResolvedCoordinates | null;
   currentLocationString: string;
   lastUpdated: Date | null;
   accuracy: number | null;
@@ -323,7 +333,13 @@ export function LocationProvider({ children }: LocationProviderProps) {
       setLocationState((prev: any) => ({
         ...prev,
         coords: { ...coords },
-        currentCoords: coords,
+        currentCoords: {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          accuracy: coords.accuracy,
+          city: undefined,
+          state: undefined,
+        },
         latitude: coords.latitude,
         longitude: coords.longitude,
         accuracy: coords.accuracy,
@@ -466,7 +482,13 @@ export function LocationProvider({ children }: LocationProviderProps) {
             const newState = {
               ...prev,
               coords: { ...coords },
-              currentCoords: coords,
+              currentCoords: {
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                accuracy: coords.accuracy,
+                city: locationData.city,
+                state: locationData.state,
+              },
               currentLocation: locationName, // CRITICAL: Must match export key at line 1029
               latitude: coords.latitude,
               longitude: coords.longitude,
