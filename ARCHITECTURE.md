@@ -2605,7 +2605,7 @@ Reduces code duplication, improves maintainability, and creates consistent behav
 - ✅ `server/lib/tactical-planner.js` - Import from shared http-helpers.js
 - ✅ `server/lib/fast-tactical-reranker.js` - Import from shared http-helpers.js
 
-**Dead Code Removal (13 files):**
+**Dead Code Removal (18 files):**
 - ~~`server/lib/blocks-queue.js`~~ - Unused async processing
 - ~~`server/lib/blocks-jobs.js`~~ - Unused job queue
 - ~~`server/lib/triad-orchestrator.js`~~ - Deprecated multi-model orchestration
@@ -2619,6 +2619,11 @@ Reduces code duplication, improves maintainability, and creates consistent behav
 - ~~`server/lib/priors.js`~~ - Unused utilities
 - ~~`server/lib/adapters/anthropic-claude.js`~~ - Unused model adapter
 - ~~`server/lib/adapters/openai-gpt5.js`~~ - Unused model adapter
+- ~~`server/lib/scoring-engine.js`~~ - Replaced by enhanced-smart-blocks.js internal scoring
+- ~~`server/lib/driveTime.js`~~ - Replaced by venue-enrichment.js
+- ~~`server/lib/venue-generator.js`~~ - Replaced by tactical-planner.js
+- ~~`server/lib/persist-ranking.js`~~ - Replaced by enhanced-smart-blocks.js direct DB writes
+- ~~`server/lib/fast-tactical-reranker.js`~~ - Never integrated into workflow
 
 **Data Directory Cleanup:**
 - ✅ Removed 1,637 test snapshot files from `data/context-snapshots/`
@@ -2628,15 +2633,17 @@ Reduces code duplication, improves maintainability, and creates consistent behav
 **Metrics:**
 | Metric | Before | After |
 |--------|--------|-------|
-| Server lib files | 68 | 54 |
+| Server lib files | 68 | 49 |
 | Duplicate functions | 9 | 0 |
 | Data directory size | 6.4MB | 0MB |
 | Test snapshot files | 1,637 | 0 |
+| Dead library files | 18 | 0 |
+| blocks-fast.js imports | 25 | 16 |
 
 **Files Still Active (Do Not Remove):**
 - `faa-asws.js` - Used via dynamic import in `location.js`
 - `holiday-detector.js` - Used via dynamic import in `location.js`
-- `gemini-2.5-pro.js` - Used by `venue-event-verifier.js`, `fast-tactical-reranker.js`
+- `gemini-2.5-pro.js` - Used by `venue-event-verifier.js`
 
 **Backward Pressure:**
 - ❌ Duplicate utility functions across files
