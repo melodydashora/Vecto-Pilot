@@ -135,7 +135,7 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
 
 export async function fetchEventsForBriefing({ snapshot } = {}) {
   console.log(`[fetchEventsForBriefing] Called with snapshot:`, snapshot ? `lat=${snapshot.lat}, lng=${snapshot.lng}, tz=${snapshot.timezone}, date=${snapshot.date}` : 'null');
-  console.log('[fetchEventsForBriefing] 🔑 Checking GEMINI_API_KEY - exists:', !!GEMINI_API_KEY);
+  console.log('[fetchEventsForBriefing] 🔑 Checking GEMINI_API_KEY - exists:', !!getGeminiApiKey());
   
   if (snapshot) {
     console.log('[fetchEventsForBriefing] 📤 SENT SNAPSHOT TO GEMINI FOR EVENTS:', {
@@ -154,7 +154,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
     });
   }
   
-  if (!GEMINI_API_KEY) {
+  if (!getGeminiApiKey()) {
     console.warn('[BriefingService] ❌ Gemini API key not configured');
     return [];
   }
@@ -177,10 +177,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 }
 
 async function fetchEventsWithGemini3ProPreview({ snapshot }) {
-  console.log(`[fetchEventsWithGemini3ProPreview] CALLED - GEMINI_API_KEY exists: ${!!GEMINI_API_KEY}`);
+  console.log(`[fetchEventsWithGemini3ProPreview] CALLED - GEMINI_API_KEY exists: ${!!getGeminiApiKey()}`);
   
-  if (!GEMINI_API_KEY) {
-    console.error('[BriefingService] ❌ GEMINI_API_KEY is NOT set - cannot fetch events');
+  if (!getGeminiApiKey()) {
+    console.error('[BriefingService] ❌ GEMINI_API_KEY is NOT set - cannot fetch events (checked at runtime)');
     return [];
   }
 
@@ -498,7 +498,7 @@ async function convertNewsToEvents(newsItems, city, state, lat, lng) {
 
 // Confirm TBD event details using Gemini 3.0 Pro (with fallback to 2.5 Pro)
 export async function confirmTBDEventDetails(events) {
-  if (!GEMINI_API_KEY) {
+  if (!getGeminiApiKey()) {
     console.warn('[BriefingService] Gemini API key not configured, skipping TBD confirmation');
     return events;
   }
@@ -621,8 +621,8 @@ Return a JSON array with one object per event. If you cannot confirm details, se
 }
 
 async function filterNewsWithGemini(newsItems, city, state, country, lat, lng) {
-  if (!GEMINI_API_KEY) {
-    console.warn('[BriefingService] GEMINI_API_KEY not set, returning all news');
+  if (!getGeminiApiKey()) {
+    console.warn('[BriefingService] GEMINI_API_KEY not set (runtime check), returning all news');
     return newsItems.map(n => ({
       title: n.title,
       summary: n.snippet || n.title,
@@ -755,9 +755,9 @@ export async function fetchWeatherForecast({ snapshot }) {
     });
   }
 
-  if (!GEMINI_API_KEY) {
-    console.warn('[BriefingService] GEMINI_API_KEY not set for weather forecast');
-    return { current: null, forecast: [], error: 'GEMINI_API_KEY not configured' };
+  if (!getGeminiApiKey()) {
+    console.warn('[BriefingService] GEMINI_API_KEY not set (runtime check) for weather forecast');
+    return { current: null, forecast: [], error: 'GEMINI_API_KEY not configured (runtime check)' };
   }
 
   if (!snapshot?.city || !snapshot?.state || !snapshot?.date) {
@@ -983,7 +983,7 @@ export async function fetchWeatherConditions({ snapshot }) {
 }
 
 export async function fetchSchoolClosures({ snapshot }) {
-  if (!GEMINI_API_KEY) {
+  if (!getGeminiApiKey()) {
     console.log('[BriefingService] Skipping school closures (no Gemini API key)');
     return [];
   }
@@ -1053,8 +1053,8 @@ export async function fetchTrafficConditions({ snapshot }) {
     });
   }
 
-  if (!GEMINI_API_KEY) {
-    console.warn('[BriefingService] ❌ GEMINI_API_KEY not set, returning stub traffic data');
+  if (!getGeminiApiKey()) {
+    console.warn('[BriefingService] ❌ GEMINI_API_KEY not set (runtime check), returning stub traffic data');
     return { 
       summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
       incidents: [], 
@@ -1142,8 +1142,8 @@ CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSO
  * Fetch rideshare-relevant news using Gemini with Google search
  */
 async function fetchRideshareNews({ snapshot }) {
-  if (!GEMINI_API_KEY) {
-    console.warn('[BriefingService] GEMINI_API_KEY not set, skipping news fetch');
+  if (!getGeminiApiKey()) {
+    console.warn('[BriefingService] GEMINI_API_KEY not set (runtime check), skipping news fetch');
     return [];
   }
 
