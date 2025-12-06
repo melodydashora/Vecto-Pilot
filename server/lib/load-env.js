@@ -113,30 +113,31 @@ export function loadEnvironment() {
   if (loadEnvFile(sharedPath)) {
     console.log('[env-loader] ✅ Loaded: env/shared.env (baseline)');
   } else {
-    console.error('[env-loader] ❌ FATAL: env/shared.env not found');
-    process.exit(1);
+    console.warn('[env-loader] ⚠️  env/shared.env not found (OK in deployment - using Replit Secrets)');
   }
 
   // Step 2: Load mode-specific env file (OVERRIDES shared values)
   const modeFile = `env/${deployMode}.env`;
   const modePath = path.join(rootDir, modeFile);
   
-  // Force mode-specific values to override shared.env
-  // Delete conflicting keys before loading mode-specific file
-  const modeSpecificOverrides = ['PG_MAX', 'PG_MIN', 'PG_IDLE_TIMEOUT_MS', 'PG_CONNECTION_TIMEOUT_MS'];
-  const modeContent = fs.readFileSync(modePath, 'utf-8');
-  modeSpecificOverrides.forEach(key => {
-    if (modeContent.includes(`${key}=`)) {
-      delete process.env[key]; // Clear so mode-specific value can override
+  if (fs.existsSync(modePath)) {
+    // Force mode-specific values to override shared.env
+    // Delete conflicting keys before loading mode-specific file
+    const modeSpecificOverrides = ['PG_MAX', 'PG_MIN', 'PG_IDLE_TIMEOUT_MS', 'PG_CONNECTION_TIMEOUT_MS'];
+    const modeContent = fs.readFileSync(modePath, 'utf-8');
+    modeSpecificOverrides.forEach(key => {
+      if (modeContent.includes(`${key}=`)) {
+        delete process.env[key]; // Clear so mode-specific value can override
+      }
+    });
+    
+    if (loadEnvFile(modePath)) {
+      console.log(`[env-loader] ✅ Loaded: ${modeFile} (overrides shared.env)`);
+    } else {
+      console.warn(`[env-loader] ⚠️  ${modeFile} could not be loaded`);
     }
-  });
-  
-  if (loadEnvFile(modePath)) {
-    console.log(`[env-loader] ✅ Loaded: ${modeFile} (overrides shared.env)`);
   } else {
-    console.error(`[env-loader] ❌ FATAL: ${modeFile} not found`);
-    console.error(`[env-loader]    Valid modes: webservice, worker`);
-    process.exit(1);
+    console.warn(`[env-loader] ⚠️  ${modeFile} not found (OK in deployment - using Replit Secrets)`);
   }
 
   // Step 3: Validate contract

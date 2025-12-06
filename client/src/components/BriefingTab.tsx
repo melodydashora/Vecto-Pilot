@@ -43,12 +43,19 @@ export default function BriefingTab({
   // Log data received for debugging
   console.log('[BriefingTab] Received data:', { 
     snapshotId, 
-    weatherData, 
-    trafficData, 
-    newsData,
-    eventsData, 
-    schoolClosuresData 
+    hasWeather: !!weatherData,
+    hasTraffic: !!trafficData,
+    hasNews: !!newsData,
+    hasEvents: !!eventsData,
+    hasClosures: !!schoolClosuresData
   });
+  if (eventsData) {
+    console.log('[BriefingTab] Events data:', { 
+      eventsDataStructure: JSON.stringify(eventsData).substring(0, 200),
+      eventsArray: eventsData.events,
+      eventsArrayLength: eventsData.events?.length
+    });
+  }
 
   // Utility functions
   const celsiusToFahrenheit = (celsius: number) => Math.round((celsius * 9/5) + 32);
