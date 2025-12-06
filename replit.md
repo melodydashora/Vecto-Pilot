@@ -34,6 +34,37 @@ Added JWT authentication headers to both SmartBlocks API requests in `client/src
 - Frontend logs confirm: `✅ SmartBlocks rendering: { count: 5, firstBlock: "Kroger Marketplace (Main St & FM 423)" }`
 - Full data enrichment pipeline working: Strategy → Consolidation → SmartBlocks Generation → Database Persistence → Frontend Retrieval
 
+## Bars & Premium Venues Table ✅
+
+**IMPLEMENTED (December 6, 2025)**
+
+### Feature
+Added ML-focused bars and premium venues table to the Venues tab for structured data capture of business hours and performance metrics.
+
+### Implementation
+**Files Created**:
+- **`client/src/components/BarsTable.tsx`**: New component that filters SmartBlocks for bars (category contains "bar") and displays them in a table format
+
+**Files Modified**:
+- **`client/src/pages/co-pilot.tsx`**: 
+  - Added BarsTable import (line 47)
+  - Rendered BarsTable above blocks list in Venues tab (line 1485)
+
+### Features
+✅ **Bars Table** on Venues tab shows:
+- Venue name and address
+- Distance and drive time
+- **Business Hours** (prominently displayed for ML training with clock icon)
+- Value per minute ($)
+- Grade (A/B/C)
+- Open/Closed status
+
+✅ **ML Training Data**:
+- Business hours captured in structured format for ML training
+- All metrics easily extracted for supervised learning models
+- Clean table layout optimized for data export and analysis
+- Marked with "ML Training Data" badge for clarity
+
 ## System Architecture
 Vecto Pilot is a full-stack Node.js application with a multi-service architecture, supporting both monolithic and split deployments.
 
