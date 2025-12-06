@@ -6,7 +6,7 @@
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
+import { getFullSnapshot } from '../snapshot/get-snapshot-context.js';
 import { callModel } from '../adapters/index.js';
 
 /**
@@ -57,8 +57,8 @@ export async function runConsolidator(snapshotId) {
     console.log(`[consolidator] ✅ Strategist output ready (briefing field not used by consolidator)`);
     
     // Step 2: Fetch snapshot to get full context for briefing research
-    const ctx = await getSnapshotContext(snapshotId);
-    const userAddress = ctx.formatted_address; // CRITICAL: Always from users table via getSnapshotContext
+    const ctx = await getFullSnapshot(snapshotId);
+    const userAddress = ctx.formatted_address; // CRITICAL: Always from users table via getFullSnapshot
     const cityDisplay = ctx.city || 'your area';
     
     // DEBUG: Log the precise address being sent to GPT-5
