@@ -23,10 +23,28 @@ export default function BarsTable({ blocks }: BarsTableProps) {
     return null;
   }
 
-  // Filter for bars only
+  // Filter for bars, restaurants, nightlife, and dining venues
   const bars = blocks.filter(block => {
     const category = (block.category || "").toLowerCase();
-    return category.includes("bar");
+    const name = (block.name || "").toLowerCase();
+    
+    // Include venues with bar/restaurant/nightlife/dining categories
+    const hasBevCategory = category.includes("bar") || 
+                          category.includes("restaurant") || 
+                          category.includes("nightlife") || 
+                          category.includes("dining") ||
+                          category.includes("entertainment");
+    
+    // Also filter out obvious non-bar venues by name patterns
+    const isNotGrocery = !name.includes("kroger") && 
+                        !name.includes("walmart") && 
+                        !name.includes("whole foods") &&
+                        !name.includes("grocery") &&
+                        !name.includes("school") &&
+                        !name.includes("high school") &&
+                        !name.includes("college");
+    
+    return hasBevCategory && isNotGrocery;
   });
 
   if (bars.length === 0) {
