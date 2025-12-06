@@ -580,7 +580,7 @@ const CoPilot: React.FC = () => {
           const response = await fetch(`${endpoint}?snapshotId=${lastSnapshotId}`, {
             method: 'GET',
             signal: controller.signal,
-            headers
+            headers: { ...headers, ...getAuthHeader() }
           });
           clearTimeout(timeoutId);
           
@@ -639,7 +639,8 @@ const CoPilot: React.FC = () => {
             }
           };
           
-          // Blocks ready - no log to reduce spam (polling completed successfully)
+          // Blocks ready - log the result
+          console.log('[blocks-query] ✅ Blocks fetched successfully:', { count: transformed.blocks?.length, blocks: transformed.blocks?.slice(0, 2) });
           return transformed;
         }
       } catch (err: any) {
@@ -812,6 +813,11 @@ const CoPilot: React.FC = () => {
     }
     return block;
   });
+  
+  // Log blocks for debugging
+  if (blocks.length > 0) {
+    console.log('✅ SmartBlocks rendering:', { count: blocks.length, firstBlock: blocks[0]?.name });
+  }
   
   const metadata = blocksData?.metadata;
   const tacticalSummary = (blocksData as any)?.tactical_summary;
