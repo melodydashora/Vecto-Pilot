@@ -164,11 +164,11 @@ export default function BriefingTab({
                 <Loader className="w-5 h-5 animate-spin text-blue-600" />
               ) : (
                 <>
-                  {weather?.current && getWeatherIcon(weather.current.conditionType, weather.current.isDaytime)}
+                  {weather?.current && getWeatherIcon(weather.current.conditions, weather.current.isDaytime)}
                   Current Weather
-                  {weather?.current?.temperature && (
+                  {weather?.current?.tempF && (
                     <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 ml-2">
-                      {celsiusToFahrenheit(weather.current.temperature.degrees)}°F
+                      {weather.current.tempF}°F
                     </Badge>
                   )}
                 </>
@@ -193,14 +193,14 @@ export default function BriefingTab({
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="text-4xl font-bold text-gray-800">
-                      {celsiusToFahrenheit(weather.current.temperature?.degrees || 0)}°
+                      {weather.current.tempF || 0}°
                       <span className="text-lg font-normal text-gray-500">F</span>
                     </div>
                     <div className="min-w-0">
                       <p className="text-gray-700 font-medium truncate">{weather.current.conditions}</p>
                       {weather.current.feelsLike && (
                         <p className="text-sm text-gray-500 truncate">
-                          Feels like {celsiusToFahrenheit(weather.current.feelsLike.degrees)}°F
+                          Feels like {weather.current.feelsLike}°F
                         </p>
                       )}
                     </div>
@@ -215,12 +215,12 @@ export default function BriefingTab({
                         </div>
                       </div>
                     )}
-                    {weather.current.windSpeed && (
+                    {weather.current.windDirection && (
                       <div className="flex items-center gap-1">
                         <Wind className="w-4 h-4 text-gray-400" />
                         <div className="text-center">
-                          <div className="font-medium">{weather.current.windSpeed.value}</div>
-                          <div className="text-xs">{weather.current.windDirection}</div>
+                          <div className="font-medium">{weather.current.windDirection}</div>
+                          <div className="text-xs">Wind</div>
                         </div>
                       </div>
                     )}
@@ -237,7 +237,7 @@ export default function BriefingTab({
                           </span>
                           <div className="my-1">{getWeatherIcon(hour.conditionType, hour.isDaytime)}</div>
                           <span className="text-sm font-medium text-gray-800">
-                            {celsiusToFahrenheit(hour.temperature?.degrees || 0)}°F
+                            {hour.tempF || 0}°F
                           </span>
                           {hour.precipitationProbability !== null && hour.precipitationProbability > 0 && (
                             <span className="text-xs text-blue-600 font-medium">{hour.precipitationProbability}% rain</span>
