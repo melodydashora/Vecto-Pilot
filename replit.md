@@ -83,16 +83,18 @@ Every table referencing `snapshot_id` also stores the resolved precise location 
 
 ## Recent Changes & Fixes
 
-- **Dec 6, 2025 (BRIEFING QUERIES NOW WORKING)**:
-  - ✅ **Fixed briefing queries not firing**: Removed `token` requirement from `enabled` condition in co-pilot.tsx
-  - ✅ **Auth header now dynamic**: Token retrieved at fetch time via `getAuthHeader()` function instead of render time
-  - ✅ **All 5 briefing queries firing**: Weather, Traffic, Events, News, School Closures now fetch in parallel
-  - ✅ **Data displayed in BriefingTab**: Component receives data props correctly, console logs show queries completing
-  - ✅ **Consolidated Gemini duplications**: Removed `gemini-news-briefing.js`, `gemini-enricher.js` - all routes through `briefing-service.js`
-  - ✅ **Added comprehensive logging**: [BriefingQuery] logs show fetch/receive for debugging
-  - **Result**: Briefing Tab data (events, traffic, news, weather, school closures) now displays after snapshot creation
+- **Dec 6, 2025 (TRAFFIC & EVENTS NOW WORKING)**:
+  - ✅ **Traffic Intelligence Complete**: All fields now returning properly
+    - Updated Gemini prompt to explicitly request: `summary`, `congestionLevel`, `incidents`, `highDemandZones`, `repositioning`, `surgePricing`, `safetyAlert`
+    - Changed fallback values from `undefined` to `null`/empty arrays so JSON fields don't disappear
+    - Traffic endpoint auto-generates briefing if missing (matching news pattern)
+  - ✅ **Events Displaying**: Major events (5-10+) showing with full details from Gemini + Google Places
+  - ✅ **News Working**: Rideshare-relevant content from Gemini 3.0 Pro with web search
+  - ✅ **School Closures Working**: Today's closures fetching via Gemini web search
+  - ⚠️ **Weather Issue**: Snapshot contains full weather data (tempF, conditions, humidity, forecast) but briefing endpoint returns null. Root cause: snapshot weather field access mismatch when building briefing record - needs investigation of snapshot.weather field structure
+  - **Result**: 4 of 5 briefing data sources fully functional; weather data exists in snapshot but not flowing to briefing display
 
-- **Dec 6, 2025 (PREVIOUS: DUPLICATE SNAPSHOT SENDS ELIMINATED)**:
+- **Dec 6, 2025 (PREVIOUS: BRIEFING QUERIES NOW WORKING)**:
   - ✅ **Identified root cause**: Both `location-context-clean.tsx` AND `GlobalHeader.tsx` were independently creating and POSTing snapshots
   - ✅ **Removed duplicate**: Deleted `persistSnapshot()` and `buildAndSaveSnapshot()` functions from GlobalHeader (170+ lines)
   - ✅ **Single source of truth**: Only `location-context-clean.tsx` now creates snapshots (verified no other callers)
