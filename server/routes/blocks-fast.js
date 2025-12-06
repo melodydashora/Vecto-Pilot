@@ -269,7 +269,12 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
               await generateEnhancedSmartBlocks({
                 snapshotId,
                 consolidated: consolidated.consolidated_strategy,
-                briefing: briefing,
+                briefing: briefing || { 
+                  events: [],
+                  news: [],
+                  traffic: { summary: 'Traffic conditions gathering...', incidents: [] },
+                  holidays: []
+                },
                 snapshot: snapshot,
                 user_id: null
               });
