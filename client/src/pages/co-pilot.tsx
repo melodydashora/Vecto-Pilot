@@ -403,6 +403,79 @@ const CoPilot: React.FC = () => {
     gcTime: 10 * 60 * 1000,
   });
 
+  // ===== BRIEFING TAB QUERIES (load in parallel regardless of active tab) =====
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+  const { data: weatherData } = useQuery({
+    queryKey: ['/api/briefing/weather', lastSnapshotId, token],
+    queryFn: async () => {
+      if (!lastSnapshotId || !token) return { weather: null };
+      const response = await fetch(`/api/briefing/weather/${lastSnapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) return { weather: null };
+      return response.json();
+    },
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    staleTime: 30000,
+  });
+
+  const { data: trafficData } = useQuery({
+    queryKey: ['/api/briefing/traffic', lastSnapshotId, token],
+    queryFn: async () => {
+      if (!lastSnapshotId || !token) return { traffic: null };
+      const response = await fetch(`/api/briefing/traffic/${lastSnapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) return { traffic: null };
+      return response.json();
+    },
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    staleTime: 30000,
+  });
+
+  const { data: newsData } = useQuery({
+    queryKey: ['/api/briefing/rideshare-news', lastSnapshotId, token],
+    queryFn: async () => {
+      if (!lastSnapshotId || !token) return { news: null };
+      const response = await fetch(`/api/briefing/rideshare-news/${lastSnapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) return { news: null };
+      return response.json();
+    },
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    staleTime: 45000,
+  });
+
+  const { data: eventsData } = useQuery({
+    queryKey: ['/api/briefing/events', lastSnapshotId, token],
+    queryFn: async () => {
+      if (!lastSnapshotId || !token) return { events: [] };
+      const response = await fetch(`/api/briefing/events/${lastSnapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) return { events: [] };
+      return response.json();
+    },
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    staleTime: 45000,
+  });
+
+  const { data: schoolClosuresData } = useQuery({
+    queryKey: ['/api/briefing/school-closures', lastSnapshotId, token],
+    queryFn: async () => {
+      if (!lastSnapshotId || !token) return { school_closures: [] };
+      const response = await fetch(`/api/briefing/school-closures/${lastSnapshotId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) return { school_closures: [] };
+      return response.json();
+    },
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    staleTime: 45000,
+  });
+
   // Clear strategy if snapshot ID changes
   useEffect(() => {
     if (lastSnapshotId && lastSnapshotId !== 'live-snapshot' && strategySnapshotId && lastSnapshotId !== strategySnapshotId) {
@@ -1886,6 +1959,11 @@ const CoPilot: React.FC = () => {
           <div data-testid="briefing-section" className="mb-24">
             <BriefingTab 
               snapshotId={lastSnapshotId || undefined}
+              weatherData={weatherData}
+              trafficData={trafficData}
+              newsData={newsData}
+              eventsData={eventsData}
+              schoolClosuresData={schoolClosuresData}
             />
           </div>
         )}

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,119 +20,25 @@ interface SchoolClosure {
 
 interface BriefingTabProps {
   snapshotId?: string;
+  weatherData?: any;
+  trafficData?: any;
+  newsData?: any;
+  eventsData?: any;
+  schoolClosuresData?: any;
 }
 
-export default function BriefingTab({ snapshotId }: BriefingTabProps) {
+export default function BriefingTab({ 
+  snapshotId, 
+  weatherData, 
+  trafficData, 
+  newsData, 
+  eventsData, 
+  schoolClosuresData 
+}: BriefingTabProps) {
   const [expandedWeather, setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedNews, setExpandedNews] = useState(true);
   const [expandedClosures, setExpandedClosures] = useState(true);
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-
-  // Component-level queries - each loads independently
-  const weatherQuery = useQuery({
-    queryKey: ['/api/briefing/weather', snapshotId, token],
-    queryFn: async () => {
-      if (!snapshotId || !token) return { weather: null };
-      try {
-        const response = await fetch(`/api/briefing/weather/${snapshotId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) return { weather: null };
-        return response.json();
-      } catch (error) {
-        console.log('Weather fetch error:', error);
-        return { weather: null };
-      }
-    },
-    enabled: !!snapshotId && !!token,
-    staleTime: 30000,
-    retry: 1,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-
-  const trafficQuery = useQuery({
-    queryKey: ['/api/briefing/traffic', snapshotId, token],
-    queryFn: async () => {
-      if (!snapshotId || !token) return { traffic: null };
-      try {
-        const response = await fetch(`/api/briefing/traffic/${snapshotId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) return { traffic: null };
-        return response.json();
-      } catch (error) {
-        console.log('Traffic fetch error:', error);
-        return { traffic: null };
-      }
-    },
-    enabled: !!snapshotId && !!token,
-    staleTime: 30000,
-    retry: 1,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-
-  const rideshareNewsQuery = useQuery({
-    queryKey: ['/api/briefing/rideshare-news', snapshotId, token],
-    queryFn: async () => {
-      if (!snapshotId || !token) return { news: null };
-      try {
-        const response = await fetch(`/api/briefing/rideshare-news/${snapshotId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) return { news: null };
-        return response.json();
-      } catch (error) {
-        console.log('News fetch error:', error);
-        return { news: null };
-      }
-    },
-    enabled: !!snapshotId && !!token,
-    staleTime: 45000,
-  });
-
-  // Single events query that fetches all events (local events + live music + concerts) with Places API resolution
-  const eventsQuery = useQuery({
-    queryKey: ['/api/briefing/events', snapshotId, token],
-    queryFn: async () => {
-      if (!snapshotId || !token) return { events: [] };
-      try {
-        const response = await fetch(`/api/briefing/events/${snapshotId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) return { events: [] };
-        return response.json();
-      } catch (error) {
-        console.log('Events fetch error:', error);
-        return { events: [] };
-      }
-    },
-    enabled: !!snapshotId && !!token,
-    staleTime: 45000,
-  });
-
-  const schoolClosuresQuery = useQuery({
-    queryKey: ['/api/briefing/school-closures', snapshotId, token],
-    queryFn: async () => {
-      if (!snapshotId || !token) return { school_closures: [] };
-      try {
-        const response = await fetch(`/api/briefing/school-closures/${snapshotId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) return { school_closures: [] };
-        return response.json();
-      } catch (error) {
-        console.log('School closures fetch error:', error);
-        return { school_closures: [] };
-      }
-    },
-    enabled: !!snapshotId && !!token,
-    staleTime: 45000,
-  });
 
   // Utility functions
   const celsiusToFahrenheit = (celsius: number) => Math.round((celsius * 9/5) + 32);
@@ -211,12 +116,12 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     );
   }
 
-  // Extract data from queries
-  const weather = weatherQuery.data?.weather;
-  const traffic = trafficQuery.data?.traffic;
-  const news = rideshareNewsQuery.data?.news;
-  const allEvents = eventsQuery.data?.events || [];
-  const allClosures = schoolClosuresQuery.data?.school_closures || [];
+  // Extract data from props
+  const weather = weatherData?.weather;
+  const traffic = trafficData?.traffic;
+  const news = newsData?.news;
+  const allEvents = eventsData?.events || [];
+  const allClosures = schoolClosuresData?.school_closures || [];
   const schoolClosures = allClosures.filter(isClosureActive);
   
   // Filter events by date
@@ -235,38 +140,6 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
             </Badge>
           )}
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => weatherQuery.refetch()}
-            disabled={weatherQuery.isPending}
-            data-testid="refresh-weather"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span className="ml-2 hidden sm:inline">Weather</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => trafficQuery.refetch()}
-            disabled={trafficQuery.isPending}
-            data-testid="refresh-traffic"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span className="ml-2 hidden sm:inline">Traffic</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => rideshareNewsQuery.refetch()}
-            disabled={rideshareNewsQuery.isPending}
-            data-testid="refresh-news"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span className="ml-2 hidden sm:inline">News</span>
-          </Button>
-        </div>
       </div>
 
       {/* Weather Card */}
@@ -277,7 +150,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              {weatherQuery.isLoading ? (
+              {!weather ? (
                 <Loader className="w-5 h-5 animate-spin text-blue-600" />
               ) : (
                 <>
@@ -300,7 +173,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedWeather && (
           <CardContent>
-            {weatherQuery.isLoading || !weather?.current ? (
+            {!weather?.current ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-blue-600 mr-2" />
                 <span className="text-gray-600">Loading weather...</span>
@@ -380,7 +253,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              {trafficQuery.isLoading ? (
+              {!traffic ? (
                 <Loader className="w-5 h-5 animate-spin text-orange-600" />
               ) : (
                 <>
@@ -403,7 +276,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedTraffic && (
           <CardContent>
-            {trafficQuery.isLoading || !traffic ? (
+            {!traffic ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-orange-600 mr-2" />
                 <span className="text-gray-600">Loading traffic...</span>
@@ -448,7 +321,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              {rideshareNewsQuery.isLoading ? (
+              {!news ? (
                 <Loader className="w-5 h-5 animate-spin text-purple-600" />
               ) : (
                 <>
@@ -471,7 +344,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedNews && (
           <CardContent>
-            {rideshareNewsQuery.isLoading || !rideshareNewsQuery.data ? (
+            {!news ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
                 <span className="text-gray-600">Loading news...</span>
@@ -516,7 +389,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
       </Card>
 
       {/* All Events - Consolidated Component */}
-      {eventsQuery.isLoading || !eventsQuery.data ? (
+      {!eventsData ? (
         <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
           <CardContent className="p-6">
             <div className="flex items-center justify-center py-8">
@@ -526,7 +399,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
           </CardContent>
         </Card>
       ) : (
-        <EventsComponent events={eventsToday} isLoading={eventsQuery.isLoading} />
+        <EventsComponent events={eventsToday} isLoading={false} />
       )}
 
       {/* School Closures Section - LAST */}
@@ -540,7 +413,7 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
         </CardHeader>
         {expandedClosures && (
           <CardContent>
-            {schoolClosuresQuery.isLoading || !schoolClosuresQuery.data ? (
+            {!schoolClosuresData ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
                 <span className="text-gray-600">Loading...</span>
