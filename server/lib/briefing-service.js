@@ -904,53 +904,92 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
 }
 
 /**
- * Fetch rideshare-relevant news for a location
- * Gets news and filters for rideshare driver relevance
+ * Fetch rideshare-relevant news for a location using Gemini with Google search
+ * Gemini analyzes and returns the most relevant news for drivers
  */
 async function fetchRideshareNews({ city, state, country, lat, lng }) {
-  try {
-    const SERP_API_KEY = process.env.SERP_API_KEY;
-    if (!SERP_API_KEY) {
-      console.warn('[BriefingService] SERP_API_KEY not set, skipping news fetch');
-      return [];
-    }
+  if (!GEMINI_API_KEY) {
+    console.warn('[BriefingService] GEMINI_API_KEY not set, skipping news fetch');
+    return [];
+  }
 
-    console.log(`[BriefingService] 📰 Fetching rideshare news for ${city}, ${state}...`);
+  try {
+    console.log(`[BriefingService] 📰 Fetching rideshare news for ${city}, ${state} via Gemini search...`);
     
-    // Fetch news from SerpAPI - search for rideshare/driver/uber/lyft relevant news
-    const query = `uber lyft rideshare driver ${city} ${state}`;
+    const prompt = `You are a rideshare driver intelligence system. Search for and analyze TODAY'S news relevant to rideshare drivers in ${city}, ${state}, ${country}.
+
+SEARCH QUERIES:
+1. "rideshare news ${city} ${state} today"
+2. "uber lyft driver news ${city} today"
+3. "${city} traffic events incidents today"
+4. "concerts games events ${city} ${state} today"
+
+For each search result, determine if it's relevant to a rideshare driver's earning potential and safety. Focus on:
+- Demand-driving events (concerts, games, festivals, parades)
+- Road closures or traffic incidents
+- Local regulations affecting rideshare
+- Weather impacts on driving
+- Airport/hotel activity
+- Safety incidents or alerts
+
+CRITICAL: Return ONLY a valid JSON array with this structure:
+[
+  {
+    "title": "headline",
+    "summary": "one sentence actionable insight for rideshare drivers",
+    "impact": "high" | "medium" | "low",
+    "source": "source name",
+    "link": "url if available",
+    "event_type": "demand_event" | "road_closure" | "weather" | "safety" | "regulation" | "other"
+  }
+]
+
+Return ONLY the JSON array, no markdown, no explanation. If no relevant news found, return: []`;
+
+    console.log(`[BriefingService] 🔍 Calling Gemini with search to analyze ${city}, ${state} news...`);
+    
     const response = await fetch(
-      `https://serpapi.com/search?q=${encodeURIComponent(query)}&tbm=nws&api_key=${SERP_API_KEY}&num=10`
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
+      {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 2048, topP: 1 }
+        })
+      }
     );
 
     if (!response.ok) {
-      console.warn(`[BriefingService] SerpAPI news error: ${response.status}`);
+      const errData = await response.text();
+      console.error(`[BriefingService] Gemini API error ${response.status}: ${errData}`);
       return [];
     }
 
     const data = await response.json();
-    const newsResults = data.news_results || [];
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     
-    if (newsResults.length === 0) {
-      console.log('[BriefingService] No news results from SerpAPI');
+    console.log(`[BriefingService] Gemini response length: ${text.length}, first 300 chars: ${text.substring(0, 300)}`);
+    
+    try {
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        const newsArray = Array.isArray(parsed) ? parsed : [];
+        console.log(`[BriefingService] ✅ Gemini search returned ${newsArray.length} relevant news items`);
+        return newsArray;
+      }
+    } catch (parseErr) {
+      console.error('[BriefingService] Gemini JSON parse error:', parseErr.message);
       return [];
     }
-
-    console.log(`[BriefingService] ✅ Got ${newsResults.length} news items from SerpAPI`);
     
-    // Transform to briefing format - keep what's new and useful
-    const rideshareNews = newsResults.map(item => ({
-      title: item.title,
-      summary: item.snippet || item.title,
-      impact: 'medium',
-      source: item.source || 'News',
-      link: item.link,
-      date: item.date
-    }));
-    
-    return rideshareNews;
+    return [];
   } catch (error) {
-    console.error('[BriefingService] Rideshare news fetch error:', error.message);
+    console.error('[BriefingService] Gemini news search error:', error.message);
     return [];
   }
 }
