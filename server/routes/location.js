@@ -1192,7 +1192,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 
     console.log('[location] ✅ Snapshot saved - Summary:');
     console.log('  📍 Location: city =', snapshotV1.resolved?.city, ', state =', snapshotV1.resolved?.state);
-    console.log('  🕐 Time: day_part =', snapshotV1.time_context?.day_part_key, ', hour =', snapshotV1.time_context?.hour);
+    console.log('  🕐 Time: date =', localDate, ', day_part =', snapshotV1.time_context?.day_part_key, ', hour =', snapshotV1.time_context?.hour);
     console.log('  🌤️ Weather: weather =', snapshotV1.weather ? `${snapshotV1.weather.tempF}°F ${snapshotV1.weather.conditions}` : 'none');
     console.log('  🌫️ Air: air_quality =', snapshotV1.air ? `AQI ${snapshotV1.air.aqi}` : 'none');
     console.log('  🛫 Airport: airport_context =', airportContext ? `${airportContext.airport_code} (${airportContext.distance_miles}mi, ${airportContext.delay_minutes}min delays)` : 'none');
