@@ -145,19 +145,9 @@ export default function BriefingTab({
   const allClosures = schoolClosuresData?.school_closures || [];
   const schoolClosures = allClosures.filter(isClosureActive);
   
-  // Filter events by date
-  const eventsToday = allEvents.filter(isEventToday);
-  
-  // Debug: Log events
-  console.log('[BriefingTab] Events Debug:', {
-    eventsDataExists: !!eventsData,
-    eventsDataEvents: eventsData?.events?.length || 0,
-    allEventsLength: allEvents.length,
-    eventsTodayLength: eventsToday.length,
-    firstEvent: allEvents[0] ? { title: allEvents[0].title, date: allEvents[0].event_date } : null,
-    todayString: new Date().toDateString()
-  });
-  const newsItems = (news?.filtered || news?.items || []).filter(isEventToday);
+  // Show all events and news - backend already filters by relevance/date
+  const eventsToday = allEvents;
+  const newsItems = (news?.filtered || news?.items || []);
 
   return (
     <div className="space-y-6" data-testid="briefing-container">

@@ -23,28 +23,33 @@ export default function BarsTable({ blocks }: BarsTableProps) {
     return null;
   }
 
-  // Filter for bars, restaurants, nightlife, and dining venues
+  // Filter for EXPENSIVE bars/restaurants where you can sit down and drink
+  // Must: sell alcohol, sit-down service, expensive (Grade A or high value)
   const bars = blocks.filter(block => {
     const category = (block.category || "").toLowerCase();
     const name = (block.name || "").toLowerCase();
     
-    // Include venues with bar/restaurant/nightlife/dining categories
-    const hasBevCategory = category.includes("bar") || 
-                          category.includes("restaurant") || 
-                          category.includes("nightlife") || 
-                          category.includes("dining") ||
-                          category.includes("entertainment");
+    // Only include actual bars/nightlife/upscale dining
+    const isBevenue = category.includes("bar") || 
+                     category.includes("nightlife") || 
+                     (category.includes("restaurant") && block.value_grade === "A");
     
-    // Also filter out obvious non-bar venues by name patterns
-    const isNotGrocery = !name.includes("kroger") && 
-                        !name.includes("walmart") && 
-                        !name.includes("whole foods") &&
-                        !name.includes("grocery") &&
-                        !name.includes("school") &&
-                        !name.includes("high school") &&
-                        !name.includes("college");
+    // Exclude non-bar venues
+    const isNotCommon = !name.includes("kroger") && 
+                       !name.includes("walmart") && 
+                       !name.includes("whole foods") &&
+                       !name.includes("grocery") &&
+                       !name.includes("school") &&
+                       !name.includes("hospital") &&
+                       !name.includes("college") &&
+                       !name.includes("medical") &&
+                       !name.includes("event center") &&
+                       !name.includes("stadium");
     
-    return hasBevCategory && isNotGrocery;
+    // Only expensive venues (Grade A or B minimum)
+    const isExpensive = block.value_grade === "A" || block.value_grade === "B";
+    
+    return isBevenue && isNotCommon && isExpensive;
   });
 
   if (bars.length === 0) {
@@ -52,101 +57,53 @@ export default function BarsTable({ blocks }: BarsTableProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <h3 className="text-lg font-semibold text-gray-800">Bars & Premium Venues</h3>
-        <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
-          ML Training Data
-        </Badge>
-        <span className="text-sm text-gray-500">({bars.length} venues)</span>
+        <h3 className="text-base font-semibold text-gray-800">Expensive Bars & Lounges</h3>
+        <span className="text-xs text-gray-500">({bars.length} venues)</span>
       </div>
 
       <Card className="border-purple-200 bg-white">
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent className="p-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-purple-50">
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Venue Name</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Address</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Distance</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Drive Time</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Business Hours</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Value/Min</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Grade</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700 text-xs">Venue</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700 text-xs">Address</th>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700 text-xs">Hours</th>
+                <th className="px-3 py-2 text-center font-semibold text-gray-700 text-xs">Status</th>
               </tr>
             </thead>
             <tbody>
               {bars.map((bar, idx) => (
                 <tr
                   key={idx}
-                  className={`border-b hover:bg-purple-50 transition-colors ${
+                  className={`border-b hover:bg-purple-50 transition-colors text-xs ${
                     idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"
                   }`}
                   data-testid={`bars-row-${idx}`}
                 >
-                  <td className="px-4 py-3 font-medium text-gray-900">{bar.name}</td>
-                  <td className="px-4 py-3 text-gray-600 max-w-xs truncate text-xs">
-                    {bar.address || "—"}
-                  </td>
-                  <td className="px-4 py-3 text-center text-gray-600">
-                    {bar.estimated_distance_miles !== undefined
-                      ? `${bar.estimated_distance_miles.toFixed(1)} mi`
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-center text-gray-600">
-                    {bar.driveTimeMinutes !== undefined ? `${bar.driveTimeMinutes} min` : "—"}
-                  </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2 font-medium text-gray-900">{bar.name}</td>
+                  <td className="px-3 py-2 text-gray-600 truncate max-w-xs">{bar.address || "—"}</td>
+                  <td className="px-3 py-2">
                     {bar.businessHours ? (
-                      <div className="flex items-start gap-1">
-                        <Clock className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-xs text-gray-700 font-mono max-w-xs">
-                          {bar.businessHours}
-                        </span>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                        <span className="text-gray-700 font-mono text-xs">{bar.businessHours}</span>
                       </div>
                     ) : (
-                      <span className="text-gray-400 text-xs">No hours</span>
+                      <span className="text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    {bar.value_per_min !== undefined ? (
-                      <div className="flex items-center justify-center gap-1">
-                        <DollarSign className="h-3 w-3 text-green-600" />
-                        <span className="text-gray-700 font-semibold">
-                          ${bar.value_per_min.toFixed(2)}
-                        </span>
-                      </div>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {bar.value_grade ? (
-                      <Badge
-                        className={`text-xs font-bold ${
-                          bar.value_grade === "A"
-                            ? "bg-green-100 text-green-700"
-                            : bar.value_grade === "B"
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {bar.value_grade}
-                      </Badge>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-3 py-2 text-center">
                     <Badge
-                      className={
+                      className={`text-xs ${
                         bar.isOpen === true
-                          ? "bg-green-100 text-green-700 border-0 text-xs"
+                          ? "bg-green-100 text-green-700 border-0"
                           : bar.isOpen === false
-                          ? "bg-red-100 text-red-700 border-0 text-xs"
-                          : "bg-gray-100 text-gray-700 border-0 text-xs"
-                      }
+                          ? "bg-red-100 text-red-700 border-0"
+                          : "bg-gray-100 text-gray-700 border-0"
+                      }`}
                     >
                       {bar.isOpen === true ? "Open" : bar.isOpen === false ? "Closed" : "Unknown"}
                     </Badge>
@@ -157,11 +114,6 @@ export default function BarsTable({ blocks }: BarsTableProps) {
           </table>
         </CardContent>
       </Card>
-
-      <p className="text-xs text-gray-500 italic">
-        📊 Business hours data captured for ML training model. Track venue performance and driver
-        behavior patterns.
-      </p>
     </div>
   );
 }
