@@ -259,10 +259,10 @@ RULES:
   try {
     console.log('[BriefingService] 📡 Calling Gemini 3 Pro Preview API for events...');
     
-    // ISSUE #16 FIX: callGemini now handles safety settings + JSON mode automatically
-    // Use gemini-2.0-flash instead of 3-pro-preview for speed and stability
+    // ISSUE #16 FIX: Use gemini-3-pro-preview with web search for better event discovery
+    // 2.0-flash doesn't call web search reliably for event discovery
     const result = await callGemini({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3-pro-preview',
       user: prompt,
       maxTokens: 4096,
       temperature: 0.2,
@@ -275,6 +275,8 @@ RULES:
       return [];
     }
 
+    console.log('[BriefingService] 📝 Raw response preview:', result.output.substring(0, 300));
+
     try {
       let parsed;
       try {
@@ -282,59 +284,32 @@ RULES:
         parsed = JSON.parse(result.output);
       } catch (parseErr) {
         // Second attempt: extract JSON from markdown code blocks
-        console.warn('[BriefingService] Direct parse failed, trying to extract from markdown');
+        console.warn('[BriefingService] Direct parse failed, trying markdown extraction');
         let jsonStr = result.output.match(/```(?:json)?\s*([\s\S]*?)\s*```/)?.[1];
         if (!jsonStr) {
           // Third attempt: extract raw JSON array
           jsonStr = result.output.match(/\[[\s\S]*\]/)?.[0];
         }
         if (!jsonStr) {
-          throw new Error(`Could not extract JSON from response: ${result.output.substring(0, 100)}`);
+          console.error('[BriefingService] ❌ Could not extract JSON, response:', result.output.substring(0, 200));
+          throw new Error(`Invalid event response format`);
         }
         parsed = JSON.parse(jsonStr.trim());
       }
 
       let events = Array.isArray(parsed) ? parsed : [parsed];
       
-      // Return sample events if Gemini returns empty
-      if (events.length === 0 || !events[0]?.title) {
-        console.log('[BriefingService] ℹ️ No events from Gemini - returning sample events for demo');
-        events = [
-          {
-            "title": "The Star District - Evening Entertainment",
-            "venue": "The Star District",
-            "address": "1001 Cowboys Way, Frisco, TX 75034",
-            "event_date": date,
-            "event_time": "6:00 PM",
-            "event_end_time": "11:00 PM",
-            "type": "demand_event",
-            "subtype": "entertainment",
-            "estimated_distance_miles": 8.5,
-            "impact": "high",
-            "staging_area": "Cowboys Way parking lot - east side",
-            "recommended_driver_action": "position_now"
-          },
-          {
-            "title": "Stonebriar Centre - Holiday Shopping",
-            "venue": "Stonebriar Centre",
-            "address": "2601 Stonebriar Parkway, Frisco, TX 75034",
-            "event_date": date,
-            "event_time": "10:00 AM",
-            "event_end_time": "10:00 PM",
-            "type": "demand_event",
-            "subtype": "shopping",
-            "estimated_distance_miles": 5.2,
-            "impact": "high",
-            "staging_area": "Main parking lot near Nordstrom",
-            "recommended_driver_action": "position_nearby"
-          }
-        ];
+      // Validate events have required fields
+      const validEvents = events.filter(e => e.title && e.venue && e.address);
+      
+      if (validEvents.length === 0) {
+        console.warn('[BriefingService] ⚠️ No valid events returned from Gemini (got', events.length, 'total)');
+        // Return empty array - don't use fallback if Gemini explicitly returned invalid data
+        return [];
       }
-      console.log(`[BriefingService] ✅ Found ${events.length} events from Gemini`);
-      if (events.length === 0) {
-        console.warn('[BriefingService] ⚠️ Gemini returned 0 events - check if events actually exist for this location/date');
-      }
-      return events;
+      
+      console.log('[BriefingService] ✅ Found', validEvents.length, 'valid events');
+      return validEvents;
     } catch (err) {
       console.error('[BriefingService] ❌ Failed to parse Gemini events JSON:', err.message);
       return [];
