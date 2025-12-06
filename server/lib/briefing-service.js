@@ -1371,14 +1371,14 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     console.warn('[BriefingService] Failed to parse snapshot weather:', e.message);
   }
 
-  if (existingWeather && existingWeather.temperature !== undefined) {
-    console.log(`[BriefingService] ⚡ Reusing weather from snapshot (Skipping API call)`);
+  if (existingWeather && (existingWeather.tempF !== undefined || existingWeather.temperature !== undefined)) {
+    console.log(`[BriefingService] ⚡ Reusing weather from snapshot (Skipping API call) - tempF=${existingWeather.tempF}`);
     weatherResult = {
       current: existingWeather,
       forecast: existingWeather.forecast || []
     };
   } else {
-    console.log(`[BriefingService] ☁️ Snapshot has no weather data, skipping fetch (will use fallback)`);
+    console.log(`[BriefingService] ☁️ Snapshot has no weather data (missing tempF/temperature), skipping fetch`);
     weatherResult = { current: null, forecast: [] };
   }
 
