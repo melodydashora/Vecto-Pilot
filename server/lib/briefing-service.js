@@ -880,27 +880,25 @@ export async function fetchTrafficConditions({ lat, lng, city, state, snapshot }
     
     console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state} at ${timeString} ${timezone} on ${driverDate}`);
     
-    const prompt = `You are a rideshare driver intelligence system. Recommend WHERE the driver should position RIGHT NOW for maximum earnings in ${city}, ${state}.
+    const prompt = `Analyze traffic conditions for ${city}, ${state} RIGHT NOW. Report factual traffic data only.
 
 DRIVER CONTEXT:
 - Location: ${city}, ${state}
 - Current Local Time: ${timeString} on ${driverDate}
 - Timezone: ${timezone}
 
-YOUR JOB: Tell the driver the BEST LOCATIONS TO POSITION RIGHT NOW. Be specific about neighborhoods, venues, and areas where demand is high.
+YOUR JOB: Report ONLY traffic facts and conditions. No positioning advice - just traffic.
 
 RETURN ONLY valid JSON - no markdown or explanation:
 {
-  "repositioning": "Specific neighborhoods/venues where driver should position for best earnings right now",
-  "highDemandZones": [
-    {"zone": "specific venue or neighborhood name", "reason": "why this zone is profitable right now"}
-  ],
-  "surgePricing": "Surge pricing prediction - when and where it will spike",
-  "safetyAlert": "Safety alert if relevant for this time/area (optional)",
-  "summary": "One actionable sentence about best positioning"
+  "summary": "One sentence summary of current traffic conditions",
+  "congestionLevel": "low" | "medium" | "high",
+  "incidents": [
+    {"description": "traffic incident, closure, or condition affecting the area", "severity": "high" | "medium" | "low"}
+  ]
 }
 
-Return ONLY JSON.`;
+Return ONLY JSON. Report traffic facts only.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     

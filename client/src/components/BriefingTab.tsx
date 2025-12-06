@@ -401,51 +401,11 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
                 <span className="text-gray-600">Loading traffic...</span>
               </div>
             ) : traffic ? (
-              <div className="space-y-4">
-                {/* Main Summary */}
+              <div className="space-y-3">
+                {/* Traffic Summary */}
                 <div className="p-3 bg-white/50 rounded-lg border border-orange-100">
                   <p className="text-gray-700 font-medium">{traffic.summary || 'No significant traffic issues'}</p>
                 </div>
-
-                {/* Repositioning Strategy */}
-                {traffic.repositioning && (
-                  <div className="p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded border border-blue-200">
-                    <p className="text-xs font-semibold text-blue-700 mb-1">🎯 REPOSITIONING</p>
-                    <p className="text-sm text-gray-700">{traffic.repositioning}</p>
-                  </div>
-                )}
-
-                {/* Surge Pricing Prediction */}
-                {traffic.surgePricing && (
-                  <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded border border-green-200">
-                    <p className="text-xs font-semibold text-green-700 mb-1">⚡ SURGE PRICING</p>
-                    <p className="text-sm text-gray-700">{traffic.surgePricing}</p>
-                  </div>
-                )}
-
-                {/* Safety Alert */}
-                {traffic.safetyAlert && (
-                  <div className="p-3 bg-gradient-to-r from-red-50 to-pink-50 rounded border border-red-200">
-                    <p className="text-xs font-semibold text-red-700 mb-1">⚠️ SAFETY</p>
-                    <p className="text-sm text-gray-700">{traffic.safetyAlert}</p>
-                  </div>
-                )}
-
-                {/* High Demand Zones */}
-                {traffic.highDemandZones && traffic.highDemandZones.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">🏆 High Demand Zones:</p>
-                    {traffic.highDemandZones.map((zone, idx) => (
-                      <div key={idx} className="flex items-start gap-2 p-2 bg-yellow-50 rounded border border-yellow-100">
-                        <div className="text-lg">📍</div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-800">{zone.zone}</p>
-                          <p className="text-xs text-gray-600">{zone.reason}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
 
                 {/* Traffic Incidents */}
                 {traffic.incidents && traffic.incidents.length > 0 && (
