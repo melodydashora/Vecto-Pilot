@@ -48,6 +48,10 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     },
     enabled: !!snapshotId && !!token,
     staleTime: 30000,
+    retry: 1,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const trafficQuery = useQuery({
@@ -67,6 +71,10 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
     },
     enabled: !!snapshotId && !!token,
     staleTime: 30000,
+    retry: 1,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const rideshareNewsQuery = useQuery({

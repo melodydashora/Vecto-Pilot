@@ -550,7 +550,7 @@ router.get('/weather', async (req, res) => {
       fetch(`https://weather.googleapis.com/v1/currentConditions:lookup?location.latitude=${lat}&location.longitude=${lng}&key=${GOOGLE_MAPS_API_KEY}`, {
         headers: { 'X-Goog-Api-Client': 'gl-node/' }
       }),
-      fetch(`https://weather.googleapis.com/v1/forecast/hourly?location.latitude=${lat}&location.longitude=${lng}&key=${GOOGLE_MAPS_API_KEY}`, {
+      fetch(`https://weather.googleapis.com/v1/forecast/hours:lookup?location.latitude=${lat}&location.longitude=${lng}&hours=6&key=${GOOGLE_MAPS_API_KEY}`, {
         headers: { 'X-Goog-Api-Client': 'gl-node/' }
       })
     ]);
