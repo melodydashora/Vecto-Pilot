@@ -233,19 +233,6 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
         // Ensure strategy row exists with snapshot location data
         await ensureStrategyRow(snapshotId);
         
-        // Pre-populate briefing endpoints to start auto-generation in background
-        try {
-          await Promise.allSettled([
-            fetch(`http://localhost:5000/api/briefing/weather/${snapshotId}`).catch(() => null),
-            fetch(`http://localhost:5000/api/briefing/traffic/${snapshotId}`).catch(() => null),
-            fetch(`http://localhost:5000/api/briefing/rideshare-news/${snapshotId}`).catch(() => null),
-            fetch(`http://localhost:5000/api/briefing/events/${snapshotId}`).catch(() => null),
-            fetch(`http://localhost:5000/api/briefing/school-closures/${snapshotId}`).catch(() => null)
-          ]);
-        } catch (e) {
-          // Pre-warming is non-critical, silent fail
-        }
-        
         // Run providers in parallel
         await Promise.all([
           runHolidayCheck(snapshotId),
