@@ -155,16 +155,20 @@ Return ONLY valid JSON, no markdown.`;
     const result = await model.generateContent(prompt);
     const text = result.response.text();
     
-    // Parse JSON response
+    // Parse JSON response - handle both raw JSON and markdown-wrapped JSON
     let venueData;
     try {
       // Try direct parse first
       venueData = JSON.parse(text);
     } catch (e) {
-      // Try to extract JSON from response
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        venueData = JSON.parse(jsonMatch[0]);
+      // Try to extract JSON from markdown code blocks (```json ... ```)
+      let jsonStr = text.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1];
+      if (!jsonStr) {
+        // Fallback: try to extract raw JSON object
+        jsonStr = text.match(/\{[\s\S]*\}$/)?.[0];
+      }
+      if (jsonStr) {
+        venueData = JSON.parse(jsonStr.trim());
       } else {
         throw new Error('Could not parse venue data from Gemini response');
       }
@@ -297,12 +301,17 @@ Return ONLY valid JSON (no explanation):
       console.log('[VenueIntelligence] ✅ Parsed traffic JSON:', trafficData.density_level);
     } catch (e) {
       console.warn('[VenueIntelligence] JSON parse failed, trying to extract:', e.message);
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        trafficData = JSON.parse(jsonMatch[0]);
+      // Try to extract JSON from markdown code blocks (```json ... ```)
+      let jsonStr = text.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1];
+      if (!jsonStr) {
+        // Fallback: try to extract raw JSON object
+        jsonStr = text.match(/\{[\s\S]*\}$/)?.[0];
+      }
+      if (jsonStr) {
+        trafficData = JSON.parse(jsonStr.trim());
         console.log('[VenueIntelligence] ✅ Extracted traffic JSON:', trafficData.density_level);
       } else {
-        throw new Error('Could not parse traffic data');
+        throw new Error('Could not parse traffic data - no JSON found');
       }
     }
 
