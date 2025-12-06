@@ -1,117 +1,78 @@
 // server/lib/holiday-detector.js
-// Fast holiday detection using Gemini 3 Pro Preview - runs during snapshot creation
+// Fast holiday detection using Gemini 3 Pro Preview via adapter
+import { callGemini } from './adapters/gemini-adapter.js';
 
 /**
- * Detect holiday for a given date/location using Gemini 3 Pro Preview
- * Runs in parallel with airport/weather enrichment during snapshot creation
+ * Detect holiday for a given date/location
  * @param {Object} context - { created_at, city, state, country, timezone }
  * @returns {Promise<{ holiday: string|null, is_holiday: boolean }>}
  */
 export async function detectHoliday(context) {
+  if (!context.created_at) {
+    return { holiday: null, is_holiday: false };
+  }
+
+  let formattedDateTime;
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn('[holiday-detector] ⚠️  GEMINI_API_KEY not set - skipping holiday detection');
-      return { holiday: null, is_holiday: false };
-    }
-
-    // Format date/time for prompt (CRITICAL: Convert UTC to local timezone)
     const utcTime = new Date(context.created_at);
-    const userTimezone = context.timezone || 'America/Chicago';
-    
-    // Get all components in user's local timezone
-    const dateFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: userTimezone,
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZoneName: 'short'
-    });
-    
-    const formattedDateTime = dateFormatter.format(utcTime);
+    if (isNaN(utcTime.getTime())) throw new Error("Invalid Date");
 
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `Date: ${formattedDateTime}
-Timezone: ${context.timezone}
+    formattedDateTime = new Intl.DateTimeFormat('en-US', {
+      timeZone: context.timezone || 'America/Chicago',
+      dateStyle: 'full',
+      timeStyle: 'short'
+    }).format(utcTime);
+  } catch (e) {
+    console.warn('[holiday-detector] Date parsing error:', e.message);
+    return { holiday: null, is_holiday: false };
+  }
+
+  const prompt = `Analyze the date and location below.
+Date: ${formattedDateTime}
 Location: ${context.city}, ${context.state}, ${context.country}
 
-Is there a SIGNIFICANT HOLIDAY observed on ${formattedDateTime} in ${context.country}, specifically in ${context.state}?
+Is there a SIGNIFICANT HOLIDAY observed here today?
 
-ONLY consider these as holidays:
-1. Federal/National holidays (e.g., Independence Day, Thanksgiving, Christmas, New Year's Day, Memorial Day, Labor Day, Presidents Day, Veterans Day)
-2. Major state holidays with government/business closures
-3. Widely-observed religious holidays (e.g., Easter, Good Friday, Rosh Hashanah, Yom Kippur, Eid al-Fitr, Diwali)
-4. Major cultural celebrations that impact traffic patterns (e.g., Día de los Muertos, Mardi Gras, Lunar New Year)
+INCLUDE:
+- Federal/National holidays (Thanksgiving, Christmas, etc.)
+- Major religious holidays (Easter, Eid, Diwali, etc.)
+- Major cultural events (Mardi Gras, etc.)
 
-DO NOT RETURN:
-- Time changes (e.g., "Daylight Saving Time Ends", "Spring Forward")
-- Minor observances or awareness days (e.g., "National Sandwich Day", "National Donut Day")
-- Commercial pseudo-holidays
-- Election days (unless it's a major national election)
+EXCLUDE:
+- Minor awareness days (National Pizza Day)
+- Time changes
 
-Return ONLY the holiday name if one exists, otherwise return empty string.`
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 100
-        }
-      })
+RETURN JSON ONLY:
+{
+  "is_holiday": boolean,
+  "name": "Name of Holiday or null"
+}`;
+
+  try {
+    const result = await callGemini({
+      model: 'gemini-3-pro-preview',
+      system: 'You are a holiday detector. Return strict JSON only.',
+      user: prompt,
+      maxTokens: 1000,
+      temperature: 0.0
     });
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error('[holiday-detector] ❌ Gemini API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorBody
-      });
+    if (!result.ok) {
+      console.warn('[holiday-detector] AI request failed:', result.error);
       return { holiday: null, is_holiday: false };
     }
 
-    const data = await response.json();
-    const holidayText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    const parsed = JSON.parse(result.output);
     
-    // Clean up response - remove extra text, just get the holiday name
-    let cleanHoliday = holidayText
-      .replace(/^(The primary holiday|Today is|November \d+, \d+ is)\s*/i, '')
-      .replace(/\.$/, '')
-      .replace(/\[.*?\]/g, '') // Remove citations like [2]
-      .replace(/^["']+|["']+$/g, '') // Remove surrounding quotes
-      .trim();
-    
-    // Filter out non-holiday responses
-    const isHoliday = cleanHoliday.length > 0 && 
-                     cleanHoliday.length < 100 && // Reject overly long responses
-                     !cleanHoliday.toLowerCase().includes('no') &&
-                     !cleanHoliday.toLowerCase().includes('not a holiday') &&
-                     !cleanHoliday.toLowerCase().includes('empty string') &&
-                     !/^["'\s]+$/.test(cleanHoliday); // Reject only quotes/whitespace
-
-    console.log(`[holiday-detector] 🎉 Holiday detection: "${cleanHoliday}" (is_holiday=${isHoliday})`);
+    console.log(`[holiday-detector] 🎉 Result: ${parsed.name || 'None'} (is_holiday=${parsed.is_holiday})`);
     
     return {
-      holiday: isHoliday ? cleanHoliday : null,
-      is_holiday: isHoliday
+      holiday: parsed.is_holiday ? parsed.name : null,
+      is_holiday: parsed.is_holiday === true
     };
+
   } catch (error) {
-    console.error('[holiday-detector] ❌ Error:', error.message);
+    console.error('[holiday-detector] ❌ Unexpected error:', error.message);
     return { holiday: null, is_holiday: false };
   }
 }
