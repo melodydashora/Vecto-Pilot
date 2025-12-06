@@ -256,12 +256,13 @@ RULES:
   try {
     console.log('[BriefingService] 📡 Calling Gemini 3 Pro Preview API for events...');
     
+    // ISSUE #16 FIX: callGemini now handles safety settings + JSON mode automatically
     const result = await callGemini({
       model: 'gemini-3-pro-preview',
       user: prompt,
-      maxTokens: 2500,
+      maxTokens: 4096,
       temperature: 0.2,
-      topP: 0.9,
+      topP: 0.95,
       topK: 40
     });
 
@@ -535,7 +536,7 @@ For each event, provide ONLY a JSON object (no explanations) with:
 
 Return a JSON array with one object per event. If you cannot confirm details, set to 'Unable to confirm'.`;
 
-    // Try Gemini 3.0 Pro first (with 15s timeout)
+    // ISSUE #16 FIX: Use low temperature and proper safety settings
     let response;
     try {
       const controller = new AbortController();
@@ -548,36 +549,32 @@ Return a JSON array with one object per event. If you cannot confirm details, se
           'x-goog-api-key': GEMINI_API_KEY
         },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          // ISSUE #16 FIX: Disable safety filters + enable JSON mode + low temp
+          safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+          ],
+          tools: [{ googleSearch: {} }],
           generationConfig: {
-            temperature: 1.0,
-            maxOutputTokens: 16000
+            responseMimeType: "application/json",
+            temperature: 0.2,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 4096
           }
         }),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
-      console.log('[BriefingService] ✅ Gemini 3.0 Pro responded');
+      console.log('[BriefingService] ✅ Gemini 3 Pro Preview responded with safety/JSON fixes');
     } catch (e) {
       if (e.name === 'AbortError') {
-        console.warn('[BriefingService] Gemini 3.0 Pro timeout, falling back to 2.5 Pro...');
+        console.warn('[BriefingService] Gemini timeout');
       }
-      // Fallback to Gemini 3 Pro Preview
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2000
-          }
-        })
-      });
-      console.log('[BriefingService] Using Gemini 3 Pro Preview for TBD confirmation');
+      response = null;
     }
 
     if (!response.ok) {
@@ -1137,12 +1134,13 @@ Return ONLY JSON array - no markdown, no explanation.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini with search to analyze ${city}, ${state} news...`);
     
+    // ISSUE #16 FIX: Updated for safety settings + low temperature
     const result = await callGemini({
       model: 'gemini-3-pro-preview',
       user: prompt,
       maxTokens: 2048,
-      temperature: 0.3,
-      topP: 1
+      temperature: 0.2,
+      topP: 0.95
     });
 
     if (!result.ok) {
