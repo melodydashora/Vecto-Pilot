@@ -112,11 +112,12 @@ export default function BriefingTab({
   const isEventToday = (event: any): boolean => {
     try {
       if (!event.event_date) return true; // Show all events if no date
-      const eventDate = new Date(event.event_date);
-      const today = new Date();
-      return eventDate.toDateString() === today.toDateString();
-    } catch {
-      return true;
+      // Simple string comparison - events come as YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD
+      return event.event_date === today;
+    } catch (e) {
+      console.warn('[BriefingTab] Date parse error for event:', event.event_date, e);
+      return true; // Show on error
     }
   };
 
@@ -147,6 +148,16 @@ export default function BriefingTab({
   
   // Filter events by date
   const eventsToday = allEvents.filter(isEventToday);
+  
+  // Debug: Log events
+  console.log('[BriefingTab] Events Debug:', {
+    eventsDataExists: !!eventsData,
+    eventsDataEvents: eventsData?.events?.length || 0,
+    allEventsLength: allEvents.length,
+    eventsTodayLength: eventsToday.length,
+    firstEvent: allEvents[0] ? { title: allEvents[0].title, date: allEvents[0].event_date } : null,
+    todayString: new Date().toDateString()
+  });
   const newsItems = (news?.filtered || news?.items || []).filter(isEventToday);
 
   return (
