@@ -137,7 +137,11 @@ export default function BriefingTab({
   const weather = weatherData?.weather;
   const traffic = trafficData?.traffic;
   const news = newsData?.news;
-  const allEvents = eventsData?.events || [];
+  const allEvents = (eventsData?.events || []).map((event: any) => ({
+    ...event,
+    // Map event_type to subtype for EventsComponent compatibility
+    subtype: event.event_type || event.subtype,
+  }));
   const allClosures = schoolClosuresData?.school_closures || [];
   const schoolClosures = allClosures.filter(isClosureActive);
   
