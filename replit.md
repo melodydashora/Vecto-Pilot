@@ -15,7 +15,7 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
 **Technical Implementations**:
 - **Briefing Generation**: All AI calls now use `gemini-3-pro-preview` with Google tools for consistent web search reliability. Briefing data sources (Traffic Conditions, Rideshare News, Events, Concerts & Live Music, School Closures) populate with real Gemini API data. Auto-regeneration of briefings occurs when data is stale or missing.
 - **SmartBlocks**: SmartBlocks loading issues due to race conditions have been resolved, ensuring correct generation and display of venue recommendations.
-- **AI Coach**: The AI Strategy Coach now has real-time web search capabilities via `gemini-3-pro-preview` with the `googleSearch` tool enabled, allowing it to provide current information on local events, traffic, weather, and rideshare trends.
+- **AI Coach**: The AI Strategy Coach uses `gemini-3-pro-preview` for conversational assistance with rideshare strategy, venue interpretation, and file analysis. Note: Web search tool was attempted but causes API timeouts - coach uses Vecto Pilot's data sources (briefing, events, traffic) for instant responses instead.
 - **Data Flow Consistency**: All data flows follow a three-phase pattern: Fetch, Resolve, and Return, ensuring data consistency, validation, and proper formatting.
 - **GPS Location Behavior**: Location refresh is manual only, requesting fresh permissions (`maximumAge: 0`) upon opening or manual trigger.
 
