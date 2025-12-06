@@ -880,39 +880,27 @@ export async function fetchTrafficConditions({ lat, lng, city, state, snapshot }
     
     console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state} at ${timeString} ${timezone} on ${driverDate}`);
     
-    const prompt = `You are a rideshare driver intelligence system. Provide ACTIONABLE traffic and demand analysis for a rideshare driver RIGHT NOW in ${city}, ${state}.
+    const prompt = `You are a rideshare driver intelligence system. Recommend WHERE the driver should position RIGHT NOW for maximum earnings in ${city}, ${state}.
 
 DRIVER CONTEXT:
-- Location: ${city}, ${state} (${lat.toFixed(4)}, ${lng.toFixed(4)})
+- Location: ${city}, ${state}
 - Current Local Time: ${timeString} on ${driverDate}
 - Timezone: ${timezone}
 
-YOUR JOB: Tell the driver WHERE TO POSITION RIGHT NOW for maximum earnings. Be specific about neighborhoods, venues, and areas.
+YOUR JOB: Tell the driver the BEST LOCATIONS TO POSITION RIGHT NOW. Be specific about neighborhoods, venues, and areas where demand is high.
 
-ANALYZE AND RETURN:
-1. **Most profitable positioning RIGHT NOW** - specific neighborhoods/venues where driver should be
-2. Current traffic conditions affecting those zones
-3. Surge pricing patterns starting when and where
-4. Safety alerts for this time of day
-5. Specific high-demand zones by name (bars, clubs, events, airports, hotels)
-6. Avoid low-demand zones
-
-RESPONSE - Return ONLY valid JSON, no markdown:
+RETURN ONLY valid JSON - no markdown or explanation:
 {
-  "summary": "One actionable sentence: where driver should position for best earnings",
-  "congestionLevel": "low" | "medium" | "high",
-  "repositioning": "SPECIFIC guidance on where to move (neighborhood names, distances, landmarks)",
-  "surgePricing": "When surge pricing will likely spike and where (specific times and zones)",
-  "safetyAlert": "Safety consideration if relevant for this time/area",
+  "repositioning": "Specific neighborhoods/venues where driver should position for best earnings right now",
   "highDemandZones": [
-    {"zone": "venue or neighborhood name", "reason": "specific reason it's profitable now"}
+    {"zone": "specific venue or neighborhood name", "reason": "why this zone is profitable right now"}
   ],
-  "incidents": [
-    {"description": "traffic incident affecting driver routes", "severity": "high" | "medium" | "low"}
-  ]
+  "surgePricing": "Surge pricing prediction - when and where it will spike",
+  "safetyAlert": "Safety alert if relevant for this time/area (optional)",
+  "summary": "One actionable sentence about best positioning"
 }
 
-Return ONLY JSON. No explanations.`;
+Return ONLY JSON.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     
