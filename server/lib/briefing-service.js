@@ -880,25 +880,25 @@ export async function fetchTrafficConditions({ lat, lng, city, state, snapshot }
     
     console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state} at ${timeString} ${timezone} on ${driverDate}`);
     
-    const prompt = `Analyze traffic conditions for ${city}, ${state} RIGHT NOW. Report factual traffic data only.
+    const prompt = `Analyze traffic conditions for ${city}, ${state} RIGHT NOW. Provide practical driving guidance based on current conditions.
 
 DRIVER CONTEXT:
 - Location: ${city}, ${state}
 - Current Local Time: ${timeString} on ${driverDate}
 - Timezone: ${timezone}
 
-YOUR JOB: Report ONLY traffic facts and conditions. No positioning advice - just traffic.
+YOUR JOB: Report traffic conditions and provide practical route/driving guidance. Examples: "I-35 has 3 accidents, avoid it - use Tollway instead", "Downtown gridlock, use surface streets", "Highway clear, good for highway routes".
 
 RETURN ONLY valid JSON - no markdown or explanation:
 {
-  "summary": "One sentence summary of current traffic conditions",
+  "summary": "One sentence summary of traffic conditions with practical driving guidance",
   "congestionLevel": "low" | "medium" | "high",
   "incidents": [
-    {"description": "traffic incident, closure, or condition affecting the area", "severity": "high" | "medium" | "low"}
+    {"description": "specific traffic incident and practical guidance (e.g., 'I-121 blocked by 3 accidents - take Tollway')", "severity": "high" | "medium" | "low"}
   ]
 }
 
-Return ONLY JSON. Report traffic facts only.`;
+Return ONLY JSON.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     
