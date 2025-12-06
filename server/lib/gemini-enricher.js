@@ -7,7 +7,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_MAPS_API_KEY);
 
 export async function enrichVenuesWithGemini({ venues, driverLocation, snapshot }) {
   const model = genAI.getGenerativeModel({ 
-    model: process.env.GEMINI_MODEL || "gemini-2.5-pro",
+    model: process.env.GEMINI_MODEL || "gemini-3-pro-preview",
     generationConfig: {
       temperature: 0.0, // Deterministic
       maxOutputTokens: 8000,

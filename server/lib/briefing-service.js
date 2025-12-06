@@ -508,8 +508,8 @@ Return a JSON array with one object per event. If you cannot confirm details, se
       if (e.name === 'AbortError') {
         console.warn('[BriefingService] Gemini 3.0 Pro timeout, falling back to 2.5 Pro...');
       }
-      // Fallback to Gemini 2.5 Pro
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-latest:generateContent`, {
+      // Fallback to Gemini 3 Pro Preview
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -523,7 +523,7 @@ Return a JSON array with one object per event. If you cannot confirm details, se
           }
         })
       });
-      console.log('[BriefingService] Using Gemini 2.5 Pro for TBD confirmation');
+      console.log('[BriefingService] Using Gemini 3 Pro Preview for TBD confirmation');
     }
 
     if (!response.ok) {
@@ -631,7 +631,7 @@ If no relevant items, return: []`;
     console.log(`[BriefingService] First item: ${newsItems[0]?.title.substring(0, 80) || 'N/A'}`);
     
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
       {
         method: 'POST',
         headers: { 
@@ -802,7 +802,7 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
       setTimeout(() => reject(new Error('School closures timeout')), 120000)
     );
 
-    const responsePromise = fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent`, {
+    const responsePromise = fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',

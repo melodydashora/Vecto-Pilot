@@ -248,7 +248,7 @@ Generate the briefing now, strictly for the next 60 minutes.`
       ok: true,
       briefing,
       latency_ms: duration,
-      model: process.env.GEMINI_MODEL || "gemini-2.5-pro"
+      model: process.env.GEMINI_MODEL || "gemini-3-pro-preview"
     };
     
   } catch (error) {

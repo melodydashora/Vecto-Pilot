@@ -63,7 +63,7 @@ async function enrichBarsWithPhones(venues) {
  */
 export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 15, holiday = null, timezone = null, localIso = null }) {
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.0-flash-exp",
+    model: "gemini-3-pro-preview",
     generationConfig: {
       temperature: 0.1,
       maxOutputTokens: 8000,

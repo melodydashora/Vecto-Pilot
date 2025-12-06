@@ -122,7 +122,7 @@ export async function rerankCandidates({ candidates, context, timeoutMs = 5000 }
         elapsed_ms: elapsed,
         input_count: limitedCandidates.length,
         output_count: validRanked.length,
-        model: process.env.GEMINI_MODEL || 'gemini-2.5-pro',
+        model: process.env.GEMINI_MODEL || 'gemini-3-pro-preview',
         temperature: 0.2
       }
     };
