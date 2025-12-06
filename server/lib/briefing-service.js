@@ -253,77 +253,33 @@ RULES:
 - Never pad with fake events
 - Use actual web search results only`;
 
-  const body = {
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: prompt }]
-      }
-    ],
-    tools: [{ google_search: {} }],
-    generationConfig: {
+  try {
+    console.log('[BriefingService] 📡 Calling Gemini 3 Pro Preview API for events...');
+    
+    const result = await callGemini({
+      model: 'gemini-3-pro-preview',
+      user: prompt,
+      maxTokens: 2500,
       temperature: 0.2,
       topP: 0.9,
       topK: 40
-    }
-  };
+    });
 
-  try {
-    console.log('[BriefingService] 📡 Calling Gemini 3 Pro Preview API for events...');
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
-        },
-        body: JSON.stringify(body)
-      }
-    );
-
-    console.log(`[BriefingService] Gemini API response status: ${res.status}`);
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      console.error('[BriefingService] ❌ Gemini events API error:', res.status, errText.substring(0, 500));
+    if (!result.ok) {
+      console.error('[BriefingService] ❌ Gemini events error:', result.error);
       return [];
     }
 
-    const data = await res.json();
-    console.log('[BriefingService] Gemini response received - parsing...');
-
-    let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]';
-
-    console.log(`[BriefingService] Raw Gemini response (first 500 chars): ${rawText.substring(0, 500)}`);
-
-    // Strip accidental ```json fences if the model still adds them
-    rawText = rawText
-      .replace(/^```json/i, '')
-      .replace(/^```/i, '')
-      .replace(/```$/i, '')
-      .trim();
-
-    // If there's extra junk, try to grab the first JSON array substring
-    let jsonToParse = rawText;
-    if (!rawText.trim().startsWith('[')) {
-      const match = rawText.match(/\[[\s\S]*\]/);
-      if (match) {
-        jsonToParse = match[0];
-      }
-    }
-
     try {
-      const parsed = JSON.parse(jsonToParse);
-      const result = Array.isArray(parsed) ? parsed : [parsed];
-      console.log(`[BriefingService] ✅ Found ${result.length} events from Gemini`);
-      if (result.length === 0) {
+      const parsed = JSON.parse(result.output);
+      const events = Array.isArray(parsed) ? parsed : [parsed];
+      console.log(`[BriefingService] ✅ Found ${events.length} events from Gemini`);
+      if (events.length === 0) {
         console.warn('[BriefingService] ⚠️ Gemini returned 0 events - check if events actually exist for this location/date');
       }
-      return result;
+      return events;
     } catch (err) {
       console.error('[BriefingService] ❌ Failed to parse Gemini events JSON:', err.message);
-      console.log('[BriefingService] Raw text that failed to parse:', rawText.substring(0, 500));
       return [];
     }
   } catch (error) {
@@ -937,23 +893,6 @@ export async function fetchWeatherConditions({ snapshot }) {
 }
 
 export async function fetchSchoolClosures({ snapshot }) {
-  if (snapshot) {
-    console.log('[fetchSchoolClosures] 📤 SENT SNAPSHOT TO GEMINI FOR SCHOOL CLOSURES:', {
-      snapshot_id: snapshot.snapshot_id,
-      lat: snapshot.lat,
-      lng: snapshot.lng,
-      city: snapshot.city,
-      state: snapshot.state,
-      timezone: snapshot.timezone,
-      date: snapshot.date,
-      dow: snapshot.dow,
-      hour: snapshot.hour,
-      day_part_key: snapshot.day_part_key,
-      weather: snapshot.weather ? { tempF: snapshot.weather.tempF, conditions: snapshot.weather.conditions } : 'none',
-      air: snapshot.air ? { aqi: snapshot.air.aqi, category: snapshot.air.category } : 'none'
-    });
-  }
-
   if (!GEMINI_API_KEY) {
     console.log('[BriefingService] Skipping school closures (no Gemini API key)');
     return [];
@@ -987,44 +926,27 @@ Return ONLY valid JSON array:
 
 RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
 
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('School closures timeout')), 120000)
-    );
-
-    const responsePromise = fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'x-goog-api-key': GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 2000
-        }
-      })
+    const result = await callGemini({
+      model: 'gemini-3-pro-preview',
+      user: prompt,
+      maxTokens: 2000,
+      temperature: 0.2
     });
 
-    const response = await Promise.race([responsePromise, timeoutPromise]);
-
-    if (!response.ok) {
-      console.warn(`[BriefingService] School closures fetch failed (${response.status})`);
+    if (!result.ok) {
+      console.warn(`[BriefingService] School closures error: ${result.error}`);
       return [];
     }
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      console.warn('[BriefingService] Could not parse school closures response');
+    try {
+      const closures = JSON.parse(result.output);
+      const closuresArray = Array.isArray(closures) ? closures : [];
+      console.log(`[BriefingService] ✅ Found ${closuresArray.length} school closures for ${city}, ${state}`);
+      return closuresArray;
+    } catch (parseErr) {
+      console.error('[BriefingService] School closures JSON parse error:', parseErr.message);
       return [];
     }
-
-    const closures = JSON.parse(jsonMatch[0]);
-    console.log(`[BriefingService] ✅ Found ${closures.length} school closures for ${city}, ${state}`);
-    return closures;
   } catch (error) {
     console.error('[BriefingService] School closures fetch error:', error.message);
     return [];
@@ -1141,8 +1063,6 @@ async function fetchRideshareNews({ snapshot }) {
     const date = snapshot?.date || new Date().toISOString().split('T')[0];
     console.log(`[BriefingService] 📰 Fetching news: city=${city}, state=${state}, date=${date}`);
     
-    console.log(`[BriefingService] 📰 Fetching rideshare news for ${city}, ${state}...`);
-    
     const prompt = `You MUST search for and find rideshare-relevant news. Search the web NOW.
 
 Location: ${city}, ${state}
@@ -1182,47 +1102,28 @@ Return ONLY JSON array - no markdown, no explanation.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini with search to analyze ${city}, ${state} news...`);
     
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
-      {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 2048, topP: 1 }
-        })
-      }
-    );
+    const result = await callGemini({
+      model: 'gemini-3-pro-preview',
+      user: prompt,
+      maxTokens: 2048,
+      temperature: 0.3,
+      topP: 1
+    });
 
-    if (!response.ok) {
-      const errData = await response.text();
-      console.error(`[BriefingService] Gemini API error ${response.status}: ${errData}`);
+    if (!result.ok) {
+      console.warn(`[BriefingService] Gemini news error: ${result.error}`);
       return [];
     }
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    
-    console.log(`[BriefingService] Gemini response length: ${text.length}, first 300 chars: ${text.substring(0, 300)}`);
-    
     try {
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        const newsArray = Array.isArray(parsed) ? parsed : [];
-        console.log(`[BriefingService] ✅ Gemini search returned ${newsArray.length} relevant news items`);
-        return newsArray;
-      }
+      const parsed = JSON.parse(result.output);
+      const newsArray = Array.isArray(parsed) ? parsed : [];
+      console.log(`[BriefingService] ✅ Gemini search returned ${newsArray.length} relevant news items`);
+      return newsArray;
     } catch (parseErr) {
-      console.error('[BriefingService] Gemini JSON parse error:', parseErr.message);
+      console.error('[BriefingService] News JSON parse error:', parseErr.message);
       return [];
     }
-    
-    return [];
   } catch (error) {
     console.error('[BriefingService] Gemini news search error:', error.message);
     return [];
