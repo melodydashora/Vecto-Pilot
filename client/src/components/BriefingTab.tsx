@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Newspaper, Cloud, CloudRain, Sun, Wind, Droplets,
   AlertTriangle, Car, RefreshCw, Loader, Clock, ExternalLink,
-  ChevronDown, ChevronUp, BookOpen, Music
+  ChevronDown, ChevronUp, BookOpen
 } from "lucide-react";
+import EventsComponent from "./EventsComponent";
 
 interface SchoolClosure {
   schoolName: string;
@@ -26,8 +27,6 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const [expandedWeather, setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedNews, setExpandedNews] = useState(true);
-  const [expandedEvents, setExpandedEvents] = useState(true);
-  const [expandedConcerts, setExpandedConcerts] = useState(true);
   const [expandedClosures, setExpandedClosures] = useState(true);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
@@ -212,9 +211,8 @@ export default function BriefingTab({ snapshotId }: BriefingTabProps) {
   const allClosures = schoolClosuresQuery.data?.school_closures || [];
   const schoolClosures = allClosures.filter(isClosureActive);
   
-  // Filter events by type
-  const eventsToday = allEvents.filter(e => isEventToday(e) && e.event_type !== 'concert');
-  const concertsToday = allEvents.filter(e => isEventToday(e) && e.event_type === 'concert');
+  // Filter events by date
+  const eventsToday = allEvents.filter(isEventToday);
   const newsItems = (news?.filtered || news?.items || []).filter(isEventToday);
 
   return (
