@@ -114,6 +114,22 @@ router.post("/", async (req, res) => {
     // REMOVED: Placeholder strategy creation - strategy-generator-parallel.js creates the SINGLE strategy row
     // This prevents race conditions and ensures model_name attribution is preserved
     
+    // Generate briefing data BEFORE responding (so data is ready when frontend queries)
+    if (lat && lng) {
+      console.log(`[briefing] starting`, { snapshot_id, city, state });
+      await generateAndStoreBriefing({
+        snapshotId: snapshot_id,
+        lat,
+        lng,
+        city: city || 'Unknown',
+        state: state || '',
+        formattedAddress: formatted_address || null
+      }).catch(err => {
+        console.warn(`[briefing] generation.failed`, { snapshot_id, err: String(err) });
+      });
+      console.log(`[briefing] ✅ complete`, { snapshot_id });
+    }
+
     // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
     queueMicrotask(() => {
       try {
@@ -123,23 +139,6 @@ router.post("/", async (req, res) => {
         });
       } catch (e) {
         console.warn(`[triad] enqueue.err`, { snapshot_id, err: String(e) });
-      }
-    });
-
-    // Fire-and-forget: generate briefing data (news, weather, traffic)
-    queueMicrotask(() => {
-      if (lat && lng) {
-        console.log(`[briefing] enqueue`, { snapshot_id, city, state });
-        generateAndStoreBriefing({
-          snapshotId: snapshot_id,
-          lat,
-          lng,
-          city: city || 'Unknown',
-          state: state || '',
-          formattedAddress: formatted_address || null
-        }).catch(err => {
-          console.warn(`[briefing] enqueue.failed`, { snapshot_id, err: String(err) });
-        });
       }
     });
 
