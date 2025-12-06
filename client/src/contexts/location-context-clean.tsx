@@ -632,8 +632,11 @@ export function LocationProvider({ children }: LocationProviderProps) {
             snapshot_id: snapshotV1.snapshot_id, 
             user_id: snapshotV1.user_id,
             formattedAddress: snapshotV1.resolved?.formattedAddress,
-            city: snapshotV1.resolved?.city
+            city: snapshotV1.resolved?.city,
+            weather_fields: snapshotV1.weather ? Object.keys(snapshotV1.weather) : 'none',
+            air_fields: snapshotV1.air ? Object.keys(snapshotV1.air) : 'none',
           });
+          console.log("[Snapshot] Full snapshot data being POSTed:", snapshotV1);
 
           // Save context snapshot for ML/analytics
           // CRITICAL: Use separate AbortController with timeout for snapshot POST
