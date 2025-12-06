@@ -41,10 +41,7 @@ const googleAQCircuit = makeCircuit({
   timeoutMs: 3000 
 });
 
-// Helper for consistent error responses with correlation ID
-function httpError(res, status, code, message, reqId, extra = {}) {
-  return res.status(status).json({ ok: false, error: code, message, req_id: reqId, ...extra });
-}
+import { httpError } from './utils/http-helpers.js';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
 const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;

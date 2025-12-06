@@ -2,7 +2,7 @@
 
 ---
 
-**Last Updated:** 2025-12-02 10:45 UTC (Authentication System Complete)
+**Last Updated:** 2025-12-06 UTC (Codebase Cleanup & Shared Utilities Consolidation)
 
 ---
 
@@ -2571,6 +2571,83 @@ GPT-5.1 uses internal multi-step reasoning instead of external temperature/top_p
 - ✅ **Fixed:** Circuit breaker poisoning from aborted requests
 - ✅ **Increased:** Budget from 8s to 90s (production needs)
 - ⚠️ **Discovered:** Anthropic model 404 issue (resolved Oct 8)
+
+---
+
+### December 6, 2025 - Codebase Cleanup & Consolidation
+
+#### 🔧 **Shared Utilities Consolidation (December 6, 2025)**
+
+**Impact:**
+Reduces code duplication, improves maintainability, and creates consistent behavior across the codebase. Duplicate functions consolidated into shared utility modules.
+
+**Changes:**
+
+1. **Created `server/lib/geo.js`** - Shared geospatial utilities
+   - `haversineDistanceKm(lat1, lon1, lat2, lon2)` - Distance in kilometers
+   - `haversineDistanceMiles(lat1, lon1, lat2, lon2)` - Distance in miles  
+   - `haversineDistanceMeters(lat1, lon1, lat2, lon2)` - Distance in meters
+   - **Removed duplicates from:** `venue-event-verifier.js`, `google-places-staging.js`, `blocks-fast.js`
+
+2. **Created `server/routes/utils/http-helpers.js`** - Shared HTTP utilities
+   - `httpError(res, status, code, message)` - Consistent error responses
+   - `isPlusCode(address)` - Detect Google Plus Codes
+   - `safeJsonParse(text)` - Safe JSON parsing with markdown extraction
+   - **Removed duplicates from:** `blocks-fast.js`, `venue-address-resolver.js`, `tactical-planner.js`, `fast-tactical-reranker.js`
+
+**Files Changed:**
+- ✅ `server/lib/geo.js` - NEW: Shared geospatial utilities
+- ✅ `server/routes/utils/http-helpers.js` - NEW: Shared HTTP utilities
+- ✅ `server/lib/venue-event-verifier.js` - Import from shared geo.js
+- ✅ `server/lib/google-places-staging.js` - Import from shared geo.js
+- ✅ `server/routes/blocks-fast.js` - Import from shared utilities
+- ✅ `server/lib/venue-address-resolver.js` - Import from shared http-helpers.js
+- ✅ `server/lib/tactical-planner.js` - Import from shared http-helpers.js
+- ✅ `server/lib/fast-tactical-reranker.js` - Import from shared http-helpers.js
+
+**Dead Code Removal (13 files):**
+- ~~`server/lib/blocks-queue.js`~~ - Unused async processing
+- ~~`server/lib/blocks-jobs.js`~~ - Unused job queue
+- ~~`server/lib/triad-orchestrator.js`~~ - Deprecated multi-model orchestration
+- ~~`server/lib/exploration.js`~~ - Unused exploration features
+- ~~`server/lib/explore.js`~~ - Unused exploration
+- ~~`server/lib/ability-routes.js`~~ - Unused routes
+- ~~`server/lib/cache-routes.js`~~ - Unused routes
+- ~~`server/lib/capabilities.js`~~ - Unused utilities
+- ~~`server/lib/anthropic-extended.js`~~ - Unused Anthropic utilities
+- ~~`server/lib/receipt.js`~~ - Unused receipt utilities
+- ~~`server/lib/priors.js`~~ - Unused utilities
+- ~~`server/lib/adapters/anthropic-claude.js`~~ - Unused model adapter
+- ~~`server/lib/adapters/openai-gpt5.js`~~ - Unused model adapter
+
+**Data Directory Cleanup:**
+- ✅ Removed 1,637 test snapshot files from `data/context-snapshots/`
+- ✅ Freed 6.4MB of disk space
+- ✅ Clean data directory with only runtime-generated files
+
+**Metrics:**
+| Metric | Before | After |
+|--------|--------|-------|
+| Server lib files | 68 | 54 |
+| Duplicate functions | 9 | 0 |
+| Data directory size | 6.4MB | 0MB |
+| Test snapshot files | 1,637 | 0 |
+
+**Files Still Active (Do Not Remove):**
+- `faa-asws.js` - Used via dynamic import in `location.js`
+- `holiday-detector.js` - Used via dynamic import in `location.js`
+- `gemini-2.5-pro.js` - Used by `venue-event-verifier.js`, `fast-tactical-reranker.js`
+
+**Backward Pressure:**
+- ❌ Duplicate utility functions across files
+- ❌ Dead code files with zero imports
+- ❌ Test artifacts in data directory
+
+**Forward Pressure:**
+- ✅ Single source of truth for shared utilities
+- ✅ Consistent error response format via httpError
+- ✅ Consistent geospatial calculations via geo.js
+- ✅ Clean codebase with minimal dead code
 
 ---
 
