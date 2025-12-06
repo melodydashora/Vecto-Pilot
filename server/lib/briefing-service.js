@@ -745,9 +745,11 @@ export async function fetchWeatherConditions({ lat, lng }) {
 
     if (currentRes.ok) {
       const currentData = await currentRes.json();
-      // Google Weather API returns Celsius - convert to Fahrenheit
-      const tempF = currentData.temperature ? Math.round((currentData.temperature * 9/5) + 32) : null;
-      const feelsLikeF = currentData.feelsLikeTemperature ? Math.round((currentData.feelsLikeTemperature * 9/5) + 32) : null;
+      // Google Weather API returns Celsius in nested structure - convert to Fahrenheit
+      const tempC = currentData.temperature?.value ?? currentData.temperature;
+      const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
+      const feelsLikeC = currentData.feelsLikeTemperature?.value ?? currentData.feelsLikeTemperature;
+      const feelsLikeF = feelsLikeC ? Math.round((feelsLikeC * 9/5) + 32) : null;
       
       current = {
         temperature: tempF,
@@ -755,8 +757,8 @@ export async function fetchWeatherConditions({ lat, lng }) {
         feelsLike: feelsLikeF,
         conditions: currentData.weatherCondition?.description?.text,
         conditionType: currentData.weatherCondition?.type,
-        humidity: currentData.relativeHumidity,
-        windSpeed: currentData.wind?.speed,
+        humidity: currentData.relativeHumidity?.value ?? currentData.relativeHumidity,
+        windSpeed: currentData.windSpeed?.value ?? currentData.windSpeed,
         windDirection: currentData.wind?.direction?.cardinal,
         uvIndex: currentData.uvIndex,
         precipitation: currentData.precipitation,
@@ -769,13 +771,14 @@ export async function fetchWeatherConditions({ lat, lng }) {
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
       forecast = (forecastData.forecastHours || []).map((hour, idx) => {
-        // Google Weather API returns Celsius - convert to Fahrenheit
-        const tempF = hour.temperature ? Math.round((hour.temperature * 9/5) + 32) : null;
+        // Google Weather API returns Celsius in nested structure - convert to Fahrenheit
+        const tempC = hour.temperature?.value ?? hour.temperature;
+        const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
         
-        // Ensure time is a valid ISO string - use displayDateTime if valid, otherwise generate from current time
-        let timeValue = hour.displayDateTime;
+        // Ensure time is a valid ISO string - use time if valid, otherwise generate from current time
+        let timeValue = hour.time;
         if (!timeValue || isNaN(new Date(timeValue).getTime())) {
-          // If displayDateTime is invalid, generate forecast time by adding hours to current time
+          // If time is invalid, generate forecast time by adding hours to current time
           const forecastTime = new Date();
           forecastTime.setHours(forecastTime.getHours() + idx);
           timeValue = forecastTime.toISOString();
@@ -785,10 +788,10 @@ export async function fetchWeatherConditions({ lat, lng }) {
           time: timeValue,
           temperature: tempF,
           tempF: tempF,
-          conditions: hour.weatherCondition?.description?.text,
+          conditions: hour.condition?.text ?? hour.weatherCondition?.description?.text,
           conditionType: hour.weatherCondition?.type,
-          precipitationProbability: hour.precipitation?.probability?.percent,
-          windSpeed: hour.wind?.speed,
+          precipitationProbability: hour.precipitationProbability?.value ?? hour.precipitation?.probability?.percent,
+          windSpeed: hour.windSpeed?.value ?? hour.wind?.speed,
           isDaytime: hour.isDaytime
         };
       });
