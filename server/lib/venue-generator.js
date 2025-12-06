@@ -1,94 +1,9 @@
 // server/lib/venue-generator.js
 // Model-Agnostic Venue Coordinate Generation for Smart Blocks
 // Generates fresh venue coordinates within 15 mile radius based on consolidated strategy + precise location
+// GPT 5.1 discovers bar coordinates; Google Places API enriches with hours/details
 
 import { callModel } from './adapters/index.js';
-
-const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
-
-/**
- * VALIDATION LAYER: Use Perplexity to verify venue coordinates are current & operational
- * This prevents stale/moved/closed venues from reaching drivers
- */
-async function validateVenueCoordinates(venues, city, state) {
-  if (!PERPLEXITY_API_KEY || venues.length === 0) {
-    console.log('[Venue Generator] Skipping coordinate validation (no API key or venues)');
-    return venues; // Return unvalidated if no Perplexity available
-  }
-
-  try {
-    const venueList = venues.map(v => `- ${v.location_name} (${v.location_lat.toFixed(4)}, ${v.location_lng.toFixed(4)})`).join('\n');
-    
-    const prompt = `You are a rideshare venue verification system. Using current web knowledge, verify these venues are still operational in ${city}, ${state}:
-
-${venueList}
-
-For EACH venue, respond with ONLY valid JSON array:
-[
-  {
-    "name": "Exact venue name",
-    "status": "operational" | "closed" | "moved" | "unknown",
-    "reason": "Brief reason if not operational (e.g., 'Permanently closed Dec 2024')"
-  }
-]
-
-RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
-
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [{ role: 'user', content: prompt }],
-        search_recency_filter: 'month',
-        temperature: 0.1,
-        max_tokens: 1000
-      })
-    });
-
-    if (!response.ok) {
-      console.warn(`[Venue Generator] Perplexity validation failed (${response.status}), returning unvalidated venues`);
-      return venues;
-    }
-
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || '[]';
-    
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      console.warn('[Venue Generator] Could not parse validation response, returning unvalidated venues');
-      return venues;
-    }
-
-    const validations = JSON.parse(jsonMatch[0]);
-    const validationMap = {};
-    validations.forEach(v => {
-      validationMap[v.name] = v.status;
-    });
-
-    // Filter venues based on validation
-    const filtered = venues.filter(venue => {
-      const status = validationMap[venue.location_name];
-      if (status === 'operational') {
-        return true; // Keep this venue
-      } else if (status === 'closed' || status === 'moved') {
-        console.warn(`[Venue Generator] ⚠️ FILTERING: "${venue.location_name}" - ${status} per Perplexity web search`);
-        return false; // Remove this venue
-      }
-      // Keep unknowns (we only filter if we're confident it's problematic)
-      return true;
-    });
-
-    console.log(`[Venue Generator] Coordinate validation: ${venues.length} venues → ${filtered.length} operational (filtered ${venues.length - filtered.length})`);
-    return filtered;
-  } catch (error) {
-    console.error('[Venue Generator] Coordinate validation error:', error.message);
-    return venues; // Return unvalidated on error
-  }
-}
 
 /**
  * Generate venue recommendations with coordinates using model-agnostic venue generator
@@ -249,19 +164,13 @@ Return JSON only - no markdown, no explanation.`;
     }).filter(Boolean); // Remove nulls
 
     // CRITICAL: Cap at exactly 8 venues (16 coords: 8 location + 8 staging)
-    let cappedVenues = venues.slice(0, 8);
+    const finalVenues = venues.slice(0, 8);
 
-    console.log(`[GPT-5 Venue Generator] ✅ Generated ${cappedVenues.length} venues (${cappedVenues.length * 2} coordinates)`);
-    
-    // VALIDATION: Use Perplexity to verify coordinates are current & operational
-    cappedVenues = await validateVenueCoordinates(cappedVenues, city, state);
-    
-    if (cappedVenues.length < venues.length) {
-      console.log(`[Venue Generator] ℹ️ After validation, ${cappedVenues.length} venues remain (${venues.length - cappedVenues.length} filtered for validity)`);
-    }
+    console.log(`[GPT-5 Venue Generator] ✅ Generated ${finalVenues.length} venues (${finalVenues.length * 2} coordinates)`);
+    console.log('[GPT-5 Venue Generator] 📍 Venues will be enriched by Google Places API for hours/details');
     
     return {
-      venues: cappedVenues,
+      venues: finalVenues,
       tokens: result.total_tokens,
       reasoning_tokens: result.reasoning_tokens
     };
