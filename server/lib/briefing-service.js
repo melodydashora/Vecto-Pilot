@@ -36,6 +36,89 @@ const LocalEventSchema = z.object({
 
 const LocalEventsArraySchema = z.array(LocalEventSchema);
 
+// Map raw Gemini 3 Pro events into our LocalEventSchema so the UI can use them
+function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
+  if (!Array.isArray(rawEvents)) return [];
+
+  const mapped = rawEvents.map((e, idx) => {
+    const subtype = (e.subtype || '').toLowerCase();
+    const type = (e.type || '').toLowerCase();
+
+    // Decide event_type used by the UI
+    let event_type = 'other';
+    if (subtype.includes('concert') || subtype.includes('live music') || subtype.includes('music')) {
+      event_type = 'concert';
+    } else if (subtype.includes('sports') || subtype.includes('game') || subtype.includes('match')) {
+      event_type = 'sports';
+    } else if (subtype.includes('festival') || subtype.includes('fair') || subtype.includes('parade')) {
+      event_type = 'festival';
+    } else if (subtype.includes('comedy')) {
+      event_type = 'comedy';
+    } else if (type === 'road_closure') {
+      event_type = 'other';
+    }
+
+    const location =
+      e.venue && e.address
+        ? `${e.venue}, ${e.address}`
+        : e.venue || e.address || undefined;
+
+    const timeLabel =
+      e.event_date && e.event_time
+        ? `${e.event_date} ${e.event_time}`
+        : e.event_date || e.event_time || '';
+
+    // Simple one-line summary for the UI
+    const summaryParts = [
+      e.title,
+      e.venue || null,
+      timeLabel || null,
+      e.impact ? `Impact: ${e.impact}` : null,
+    ].filter(Boolean);
+
+    const summary =
+      summaryParts.join(' • ') ||
+      `Local event ${idx + 1}`;
+
+    // Derive staging_area from recommended_driver_action when it's a reposition hint
+    let staging_area;
+    if (typeof e.recommended_driver_action === 'string' &&
+        e.recommended_driver_action.startsWith('reposition_to:')) {
+      staging_area = e.recommended_driver_action
+        .split(':')[1]
+        .replace(/_/g, ' ')
+        .trim();
+    }
+
+    return {
+      title: e.title || `Event ${idx + 1}`,
+      summary,
+      impact: (e.impact === 'high' || e.impact === 'low') ? e.impact : 'medium',
+      source: e.source || 'Gemini Web Search',
+      event_type,
+      latitude: e.latitude ?? undefined,
+      longitude: e.longitude ?? undefined,
+      distance_miles: typeof e.estimated_distance_miles === 'number'
+        ? e.estimated_distance_miles
+        : undefined,
+      event_date: e.event_date,
+      event_time: e.event_time,
+      location,
+      link: e.source,
+      staging_area,
+    };
+  });
+
+  // Validate against schema, but don't crash if there are issues
+  const validated = LocalEventsArraySchema.safeParse(mapped);
+  if (!validated.success) {
+    console.warn('[BriefingService] mapGeminiEventsToLocalEvents validation errors:', validated.error.issues);
+    return mapped; // return best-effort anyway
+  }
+
+  return validated.data;
+}
+
 export async function fetchEventsForBriefing({ snapshot } = {}) {
   console.log(`[fetchEventsForBriefing] Called with snapshot:`, snapshot ? `lat=${snapshot.lat}, lng=${snapshot.lng}, tz=${snapshot.timezone}, date=${snapshot.date}` : 'null');
   
@@ -830,13 +913,24 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
 
   // Fetch all briefing components in parallel
   console.log(`[BriefingService] 🔍 Fetching events... snapshot=${!!snapshot}`);
-  const [events, weatherResult, trafficResult, schoolClosures] = await Promise.all([
+  const [rawEvents, weatherResult, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchWeatherConditions({ lat, lng }),
     fetchTrafficConditions({ lat, lng, city, state }),
     fetchSchoolClosures({ city, state, lat, lng })
   ]);
-  console.log(`[BriefingService] ✅ Events fetched: ${events.length} events`);
+  console.log(`[BriefingService] ✅ Events fetched from Gemini: ${rawEvents.length} raw events`);
+
+  // 1) Normalize Gemini output into LocalEventSchema
+  let normalizedEvents = mapGeminiEventsToLocalEvents(rawEvents, { lat, lng });
+
+  // 2) Optionally enhance with Google Places (if key configured)
+  try {
+    normalizedEvents = await enhanceEventsWithPlacesAPI(normalizedEvents, lat, lng);
+    console.log(`[BriefingService] ✅ Events enhanced with Places API: ${normalizedEvents.length}`);
+  } catch (err) {
+    console.warn('[BriefingService] Places enhancement failed, using normalized events only:', err.message);
+  }
 
   const briefingData = {
     snapshot_id: snapshotId,
@@ -847,7 +941,7 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     weather_current: weatherResult.current,
     weather_forecast: weatherResult.forecast,
     traffic_conditions: trafficResult,
-    events: events || [],
+    events: normalizedEvents || [],
     school_closures: schoolClosures.length > 0 ? schoolClosures : null,
     created_at: new Date(),
     updated_at: new Date()
