@@ -134,12 +134,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
   try {
     // Use Gemini 3 Pro Preview with web search for event discovery
-    const events = await fetchEventsWithGemini3ProPreview({
-      lat: snapshot.lat,
-      lng: snapshot.lng,
-      timezone: snapshot.timezone,
-      date: snapshot.date
-    });
+    const events = await fetchEventsWithGemini3ProPreview({ snapshot });
     
     console.log(`[fetchEventsForBriefing] Returning ${events.length} events`);
     return events || [];
