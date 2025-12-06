@@ -752,21 +752,13 @@ If no relevant items, return: []`;
 
 export async function fetchWeatherConditions({ snapshot }) {
   if (snapshot) {
-    console.log('[fetchWeatherConditions] 📸 Using snapshot weather data:', {
+    console.log('[fetchWeatherConditions] 📤 Fetching full weather data:', {
       snapshot_id: snapshot.snapshot_id,
-      weather: snapshot.weather ? { tempF: snapshot.weather.tempF, conditions: snapshot.weather.conditions } : 'none'
+      lat: snapshot.lat,
+      lng: snapshot.lng,
+      city: snapshot.city,
+      state: snapshot.state
     });
-  }
-
-  // OPTIMIZATION: Use weather data already in snapshot (fetched during location resolution)
-  // This eliminates duplicate API calls to Google Weather API
-  if (snapshot?.weather) {
-    console.log('[BriefingService] ✅ REUSING cached snapshot.weather (avoiding Google Weather API call)');
-    return {
-      current: snapshot.weather,
-      forecast: snapshot.weather.forecast || [],
-      cached: true
-    };
   }
 
   if (!GOOGLE_MAPS_API_KEY) {
