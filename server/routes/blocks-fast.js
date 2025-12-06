@@ -181,7 +181,9 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
+router.post('/', async (req, res) => {
+  console.log('[blocks-fast POST] 🚀 REQUEST RECEIVED:', { body: JSON.stringify(req.body).substring(0, 200) });
+  
   const wallClockStart = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
   
@@ -197,17 +199,28 @@ router.post('/', validateBody(blocksRequestSchema), async (req, res) => {
   const sendOnce = (code, body) => {
     if (!responded) {
       responded = true;
+      console.log('[blocks-fast POST] SENDING RESPONSE:', code, body.error || 'ok');
       res.status(code).json({ ...body, audit });
     }
   };
 
   try {
-    const { userId = 'demo' } = req.body;
-    const snapshotId = req.body?.snapshot_id || req.body?.snapshotId || req.header('x-snapshot-id') || req.query?.snapshot_id;
+    // Manual validation to avoid HTML error pages from validateBody middleware
+    const { userId = 'demo', snapshotId } = req.body;
+    console.log('[blocks-fast POST] 📝 EXTRACTED snapshotId:', snapshotId);
 
     if (!snapshotId) {
+      console.log('[blocks-fast POST] ❌ MISSING snapshotId');
       return sendOnce(400, { error: 'snapshot_required', message: 'snapshot_id is required' });
     }
+    
+    // Validate UUID format
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
+      console.log('[blocks-fast POST] ❌ INVALID UUID:', snapshotId);
+      return sendOnce(400, { error: 'invalid_uuid', message: 'snapshotId must be a valid UUID' });
+    }
+    
+    console.log('[blocks-fast POST] ✅ UUID validated, fetching snapshot...');
 
     // CRITICAL: Fetch snapshot FIRST to get location data
     const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);

@@ -193,6 +193,12 @@ const CoPilot: React.FC = () => {
   // Use override coords if available, otherwise GPS
   const coords = overrideCoords || gpsCoords;
 
+  // Helper to get auth headers with JWT token
+  const getAuthHeader = () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  };
+
   // Listen for snapshot-saved event to trigger waterfall and load all tabs
   useEffect(() => {
     const handleSnapshotSaved = async (e: any) => {
@@ -207,7 +213,7 @@ const CoPilot: React.FC = () => {
           console.log("🚀 Triggering POST /api/blocks-fast waterfall...");
           const response = await fetch('/api/blocks-fast', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
             body: JSON.stringify({ snapshotId })
           });
           
@@ -308,7 +314,9 @@ const CoPilot: React.FC = () => {
     queryFn: async () => {
       if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
       
-      const response = await fetch(`/api/blocks/strategy/${lastSnapshotId}`);
+      const response = await fetch(`/api/blocks/strategy/${lastSnapshotId}`, {
+        headers: getAuthHeader()
+      });
       if (!response.ok) return null;
       
       const data = await response.json();
@@ -328,10 +336,6 @@ const CoPilot: React.FC = () => {
   });
 
   // ===== BRIEFING TAB QUERIES (load in parallel regardless of active tab) =====
-  const getAuthHeader = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-  };
 
   const { data: weatherData, isLoading: weatherLoading } = useQuery({
     queryKey: ['/api/briefing/weather', lastSnapshotId],
