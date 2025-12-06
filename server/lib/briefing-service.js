@@ -1392,7 +1392,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
       
       // CRITICAL FIX: Merge data instead of overwriting to prevent stub data from overwriting good data
       // Keep good traffic data if new data is a stub (e.g., "Real-time traffic data unavailable")
-      const mergedTraffic = briefingData.traffic_conditions;
+      let mergedTraffic = briefingData.traffic_conditions;
       if (existingBriefing.traffic_conditions && 
           briefingData.traffic_conditions?.summary?.includes('unavailable') &&
           existingBriefing.traffic_conditions?.incidents?.length > 0) {
