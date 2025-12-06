@@ -122,6 +122,23 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
 export async function fetchEventsForBriefing({ snapshot } = {}) {
   console.log(`[fetchEventsForBriefing] Called with snapshot:`, snapshot ? `lat=${snapshot.lat}, lng=${snapshot.lng}, tz=${snapshot.timezone}, date=${snapshot.date}` : 'null');
   
+  if (snapshot) {
+    console.log('[fetchEventsForBriefing] 📤 SENT SNAPSHOT TO GEMINI FOR EVENTS:', {
+      snapshot_id: snapshot.snapshot_id,
+      lat: snapshot.lat,
+      lng: snapshot.lng,
+      city: snapshot.city,
+      state: snapshot.state,
+      timezone: snapshot.timezone,
+      date: snapshot.date,
+      dow: snapshot.dow,
+      hour: snapshot.hour,
+      day_part_key: snapshot.day_part_key,
+      weather: snapshot.weather ? { tempF: snapshot.weather.tempF, conditions: snapshot.weather.conditions } : 'none',
+      air: snapshot.air ? { aqi: snapshot.air.aqi, category: snapshot.air.category } : 'none'
+    });
+  }
+  
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] Gemini API key not configured');
     return [];
@@ -729,6 +746,23 @@ If no relevant items, return: []`;
 }
 
 export async function fetchWeatherConditions({ snapshot }) {
+  if (snapshot) {
+    console.log('[fetchWeatherConditions] 📤 SENT SNAPSHOT TO GOOGLE WEATHER API:', {
+      snapshot_id: snapshot.snapshot_id,
+      lat: snapshot.lat,
+      lng: snapshot.lng,
+      city: snapshot.city,
+      state: snapshot.state,
+      timezone: snapshot.timezone,
+      date: snapshot.date,
+      dow: snapshot.dow,
+      hour: snapshot.hour,
+      day_part_key: snapshot.day_part_key,
+      weather: snapshot.weather ? { tempF: snapshot.weather.tempF, conditions: snapshot.weather.conditions } : 'none',
+      air: snapshot.air ? { aqi: snapshot.air.aqi, category: snapshot.air.category } : 'none'
+    });
+  }
+
   if (!GOOGLE_MAPS_API_KEY) {
     console.warn('[BriefingService] GOOGLE_MAPS_API_KEY not set, skipping weather fetch');
     return { current: null, forecast: [], error: 'GOOGLE_MAPS_API_KEY not configured' };
@@ -815,6 +849,23 @@ export async function fetchWeatherConditions({ snapshot }) {
 }
 
 export async function fetchSchoolClosures({ snapshot }) {
+  if (snapshot) {
+    console.log('[fetchSchoolClosures] 📤 SENT SNAPSHOT TO GEMINI FOR SCHOOL CLOSURES:', {
+      snapshot_id: snapshot.snapshot_id,
+      lat: snapshot.lat,
+      lng: snapshot.lng,
+      city: snapshot.city,
+      state: snapshot.state,
+      timezone: snapshot.timezone,
+      date: snapshot.date,
+      dow: snapshot.dow,
+      hour: snapshot.hour,
+      day_part_key: snapshot.day_part_key,
+      weather: snapshot.weather ? { tempF: snapshot.weather.tempF, conditions: snapshot.weather.conditions } : 'none',
+      air: snapshot.air ? { aqi: snapshot.air.aqi, category: snapshot.air.category } : 'none'
+    });
+  }
+
   if (!GEMINI_API_KEY) {
     console.log('[BriefingService] Skipping school closures (no Gemini API key)');
     return [];
@@ -893,6 +944,23 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
 }
 
 export async function fetchTrafficConditions({ snapshot }) {
+  if (snapshot) {
+    console.log('[fetchTrafficConditions] 📤 SENT SNAPSHOT TO GEMINI FOR TRAFFIC:', {
+      snapshot_id: snapshot.snapshot_id,
+      lat: snapshot.lat,
+      lng: snapshot.lng,
+      city: snapshot.city,
+      state: snapshot.state,
+      timezone: snapshot.timezone,
+      date: snapshot.date,
+      dow: snapshot.dow,
+      hour: snapshot.hour,
+      day_part_key: snapshot.day_part_key,
+      weather: snapshot.weather ? { tempF: snapshot.weather.tempF, conditions: snapshot.weather.conditions } : 'none',
+      air: snapshot.air ? { aqi: snapshot.air.aqi, category: snapshot.air.category } : 'none'
+    });
+  }
+
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] GEMINI_API_KEY not set, returning stub traffic data');
     return { 
