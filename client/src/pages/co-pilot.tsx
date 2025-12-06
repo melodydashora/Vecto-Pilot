@@ -404,75 +404,102 @@ const CoPilot: React.FC = () => {
   });
 
   // ===== BRIEFING TAB QUERIES (load in parallel regardless of active tab) =====
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const getAuthHeader = () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  };
 
-  const { data: weatherData } = useQuery({
-    queryKey: ['/api/briefing/weather', lastSnapshotId, token],
+  const { data: weatherData, isLoading: weatherLoading } = useQuery({
+    queryKey: ['/api/briefing/weather', lastSnapshotId],
     queryFn: async () => {
-      if (!lastSnapshotId || !token) return { weather: null };
+      console.log('[BriefingQuery] Fetching weather for', lastSnapshotId);
+      if (!lastSnapshotId) return { weather: null };
       const response = await fetch(`/api/briefing/weather/${lastSnapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getAuthHeader()
       });
-      if (!response.ok) return { weather: null };
-      return response.json();
+      if (!response.ok) {
+        console.error('[BriefingQuery] Weather failed:', response.status);
+        return { weather: null };
+      }
+      const data = await response.json();
+      console.log('[BriefingQuery] Weather received:', data);
+      return data;
     },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     staleTime: 30000,
   });
 
-  const { data: trafficData } = useQuery({
-    queryKey: ['/api/briefing/traffic', lastSnapshotId, token],
+  const { data: trafficData, isLoading: trafficLoading } = useQuery({
+    queryKey: ['/api/briefing/traffic', lastSnapshotId],
     queryFn: async () => {
-      if (!lastSnapshotId || !token) return { traffic: null };
+      console.log('[BriefingQuery] Fetching traffic for', lastSnapshotId);
+      if (!lastSnapshotId) return { traffic: null };
       const response = await fetch(`/api/briefing/traffic/${lastSnapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getAuthHeader()
       });
-      if (!response.ok) return { traffic: null };
-      return response.json();
+      if (!response.ok) {
+        console.error('[BriefingQuery] Traffic failed:', response.status);
+        return { traffic: null };
+      }
+      const data = await response.json();
+      console.log('[BriefingQuery] Traffic received:', data);
+      return data;
     },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     staleTime: 30000,
   });
 
   const { data: newsData } = useQuery({
-    queryKey: ['/api/briefing/rideshare-news', lastSnapshotId, token],
+    queryKey: ['/api/briefing/rideshare-news', lastSnapshotId],
     queryFn: async () => {
-      if (!lastSnapshotId || !token) return { news: null };
+      console.log('[BriefingQuery] Fetching news for', lastSnapshotId);
+      if (!lastSnapshotId) return { news: null };
       const response = await fetch(`/api/briefing/rideshare-news/${lastSnapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getAuthHeader()
       });
       if (!response.ok) return { news: null };
-      return response.json();
+      const data = await response.json();
+      console.log('[BriefingQuery] News received:', data);
+      return data;
     },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     staleTime: 45000,
   });
 
-  const { data: eventsData } = useQuery({
-    queryKey: ['/api/briefing/events', lastSnapshotId, token],
+  const { data: eventsData, isLoading: eventsLoading } = useQuery({
+    queryKey: ['/api/briefing/events', lastSnapshotId],
     queryFn: async () => {
-      if (!lastSnapshotId || !token) return { events: [] };
+      console.log('[BriefingQuery] Fetching events for', lastSnapshotId);
+      if (!lastSnapshotId) return { events: [] };
       const response = await fetch(`/api/briefing/events/${lastSnapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getAuthHeader()
       });
-      if (!response.ok) return { events: [] };
-      return response.json();
+      if (!response.ok) {
+        console.error('[BriefingQuery] Events failed:', response.status);
+        return { events: [] };
+      }
+      const data = await response.json();
+      console.log('[BriefingQuery] Events received:', data);
+      return data;
     },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     staleTime: 45000,
   });
 
   const { data: schoolClosuresData } = useQuery({
-    queryKey: ['/api/briefing/school-closures', lastSnapshotId, token],
+    queryKey: ['/api/briefing/school-closures', lastSnapshotId],
     queryFn: async () => {
-      if (!lastSnapshotId || !token) return { school_closures: [] };
+      console.log('[BriefingQuery] Fetching school closures for', lastSnapshotId);
+      if (!lastSnapshotId) return { school_closures: [] };
       const response = await fetch(`/api/briefing/school-closures/${lastSnapshotId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getAuthHeader()
       });
       if (!response.ok) return { school_closures: [] };
-      return response.json();
+      const data = await response.json();
+      console.log('[BriefingQuery] School closures received:', data);
+      return data;
     },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot' && !!token,
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     staleTime: 45000,
   });
 

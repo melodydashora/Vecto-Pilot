@@ -27,10 +27,12 @@ A role-based, model-agnostic architecture employs configurable AI models (Strate
 A React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Features include a Strategy Section, Smart Blocks for venue recommendations, an AI Strategy Coach with hands-free voice chat (OpenAI Realtime API), and a Rideshare Briefing Tab with immutable strategy history.
 
 **Briefing Tab Architecture**:
-Displays three data sources fetched at snapshot creation and stored in the database:
+Displays five data sources fetched in parallel at snapshot creation and stored in the database:
 1.  **News & Events**: Rideshare-relevant news and local events (concerts, games, parades, watch parties) from Gemini 3.0 Pro with web search and AI filtering.
 2.  **Weather**: Current conditions (Fahrenheit for US) and hourly forecast from Google Weather API (6-hour lookahead).
 3.  **Traffic**: Local traffic conditions and congestion levels with Gemini intelligence.
+4.  **Events**: Major events (5-10+) with start time, end time, staging areas, and addresses using Google Search tool.
+5.  **School Closures**: Local school closures for the day using Gemini with web search.
 
 **Data Storage**:
 A PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data, utilizing unique indexes and JSONB.
@@ -71,6 +73,7 @@ Every table referencing `snapshot_id` also stores the resolved precise location 
 -   **UI Components**: Radix UI, Chart.js.
 -   **State Management**: React Query, React Context API.
 -   **Development Tools**: Vite, ESLint, TypeScript, PostCSS, TailwindCSS.
+
 ## GPS Location Behavior
 **Design: Manual Refresh Only (No Auto-Polling)**
 - **App Open**: Browser requests location permission fresh (`maximumAge: 0`)
@@ -79,23 +82,27 @@ Every table referencing `snapshot_id` also stores the resolved precise location 
 - **Implementation**: `useGeoPosition.ts` with `maximumAge: 0` forces fresh requests on each permission prompt
 
 ## Recent Changes & Fixes
-- **Dec 6, 2025 (DUPLICATE SNAPSHOT SENDS ELIMINATED)**:
+
+- **Dec 6, 2025 (BRIEFING QUERIES NOW WORKING)**:
+  - ✅ **Fixed briefing queries not firing**: Removed `token` requirement from `enabled` condition in co-pilot.tsx
+  - ✅ **Auth header now dynamic**: Token retrieved at fetch time via `getAuthHeader()` function instead of render time
+  - ✅ **All 5 briefing queries firing**: Weather, Traffic, Events, News, School Closures now fetch in parallel
+  - ✅ **Data displayed in BriefingTab**: Component receives data props correctly, console logs show queries completing
+  - ✅ **Consolidated Gemini duplications**: Removed `gemini-news-briefing.js`, `gemini-enricher.js` - all routes through `briefing-service.js`
+  - ✅ **Added comprehensive logging**: [BriefingQuery] logs show fetch/receive for debugging
+  - **Result**: Briefing Tab data (events, traffic, news, weather, school closures) now displays after snapshot creation
+
+- **Dec 6, 2025 (PREVIOUS: DUPLICATE SNAPSHOT SENDS ELIMINATED)**:
   - ✅ **Identified root cause**: Both `location-context-clean.tsx` AND `GlobalHeader.tsx` were independently creating and POSTing snapshots
   - ✅ **Removed duplicate**: Deleted `persistSnapshot()` and `buildAndSaveSnapshot()` functions from GlobalHeader (170+ lines)
   - ✅ **Single source of truth**: Only `location-context-clean.tsx` now creates snapshots (verified no other callers)
   - ✅ **Briefing queries moved**: All 5 briefing data queries moved to `co-pilot.tsx` page level, run in parallel regardless of active tab
   - **Result**: No more duplicate snapshot POSTs, faster briefing data loading, cleaner architecture
 
-- **Dec 6, 2025 (CRITICAL CLEANUP & SECURITY HARDENING)**:
+- **Dec 6, 2025 (PREVIOUS: CRITICAL CLEANUP & SECURITY HARDENING)**:
   - ✅ **Code Debt Elimination**: Deleted 170+ lines of dead code from `strategy-generator.js` (old Claude Opus pipeline)
   - ✅ **Architecture Cleanup**: Removed `runParallelProviders` function (100 lines, "OLD ARCHITECTURE") from `strategy-generator-parallel.js`
   - ✅ **Duplicate Files**: Deleted legacy `llm-router.js` and unused `google-gemini.js` adapter
   - ✅ **Security Hardening - briefing.js**: Added `requireAuth` to all endpoints + ownership checks (IDOR protection)
   - ✅ **Stability Fixes - blocks-fast.js**: Changed `Promise.all` → `Promise.allSettled` (briefing now optional), fixed SQL schema mismatch with proper joins, moved dynamic imports to top for performance, added authentication
   - **Result**: Codebase reduced complexity, improved stability, closed security vulnerabilities
-
-- **Dec 6, 2025 (DUPLICATE API OPTIMIZATION)**:
-  - ✅ Fixed "lat is not defined" bug in briefing-service.js (line 1207) - critical blocker
-  - ✅ Fixed Weather API duplication by reusing `snapshot.weather` instead of re-fetching
-  - ✅ Confirmed GPS behavior: Manual refresh only, permission on app reopen
-  - Waterfall pipeline now completes successfully with all tabs displaying data
