@@ -903,6 +903,50 @@ export async function fetchTrafficConditions({ lat, lng, city, state }) {
   }
 }
 
+/**
+ * Fetch rideshare-relevant news for a location
+ * Combines SerpAPI news fetching with Gemini filtering
+ */
+async function fetchRideshareNews({ city, state, country, lat, lng }) {
+  try {
+    const SERP_API_KEY = process.env.SERP_API_KEY;
+    if (!SERP_API_KEY) {
+      console.warn('[BriefingService] SERP_API_KEY not set, skipping news fetch');
+      return [];
+    }
+
+    console.log(`[BriefingService] 📰 Fetching rideshare news for ${city}, ${state}...`);
+    
+    // Fetch news from SerpAPI
+    const query = `rideshare ${city} ${state} events news`;
+    const response = await fetch(
+      `https://serpapi.com/search?q=${encodeURIComponent(query)}&tbm=nws&api_key=${SERP_API_KEY}&num=10`
+    );
+
+    if (!response.ok) {
+      console.warn(`[BriefingService] SerpAPI news error: ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    const newsResults = data.news_results || [];
+    
+    if (newsResults.length === 0) {
+      console.log('[BriefingService] No news results from SerpAPI');
+      return [];
+    }
+
+    // Filter with Gemini
+    const filteredNews = await filterNewsWithGemini(newsResults, city, state, country, lat, lng);
+    console.log(`[BriefingService] ✅ Filtered ${newsResults.length} news items → ${filteredNews.length} relevant`);
+    
+    return filteredNews;
+  } catch (error) {
+    console.error('[BriefingService] Rideshare news fetch error:', error.message);
+    return [];
+  }
+}
+
 export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, state, formattedAddress, country = 'US' }) {
   console.log(`[BriefingService] Generating briefing for ${city}, ${state}, ${country} (${lat}, ${lng})`);
   
@@ -921,14 +965,16 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
   }
 
   // Fetch all briefing components in parallel
-  console.log(`[BriefingService] 🔍 Fetching events... snapshot=${!!snapshot}`);
-  const [rawEvents, weatherResult, trafficResult, schoolClosures] = await Promise.all([
+  console.log(`[BriefingService] 🔍 Fetching events, news, weather, traffic, school closures... snapshot=${!!snapshot}`);
+  const [rawEvents, newsItems, weatherResult, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
+    fetchRideshareNews({ city, state, country, lat, lng }),
     fetchWeatherConditions({ lat, lng }),
     fetchTrafficConditions({ lat, lng, city, state }),
     fetchSchoolClosures({ city, state, lat, lng })
   ]);
   console.log(`[BriefingService] ✅ Events fetched from Gemini: ${rawEvents.length} raw events`);
+  console.log(`[BriefingService] ✅ News fetched: ${newsItems.length} items`);
 
   // 1) Normalize Gemini output into LocalEventSchema
   let normalizedEvents = mapGeminiEventsToLocalEvents(rawEvents, { lat, lng });
@@ -946,7 +992,7 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     formatted_address: formattedAddress,
     city,
     state,
-    news: { items: [], filtered: [] },
+    news: { items: newsItems, filtered: newsItems },
     weather_current: weatherResult.current,
     weather_forecast: weatherResult.forecast,
     traffic_conditions: trafficResult,
