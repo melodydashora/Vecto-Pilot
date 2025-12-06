@@ -842,58 +842,140 @@ RESPOND WITH ONLY VALID JSON ARRAY - NO EXPLANATION:`;
   }
 }
 
-export async function fetchTrafficConditions({ lat, lng, city, state }) {
+export async function fetchTrafficConditions({ lat, lng, city, state, snapshot }) {
+  if (!GEMINI_API_KEY) {
+    console.warn('[BriefingService] GEMINI_API_KEY not set, returning stub traffic data');
+    return { 
+      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
+      incidents: [], 
+      congestionLevel: 'low',
+      fetchedAt: new Date().toISOString()
+    };
+  }
+
   try {
-    // Import traffic intelligence from venue service
-    const { getTrafficIntelligence } = await import('./venue-intelligence.js');
+    // Use snapshot context: date, timezone, daypart for intelligent analysis
+    const snapshotDate = snapshot?.date || new Date().toISOString().split('T')[0];
+    const timezone = snapshot?.timezone || 'America/Chicago';
     
-    // Add timeout to prevent hanging requests (120s max for Gemini)
-    console.log('[BriefingService] 🚗 Starting traffic fetch for', city, state);
-    const trafficPromise = getTrafficIntelligence({ lat, lng, city, state });
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Traffic API timeout after 120s')), 120000)
+    // Calculate current time in driver's timezone - use correct formatting
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    // Get date in driver's timezone
+    const dateFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric'
+    });
+    
+    const timeString = formatter.format(now);
+    const driverDate = dateFormatter.format(now);
+    
+    console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state} at ${timeString} ${timezone} on ${driverDate}`);
+    
+    const prompt = `You are a rideshare driver intelligence system. Provide ACTIONABLE traffic and demand analysis for a rideshare driver RIGHT NOW in ${city}, ${state}.
+
+DRIVER CONTEXT:
+- Location: ${city}, ${state} (${lat.toFixed(4)}, ${lng.toFixed(4)})
+- Current Local Time: ${timeString} on ${driverDate}
+- Timezone: ${timezone}
+
+YOUR JOB: Tell the driver WHERE TO POSITION RIGHT NOW for maximum earnings. Be specific about neighborhoods, venues, and areas.
+
+ANALYZE AND RETURN:
+1. **Most profitable positioning RIGHT NOW** - specific neighborhoods/venues where driver should be
+2. Current traffic conditions affecting those zones
+3. Surge pricing patterns starting when and where
+4. Safety alerts for this time of day
+5. Specific high-demand zones by name (bars, clubs, events, airports, hotels)
+6. Avoid low-demand zones
+
+RESPONSE - Return ONLY valid JSON, no markdown:
+{
+  "summary": "One actionable sentence: where driver should position for best earnings",
+  "congestionLevel": "low" | "medium" | "high",
+  "repositioning": "SPECIFIC guidance on where to move (neighborhood names, distances, landmarks)",
+  "surgePricing": "When surge pricing will likely spike and where (specific times and zones)",
+  "safetyAlert": "Safety consideration if relevant for this time/area",
+  "highDemandZones": [
+    {"zone": "venue or neighborhood name", "reason": "specific reason it's profitable now"}
+  ],
+  "incidents": [
+    {"description": "traffic incident affecting driver routes", "severity": "high" | "medium" | "low"}
+  ]
+}
+
+Return ONLY JSON. No explanations.`;
+
+    console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
+    
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
+      {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 1500, topP: 1 }
+        })
+      }
     );
-    
-    let trafficIntel;
-    try {
-      console.log('[BriefingService] ⏳ Waiting for traffic intelligence...');
-      const startTime = Date.now();
-      trafficIntel = await Promise.race([trafficPromise, timeoutPromise]);
-      const duration = Date.now() - startTime;
-      console.log(`[BriefingService] ✅ Traffic intelligence received in ${duration}ms:`, trafficIntel?.density_level);
-    } catch (timeoutErr) {
-      const duration = Date.now() - startTime;
-      console.warn(`[BriefingService] ⚠️ Traffic fetch failed after ${duration}ms:`, timeoutErr.message);
-      // Return stub data on timeout instead of erroring
-      trafficIntel = {
-        density_level: 'medium',
-        driver_advice: 'Real-time traffic data unavailable. Check Google Maps for current conditions.',
-        congestion_areas: [],
-        high_demand_zones: []
+
+    if (!response.ok) {
+      const errData = await response.text();
+      console.warn(`[BriefingService] Gemini traffic analysis error ${response.status}, using fallback`);
+      return { 
+        summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
+        incidents: [], 
+        congestionLevel: 'medium',
+        fetchedAt: new Date().toISOString()
       };
     }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     
-    // Convert venue traffic format to briefing format
-    const incidents = (trafficIntel.congestion_areas || [])
-      .filter(area => area && area.area && area.reason)
-      .slice(0, 5) // Limit to 5 incidents
-      .map(area => ({
-        description: `${area.area}: ${area.reason}`,
-        severity: area.severity > 7 ? 'high' : area.severity > 4 ? 'medium' : 'low'
-      }));
+    console.log(`[BriefingService] Gemini traffic response (first 400 chars): ${text.substring(0, 400)}`);
     
-    const summary = trafficIntel.driver_advice || 'No significant traffic issues';
-    const congestionLevel = trafficIntel.density_level || 'low';
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        console.log(`[BriefingService] ✅ Traffic analysis complete: ${parsed.summary?.substring(0, 80)}`);
+        
+        return {
+          summary: parsed.summary || 'Real-time traffic data unavailable',
+          incidents: parsed.incidents || [],
+          congestionLevel: parsed.congestionLevel || 'medium',
+          repositioning: parsed.repositioning,
+          surgePricing: parsed.surgePricing,
+          safetyAlert: parsed.safetyAlert,
+          highDemandZones: parsed.highDemandZones,
+          fetchedAt: new Date().toISOString()
+        };
+      }
+    } catch (parseErr) {
+      console.warn('[BriefingService] Traffic JSON parse error:', parseErr.message);
+    }
     
-    return {
-      summary,
-      incidents,
-      congestionLevel,
+    return { 
+      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
+      incidents: [], 
+      congestionLevel: 'medium',
       fetchedAt: new Date().toISOString()
     };
   } catch (error) {
     console.error('[BriefingService] Traffic fetch error:', error.message);
-    // Return safe stub data on any error - don't break the briefing
     return { 
       summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
       incidents: [], 
@@ -1017,7 +1099,7 @@ export async function generateAndStoreBriefing({ snapshotId, lat, lng, city, sta
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchRideshareNews({ city, state, country, lat, lng }),
     fetchWeatherConditions({ lat, lng }),
-    fetchTrafficConditions({ lat, lng, city, state }),
+    fetchTrafficConditions({ lat, lng, city, state, snapshot }),
     fetchSchoolClosures({ city, state, lat, lng })
   ]);
   console.log(`[BriefingService] ✅ Events fetched from Gemini: ${rawEvents.length} raw events`);
