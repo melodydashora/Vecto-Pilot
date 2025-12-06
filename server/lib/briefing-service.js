@@ -1073,11 +1073,15 @@ export async function fetchTrafficConditions({ snapshot }) {
 
 {
   "summary": "One sentence about overall traffic status",
-  "congestionLevel": "low",
-  "incidents": []
+  "congestionLevel": "low" | "medium" | "high",
+  "incidents": [{"description": "I-35 construction", "severity": "medium"}],
+  "highDemandZones": [{"zone": "Downtown", "reason": "Event/Concert crowd"}],
+  "repositioning": "Advice on where to drive next for surge opportunities",
+  "surgePricing": true,
+  "safetyAlert": "Any safety warnings for drivers"
 }
 
-If you find incidents, add them to the incidents array: [{"description": "I-35 construction", "severity": "medium"}]`;
+RESPOND WITH ONLY VALID JSON - NO EXPLANATION:`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     
