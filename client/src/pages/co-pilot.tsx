@@ -174,14 +174,6 @@ const CoPilot: React.FC = () => {
   // Bottom tab navigation
   const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing' | 'map' | 'donation'>('strategy');
   
-  // Persistent briefing data (loaded once per location, shared across tab switches)
-  const [briefingData, setBriefingData] = useState<any>(null);
-  const [briefingLoading, setBriefingLoading] = useState(false);
-  
-  // Persistent venue data (loaded once per location, shared across tab switches)
-  const [venueData, setVenueData] = useState<any>(null);
-  const [venueLoading, setVenueLoading] = useState(false);
-
   // Ref to track polling status changes (reduces console spam by only logging transitions)
   const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
   
@@ -200,74 +192,6 @@ const CoPilot: React.FC = () => {
   
   // Use override coords if available, otherwise GPS
   const coords = overrideCoords || gpsCoords;
-  
-  // Load Briefing + Venue data in parallel when location resolves (same trigger as SmartBlocks)
-  useEffect(() => {
-    if (!coords?.lat || !coords?.lng || !coords?.city || !coords?.state) {
-      return;
-    }
-    
-    console.log('📍 [CoPilot] Location resolved - loading briefing + venue data in parallel');
-    
-    const loadLocationData = async () => {
-      setBriefingLoading(true);
-      setVenueLoading(true);
-      
-      try {
-        // Fetch briefing data using location (not snapshot-dependent)
-        const token = localStorage.getItem('token');
-        const params = new URLSearchParams({
-          lat: coords.lat.toString(),
-          lng: coords.lng.toString(),
-          city: coords.city,
-          state: coords.state
-        });
-        
-        const briefingResponse = await fetch(`/api/briefing/weather/realtime?${params}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (briefingResponse.ok) {
-          const briefingResult = await briefingResponse.json();
-          if (briefingResult.success) {
-            setBriefingData(briefingResult.weather || briefingResult);
-            console.log('✅ Briefing data loaded from location');
-          }
-        }
-      } catch (err) {
-        console.error('❌ Failed to load briefing data:', err);
-      } finally {
-        setBriefingLoading(false);
-      }
-      
-      try {
-        // Fetch venue data using location (not snapshot-dependent)
-        const venueParams = new URLSearchParams({
-          lat: coords.lat.toString(),
-          lng: coords.lng.toString(),
-          city: coords.city,
-          state: coords.state,
-          radius: '15'
-        });
-        
-        const venueResponse = await fetch(`/api/venues/smart-blocks?${venueParams}`);
-        
-        if (venueResponse.ok) {
-          const venueResult = await venueResponse.json();
-          if (venueResult.success) {
-            setVenueData(venueResult.data || venueResult);
-            console.log('✅ Venue data loaded from location');
-          }
-        }
-      } catch (err) {
-        console.error('❌ Failed to load venue data:', err);
-      } finally {
-        setVenueLoading(false);
-      }
-    };
-    
-    loadLocationData();
-  }, [coords?.lat, coords?.lng, coords?.city, coords?.state]);
 
   // Listen for snapshot-saved event to trigger waterfall and load all tabs
   useEffect(() => {
@@ -2069,12 +1993,6 @@ const CoPilot: React.FC = () => {
                       <p className="text-sm text-gray-600 mt-1">
                         Showing bars and restaurants sorted by expense level ($$$$→$) with last-call alerts
                       </p>
-                      {venueLoading && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          <Loader className="w-3 h-3 inline mr-1 animate-spin" />
-                          Loading nearby venues...
-                        </p>
-                      )}
                     </div>
                   </div>
                 </CardContent>
