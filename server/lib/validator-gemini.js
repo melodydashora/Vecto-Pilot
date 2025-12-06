@@ -2,12 +2,16 @@
 const GEMINI_URL = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
 export async function validateWithGemini({
-  plannerDraft, shortlistNames, schema,
+  plannerDraft, 
+  shortlistNames, 
+  schema,
+  // 1. UPDATED: Default to gemini-3-pro-preview if env var is missing
   model = process.env.GEMINI_MODEL || "gemini-3-pro-preview",
-  timeoutMs = Number(process.env.VALIDATOR_DEADLINE_MS || 1800)
+  timeoutMs = Number(process.env.VALIDATOR_DEADLINE_MS || 5000) // Increased slightly for Pro models
 }) {
-  const key = process.env.GOOGLE_MAPS_API_KEY;
-  if (!key) throw new Error("Missing GEMINI_API_KEY");
+  // 2. UPDATED: Using the correct GEMINI_API_KEY from your .env
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("Missing GEMINI_API_KEY in .env");
 
   const controller = new AbortController();
   const killer = setTimeout(() => controller.abort(), timeoutMs);
@@ -24,11 +28,17 @@ export async function validateWithGemini({
     `Schema: ${JSON.stringify(schema)}\n` +
     `Planner draft (untrusted): ${plannerDraft}`;
 
+  // 3. UPDATED: Dynamic configuration pulling from .env
   const body = {
     systemInstruction: { role: "system", parts: [{ text: systemInstruction }] },
     contents: [{ role: "user", parts: [{ text: userText }]}],
     generationConfig: {
-      temperature: 0.1,
+      // Native JSON enforcement for Gemini 3.0
+      responseMimeType: "application/json", 
+      // Parameters from your .env (defaulting to your requested values if missing)
+      temperature: parseFloat(process.env.MODEL_TEMPERATURE) || 0.0,
+      topP: parseFloat(process.env.MODEL_TOP_P) || 0.8,
+      topK: parseInt(process.env.MODEL_TOP_K) || 40,
       maxOutputTokens: 4096
     },
     safetySettings: [
@@ -46,26 +56,39 @@ export async function validateWithGemini({
       body: JSON.stringify(body),
       signal: controller.signal
     });
-    if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text().catch(()=> "")}`);
+
+    if (!res.ok) {
+        const errText = await res.text().catch(() => "Unknown Error");
+        throw new Error(`Gemini ${res.status}: ${errText}`);
+    }
+
     const j = await res.json();
     
-    console.log(`🔍 [validator-gemini] Full Gemini response:`, JSON.stringify(j).slice(0, 500));
-
+    // Debug logging
+    console.log(`🔍 [validator-gemini] Model: ${model}`);
+    
     let txt = "";
     const cand = j.candidates?.[0];
-    console.log(`🔍 [validator-gemini] Candidate:`, cand ? 'exists' : 'missing', `finishReason:`, cand?.finishReason);
+    
     if (cand?.content?.parts?.length) {
       txt = cand.content.parts.map(p => p?.text || "").join("");
     }
-    if (!txt && cand?.groundingMetadata?.webSearchQueries?.length) {
-      txt = "";
-    }
+    
     txt = (txt || "").trim();
-    console.log(`🔍 [validator-gemini] Extracted text length:`, txt.length, `first 100 chars:`, txt.slice(0, 100));
+    
     if (!txt) return { raw: "", parsed: undefined, status: "empty", issues: ["validator_empty"] };
 
+    // Cleanup: Even with JSON mode, sometimes models add markdown blocks
     const raw = txt.replace(/```json\s*([\s\S]*?)```/gi, "$1").trim();
-    let parsed; try { parsed = JSON.parse(firstBalanced(raw)); } catch {}
+    
+    let parsed; 
+    try { 
+        // using firstBalanced as a safety net
+        parsed = JSON.parse(firstBalanced(raw)); 
+    } catch (e) {
+        console.error("JSON Parse Error:", e);
+    }
+    
     return { raw, parsed, status: parsed ? "ok" : "nonjson", issues: parsed ? [] : ["validator_nonjson"] };
 
   } finally {
@@ -73,4 +96,5 @@ export async function validateWithGemini({
   }
 }
 
+// Utility to find the first valid { ... } block
 function firstBalanced(s){ let d=0, st=-1; for(let i=0;i<s.length;i++){const c=s[i]; if(c==="{"){if(!d)st=i; d++;} else if(c==="}"){d--; if(!d&&st!==-1) return s.slice(st,i+1);} } return s; }
