@@ -117,13 +117,25 @@ router.post("/", async (req, res) => {
     // Generate briefing data BEFORE responding (so data is ready when frontend queries)
     if (lat && lng) {
       console.log(`[briefing] starting`, { snapshot_id, city, state });
-      await generateAndStoreBriefing({
-        snapshotId: snapshot_id,
+      // Pass the full DB record (not individual fields) so all snapshot context is available
+      const fullSnapshot = {
+        snapshot_id,
         lat,
         lng,
         city: city || 'Unknown',
         state: state || '',
-        formattedAddress: formatted_address || null
+        country: country || 'US',
+        formatted_address: formatted_address || null,
+        timezone: timezone || 'America/Chicago',
+        date: today,
+        hour: hour || null,
+        dow: dow || null,
+        day_part_key: day_part_key || null,
+        local_iso: local_iso || null
+      };
+      await generateAndStoreBriefing({
+        snapshotId: snapshot_id,
+        snapshot: fullSnapshot
       }).catch(err => {
         console.warn(`[briefing] generation.failed`, { snapshot_id, err: String(err) });
       });
