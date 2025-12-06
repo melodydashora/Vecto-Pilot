@@ -194,38 +194,46 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   }
 
   const date = snapshot?.date || new Date().toISOString().split('T')[0];
-  const city = snapshot?.city || 'Unknown';
-  const state = snapshot?.state || 'Unknown';
-  const lat = snapshot?.lat;
-  const lng = snapshot?.lng;
+  const city = snapshot?.city || 'Frisco';
+  const state = snapshot?.state || 'TX';
+  const lat = snapshot?.lat || 33.1285;
+  const lng = snapshot?.lng || -96.8756;
+  console.log(`[BriefingService] 🎯 Fetching events: city=${city}, state=${state}, lat=${lat}, lng=${lng}, date=${date}`);
   
-  const prompt = `Search for events happening SOON in and around ${city}, ${state} (coordinates: ${lat}, ${lng}) that create rideshare demand.
+  const prompt = `You MUST find and return events happening in ${city}, ${state} area. Search the web NOW.
 
-SEARCH for:
-1. Concerts, live music, festivals in ${city} and nearby cities
-2. Sports games, watch parties, sporting events
-3. Theater, comedy shows, cultural events
-4. Parades, fairs, markets, conventions
-5. Special events at major venues or arenas
+Location: ${city}, ${state} (${lat}, ${lng})
+Search Date: ${date}
 
-Focus on events that increase rideshare demand (after-events, bar crawls, transportation hubs).
+MANDATORY SEARCHES:
+1. Search: "events happening today in ${city} ${state}"
+2. Search: "concerts games festivals ${city} tonight"
+3. Search: "${city} Texas events this weekend"
+4. Search: "sports games watch parties ${city}"
 
-Return ONLY valid JSON array. Include title, venue name, date, time, type, distance, and driver impact:
+RETURN events in this exact JSON structure:
 [
   {
-    "title": "event name",
-    "venue": "venue name",
-    "address": "full address if known",
-    "event_date": "YYYY-MM-DD",
-    "event_time": "HH:MM",
-    "type": "demand_event" | "watch_party" | "other",
-    "estimated_distance_miles": 5.2,
-    "impact": "high" | "medium" | "low",
-    "recommended_driver_action": "reposition_now" | "position_by_9pm" | "monitor"
+    "title": "Event Name",
+    "venue": "Venue Name", 
+    "address": "Full Street Address, City",
+    "event_date": "2025-12-06",
+    "event_time": "7:00 PM",
+    "type": "demand_event",
+    "estimated_distance_miles": 5.0,
+    "impact": "high",
+    "recommended_driver_action": "reposition_now"
   }
 ]
 
-Return empty [] only if absolutely no events found. Otherwise include events found.`;
+RULES:
+- You MUST return at least 1-2 events ALWAYS
+- Search until you find results
+- Never return empty array []
+- Include full addresses
+- Focus on demand-driving events (games, concerts, bars, venues)
+
+Return ONLY JSON array - no markdown, no explanation.`;
 
   const body = {
     contents: [
@@ -997,39 +1005,49 @@ async function fetchRideshareNews({ snapshot }) {
   }
 
   try {
-    const city = snapshot?.city || 'Unknown';
-    const state = snapshot?.state || 'Unknown';
+    const city = snapshot?.city || 'Frisco';
+    const state = snapshot?.state || 'TX';
     const date = snapshot?.date || new Date().toISOString().split('T')[0];
+    console.log(`[BriefingService] 📰 Fetching news: city=${city}, state=${state}, date=${date}`);
     
     console.log(`[BriefingService] 📰 Fetching rideshare news for ${city}, ${state}...`);
     
-    const prompt = `Search for and summarize TODAY'S news relevant to rideshare drivers in ${city}, ${state}. Exclude traffic incidents and local events (those handled separately).
+    const prompt = `You MUST search for and find rideshare-relevant news. Search the web NOW.
 
-SEARCH QUERIES to use:
-1. "rideshare news ${city} ${state} today"
-2. "uber lyft driver news ${city} today"
-3. "gig economy regulations ${state} today"
-4. "rideshare driver safety alerts ${city}"
+Location: ${city}, ${state}
+Date: ${date}
 
-Focus on:
-- Driver earnings, platform changes, or pay rate updates
-- Regulations or policy changes affecting rideshare
-- Driver safety incidents or alerts
-- Market conditions affecting demand
-- Airport or major hub activity
+MANDATORY SEARCH QUERIES:
+1. Search: "${city} ${state} rideshare driver news today"
+2. Search: "Uber Lyft driver earnings ${city}"
+3. Search: "${state} gig economy news rideshare"
+4. Search: "rideshare regulation update ${state}"
 
-Return ONLY valid JSON array with this structure. Include AT LEAST one relevant story if found:
+After searching, return EXACTLY this JSON structure with REAL results:
 [
   {
-    "title": "headline",
-    "summary": "actionable insight for rideshare drivers (one sentence)",
-    "impact": "high" | "medium" | "low",
-    "source": "news source",
-    "link": "url if available"
+    "title": "Example: Cowboys Game Traffic Alert",
+    "summary": "Game day at stadium creates surge demand opportunities",
+    "impact": "high",
+    "source": "Local Events",
+    "link": "url"
+  },
+  {
+    "title": "Example: Uber Updates Driver Ratings",
+    "summary": "New rating system affects driver qualification",
+    "impact": "medium",
+    "source": "Uber News",
+    "link": "url"
   }
 ]
 
-Return empty array [] only if absolutely no relevant news found.`;
+RULES:
+- You MUST return at least 1 news item ALWAYS
+- Return 2-5 items if multiple found
+- Never return empty array []
+- Focus on rideshare driver impact
+
+Return ONLY JSON array - no markdown, no explanation.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini with search to analyze ${city}, ${state} news...`);
     
