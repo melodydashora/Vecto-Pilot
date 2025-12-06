@@ -2013,7 +2013,20 @@ const CoPilot: React.FC = () => {
               </Card>
             )}
             
-            <SmartBlocks blocks={blocks} />
+            {/* Venues Loading State */}
+            {isLoading && (
+              <Card className="p-6 border-purple-100 bg-purple-50/50 mb-6">
+                <div className="flex items-center gap-3">
+                  <Loader className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />
+                  <div>
+                    <p className="text-gray-800 font-semibold text-sm">Finding nearby venues...</p>
+                    <p className="text-gray-600 text-xs">Analyzing location, demand, and earnings</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+            
+            {!isLoading && <SmartBlocks blocks={blocks} />}
           </div>
         )}
 

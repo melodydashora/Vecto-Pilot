@@ -111,10 +111,9 @@ export default function BriefingTab({
 
   const isEventToday = (event: any): boolean => {
     try {
-      if (!event.event_date) return true; // Show all events if no date
-      // Simple string comparison - events come as YYYY-MM-DD format
-      const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD
-      return event.event_date === today;
+      // Always return true - show all events regardless of date
+      // The briefing service should already filter by date
+      return true;
     } catch (e) {
       console.warn('[BriefingTab] Date parse error for event:', event.event_date, e);
       return true; // Show on error
