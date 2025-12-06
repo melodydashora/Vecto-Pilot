@@ -2,6 +2,7 @@ import { db } from '../db/drizzle.js';
 import { briefings, snapshots } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { callGemini } from './adapters/gemini-adapter.js';
 
 // Briefing Service Architecture:
 // ================================
@@ -1034,21 +1035,12 @@ export async function fetchTrafficConditions({ snapshot }) {
   if (snapshot) {
     console.log('[fetchTrafficConditions] 📤 SENT SNAPSHOT TO GEMINI FOR TRAFFIC:', {
       snapshot_id: snapshot.snapshot_id,
-      lat: snapshot.lat,
-      lng: snapshot.lng,
       city: snapshot.city,
       state: snapshot.state,
-      timezone: snapshot.timezone,
-      date: snapshot.date,
-      dow: snapshot.dow,
-      hour: snapshot.hour,
-      day_part_key: snapshot.day_part_key,
-      weather: snapshot.weather ? { tempF: snapshot.weather.tempF, conditions: snapshot.weather.conditions } : 'none',
-      air: snapshot.air ? { aqi: snapshot.air.aqi, category: snapshot.air.category } : 'none'
+      date: snapshot.date
     });
   }
 
-  console.log('[fetchTrafficConditions] 🔑 Checking GEMINI_API_KEY - exists:', !!GEMINI_API_KEY);
   if (!GEMINI_API_KEY) {
     console.warn('[BriefingService] ❌ GEMINI_API_KEY not set, returning stub traffic data');
     return { 
@@ -1062,10 +1054,7 @@ export async function fetchTrafficConditions({ snapshot }) {
   try {
     const city = snapshot?.city || 'Unknown';
     const state = snapshot?.state || 'Unknown';
-    const lat = snapshot?.lat;
-    const lng = snapshot?.lng;
     const date = snapshot?.date;
-    const timezone = snapshot?.timezone || 'America/Chicago';
     
     console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state}...`);
     
@@ -1085,25 +1074,16 @@ CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSO
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
-      {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 1500, topP: 1 }
-        })
-      }
-    );
+    const result = await callGemini({
+      model: 'gemini-3-pro-preview',
+      user: prompt,
+      maxTokens: 1500,
+      temperature: 0.2,
+      topP: 1
+    });
 
-    if (!response.ok) {
-      const errData = await response.text();
-      console.warn(`[BriefingService] Gemini traffic analysis error ${response.status}: ${errData.substring(0, 200)}`);
+    if (!result.ok) {
+      console.warn(`[BriefingService] Gemini traffic error: ${result.error}`);
       return { 
         summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
         incidents: [], 
@@ -1112,54 +1092,29 @@ CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSO
       };
     }
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    
-    console.log(`[BriefingService] Gemini traffic response (first 400 chars): ${text.substring(0, 400)}`);
-    
     try {
-      // Clean up response text - remove common JSON wrapper issues
-      let cleanText = text
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
+      const parsed = JSON.parse(result.output);
+      console.log(`[BriefingService] ✅ Traffic analysis complete: ${parsed.summary?.substring(0, 80)}`);
       
-      const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        let parseText = jsonMatch[0];
-        
-        // Try to fix common JSON issues (unterminated strings, trailing commas)
-        try {
-          const parsed = JSON.parse(parseText);
-          console.log(`[BriefingService] ✅ Traffic analysis complete: ${parsed.summary?.substring(0, 80)}`);
-          
-          return {
-            summary: parsed.summary || 'Real-time traffic data unavailable',
-            incidents: Array.isArray(parsed.incidents) ? parsed.incidents : [],
-            congestionLevel: parsed.congestionLevel || 'medium',
-            highDemandZones: Array.isArray(parsed.highDemandZones) ? parsed.highDemandZones : [],
-            repositioning: parsed.repositioning || null,
-            surgePricing: parsed.surgePricing || false,
-            safetyAlert: parsed.safetyAlert || null,
-            fetchedAt: new Date().toISOString()
-          };
-        } catch (innerErr) {
-          console.warn('[BriefingService] Traffic JSON parse failed, attempting cleanup:', innerErr.message);
-          // If parsing fails, return safe fallback
-          throw innerErr;
-        }
-      }
+      return {
+        summary: parsed.summary || 'Real-time traffic data unavailable',
+        incidents: Array.isArray(parsed.incidents) ? parsed.incidents : [],
+        congestionLevel: parsed.congestionLevel || 'medium',
+        highDemandZones: Array.isArray(parsed.highDemandZones) ? parsed.highDemandZones : [],
+        repositioning: parsed.repositioning || null,
+        surgePricing: parsed.surgePricing || false,
+        safetyAlert: parsed.safetyAlert || null,
+        fetchedAt: new Date().toISOString()
+      };
     } catch (parseErr) {
       console.warn('[BriefingService] Traffic JSON parse error:', parseErr.message);
+      return { 
+        summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
+        incidents: [], 
+        congestionLevel: 'medium',
+        fetchedAt: new Date().toISOString()
+      };
     }
-    
-    return { 
-      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
-      incidents: [], 
-      congestionLevel: 'medium',
-      fetchedAt: new Date().toISOString()
-    };
   } catch (error) {
     console.error('[BriefingService] Traffic fetch error:', error.message);
     return { 
