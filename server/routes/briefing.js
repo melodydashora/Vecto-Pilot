@@ -20,23 +20,10 @@ router.get('/current', requireAuth, async (req, res) => {
     }
 
     const snapshot = latestSnapshot[0];
-    let briefing = await getBriefingBySnapshotId(snapshot.snapshot_id);
+    const briefing = await getBriefingBySnapshotId(snapshot.snapshot_id);
 
     if (!briefing) {
-      const result = await generateAndStoreBriefing({
-        snapshotId: snapshot.snapshot_id,
-        lat: snapshot.lat,
-        lng: snapshot.lng,
-        city: snapshot.city,
-        state: snapshot.state,
-        country: snapshot.country
-      });
-      
-      if (result.success) {
-        briefing = result.briefing;
-      } else {
-        return res.status(500).json({ error: result.error });
-      }
+      return res.status(404).json({ error: 'Briefing not yet generated - try again in a moment' });
     }
 
     res.json({
@@ -68,39 +55,33 @@ router.get('/current', requireAuth, async (req, res) => {
 
 router.post('/generate', requireAuth, async (req, res) => {
   try {
-    const { snapshotId, lat, lng, city, state, country } = req.body;
+    const { snapshotId } = req.body;
 
     if (!snapshotId) {
       return res.status(400).json({ error: 'snapshotId is required' });
     }
 
-    const result = await generateAndStoreBriefing({
-      snapshotId,
-      lat,
-      lng,
-      city,
-      state,
-      country
-    });
-
-    if (result.success) {
-      res.json({
-        success: true,
-        briefing: {
-          news: result.briefing.news,
-          weather: {
-            current: result.briefing.weather_current,
-            forecast: result.briefing.weather_forecast
-          },
-          traffic: result.briefing.traffic_conditions,
-          events: result.briefing.events
-        }
-      });
-    } else {
-      res.status(500).json({ success: false, error: result.error });
+    // Just return cached briefing - generation happens in snapshot.js on creation
+    const briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    if (!briefing) {
+      return res.status(404).json({ error: 'Briefing not found or not yet generated' });
     }
+
+    res.json({
+      success: true,
+      briefing: {
+        news: briefing.news,
+        weather: {
+          current: briefing.weather_current,
+          forecast: briefing.weather_forecast
+        },
+        traffic: briefing.traffic_conditions,
+        events: briefing.events
+      }
+    });
   } catch (error) {
-    console.error('[BriefingRoute] Error generating briefing:', error);
+    console.error('[BriefingRoute] Error retrieving briefing:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -116,71 +97,15 @@ router.get('/snapshot/:snapshotId', requireAuth, async (req, res) => {
     if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' }); // 404 prevents enumeration
     }
-    let briefing = await getBriefingBySnapshotId(snapshotId);
+    
+    const briefing = await getBriefingBySnapshotId(snapshotId);
 
     if (!briefing) {
-      // Auto-generate briefing if it doesn't exist
-      const snapshot = await db.select()
-        .from(snapshots)
-        .where(eq(snapshots.snapshot_id, snapshotId))
-        .limit(1);
-
-      if (snapshot.length === 0) {
-        return res.status(404).json({ error: 'Snapshot not found' });
-      }
-
-      const snapshotData = snapshot[0];
-      
-      // If snapshot has null location, try to get user's latest location
-      let { lat, lng, city, state, country } = snapshotData;
-      
-      if (!lat || !lng || !city || !state) {
-        if (snapshotData.user_id) {
-          const userLocation = await db.select()
-            .from(users)
-            .where(eq(users.user_id, snapshotData.user_id))
-            .limit(1);
-          
-          if (userLocation.length > 0) {
-            const userLoc = userLocation[0];
-            lat = lat || userLoc.lat;
-            lng = lng || userLoc.lng;
-            city = city || userLoc.city;
-            state = state || userLoc.state;
-          }
-        }
-      }
-      
-      // Check again - if we still have no location, we can't generate briefing
-      if (!lat || !lng) {
-        return res.status(400).json({ error: 'Cannot generate briefing - no location data available for this snapshot' });
-      }
-      
-      const result = await generateAndStoreBriefing({
-        snapshotId,
-        lat,
-        lng,
-        city: city || 'Unknown',
-        state: state || '',
-        formattedAddress: snapshotData.formatted_address || null,
-        country: country || 'US'
-      });
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      briefing = result.briefing;
+      return res.status(404).json({ error: 'Briefing not yet generated - please wait a moment' });
     }
 
     res.json({
       snapshot_id: snapshotId,
-      location: {
-        city: briefing.city,
-        state: briefing.state,
-        lat: briefing.lat,
-        lng: briefing.lng
-      },
       briefing: {
         news: briefing.news,
         weather: {
@@ -214,12 +139,22 @@ router.post('/refresh', requireAuth, async (req, res) => {
 
     const snapshot = latestSnapshot[0];
     
+    // Only regenerate if explicitly requested (rare)
     const result = await generateAndStoreBriefing({
       snapshotId: snapshot.snapshot_id,
-      lat: snapshot.lat,
-      lng: snapshot.lng,
-      city: snapshot.city,
-      state: snapshot.state
+      snapshot: {
+        snapshot_id: snapshot.snapshot_id,
+        lat: snapshot.lat,
+        lng: snapshot.lng,
+        city: snapshot.city,
+        state: snapshot.state,
+        formatted_address: snapshot.formatted_address,
+        timezone: snapshot.timezone,
+        date: snapshot.date,
+        hour: snapshot.hour,
+        dow: snapshot.dow,
+        day_part_key: snapshot.day_part_key
+      }
     });
 
     if (result.success) {
