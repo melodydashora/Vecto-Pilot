@@ -296,7 +296,7 @@ router.get('/weather/realtime', requireAuth, async (req, res) => {
   }
 });
 
-// Component-level endpoint: Weather only - returns snapshot weather directly
+// Component-level endpoint: Weather only - fetch fresh weather with 6-hour forecast
 router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.params;
@@ -310,26 +310,23 @@ router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
     }
     
     const snapshot = snapshotCheck[0];
-    let snapshotWeather = null;
     
-    // Parse weather from snapshot (already fetched at snapshot creation time from Google Weather API)
-    try {
-      snapshotWeather = typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather;
-    } catch (e) {
-      console.warn('[BriefingRoute] Failed to parse snapshot weather:', e.message);
-      snapshotWeather = null;
-    }
+    // Fetch fresh weather from API (includes 6-hour forecast)
+    const freshWeather = await fetchWeatherConditions({
+      lat: snapshot.lat,
+      lng: snapshot.lng
+    });
     
-    // Format weather for response - handle both simple and full weather objects
-    const weatherResponse = snapshotWeather ? {
+    // Format for response
+    const weatherResponse = freshWeather ? {
       current: {
-        tempF: snapshotWeather.tempF || null,
-        conditions: snapshotWeather.conditions || null,
-        humidity: snapshotWeather.humidity || null,
-        windDirection: snapshotWeather.windDirection || null,
-        isDaytime: snapshotWeather.isDaytime !== undefined ? snapshotWeather.isDaytime : null
+        tempF: freshWeather.tempF || null,
+        conditions: freshWeather.conditions || null,
+        humidity: freshWeather.humidity || null,
+        windDirection: freshWeather.windDirection || null,
+        isDaytime: freshWeather.isDaytime !== undefined ? freshWeather.isDaytime : null
       },
-      forecast: snapshotWeather.forecast || []
+      forecast: freshWeather.forecast || []
     } : { current: null, forecast: [] };
     
     res.json({
