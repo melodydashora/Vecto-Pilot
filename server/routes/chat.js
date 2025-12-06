@@ -1,7 +1,7 @@
 // server/routes/chat.js
 // AI Strategy Coach - Conversational assistant for drivers
 import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../db/drizzle.js';
 import { snapshots, strategies } from '../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
@@ -38,84 +38,8 @@ router.get('/context/:snapshotId', async (req, res) => {
   }
 });
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Helper: Process attachments (images and documents) for Claude
-function processAttachments(attachments) {
-  if (!attachments || !Array.isArray(attachments)) return [];
-  
-  return attachments.map(attachment => {
-    if (!attachment.data) return null;
-    
-    const contentBlocks = [];
-    
-    // Image attachments (base64 encoded)
-    if (attachment.type.startsWith('image/')) {
-      const base64Data = attachment.data.split(',')[1] || attachment.data;
-      const imageType = attachment.type.split('/')[1] === 'jpeg' ? 'image/jpeg' : attachment.type;
-      
-      contentBlocks.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: imageType,
-          data: base64Data
-        }
-      });
-    }
-    // PDF and document attachments - include as text reference
-    else if (attachment.type === 'application/pdf' || attachment.type.includes('document')) {
-      contentBlocks.push({
-        type: 'text',
-        text: `[User uploaded document: ${attachment.name}]\nI'm analyzing the content from this file to help answer your question.`
-      });
-    }
-    // Text files
-    else if (attachment.type.startsWith('text/') || attachment.type === 'application/json') {
-      contentBlocks.push({
-        type: 'text',
-        text: `[User uploaded file: ${attachment.name}]\nDocument content attached for analysis.`
-      });
-    }
-    
-    return contentBlocks.length > 0 ? { name: attachment.name, blocks: contentBlocks } : null;
-  }).filter(a => a !== null);
-}
-
-// Helper: Build message content with text and attachments
-function buildMessageContent(message, attachments) {
-  const content = [];
-  
-  // Add main text message
-  if (message) {
-    content.push({
-      type: 'text',
-      text: message
-    });
-  }
-  
-  // Add attachment content blocks
-  attachments.forEach(attachment => {
-    attachment.blocks.forEach(block => {
-      content.push(block);
-    });
-  });
-  
-  // If no attachments, return string for backward compatibility
-  if (content.length === 0) {
-    return message || '';
-  }
-  
-  // If only text, return string
-  if (content.length === 1 && content[0].type === 'text') {
-    return content[0].text;
-  }
-  
-  // Return complex content array for Claude
-  return content.length > 0 ? content : message;
-}
 
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
 // SECURITY: Requires authentication
@@ -190,6 +114,7 @@ router.post('/', requireAuth, async (req, res) => {
 - Location and timing advice for maximizing rides
 - Understanding market patterns and demand
 - Analyzing uploaded content (images, heat maps, documents, earnings screenshots, etc.)
+- **Web Search:** You can search the web for current information about local events, traffic conditions, weather, and rideshare trends
 
 **File Analysis Capabilities:**
 - When drivers upload images (heat maps, screenshots, earnings data, venue photos), analyze them thoroughly
@@ -223,50 +148,72 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    // Process attachments into Claude-compatible format
-    const processedAttachments = processAttachments(attachments);
-    console.log(`[chat] Processed ${processedAttachments.length} attachments for Claude`);
+    // Process attachments into Gemini-compatible format (simplified for text-based handling)
+    console.log(`[chat] Processing ${attachments.length} attachments for Gemini coach`);
 
     // Build full message history: include thread history + new message
+    const userMessage = attachments.length > 0 
+      ? `${message}\n\n[Note: User uploaded ${attachments.length} file(s) for analysis]`
+      : message;
+
     const messageHistory = threadHistory
       .filter(msg => msg && msg.role && msg.content) // Validate messages
       .map(msg => ({
-        role: msg.role,
-        content: msg.content
+        role: msg.role === 'assistant' ? 'model' : 'user', // Gemini uses 'model' for assistant
+        parts: [{ text: msg.content }]
       }))
       .concat([
         {
           role: 'user',
-          content: buildMessageContent(message, processedAttachments)
+          parts: [{ text: userMessage }]
         }
       ]);
 
-    console.log(`[chat] Sending ${messageHistory.length} messages to Claude (thread + current) with ${processedAttachments.length} attachments`);
+    console.log(`[chat] Sending ${messageHistory.length} messages to Gemini with web search enabled`);
 
-    // Stream response from Claude
-    const stream = await anthropic.messages.stream({
-      model: process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
-      max_tokens: 1024,
-      temperature: 0.7,
-      system: systemPrompt,
-      messages: messageHistory
+    // Use Gemini with web search capability
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-3-pro-preview',
+      tools: [
+        {
+          googleSearch: {}
+        }
+      ]
     });
 
-    // Send chunks as SSE
-    stream.on('text', (textDelta) => {
-      res.write(`data: ${JSON.stringify({ delta: textDelta })}\n\n`);
-    });
+    try {
+      // Generate response with streaming
+      const result = await model.generateContentStream({
+        contents: messageHistory,
+        systemInstruction: systemPrompt,
+        generationConfig: {
+          maxOutputTokens: 1024,
+          temperature: 0.7,
+        },
+        safetySettings: [
+          {
+            category: 'HARM_CATEGORY_HARASSMENT',
+            threshold: 'BLOCK_ONLY_HIGH',
+          },
+        ],
+      });
 
-    stream.on('error', (error) => {
-      console.error('[chat] Stream error:', error);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-      res.end();
-    });
+      // Stream response chunks
+      for await (const chunk of result.stream) {
+        if (chunk.text) {
+          res.write(`data: ${JSON.stringify({ delta: chunk.text })}\n\n`);
+        }
+      }
 
-    stream.on('end', () => {
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
-    });
+    } catch (error) {
+      console.error('[chat] Gemini stream error:', error);
+      if (!res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      }
+      res.end();
+    }
 
   } catch (error) {
     console.error('[chat] Error:', error);
