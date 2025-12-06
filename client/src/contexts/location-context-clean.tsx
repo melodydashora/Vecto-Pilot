@@ -607,12 +607,24 @@ export function LocationProvider({ children }: LocationProviderProps) {
             })(),
             weather: weatherData?.available ? {
               tempF: weatherData.temperature,
+              feelsLike: weatherData.feelsLike,
               conditions: weatherData.conditions,
               description: weatherData.description,
+              humidity: weatherData.humidity,
+              windDirection: weatherData.windDirection,
+              uvIndex: weatherData.uvIndex,
+              visibility: weatherData.visibility,
+              isDaytime: weatherData.isDaytime,
+              precipitation: weatherData.precipitation,
+              forecast: weatherData.forecast,
             } : undefined,
             air: airQualityData?.available ? {
               aqi: airQualityData.aqi,
               category: airQualityData.category,
+              dominantPollutant: airQualityData.dominantPollutant,
+              healthRecommendations: airQualityData.healthRecommendations,
+              dateTime: airQualityData.dateTime,
+              regionCode: airQualityData.regionCode,
             } : undefined,
           });
 

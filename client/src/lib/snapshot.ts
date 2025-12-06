@@ -19,8 +19,8 @@ export function createSnapshot({
     is_weekend: boolean;
     day_part_key: "overnight" | "morning" | "late_morning_noon" | "afternoon" | "early_evening" | "evening" | "late_evening";
   };
-  weather?: { tempF?: number | null; conditions?: string | null; description?: string | null };
-  air?: { aqi?: number | null; category?: string | null };
+  weather?: Record<string, any>;
+  air?: Record<string, any>;
   user_id?: string | null;
 }): SnapshotV1 {
   const identity = getIdentity();
