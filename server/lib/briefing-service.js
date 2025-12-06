@@ -913,30 +913,15 @@ export async function fetchTrafficConditions({ snapshot }) {
     
     console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state}...`);
     
-    const prompt = `You are a rideshare driver assistant. Analyze CURRENT traffic conditions for a driver at (${lat}, ${lng}) in ${city}, ${state} ${date}.
+    const prompt = `Search for current traffic conditions in ${city}, ${state} as of today ${date}. Return traffic data as JSON ONLY:
 
-DRIVER CONTEXT:
-- Location: ${city}, ${state}
-- Coordinates: ${lat}, ${lng}
-- Date: ${date}
-- Timezone: ${timezone}
-
-SEARCH for and analyze:
-1. Current traffic incidents in and around ${city}, ${state}
-2. Road closures, accidents, or delays
-3. Major commute corridors and congestion patterns
-4. Practical routing alternatives
-
-Return ONLY valid JSON with practical driving guidance:
 {
-  "summary": "Brief summary of current traffic conditions with practical routing advice",
-  "congestionLevel": "low" | "medium" | "high",
-  "incidents": [
-    {"description": "Specific incident (e.g., 'I-35 southbound: 3 accidents near downtown, avoid - use I-44 instead')", "severity": "high" | "medium" | "low"}
-  ]
+  "summary": "One sentence about overall traffic status",
+  "congestionLevel": "low",
+  "incidents": []
 }
 
-Return empty incidents array if no significant congestion found.`;
+If you find incidents, add them to the incidents array: [{"description": "I-35 construction", "severity": "medium"}]`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
     

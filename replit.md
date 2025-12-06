@@ -134,6 +134,13 @@ Every table that references `snapshot_id` also stores the **resolved precise loc
 - ✅ All API calls, LLM prompts, and user actions tied to location context
 
 ## Recent Changes
+- **Dec 6, 2025 (FINAL FIXES)**: 
+  - ✅ **Venues Tab Simplified**: Removed traffic conditions and closing time warnings. Shows: name, type, address, phone, crowd level, rideshare potential
+  - ✅ **Removed Perplexity from Venues**: GPT 5.1 discovers bar coordinates; Google Places API enriches with hours/details (no Perplexity validation)
+  - ✅ **Fixed Briefing Provider**: Now calls `generateAndStoreBriefing()` directly (was using disabled Perplexity briefer role)
+  - ✅ **Simplified Traffic Prompt**: Gemini now returns valid JSON for traffic (was returning empty `{}`)
+  - ✅ **Backend Data Verified**: API endpoints returning all briefing data (weather, traffic, news, events); frontend receives properly formatted responses
+  - **Briefing Pipeline**: All data (events, traffic, weather, news, closures) fetched from Gemini 3.0 Pro in parallel, stored in DB, returned via API
 - **Dec 6, 2025**: ✅ **BRIEFING SYSTEM FULLY WORKING!** Gemini 3.0 Pro Preview successfully finding news, events, and traffic. Database confirmed storing 115+ briefing records with real data. API endpoints tested and returning correct data structure with news items, events, and traffic conditions. Backend 100% functional. Frontend display needs token/query verification.
 - **Dec 3, 2025**: Fixed critical database schema issues blocking waterfall pipeline. Changed `device_id` column from UUID to TEXT in `users` and `snapshots` tables (location API was crashing on non-UUID device identifiers). Added `formatted_address`, `city`, `state` columns to `triad_jobs` table for location denormalization. Updated validation schema to accept device_id as any string. Location API, snapshot creation, and strategy pipeline now working correctly.
 - **Dec 2, 2025 (FINAL)**: Complete precise location denormalization across all snapshot-related tables. Each table now stores formatted_address + city + state denormalized from snapshot for relational consistency and fast access without joins. Gemini 3.0 Pro ONLY for events (removed Perplexity/SerpAPI/NewsAPI). Google Places API enriches events with full addresses + staging areas. Events show full venue details with driver-ready staging recommendations. Events now auto-land in briefing table with location context in parallel.
