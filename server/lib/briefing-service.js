@@ -1294,12 +1294,11 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   const { lat, lng, city, state, formatted_address } = snapshot;
   
   // Call all APIs directly in parallel with this snapshot
-  console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, weather, closures) in parallel`);
-  const [rawEvents, newsItems, trafficResult, weatherResult, schoolClosures] = await Promise.all([
+  console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, closures) in parallel`);
+  const [rawEvents, newsItems, trafficResult, schoolClosures] = await Promise.all([
     snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
     fetchRideshareNews({ snapshot }),
     fetchTrafficConditions({ snapshot }),
-    fetchWeatherForecast({ snapshot }),
     fetchSchoolClosures({ snapshot })
   ]);
   console.log(`[BriefingService] ✅ APIs returned: events=${rawEvents.length}, news=${newsItems.length}`);
@@ -1320,12 +1319,31 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     console.warn('[BriefingService] Places enhancement failed, using normalized events only:', err.message);
   }
 
-  // Use fresh weather forecast from Gemini
-  console.log(`[BriefingService] 🌡️ Fresh weather forecast result:`, {
-    has_current: !!weatherResult?.current,
-    has_forecast: !!weatherResult?.forecast,
-    forecast_length: weatherResult?.forecast?.length || 0
+  // Extract weather from snapshot (already fetched via Google Weather API at snapshot creation)
+  let snapshotWeather = null;
+  try {
+    snapshotWeather = typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather;
+  } catch (e) {
+    console.warn('[BriefingService] Failed to parse snapshot weather:', e.message);
+    snapshotWeather = null;
+  }
+  
+  console.log(`[BriefingService] 🌡️ Snapshot weather raw:`, snapshotWeather);
+  console.log(`[BriefingService] 🌡️ Weather extraction:`, {
+    has_weather: !!snapshotWeather,
+    tempF: snapshotWeather?.tempF,
+    conditions: snapshotWeather?.conditions,
+    has_forecast: !!snapshotWeather?.forecast,
+    forecast_length: snapshotWeather?.forecast?.length || 0
   });
+  
+  const weatherCurrent = snapshotWeather ? { 
+    tempF: snapshotWeather.tempF, 
+    conditions: snapshotWeather.conditions, 
+    humidity: snapshotWeather.humidity, 
+    windDirection: snapshotWeather.windDirection, 
+    isDaytime: snapshotWeather.isDaytime 
+  } : null;
   
   const briefingData = {
     snapshot_id: snapshotId,
@@ -1333,8 +1351,8 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     city,
     state,
     news: { items: newsItems, filtered: newsItems },
-    weather_current: weatherResult?.current || null,
-    weather_forecast: weatherResult?.forecast || [],
+    weather_current: weatherCurrent,
+    weather_forecast: snapshotWeather?.forecast || [],
     traffic_conditions: trafficResult,
     events: normalizedEvents || [],
     school_closures: schoolClosures.length > 0 ? schoolClosures : null,
@@ -1348,6 +1366,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
       news_items: briefingData.news?.items?.length || 0,
       weather_current: briefingData.weather_current,
       weather_forecast_count: briefingData.weather_forecast?.length || 0,
+      weather_current_tempF: briefingData.weather_current?.tempF,
       events: briefingData.events?.length || 0,
       traffic_summary: briefingData.traffic_conditions?.summary?.substring(0, 50) || 'none'
     });
