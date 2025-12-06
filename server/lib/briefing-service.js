@@ -751,10 +751,10 @@ export async function fetchWeatherConditions({ snapshot }) {
 
     if (currentRes.ok) {
       const currentData = await currentRes.json();
-      // Google Weather API returns Celsius in nested structure - convert to Fahrenheit
-      const tempC = currentData.temperature?.value ?? currentData.temperature;
+      // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
+      const tempC = currentData.temperature?.degrees ?? currentData.temperature;
       const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
-      const feelsLikeC = currentData.feelsLikeTemperature?.value ?? currentData.feelsLikeTemperature;
+      const feelsLikeC = currentData.feelsLikeTemperature?.degrees ?? currentData.feelsLikeTemperature;
       const feelsLikeF = feelsLikeC ? Math.round((feelsLikeC * 9/5) + 32) : null;
       
       current = {
@@ -777,8 +777,8 @@ export async function fetchWeatherConditions({ snapshot }) {
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
       forecast = (forecastData.forecastHours || []).map((hour, idx) => {
-        // Google Weather API returns Celsius in nested structure - convert to Fahrenheit
-        const tempC = hour.temperature?.value ?? hour.temperature;
+        // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
+        const tempC = hour.temperature?.degrees ?? hour.temperature;
         const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
         
         // Ensure time is a valid ISO string - use time if valid, otherwise generate from current time

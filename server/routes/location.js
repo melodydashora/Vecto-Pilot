@@ -563,10 +563,10 @@ router.get('/weather', async (req, res) => {
       // Log raw response to debug structure
       console.log('[Location API] Raw weather response:', JSON.stringify(currentData).substring(0, 500));
       
-      // Google Weather API returns Celsius in 'temperature' object with 'value' field
-      const tempC = currentData.temperature?.value ?? currentData.temperature;
+      // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
+      const tempC = currentData.temperature?.degrees ?? currentData.temperature;
       const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
-      const feelsLikeC = currentData.feelsLikeTemperature?.value ?? currentData.feelsLikeTemperature;
+      const feelsLikeC = currentData.feelsLikeTemperature?.degrees ?? currentData.feelsLikeTemperature;
       const feelsLikeF = feelsLikeC ? Math.round((feelsLikeC * 9/5) + 32) : null;
       
       current = {
@@ -589,7 +589,7 @@ router.get('/weather', async (req, res) => {
     if (forecastRes.ok) {
       const forecastData = await forecastRes.json();
       forecast = (forecastData.forecastHours || []).slice(0, 6).map((hour) => {
-        const tempC = hour.temperature?.value ?? hour.temperature;
+        const tempC = hour.temperature?.degrees ?? hour.temperature;
         const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
         return {
           time: hour.time,
