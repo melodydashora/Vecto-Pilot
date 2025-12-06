@@ -152,6 +152,36 @@ export default function BriefingTab({
         </div>
       </div>
 
+      {/* Weather Forecast Card - 6 Hour Only */}
+      {weather?.forecast && weather.forecast.length > 0 && (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200" data-testid="weather-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cloud className="w-5 h-5 text-blue-600" />
+              6-Hour Forecast
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {weather.forecast.slice(0, 6).map((hour, idx) => (
+                <div key={idx} className="flex flex-col items-center min-w-[70px] text-center p-2 bg-white/50 rounded">
+                  <span className="text-xs text-gray-500 font-medium">
+                    {hour.time ? new Date(hour.time).toLocaleTimeString([], { hour: 'numeric' }) : `+${idx + 1}h`}
+                  </span>
+                  <div className="my-1">{getWeatherIcon(hour.conditionType, hour.isDaytime)}</div>
+                  <span className="text-sm font-medium text-gray-800">
+                    {hour.tempF || 0}°F
+                  </span>
+                  {hour.precipitationProbability !== null && hour.precipitationProbability > 0 && (
+                    <span className="text-xs text-blue-600 font-medium">{hour.precipitationProbability}% rain</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Traffic Card */}
       <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200" data-testid="traffic-card">
         <CardHeader 
