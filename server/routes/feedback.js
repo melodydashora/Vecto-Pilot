@@ -5,6 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import { capturelearning, LEARNING_EVENTS } from '../middleware/learning-capture.js';
 import { indexFeedback } from '../lib/semantic-search.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -48,7 +49,7 @@ setInterval(() => {
 }, 60000);
 
 // SECURITY: Require authentication
-import { requireAuth } from '../middleware/auth.ts';
+import { requireAuth } from '../middleware/auth.js';
 
 // POST /api/feedback/venue
 router.post('/venue', requireAuth, async (req, res) => {
