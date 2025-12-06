@@ -48,9 +48,6 @@ setInterval(() => {
   }
 }, 60000);
 
-// SECURITY: Require authentication
-import { requireAuth } from '../middleware/auth.js';
-
 // POST /api/feedback/venue
 router.post('/venue', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
