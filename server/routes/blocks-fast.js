@@ -230,15 +230,16 @@ router.post('/', async (req, res) => {
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
 
-    // DEDUPLICATION CHECK: If strategy already running, don't re-trigger it
+    // DEDUPLICATION CHECK: If strategy already exists (pending/running/complete/ok), don't re-trigger it
     const [existingStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    if (existingStrategy && (existingStrategy.status === 'pending' || existingStrategy.status === 'running')) {
-      console.log(`[blocks-fast POST] ⏳ Strategy already ${existingStrategy.status} for ${snapshotId}, returning 202`);
+    if (existingStrategy && ['pending', 'running', 'complete', 'ok'].includes(existingStrategy.status)) {
+      console.log(`[blocks-fast POST] ⏭️ Strategy already ${existingStrategy.status} for ${snapshotId}, skipping re-trigger`);
       return sendOnce(202, { 
         ok: false, 
-        reason: 'strategy_already_pending',
+        reason: 'strategy_already_exists',
         status: existingStrategy.status,
-        message: `Strategy ${existingStrategy.status}, please wait...`
+        message: `Strategy is ${existingStrategy.status} - polling/waiting...`,
+        snapshot_id: snapshotId
       });
     }
 
