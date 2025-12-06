@@ -2092,15 +2092,14 @@ const CoPilot: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <Loader className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />
                   <div>
-                    <p className="text-gray-800 font-semibold text-sm">Finding nearby bars & venues...</p>
-                    <p className="text-gray-600 text-xs">Analyzing last call times and business hours</p>
+                    <p className="text-gray-800 font-semibold text-sm">Finding nearby bars & lounges...</p>
+                    <p className="text-gray-600 text-xs">Checking operating hours and availability</p>
                   </div>
                 </div>
               </Card>
             )}
             
             {!venueBlocksLoading && <BarsTable blocks={venueBlocksData?.blocks} />}
-            {!venueBlocksLoading && <SmartBlocks blocks={venueBlocksData?.blocks} />}
           </div>
         )}
 
