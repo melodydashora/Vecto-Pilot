@@ -137,17 +137,12 @@ const CoPilot: React.FC = () => {
   const locationContext = useLocation();
   const { toast } = useToast();
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
-  const [showOffPeak, setShowOffPeak] = useState(false);
   const [distanceFilter, setDistanceFilter] = useState<'auto' | 'near' | 'far'>('auto');
   const [selectedModel, setSelectedModel] = useState<'gemini' | 'gpt-5' | 'claude' | null>(null);
   const [modelParameter, setModelParameter] = useState<string>('0.7');
   const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(() => {
     return localStorage.getItem('vecto_strategy_snapshot_id');
-  });
-  const [testMode, setTestMode] = useState(false); // Manual test trigger
-  const [fastTacticalMode, setFastTacticalMode] = useState<boolean>(() => {
-    return localStorage.getItem('vecto_fast_tactical_mode') === 'true';
   });
   const [persistentStrategy, setPersistentStrategy] = useState<string | null>(() => {
     return localStorage.getItem('vecto_persistent_strategy');
@@ -511,13 +506,8 @@ const CoPilot: React.FC = () => {
     }
   }, [strategyData, lastSnapshotId, persistentStrategy]);
 
-  // NEW DIRECTIVE: 0-15 min base band, expand to 20-30 if needed for Top6
-  // Auto mode: Server decides based on expand policy
-  // Near/Far modes: User explicitly locks to band
-  const distanceRange = {
-    min: distanceFilter === 'near' ? 0 : distanceFilter === 'far' ? 20 : 0,
-    max: distanceFilter === 'near' ? 15 : distanceFilter === 'far' ? 30 : 30
-  };
+  // Distance filtering is handled server-side via snapshot-scoped blocks
+  // Client distanceFilter state retained for potential future UI filters
 
   // Fetch smart blocks - server returns Top6 based on staging coordinate
   // GATED on snapshot ready to prevent "Unknown city" race condition
