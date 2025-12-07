@@ -1,5 +1,5 @@
-// server/routes/events.js
-// SSE endpoints for real-time strategy and blocks events
+// server/routes/sse-notifications.js
+// SSE endpoints for real-time strategy and blocks notifications
 import { Router } from 'express';
 import { EventEmitter } from 'events';
 
@@ -22,7 +22,7 @@ router.get('/strategy', (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
     
-    console.log('[Events] Client connected to /events/strategy SSE');
+    console.log('[SSE-Notifications] Client connected to /events/strategy SSE');
     
     const onReady = (data) => {
       const eventData = typeof data === 'string' ? { snapshot_id: data } : data;
@@ -33,13 +33,13 @@ router.get('/strategy', (req, res) => {
     
     // Clean up on disconnect
     req.on('close', () => {
-      console.log('[Events] Client disconnected from /events/strategy SSE');
+      console.log('[SSE-Notifications] Client disconnected from /events/strategy SSE');
       strategyEmitter.removeListener('ready', onReady);
       res.end();
     });
     
   } catch (error) {
-    console.error('[Events] Error setting up strategy SSE:', error);
+    console.error('[SSE-Notifications] Error setting up strategy SSE:', error);
     res.status(500).json({ error: 'Failed to connect to strategy events' });
   }
 });
@@ -53,7 +53,7 @@ router.get('/blocks', (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
     
-    console.log('[Events] Client connected to /events/blocks SSE');
+    console.log('[SSE-Notifications] Client connected to /events/blocks SSE');
     
     const onReady = (data) => {
       const eventData = typeof data === 'string' ? { snapshot_id: data } : data;
@@ -64,13 +64,13 @@ router.get('/blocks', (req, res) => {
     
     // Clean up on disconnect
     req.on('close', () => {
-      console.log('[Events] Client disconnected from /events/blocks SSE');
+      console.log('[SSE-Notifications] Client disconnected from /events/blocks SSE');
       blocksEmitter.removeListener('ready', onReady);
       res.end();
     });
     
   } catch (error) {
-    console.error('[Events] Error setting up blocks SSE:', error);
+    console.error('[SSE-Notifications] Error setting up blocks SSE:', error);
     res.status(500).json({ error: 'Failed to connect to blocks events' });
   }
 });
