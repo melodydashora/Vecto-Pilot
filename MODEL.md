@@ -400,4 +400,106 @@ Key sources:
 
 ---
 
+## 📝 Sample Code with Parameters
+
+### Gemini 3.0 Pro Preview - Strict Configuration
+
+This example demonstrates the correct way to call Gemini 3.0 Pro Preview with explicit Google Search tool usage and JSON output mode to ensure reliable event discovery.
+
+```javascript
+import process from 'node:process';
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  console.error("❌ Error: GEMINI_API_KEY is not set in environment variables.");
+  process.exit(1);
+}
+
+async function testGemini3ProStrict() {
+  console.log("🚀 Testing Gemini 3.0 Pro Preview (Strict Configuration)...");
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`;
+
+  const payload = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: "Please use live web search. Treat TODAY as 12/05/2025. Find events on 12/05/2025 within 50 miles of 4687 State Hwy 121, The Colony, TX 75056. Return ONLY a JSON array. Each item must include exactly: title, venue, address, event_date (YYYY-MM-DD), event_time (HH:MM local), type (road_closure|demand_event|airport|construction|weather|enforcement|other), estimated_distance_miles (one decimal), impact (high|medium|low), recommended_driver_action (go_now|avoid_area|reposition_to:<area>|wait), confidence (high|medium|low), source (URL). Omit any event if a required field cannot be verified. Do not include any internal identifiers, thoughtSignature, debug tokens, request IDs, model internals, or any other internal metadata. RESPOND WITH ONLY A VALID JSON ARRAY - NO EXPLANATION."
+          }
+        ]
+      }
+    ],
+    // ✅ CRITICAL: Explicitly enable the Google Search tool
+    tools: [
+      { google_search: {} }
+    ],
+    // ✅ CRITICAL: Force JSON mode so the app doesn't crash on markdown
+    generationConfig: {
+      temperature: 0.0,
+      topP: 0.8,
+      topK: 40,
+      responseMimeType: "application/json" 
+    }
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    // 1. Verify Model Version
+    console.log(`\n✅ Model Used: ${data.modelVersion}`);
+
+    // 2. Verify Search was actually used (Grounding Metadata)
+    const candidate = data.candidates?.[0];
+    if (candidate?.groundingMetadata?.searchEntryPoint || candidate?.groundingMetadata?.groundingChunks) {
+      console.log("✅ Google Search Tool: ACTIVE (Grounding metadata received)");
+    } else {
+      console.warn("⚠️ WARNING: Google Search Tool was NOT used. The model might be hallucinating events.");
+    }
+
+    // 3. Output Result
+    const text = candidate?.content?.parts?.[0]?.text;
+    console.log("\n📄 Response Preview:");
+    console.log(text.substring(0, 500));
+
+  } catch (error) {
+    console.error("\n❌ TEST FAILED:", error.message);
+  }
+}
+
+testGemini3ProStrict();
+```
+
+**Key Differences: Implicit vs. Explicit Configuration**
+
+| Feature | Implicit (Unreliable) | Explicit (Production-Ready) | Why Explicit is Better |
+| :--- | :--- | :--- | :--- |
+| **Model** | `gemini-3-pro-preview` | `gemini-3-pro-preview` | Matches requirement |
+| **Search Tool** | Relies on prompt text only | `tools: [{google_search: {}}]` | Ensures actual web search, prevents hallucination |
+| **Output Format** | Plain text (asks for JSON) | `responseMimeType: "application/json"` | Prevents markdown code blocks that break parsers |
+| **API Key** | Header: `x-goog-api-key` | URL parameter: `?key=` | Correct authentication method |
+
+**Production Best Practices:**
+- Always use `tools: [{google_search: {}}]` for event discovery
+- Always use `responseMimeType: "application/json"` for structured outputs
+- Always pass API key as URL parameter, not header
+- Always verify `groundingMetadata` presence to confirm actual search usage
+
+---
+
 *Auto-generated from Google Gemini 3.0 research. Update frequency: Monthly recommended.*
