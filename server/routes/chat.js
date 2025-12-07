@@ -201,12 +201,11 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
       const timeoutId = setTimeout(() => abortController.abort(), 90000);
       
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
         {
           method: 'POST',
           headers: { 
-            'Content-Type': 'application/json',
-            'x-goog-api-key': process.env.GEMINI_API_KEY
+            'Content-Type': 'application/json'
           },
           signal: abortController.signal,
           body: JSON.stringify({
