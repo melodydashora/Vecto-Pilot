@@ -157,7 +157,7 @@ const CoPilot: React.FC = () => {
   });
   const [strategyReadyTime, setStrategyReadyTime] = useState<number | null>(null); // Track when strategy became ready
   const [enrichedReasonings, setEnrichedReasonings] = useState<Map<string, string>>(new Map());
-  
+
   // Feedback modal state
   const [feedbackModal, setFeedbackModal] = useState<{
     isOpen: boolean;
@@ -170,16 +170,16 @@ const CoPilot: React.FC = () => {
     block: null,
     blockIndex: null,
   });
-  
+
   // Strategy feedback modal state  
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
-  
+
   // Bottom tab navigation
   const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing' | 'map' | 'donation'>('strategy');
-  
+
   // Ref to track polling status changes (reduces console spam by only logging transitions)
   const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
-  
+
   // Text-to-speech state
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -188,11 +188,11 @@ const CoPilot: React.FC = () => {
   const gpsCoords = locationContext?.currentCoords;
   const refreshGPS = locationContext?.refreshGPS;
   const isUpdating = locationContext?.isLoading || false;
-  
+
   // Get override coords from shared context (synced with GlobalHeader)
   const overrideCoords = locationContext?.overrideCoords;
   const setOverrideCoords = locationContext?.setOverrideCoords;
-  
+
   // Use override coords if available, otherwise GPS
   const coords = overrideCoords || gpsCoords;
 
@@ -209,7 +209,7 @@ const CoPilot: React.FC = () => {
       if (snapshotId) {
         console.log("🎯 Co-Pilot: Snapshot ready, triggering all tabs + waterfall:", snapshotId);
         setLastSnapshotId(snapshotId);
-        
+
         // Trigger synchronous waterfall: providers → consolidation → blocks
         // This POST blocks until all steps complete (35-50s total)
         try {
@@ -219,7 +219,7 @@ const CoPilot: React.FC = () => {
             headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
             body: JSON.stringify({ snapshotId })
           });
-          
+
           if (!response.ok) {
             const error = await response.json();
             console.error("❌ Waterfall failed:", error);
@@ -233,46 +233,36 @@ const CoPilot: React.FC = () => {
       }
     };
     window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
-    
+
     return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
   }, []);
 
-  // Clear persistent strategy when new coords received (before snapshot creation)
+  // Clear persistent strategy on mount to force fresh generation
   useEffect(() => {
-    const handleStrategyCleared = () => {
-      console.log("🧹 Strategy cleared event received - updating UI state");
-      setPersistentStrategy(null);
-      setStrategySnapshotId(null);
-    };
-    
-    const handleManualRefresh = () => {
-      console.log("🔄 Manual refresh triggered");
-      // Location context will clear strategy when coords arrive
-    };
-    
-    const handleLocationPermission = () => {
-      console.log("📍 Location permission granted");
-      setPersistentStrategy(null);
-      setStrategySnapshotId(null);
+    console.log("🧹 Clearing persistent strategy on app mount");
+    localStorage.removeItem('vecto_persistent_strategy');
+    localStorage.removeItem('vecto_strategy_snapshot_id');
+    setPersistentStrategy(null);
+    setStrategySnapshotId(null);
+  }, []);
+
+  // Clear strategy if snapshot ID changes
+  useEffect(() => {
+    if (lastSnapshotId && lastSnapshotId !== 'live-snapshot' && strategySnapshotId && lastSnapshotId !== strategySnapshotId) {
+      console.log(`🔄 New snapshot detected (${lastSnapshotId}), clearing old strategy from ${strategySnapshotId}`);
       localStorage.removeItem('vecto_persistent_strategy');
       localStorage.removeItem('vecto_strategy_snapshot_id');
-    };
-    
-    window.addEventListener("vecto-strategy-cleared", handleStrategyCleared);
-    window.addEventListener("vecto-manual-refresh", handleManualRefresh);
-    window.addEventListener("vecto-location-permission", handleLocationPermission);
-    
-    return () => {
-      window.removeEventListener("vecto-strategy-cleared", handleStrategyCleared);
-      window.removeEventListener("vecto-manual-refresh", handleManualRefresh);
-      window.removeEventListener("vecto-location-permission", handleLocationPermission);
-    };
-  }, []);
+      setPersistentStrategy(null);
+      setStrategySnapshotId(null);
+      // Force immediate query restart for new snapshot (ensures progress bar starts fresh)
+      queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
+    }
+  }, [lastSnapshotId, strategySnapshotId]);
 
   // Subscribe to SSE strategy_ready events
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
-    
+
     console.log('[SSE] Subscribing to strategy_ready events for snapshot:', lastSnapshotId);
     const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
       if (readySnapshotId === lastSnapshotId) {
@@ -281,7 +271,7 @@ const CoPilot: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
       }
     });
-    
+
     return unsubscribe;
   }, [lastSnapshotId]);
 
@@ -290,10 +280,10 @@ const CoPilot: React.FC = () => {
     queryKey: ['/api/snapshot', lastSnapshotId],
     queryFn: async () => {
       if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
-      
+
       const response = await fetch(`/api/snapshot/${lastSnapshotId}`);
       if (!response.ok) return null;
-      
+
       const data = await response.json();
       console.log('[snapshot-fetch]', {
         city: data.city,
@@ -316,12 +306,12 @@ const CoPilot: React.FC = () => {
     queryKey: ['/api/blocks/strategy', lastSnapshotId],
     queryFn: async () => {
       if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
-      
+
       const response = await fetch(`/api/blocks/strategy/${lastSnapshotId}`, {
         headers: getAuthHeader()
       });
       if (!response.ok) return null;
-      
+
       const data = await response.json();
       console.log(`[strategy-fetch] Status: ${data.status}, Time elapsed: ${data.timeElapsedMs}ms`);
       // Attach the snapshot ID to the response for validation
@@ -434,26 +424,13 @@ const CoPilot: React.FC = () => {
     staleTime: 45000,
   });
 
-  // Clear strategy if snapshot ID changes
-  useEffect(() => {
-    if (lastSnapshotId && lastSnapshotId !== 'live-snapshot' && strategySnapshotId && lastSnapshotId !== strategySnapshotId) {
-      console.log(`🔄 New snapshot detected (${lastSnapshotId}), clearing old strategy from ${strategySnapshotId}`);
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
-      setPersistentStrategy(null);
-      setStrategySnapshotId(null);
-      // Force immediate query restart for new snapshot (ensures progress bar starts fresh)
-      queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
-    }
-  }, [lastSnapshotId, strategySnapshotId]);
-
   // UNIFIED ENRICHMENT PROGRESS: Tracks entire pipeline from GPS to blocks
   // Phase 1: Strategy generation (0-30%) - starts when coords arrive
   // Phase 2: Blocks generation (30-100%) - starts when strategy ready
   const [enrichmentStartTime, setEnrichmentStartTime] = useState<number | null>(null);
   const [enrichmentProgress, setEnrichmentProgress] = useState(0);
   const [enrichmentPhase, setEnrichmentPhase] = useState<'idle' | 'strategy' | 'blocks'>('idle');
-  
+
   // Start enrichment timer IMMEDIATELY when coords arrive (before snapshot created)
   useEffect(() => {
     console.log('🔍 Enrichment check:', { hasCoords: !!coords, enrichmentPhase });
@@ -466,12 +443,12 @@ const CoPilot: React.FC = () => {
       setEnrichmentPhase('strategy');
     }
   }, [coords, enrichmentPhase]);
-  
+
   // Update phase when strategy becomes ready
   useEffect(() => {
     const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks';
     const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
-    
+
     if (strategyReady && snapshotMatches && enrichmentPhase === 'strategy') {
       console.log('⏰ Strategy ready - moving to blocks phase');
       setEnrichmentPhase('blocks');
@@ -479,14 +456,14 @@ const CoPilot: React.FC = () => {
       setEnrichmentProgress(30);
     }
   }, [strategyData, lastSnapshotId, enrichmentPhase]);
-  
+
   // Update progress bar every 500ms for smooth animation
   useEffect(() => {
     if (!enrichmentStartTime || enrichmentPhase === 'idle') return;
-    
+
     const interval = setInterval(() => {
       const elapsed = Date.now() - enrichmentStartTime;
-      
+
       if (enrichmentPhase === 'strategy') {
         // Phase 1: Strategy generation (0-30% over ~15 seconds)
         const strategyExpected = 15000; // 15 seconds expected for strategy
@@ -497,11 +474,11 @@ const CoPilot: React.FC = () => {
         // Use a separate timer from when blocks phase started
         const blocksExpected = 75000; // 75 seconds expected for blocks
         const blocksMax = 120000; // 120 seconds max
-        
+
         // Calculate blocks elapsed time (estimate based on total minus strategy time)
         const strategyTime = 15000; // approximate strategy time
         const blocksElapsed = Math.max(0, elapsed - strategyTime);
-        
+
         let progress;
         if (blocksElapsed < blocksExpected) {
           // Smooth progress from 30% to 95%
@@ -514,15 +491,13 @@ const CoPilot: React.FC = () => {
         } else {
           progress = 100;
         }
-        
+
         setEnrichmentProgress(Math.min(100, progress));
       }
     }, 500);
-    
+
     return () => clearInterval(interval);
   }, [enrichmentStartTime, enrichmentPhase]);
-  
-  // Note: Stop enrichment effect moved after useQuery that defines blocksData
 
   // Update persistent strategy when new strategy arrives
   useEffect(() => {
@@ -551,14 +526,14 @@ const CoPilot: React.FC = () => {
     queryKey: ['/api/blocks', coords?.latitude, coords?.longitude, distanceFilter, locationContext.locationSessionId, lastSnapshotId],
     queryFn: async () => {
       if (!coords) throw new Error('No GPS coordinates');
-      
+
       // 3min 50s timeout for Triad orchestrator (AI processing with buffer)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 230000); // 230s = 3min 50s with buffer
-      
+
       try {
         const headers: HeadersInit = lastSnapshotId ? { 'X-Snapshot-Id': lastSnapshotId } : {};
-        
+
         // PRODUCTION AUTO-ROUTER: Use merged strategy from configured AI models
         // TEST MODE: Use manual model selection
         if (selectedModel) {
@@ -568,7 +543,7 @@ const CoPilot: React.FC = () => {
             headers
           });
           clearTimeout(timeoutId);
-          
+
           if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`Failed to fetch blocks: ${errorText}`);
@@ -578,7 +553,7 @@ const CoPilot: React.FC = () => {
           // Production: Use Fast Tactical Path with GET to retrieve existing blocks
           // POST would trigger regeneration, GET retrieves snapshot-scoped blocks
           const endpoint = '/api/blocks-fast';
-          
+
           // First try GET to retrieve existing blocks (snapshot-first pattern)
           const response = await fetch(`${endpoint}?snapshotId=${lastSnapshotId}`, {
             method: 'GET',
@@ -586,17 +561,17 @@ const CoPilot: React.FC = () => {
             headers: { ...headers, ...getAuthHeader() }
           });
           clearTimeout(timeoutId);
-          
+
           // Handle 202 Accepted as success (blocks still generating)
           if (!response.ok && response.status !== 202) {
             const errorText = await response.text();
             throw new Error(`Failed to fetch strategy: ${errorText}`);
           }
-          
+
           // Transform response to match existing interface
           const data = await response.json();
           // Debug: Blocks API response (removed verbose logs)
-          
+
           const transformed = {
             now: data.generatedAt || new Date().toISOString(),
             timezone: 'America/Chicago',
@@ -641,7 +616,7 @@ const CoPilot: React.FC = () => {
               validation: data.validation
             }
           };
-          
+
           // Blocks ready - log the result
           console.log('[blocks-query] ✅ Blocks fetched successfully:', { count: transformed.blocks?.length, blocks: transformed.blocks?.slice(0, 2) });
           return transformed;
@@ -661,10 +636,10 @@ const CoPilot: React.FC = () => {
       const hasSnapshot = !!lastSnapshotId && lastSnapshotId !== 'live-snapshot';
       const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks';
       const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
-      
+
       // SIMPLE GATE: Only start polling when AI Coach is visible
       const shouldEnable = hasCoords && hasSnapshot && strategyReady && snapshotMatches;
-      
+
       // Debug: Only log gating status changes to reduce console spam
       if (shouldEnable && lastStatusRef.current !== 'ready') {
         console.log('[blocks-query] ✅ Ready to fetch blocks (strategy-driven polling)');
@@ -674,10 +649,10 @@ const CoPilot: React.FC = () => {
         console.log('[blocks-query] ⏸️ Polling paused -', reason);
         lastStatusRef.current = 'paused';
       }
-      
+
       return shouldEnable;
     })(),
-    // SIMPLE POLLING: Poll every 5s until blocks arrive, then stop
+    // SIMPLIFIED POLLING: Poll every 5s until blocks arrive, then stop
     refetchInterval: (query) => {
       const blocks = query.state.data?.blocks;
       const hasBlocks = blocks && blocks.length > 0;
@@ -708,10 +683,10 @@ const CoPilot: React.FC = () => {
     queryKey: ['/api/blocks-venues', lastSnapshotId],
     queryFn: async () => {
       if (!lastSnapshotId) throw new Error('No snapshot');
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 230000);
-      
+
       try {
         // Fetch bars/nightlife specific blocks
         const response = await fetch(`/api/blocks-fast?snapshotId=${lastSnapshotId}&venueType=nightlife`, {
@@ -720,11 +695,11 @@ const CoPilot: React.FC = () => {
           headers: { ...getAuthHeader() }
         });
         clearTimeout(timeoutId);
-        
+
         if (!response.ok && response.status !== 202) {
           throw new Error(`Failed to fetch venue blocks: ${response.status}`);
         }
-        
+
         const data = await response.json();
         const transformed = {
           now: data.generatedAt || new Date().toISOString(),
@@ -820,14 +795,14 @@ const CoPilot: React.FC = () => {
 
       const data = await response.json();
       console.log(`[retry] New snapshot created: ${data.new_snapshot_id}`);
-      
+
       // Update to new snapshot
       setLastSnapshotId(data.new_snapshot_id);
       setPersistentStrategy(null);
       setStrategySnapshotId(null);
       localStorage.removeItem('vecto_persistent_strategy');
       localStorage.removeItem('vecto_strategy_snapshot_id');
-      
+
       // Invalidate queries to trigger refresh
       queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy'] });
       queryClient.invalidateQueries({ queryKey: ['/api/strategy/history'] });
@@ -854,7 +829,7 @@ const CoPilot: React.FC = () => {
       const ranking_id = blocksData?.ranking_id || 'unknown';
       const timestamp = new Date().toISOString();
       const idempotencyKey = `${ranking_id}:${action}:${blockId || 'na'}:${timestamp}`;
-      
+
       // Uses fetch for custom X-Idempotency-Key header
       await fetch('/api/actions', {
         method: 'POST',
@@ -889,12 +864,12 @@ const CoPilot: React.FC = () => {
     }
     return block;
   });
-  
+
   // Log blocks for debugging
   if (blocks.length > 0) {
     console.log('✅ SmartBlocks rendering:', { count: blocks.length, firstBlock: blocks[0]?.name });
   }
-  
+
   const metadata = blocksData?.metadata;
   const tacticalSummary = (blocksData as any)?.tactical_summary;
   const bestStagingLocation = (blocksData as any)?.best_staging_location;
@@ -912,7 +887,7 @@ const CoPilot: React.FC = () => {
     if (!blocks.length) return;
 
     const observers = new Map<number, IntersectionObserver>();
-    
+
     blocks.forEach((block, index) => {
       const blockElement = document.querySelector(`[data-block-index="${index}"]`);
       if (!blockElement) return;
@@ -958,24 +933,24 @@ const CoPilot: React.FC = () => {
   // Parallel enrichment: fetch "why go when closed" reasoning for closed venues
   useEffect(() => {
     if (!blocksData?.blocks || blocksData.blocks.length === 0) return;
-    
+
     const closedVenues = blocksData.blocks.filter(block => 
       !block.isOpen && 
       !block.closed_venue_reasoning &&
       block.businessStatus
     );
-    
+
     if (closedVenues.length === 0) return;
-    
+
     console.log(`[Closed Venue Enrichment] Found ${closedVenues.length} closed venues, fetching reasoning in parallel...`);
-    
+
     // Call API for each closed venue in parallel
     closedVenues.forEach(async (block) => {
       const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
-      
+
       // Skip if we already have reasoning for this venue
       if (enrichedReasonings.has(key)) return;
-      
+
       try {
         const response = await fetch('/api/closed-venue-reasoning', {
           method: 'POST',
@@ -988,11 +963,11 @@ const CoPilot: React.FC = () => {
             strategyContext: persistentStrategy?.slice(0, 500) || 'none'
           })
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           console.log(`[Closed Venue Enrichment] ✅ Got reasoning for ${block.name}: "${data.reasoning.slice(0, 60)}..."`);
-          
+
           // Update state with new reasoning - this triggers a re-render
           setEnrichedReasonings(prev => new Map(prev).set(key, data.reasoning));
         }
@@ -1113,7 +1088,7 @@ const CoPilot: React.FC = () => {
   // Text-to-speech handler - uses OpenAI natural voice
   const handleReadStrategy = async () => {
     if (!persistentStrategy) return;
-    
+
     if (isSpeaking) {
       // Stop playing
       if (audioRef.current) {
@@ -1127,7 +1102,7 @@ const CoPilot: React.FC = () => {
     try {
       setIsSpeaking(true);
       console.log('[TTS] Requesting audio synthesis for strategy...');
-      
+
       // Call backend TTS endpoint
       const response = await fetch('/api/tts', {
         method: 'POST',
@@ -1150,12 +1125,12 @@ const CoPilot: React.FC = () => {
 
       const audio = audioRef.current;
       audio.src = audioUrl;
-      
+
       audio.onended = () => {
         setIsSpeaking(false);
         URL.revokeObjectURL(audioUrl);
       };
-      
+
       audio.onerror = () => {
         setIsSpeaking(false);
         URL.revokeObjectURL(audioUrl);
@@ -1211,7 +1186,7 @@ const CoPilot: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24" data-testid="copilot-page">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pt-6 pb-6">
-        
+
         {/* Strategy Tab Content */}
         {activeTab === 'strategy' && (
           <>
@@ -1222,7 +1197,7 @@ const CoPilot: React.FC = () => {
           const hour = new Date().getHours();
           const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
           const greetingIcon = hour < 12 ? '☀️' : hour < 18 ? '🌅' : '🌙';
-          
+
           // Only show holiday banner if we have holiday data
           if (hasHoliday) {
             return (
@@ -1245,7 +1220,7 @@ const CoPilot: React.FC = () => {
               </Card>
             );
           }
-          
+
           // Fallback to time-based greeting (always visible)
           return (
             <Card className="mb-6 border-2 border-blue-300 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 shadow-md" data-testid="greeting-banner">
@@ -1634,7 +1609,7 @@ const CoPilot: React.FC = () => {
                           {(() => {
                             const distance = Number(block.estimated_distance_miles ?? 0);
                             const isNearby = distance <= 5;
-                            
+
                             if (index <= 1) {
                               return (
                                 <div className="flex flex-col items-center">
@@ -1846,10 +1821,10 @@ const CoPilot: React.FC = () => {
                                 { regex: /^Routing Tip:/i, label: 'Routing Tip:' },
                                 { regex: /^Positioning Tip:/i, label: 'Positioning Tip:' }
                               ];
-                              
+
                               let formattedTip = tip;
                               let label = '';
-                              
+
                               for (const pattern of patterns) {
                                 const match = tip.match(pattern.regex);
                                 if (match) {
@@ -1858,7 +1833,7 @@ const CoPilot: React.FC = () => {
                                   break;
                                 }
                               }
-                              
+
                               return (
                                 <li key={tipIndex} className="text-sm text-gray-600 flex items-start gap-2">
                                   <span className="text-gray-400 mt-0.5">•</span>
@@ -2073,7 +2048,7 @@ const CoPilot: React.FC = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Location Context Card from Coordinates */}
             {coords && (
               <Card className="mb-4 border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50">
@@ -2094,7 +2069,7 @@ const CoPilot: React.FC = () => {
                 </CardContent>
               </Card>
             )}
-            
+
             {/* Venues Loading State */}
             {venueBlocksLoading && (
               <Card className="p-6 border-purple-100 bg-purple-50/50 mb-6">
@@ -2107,7 +2082,7 @@ const CoPilot: React.FC = () => {
                 </div>
               </Card>
             )}
-            
+
             {!venueBlocksLoading && <BarsTable blocks={venueBlocksData?.blocks} />}
           </div>
         )}
@@ -2192,7 +2167,7 @@ const CoPilot: React.FC = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Venue Feedback Modal */}
       <FeedbackModal
         isOpen={feedbackModal.isOpen}
@@ -2217,7 +2192,7 @@ const CoPilot: React.FC = () => {
           }
         }}
       />
-      
+
       {/* App Feedback Modal */}
       <FeedbackModal
         isOpen={strategyFeedbackOpen}

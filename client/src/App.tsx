@@ -25,7 +25,7 @@ function App() {
         <LocationProvider>
           <div className="App min-h-screen bg-gray-50">
             <GlobalHeader />
-            
+
             <main className="main-content-with-header">
               <CoPilot />
             </main>
