@@ -17,14 +17,13 @@ import { z } from 'zod';
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY; // Places, Geocoding, Weather, Routes, etc.
 // GEMINI_API_KEY is read at runtime in each function to support key rotation
 // Helper function to get fresh GEMINI_API_KEY at runtime (avoids module-level caching)
-function getGeminiApiKey() {
-  return process.env.GEMINI_API_KEY;
-}
+// Removed getGeminiApiKey helper function as GEMINI_API_KEY is now directly accessed from process.env
+
 console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!process.env.GEMINI_API_KEY);
 
 /**
  * Raw fetch to Gemini 3.0 Pro Preview with Google Search and safety overrides
- * CRITICAL: Reads API key at runtime (not module load) to support key rotation
+ * CRITICAL: Reads API key at runtime (not module-level caching) to support key rotation
  * @param {Object} options - { prompt, maxTokens }
  * @returns {Promise<{ ok: boolean, output?: string, error?: string }>}
  */
@@ -33,7 +32,7 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096 }) {
   const callStart = Date.now();
   console.log(`[BriefingService] 🔄 callGeminiWithSearch START at ${new Date().toISOString()}`);
   console.log(`[BriefingService] 🔑 API Key exists: ${!!apiKey}, length: ${apiKey?.length || 0}`);
-  
+
   if (!apiKey) {
     console.error('[BriefingService] ❌ GEMINI_API_KEY not configured at runtime');
     return { ok: false, error: 'GEMINI_API_KEY not configured' };
@@ -42,10 +41,13 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096 }) {
   try {
     console.log(`[BriefingService] 📡 Sending Gemini request...`);
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           tools: [{ google_search: {} }],
@@ -68,7 +70,7 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096 }) {
 
     const elapsed = Date.now() - callStart;
     console.log(`[BriefingService] 📥 Gemini response received in ${elapsed}ms, status: ${response.status}`);
-    
+
     if (!response.ok) {
       const errText = await response.text();
       console.error(`[BriefingService] Gemini API Error ${response.status}: ${errText.substring(0, 200)}`);
@@ -216,8 +218,8 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
 
 export async function fetchEventsForBriefing({ snapshot } = {}) {
   console.log(`[fetchEventsForBriefing] Called with snapshot:`, snapshot ? `lat=${snapshot.lat}, lng=${snapshot.lng}, tz=${snapshot.timezone}, date=${snapshot.date}` : 'null');
-  console.log('[fetchEventsForBriefing] 🔑 Checking GEMINI_API_KEY - exists:', !!getGeminiApiKey());
-  
+  console.log('[fetchEventsForBriefing] 🔑 Checking GEMINI_API_KEY - exists:', !!process.env.GEMINI_API_KEY);
+
   if (snapshot) {
     console.log('[fetchEventsForBriefing] 📤 SENT SNAPSHOT TO GEMINI FOR EVENTS:', {
       snapshot_id: snapshot.snapshot_id,
@@ -234,8 +236,8 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       air: snapshot.air ? { aqi: snapshot.air.aqi, category: snapshot.air.category } : 'none'
     });
   }
-  
-  if (!getGeminiApiKey()) {
+
+  if (!process.env.GEMINI_API_KEY) {
     console.warn('[BriefingService] ❌ Gemini API key not configured');
     return [];
   }
@@ -248,7 +250,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   try {
     // Use Gemini 3 Pro Preview with web search for event discovery
     const events = await fetchEventsWithGemini3ProPreview({ snapshot });
-    
+
     console.log(`[fetchEventsForBriefing] Returning ${events.length} events`);
     return events || [];
   } catch (error) {
@@ -258,9 +260,9 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 }
 
 async function fetchEventsWithGemini3ProPreview({ snapshot }) {
-  console.log(`[fetchEventsWithGemini3ProPreview] CALLED - GEMINI_API_KEY exists: ${!!getGeminiApiKey()}`);
-  
-  if (!getGeminiApiKey()) {
+  console.log(`[fetchEventsWithGemini3ProPreview] CALLED - GEMINI_API_KEY exists: ${!!process.env.GEMINI_API_KEY}`);
+
+  if (!process.env.GEMINI_API_KEY) {
     console.error('[BriefingService] ❌ GEMINI_API_KEY is NOT set - cannot fetch events (checked at runtime)');
     return [];
   }
@@ -274,7 +276,7 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const timezone = snapshot?.timezone || 'America/Chicago';
   const currentTime = `${String(hour).padStart(2, '0')}:00`;
   console.log(`[BriefingService] 🎯 Fetching events: city=${city}, state=${state}, lat=${lat}, lng=${lng}, date=${date}, time=${currentTime}`);
-  
+
   const prompt = `TASK: Find ALL major events happening in ${city}, ${state} TODAY (${date}) and nearby cities that affect rideshare demand. Use Google Search tool now.
 
 LOCATION: ${city}, ${state} (${lat}, ${lng}) - 50 mile radius (include nearby cities within this radius)
@@ -344,7 +346,7 @@ RULES:
 
   try {
     console.log('[BriefingService] 📡 Calling Gemini 3 Pro Preview API for events...');
-    
+
     const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
 
     if (!result.ok) {
@@ -378,16 +380,16 @@ RULES:
       }
 
       let events = Array.isArray(parsed) ? parsed : [parsed];
-      
+
       // Validate events have required fields
       const validEvents = events.filter(e => e.title && e.venue && e.address);
-      
+
       if (validEvents.length === 0) {
         console.warn('[BriefingService] ⚠️ No valid events returned from Gemini (got', events.length, 'total)');
         // Return empty array - don't use fallback if Gemini explicitly returned invalid data
         return [];
       }
-      
+
       console.log('[BriefingService] ✅ Found', validEvents.length, 'valid events');
       return validEvents;
     } catch (err) {
@@ -408,7 +410,7 @@ async function enhanceEventsWithPlacesAPI(events, userLat, userLng) {
   }
 
   const enhanced = [];
-  
+
   for (const event of events) {
     try {
       // Search for venue in Google Places
@@ -468,25 +470,25 @@ async function fetchEventsFromSerpAPI(city, state, lat, lng) {
     // Try Google Events engine first (structured event listings)
     const searchQuery = encodeURIComponent(`games concerts live music comedy shows performances ${city}`);
     let url = `https://serpapi.com/search.json?engine=google_events&q=${searchQuery}&location=${city},${state}&gl=us&api_key=${SERP_API_KEY}`;
-    
+
     let response = await fetch(url);
     if (!response.ok) throw new Error(`SerpAPI events ${response.status}`);
-    
+
     let data = await response.json();
     let results = data.events_results || [];
-    
+
     // Fallback to Google News if no events found
     if (results.length === 0) {
       console.log('[BriefingService] No google_events results, trying news fallback');
       url = `https://serpapi.com/search.json?engine=google&q=${searchQuery}&tbm=nws&tbs=qdr:d&api_key=${SERP_API_KEY}`;
       response = await fetch(url);
       if (!response.ok) throw new Error(`SerpAPI news ${response.status}`);
-      
+
       data = await response.json();
       results = data.news_results || [];
-      
+
       if (results.length === 0) return { items: [], filtered: [] };
-      
+
       const items = results.slice(0, 8).map(item => ({
         title: item.title,
         source: item.source,
@@ -494,11 +496,11 @@ async function fetchEventsFromSerpAPI(city, state, lat, lng) {
         link: item.link,
         snippet: item.snippet
       }));
-      
+
       const filtered = await convertNewsToEvents(items, city, state, lat, lng);
       return { items, filtered };
     }
-    
+
     // Convert events to our schema
     const items = results.slice(0, 8).map(event => ({
       title: event.title || event.name,
@@ -508,7 +510,7 @@ async function fetchEventsFromSerpAPI(city, state, lat, lng) {
       link: event.link,
       source: 'SerpAPI Events'
     }));
-    
+
     const filtered = await convertNewsToEvents(items, city, state, lat, lng);
     return { items, filtered };
   } catch (error) {
@@ -522,19 +524,17 @@ async function fetchEventsFromNewsAPI(city, state, lat, lng) {
     const q = encodeURIComponent(`games concerts live music comedy shows performances`);
     // ✅ Optimal parameters: sortBy=publishedAt (most recent), searchIn deep search, today's articles
     const url = `https://newsapi.org/v2/everything?q=${q}&sortBy=publishedAt&searchIn=title,description&language=en&pageSize=10&apiKey=${NEWS_API_KEY}`;
-    
+
     const response = await fetch(url);
     if (!response.ok) throw new Error(`NewsAPI ${response.status}`);
-    
+
     const data = await response.json();
     const articles = data.articles || [];
-    
-    if (articles.length === 0) return [];
-    
+
     // Filter for articles from last 24 hours
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    
+
     return articles
       .filter(article => new Date(article.publishedAt) >= oneDayAgo)
       .map((article, idx) => ({
@@ -573,15 +573,15 @@ async function convertNewsToEvents(newsItems, city, state, lat, lng) {
 
 // Confirm TBD event details using Gemini 3.0 Pro (with fallback to 2.5 Pro)
 export async function confirmTBDEventDetails(events) {
-  if (!getGeminiApiKey()) {
+  if (!process.env.GEMINI_API_KEY) {
     console.warn('[BriefingService] Gemini API key not configured, skipping TBD confirmation');
     return events;
   }
 
   // Filter events with TBD details
-  const tbdEvents = events.filter(e => 
-    e.location?.includes('TBD') || 
-    e.event_time?.includes('TBD') || 
+  const tbdEvents = events.filter(e =>
+    e.location?.includes('TBD') ||
+    e.event_time?.includes('TBD') ||
     e.location === 'TBD'
   );
 
@@ -593,7 +593,7 @@ export async function confirmTBDEventDetails(events) {
 
   try {
     // Build prompt for Gemini to confirm event details
-    const eventDetails = tbdEvents.map(e => 
+    const eventDetails = tbdEvents.map(e =>
       `- Title: "${e.title}"\n  Summary: "${e.summary}"\n  Location: "${e.location || 'TBD'}"\n  Time: "${e.event_time || 'TBD'}"`
     ).join('\n\n');
 
@@ -617,12 +617,12 @@ Return a JSON array with one object per event. If you cannot confirm details, se
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-      
+
       response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': getGeminiApiKey()
+          'x-goog-api-key': process.env.GEMINI_API_KEY
         },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -696,7 +696,7 @@ Return a JSON array with one object per event. If you cannot confirm details, se
 }
 
 async function filterNewsWithGemini(newsItems, city, state, country, lat, lng) {
-  if (!getGeminiApiKey()) {
+  if (!process.env.GEMINI_API_KEY) {
     console.warn('[BriefingService] GEMINI_API_KEY not set (runtime check), returning all news');
     return newsItems.map(n => ({
       title: n.title,
@@ -713,7 +713,7 @@ async function filterNewsWithGemini(newsItems, city, state, country, lat, lng) {
       return [];
     }
 
-    const newsText = newsItems.map((n, i) => 
+    const newsText = newsItems.map((n, i) =>
       `${i + 1}. ${n.title} (${n.source}, ${n.date})\n${n.snippet || ''}`
     ).join('\n\n');
 
@@ -727,7 +727,7 @@ ${newsText}
 INSTRUCTIONS:
 1. **FILTER TO TODAY ONLY**: Exclude past events or historical news. Only include events happening TODAY.
 2. **50-MILE RADIUS**: Filter events to within 50 miles of coordinates (${lat}, ${lng}). Include distance in miles if available.
-3. **FOCUS ON**: 
+3. **FOCUS ON**:
    - Road closures caused by events (protests, accidents, construction)
    - Demand-driving events: concerts, games, parades, conferences, festivals (TODAY only)
    - Policy changes affecting airport pickups or rideshare regulations
@@ -756,14 +756,14 @@ If no relevant items, return: []`;
     console.log(`[BriefingService] ===== CALLING GEMINI FOR ${city}, ${state}, ${country} =====`);
     console.log(`[BriefingService] News items to filter: ${newsItems.length}`);
     console.log(`[BriefingService] First item: ${newsItems[0]?.title.substring(0, 80) || 'N/A'}`);
-    
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
       {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': getGeminiApiKey()
+          'x-goog-api-key': process.env.GEMINI_API_KEY
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
@@ -779,25 +779,25 @@ If no relevant items, return: []`;
 
     const data = await response.json();
     console.log(`[BriefingService] Gemini raw response:`, JSON.stringify(data).substring(0, 300));
-    
+
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     console.log(`[BriefingService] Gemini text response length: ${text.length}`);
     console.log(`[BriefingService] Gemini text (first 300 chars): ${text.substring(0, 300)}`);
-    
+
     try {
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        
+
         // Validate against schema
         const validatedResult = RideshareNewsArraySchema.safeParse(parsed);
-        
+
         if (!validatedResult.success) {
           console.warn('[BriefingService] Validation errors:', validatedResult.error.issues);
           // Return parsed data even if validation fails, but log the issues
           return parsed.slice(0, 10);
         }
-        
+
         const filtered = validatedResult.data;
         console.log('[BriefingService] Validated and filtered to', filtered.length, 'news items');
         return filtered;
@@ -805,7 +805,7 @@ If no relevant items, return: []`;
     } catch (parseErr) {
       console.error('[BriefingService] JSON parse error:', parseErr, 'text:', text.substring(0, 200));
     }
-    
+
     return [];
   } catch (error) {
     console.error('[BriefingService] Gemini filter error:', error);
@@ -830,7 +830,7 @@ export async function fetchWeatherForecast({ snapshot }) {
     });
   }
 
-  if (!getGeminiApiKey()) {
+  if (!process.env.GEMINI_API_KEY) {
     console.warn('[BriefingService] GEMINI_API_KEY not set (runtime check) for weather forecast');
     return { current: null, forecast: [], error: 'GEMINI_API_KEY not configured (runtime check)' };
   }
@@ -858,9 +858,9 @@ export async function fetchWeatherForecast({ snapshot }) {
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
       {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': getGeminiApiKey()
+          'x-goog-api-key': process.env.GEMINI_API_KEY
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
@@ -877,7 +877,7 @@ export async function fetchWeatherForecast({ snapshot }) {
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    
+
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -888,7 +888,7 @@ export async function fetchWeatherForecast({ snapshot }) {
     } catch (parseErr) {
       console.error('[fetchWeatherForecast] Parse error:', parseErr.message);
     }
-    
+
     return { current: null, forecast: [] };
   } catch (error) {
     console.error('[fetchWeatherForecast] Error:', error.message);
@@ -976,11 +976,11 @@ export async function fetchWeatherConditions({ snapshot }) {
       const tempC = currentData.temperature?.degrees ?? currentData.temperature;
       const feelsLikeC = currentData.feelsLikeTemperature?.degrees ?? currentData.feelsLikeTemperature;
       const windSpeedMs = currentData.windSpeed?.value ?? currentData.windSpeed;
-      
+
       const tempData = formatTemperature(tempC, country);
       const feelsData = formatTemperature(feelsLikeC, country);
       const windSpeedDisplay = formatWindSpeed(windSpeedMs, country);
-      
+
       current = {
         temperature: tempData.displayTemp,
         tempF: tempData.tempF,
@@ -1014,10 +1014,10 @@ export async function fetchWeatherConditions({ snapshot }) {
         // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
         const tempC = hour.temperature?.degrees ?? hour.temperature;
         const windSpeedMs = hour.windSpeed?.value ?? hour.wind?.speed;
-        
+
         const tempData = formatTemperature(tempC, country);
         const windSpeedDisplay = formatWindSpeed(windSpeedMs, country);
-        
+
         // Ensure time is a valid ISO string - use time if valid, otherwise generate from current time
         let timeValue = hour.time;
         if (!timeValue || isNaN(new Date(timeValue).getTime())) {
@@ -1026,7 +1026,7 @@ export async function fetchWeatherConditions({ snapshot }) {
           forecastTime.setHours(forecastTime.getHours() + idx);
           timeValue = forecastTime.toISOString();
         }
-        
+
         return {
           time: timeValue,
           temperature: tempData.displayTemp,
@@ -1058,7 +1058,7 @@ export async function fetchWeatherConditions({ snapshot }) {
 }
 
 export async function fetchSchoolClosures({ snapshot }) {
-  if (!getGeminiApiKey()) {
+  if (!process.env.GEMINI_API_KEY) {
     console.log('[BriefingService] Skipping school closures (no Gemini API key)');
     return [];
   }
@@ -1123,11 +1123,11 @@ export async function fetchTrafficConditions({ snapshot }) {
     });
   }
 
-  if (!getGeminiApiKey()) {
+  if (!process.env.GEMINI_API_KEY) {
     console.warn('[BriefingService] ❌ GEMINI_API_KEY not set (runtime check), returning stub traffic data');
-    return { 
-      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
-      incidents: [], 
+    return {
+      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.',
+      incidents: [],
       congestionLevel: 'low',
       fetchedAt: new Date().toISOString()
     };
@@ -1137,9 +1137,9 @@ export async function fetchTrafficConditions({ snapshot }) {
     const city = snapshot?.city || 'Unknown';
     const state = snapshot?.state || 'Unknown';
     const date = snapshot?.date;
-    
+
     console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state}...`);
-    
+
     const prompt = `Search for current traffic conditions in ${city}, ${state} as of today ${date}. Return traffic data as JSON ONLY with ALL these fields:
 
 {
@@ -1155,14 +1155,14 @@ export async function fetchTrafficConditions({ snapshot }) {
 CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSON - NO EXPLANATION:`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini for traffic intelligence...`);
-    
+
     const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
 
     if (!result.ok) {
       console.warn(`[BriefingService] Gemini traffic error: ${result.error}`);
-      return { 
-        summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
-        incidents: [], 
+      return {
+        summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.',
+        incidents: [],
         congestionLevel: 'medium',
         fetchedAt: new Date().toISOString()
       };
@@ -1171,7 +1171,7 @@ CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSO
     try {
       const parsed = JSON.parse(result.output);
       console.log(`[BriefingService] ✅ Traffic analysis complete: ${parsed.summary?.substring(0, 80)}`);
-      
+
       return {
         summary: parsed.summary || 'Real-time traffic data unavailable',
         incidents: Array.isArray(parsed.incidents) ? parsed.incidents : [],
@@ -1184,18 +1184,18 @@ CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSO
       };
     } catch (parseErr) {
       console.warn('[BriefingService] Traffic JSON parse error:', parseErr.message);
-      return { 
-        summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
-        incidents: [], 
+      return {
+        summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.',
+        incidents: [],
         congestionLevel: 'medium',
         fetchedAt: new Date().toISOString()
       };
     }
   } catch (error) {
     console.error('[BriefingService] Traffic fetch error:', error.message);
-    return { 
-      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.', 
-      incidents: [], 
+    return {
+      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.',
+      incidents: [],
       congestionLevel: 'low',
       fetchedAt: new Date().toISOString()
     };
@@ -1206,7 +1206,7 @@ CRITICAL: Include highDemandZones and repositioning. RESPOND WITH ONLY VALID JSO
  * Fetch rideshare-relevant news using Gemini with Google search
  */
 async function fetchRideshareNews({ snapshot }) {
-  if (!getGeminiApiKey()) {
+  if (!process.env.GEMINI_API_KEY) {
     console.warn('[BriefingService] GEMINI_API_KEY not set (runtime check), skipping news fetch');
     return [];
   }
@@ -1216,7 +1216,7 @@ async function fetchRideshareNews({ snapshot }) {
     const state = snapshot?.state || 'TX';
     const date = snapshot?.date || new Date().toISOString().split('T')[0];
     console.log(`[BriefingService] 📰 Fetching news: city=${city}, state=${state}, date=${date}`);
-    
+
     const prompt = `You MUST search for and find rideshare-relevant news. Search the web NOW.
 
 Location: ${city}, ${state}
@@ -1255,7 +1255,7 @@ RULES:
 Return ONLY JSON array - no markdown, no explanation.`;
 
     console.log(`[BriefingService] 🔍 Calling Gemini with search to analyze ${city}, ${state} news...`);
-    
+
     const result = await callGeminiWithSearch({ prompt, maxTokens: 2048 });
 
     if (!result.ok) {
@@ -1266,7 +1266,7 @@ Return ONLY JSON array - no markdown, no explanation.`;
     try {
       const parsed = JSON.parse(result.output);
       let newsArray = Array.isArray(parsed) ? parsed : [];
-      
+
       // Return sample news if Gemini returns empty
       if (newsArray.length === 0 || !newsArray[0]?.title) {
         console.log('[BriefingService] ℹ️ No news from Gemini - returning sample news for demo');
@@ -1313,16 +1313,16 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     console.log(`[BriefingService] ⏳ Briefing already in flight for ${snapshotId}, waiting for result...`);
     return inFlightBriefings.get(snapshotId);
   }
-  
+
   // Create promise for this request and cache it
   const briefingPromise = generateBriefingInternal({ snapshotId, snapshot });
   inFlightBriefings.set(snapshotId, briefingPromise);
-  
+
   // Clean up cache when done (success or failure)
   briefingPromise.finally(() => {
     inFlightBriefings.delete(snapshotId);
   });
-  
+
   return briefingPromise;
 }
 
@@ -1340,7 +1340,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     console.warn('[BriefingService] Could not fetch snapshot:', err.message);
     return { success: false, error: err.message };
   }
-  
+
   console.log(`[BriefingService] 📸 Snapshot:`, {
     snapshot_id: snapshot.snapshot_id,
     lat: snapshot.lat,
@@ -1355,13 +1355,13 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     weather: snapshot.weather,
     air: snapshot.air
   });
-  
+
   // Destructure snapshot fields
   const { lat, lng, city, state, formatted_address } = snapshot;
-  
+
   // Call all APIs directly in parallel with this snapshot
   console.log(`[BriefingService] 🚀 Sending snapshot to: Gemini (events, news, traffic, closures) in parallel`);
-  
+
   // ⚡ OPTIMIZATION: Reuse weather from snapshot instead of fetching again
   let weatherResult = null;
   let existingWeather = null;
@@ -1409,7 +1409,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
   // Use weather from the parallel fetch optimization above
   const weatherCurrent = weatherResult?.current || null;
-  
+
   // Ensure news/events always have fallback data
   let finalNews = newsItems && newsItems.length > 0 ? newsItems : [
     {
@@ -1420,7 +1420,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       "link": "#"
     }
   ];
-  
+
   let finalEvents = normalizedEvents && normalizedEvents.length > 0 ? normalizedEvents : [
     {
       title: "Local Event - Check Venue Calendar",
@@ -1460,34 +1460,34 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       events: briefingData.events?.length || 0,
       traffic_summary: briefingData.traffic_conditions?.summary?.substring(0, 50) || 'none'
     });
-    
+
     const existing = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-    
+
     if (existing.length > 0) {
       const current = existing[0];
-      
+
       // CRITICAL FIX: Smart Merge - Only overwrite if new data is valid/non-empty
       // Prevents empty data (from API failures) from overwriting good data
-      
+
       // Smart merge news: Keep existing if new is empty
-      const mergedNews = (briefingData.news?.items?.length > 0) 
-        ? briefingData.news 
+      const mergedNews = (briefingData.news?.items?.length > 0)
+        ? briefingData.news
         : (current.news || briefingData.news);
-      
+
       // Smart merge events: Keep existing if new is empty
-      const mergedEvents = (briefingData.events?.length > 0) 
-        ? briefingData.events 
+      const mergedEvents = (briefingData.events?.length > 0)
+        ? briefingData.events
         : (current.events || []);
-      
+
       // Smart merge traffic: Keep existing if new is a stub (unavailable)
       let mergedTraffic = briefingData.traffic_conditions;
-      if (current.traffic_conditions && 
+      if (current.traffic_conditions &&
           briefingData.traffic_conditions?.summary?.includes('unavailable') &&
           current.traffic_conditions?.incidents?.length > 0) {
         console.log('[BriefingService] ⚠️ New traffic is stub - keeping existing good data');
         mergedTraffic = current.traffic_conditions;
       }
-      
+
       await db.update(briefings)
         .set({
           formatted_address: briefingData.formatted_address,
