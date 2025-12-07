@@ -38,3 +38,24 @@ curl -X POST "https://api.anthropic.com/v1/messages" \
       }
     ]
   }' | jq .
+
+echo ""
+echo "=== Testing Claude Opus 4.5 (Extended Thinking) ==="
+curl -X POST "https://api.anthropic.com/v1/messages" \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-opus-4-5-20251101",
+    "max_tokens": 32000,
+    "thinking": {
+      "type": "enabled",
+      "budget_tokens": 24000
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Design a comprehensive multi-city rideshare optimization strategy that balances driver earnings, passenger experience, and traffic patterns."
+      }
+    ]
+  }' | jq .
