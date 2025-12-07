@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
-    "@google/genai": "^1.30.0",
+    "@google/genai": "^1.31.0",
     "@google/generative-ai": "^0.24.1",
     "@googlemaps/js-api-loader": "^2.0.0",
     "@hookform/resolvers": "^5.2.2",
