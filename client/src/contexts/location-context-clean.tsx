@@ -16,6 +16,15 @@ interface LocationContextType {
 
 export const LocationContext = createContext<LocationContextType | null>(null);
 
+// Custom hook to consume location context
+export const useLocation = () => {
+  const context = React.useContext(LocationContext);
+  if (!context) {
+    throw new Error('useLocation must be used within LocationProvider');
+  }
+  return context;
+};
+
 export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentLocationString, setCurrentLocationString] = useState('Getting location...');
