@@ -188,8 +188,7 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
     console.log(`[chat] Sending ${messageHistory.length} messages to Gemini...`);
 
     // Call Gemini 3.0 Pro with web search via HTTP
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!process.env.GEMINI_API_KEY) {
       res.write(`data: ${JSON.stringify({ error: 'GEMINI_API_KEY not configured' })}\n\n`);
       return res.end();
     }
@@ -202,10 +201,13 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
       const timeoutId = setTimeout(() => abortController.abort(), 90000);
       
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-goog-api-key': process.env.GEMINI_API_KEY
+          },
           signal: abortController.signal,
           body: JSON.stringify({
             systemInstruction: {
