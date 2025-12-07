@@ -73,8 +73,36 @@
 - `snapshots` - Point-in-time location context
 
 **External APIs:**
-- Google Geocoding API - Reverse geocoding (lat/lng → address)
-- Google Timezone API - Timezone resolution
+- **Google Geocoding API** - Reverse geocoding (lat/lng → address)
+  - Endpoint: `https://maps.googleapis.com/maps/api/geocode/json`
+  - Usage: Address resolution from coordinates
+  - File: `server/lib/geocoding.js`
+  
+- **Google Timezone API** - Timezone resolution
+  - Endpoint: `https://maps.googleapis.com/maps/api/timezone/json`
+  - Usage: IANA timezone from coordinates
+  - File: `server/routes/location.js`
+  
+- **Google Places API (New)** - Business details and verification
+  - Endpoint: `https://places.googleapis.com/v1/places:searchNearby`
+  - Usage: Business hours, place_id, status verification
+  - File: `server/lib/venue-enrichment.js`
+  
+- **Google Routes API (New)** - Traffic-aware routing
+  - Endpoint: `https://routes.googleapis.com/directions/v2:computeRoutes`
+  - Usage: Real-time distance, drive time with traffic
+  - File: `server/lib/routes-api.js`
+  
+- **Google Weather API** - Current conditions + forecast
+  - Endpoint: `https://weather.googleapis.com/v1/currentConditions:lookup`
+  - Endpoint: `https://weather.googleapis.com/v1/forecast/hours:lookup`
+  - Usage: Temperature, conditions, 6-hour forecast
+  - File: `server/lib/briefing-service.js`
+  
+- **Google Air Quality API** - AQI data
+  - Endpoint: `https://airquality.googleapis.com/v1/currentConditions:lookup`
+  - Usage: Air quality index and pollutants
+  - File: `server/routes/location.js`
 
 **Data Flow:**
 ```
@@ -155,9 +183,9 @@ UI polls /api/strategy/:snapshotId → Display strategy
 
 **External APIs:**
 - OpenAI GPT-5 API - Venue recommendation generation
-- Google Places API - Business details, hours, place_id
-- Google Routes API - Distance/drive time calculation
-- Google Geocoding API - Address resolution
+- **Google Places API (New)** - `places.googleapis.com/v1/places:searchNearby` - Business details, hours, place_id
+- **Google Routes API (New)** - `routes.googleapis.com/directions/v2:computeRoutes` - Traffic-aware distance/drive time
+- **Google Geocoding API** - `maps.googleapis.com/maps/api/geocode/json` - Address resolution
 - Google Gemini 2.5 Pro API - Event verification
 
 **Data Flow:**
@@ -204,8 +232,8 @@ GET /api/blocks → UI displays venue cards
 - `briefings` - All briefing data (news, weather, traffic, events, school_closures)
 
 **External APIs:**
-- Google Gemini 3.0 Pro - Events discovery, traffic analysis, news filtering, school closures
-- Google Weather API - Current conditions + 6hr forecast
+- **Google Gemini 3.0 Pro** - `generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent` - Events, traffic, news, closures
+- **Google Weather API** - `weather.googleapis.com/v1/currentConditions:lookup` + `forecast/hours:lookup` - Current + 6hr forecast
 - SerpAPI - News search (filtered by Gemini)
 
 **Data Flow:**
