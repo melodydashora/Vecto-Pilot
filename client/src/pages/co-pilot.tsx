@@ -52,6 +52,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Map as MapIcon, Heart } from 'lucide-react';
+import { ConsolidatedStrategyComp } from '@/components/strategy/ConsolidatedStrategyComp';
 
 interface SmartBlock {
   name: string;
