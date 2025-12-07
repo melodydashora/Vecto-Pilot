@@ -2,7 +2,536 @@
 
 ---
 
-**Last Updated:** 2025-12-06 UTC (Codebase Cleanup & Shared Utilities Consolidation)
+**Last Updated:** 2025-12-07 UTC (Complete System Mapping & Architecture Consolidation)
+
+---
+
+## 📋 TABLE OF CONTENTS
+
+1. [System Architecture Overview](#system-architecture-overview)
+2. [Complete System Mapping](#complete-system-mapping)
+3. [UI to Backend Flow](#ui-to-backend-flow)
+4. [Database Schema Mapping](#database-schema-mapping)
+5. [AI Pipeline Architecture](#ai-pipeline-architecture)
+6. [Authentication System](#authentication-system)
+7. [Architectural Constraints](#architectural-constraints)
+8. [Deprecated Features](#deprecated-features)
+
+---
+
+## 🏗️ SYSTEM ARCHITECTURE OVERVIEW
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         REPLIT DEPLOYMENT                        │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │              Gateway Server (Port 5000)                     │ │
+│  │  ┌──────────────────┐  ┌──────────────────────────────┐   │ │
+│  │  │   SDK Routes     │  │    Agent Routes (43717)       │   │ │
+│  │  │   /api/*         │  │    /agent/*                   │   │ │
+│  │  └──────────────────┘  └──────────────────────────────┘   │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              ↓                                   │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │                PostgreSQL Database                          │ │
+│  │   (Replit Built-in, Drizzle ORM)                           │ │
+│  └────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                    EXTERNAL AI/API SERVICES                      │
+│  • Anthropic (Claude Sonnet 4.5)                                │
+│  • OpenAI (GPT-5.1, Realtime API)                               │
+│  • Google (Gemini 3.0 Pro, Places, Routes, Weather, AQ)         │
+│  • Perplexity (Sonar Pro)                                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🗺️ COMPLETE SYSTEM MAPPING
+
+### Frontend → Backend → Database Flow
+
+#### 1. **Location & GPS System**
+
+**UI Components:**
+- `client/src/GlobalHeader.tsx` - GPS status display, refresh button
+- `client/src/contexts/location-context-clean.tsx` - Location state management
+
+**Hooks:**
+- `client/src/hooks/useGeoPosition.ts` - Browser geolocation API wrapper
+- `client/src/hooks/use-geolocation.tsx` - Enhanced geolocation with fallback
+
+**Backend Routes:**
+- `server/routes/location.js` - `/api/location/resolve` (coordinates → address)
+
+**Database Tables:**
+- `users` - GPS coordinates, resolved address, timezone
+- `snapshots` - Point-in-time location context
+
+**External APIs:**
+- Google Geocoding API - Reverse geocoding (lat/lng → address)
+- Google Timezone API - Timezone resolution
+
+**Data Flow:**
+```
+Browser GPS → useGeoPosition → LocationContext → /api/location/resolve → 
+Google Geocoding API → users table → JWT token generation → 
+localStorage → subsequent API calls with Authorization header
+```
+
+---
+
+#### 2. **Strategy Generation Pipeline (TRIAD)**
+
+**UI Components:**
+- `client/src/pages/co-pilot.tsx` - Strategy display, loading states
+- `client/src/components/StrategyHistoryPanel.tsx` - Strategy history
+
+**Backend Orchestration:**
+- `server/lib/strategy-generator-parallel.js` - Main pipeline orchestrator
+
+**Provider Functions:**
+- `server/lib/providers/minstrategy.js` - Strategic overview (Claude Sonnet 4.5)
+- `server/lib/providers/briefing.js` - Events, traffic, news (Gemini 3.0 Pro)
+- `server/lib/providers/holiday-checker.js` - Holiday detection (Perplexity)
+- `server/lib/providers/consolidator.js` - Final strategy (GPT-5.1)
+
+**Backend Routes:**
+- `server/routes/snapshot.js` - POST `/api/snapshot` (trigger waterfall)
+- `server/routes/strategy.js` - GET `/api/strategy/:snapshotId`
+- `server/routes/blocks-fast.js` - POST `/api/blocks-fast` (full pipeline)
+
+**Database Tables:**
+- `snapshots` - Location, time, weather, air quality
+- `strategies` - Strategic outputs (minstrategy, consolidated_strategy, briefing)
+- `briefings` - Comprehensive briefing data (events, news, traffic, weather)
+
+**External APIs:**
+- Anthropic Claude API - Strategic overview
+- OpenAI GPT-5 API - Consolidation
+- Google Gemini API - Events, traffic, news, school closures
+- Perplexity API - Holiday research
+- Google Weather API - Current conditions + 6hr forecast
+- Google Routes API - Traffic conditions
+
+**Data Flow:**
+```
+Snapshot Creation → POST /api/blocks-fast → 
+3 Parallel Providers (minstrategy, briefing, holiday) → 
+strategies table (minstrategy, briefing columns) → 
+consolidator (GPT-5.1) → 
+strategies table (consolidated_strategy column) → 
+SSE notification (strategy_ready event) → 
+UI polls /api/strategy/:snapshotId → Display strategy
+```
+
+---
+
+#### 3. **Venue Recommendations (Smart Blocks)**
+
+**UI Components:**
+- `client/src/components/SmartBlocks.tsx` - Venue card display
+- `client/src/components/SmartBlocksStatus.tsx` - Loading/polling status
+- `client/src/pages/co-pilot.tsx` - Venues tab
+
+**Backend Logic:**
+- `server/lib/tactical-planner.js` - GPT-5.1 venue generation
+- `server/lib/enhanced-smart-blocks.js` - Venue enrichment orchestrator
+- `server/lib/venue-enrichment.js` - Google Places/Routes integration
+- `server/lib/venue-event-verifier.js` - Event validation (Gemini 2.5 Pro)
+- `server/lib/venue-address-resolver.js` - Batch address resolution
+
+**Backend Routes:**
+- `server/routes/blocks-fast.js` - GET `/api/blocks` (fetch venues)
+- `server/routes/blocks-fast.js` - POST `/api/blocks-fast` (generate venues)
+
+**Database Tables:**
+- `rankings` - Ranking metadata (model_name, timing, path_taken)
+- `ranking_candidates` - Individual venue recommendations with enrichment
+
+**External APIs:**
+- OpenAI GPT-5 API - Venue recommendation generation
+- Google Places API - Business details, hours, place_id
+- Google Routes API - Distance/drive time calculation
+- Google Geocoding API - Address resolution
+- Google Gemini 2.5 Pro API - Event verification
+
+**Data Flow:**
+```
+Strategy Complete → POST /api/blocks-fast (if no ranking exists) →
+GPT-5.1 Tactical Planner (venue coords + staging coords) →
+Google Places API (business hours, place_id) →
+Google Routes API (distance, drive time) →
+Gemini 2.5 Pro (event verification) →
+Google Geocoding (venue addresses) →
+ranking_candidates table (enriched venue data) →
+GET /api/blocks → UI displays venue cards
+```
+
+**Enrichment Fields:**
+- `place_id` - Google Places ID
+- `distance_miles` - Google Routes API
+- `drive_minutes` - Google Routes API
+- `value_per_min` - Calculated (earnings ÷ drive time)
+- `business_hours` - Google Places API
+- `venue_events` - Gemini 2.5 Pro verification
+- `address` - Google Geocoding API
+
+---
+
+#### 4. **Briefing Tab (Weather, Traffic, News, Events)**
+
+**UI Components:**
+- `client/src/components/BriefingTab.tsx` - Comprehensive briefing display
+- `client/src/pages/co-pilot.tsx` - Briefing tab queries
+
+**Backend Routes:**
+- `server/routes/briefing.js` - Component-level endpoints:
+  - GET `/api/briefing/weather/:snapshotId`
+  - GET `/api/briefing/traffic/:snapshotId`
+  - GET `/api/briefing/news/:snapshotId`
+  - GET `/api/briefing/events/:snapshotId`
+  - GET `/api/briefing/closures/:snapshotId`
+
+**Backend Service:**
+- `server/lib/briefing-service.js` - Comprehensive briefing generation
+
+**Database Tables:**
+- `briefings` - All briefing data (news, weather, traffic, events, school_closures)
+
+**External APIs:**
+- Google Gemini 3.0 Pro - Events discovery, traffic analysis, news filtering, school closures
+- Google Weather API - Current conditions + 6hr forecast
+- SerpAPI - News search (filtered by Gemini)
+
+**Data Flow:**
+```
+Snapshot Creation → briefing provider runs in parallel →
+Gemini 3.0 Pro (events, traffic, news, closures) →
+Google Weather API (current + forecast) →
+briefings table (JSONB columns) →
+UI component queries (weather, traffic, news, events, closures) →
+BriefingTab displays real-time data
+```
+
+---
+
+#### 5. **AI Coach Chat**
+
+**UI Components:**
+- `client/src/components/CoachChat.tsx` - Chat interface
+
+**Backend Routes:**
+- `server/routes/chat.js` - POST `/api/chat` (text chat)
+- `server/routes/realtime.js` - WebSocket `/api/realtime` (voice chat)
+
+**Backend DAL:**
+- `server/lib/coach-dal.js` - Full schema read access for AI context
+
+**Database Access (Read-Only):**
+- `snapshots` - Location, time, weather context
+- `strategies` - Strategic guidance
+- `briefings` - Real-time intelligence
+- `ranking_candidates` - Venue recommendations
+- `actions` - User behavior patterns
+- `venue_feedback` - User feedback on venues
+- `strategy_feedback` - User feedback on strategies
+
+**External APIs:**
+- OpenAI GPT-4o Realtime API - Voice chat
+- OpenAI GPT-5.1 API - Text chat
+
+**Data Flow:**
+```
+User Message → POST /api/chat →
+CoachDAL (read snapshot + strategy + briefing + venues + feedback) →
+GPT-5.1 with full context →
+Response → UI displays
+```
+
+---
+
+#### 6. **Authentication & User Isolation**
+
+**UI Context:**
+- `client/src/contexts/location-context-clean.tsx` - Token storage/usage
+
+**Backend Middleware:**
+- `server/middleware/auth.js` - JWT verification (`requireAuth`)
+
+**Backend Routes:**
+- `server/routes/auth.js` - POST `/api/auth/token` (JWT generation)
+- `server/routes/location.js` - `/api/location/resolve` (returns user_id)
+
+**Database Security:**
+- `migrations/003_rls_security.sql` - Row-Level Security policies
+- `migrations/004_jwt_helpers.sql` - JWT extraction functions
+
+**Security Flow:**
+```
+GPS Coordinates → /api/location/resolve → 
+users table (insert/update) → user_id returned →
+POST /api/auth/token (user_id) → JWT signed →
+localStorage.setItem('token') →
+All API calls include Authorization: Bearer {token} →
+requireAuth middleware validates JWT →
+Database queries filtered by user_id (RLS policies)
+```
+
+---
+
+## 🗄️ DATABASE SCHEMA MAPPING
+
+### Core Tables
+
+#### `users` - User Location Authority
+**Purpose:** Authoritative source for user GPS coordinates and resolved location  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Update: `server/routes/location.js`
+- Query: `server/lib/coach-dal.js`
+
+**Key Columns:**
+- `user_id` (PK) - UUID
+- `lat`, `lng` - GPS coordinates
+- `formatted_address` - Full street address
+- `city`, `state`, `country` - Resolved location
+- `timezone` - Local timezone
+
+---
+
+#### `snapshots` - Point-in-Time Context
+**Purpose:** Self-contained context snapshot (location, time, weather, air quality)  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/routes/snapshot.js`
+- Query: `server/lib/snapshot/get-snapshot-context.js`
+
+**Key Columns:**
+- `snapshot_id` (PK) - UUID
+- `user_id` - FK to users
+- `lat`, `lng` - GPS coordinates (copied from users at snapshot time)
+- `city`, `state`, `timezone` - Resolved location
+- `date` - Snapshot date (YYYY-MM-DD)
+- `dow` - Day of week (0=Sunday)
+- `hour` - Hour (0-23)
+- `day_part_key` - morning/afternoon/evening/night
+- `weather` - JSONB (tempF, conditions, description)
+- `air` - JSONB (aqi, category, dominantPollutant)
+- `airport_context` - JSONB (nearby airport delays)
+- `holiday` - Holiday name (if applicable)
+- `is_holiday` - Boolean flag
+
+---
+
+#### `strategies` - AI Strategy Generation
+**Purpose:** Model-agnostic strategy outputs from parallel pipeline  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Update: `server/lib/providers/minstrategy.js`, `consolidator.js`
+- Query: `server/routes/strategy.js`
+
+**Key Columns:**
+- `snapshot_id` (PK, FK) - Links to snapshots
+- `user_id` - FK to users
+- `minstrategy` - Strategic overview from Claude Sonnet 4.5
+- `consolidated_strategy` - Actionable summary from GPT-5.1
+- `model_name` - Full model chain (strategist→briefer→consolidator)
+- `status` - pending/running/ok/failed/pending_blocks
+- ~~`briefing_news`, `briefing_events`, `briefing_traffic`~~ - DEPRECATED (moved to briefings table)
+
+---
+
+#### `briefings` - Comprehensive Briefing Data
+**Purpose:** Structured briefing data from Gemini 3.0 Pro + Google APIs  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Update: `server/lib/briefing-service.js`
+- Query: `server/routes/briefing.js`
+
+**Key Columns:**
+- `snapshot_id` (PK, FK) - Links to snapshots
+- `news` - JSONB (filtered rideshare-relevant news)
+- `weather_current` - JSONB (current conditions)
+- `weather_forecast` - JSONB (6-hour forecast)
+- `traffic_conditions` - JSONB (incidents, congestion)
+- `events` - JSONB (local events with impact)
+- `school_closures` - JSONB (school/college closures)
+- ~~`global_travel`, `domestic_travel`, `local_traffic`~~ - Text fields (Perplexity research - less used)
+
+---
+
+#### `rankings` - Venue Recommendation Metadata
+**Purpose:** Ranking session metadata  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/lib/enhanced-smart-blocks.js`
+- Query: `server/routes/blocks-fast.js`
+
+**Key Columns:**
+- `ranking_id` (PK) - UUID
+- `snapshot_id` (FK) - Links to snapshots
+- `model_name` - Venue planner model (gpt-5.1-venue-planner)
+- `path_taken` - enhanced-smart-blocks
+- `planner_ms` - GPT-5.1 planner timing
+- `total_ms` - Total pipeline timing
+
+---
+
+#### `ranking_candidates` - Enriched Venue Recommendations
+**Purpose:** Individual venue recommendations with Google API enrichment  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/lib/enhanced-smart-blocks.js`
+- Query: `server/routes/blocks-fast.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `ranking_id` (FK) - Links to rankings
+- `snapshot_id` (FK) - Links to snapshots
+- `name` - Venue name (from GPT-5.1)
+- `lat`, `lng` - Venue coordinates (from GPT-5.1)
+- `place_id` - Google Places ID (from Places API)
+- `address` - Full street address (from Geocoding API)
+- `distance_miles` - Drive distance (from Routes API)
+- `drive_minutes` - Drive time (from Routes API)
+- `value_per_min` - Calculated earnings per minute
+- `value_grade` - A/B/C grade based on value_per_min
+- `business_hours` - JSONB (from Places API)
+- `pro_tips` - Array of tactical tips (from GPT-5.1)
+- `staging_name`, `staging_lat`, `staging_lng` - Staging area (from GPT-5.1)
+- `venue_events` - JSONB (from Gemini 2.5 Pro verification)
+- `closed_reasoning` - Strategic timing explanation (from GPT-5.1)
+
+---
+
+#### `actions` - User Behavior Tracking
+**Purpose:** Track user actions for ML feedback loop  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/routes/actions.js`
+- Query: `server/lib/coach-dal.js`
+
+**Key Columns:**
+- `action_id` (PK) - UUID
+- `user_id` (FK) - Links to users
+- `snapshot_id` (FK) - Links to snapshots
+- `block_id` - Venue identifier
+- `action` - view/select/navigate/dismiss/dwell
+- `context` - JSONB (metadata)
+
+---
+
+#### `venue_feedback` - Venue Ratings
+**Purpose:** User feedback on venue recommendations  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/routes/feedback.js`
+- Query: `server/lib/coach-dal.js`
+
+**Key Columns:**
+- `feedback_id` (PK) - UUID
+- `user_id` (FK) - Links to users
+- `snapshot_id` (FK) - Links to snapshots
+- `block_id` - Venue identifier
+- `sentiment` - up/down
+- `comment` - Optional text feedback
+
+---
+
+#### `strategy_feedback` - Strategy Ratings
+**Purpose:** User feedback on strategic guidance  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/routes/feedback.js`
+- Query: `server/lib/coach-dal.js`
+
+**Key Columns:**
+- `feedback_id` (PK) - UUID
+- `user_id` (FK) - Links to users
+- `snapshot_id` (FK) - Links to snapshots
+- `sentiment` - up/down
+- `comment` - Optional text feedback
+
+---
+
+## 🤖 AI PIPELINE ARCHITECTURE
+
+### Model Dictionary & Role Assignment
+
+**File:** `server/lib/models-dictionary.js`
+
+**Model Roles:**
+
+| Role | Model | File | Purpose |
+|------|-------|------|---------|
+| `strategist` | Claude Sonnet 4.5 | `providers/minstrategy.js` | Strategic overview |
+| `briefer` | Gemini 3.0 Pro | `providers/briefing.js` | Events, traffic, news |
+| `consolidator` | GPT-5.1 | `providers/consolidator.js` | Final actionable strategy |
+| `tactical_planner` | GPT-5.1 | `tactical-planner.js` | Venue recommendations |
+| `validator` | Gemini 2.5 Pro | `venue-event-verifier.js` | Event verification |
+| `research_engine` | Perplexity Sonar Pro | `providers/holiday-checker.js` | Holiday detection |
+
+**Adapter Files:**
+- `server/lib/adapters/index.js` - Main dispatcher (`callModel`)
+- `server/lib/adapters/anthropic-adapter.js` - Claude integration
+- `server/lib/adapters/openai-adapter.js` - GPT-5 integration
+- `server/lib/adapters/gemini-adapter.js` - Gemini integration
+- `server/lib/adapters/perplexity-adapter.js` - Perplexity integration
+
+---
+
+## 🔐 AUTHENTICATION SYSTEM - PRODUCTION COMPLETE (Dec 2, 2025)
+
+**Status:** ✅ READY FOR DEPLOYMENT
+
+### Implementation Summary
+Complete end-to-end JWT authentication with secure user isolation across all API endpoints.
+
+**Architecture:**
+```
+Browser GPS/Geolocation
+         ↓
+   [useGeoPosition.ts]
+         ↓
+/api/location/resolve → gets user_id from database
+         ↓
+/api/auth/token → generates JWT with user_id
+         ↓
+localStorage.setItem('token')
+         ↓
+[CoachChat] + [BriefingTab] send Authorization: Bearer ${token}
+         ↓
+[requireAuth middleware] verifies JWT
+         ↓
+All requests scoped to authenticated user_id (user data isolation)
+```
+
+**Files:**
+- `client/src/contexts/location-context-clean.tsx` - Token generation with async callback
+- `server/routes/auth.js` - `/api/auth/token` endpoint
+- `gateway-server.js` - Auth route registration (lines 265-272)
+- `client/src/components/CoachChat.tsx` - Authorization header on /api/chat
+- `client/src/pages/co-pilot.tsx` - Authorization header on /api/briefing/snapshot
+- `server/middleware/auth.js` - requireAuth middleware validates JWT
+
+**Verification Checklist:**
+- ✅ GPS coordinates obtained (native browser or Google Geolocation fallback)
+- ✅ Location resolved and user_id retrieved from /api/location/resolve
+- ✅ JWT token generated via /api/auth/token and stored in localStorage
+- ✅ All API calls include "Authorization: Bearer ${token}" header
+- ✅ Backend verifies JWT and isolates data by user_id
+- ✅ Graceful error handling with console logs for debugging
+
+**Security:**
+- ✅ User_id ONLY from JWT token, never from request body
+- ✅ Database queries filtered by authenticated user_id
+- ✅ All sensitive POST/PATCH/DELETE routes require authentication
+- ✅ 404 (not 401) returned for unauthorized access (prevents enumeration)
 
 ---
 
@@ -53,6 +582,143 @@ All requests scoped to authenticated user_id (user data isolation)
 - ✅ Database queries filtered by authenticated user_id
 - ✅ All sensitive POST/PATCH/DELETE routes require authentication
 - ✅ 404 (not 401) returned for unauthorized access (prevents enumeration)
+
+## 🔒 ARCHITECTURAL CONSTRAINTS
+
+### 1. **Single-Path Orchestration Only**
+Triad is authoritative. No hedging, no silent swaps, no router fallbacks. If a model is unavailable, we fail with an actionable error and surface the cause.
+
+**Files:**
+- `server/lib/strategy-generator-parallel.js` - Single orchestration path
+- ~~`server/lib/llm-router-v2.js`~~ - Deprecated multi-model router
+
+### 2. **Model IDs Are Pinned and Verified Monthly**
+Missing or changed IDs are treated as deployment blockers. Messages responses must echo the requested model; mismatches throw.
+
+**Files:**
+- `server/lib/models-dictionary.js` - Centralized model configuration
+- `MODEL.md` - Model verification documentation
+- `tools/research/model-discovery.mjs` - Monthly verification script
+
+### 3. **Complete Snapshot Gating**
+No LLM call without a complete location snapshot (GPS, timezone, daypart, weather/AQI). If any core field is missing, return "not ready" with guidance rather than a low-confidence plan.
+
+**Files:**
+- `server/lib/snapshot/get-snapshot-context.js` - Snapshot validation
+- `server/routes/snapshot.js` - Self-contained snapshot creation
+
+### 4. **Accuracy Over Expense for Closure-Sensitive Recs**
+When the venue's open/closed status materially affects driver income, we must either validate status or choose a de-risked alternative. **"Unknown" is never presented as "open".**
+
+**Files:**
+- `server/lib/venue-enrichment.js` - Business hours validation
+- `server/lib/weather-traffic-validator.js` - Condition validation
+- `server/lib/places-hours.js` - Hours calculation
+
+### 5. **Deterministic Logging for ML**
+For every block served: input snapshot hash, model ID, token budget, confidence, and downstream outcome (accept/skip/abort) are recorded for counterfactual learning.
+
+**Files:**
+- `server/routes/actions.js` - User action logging
+- `server/middleware/learning-capture.js` - ML instrumentation
+- `server/routes/feedback.js` - Feedback capture
+
+### 6. **Coordinates and Business Hours Come From Google or DB, Never Models**
+Truth sources are Google Places/Routes and our persisted cache. Generative models must not originate or "correct" lat/lng or hours. If Google is unavailable, we use last verified DB copy; otherwise we fail-closed.
+
+**Files:**
+- `server/lib/places-cache.js` - Google Places caching
+- `server/lib/routes-api.js` - Google Routes integration
+- `server/lib/venue-enrichment.js` - Enrichment orchestrator
+
+### 7. **Deterministic Merge by Key, Never by Index**
+All enrich/validate merges use stable keys (place_id preferred; name fallback) and numeric coercion. Defaulting earnings/distance to 0 is forbidden. Fallback order: server potential → computed epm → fail-closed when neither is available.
+
+**Files:**
+- `server/lib/enhanced-smart-blocks.js` - Key-based venue merging
+- `server/lib/venue-address-resolver.js` - Batch address resolution
+
+---
+
+## ⚠️ DEPRECATED FEATURES (Struck Through)
+
+### ~~Multi-Model Router with Fallback/Hedging~~
+**Status:** DEPRECATED (October 2025)  
+**Files:**
+- ~~`server/lib/llm-router-v2.js`~~ - Multi-model hedging router
+- ~~`tools/debug/test-v2-router.mjs`~~ - Router testing
+
+**Reason:** Single-path orchestration is more reliable and auditable. Model-agnostic providers replace hedging.
+
+---
+
+### ~~Global JSON Body Parsing~~
+**Status:** DEPRECATED (November 2025)  
+**Files:**
+- ~~`gateway-server.js`~~ - Global `express.json()` removed
+
+**Reason:** Per-route validation prevents HTML error pages and enables custom size limits.
+
+---
+
+### ~~React.StrictMode in Production UI~~
+**Status:** REMOVED (December 2025)  
+**Files:**
+- `client/src/main.tsx` - StrictMode wrapper removed
+
+**Reason:** Double-rendering in development caused duplicate API calls and GPS refreshes.
+
+---
+
+### ~~Treating Cost-Only Heuristics as Overrides~~
+**Status:** DEPRECATED (October 2025)
+
+**Reason:** Accuracy-first principle - never sacrifice correctness for cost savings.
+
+---
+
+### ~~"Cheap-First" MVP for Business Hours~~
+**Status:** DEPRECATED (November 2025)  
+**Files:**
+- ~~`server/lib/places-hours.js`~~ - Enhanced with risk-gated validation
+
+**Reason:** Replaced with risk-gated validation. High-impact venues always validate hours.
+
+---
+
+### ~~Index-Based Merge~~
+**Status:** DEPRECATED (October 8, 2025)  
+**Files:**
+- `server/lib/enhanced-smart-blocks.js` - Now uses key-based merge
+
+**Reason:** Replaced with key-based merge using place_id/name as stable identifiers.
+
+---
+
+### ~~Client GPS Overwrite of Venue Coordinates~~
+**Status:** DEPRECATED (October 8, 2025)  
+**Files:**
+- `client/src/pages/co-pilot.tsx` - Client no longer overwrites venue coords
+
+**Reason:** Server truth is authoritative. Google APIs provide verified coordinates.
+
+---
+
+### ~~Perplexity Briefing Fields in Strategies Table~~
+**Status:** DEPRECATED (December 2025)  
+**Files:**
+- `shared/schema.js` - `strategies.briefing_news`, `briefing_events`, `briefing_traffic`
+
+**Reason:** Moved to dedicated `briefings` table for better separation of concerns.
+
+---
+
+### ~~Strategy-First Polling (Deprecated Approach)~~
+**Status:** REPLACED (December 2025)  
+**Files:**
+- `client/src/pages/co-pilot.tsx` - Now uses SSE for strategy_ready events
+
+**Reason:** SSE provides real-time notifications, reducing unnecessary polling.
 
 ---
 
