@@ -325,10 +325,12 @@ Database queries filtered by user_id (RLS policies)
 
 **Key Columns:**
 - `user_id` (PK) - UUID
+- `device_id` - Unique device identifier
 - `lat`, `lng` - GPS coordinates
 - `formatted_address` - Full street address
 - `city`, `state`, `country` - Resolved location
 - `timezone` - Local timezone
+- `created_at`, `updated_at` - Timestamps
 
 ---
 
@@ -454,6 +456,32 @@ Database queries filtered by user_id (RLS policies)
 
 ---
 
+#### `venue_catalog` - Master Venue Database
+**Purpose:** Persistent catalog of known venues with business hours and metadata  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/scripts/seed-dfw-venues.js`
+- Query: `server/lib/enhanced-smart-blocks.js`
+
+**Key Columns:**
+- `venue_id` (PK) - UUID
+- `place_id` - Google Places ID (unique)
+- `venue_name` - Venue name (max 500 chars)
+- `address` - Full address (max 500 chars)
+- `lat`, `lng` - Coordinates
+- `category` - Venue type/category
+- `dayparts` - Array of applicable day parts
+- `staging_notes` - JSONB (staging instructions)
+- `city`, `metro` - Location metadata
+- `business_hours` - JSONB (operating hours)
+- `last_known_status` - 'open' | 'closed' | 'temporarily_closed' | 'permanently_closed' | 'unknown'
+- `status_checked_at` - Last status verification timestamp
+- `consecutive_closed_checks` - Counter for closed status (Issue #32)
+- `auto_suppressed` - Boolean (prevents recommending permanently closed venues)
+- `suppression_reason` - Explanation for suppression
+
+---
+
 #### `venue_feedback` - Venue Ratings
 **Purpose:** User feedback on venue recommendations  
 **Files:**
@@ -484,6 +512,147 @@ Database queries filtered by user_id (RLS policies)
 - `snapshot_id` (FK) - Links to snapshots
 - `sentiment` - up/down
 - `comment` - Optional text feedback
+
+---
+
+#### `triad_jobs` - Background Job Queue
+**Purpose:** Async job processing for TRIAD pipeline (strategist → briefer → consolidator)  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/lib/job-queue.js`
+- Worker: `server/jobs/triad-worker.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `job_type` - 'triad_pipeline'
+- `status` - 'pending' | 'running' | 'complete' | 'failed'
+- `priority` - Integer priority (higher = more urgent)
+- `payload` - JSONB (job parameters)
+- `result` - JSONB (job output)
+- `error` - Error message if failed
+- `created_at`, `started_at`, `completed_at` - Timestamps
+
+---
+
+#### `places_cache` - Google Places API Cache
+**Purpose:** Cache Google Places API responses to reduce API calls  
+**Files:**
+- Schema: `shared/schema.js`
+- Query: `server/lib/places-cache.js`
+
+**Key Columns:**
+- `place_id` (PK) - Google Places ID
+- `name`, `address` - Basic info
+- `lat`, `lng` - Coordinates
+- `business_hours` - JSONB (operating hours)
+- `phone`, `website`, `rating` - Additional metadata
+- `cached_at` - Cache timestamp
+- `expires_at` - Expiration timestamp
+
+---
+
+#### `venue_events` - Venue-Specific Events
+**Purpose:** Events occurring at or near specific venues (verified by Gemini 2.5 Pro)  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/lib/venue-event-verifier.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `venue_id` - FK to venue_catalog
+- `event_title` - Event name
+- `event_type` - Event category
+- `start_time`, `end_time` - Event timing
+- `impact_level` - 'high' | 'medium' | 'low'
+- `rideshare_potential` - Expected demand impact
+- `verified_by` - AI model that verified the event
+- `verified_at` - Verification timestamp
+
+---
+
+#### `venue_metrics` - Venue Performance Analytics
+**Purpose:** Track venue recommendation performance over time  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/lib/enhanced-smart-blocks.js`
+
+**Key Columns:**
+- `venue_id` (PK) - FK to venue_catalog
+- `total_recommendations` - Times recommended
+- `total_accepts` - User selections
+- `total_dismissals` - User rejections
+- `avg_rating` - Average user rating
+- `last_recommended_at` - Last recommendation timestamp
+
+---
+
+#### `travel_disruptions` - Airport Delay Tracking
+**Purpose:** Log airport delays and closures for context  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/routes/location.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `snapshot_id` - FK to snapshots
+- `airport_code` - IATA code (e.g., 'DFW')
+- `disruption_type` - 'delay' | 'closure'
+- `severity` - 'low' | 'medium' | 'high'
+- `delay_minutes` - Delay duration
+- `reason` - Cause of disruption
+- `source` - Data source (FAA, etc.)
+
+---
+
+#### `http_idem` - Idempotency Cache
+**Purpose:** Prevent duplicate API requests via idempotency keys  
+**Files:**
+- Schema: `shared/schema.js`
+- Middleware: `server/middleware/idempotency.js`
+
+**Key Columns:**
+- `key` (PK) - Idempotency key
+- `status` - HTTP status code
+- `body` - JSONB response body
+- `created_at` - Cache timestamp
+
+---
+
+#### `agent_memory` - Agent Session State
+**Purpose:** Internal agent state and session context  
+**Files:**
+- Schema: `shared/schema.js`
+- Query: `server/agent/context-awareness.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `session_id` - Agent session identifier
+- `entry_type` - Memory type
+- `title`, `content` - Memory data
+- `status` - 'active' | 'archived'
+- `metadata` - JSONB
+- `expires_at` - Expiration timestamp
+
+---
+
+#### `nearby_venues` - Gemini-Discovered Venues
+**Purpose:** Bars/restaurants discovered via Gemini web search  
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/lib/briefing-service.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `snapshot_id` - FK to snapshots
+- `name`, `address` - Venue info
+- `lat`, `lng` - Coordinates
+- `venue_type` - 'bar' | 'restaurant' | 'bar_restaurant'
+- `expense_level` - '$' | '$$' | '$$$' | '$$$$'
+- `is_open` - Boolean
+- `hours_today` - Operating hours
+- `closing_soon` - Boolean (within 1 hour)
+- `crowd_level` - 'low' | 'medium' | 'high'
+- `rideshare_potential` - 'low' | 'medium' | 'high'
 
 ---
 
