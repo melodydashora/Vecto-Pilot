@@ -3,6 +3,7 @@ import pg from 'pg';
 let pgClient = null;
 let reconnectTimer = null;
 let isReconnecting = false;
+let keepaliveInterval = null;
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -10,7 +11,6 @@ async function sleep(ms) {
 
 async function reconnectWithBackoff(connectionString, maxRetries = 5) {
   if (isReconnecting) {
-    console.log('[db-client] 🔄 Reconnection already in progress, skipping...');
     return;
   }
 
@@ -18,18 +18,22 @@ async function reconnectWithBackoff(connectionString, maxRetries = 5) {
   let retries = 0;
 
   while (retries < maxRetries) {
-    const backoffMs = Math.min(1000 * Math.pow(2, retries), 30000);
-    console.log(`[db-client] 🔄 Reconnection attempt ${retries + 1}/${maxRetries} in ${backoffMs}ms...`);
+    const backoffMs = Math.min(1000 * Math.pow(2, retries), 10000);
     
     await sleep(backoffMs);
 
     try {
+      // Clean up old client
       if (pgClient) {
         try {
+          if (keepaliveInterval) {
+            clearInterval(keepaliveInterval);
+            keepaliveInterval = null;
+          }
           pgClient.removeAllListeners();
           await pgClient.end();
         } catch (cleanupErr) {
-          console.warn('[db-client] Cleanup error (ignored):', cleanupErr.message);
+          // Ignore cleanup errors
         }
         pgClient = null;
       }
@@ -37,53 +41,53 @@ async function reconnectWithBackoff(connectionString, maxRetries = 5) {
       pgClient = new pg.Client({
         connectionString,
         application_name: 'triad-listener',
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000
       });
 
       setupErrorHandlers(connectionString);
 
       await pgClient.connect();
-      console.log('[db-client] ✅ LISTEN client reconnected successfully');
+      
+      // Send keepalive queries every 4 minutes (before 5-min timeout)
+      keepaliveInterval = setInterval(() => {
+        if (pgClient && !isReconnecting) {
+          pgClient.query('SELECT 1').catch(() => {});
+        }
+      }, 240000); // 4 minutes
+      
+      console.log('[db-client] ✅ LISTEN client reconnected');
       isReconnecting = false;
       return pgClient;
     } catch (err) {
-      console.error(`[db-client] ❌ Reconnection attempt ${retries + 1} failed:`, err.message);
       retries++;
     }
   }
 
   isReconnecting = false;
-  console.error('[db-client] ❌ Max reconnection attempts reached, giving up');
   throw new Error('Failed to reconnect after maximum retries');
 }
 
 function setupErrorHandlers(connectionString) {
   pgClient.on('error', async (err) => {
-    console.error('[db-client] ❌ PostgreSQL client error:', err.message);
-    console.log('[db-client] 🔄 Initiating automatic reconnection...');
-    
-    try {
-      await reconnectWithBackoff(connectionString);
-    } catch (reconnectErr) {
-      console.error('[db-client] ❌ Auto-reconnect failed:', reconnectErr.message);
-      if (pgClient) {
-        pgClient.removeAllListeners();
-        pgClient = null;
-      }
+    if (!isReconnecting) {
+      reconnectWithBackoff(connectionString).catch(() => {
+        if (pgClient) {
+          pgClient.removeAllListeners();
+          pgClient = null;
+        }
+      });
     }
   });
 
   pgClient.on('end', async () => {
-    console.warn('[db-client] ⚠️  PostgreSQL client connection ended');
-    console.log('[db-client] 🔄 Initiating automatic reconnection...');
-    
-    try {
-      await reconnectWithBackoff(connectionString);
-    } catch (reconnectErr) {
-      console.error('[db-client] ❌ Auto-reconnect failed:', reconnectErr.message);
-      if (pgClient) {
-        pgClient.removeAllListeners();
-        pgClient = null;
-      }
+    if (!isReconnecting) {
+      reconnectWithBackoff(connectionString).catch(() => {
+        if (pgClient) {
+          pgClient.removeAllListeners();
+          pgClient = null;
+        }
+      });
     }
   });
 }
@@ -119,16 +123,25 @@ export async function getListenClient() {
   pgClient = new pg.Client({
     connectionString,
     application_name: 'triad-listener',
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000
   });
 
   setupErrorHandlers(connectionString);
 
   try {
     await pgClient.connect();
+    
+    // Send keepalive queries every 4 minutes
+    keepaliveInterval = setInterval(() => {
+      if (pgClient && !isReconnecting) {
+        pgClient.query('SELECT 1').catch(() => {});
+      }
+    }, 240000);
+    
     console.log('[db-client] ✅ LISTEN client connected');
     return pgClient;
   } catch (err) {
-    console.error('[db-client] ❌ Failed to connect LISTEN client:', err.message);
     if (pgClient) {
       pgClient.removeAllListeners();
       pgClient = null;
@@ -138,7 +151,12 @@ export async function getListenClient() {
 }
 
 export async function closeListenClient() {
+  if (keepaliveInterval) {
+    clearInterval(keepaliveInterval);
+    keepaliveInterval = null;
+  }
   if (pgClient) {
+    pgClient.removeAllListeners();
     await pgClient.end();
     pgClient = null;
     console.log('[db-client] LISTEN client closed');
