@@ -7,18 +7,18 @@ import path from 'path';
 import 'dotenv/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize Google AI
-const GoogleGenerativeAI(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);
+// Initialize Google AI - try both environment variable names
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
 // UPDATED: Using the latest Gemini 3 Pro Preview (Released Nov 2025)
 const MODEL_NAME = 'gemini-3-pro-preview'; 
 
-if (!GoogleGenerativeAI(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)) {
-  console.error('❌ GOOGLE_GENERATIVE_AI_API_KEY is not set in .env file');
+if (!GEMINI_API_KEY) {
+  console.error('❌ GEMINI_API_KEY or GOOGLE_API_KEY is not set in .env file');
   process.exit(1);
 }
 
-const genAI = new GoogleGenerativeAI(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);
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ 
   model: MODEL_NAME,
   tools: [{ googleSearch: {} }] // Enable Google Search Grounding
