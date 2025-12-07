@@ -55,7 +55,7 @@ interface SmartBlockProps {
   block: Block;
 }
 
-export function SmartBlock({ block }: SmartBlockProps) {
+export function ContentBlock({ block }: SmartBlockProps) {
   switch (block.type) {
     case 'header': {
       const HeaderTag = `h${block.level || 2}` as keyof JSX.IntrinsicElements;

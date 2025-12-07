@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, TrendingUp, Zap, DollarSign } from "lucide-react";
 
-interface SmartBlocksProps {
+interface MarketIntelligenceBlocksProps {
   blocks?: Array<{
     name: string;
     address?: string;
@@ -14,7 +14,7 @@ interface SmartBlocksProps {
   }>;
 }
 
-export default function SmartBlocks({ blocks }: SmartBlocksProps) {
+export default function MarketIntelligenceBlocks({ blocks }: MarketIntelligenceBlocksProps) {
   if (!blocks || blocks.length === 0) {
     return null;
   }
@@ -56,7 +56,7 @@ export default function SmartBlocks({ blocks }: SmartBlocksProps) {
               )}
             </div>
           </CardHeader>
-          
+
           <CardContent className="pt-0 space-y-3">
             <div className="flex gap-4 text-sm">
               {block.estimated_distance_miles !== undefined && (

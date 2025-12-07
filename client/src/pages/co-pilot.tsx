@@ -40,15 +40,15 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
 import { subscribeStrategyReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
-import SmartBlocks from '@/components/SmartBlocks';
+import MarketIntelligenceBlocks from '@/components/MarketIntelligenceBlocks'; // Renamed from SmartBlocks
 import BarsTable from '@/components/BarsTable';
 import BriefingTab from '@/components/BriefingTab';
 import MapTab from '@/components/MapTab';
 import { DonationTab } from '@/components/DonationTab';
 import {
   Tooltip,
-  TooltipContent,
   TooltipProvider,
+  TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Map as MapIcon, Heart } from 'lucide-react';

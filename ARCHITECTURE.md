@@ -936,6 +936,16 @@ All enrich/validate merges use stable keys (place_id preferred; name fallback) a
 
 ---
 
+### ~~SmartBlock.tsx / SmartBlocks.tsx Naming~~
+**Status:** DEPRECATED (December 2025)  
+**Files:**
+- ~~`client/src/components/SmartBlock.tsx`~~ → Renamed to `ContentBlock.tsx`
+- ~~`client/src/components/SmartBlocks.tsx`~~ → Renamed to `MarketIntelligenceBlocks.tsx`
+
+**Reason:** Confusing naming - both used "Smart" + "Block" but served completely different purposes. `ContentBlock` is a generic content renderer (headers, paragraphs, lists). `MarketIntelligenceBlocks` is domain-specific for driver briefing data (events, traffic, news). Clear naming prevents AI hallucinations and developer confusion.
+
+---
+
 ### ~~Strategy-First Polling (Deprecated Approach)~~
 **Status:** REPLACED (December 2025)  
 **Files:**

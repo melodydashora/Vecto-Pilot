@@ -1,5 +1,6 @@
 // server/routes/content-blocks.js
 // Structured content blocks for rich strategy display
+// Note: Uses ContentBlock component (generic renderer) not MarketIntelligenceBlocks (briefing display)
 
 import { Router } from "express";
 import { db } from "../db/drizzle.js";

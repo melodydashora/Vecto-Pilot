@@ -256,8 +256,8 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 
 ---
 
-### SmartBlocks.tsx
-**Props from ranking_candidates:**
+### MarketIntelligenceBlocks.tsx (formerly SmartBlocks.tsx)
+**Props from briefing data:**
 - `name` - Venue name
 - `address` - Full street address
 - `estimated_distance_miles` - Distance
