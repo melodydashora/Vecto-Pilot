@@ -1,5 +1,5 @@
 # AI Model Reference - Production Configuration
-**Last Updated**: December 1, 2025  
+**Last Updated**: December 2, 2025  
 **Research Source**: Perplexity AI via `tools/research/model-discovery.mjs`
 
 ---
@@ -74,65 +74,34 @@ ANTHROPIC_API_VERSION=2023-06-01
 
 ---
 
-### Google Gemini 2.5 Pro (Deprecated)
-**Status**: ⚠️ Legacy - Use Gemini 3.0 Pro instead
+### Google Gemini 2.5 Pro
+**Status**: ✅ Production
 
 ```env
 GEMINI_MODEL=gemini-2.5-pro-latest
 ```
 
----
-
-### Google Gemini 3.0 Pro (NEW - Nov 2025)
-**Status**: ⚠️ Preview (Limited Availability - API timeouts reported)
-
-```env
-GEMINI_MODEL=gemini-3-pro-preview
-GEMINI_TEMPERATURE=1.0
-```
-
-**Note**: Gemini 3.0 Pro preview model currently experiencing API timeout issues. Use Gemini 2.5 Pro for production until general availability released.
-
 **API Details**:
-- **Endpoint**: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`
-- **Model ID**: `gemini-3-pro-preview`
-- **Context Window**: 1M tokens (input), 64K tokens (output)
-- **Knowledge Cutoff**: January 2025
-- **Modalities**: Text, images, video, audio, code, PDFs
+- **Endpoint**: `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
+- **Model ID**: `gemini-2.5-pro-latest`
+- **Context Window**: 1M tokens
+- **Headers**:
+  - `Authorization: Bearer <API_KEY>`
+  - `Content-Type: application/json`
 
-**Supported Parameters** (Updated):
+**Supported Parameters**:
 ```javascript
 {
-  "contents": [{
-    "parts": [{"text": "..."}]
-  }],
+  "model": "gemini-2.5-pro-latest",
+  "contents": [...],
   "generationConfig": {
-    "temperature": 1.0,           // ✅ Keep at default (do NOT lower)
-    "maxOutputTokens": 2000,
+    "temperature": 0.7,
     "topP": 0.95,
+    "maxOutputTokens": 2048,
     "stopSequences": [...]
   }
 }
 ```
-
-**Key Improvements Over 2.5 Pro**:
-- 76.2% on SWE-bench Verified (coding tasks)
-- 54.2% on Terminal-Bench 2.0 (tool usage)
-- 1487 Elo on WebDev Arena (best vibe coding model)
-- Better multimodal reasoning
-- Less verbose responses
-- Stronger spatial understanding
-
-**Pricing** (Preview Tier):
-- **Input**: $2/million tokens (≤200k)
-- **Output**: $12/million tokens
-- **Free tier**: 5-10 RPM with 250k TPM limits
-
-**Important Notes**:
-- ⚠️ `thinking_level` parameter NOT YET available via API (coming soon)
-- Keep `temperature: 1.0` - Gemini 3 is tuned for this default
-- Don't use chain-of-thought prompting; model has internal reasoning
-- For event discovery: Use 1.0 temp + max tokens 2000-3000 for natural reasoning
 
 ---
 
@@ -371,7 +340,7 @@ fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:ge
 ## 📚 Research Sources
 
 Full research report available at:
-- `tools/research/model-research-December 1, 2025.json`
+- `tools/research/model-research-December 2, 2025.json`
 
 Key sources:
 - OpenAI: https://platform.openai.com/docs

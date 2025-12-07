@@ -1,6 +1,4 @@
 
-#!/usr/bin/env node
-
 import 'dotenv/config';
 import { routeLLMTextV2 } from '../../server/lib/llm-router-v2.js';
 
