@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import { MapPin, Clock, Settings, RefreshCw, Car, Droplet, Thermometer, CloudRain, Cloud, Sun, CloudSnow, CheckCircle2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "@/contexts/location-context-clean";
+import { LocationContext } from "@/contexts/location-context-clean";
 import { useQuery } from "@tanstack/react-query";
 
 // helpers (add these files from sections 2 and 3 below)
@@ -26,7 +26,8 @@ import {
  * Memoized to prevent unnecessary re-renders from parent context updates
  */
 const GlobalHeaderComponent: React.FC = () => {
-  const loc = useLocation() as any;
+  // CRITICAL FIX Issue #3: Removed incorrect useLocation hook and used useContext for LocationContext
+  const loc = useContext(LocationContext);
   const { toast } = useToast();
 
   // state for display
@@ -76,7 +77,7 @@ const GlobalHeaderComponent: React.FC = () => {
     (loc?.latitude && loc?.longitude
       ? { latitude: loc.latitude, longitude: loc.longitude }
       : null);
-  
+
   const coords = overrideCoords || gpsCoords;
 
   // CRITICAL FIX Issue #5 & #8: PRIORITY - Use database location, then override city, then context city/state
@@ -108,6 +109,7 @@ const GlobalHeaderComponent: React.FC = () => {
     currentLocationString !== "Getting location..." && 
     currentLocationString !== "Detecting..."
   );
+  // CRITICAL FIX Issue #3: Get refreshGPS from the correctly imported context
   const refreshGPS: undefined | (() => Promise<void>) =
     loc?.refreshGPS ?? loc?.location?.refreshGPS;
 
@@ -158,7 +160,7 @@ const GlobalHeaderComponent: React.FC = () => {
     const tz = dbUserLocation?.ok && dbUserLocation?.timezone 
       ? dbUserLocation.timezone
       : (loc?.timeZone || loc?.location?.timeZone);
-    
+
     // Only pass timeZone if we have it, otherwise use browser's local timezone
     const formatter = new Intl.DateTimeFormat("en-US", {
       hour: "2-digit",
@@ -175,7 +177,7 @@ const GlobalHeaderComponent: React.FC = () => {
     setTimeString(formatter.format(now));
     const day = dayFmt.format(now);
     const { label } = classifyDayPart(now, tz);
-    
+
     // Just show day and context label separately (avoid duplicate)
     setDayOfWeek(day);
     setTimeContextLabel(label);
@@ -308,7 +310,7 @@ const GlobalHeaderComponent: React.FC = () => {
   // NOTE: Snapshot creation is now handled by location-context-clean.tsx
   // which fetches ALL data (location, weather, air quality) in parallel
   // and saves a complete snapshot to the DB. This prevents duplicate API calls.
-  
+
   // Fetch weather and air quality for header display only (not for snapshot)
   useEffect(() => {
     if (coords?.latitude && coords?.longitude) {
@@ -319,7 +321,7 @@ const GlobalHeaderComponent: React.FC = () => {
 
   const handleRefreshLocation = useCallback(async () => {
     if (!refreshGPS) return;
-    
+
     // Throttle: ignore clicks within 10 seconds of last refresh
     const now = Date.now();
     if (now - lastRefreshTime < 10000) {
@@ -330,7 +332,7 @@ const GlobalHeaderComponent: React.FC = () => {
       });
       return;
     }
-    
+
     setIsRefreshing(true);
     setLastRefreshTime(now);
 
@@ -361,15 +363,15 @@ const GlobalHeaderComponent: React.FC = () => {
   // DEV ONLY: Force fresh session for testing
   const handleForceFreshSession = useCallback(() => {
     console.log("🧹 [DEV] Forcing fresh session - clearing all localStorage");
-    
+
     // Clear all localStorage
     localStorage.clear();
-    
+
     toast({
       title: "Fresh session initiated",
       description: "All data cleared. Reloading...",
     });
-    
+
     // Reload page to trigger fresh location request
     setTimeout(() => {
       window.location.reload();
@@ -448,7 +450,7 @@ const GlobalHeaderComponent: React.FC = () => {
                 ) : null}
               </div>
             </div>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -487,7 +489,7 @@ const GlobalHeaderComponent: React.FC = () => {
                   <span>complete</span>
                 </div>
               )}
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -510,7 +512,7 @@ const GlobalHeaderComponent: React.FC = () => {
                   }`}
                 />
               </Button>
-              
+
               {/* DEV ONLY: Force fresh session button */}
               {import.meta.env.DEV && (
                 <Button
