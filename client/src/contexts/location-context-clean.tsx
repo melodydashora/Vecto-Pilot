@@ -26,8 +26,18 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [overrideCoords, setOverrideCoords] = useState<{ latitude: number; longitude: number; city?: string } | null>(null);
   const generationCounterRef = useRef(0);
+  const isInitialMountRef = useRef(true);
+  const lastEnrichmentCoordsRef = useRef<string | null>(null);
 
   const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number) => {
+    // Prevent duplicate enrichment for same coordinates (debounce)
+    const coordKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+    if (lastEnrichmentCoordsRef.current === coordKey) {
+      console.log('⏭️ Skipping duplicate enrichment for same coordinates:', coordKey);
+      return;
+    }
+    lastEnrichmentCoordsRef.current = coordKey;
+
     const deviceId = localStorage.getItem('vecto_device_id') || crypto.randomUUID();
     localStorage.setItem('vecto_device_id', deviceId);
 
@@ -149,6 +159,21 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     refreshGPS();
   }, []);
+
+  // Auto-enrich when coords change (but skip initial mount to avoid duplicate)
+  useEffect(() => {
+    // Skip on initial mount - refreshGPS() already handles enrichment
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    // Only enrich if we have valid coords and they've changed
+    if (currentCoords) {
+      console.log('📍 Coordinates changed - triggering enrichment');
+      enrichLocation(currentCoords.latitude, currentCoords.longitude, 10);
+    }
+  }, [currentCoords?.latitude, currentCoords?.longitude, enrichLocation]);
 
   return (
     <LocationContext.Provider
