@@ -282,16 +282,56 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 ---
 
 ### CoachChat.tsx
-**Backend Context (via CoachDAL):**
-- `snapshots.*` - Location, time, weather
-- `strategies.*` - Strategic guidance
-- `briefings.*` - Real-time intelligence
-- `ranking_candidates.*` - Venue recommendations
-- `actions.*` - User behavior
-- `venue_feedback.*` - Venue ratings
-- `strategy_feedback.*` - Strategy ratings
+**Backend Context (via CoachDAL - ALL Fields from ALL Tables):**
+- `snapshots.*` - Complete snapshot (31 fields):
+  - Location: GPS coords, city, state, formatted_address, timezone, H3 grid
+  - Time: local_iso, dow, hour, day_part_key
+  - Environment: weather (tempF, conditions), air (AQI), airport_context
+  - News: local_news, news_briefing (Gemini 60-min intel)
+  - Device: device metadata, permissions
+- `strategies.*` - Full strategy (12 fields):
+  - Strategic text: minstrategy (Claude), consolidated_strategy (GPT-5.1)
+  - Metadata: model_name, model_params, prompt_version, latency_ms, tokens
+  - Status: pending/ok/failed, error tracking
+- `briefings.*` - Comprehensive briefing (15 fields):
+  - Events: Gemini-discovered events with citations
+  - Traffic: Real-time incidents, congestion from Google Search
+  - News: Filtered rideshare-relevant news
+  - Weather: Current conditions + 6-hour forecast
+  - Closures: School/college closures affecting demand
+- `rankings.*` - Session metadata (6 fields):
+  - Model: venue planner model name
+  - Timing: planner_ms, total_ms
+  - Path: enhanced-smart-blocks workflow
+- `ranking_candidates.*` - Enriched venues (25 fields each):
+  - Identity: name, place_id, address, category, coordinates
+  - Navigation: distance_miles, drive_minutes (Google Routes API)
+  - Economics: value_per_min, value_grade, earnings projections, surge
+  - Intelligence: pro_tips[], staging_name/lat/lng, closed_reasoning
+  - Events: venue_events (Gemini verification), event impact
+  - Hours: business_hours, isOpen status
+- `venue_feedback.*` - Community ratings:
+  - Sentiment: thumbs up/down counts per venue
+  - Comments: Driver feedback text
+  - Aggregation: up_count, down_count per ranking
+- `strategy_feedback.*` - Strategy ratings:
+  - Sentiment: thumbs up/down on overall strategy
+  - Comments: Driver strategy feedback
+- `actions.*` - Behavior history:
+  - Actions: view, select, navigate, dismiss, dwell
+  - Timing: dwell_ms, from_rank
+  - Context: block_id, ranking_id linkage
 
-**AI Model:** GPT-5.1 (text) or GPT-4o Realtime (voice)
+**Enhanced Features:**
+- **Thread Awareness**: Full conversation history via `assistant_memory` table
+- **Google Search Tool**: Gemini 3.0 Pro with real-time web search for briefing data
+- **File Upload**: Vision analysis of images, screenshots, documents
+- **Memory Context**: Cross-session personalization and learning
+
+**AI Models:** 
+- GPT-5.1 (text chat, reasoning_effort=medium)
+- GPT-4o Realtime (voice chat with streaming)
+- Google Gemini 3.0 Pro (briefing generation with Google Search)
 
 ---
 

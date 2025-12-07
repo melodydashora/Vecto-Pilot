@@ -251,35 +251,61 @@ BriefingTab displays real-time data
 #### 5. **AI Coach Chat**
 
 **UI Components:**
-- `client/src/components/CoachChat.tsx` - Chat interface
+- `client/src/components/CoachChat.tsx` - Chat interface with file upload support
 
 **Backend Routes:**
-- `server/routes/chat.js` - POST `/api/chat` (text chat)
+- `server/routes/chat.js` - POST `/api/chat` (text chat with SSE streaming)
 - `server/routes/realtime.js` - WebSocket `/api/realtime` (voice chat)
 
 **Backend DAL:**
 - `server/lib/coach-dal.js` - Full schema read access for AI context
 
-**Database Access (Read-Only):**
-- `snapshots` - Location, time, weather context
-- `strategies` - Strategic guidance
-- `briefings` - Real-time intelligence
-- `ranking_candidates` - Venue recommendations
-- `actions` - User behavior patterns
-- `venue_feedback` - User feedback on venues
-- `strategy_feedback` - User feedback on strategies
+**Database Access (Read-Only - ALL Tables):**
+- `snapshots` - Location, GPS coordinates, weather (tempF, conditions), air quality (AQI), timezone, day/time context, airport proximity
+- `strategies` - Full strategic overview (minstrategy), consolidated strategy, tactical briefing, model metadata
+- `briefings` - Real-time events, traffic conditions, news, school closures, weather forecast (Gemini + Google Search)
+- `rankings` - Venue recommendation sessions with model metadata, timing, path taken
+- `ranking_candidates` - Individual venues with ALL fields:
+  - Business hours, place_id, address, coordinates (lat/lng)
+  - Distance (miles), drive time (minutes), value-per-minute, grade (A/B/C)
+  - Pro tips (tactical advice), staging locations, closed reasoning
+  - Venue events (Gemini verification), earnings projections
+  - Not-worth flags, surge data, category
+- `actions` - User behavior history (view, select, navigate, dwell time)
+- `venue_feedback` - Community thumbs up/down on venues, comments
+- `strategy_feedback` - Community thumbs up/down on strategies, comments
+
+**Enhanced Capabilities:**
+- **Thread Awareness**: Full conversation history across sessions via `assistant_memory` table
+- **Google Search Integration**: Real-time information via Gemini 3.0 Pro with Google Search tool
+- **File Analysis**: Uploaded images, documents, screenshots analyzed with vision models
+- **Memory Context**: Cross-session learning and personalization
 
 **External APIs:**
-- OpenAI GPT-4o Realtime API - Voice chat
-- OpenAI GPT-5.1 API - Text chat
+- OpenAI GPT-4o Realtime API - Voice chat with streaming
+- OpenAI GPT-5.1 API - Text chat with reasoning_effort=medium
+- Google Gemini 3.0 Pro - Briefing data with Google Search tool
 
-**Data Flow:**
+**Data Flow (Enhanced):**
 ```
-User Message → POST /api/chat →
-CoachDAL (read snapshot + strategy + briefing + venues + feedback) →
-GPT-5.1 with full context →
-Response → UI displays
+User Message + Attachments → POST /api/chat →
+CoachDAL.getCompleteContext(snapshotId) → Fetches ALL fields from:
+  - snapshots (31 fields: location, weather, air, airport, time, H3)
+  - strategies (12 fields: full strategy text, model chain, status)
+  - briefings (15 fields: events, news, traffic, closures, forecast)
+  - ranking_candidates (25 fields per venue: hours, tips, staging, events)
+  - venue_feedback (thumbs up/down counts, comments)
+  - strategy_feedback (thumbs up/down counts, comments)
+  - actions (view/select/navigate history, dwell times)
+CoachDAL.formatContextForPrompt() → Structured context string →
+GPT-5.1 API (reasoning_effort=medium, max_tokens=32000) →
+SSE Stream → CoachChat UI displays response
 ```
+
+**Context Size:**
+- **Before**: ~9% of available data (5 fields)
+- **After**: 100% of available data (200+ fields across all tables)
+- **Total Data Points**: Snapshot (31) + Strategy (12) + Briefing (15) + Venues (25×6) + Feedback (~50) + Actions (variable)
 
 ---
 

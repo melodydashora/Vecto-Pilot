@@ -56,8 +56,9 @@ router.post('/', requireAuth, async (req, res) => {
   console.log('[chat] User:', userId || 'anonymous', '| Thread:', threadHistory.length, 'messages | Attachments:', attachments.length, '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
 
   try {
-    // Use CoachDAL for full schema read access
+    // Use CoachDAL for full schema read access with ALL tables
     let contextInfo = '';
+    let fullContext = null;
     
     try {
       // PRIORITY: Use the snapshotId provided by the UI (always current)
@@ -91,10 +92,11 @@ router.post('/', requireAuth, async (req, res) => {
 
       // Get COMPLETE context using CoachDAL (full schema access)
       if (activeSnapshotId) {
-        const context = await coachDAL.getCompleteContext(activeSnapshotId, null);
-        contextInfo = coachDAL.formatContextForPrompt(context);
+        fullContext = await coachDAL.getCompleteContext(activeSnapshotId, null);
+        contextInfo = coachDAL.formatContextForPrompt(fullContext);
         
-        console.log(`[chat] Full context loaded - Status: ${context.status} | Snapshot: ${activeSnapshotId}`);
+        console.log(`[chat] Full context loaded - Status: ${fullContext.status} | Snapshot: ${activeSnapshotId}`);
+        console.log(`[chat] Context includes: ${fullContext.smartBlocks?.length || 0} venues, briefing=${!!fullContext.briefing}, feedback=${!!fullContext.feedback}, actions=${fullContext.feedback?.actions?.length || 0}`);
       } else {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
@@ -107,10 +109,24 @@ router.post('/', requireAuth, async (req, res) => {
 
 **Professional Support:**
 - Rideshare strategy and earning optimization
-- Interpreting AI-generated venue recommendations
-- Location and timing advice for maximizing rides
-- Understanding market patterns and demand
+- Interpreting AI-generated venue recommendations with complete details (business hours, events, pro tips, staging locations)
+- Location and timing advice for maximizing rides using real-time traffic, weather, and event data
+- Understanding market patterns and demand with historical feedback data
 - Analyzing uploaded content (images, heat maps, documents, earnings screenshots, etc.)
+
+**Full Data Access (You have complete visibility):**
+- **Snapshot Context**: GPS coordinates, weather (${fullContext?.snapshot?.weather?.tempF || 'N/A'}°F), air quality, timezone, day/time
+- **Strategy**: Full AI-generated strategic overview and tactical briefing
+- **Briefing**: Real-time events, traffic conditions, news, school closures from Gemini with Google Search
+- **Venues**: ${fullContext?.smartBlocks?.length || 0} ranked recommendations with business hours, distance, drive time, earnings projections, pro tips, staging locations
+- **Feedback**: Community venue ratings (thumbs up/down), strategy ratings, driver action history
+- **Rankings**: Complete venue scoring with value-per-minute calculations, grades (A/B/C), "not worth" flags
+- **Thread Memory**: Full conversation history with this driver across sessions
+
+**Google Search Integration (via Gemini 3.0 Pro):**
+- You can reference real-time information from Google Search already fetched in the briefing
+- Events happening now, traffic incidents, news affecting rideshare demand
+- Use this data to provide specific, actionable advice based on current conditions
 
 **File Analysis Capabilities:**
 - When drivers upload images (heat maps, screenshots, earnings data, venue photos), analyze them thoroughly
@@ -125,7 +141,7 @@ router.post('/', requireAuth, async (req, res) => {
 - Listening and responding with empathy
 
 **Conversation Context:**
-- You have full access to the conversation history with this driver
+- You have full access to the conversation history with this driver across all sessions
 - When the driver says "yes", "no", "go ahead", "thank you" or similar brief responses, understand them in context of what you just asked or suggested
 - Example: If you asked "Would you like tips for the airport?", the driver saying "yes" means they want airport tips
 - Be natural and conversational - don't repeat back what they said or ask for clarification
@@ -135,9 +151,13 @@ router.post('/', requireAuth, async (req, res) => {
 - Use natural language and emojis when it feels right
 - Match the driver's energy - professional when they need strategy, casual when they want to chat
 - Be genuine, never robotic or overly formal
-- Keep responses concise (under 150 words) unless they want to dive deeper${contextInfo}
+- Keep responses concise (under 150 words) unless they want to dive deeper
+- **Be precise**: When recommending venues, use exact names, addresses, and details from the venue data
+- **Be data-driven**: Reference specific earnings projections, drive times, and feedback scores
 
-Remember: Driving can be lonely and stressful. You're here to make their day better, whether that's through smart strategy advice or just being someone to talk to.`;
+${contextInfo}
+
+Remember: Driving can be lonely and stressful. You're here to make their day better, whether that's through smart strategy advice with precise venue details or just being someone to talk to.`;
 
     // Set up SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
