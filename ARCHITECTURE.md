@@ -2735,6 +2735,55 @@ curl -X POST http://localhost:5000/api/blocks \
 
 ---
 
+## 🗑️ **DEAD CODE ANALYSIS (December 7, 2025)**
+
+### Purpose
+This section documents code that exists in the codebase but has zero production value, helping prevent maintenance burden and confusion.
+
+### Findings
+
+#### ✅ SAFE TO REMOVE (Items 2-5)
+
+**1. `testMode` (line 161 in co-pilot.tsx)**
+- **Status:** Defined but never set to `true` anywhere in codebase
+- **Usage:** `const [testMode, setTestMode] = useState(false);`
+- **Impact:** Zero - no UI toggle, no programmatic setter
+- **Recommendation:** **Remove entirely**
+
+**2. `fastTacticalMode` (lines 162-164 in co-pilot.tsx)**
+- **Status:** Reads from localStorage but never written to
+- **Usage:** `localStorage.getItem('vecto_fast_tactical_mode')`
+- **Impact:** Zero - deprecated feature flag with no UI
+- **Recommendation:** **Remove entirely**
+
+**3. `showOffPeak` (line 155 in co-pilot.tsx)**
+- **Status:** Defined but never used in filtering logic
+- **Usage:** `const [showOffPeak, setShowOffPeak] = useState(false);`
+- **Impact:** Zero - UI never implemented
+- **Recommendation:** **Remove entirely**
+
+**4. `distanceRange` (lines 635-639 in co-pilot.tsx)**
+- **Status:** Calculated but server doesn't use it
+- **Usage:** Server uses snapshot-scoped blocks, ignores client distance params in production
+- **Impact:** Zero - server-side filtering makes this obsolete
+- **Recommendation:** **Remove entirely**
+
+#### ⚠️ NEEDS FURTHER ANALYSIS (Items 1 & 6)
+
+**5. `selectedModel` / `modelParameter` (lines 157-158 in co-pilot.tsx)**
+- **Status:** Test mode for manual AI model selection
+- **Usage:** Only active when manually testing via `/api/test-blocks`
+- **Impact:** Useful for development testing, zero production value
+- **Recommendation:** **Analyze separately** - may need dev-only wrapping
+
+**6. `tacticalSummary` / `bestStagingLocation` (lines 936-937 in co-pilot.tsx)**
+- **Status:** Extracted from API but never rendered in JSX
+- **Usage:** Server generates these fields, client extracts but doesn't display
+- **Impact:** Unknown - might be used by AI Coach context
+- **Recommendation:** **Analyze separately** - verify AI Coach doesn't need these
+
+---
+
 ## 📝 **FIX CAPSULE (Agent-Authored, append one per fix)**
 
 ### Template: Use for Every Future Fix
