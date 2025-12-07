@@ -13,9 +13,11 @@ if (!process.env.DATABASE_URL) {
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 25, // ISSUE #22 FIX: Increased from 10 to 25 - strategy (2-3) + briefing (4-5) + blocks (2-3) = 8-11 per user, need buffer for concurrent users
-  idleTimeoutMillis: 30000, // FIXED: Reduced from 60s to 30s to match Replit's connection lifecycle
+  idleTimeoutMillis: 10000, // ISSUE #2 FIX: Reduced to 10s to aggressively release idle connections before Replit terminates them
   connectionTimeoutMillis: 15000, // Slightly increased for safety during connection spikes
   statement_timeout: 30000, // 30 second statement timeout to prevent long-running queries from blocking
+  keepAlive: true, // Keep TCP connections alive
+  keepAliveInitialDelayMillis: 10000, // Start keepalive after 10s
 });
 
 // Add connection acquisition monitoring to detect pool exhaustion
