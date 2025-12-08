@@ -3,7 +3,24 @@
 
 import request from "supertest";
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import app from "../gateway-server.js";
+
+// Import gateway-server which will set globalThis.testApp
+await import("../gateway-server.js");
+
+// Wait for app to be ready (max 10 seconds)
+const waitForApp = async () => {
+  const maxWait = 10000;
+  const start = Date.now();
+  while (!globalThis.testApp && (Date.now() - start) < maxWait) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  if (!globalThis.testApp) {
+    throw new Error("App did not initialize within 10 seconds");
+  }
+  return globalThis.testApp;
+};
+
+const app = await waitForApp();
 
 // Define schema contract
 const blockSchema = {
