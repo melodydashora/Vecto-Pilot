@@ -837,46 +837,98 @@ export async function getBriefingBySnapshotId(snapshotId) {
 }
 
 /**
- * Check if briefing is stale (older than TTL)
+ * Check if daily briefing is stale (older than 24 hours)
+ * Daily briefing = news, events, closures, construction (doesn't change intraday)
  * @param {object} briefing - Briefing row from database
- * @param {number} ttlMinutes - Time-to-live in minutes (default: 30)
- * @returns {boolean} True if briefing is stale and should be regenerated
+ * @returns {boolean} True if briefing is older than 24 hours
  */
-function isBriefingStale(briefing, ttlMinutes = 30) {
+function isDailyBriefingStale(briefing) {
   if (!briefing?.updated_at) return true;
   
   const updatedAt = new Date(briefing.updated_at);
   const now = new Date();
   const ageMinutes = (now - updatedAt) / (1000 * 60);
+  const ttlMinutes = 1440; // 24 hours
   
   const isStale = ageMinutes > ttlMinutes;
   if (isStale) {
-    console.log(`[BriefingService] ⏰ Briefing is stale: ${Math.round(ageMinutes)} min old (TTL: ${ttlMinutes} min)`);
+    console.log(`[BriefingService] ⏰ Daily briefing is stale: ${Math.round(ageMinutes)} min old (TTL: 24h)`);
   }
   return isStale;
 }
 
 /**
+ * Traffic always needs refresh (no caching)
+ * @returns {boolean} Always true - traffic data should always be fresh
+ */
+function isTrafficStale() {
+  return true; // Traffic always needs refresh
+}
+
+/**
+ * Refresh traffic data in existing briefing (always fetches fresh)
+ * Keeps cached daily briefing (news, events, closures) while updating traffic
+ * @param {object} briefing - Current briefing object
+ * @param {object} snapshot - Snapshot with location data
+ * @returns {Promise<object>} Briefing with updated traffic_conditions
+ */
+async function refreshTrafficInBriefing(briefing, snapshot) {
+  try {
+    console.log(`[BriefingService] 🚗 Refreshing traffic data (app open or manual refresh)...`);
+    
+    if (isTrafficStale()) {
+      const trafficResult = await fetchTrafficConditions({ snapshot });
+      if (trafficResult) {
+        // Update only the traffic data, keep daily briefing components cached
+        briefing.traffic_conditions = trafficResult;
+        briefing.updated_at = new Date();
+        
+        // Update database with fresh traffic
+        try {
+          await db.update(briefings)
+            .set({ 
+              traffic_conditions: trafficResult,
+              updated_at: new Date()
+            })
+            .where(eq(briefings.snapshot_id, briefing.snapshot_id));
+          
+          console.log(`[BriefingService] ✅ Traffic refreshed in briefing for ${briefing.snapshot_id}`);
+        } catch (dbErr) {
+          console.warn('[BriefingService] ⚠️ Could not update traffic in DB:', dbErr.message);
+        }
+      }
+    }
+    
+    return briefing;
+  } catch (err) {
+    console.warn('[BriefingService] ⚠️ Traffic refresh failed, keeping existing:', err.message);
+    return briefing;
+  }
+}
+
+/**
  * Get existing briefing or generate if missing/stale
- * TTL-based cache invalidation works in BOTH dev and production
+ * SPLIT CACHE STRATEGY:
+ * - Daily briefing (news, events, closures): 24-hour cache
+ * - Traffic: Always refreshes on app open or manual refresh
+ * 
  * @param {string} snapshotId 
  * @param {object} snapshot - Full snapshot object
  * @param {object} options - Options for cache behavior
- * @param {number} options.ttlMinutes - Cache TTL in minutes (default: 30)
- * @param {boolean} options.forceRefresh - Force regeneration even if cached (default: false)
- * @returns {Promise<object|null>} Parsed briefing data
+ * @param {boolean} options.forceRefresh - Force full regeneration even if cached (default: false)
+ * @returns {Promise<object|null>} Parsed briefing data with fresh traffic
  */
 export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) {
-  const { ttlMinutes = 30, forceRefresh = false } = options;
+  const { forceRefresh = false } = options;
   
   let briefing = await getBriefingBySnapshotId(snapshotId);
   
-  // Check if we need to regenerate: no briefing, stale briefing, or forced refresh
-  const needsRegeneration = !briefing || forceRefresh || isBriefingStale(briefing, ttlMinutes);
+  // Check if we need to regenerate: no briefing, or forced refresh
+  const needsFullRegeneration = !briefing || forceRefresh;
   
-  if (needsRegeneration) {
-    const reason = !briefing ? 'missing' : (forceRefresh ? 'forced' : 'stale');
-    console.log(`[BriefingService] Regenerating briefing (${reason}): ${snapshotId}`);
+  if (needsFullRegeneration) {
+    const reason = !briefing ? 'missing' : 'forced';
+    console.log(`[BriefingService] Regenerating full briefing (${reason}): ${snapshotId}`);
     try {
       const result = await generateAndStoreBriefing({ snapshotId, snapshot });
       if (result.success) {
@@ -890,8 +942,25 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
         console.warn('[BriefingService] ⚠️ Returning stale briefing due to generation error');
       }
     }
+  } else if (!isDailyBriefingStale(briefing)) {
+    // Daily briefing is still fresh (within 24h), but refresh traffic
+    console.log(`[BriefingService] ✓ Cache hit (24h): daily briefing for ${snapshotId}, refreshing traffic...`);
+    briefing = await refreshTrafficInBriefing(briefing, snapshot);
   } else {
-    console.log(`[BriefingService] ✓ Cache hit: briefing for ${snapshotId}`);
+    // Daily briefing is older than 24h, regenerate everything
+    console.log(`[BriefingService] Daily briefing stale (>24h): ${snapshotId}, regenerating...`);
+    try {
+      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
+      if (result.success) {
+        briefing = result.briefing;
+        console.log(`[BriefingService] ✅ Fresh daily briefing generated for ${snapshotId}`);
+      }
+    } catch (genErr) {
+      console.error('[BriefingService] Generation error:', genErr.message);
+      if (briefing) {
+        console.warn('[BriefingService] ⚠️ Returning stale briefing due to generation error');
+      }
+    }
   }
   
   return briefing;
