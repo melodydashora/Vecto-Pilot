@@ -8,7 +8,39 @@ run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-repli
 
 # Nix/packages configuration
 [nix]
-packages = ["at", "imagemagick_light", "jq", "lsof", "nodejs-22", "spidermonkey_91", "tree", "mailutils", "pgroll", "unpackerr"]
+packages = [
+  "at",
+  "imagemagick_light",
+  "jq",
+  "lsof",
+  "nodejs-22",
+  "spidermonkey_91",
+  "tree",
+  "mailutils",
+  "pgroll",
+  "unpackerr",
+  # Playwright browser dependencies
+  "glib",
+  "nspr",
+  "nss",
+  "dbus",
+  "atk",
+  "at-spi2-atk",
+  "cups",
+  "libxcb",
+  "libxkbcommon",
+  "at-spi2-core",
+  "xorg.libX11",
+  "xorg.libXcomposite",
+  "xorg.libXdamage",
+  "xorg.libXext",
+  "xorg.libXfixes",
+  "xorg.libXrandr",
+  "mesa",
+  "cairo",
+  "pango",
+  "alsa-lib"
+]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)
