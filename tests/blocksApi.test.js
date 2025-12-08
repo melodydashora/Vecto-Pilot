@@ -22,18 +22,10 @@ const waitForApp = async () => {
 
 const app = await waitForApp();
 
-// Define schema contract
-const blockSchema = {
-  base: ["id", "type", "order"],
-  types: {
-    header: ["text"],
-    paragraph: ["text"],
-    list: ["items"],
-    image: ["url"],
-    quote: ["text", "author"],
-    cta: ["label", "action"],
-    divider: [],
-  },
+// Define schema contract for venue blocks
+const venueBlockSchema = {
+  required: ["name", "coordinates"],
+  optional: ["address", "placeId", "estimated_distance_miles", "driveTimeMinutes", "value_per_min", "value_grade", "not_worth", "proTips", "closed_venue_reasoning", "stagingArea", "businessHours", "isOpen", "eventBadge", "eventSummary"]
 };
 
 // Generate a valid JWT token for testing
@@ -48,257 +40,157 @@ function generateTestToken(userId = 'test-user-12345678') {
 const testToken = generateTestToken();
 
 /**
- * Validate a block against the schema contract
- * @param {Object} block - Block object to validate
+ * Validate a venue block against the schema contract
+ * @param {Object} block - Venue block object to validate
  * @throws {Error} if validation fails
  */
-function validateBlock(block) {
-  // Validate base fields (id, type, order)
-  blockSchema.base.forEach((field) => {
+function validateVenueBlock(block) {
+  // Validate required fields
+  venueBlockSchema.required.forEach((field) => {
     if (!(field in block)) {
-      throw new Error(`Missing base field: ${field}`);
+      throw new Error(`Missing required field: ${field}`);
     }
   });
 
-  // Validate type-specific required fields
-  const requiredFields = blockSchema.types[block.type];
-  if (!requiredFields) {
-    throw new Error(`Unknown block type: ${block.type}`);
+  // Validate coordinates structure
+  if (!block.coordinates || typeof block.coordinates.lat !== 'number' || typeof block.coordinates.lng !== 'number') {
+    throw new Error('Invalid coordinates structure');
   }
 
-  requiredFields.forEach((field) => {
-    if (!(field in block)) {
-      throw new Error(`Missing ${block.type} field: ${field}`);
-    }
-  });
+  // Validate optional fields if present
+  if (block.value_grade && !['A', 'B', 'C'].includes(block.value_grade)) {
+    throw new Error(`Invalid value_grade: ${block.value_grade}`);
+  }
 
-  // Additional type-specific validations
-  switch (block.type) {
-    case 'header':
-      if (block.level && ![1, 2, 3].includes(block.level)) {
-        throw new Error(`Invalid header level: ${block.level}`);
-      }
-      break;
-    case 'list':
-      if (!Array.isArray(block.items)) {
-        throw new Error('List items must be an array');
-      }
-      if (block.style && !['bullet', 'number'].includes(block.style)) {
-        throw new Error(`Invalid list style: ${block.style}`);
-      }
-      break;
-    case 'cta':
-      if (block.variant && !['primary', 'secondary'].includes(block.variant)) {
-        throw new Error(`Invalid CTA variant: ${block.variant}`);
-      }
-      break;
+  if (block.not_worth !== undefined && typeof block.not_worth !== 'boolean') {
+    throw new Error('not_worth must be a boolean');
   }
 }
 
 describe("Blocks API Contract", () => {
-  describe("GET /api/blocks/strategy/:snapshotId", () => {
-    it("returns valid blocks structure with seeded data", async () => {
-      // Use a valid UUID format - this test will pass if there's seeded data
-      // or skip validation if no data exists (status 200 with empty blocks array)
+  describe("GET /api/blocks-fast", () => {
+    it("returns valid venue blocks structure", async () => {
+      // Use a valid UUID format
       const testSnapshotId = process.env.TEST_SNAPSHOT_ID || "12345678-1234-5678-1234-567812345678";
 
       const res = await request(app)
-        .get(`/api/blocks/strategy/${testSnapshotId}`)
+        .get(`/api/blocks-fast?snapshotId=${testSnapshotId}`)
         .set('Accept', 'application/json')
         .set('Authorization', `Bearer ${testToken}`);
 
-      // Should return 200 (even if no blocks exist)
-      expect(res.status).toBe(200);
+      // Should return 200 or 202 (if strategy is still pending)
+      expect([200, 202]).toContain(res.status);
       expect(res.body).toHaveProperty('blocks');
       expect(Array.isArray(res.body.blocks)).toBe(true);
 
-      // Only validate blocks if they exist
-      if (res.body.blocks.length > 0) {
-        expect(res.body).toHaveProperty('snapshot_id');
-        
+      // Only validate blocks if they exist (200 status)
+      if (res.status === 200 && res.body.blocks.length > 0) {
         // Validate each block against schema
         res.body.blocks.forEach((block) => {
-          expect(() => validateBlock(block)).not.toThrow();
+          expect(() => validateVenueBlock(block)).not.toThrow();
         });
 
-        // Blocks should be ordered
-        const orders = res.body.blocks.map(b => b.order);
-        const sortedOrders = [...orders].sort((a, b) => a - b);
-        expect(orders).toEqual(sortedOrders);
-
-        // All block IDs should be unique
-        const ids = res.body.blocks.map(b => b.id);
-        const uniqueIds = new Set(ids);
-        expect(uniqueIds.size).toBe(ids.length);
+        // All block names should be unique
+        const names = res.body.blocks.map(b => b.name);
+        const uniqueNames = new Set(names);
+        expect(uniqueNames.size).toBe(names.length);
       }
     });
 
-    it("returns 200 with empty blocks for non-existent snapshot", async () => {
+    it("returns 202 or empty blocks for non-existent snapshot", async () => {
       const fakeSnapshotId = '00000000-0000-0000-0000-000000000000';
       const res = await request(app)
-        .get(`/api/blocks/strategy/${fakeSnapshotId}`)
+        .get(`/api/blocks-fast?snapshotId=${fakeSnapshotId}`)
         .set('Accept', 'application/json')
         .set('Authorization', `Bearer ${testToken}`);
 
-      // API returns 200 with empty blocks array for non-existent snapshots
-      expect(res.status).toBe(200);
+      // API returns 202 if strategy pending, or 200 with empty blocks
+      expect([200, 202]).toContain(res.status);
       expect(res.body).toHaveProperty('blocks');
       expect(Array.isArray(res.body.blocks)).toBe(true);
-      expect(res.body.blocks.length).toBe(0);
+    });
+
+    it("returns 400 for missing snapshotId", async () => {
+      const res = await request(app)
+        .get('/api/blocks-fast')
+        .set('Accept', 'application/json')
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('error');
+      expect(res.body.error).toBe('snapshot_required');
     });
   });
 
-  describe("Block validation function", () => {
-    it("validates header block with all required fields", () => {
-      const validHeader = {
-        id: "b1",
-        type: "header",
-        order: 1,
-        text: "Test Header",
-        level: 2
+  describe("Venue block validation function", () => {
+    it("validates venue block with all required fields", () => {
+      const validVenue = {
+        name: "Test Venue",
+        coordinates: { lat: 33.128, lng: -96.875 },
+        address: "123 Test St, Frisco, TX",
+        placeId: "ChIJtest123",
+        estimated_distance_miles: 5.2,
+        driveTimeMinutes: 12,
+        value_per_min: 0.75,
+        value_grade: "B",
+        not_worth: false
       };
 
-      expect(() => validateBlock(validHeader)).not.toThrow();
+      expect(() => validateVenueBlock(validVenue)).not.toThrow();
     });
 
-    it("validates paragraph block", () => {
-      const validParagraph = {
-        id: "b2",
-        type: "paragraph",
-        order: 2,
-        text: "Test paragraph content"
+    it("validates minimal venue block", () => {
+      const minimalVenue = {
+        name: "Test Venue",
+        coordinates: { lat: 33.128, lng: -96.875 }
       };
 
-      expect(() => validateBlock(validParagraph)).not.toThrow();
+      expect(() => validateVenueBlock(minimalVenue)).not.toThrow();
     });
 
-    it("validates list block with items array", () => {
-      const validList = {
-        id: "b3",
-        type: "list",
-        order: 3,
-        items: ["Item 1", "Item 2"],
-        style: "bullet"
+    it("rejects venue missing name", () => {
+      const invalidVenue = {
+        coordinates: { lat: 33.128, lng: -96.875 }
       };
 
-      expect(() => validateBlock(validList)).not.toThrow();
+      expect(() => validateVenueBlock(invalidVenue)).toThrow("Missing required field: name");
     });
 
-    it("validates quote block", () => {
-      const validQuote = {
-        id: "b4",
-        type: "quote",
-        order: 4,
-        text: "Test quote",
-        author: "Test Author"
+    it("rejects venue missing coordinates", () => {
+      const invalidVenue = {
+        name: "Test Venue"
       };
 
-      expect(() => validateBlock(validQuote)).not.toThrow();
+      expect(() => validateVenueBlock(invalidVenue)).toThrow("Missing required field: coordinates");
     });
 
-    it("validates CTA block", () => {
-      const validCTA = {
-        id: "b5",
-        type: "cta",
-        order: 5,
-        label: "Click Me",
-        action: "/test",
-        variant: "primary"
+    it("rejects venue with invalid coordinates", () => {
+      const invalidVenue = {
+        name: "Test Venue",
+        coordinates: { lat: "invalid", lng: -96.875 }
       };
 
-      expect(() => validateBlock(validCTA)).not.toThrow();
+      expect(() => validateVenueBlock(invalidVenue)).toThrow("Invalid coordinates structure");
     });
 
-    it("validates divider block", () => {
-      const validDivider = {
-        id: "b6",
-        type: "divider",
-        order: 6
+    it("rejects invalid value_grade", () => {
+      const invalidVenue = {
+        name: "Test Venue",
+        coordinates: { lat: 33.128, lng: -96.875 },
+        value_grade: "F"
       };
 
-      expect(() => validateBlock(validDivider)).not.toThrow();
+      expect(() => validateVenueBlock(invalidVenue)).toThrow("Invalid value_grade: F");
     });
 
-    it("rejects block missing base field (id)", () => {
-      const invalidBlock = {
-        type: "paragraph",
-        order: 1,
-        text: "Test"
+    it("rejects non-boolean not_worth", () => {
+      const invalidVenue = {
+        name: "Test Venue",
+        coordinates: { lat: 33.128, lng: -96.875 },
+        not_worth: "false"
       };
 
-      expect(() => validateBlock(invalidBlock)).toThrow("Missing base field: id");
-    });
-
-    it("rejects block missing type-specific field", () => {
-      const invalidBlock = {
-        id: "b1",
-        type: "paragraph",
-        order: 1
-        // Missing 'text' field
-      };
-
-      expect(() => validateBlock(invalidBlock)).toThrow("Missing paragraph field: text");
-    });
-
-    it("rejects unknown block type", () => {
-      const invalidBlock = {
-        id: "b1",
-        type: "unknown-type",
-        order: 1
-      };
-
-      expect(() => validateBlock(invalidBlock)).toThrow("Unknown block type: unknown-type");
-    });
-
-    it("rejects invalid header level", () => {
-      const invalidBlock = {
-        id: "b1",
-        type: "header",
-        order: 1,
-        text: "Test",
-        level: 5 // Invalid - must be 1, 2, or 3
-      };
-
-      expect(() => validateBlock(invalidBlock)).toThrow("Invalid header level: 5");
-    });
-
-    it("rejects non-array list items", () => {
-      const invalidBlock = {
-        id: "b1",
-        type: "list",
-        order: 1,
-        items: "not an array"
-      };
-
-      expect(() => validateBlock(invalidBlock)).toThrow("List items must be an array");
-    });
-
-    it("rejects invalid list style", () => {
-      const invalidBlock = {
-        id: "b1",
-        type: "list",
-        order: 1,
-        items: ["test"],
-        style: "invalid"
-      };
-
-      expect(() => validateBlock(invalidBlock)).toThrow("Invalid list style: invalid");
-    });
-  });
-
-  describe("Block ordering", () => {
-    it("ensures blocks can be sorted by order field", () => {
-      const blocks = [
-        { id: "b3", type: "divider", order: 3 },
-        { id: "b1", type: "header", order: 1, text: "Test" },
-        { id: "b2", type: "paragraph", order: 2, text: "Test" }
-      ];
-
-      const sorted = blocks.sort((a, b) => a.order - b.order);
-
-      expect(sorted[0].id).toBe("b1");
-      expect(sorted[1].id).toBe("b2");
-      expect(sorted[2].id).toBe("b3");
+      expect(() => validateVenueBlock(invalidVenue)).toThrow("not_worth must be a boolean");
     });
   });
 });
