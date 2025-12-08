@@ -40,7 +40,7 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
 import { subscribeStrategyReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
-import MarketIntelligenceBlocks from '@/components/MarketIntelligenceBlocks'; // Renamed from SmartBlocks
+import { MarketIntelligenceBlocks } from '@/components/MarketIntelligenceBlocks'; // Renamed from SmartBlocks
 import BarsTable from '@/components/BarsTable';
 import BriefingTab from '@/components/BriefingTab';
 import MapTab from '@/components/MapTab';
