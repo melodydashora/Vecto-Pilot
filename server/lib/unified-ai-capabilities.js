@@ -171,7 +171,7 @@ export class UnifiedAIManager {
   async checkAtlasHealth() {
     // Use the health function from agent-override-llm
     try {
-      const { getAgentHealth } = await import('./server/agent/agent-override-llm.js');
+      const { getAgentHealth } = await import('../agent/agent-override-llm.js');
       const health = getAgentHealth();
       return { ok: health.healthy, error: health.circuitBreakerOpen ? 'Circuit breaker open' : null };
     } catch (err) {
