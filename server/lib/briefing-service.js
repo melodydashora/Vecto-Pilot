@@ -282,8 +282,9 @@ RETURN FORMAT (ONLY this JSON, no markdown):
   const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
 
   if (!result.ok) {
-    console.error('[BriefingService] ❌ Gemini events error:', result.error);
-    return [];
+    const errorMsg = `Gemini events API failed: ${result.error}`;
+    console.error(`[BriefingService] ❌ ${errorMsg}`);
+    throw new Error(errorMsg);
   }
 
   try {
@@ -292,15 +293,16 @@ RETURN FORMAT (ONLY this JSON, no markdown):
     const validEvents = events.filter(e => e.title && e.venue && e.address);
 
     if (validEvents.length === 0) {
-      console.warn('[BriefingService] ⚠️ No valid events returned from Gemini');
-      return [];
+      console.log('[BriefingService] ℹ️ No events found for this location/time (Gemini returned empty)');
+      return { items: [], reason: 'No events found for this location and time' };
     }
 
     console.log('[BriefingService] ✅ Found', validEvents.length, 'valid events');
-    return validEvents;
+    return { items: validEvents, reason: null };
   } catch (err) {
-    console.error('[BriefingService] ❌ Failed to parse Gemini events JSON:', err.message);
-    return [];
+    const errorMsg = `Failed to parse Gemini events response: ${err.message}`;
+    console.error(`[BriefingService] ❌ ${errorMsg}`);
+    throw new Error(errorMsg);
   }
 }
 
@@ -309,15 +311,18 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   console.log('[fetchEventsForBriefing] 🔑 Checking GEMINI_API_KEY - exists:', !!process.env.GEMINI_API_KEY);
 
   if (!snapshot) {
-    console.warn('[BriefingService] No snapshot provided');
-    return [];
+    throw new Error('Snapshot is required for events fetch');
   }
 
-  const rawEvents = await fetchEventsWithGemini3ProPreview({ snapshot });
-  const normalizedEvents = mapGeminiEventsToLocalEvents(rawEvents, { lat: snapshot.lat, lng: snapshot.lng });
-
-  console.log(`[fetchEventsForBriefing] Returning ${normalizedEvents.length} events`);
-  return normalizedEvents;
+  const result = await fetchEventsWithGemini3ProPreview({ snapshot });
+  
+  if (result.items && result.items.length > 0) {
+    const normalizedEvents = mapGeminiEventsToLocalEvents(result.items, { lat: snapshot.lat, lng: snapshot.lng });
+    console.log(`[fetchEventsForBriefing] Returning ${normalizedEvents.length} events`);
+    return { items: normalizedEvents, reason: null };
+  }
+  
+  return { items: [], reason: result.reason || 'No events found' };
 }
 
 export async function confirmTBDEventDetails(events) {
@@ -576,13 +581,7 @@ Return ONLY valid JSON array:
 
 export async function fetchTrafficConditions({ snapshot }) {
   if (!process.env.GEMINI_API_KEY) {
-    console.warn('[BriefingService] ❌ GEMINI_API_KEY not set, returning stub traffic data');
-    return {
-      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.',
-      incidents: [],
-      congestionLevel: 'low',
-      fetchedAt: new Date().toISOString()
-    };
+    throw new Error('GEMINI_API_KEY not configured - cannot fetch traffic conditions');
   }
 
   const city = snapshot?.city || 'Unknown';
@@ -608,13 +607,7 @@ CRITICAL: Include highDemandZones and repositioning.`;
   const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
 
   if (!result.ok) {
-    console.warn(`[BriefingService] Gemini traffic error: ${result.error}`);
-    return {
-      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.',
-      incidents: [],
-      congestionLevel: 'medium',
-      fetchedAt: new Date().toISOString()
-    };
+    throw new Error(`Gemini traffic API failed: ${result.error}`);
   }
 
   try {
@@ -622,7 +615,7 @@ CRITICAL: Include highDemandZones and repositioning.`;
     console.log(`[BriefingService] ✅ Traffic analysis complete: ${parsed.summary?.substring(0, 80)}`);
 
     return {
-      summary: parsed.summary || 'Real-time traffic data unavailable',
+      summary: parsed.summary,
       incidents: Array.isArray(parsed.incidents) ? parsed.incidents : [],
       congestionLevel: parsed.congestionLevel || 'medium',
       highDemandZones: Array.isArray(parsed.highDemandZones) ? parsed.highDemandZones : [],
@@ -632,20 +625,13 @@ CRITICAL: Include highDemandZones and repositioning.`;
       fetchedAt: new Date().toISOString()
     };
   } catch (parseErr) {
-    console.warn('[BriefingService] Traffic JSON parse error:', parseErr.message);
-    return {
-      summary: 'Real-time traffic data unavailable. Check Google Maps for current conditions.',
-      incidents: [],
-      congestionLevel: 'medium',
-      fetchedAt: new Date().toISOString()
-    };
+    throw new Error(`Failed to parse Gemini traffic response: ${parseErr.message}`);
   }
 }
 
 async function fetchRideshareNews({ snapshot }) {
   if (!process.env.GEMINI_API_KEY) {
-    console.warn('[BriefingService] GEMINI_API_KEY not set, skipping news fetch');
-    return [];
+    throw new Error('GEMINI_API_KEY not configured - cannot fetch news');
   }
 
   const city = snapshot?.city || 'Frisco';
@@ -676,45 +662,27 @@ Return JSON array:
   }
 ]
 
-Return 2-5 items if found. Never return empty array.`;
+Return 2-5 items if found. If no rideshare-specific news found, return general local news affecting drivers.`;
 
   const result = await callGeminiWithSearch({ prompt, maxTokens: 2048 });
 
   if (!result.ok) {
-    console.warn(`[BriefingService] Gemini news error: ${result.error}`);
-    return [];
+    throw new Error(`Gemini news API failed: ${result.error}`);
   }
 
   try {
     const parsed = safeJsonParse(result.output);
-    let newsArray = Array.isArray(parsed) ? parsed : [];
+    const newsArray = Array.isArray(parsed) ? parsed : [];
 
     if (newsArray.length === 0 || !newsArray[0]?.title) {
-      console.log('[BriefingService] ℹ️ No news from Gemini - returning sample news');
-      newsArray = [
-        {
-          "title": "Holiday Shopping Surge Expected",
-          "summary": "December brings peak holiday shopping demand - major traffic at retail centers",
-          "impact": "high",
-          "source": "Local Trends",
-          "link": "#"
-        }
-      ];
+      console.log('[BriefingService] ℹ️ Gemini returned no news for this location/time');
+      return { items: [], reason: 'No rideshare news found for this location' };
     }
     
     console.log(`[BriefingService] ✅ Gemini search returned ${newsArray.length} news items`);
-    return newsArray;
+    return { items: newsArray, reason: null };
   } catch (parseErr) {
-    console.error('[BriefingService] News JSON parse error:', parseErr.message);
-    return [
-      {
-        "title": "Holiday Shopping Surge Expected",
-        "summary": "December brings peak holiday shopping demand",
-        "impact": "high",
-        "source": "Local Trends",
-        "link": "#"
-      }
-    ];
+    throw new Error(`Failed to parse Gemini news response: ${parseErr.message}`);
   }
 }
 
