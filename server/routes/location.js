@@ -3,8 +3,15 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { latLngToCell } from 'h3-js';
 import { db } from '../db/drizzle.js';
-import { snapshots, strategies, users } from '../../shared/schema.js';
+import { snapshots, strategies, users, coords_cache } from '../../shared/schema.js';
 import { sql, eq } from 'drizzle-orm';
+
+// Helper: Generate cache key from coordinates (4 decimal places = ~11m precision)
+function makeCoordsKey(lat, lng) {
+  const lat4d = lat.toFixed(4);
+  const lng4d = lng.toFixed(4);
+  return `${lat4d}_${lng4d}`;
+}
 import { generateStrategyForSnapshot } from '../lib/strategy-generator.js';
 import { validateSnapshotV1 } from '../util/validate-snapshot.js';
 import { validateLocationFreshness } from '../lib/validation-gates.js';
@@ -288,81 +295,152 @@ router.get('/resolve', async (req, res) => {
       });
     }
 
-    // Make both API calls in parallel using circuit breaker protection
-    const [geocodeData, timezoneData] = await Promise.all([
-      googleMapsCircuit(async (signal) => {
-        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
-        if (!response.ok) {
-          throw new Error(`Google Maps API error: ${response.status}`);
-        }
-        return await response.json();
-      }),
-      googleMapsCircuit(async (signal) => {
-        const response = await fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
-        if (!response.ok) {
-          throw new Error(`Google Maps API error: ${response.status}`);
-        }
-        return await response.json();
-      })
-    ]);
-
-    // Extract location data
-    let city, state, country, formattedAddress;
-    if (geocodeData.status === 'OK') {
-      const first = geocodeData.results?.[0];
-      ({ city, state, country } = first ? pickAddressParts(first.address_components) : {});
-      formattedAddress = first?.formatted_address;
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COORDS CACHE: Check if we've resolved these coordinates before (~11m match)
+    // ═══════════════════════════════════════════════════════════════════════════
+    const coordKey = makeCoordsKey(lat, lng);
+    let cacheHit = null;
+    let city, state, country, formattedAddress, timeZone;
+    
+    try {
+      cacheHit = await db.query.coords_cache.findFirst({
+        where: eq(coords_cache.coord_key, coordKey),
+      });
+    } catch (cacheErr) {
+      console.warn(`[Location API] ⚠️ Cache lookup failed (continuing with API):`, cacheErr.message);
+    }
+    
+    if (cacheHit) {
+      // CACHE HIT: Use cached geocode/timezone data, skip API calls
+      console.log(`[Location API] 🎯 CACHE HIT for ${coordKey} (hit #${cacheHit.hit_count + 1})`);
+      city = cacheHit.city;
+      state = cacheHit.state;
+      country = cacheHit.country;
+      formattedAddress = cacheHit.formatted_address;
+      timeZone = cacheHit.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback if cache missing timezone
       
-      // CRITICAL FIX: Validate formatted_address is not empty (Google API can return empty string)
+      // SAFETY: Validate cached formattedAddress (same guard as live API path)
       if (!formattedAddress || formattedAddress.trim() === '') {
-        console.warn(`[Location API] ⚠️ Google API returned empty formatted_address for coords [${lat}, ${lng}]`, {
-          city,
-          state,
-          country,
-          rawAddress: formattedAddress,
-          accuracy: 'low - coordinates may be too approximate'
-        });
-        // Use fallback: City, State if available
+        console.warn(`[Location API] ⚠️ Cache entry has empty formatted_address, using fallback`);
         if (city && state) {
           formattedAddress = `${city}, ${state}`;
-          console.log(`[Location API] 📍 Using city/state fallback: "${formattedAddress}"`);
         } else {
-          console.error(`[Location API] ❌ CRITICAL: No fallback available - cannot determine address at coords [${lat}, ${lng}]`);
-          formattedAddress = null; // Let validation gate catch this
+          formattedAddress = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         }
       }
       
-      console.log(`[Location API] 🗺️ Geocode resolved:`, {
-        lat,
-        lng,
-        city,
-        state,
-        country,
-        formattedAddress,
-        quality: formattedAddress ? 'precise' : 'failed'
+      // Increment hit count (fire and forget)
+      db.update(coords_cache)
+        .set({ hit_count: sql`${coords_cache.hit_count} + 1` })
+        .where(eq(coords_cache.coord_key, coordKey))
+        .catch(() => {}); // Silent - don't block on counter update
+        
+      console.log(`[Location API] 📍 Using cached location:`, {
+        lat, lng, city, state, formattedAddress, timeZone, source: 'cache'
       });
     } else {
-      console.error(`[Location API] ❌ Geocode failed:`, {
-        status: geocodeData.status,
-        error_message: geocodeData.error_message,
-        results_count: geocodeData.results?.length
-      });
-    }
+      // CACHE MISS: Call APIs in parallel, then store in cache
+      console.log(`[Location API] 🔍 CACHE MISS for ${coordKey} - calling geocode/timezone APIs`);
+      
+      const [geocodeData, timezoneData] = await Promise.all([
+        googleMapsCircuit(async (signal) => {
+          const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
+          if (!response.ok) {
+            throw new Error(`Google Maps API error: ${response.status}`);
+          }
+          return await response.json();
+        }),
+        googleMapsCircuit(async (signal) => {
+          const response = await fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
+          if (!response.ok) {
+            throw new Error(`Google Maps API error: ${response.status}`);
+          }
+          return await response.json();
+        })
+      ]);
 
-    // Extract timezone
-    let timeZone;
-    if (timezoneData && timezoneData.status === 'OK' && timezoneData.timeZoneId) {
-      timeZone = timezoneData.timeZoneId;
-      console.log(`[Location API] 🕐 Timezone resolved: ${timeZone}`);
-    } else {
-      console.error('[location] Timezone API failed:', {
-        status: timezoneData.status,
-        errorMessage: timezoneData.errorMessage,
-        timeZoneId: timezoneData.timeZoneId
-      });
-      timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      console.log(`[location] Using fallback timezone: ${timeZone}`);
-    }
+      // Extract location data from geocode response
+      if (geocodeData.status === 'OK') {
+        const first = geocodeData.results?.[0];
+        ({ city, state, country } = first ? pickAddressParts(first.address_components) : {});
+        formattedAddress = first?.formatted_address;
+        
+        // CRITICAL FIX: Validate formatted_address is not empty (Google API can return empty string)
+        if (!formattedAddress || formattedAddress.trim() === '') {
+          console.warn(`[Location API] ⚠️ Google API returned empty formatted_address for coords [${lat}, ${lng}]`, {
+            city,
+            state,
+            country,
+            rawAddress: formattedAddress,
+            accuracy: 'low - coordinates may be too approximate'
+          });
+          // Use fallback: City, State if available
+          if (city && state) {
+            formattedAddress = `${city}, ${state}`;
+            console.log(`[Location API] 📍 Using city/state fallback: "${formattedAddress}"`);
+          } else {
+            console.error(`[Location API] ❌ CRITICAL: No fallback available - cannot determine address at coords [${lat}, ${lng}]`);
+            formattedAddress = null; // Let validation gate catch this
+          }
+        }
+        
+        console.log(`[Location API] 🗺️ Geocode resolved:`, {
+          lat,
+          lng,
+          city,
+          state,
+          country,
+          formattedAddress,
+          quality: formattedAddress ? 'precise' : 'failed'
+        });
+      } else {
+        console.error(`[Location API] ❌ Geocode failed:`, {
+          status: geocodeData.status,
+          error_message: geocodeData.error_message,
+          results_count: geocodeData.results?.length
+        });
+      }
+
+      // Extract timezone from API response
+      if (timezoneData && timezoneData.status === 'OK' && timezoneData.timeZoneId) {
+        timeZone = timezoneData.timeZoneId;
+        console.log(`[Location API] 🕐 Timezone resolved: ${timeZone}`);
+      } else {
+        console.error('[location] Timezone API failed:', {
+          status: timezoneData.status,
+          errorMessage: timezoneData.errorMessage,
+          timeZoneId: timezoneData.timeZoneId
+        });
+        timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        console.log(`[location] Using fallback timezone: ${timeZone}`);
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════════
+      // STORE IN CACHE: Save resolved data for future lookups (6-decimal precision)
+      // Only store if we have BOTH formattedAddress AND timezone (complete data)
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (formattedAddress && timeZone) {
+        try {
+          await db.insert(coords_cache).values({
+            coord_key: coordKey,
+            lat: Number(lat.toFixed(6)),
+            lng: Number(lng.toFixed(6)),
+            formatted_address: formattedAddress,
+            city,
+            state,
+            country,
+            timezone: timeZone,
+            hit_count: 0,
+          }).onConflictDoNothing(); // In case of race condition, don't fail
+          
+          console.log(`[Location API] 💾 Stored in coords_cache: ${coordKey} → "${formattedAddress}" (tz: ${timeZone})`);
+        } catch (cacheWriteErr) {
+          console.warn(`[Location API] ⚠️ Cache write failed (non-fatal):`, cacheWriteErr.message);
+        }
+      } else {
+        console.log(`[Location API] ⚠️ Skipping cache store - incomplete data (address: ${!!formattedAddress}, timezone: ${!!timeZone})`);
+      }
+    } // End of cache miss block
 
     let userId = null;
     const resolvedData = {
