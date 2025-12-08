@@ -36,6 +36,9 @@ const blockSchema = {
   },
 };
 
+// Generate a test JWT token
+const testToken = "test-jwt-token"; // In a real scenario, this would be generated securely
+
 /**
  * Validate a block against the schema contract
  * @param {Object} block - Block object to validate
@@ -54,7 +57,7 @@ function validateBlock(block) {
   if (!requiredFields) {
     throw new Error(`Unknown block type: ${block.type}`);
   }
-  
+
   requiredFields.forEach((field) => {
     if (!(field in block)) {
       throw new Error(`Missing ${block.type} field: ${field}`);
@@ -89,10 +92,11 @@ describe("Blocks API Contract", () => {
     it("returns valid blocks structure with seeded data", async () => {
       // Use seeded snapshot ID from environment
       const testSnapshotId = process.env.TEST_SNAPSHOT_ID || "test-snapshot-001";
-      
+
       const res = await request(app)
         .get(`/api/blocks/strategy/${testSnapshotId}`)
-        .set('Accept', 'application/json');
+        .set('Accept', 'application/json')
+        .set('Authorization', `Bearer ${testToken}`);
 
       // Should return 200 with seeded data
       expect(res.status).toBe(200);
@@ -119,9 +123,11 @@ describe("Blocks API Contract", () => {
     });
 
     it("returns 404 for non-existent snapshot", async () => {
+      const fakeSnapshotId = '00000000-0000-0000-0000-000000000000';
       const res = await request(app)
-        .get('/api/blocks/strategy/00000000-0000-0000-0000-000000000000')
-        .set('Accept', 'application/json');
+        .get(`/api/blocks/strategy/${fakeSnapshotId}`)
+        .set('Accept', 'application/json')
+        .set('Authorization', `Bearer ${testToken}`);
 
       expect(res.status).toBe(404);
     });
@@ -274,7 +280,7 @@ describe("Blocks API Contract", () => {
       ];
 
       const sorted = blocks.sort((a, b) => a.order - b.order);
-      
+
       expect(sorted[0].id).toBe("b1");
       expect(sorted[1].id).toBe("b2");
       expect(sorted[2].id).toBe("b3");
