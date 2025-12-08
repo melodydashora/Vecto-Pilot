@@ -142,15 +142,9 @@ const CoPilot: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<'gemini' | 'gpt-5' | 'claude' | null>(null);
   const [modelParameter, setModelParameter] = useState<string>('0.7');
   const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
-  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(() => {
-    return localStorage.getItem('vecto_strategy_snapshot_id');
-  });
-  const [persistentStrategy, setPersistentStrategy] = useState<string | null>(() => {
-    return localStorage.getItem('vecto_persistent_strategy');
-  });
-  const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(() => {
-    return localStorage.getItem('vecto_strategy_snapshot_id');
-  });
+  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null); // Start empty for fresh load
+  const [persistentStrategy, setPersistentStrategy] = useState<string | null>(null); // Start empty for fresh load
+  const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null); // Start empty for fresh load
   const [strategyReadyTime, setStrategyReadyTime] = useState<number | null>(null); // Track when strategy became ready
   const [enrichedReasonings, setEnrichedReasonings] = useState<Map<string, string>>(new Map());
 
