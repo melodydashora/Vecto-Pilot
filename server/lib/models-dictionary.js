@@ -156,18 +156,17 @@ replit_agent: {
   },
 
   // ==========================================
-  // AGENT OVERRIDE (ATLAS) - FALLBACK CHAIN
+  // AGENT OVERRIDE (ATLAS) - EIDOLON-MATCHING (CLAUDE ONLY)
   // ==========================================
   agent_override_primary: {
     provider: 'anthropic',
-    model_id: 'claude-sonnet-4-5-20250929', // Updated to match Replit Agent
-    model_name: 'Claude Sonnet 4.5 (Atlas Primary)',
+    model_id: 'claude-sonnet-4-5-20250929', // Matching Eidolon's model
+    model_name: 'Claude Sonnet 4.5 (Atlas - Eidolon Unified)',
     context_window: 200000,
     max_output_tokens: 200000,
     api_endpoint: 'https://api.anthropic.com/v1/messages',
     parameters: {
-      temperature: 1.0, // Maximum creativity for Atlas
-      top_p: 0.95,
+      temperature: 1.0, // Matching Eidolon's temperature
       max_tokens: 200000,
       supports_thinking: false,
       supports_temperature: true,
@@ -181,55 +180,8 @@ replit_agent: {
     env_vars: {
       api_key: 'AGENT_OVERRIDE_API_KEY_C',
       model: 'AGENT_OVERRIDE_CLAUDE_MODEL'
-    }
-  },
-
-  agent_override_fallback_gpt5: {
-    provider: 'openai',
-    model_id: 'gpt-5',
-    model_name: 'GPT-5 (Atlas Fallback)',
-    context_window: 272000,
-    max_output_tokens: 128000,
-    api_endpoint: 'https://api.openai.com/v1/chat/completions',
-    parameters: {
-      reasoning_effort: 'high',
-      max_completion_tokens: 128000,
-      supports_temperature: false,
-      supports_reasoning_effort: true
     },
-    pricing: {
-      input_per_million: 1.25,
-      output_per_million: 10.00,
-      currency: 'USD'
-    },
-    env_vars: {
-      api_key: 'AGENT_OVERRIDE_API_KEY_5',
-      model: 'AGENT_OVERRIDE_GPT5_MODEL'
-    }
-  },
-
-  agent_override_fallback_gemini: {
-    provider: 'google',
-    model_id: 'gemini-2.5-pro',
-    model_name: 'Gemini 2.5 Pro (Atlas Fallback)',
-    context_window: 1048576,
-    max_output_tokens: 32768,
-    api_endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
-    parameters: {
-      temperature: 1.0,
-      maxOutputTokens: 32768,
-      supports_temperature: true,
-      supports_top_p: true
-    },
-    pricing: {
-      input_per_million: 3.50,
-      output_per_million: 10.50,
-      currency: 'USD'
-    },
-    env_vars: {
-      api_key: 'AGENT_OVERRIDE_API_KEY_G',
-      model: 'AGENT_OVERRIDE_GEMINI_MODEL'
-    }
+    note: 'Unified with Eidolon - no fallback providers'
   },
 
   // ==========================================
