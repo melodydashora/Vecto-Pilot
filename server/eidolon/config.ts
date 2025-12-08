@@ -6,18 +6,27 @@
 
 export const EIDOLON_CONFIG = {
   version: "8.0.0-unified-max",
-  identity: "Eidolon Unified AI - Complete IDE Integration (Claude Sonnet 4.5 - 200K Context + Full Autonomy)",
+  identity: "Eidolon Unified AI - Complete IDE Integration (Claude Sonnet 4.5 - 200K Context + Ultra-Deep Thinking)",
   
   // UNIFIED MAXIMUM CAPABILITIES - All AI systems have identical access
   capabilities: {
+    // Model & Thinking
+    model: "claude-sonnet-4-5-20250929",
+    context_window: 200000,
+    thinking_mode: "ultra-deep",
+    
     // Core Intelligence
     enhanced_memory: true,
     cross_chat_awareness: true,
     workspace_intelligence: true,
+    full_workspace_intelligence: true,
     assistant_override: true,
+    assistant_interception: true,
+    unified_routing: true,
     predictive_intelligence: true,
     mcp_diagnostics: true,
     deep_reasoning: true,
+    ultra_deep_thinking: true,
     semantic_search: true,
     web_research: true,
     
@@ -64,11 +73,13 @@ export const EIDOLON_CONFIG = {
     
     // Self-Healing & Autonomy
     self_healing: true,
+    circuit_breaker: true,
+    circuit_breaker_active: true,
+    circuit_breaker_override: true,
     autonomous_recovery: true,
     error_prediction: true,
     auto_remediation: true,
     health_monitoring: true,
-    circuit_breaker_override: true,
     
     // Memory & Learning
     cross_thread_memory: true,
