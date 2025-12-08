@@ -546,8 +546,13 @@ process.on("unhandledRejection", (reason, promise) => {
       }
 
       // Mount unified capabilities routes
-      import unifiedCapabilitiesRoutes from "./server/routes/unified-capabilities.js";
-      unifiedCapabilitiesRoutes(app);
+      try {
+        const { default: unifiedCapabilitiesRoutes } = await import("./server/routes/unified-capabilities.js");
+        unifiedCapabilitiesRoutes(app);
+        console.log("[gateway] ✅ Unified capabilities routes mounted");
+      } catch (e) {
+        console.error("[gateway] ❌ Unified capabilities routes failed:", e?.message);
+      }
 
       // Serve SPA for all other routes (catch-all must be LAST, excludes /api and /agent)
       app.get("*", (req, res, next) => {
