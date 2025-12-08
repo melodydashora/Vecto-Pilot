@@ -1050,6 +1050,32 @@ if (!result.ok) {
 
 ---
 
+### ~~Development-Only Cache Clearing~~ (Fixed Dec 8, 2025)
+**Status:** FIXED
+**Files:**
+- `server/lib/briefing-service.js` - Now uses TTL-based cache invalidation in ALL environments
+
+**Before:**
+```javascript
+// OLD: Cache clearing only happened in development
+if (process.env.NODE_ENV === 'development') {
+  // Clear stale cache...
+}
+```
+
+**After:**
+```javascript
+// NEW: TTL-based cache works in BOTH dev and production
+function isBriefingStale(briefing, ttlMinutes = 30) {
+  const ageMinutes = (now - briefing.updated_at) / (1000 * 60);
+  return ageMinutes > ttlMinutes;
+}
+```
+
+**Reason:** Production was serving stale briefing data indefinitely because cache expiry only ran in development. Now `getOrGenerateBriefing()` checks `updated_at` and regenerates briefings older than 30 minutes in ALL environments.
+
+---
+
 ## 🏗️ SYSTEM ARCHITECTURE
 
 ### Multi-Server Architecture (Production)
