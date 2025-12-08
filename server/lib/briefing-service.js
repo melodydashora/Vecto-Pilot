@@ -830,24 +830,61 @@ export async function getBriefingBySnapshotId(snapshotId) {
 }
 
 /**
- * Get existing briefing or generate if missing
+ * Check if briefing is stale (older than TTL)
+ * @param {object} briefing - Briefing row from database
+ * @param {number} ttlMinutes - Time-to-live in minutes (default: 30)
+ * @returns {boolean} True if briefing is stale and should be regenerated
+ */
+function isBriefingStale(briefing, ttlMinutes = 30) {
+  if (!briefing?.updated_at) return true;
+  
+  const updatedAt = new Date(briefing.updated_at);
+  const now = new Date();
+  const ageMinutes = (now - updatedAt) / (1000 * 60);
+  
+  const isStale = ageMinutes > ttlMinutes;
+  if (isStale) {
+    console.log(`[BriefingService] ⏰ Briefing is stale: ${Math.round(ageMinutes)} min old (TTL: ${ttlMinutes} min)`);
+  }
+  return isStale;
+}
+
+/**
+ * Get existing briefing or generate if missing/stale
+ * TTL-based cache invalidation works in BOTH dev and production
  * @param {string} snapshotId 
  * @param {object} snapshot - Full snapshot object
+ * @param {object} options - Options for cache behavior
+ * @param {number} options.ttlMinutes - Cache TTL in minutes (default: 30)
+ * @param {boolean} options.forceRefresh - Force regeneration even if cached (default: false)
  * @returns {Promise<object|null>} Parsed briefing data
  */
-export async function getOrGenerateBriefing(snapshotId, snapshot) {
+export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) {
+  const { ttlMinutes = 30, forceRefresh = false } = options;
+  
   let briefing = await getBriefingBySnapshotId(snapshotId);
   
-  if (!briefing) {
-    console.log(`[BriefingService] Auto-generating briefing: ${snapshotId}`);
+  // Check if we need to regenerate: no briefing, stale briefing, or forced refresh
+  const needsRegeneration = !briefing || forceRefresh || isBriefingStale(briefing, ttlMinutes);
+  
+  if (needsRegeneration) {
+    const reason = !briefing ? 'missing' : (forceRefresh ? 'forced' : 'stale');
+    console.log(`[BriefingService] Regenerating briefing (${reason}): ${snapshotId}`);
     try {
       const result = await generateAndStoreBriefing({ snapshotId, snapshot });
       if (result.success) {
         briefing = result.briefing;
+        console.log(`[BriefingService] ✅ Fresh briefing generated for ${snapshotId}`);
       }
     } catch (genErr) {
       console.error('[BriefingService] Generation error:', genErr.message);
+      // If regeneration fails but we have stale data, return stale data as fallback
+      if (briefing) {
+        console.warn('[BriefingService] ⚠️ Returning stale briefing due to generation error');
+      }
     }
+  } else {
+    console.log(`[BriefingService] ✓ Cache hit: briefing for ${snapshotId}`);
   }
   
   return briefing;
