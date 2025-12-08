@@ -12,6 +12,8 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import { loadEnvironment } from "./server/lib/load-env.js";
 import { validateOrExit } from "./server/lib/validate-env.js";
+import diagnosticsRoutes from './server/routes/diagnostics.js';
+import diagnosticIdentityRoutes from './server/routes/diagnostic-identity.js';
 
 const { createProxyServer } = httpProxy;
 // Lazy-load triad-worker to avoid DB pool creation before server is ready
@@ -281,6 +283,10 @@ process.on("unhandledRejection", (reason, promise) => {
         // Express middleware order: first matching route wins. If SDK router (/api) comes first,
         // it intercepts all /api/* requests before specific routes like /api/chat can handle them.
         // Solution: Mount all specific routes first, then SDK router last as the catch-all fallback.
+
+        app.use('/health', healthRoutes);
+        app.use('/api/diagnostics', diagnosticsRoutes);
+        app.use('/api/diagnostic', diagnosticIdentityRoutes);
 
         try {
           console.log(
