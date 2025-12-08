@@ -237,32 +237,7 @@ export async function runConsolidator(snapshotId) {
     const [briefingRow] = await db.select().from(briefings)
       .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     
-    // VERIFICATION: Log briefing field integrity before consolidator processes
-    if (briefingRow) {
-      console.log(`[consolidator] 🔍 BRIEFING FIELDS VERIFICATION (before consolidator):`);
-      console.log(`   - weather_current: ${briefingRow.weather_current ? 'present (' + (typeof briefingRow.weather_current === 'string' ? briefingRow.weather_current.substring(0, 50) : JSON.stringify(briefingRow.weather_current).substring(0, 50)) + '...)' : 'NULL ⚠️'}`);
-      console.log(`   - traffic_conditions: ${briefingRow.traffic_conditions ? 'present (' + (typeof briefingRow.traffic_conditions === 'string' ? briefingRow.traffic_conditions.substring(0, 100) : JSON.stringify(briefingRow.traffic_conditions).substring(0, 100)) + '...)' : 'NULL ⚠️'}`);
-      console.log(`   - news: ${briefingRow.news ? 'present (' + (typeof briefingRow.news === 'string' ? briefingRow.news.substring(0, 50) : JSON.stringify(briefingRow.news).substring(0, 50)) + '...)' : 'NULL ⚠️'}`);
-      console.log(`   - events: ${briefingRow.events ? 'present (' + (typeof briefingRow.events === 'string' ? briefingRow.events.substring(0, 50) : JSON.stringify(briefingRow.events).substring(0, 50)) + '...)' : 'NULL ⚠️'}`);
-      console.log(`   - school_closures: ${briefingRow.school_closures ? 'present (' + (typeof briefingRow.school_closures === 'string' ? briefingRow.school_closures.substring(0, 50) : JSON.stringify(briefingRow.school_closures).substring(0, 50)) + '...)' : 'NULL ⚠️'}`);
-    } else {
-      console.warn(`[consolidator] ⚠️ NO BRIEFING ROW FOUND for snapshot ${snapshotId}`);
-    }
-    
     const briefingContext = formatBriefingContext(briefingRow);
-    console.log(`[consolidator] 📋 Briefing context formatted: ${briefingContext.length} chars`);
-    
-    // Log detailed briefing context to ensure traffic/events are included
-    if (briefingContext.includes('TRAFFIC')) {
-      console.log(`[consolidator] ✅ TRAFFIC DATA INCLUDED in briefing context`);
-    } else {
-      console.warn(`[consolidator] ⚠️ TRAFFIC DATA MISSING from briefing context`);
-    }
-    if (briefingContext.includes('LOCAL EVENTS') || briefingContext.includes('EVENT')) {
-      console.log(`[consolidator] ✅ EVENT DATA INCLUDED in briefing context`);
-    } else {
-      console.warn(`[consolidator] ⚠️ EVENT DATA MISSING from briefing context`);
-    }
     
     // Step 3: Fetch snapshot for location/time context
     const ctx = await getFullSnapshot(snapshotId);
