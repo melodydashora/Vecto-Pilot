@@ -285,7 +285,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
     controllerRef.current = new AbortController();
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('vecto_auth_token');
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { 
