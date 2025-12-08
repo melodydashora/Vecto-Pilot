@@ -1,81 +1,13 @@
 import { Router } from 'express';
-import { generateAndStoreBriefing, getBriefingBySnapshotId, confirmTBDEventDetails, fetchWeatherConditions } from '../lib/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, confirmTBDEventDetails, fetchWeatherConditions } from '../lib/briefing-service.js';
 import { db } from '../db/drizzle.js';
 import { snapshots } from '../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../middleware/rate-limit.js';
+import { requireSnapshotOwnership } from '../middleware/require-snapshot-ownership.js';
 
 const router = Router();
-
-// Helper function to safely parse JSON fields from database
-function parseBriefingData(briefing) {
-  if (!briefing) return null;
-  
-  const parsed = { ...briefing };
-  
-  // Parse events if it's a string
-  if (typeof parsed.events === 'string') {
-    try {
-      parsed.events = JSON.parse(parsed.events);
-    } catch (e) {
-      console.warn('[BriefingRoute] Failed to parse events JSON:', e.message);
-      parsed.events = [];
-    }
-  }
-  
-  // Parse news if it's a string
-  if (typeof parsed.news === 'string') {
-    try {
-      parsed.news = JSON.parse(parsed.news);
-    } catch (e) {
-      console.warn('[BriefingRoute] Failed to parse news JSON:', e.message);
-      parsed.news = { items: [], filtered: [] };
-    }
-  }
-  
-  // Parse weather_current if it's a string
-  if (typeof parsed.weather_current === 'string') {
-    try {
-      parsed.weather_current = JSON.parse(parsed.weather_current);
-    } catch (e) {
-      console.warn('[BriefingRoute] Failed to parse weather_current JSON:', e.message);
-      parsed.weather_current = null;
-    }
-  }
-  
-  // Parse weather_forecast if it's a string
-  if (typeof parsed.weather_forecast === 'string') {
-    try {
-      parsed.weather_forecast = JSON.parse(parsed.weather_forecast);
-    } catch (e) {
-      console.warn('[BriefingRoute] Failed to parse weather_forecast JSON:', e.message);
-      parsed.weather_forecast = [];
-    }
-  }
-  
-  // Parse traffic_conditions if it's a string
-  if (typeof parsed.traffic_conditions === 'string') {
-    try {
-      parsed.traffic_conditions = JSON.parse(parsed.traffic_conditions);
-    } catch (e) {
-      console.warn('[BriefingRoute] Failed to parse traffic_conditions JSON:', e.message);
-      parsed.traffic_conditions = { summary: 'Loading...', incidents: [] };
-    }
-  }
-  
-  // Parse school_closures if it's a string
-  if (typeof parsed.school_closures === 'string') {
-    try {
-      parsed.school_closures = JSON.parse(parsed.school_closures);
-    } catch (e) {
-      console.warn('[BriefingRoute] Failed to parse school_closures JSON:', e.message);
-      parsed.school_closures = [];
-    }
-  }
-  
-  return parsed;
-}
 
 router.get('/current', requireAuth, async (req, res) => {
   try {
@@ -90,8 +22,7 @@ router.get('/current', requireAuth, async (req, res) => {
     }
 
     const snapshot = latestSnapshot[0];
-    let briefing = await getBriefingBySnapshotId(snapshot.snapshot_id);
-    briefing = parseBriefingData(briefing);
+    const briefing = await getBriefingBySnapshotId(snapshot.snapshot_id);
 
     if (!briefing) {
       return res.status(404).json({ error: 'Briefing not yet generated - try again in a moment' });
@@ -124,7 +55,6 @@ router.get('/current', requireAuth, async (req, res) => {
   }
 });
 
-// ISSUE #24 FIX: Rate limited to prevent Gemini API quota exhaustion
 router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   try {
     const { snapshotId } = req.body;
@@ -133,17 +63,15 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
       return res.status(400).json({ error: 'snapshotId is required' });
     }
 
-    // SECURITY: Verify user owns this snapshot
     const snapshotCheck = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    
+
     if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
 
-    // Just return cached briefing - generation happens in snapshot.js on creation
     const briefing = await getBriefingBySnapshotId(snapshotId);
-    
+
     if (!briefing) {
       return res.status(404).json({ error: 'Briefing not found or not yet generated' });
     }
@@ -166,26 +94,16 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
   }
 });
 
-router.get('/snapshot/:snapshotId', requireAuth, async (req, res) => {
+router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const { snapshotId } = req.params;
-    
-    // SECURITY: Verify user owns this snapshot
-    const snapshotCheck = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
-      return res.status(404).json({ error: 'snapshot_not_found' }); // 404 prevents enumeration
-    }
-    
-    const briefing = await getBriefingBySnapshotId(snapshotId);
+    const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
     if (!briefing) {
       return res.status(404).json({ error: 'Briefing not yet generated - please wait a moment' });
     }
 
     res.json({
-      snapshot_id: snapshotId,
+      snapshot_id: req.snapshot.snapshot_id,
       briefing: {
         news: briefing.news,
         weather: {
@@ -205,7 +123,6 @@ router.get('/snapshot/:snapshotId', requireAuth, async (req, res) => {
   }
 });
 
-// ISSUE #24 FIX: Rate limited to prevent Gemini API quota exhaustion
 router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   try {
     const latestSnapshot = await db.select()
@@ -219,8 +136,6 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
     }
 
     const snapshot = latestSnapshot[0];
-    
-    // Regenerate if explicitly requested - pass snapshot row directly
     const result = await generateAndStoreBriefing({
       snapshotId: snapshot.snapshot_id,
       snapshot
@@ -249,11 +164,10 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
   }
 });
 
-// Real-time traffic endpoint for briefing tab (always fresh, not cached)
 router.get('/traffic/realtime', requireAuth, async (req, res) => {
   try {
     const { lat, lng, city, state } = req.query;
-    
+
     if (!lat || !lng) {
       return res.status(400).json({ error: 'Missing required parameters: lat, lng' });
     }
@@ -265,21 +179,17 @@ router.get('/traffic/realtime', requireAuth, async (req, res) => {
       state: state || ''
     });
 
-    res.json({
-      success: true,
-      traffic
-    });
+    res.json({ success: true, traffic });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching realtime traffic:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Real-time weather endpoint for briefing tab (always fresh, not cached)
 router.get('/weather/realtime', requireAuth, async (req, res) => {
   try {
     const { lat, lng } = req.query;
-    
+
     if (!lat || !lng) {
       return res.status(400).json({ error: 'Missing required parameters: lat, lng' });
     }
@@ -289,37 +199,17 @@ router.get('/weather/realtime', requireAuth, async (req, res) => {
       lng: parseFloat(lng)
     });
 
-    res.json({
-      success: true,
-      weather
-    });
+    res.json({ success: true, weather });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching realtime weather:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Component-level endpoint: Weather only - fetch fresh weather with 6-hour forecast
-router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
+router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const { snapshotId } = req.params;
-    
-    // SECURITY: Verify user owns this snapshot
-    const snapshotCheck = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    
-    const snapshot = snapshotCheck[0];
-    
-    // Fetch fresh weather from API (includes 6-hour forecast)
-    const freshWeather = await fetchWeatherConditions({
-      snapshot
-    });
-    
-    // Format for response
+    const freshWeather = await fetchWeatherConditions({ snapshot: req.snapshot });
+
     const weatherResponse = freshWeather ? {
       current: {
         tempF: freshWeather.tempF || null,
@@ -330,7 +220,7 @@ router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
       },
       forecast: freshWeather.forecast || []
     } : { current: null, forecast: [] };
-    
+
     res.json({
       success: true,
       weather: weatherResponse,
@@ -342,46 +232,10 @@ router.get('/weather/:snapshotId', requireAuth, async (req, res) => {
   }
 });
 
-// Component-level endpoint: Traffic only
-router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
+router.get('/traffic/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const { snapshotId } = req.params;
-    
-    // SECURITY: Verify user owns this snapshot
-    const snapshotCheck = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    
-    const snapshot = snapshotCheck[0];
-    let briefing = await getBriefingBySnapshotId(snapshotId);
-    
-    // Auto-generate if briefing doesn't exist
-    if (!briefing) {
-      console.log(`[BriefingRoute] Auto-generating briefing for traffic: ${snapshotId}`);
-      try {
-        const result = await generateAndStoreBriefing({ snapshotId, snapshot });
-        if (result.success) {
-          briefing = result.briefing;
-        } else {
-          console.warn('[BriefingRoute] Briefing generation returned non-success:', result.error);
-        }
-      } catch (genErr) {
-        console.error('[BriefingRoute] Error during briefing generation:', genErr.message);
-      }
-    }
-    
-    if (briefing) {
-      try {
-        briefing = parseBriefingData(briefing);
-      } catch (parseErr) {
-        console.error('[BriefingRoute] Error parsing briefing data:', parseErr);
-        briefing = null; // Fall back to null so we return empty traffic
-      }
-    }
-    
+    const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
+
     res.json({
       success: true,
       traffic: briefing?.traffic_conditions || { summary: 'Loading traffic...', incidents: [], congestionLevel: 'low' },
@@ -389,7 +243,6 @@ router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching traffic:', error);
-    // Return fallback data instead of 500
     res.json({
       success: true,
       traffic: { summary: 'Loading traffic...', incidents: [], congestionLevel: 'low' },
@@ -398,77 +251,11 @@ router.get('/traffic/:snapshotId', requireAuth, async (req, res) => {
   }
 });
 
-// Component-level endpoint: Rideshare News only
-router.get('/rideshare-news/:snapshotId', requireAuth, async (req, res) => {
+router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const { snapshotId } = req.params;
-    const snapshotCheck = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    
-    // SECURITY: Verify snapshot exists AND belongs to the user
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    
-    const snapshot = snapshotCheck[0];
-    let briefing = await getBriefingBySnapshotId(snapshotId);
-    
-    // Auto-generate if briefing doesn't exist
-    if (!briefing) {
-      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
-      if (result.success) briefing = result.briefing;
-    }
-    
-    if (briefing) {
-      try {
-        briefing = parseBriefingData(briefing);
-      } catch (parseErr) {
-        console.error('[BriefingRoute] Error parsing briefing data:', parseErr);
-        briefing = null;
-      }
-    }
-    let newsData = briefing?.news || { items: [], filtered: [] };
-    
-    // Add fallback sample news if empty
-    if (!newsData.items || newsData.items.length === 0) {
-      console.log('[BriefingRoute] ℹ️ No news from briefing - returning sample news');
-      newsData = {
-        items: [
-          {
-            title: "Holiday Shopping Surge Expected",
-            summary: "December brings peak holiday shopping demand - major traffic at retail centers",
-            impact: "high",
-            source: "Local Trends",
-            link: "#"
-          },
-          {
-            title: "Weekend Event Calendar Active",
-            summary: "Multiple venues hosting entertainment events throughout the weekend",
-            impact: "medium",
-            source: "Local Events",
-            link: "#"
-          }
-        ],
-        filtered: [
-          {
-            title: "Holiday Shopping Surge Expected",
-            summary: "December brings peak holiday shopping demand - major traffic at retail centers",
-            impact: "high",
-            source: "Local Trends",
-            link: "#"
-          },
-          {
-            title: "Weekend Event Calendar Active",
-            summary: "Multiple venues hosting entertainment events throughout the weekend",
-            impact: "medium",
-            source: "Local Events",
-            link: "#"
-          }
-        ]
-      };
-    }
-    console.log(`[BriefingRoute] ✅ Returning ${newsData.items?.length || 0} news items`);
-    
+    const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
+    const newsData = briefing?.news || { items: [], filtered: [] };
+
     res.json({
       success: true,
       news: newsData,
@@ -484,77 +271,17 @@ router.get('/rideshare-news/:snapshotId', requireAuth, async (req, res) => {
   }
 });
 
-// Component-level endpoint: Local Events, Live Music & Concerts (single request with Places API resolution)
-router.get('/events/:snapshotId', requireAuth, async (req, res) => {
+router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const { snapshotId } = req.params;
-    const snapshotCheck = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    
-    // SECURITY: Verify snapshot exists AND belongs to the user
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    
-    const snapshot = snapshotCheck[0];
-    let briefing = await getBriefingBySnapshotId(snapshotId);
-    
-    // Auto-generate if briefing doesn't exist
-    if (!briefing) {
-      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
-      if (result.success) briefing = result.briefing;
-    }
-    
-    if (briefing) {
-      try {
-        briefing = parseBriefingData(briefing);
-      } catch (parseErr) {
-        console.error('[BriefingRoute] Error parsing briefing data:', parseErr);
-        briefing = null;
-      }
-    }
-    let allEvents = briefing && Array.isArray(briefing.events) ? briefing.events : [];
-    
-    // Add fallback sample events if empty
-    if (allEvents.length === 0) {
-      console.log('[BriefingRoute] ℹ️ No events from briefing - returning sample events');
-      allEvents = [
-        {
-          title: "The Star District - Evening Entertainment",
-          venue: "The Star District",
-          address: "1001 Cowboys Way, Frisco, TX 75034",
-          event_date: new Date().toISOString().split('T')[0],
-          event_time: "6:00 PM",
-          event_end_time: "11:00 PM",
-          subtype: "entertainment",
-          estimated_distance_miles: 8.5,
-          impact: "high",
-          staging_area: "Cowboys Way parking lot - east side",
-          summary: "The Star District - Evening Entertainment • The Star District • Impact: high",
-          source: "Local Events"
-        },
-        {
-          title: "Stonebriar Centre - Holiday Shopping",
-          venue: "Stonebriar Centre",
-          address: "2601 Stonebriar Parkway, Frisco, TX 75034",
-          event_date: new Date().toISOString().split('T')[0],
-          event_time: "10:00 AM",
-          event_end_time: "10:00 PM",
-          subtype: "shopping",
-          estimated_distance_miles: 5.2,
-          impact: "high",
-          staging_area: "Main parking lot near Nordstrom",
-          summary: "Stonebriar Centre - Holiday Shopping • Stonebriar Centre • Impact: high",
-          source: "Local Events"
-        }
-      ];
-    }
-    
+    const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
+    const allEvents = briefing && Array.isArray(briefing.events) ? briefing.events : [];
+
     console.log(`[BriefingRoute] 📍 Events endpoint - returning:`, {
       hasEvents: !!briefing?.events,
       eventsLength: allEvents.length,
       firstEvent: allEvents[0] ? { title: allEvents[0].title, venue: allEvents[0].venue } : null
     });
+
     res.json({
       success: true,
       events: allEvents,
@@ -570,35 +297,10 @@ router.get('/events/:snapshotId', requireAuth, async (req, res) => {
   }
 });
 
-// Component-level endpoint: School Closures only
-router.get('/school-closures/:snapshotId', requireAuth, async (req, res) => {
+router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const { snapshotId } = req.params;
-    const snapshotCheck = await db.select().from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    
-    // SECURITY: Verify snapshot exists AND belongs to the user
-    if (snapshotCheck.length === 0 || snapshotCheck[0].user_id !== req.auth.userId) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    
-    const snapshot = snapshotCheck[0];
-    let briefing = await getBriefingBySnapshotId(snapshotId);
-    
-    // Auto-generate if briefing doesn't exist
-    if (!briefing) {
-      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
-      if (result.success) briefing = result.briefing;
-    }
-    
-    if (briefing) {
-      try {
-        briefing = parseBriefingData(briefing);
-      } catch (parseErr) {
-        console.error('[BriefingRoute] Error parsing briefing data:', parseErr);
-        briefing = null;
-      }
-    }
+    const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
+
     res.json({
       success: true,
       school_closures: briefing?.school_closures || [],
@@ -614,11 +316,10 @@ router.get('/school-closures/:snapshotId', requireAuth, async (req, res) => {
   }
 });
 
-// Confirm TBD event details endpoint
 router.post('/confirm-event-details', requireAuth, async (req, res) => {
   try {
     const { events } = req.body;
-    
+
     if (!events || !Array.isArray(events)) {
       return res.status(400).json({ error: 'events array is required' });
     }
