@@ -194,7 +194,10 @@ const CoPilot: React.FC = () => {
 
   // Helper to get auth headers with JWT token
   const getAuthHeader = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('vecto_auth_token') : null;
+    if (!token) {
+      console.warn('[co-pilot] ⚠️ No auth token found in localStorage - requests will fail with 401');
+    }
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
 
