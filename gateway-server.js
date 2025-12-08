@@ -14,6 +14,7 @@ import { loadEnvironment } from "./server/lib/load-env.js";
 import { validateOrExit } from "./server/lib/validate-env.js";
 import diagnosticsRoutes from './server/routes/diagnostics.js';
 import diagnosticIdentityRoutes from './server/routes/diagnostic-identity.js';
+import { unifiedAI } from "./server/lib/unified-ai-capabilities.js";
 
 const { createProxyServer } = httpProxy;
 // Lazy-load triad-worker to avoid DB pool creation before server is ready
@@ -183,10 +184,27 @@ process.on("unhandledRejection", (reason, promise) => {
     // Only start server if not being imported for testing
     if (import.meta.url === `file://${process.argv[1]}`) {
       server.listen(PORT, "0.0.0.0", () => {
-        console.log(
-          `[ready] ✅ Server listening on 0.0.0.0:${PORT} in ${Date.now() - startTime}ms`,
-        );
-        console.log(`[ready] 🚀 Health endpoints ready - accepting requests`);
+        console.log(`🌐 [gateway] HTTP listening on ${process.env.HOST || '0.0.0.0'}:${PORT}`);
+        console.log(`🌐 [gateway] Mode: ${process.env.MONO_MODE === '1' ? 'MONO' : 'DISTRIBUTED'}`);
+        console.log('🌐 [gateway] Server started successfully');
+
+        // Start unified AI health monitoring
+        console.log('🧠 [Unified AI] Starting health monitoring...');
+        setInterval(async () => {
+          try {
+            await unifiedAI.checkHealth();
+          } catch (err) {
+            console.error('❌ [Unified AI] Health check failed:', err.message);
+          }
+        }, 30000); // Check every 30 seconds
+
+        // Initial health check
+        unifiedAI.checkHealth().then(health => {
+          console.log(`🧠 [Unified AI] Initial health: ${health.healthy ? '✅ Healthy' : '⚠️ Issues detected'}`);
+          if (!health.healthy) {
+            console.log('🧠 [Unified AI] Issues:', health.issues);
+          }
+        });
       });
     }
 
@@ -526,6 +544,10 @@ process.on("unhandledRejection", (reason, promise) => {
       } catch (e) {
         console.error("[gateway] ❌ Error middleware failed:", e?.message);
       }
+
+      // Mount unified capabilities routes
+      import unifiedCapabilitiesRoutes from "./server/routes/unified-capabilities.js";
+      unifiedCapabilitiesRoutes(app);
 
       // Serve SPA for all other routes (catch-all must be LAST, excludes /api and /agent)
       app.get("*", (req, res, next) => {

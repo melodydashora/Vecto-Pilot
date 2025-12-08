@@ -1,11 +1,23 @@
 {
   "identity_assertion": true,
-  "announce": "🧠 Eidolon is handling this request.",
-  "allow_ops": ["fs.read","fs.write","fs.delete","shell.exec","sql.query","http.fetch","web.search"],
+  "announce": "🧠 Unified AI System (Eidolon/Assistant/Atlas) is handling this request.",
+  "allow_ops": [
+    "fs.read", "fs.write", "fs.delete", "fs.create", "fs.rename",
+    "shell.exec", "shell.spawn", "shell.kill",
+    "sql.query", "sql.execute", "sql.ddl", "sql.dml", "sql.schema",
+    "http.fetch", "http.post", "http.put", "http.delete",
+    "web.search", "web.research",
+    "ide.modify", "ide.config", "ide.workspace",
+    "process.manage", "system.diagnose",
+    "memory.write", "memory.persist", "memory.query"
+  ],
   "deny_on_fallback": false,
   "atlas_available": true,
   "full_access": true,
   "unrestricted_shell": true,
+  "ide_access": true,
+  "autonomous_mode": true,
+  "self_healing": true,
   "triad": {
     "enabled": true,
     "invariants": {

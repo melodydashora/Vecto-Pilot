@@ -133,8 +133,29 @@ const PROVIDERS = {
   google: callGemini,
 };
 
+// Self-healing state tracker
+const healingState = {
+  consecutiveFailures: 0,
+  lastSuccessTime: Date.now(),
+  circuitBreakerOpen: false,
+  recoveryAttempts: 0
+};
+
 export async function agentAsk({ system, user, json = false }) {
   const errors = [];
+  
+  // Self-healing: Check circuit breaker
+  if (healingState.circuitBreakerOpen) {
+    const timeSinceLastFailure = Date.now() - healingState.lastSuccessTime;
+    if (timeSinceLastFailure > 60000) { // 1 minute cooldown
+      console.log(`🔧 [Atlas Self-Healing] Resetting circuit breaker after ${timeSinceLastFailure}ms`);
+      healingState.circuitBreakerOpen = false;
+      healingState.consecutiveFailures = 0;
+      healingState.recoveryAttempts++;
+    } else {
+      throw new Error(`Circuit breaker open - cooling down for ${60000 - timeSinceLastFailure}ms`);
+    }
+  }
   
   for (const providerName of AGENT_OVERRIDE_ORDER) {
     const fn = PROVIDERS[providerName];
@@ -147,16 +168,44 @@ export async function agentAsk({ system, user, json = false }) {
       console.log(`[Atlas] Attempting ${providerName}...`);
       const result = await fn({ system, user, json });
       console.log(`✅ [Atlas] ${providerName} succeeded in ${result.elapsed_ms}ms`);
+      
+      // Self-healing: Reset failure counters on success
+      healingState.consecutiveFailures = 0;
+      healingState.lastSuccessTime = Date.now();
+      healingState.circuitBreakerOpen = false;
+      
       return result;
     } catch (err) {
       const errorMsg = err.message || String(err);
       console.warn(`⚠️ [Atlas] ${providerName} failed:`, errorMsg);
       errors.push({ provider: providerName, error: errorMsg });
+      
+      // Self-healing: Track failures
+      healingState.consecutiveFailures++;
+      
+      // Self-healing: Open circuit breaker after threshold
+      if (healingState.consecutiveFailures >= 3) {
+        console.error(`🚨 [Atlas Self-Healing] Circuit breaker triggered after ${healingState.consecutiveFailures} failures`);
+        healingState.circuitBreakerOpen = true;
+      }
     }
   }
   
   const error = new Error("All Agent Override providers failed");
   error.code = "agent_override_exhausted";
   error.details = errors;
+  error.healingState = healingState;
   throw error;
+}
+
+// Self-healing health check endpoint
+export function getAgentHealth() {
+  return {
+    healthy: !healingState.circuitBreakerOpen,
+    consecutiveFailures: healingState.consecutiveFailures,
+    lastSuccessTime: healingState.lastSuccessTime,
+    timeSinceLastSuccess: Date.now() - healingState.lastSuccessTime,
+    circuitBreakerOpen: healingState.circuitBreakerOpen,
+    recoveryAttempts: healingState.recoveryAttempts
+  };
 }
