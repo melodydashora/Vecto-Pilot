@@ -240,17 +240,29 @@ export async function runConsolidator(snapshotId) {
     // VERIFICATION: Log briefing field integrity before consolidator processes
     if (briefingRow) {
       console.log(`[consolidator] 🔍 BRIEFING FIELDS VERIFICATION (before consolidator):`);
-      console.log(`   - weather: ${briefingRow.weather ? 'present (' + briefingRow.weather.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
-      console.log(`   - traffic_conditions: ${briefingRow.traffic_conditions ? 'present (' + briefingRow.traffic_conditions.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
-      console.log(`   - rideshare_news: ${briefingRow.rideshare_news ? 'present (' + briefingRow.rideshare_news.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
-      console.log(`   - events: ${briefingRow.events ? 'present (' + briefingRow.events.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
-      console.log(`   - school_closures: ${briefingRow.school_closures ? 'present (' + briefingRow.school_closures.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
+      console.log(`   - weather_current: ${briefingRow.weather_current ? 'present (' + (typeof briefingRow.weather_current === 'string' ? briefingRow.weather_current.substring(0, 50) : JSON.stringify(briefingRow.weather_current).substring(0, 50)) + '...)' : 'NULL ⚠️'}`);
+      console.log(`   - traffic_conditions: ${briefingRow.traffic_conditions ? 'present (' + (typeof briefingRow.traffic_conditions === 'string' ? briefingRow.traffic_conditions.substring(0, 100) : JSON.stringify(briefingRow.traffic_conditions).substring(0, 100)) + '...)' : 'NULL ⚠️'}`);
+      console.log(`   - news: ${briefingRow.news ? 'present (' + (typeof briefingRow.news === 'string' ? briefingRow.news.substring(0, 50) : JSON.stringify(briefingRow.news).substring(0, 50)) + '...)' : 'NULL ⚠️'}`);
+      console.log(`   - events: ${briefingRow.events ? 'present (' + (typeof briefingRow.events === 'string' ? briefingRow.events.substring(0, 50) : JSON.stringify(briefingRow.events).substring(0, 50)) + '...)' : 'NULL ⚠️'}`);
+      console.log(`   - school_closures: ${briefingRow.school_closures ? 'present (' + (typeof briefingRow.school_closures === 'string' ? briefingRow.school_closures.substring(0, 50) : JSON.stringify(briefingRow.school_closures).substring(0, 50)) + '...)' : 'NULL ⚠️'}`);
     } else {
       console.warn(`[consolidator] ⚠️ NO BRIEFING ROW FOUND for snapshot ${snapshotId}`);
     }
     
     const briefingContext = formatBriefingContext(briefingRow);
-    console.log(`[consolidator] 📋 Briefing context: ${briefingContext.length} chars`);
+    console.log(`[consolidator] 📋 Briefing context formatted: ${briefingContext.length} chars`);
+    
+    // Log detailed briefing context to ensure traffic/events are included
+    if (briefingContext.includes('TRAFFIC')) {
+      console.log(`[consolidator] ✅ TRAFFIC DATA INCLUDED in briefing context`);
+    } else {
+      console.warn(`[consolidator] ⚠️ TRAFFIC DATA MISSING from briefing context`);
+    }
+    if (briefingContext.includes('LOCAL EVENTS') || briefingContext.includes('EVENT')) {
+      console.log(`[consolidator] ✅ EVENT DATA INCLUDED in briefing context`);
+    } else {
+      console.warn(`[consolidator] ⚠️ EVENT DATA MISSING from briefing context`);
+    }
     
     // Step 3: Fetch snapshot for location/time context
     const ctx = await getFullSnapshot(snapshotId);
@@ -275,10 +287,10 @@ export async function runConsolidator(snapshotId) {
     console.log(`[consolidator] 📍 Location: ${userAddress}`);
     console.log(`[consolidator] 🕐 Time: ${localTime} (${dayPart})`);
     
-    // Step 4: Build Tactical Dispatcher prompt
+    // Step 4: Build Tactical Dispatcher prompt with explicit briefing data
     const prompt = `You are a TACTICAL DISPATCHER for rideshare drivers. Your job is to synthesize intelligence into a clear, actionable "Strategy for Now."
 
-You have access to Google Search for a final sanity check on any breaking news, but your PRIMARY task is to synthesize the data already provided below.
+Your PRIMARY task is to synthesize the data provided below. You have access to Google Search only for final sanity check on breaking news.
 
 === DRIVER CONTEXT ===
 Location: ${userAddress}
@@ -290,36 +302,40 @@ Day Part: ${dayPart}
 ${ctx.is_holiday ? `🎉 HOLIDAY: ${ctx.holiday}` : ''}
 ${ctx.airport_context?.airport_code ? `Nearby Airport: ${ctx.airport_context.airport_code} (${ctx.airport_context.distance_miles} mi)` : ''}
 
-=== STRATEGIC ASSESSMENT (from Claude) ===
+=== STRATEGIC ASSESSMENT (from Claude Sonnet) ===
 ${minstrategy}
 
-=== LIVE BRIEFING DATA (from Gemini + Google APIs) ===
+=== LIVE BRIEFING DATA (Real-time from Gemini + Google APIs - USE THIS DATA) ===
 ${briefingContext}
 
 === YOUR TASK ===
 Synthesize ALL the above into a clear, immediate "Strategy for Now" for this driver.
 
+CRITICAL: You MUST reference the live briefing data (traffic incidents, events, news) in your strategy.
+
 Your output should be 3-5 paragraphs that:
 1. START with the current situation: "Right now in ${cityDisplay}..."
-2. Highlight the TOP 2-3 opportunities based on time, events, and conditions
-3. Call out any hazards or avoid-zones (traffic incidents, closures, enforcement)
-4. Give a clear RECOMMENDATION: "Your best move right now is..."
-5. End with timing guidance: how long this window lasts
+2. Reference specific traffic incidents/conditions from the briefing data
+3. Call out events/venues happening today that impact demand
+4. Highlight any hazards or avoid-zones (closures, congestion, enforcement)
+5. Give a clear RECOMMENDATION: "Your best move right now is..."
+6. End with timing guidance: how long this window lasts
 
 STYLE REQUIREMENTS:
 - Write in direct, conversational language (like a dispatcher on the radio)
-- Be specific about locations, times, and why
+- Be specific about locations, street names, events, and times
+- Use details from the briefing data (mention incidents like "Eastbound Main St closed")
 - No bullet points - use flowing paragraphs
 - No generic advice - make it specific to THIS driver at THIS moment
-- If you use Google Search to verify anything, mention what you checked
 
 DO NOT:
 - List venues (that's handled by Smart Blocks)
-- Give vague advice like "be safe" or "check your app"
+- Give vague advice like "be safe"
 - Repeat the minstrategy verbatim
 - Output JSON - just plain text paragraphs`;
 
     console.log(`[consolidator] 📝 Prompt size: ${prompt.length} chars`);
+    console.log(`[consolidator] 📄 Briefing context being sent:\n${briefingContext}`);
     
     // Step 5: Call Gemini
     const result = await callGeminiConsolidator({
