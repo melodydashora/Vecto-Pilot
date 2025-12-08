@@ -73,6 +73,9 @@ export async function detectHoliday(context) {
             { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
           ],
           generationConfig: {
+            thinkingConfig: {
+              thinkingLevel: "HIGH"
+            },
             temperature: 0.1,
             topP: 0.95,
             topK: 40,

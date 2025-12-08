@@ -1,17 +1,16 @@
-
 // server/lib/adapters/gemini-adapter.js
 // Generic Gemini adapter - returns { ok, output } shape
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export async function callGemini({ 
-  model, 
-  system, 
-  user, 
-  maxTokens, 
-  temperature, 
-  topP, 
-  topK, 
+export async function callGemini({
+  model,
+  system,
+  user,
+  maxTokens,
+  temperature,
+  topP,
+  topK,
   useSearch = false,
   thinkingLevel = "HIGH" // Default to HIGH for Gemini 3
 }) {
@@ -21,15 +20,15 @@ export async function callGemini({
       console.error('[model/gemini] ❌ GEMINI_API_KEY not configured');
       return { ok: false, error: 'GEMINI_API_KEY not configured' };
     }
-    
+
     const genAI = new GoogleGenerativeAI(apiKey);
     console.log(`[model/gemini] calling ${model} with max_tokens=${maxTokens}`);
 
     // Use lower temperature for JSON responses
-    const expectsJson = user.toLowerCase().includes('json') || 
+    const expectsJson = user.toLowerCase().includes('json') ||
                         (system && system.toLowerCase().includes('json'));
     const finalTemperature = expectsJson ? 0.2 : (temperature || 0.7);
-    
+
     // Construct generation config
     const generationConfig = {
       maxOutputTokens: maxTokens,
@@ -74,15 +73,15 @@ export async function callGemini({
         output = codeBlockMatch[1].trim();
         console.log(`[model/gemini] 🧹 Removed markdown code block (${rawLength} → ${output.length} chars)`);
       }
-      
+
       if (user.toLowerCase().includes('json')) {
         let jsonStart = -1;
         let jsonEnd = -1;
         let isArray = false;
-        
+
         const arrayStart = output.indexOf('[');
         const objectStart = output.indexOf('{');
-        
+
         if (arrayStart !== -1 && (objectStart === -1 || arrayStart < objectStart)) {
           jsonStart = arrayStart;
           jsonEnd = output.lastIndexOf(']');
@@ -92,7 +91,7 @@ export async function callGemini({
           jsonEnd = output.lastIndexOf('}');
           isArray = false;
         }
-        
+
         if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
           if (jsonStart > 0 || jsonEnd < output.length - 1) {
             const extracted = output.slice(jsonStart, jsonEnd + 1);
