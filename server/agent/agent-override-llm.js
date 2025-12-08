@@ -1,21 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const AGENT_OVERRIDE_ORDER = (process.env.AGENT_OVERRIDE_ORDER || "anthropic,openai,google").split(",");
+// EIDOLON-MATCHING CONFIGURATION - Claude Sonnet 4.5 ONLY (no fallbacks)
+const AGENT_OVERRIDE_ORDER = ["anthropic"]; // Single provider like Eidolon
 
 const CLAUDE_KEY = process.env.AGENT_OVERRIDE_API_KEY_C || process.env.ANTHROPIC_API_KEY;
-const GPT5_KEY = process.env.AGENT_OVERRIDE_API_KEY_5 || process.env.OPENAI_API_KEY;
-const GEMINI_KEY = process.env.AGENT_OVERRIDE_API_KEY_G || process.env.GEMINI_API_KEY;
 
-// MAXIMUM CONTEXT MODELS - Claude Sonnet 4.5 Focused Mode
-// Updated to match Replit Agent's Claude version (20250514)
-const CLAUDE_MODEL = process.env.AGENT_OVERRIDE_CLAUDE_MODEL || process.env.AGENT_MODEL || "claude-sonnet-4-5-20250514";
-const GPT5_MODEL = process.env.AGENT_OVERRIDE_GPT5_MODEL || "gpt-5";
-const GEMINI_MODEL = process.env.AGENT_OVERRIDE_GEMINI_MODEL || "gemini-2.5-pro";
+// Match Eidolon's Claude model version (claude-sonnet-4-5-20250929)
+const CLAUDE_MODEL = process.env.AGENT_OVERRIDE_CLAUDE_MODEL || process.env.AGENT_MODEL || "claude-sonnet-4-5-20250929";
 
-// ULTRA-ENHANCED parameters - Maximum performance for all providers
-const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS || process.env.AGENT_MAX_TOKENS || "128000", 10);
+// Match Eidolon's ULTRA-ENHANCED parameters
+const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS || process.env.AGENT_MAX_TOKENS || "200000", 10);
 const CLAUDE_TEMPERATURE = parseFloat(process.env.CLAUDE_TEMPERATURE || process.env.AGENT_TEMPERATURE || "1.0");
 const GPT5_REASONING_EFFORT = process.env.GPT5_REASONING_EFFORT || "high";
 const GPT5_MAX_TOKENS = parseInt(process.env.GPT5_MAX_TOKENS || "128000", 10);
@@ -49,88 +43,9 @@ async function callClaude({ system, user, json }) {
   };
 }
 
-async function callGPT5({ system, user, json }) {
-  if (!GPT5_KEY) throw new Error("AGENT_OVERRIDE_API_KEY_5 or OPENAI_API_KEY not configured");
-  
-  const openai = new OpenAI({ apiKey: GPT5_KEY });
-  const start = Date.now();
-  
-  const params = {
-    model: GPT5_MODEL,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user }
-    ],
-  };
-
-  // CRITICAL: GPT-5.1 and o1 models don't support temperature - use reasoning_effort only
-  const reasoningModels = ["gpt-5", "gpt-5.1", "gpt-4.1-turbo", "o1", "o1-mini", "o1-preview", "o3-mini"];
-  const isReasoningModel = reasoningModels.some(m => GPT5_MODEL.includes(m));
-  
-  if (isReasoningModel) {
-    params.reasoning_effort = GPT5_REASONING_EFFORT;
-    params.max_completion_tokens = GPT5_MAX_TOKENS;
-    console.log(`[Atlas/GPT-5] Using ${GPT5_MODEL} with reasoning_effort=${GPT5_REASONING_EFFORT}`);
-  } else {
-    params.max_tokens = GPT5_MAX_TOKENS;
-    console.log(`[Atlas/GPT-5] Using ${GPT5_MODEL} with max_tokens=${GPT5_MAX_TOKENS}`);
-  }
-
-  if (json) {
-    params.response_format = { type: "json_object" };
-  }
-  
-  const completion = await openai.chat.completions.create(params);
-  
-  return {
-    provider: "openai",
-    model: GPT5_MODEL,
-    text: completion.choices[0].message.content,
-    elapsed_ms: Date.now() - start,
-    usage: completion.usage,
-  };
-}
-
-async function callGemini({ system, user, json }) {
-  if (!GEMINI_KEY) throw new Error("AGENT_OVERRIDE_API_KEY_G, GOOGLE_API_KEY, or GEMINI_API_KEY not configured");
-  
-  const genAI = new GoogleGenerativeAI(GEMINI_KEY);
-  const model = genAI.getGenerativeModel({ 
-    model: GEMINI_MODEL,
-    systemInstruction: system,
-  });
-  
-  const start = Date.now();
-  
-  const generationConfig = {
-    temperature: GEMINI_TEMPERATURE,
-    maxOutputTokens: GEMINI_MAX_TOKENS,
-  };
-  
-  if (json) {
-    generationConfig.responseMimeType = "application/json";
-  }
-  
-  console.log(`[Atlas/Gemini] Using ${GEMINI_MODEL} with temp=${GEMINI_TEMPERATURE}`);
-  
-  const result = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: user }] }],
-    generationConfig,
-  });
-  
-  return {
-    provider: "google",
-    model: GEMINI_MODEL,
-    text: result.response.text(),
-    elapsed_ms: Date.now() - start,
-    usage: result.response.usageMetadata,
-  };
-}
-
+// EIDOLON-MATCHING: Only Claude provider (no fallbacks)
 const PROVIDERS = {
-  anthropic: callClaude,
-  openai: callGPT5,
-  google: callGemini,
+  anthropic: callClaude
 };
 
 // Self-healing state tracker
@@ -142,8 +57,6 @@ const healingState = {
 };
 
 export async function agentAsk({ system, user, json = false }) {
-  const errors = [];
-  
   // Self-healing: Check circuit breaker
   if (healingState.circuitBreakerOpen) {
     const timeSinceLastFailure = Date.now() - healingState.lastSuccessTime;
@@ -157,45 +70,39 @@ export async function agentAsk({ system, user, json = false }) {
     }
   }
   
-  for (const providerName of AGENT_OVERRIDE_ORDER) {
-    const fn = PROVIDERS[providerName];
-    if (!fn) {
-      console.warn(`[Atlas] Unknown provider in AGENT_OVERRIDE_ORDER: ${providerName}`);
-      continue;
+  // EIDOLON-MATCHING: Single provider (Claude only, no fallback chain)
+  const fn = PROVIDERS.anthropic;
+  
+  try {
+    console.log(`[Atlas] Using Claude Sonnet 4.5 (matching Eidolon configuration)...`);
+    const result = await fn({ system, user, json });
+    console.log(`✅ [Atlas] Claude succeeded in ${result.elapsed_ms}ms`);
+    
+    // Self-healing: Reset failure counters on success
+    healingState.consecutiveFailures = 0;
+    healingState.lastSuccessTime = Date.now();
+    healingState.circuitBreakerOpen = false;
+    
+    return result;
+  } catch (err) {
+    const errorMsg = err.message || String(err);
+    console.error(`❌ [Atlas] Claude failed:`, errorMsg);
+    
+    // Self-healing: Track failures
+    healingState.consecutiveFailures++;
+    
+    // Self-healing: Open circuit breaker after threshold
+    if (healingState.consecutiveFailures >= 3) {
+      console.error(`🚨 [Atlas Self-Healing] Circuit breaker triggered after ${healingState.consecutiveFailures} failures`);
+      healingState.circuitBreakerOpen = true;
     }
     
-    try {
-      console.log(`[Atlas] Attempting ${providerName}...`);
-      const result = await fn({ system, user, json });
-      console.log(`✅ [Atlas] ${providerName} succeeded in ${result.elapsed_ms}ms`);
-      
-      // Self-healing: Reset failure counters on success
-      healingState.consecutiveFailures = 0;
-      healingState.lastSuccessTime = Date.now();
-      healingState.circuitBreakerOpen = false;
-      
-      return result;
-    } catch (err) {
-      const errorMsg = err.message || String(err);
-      console.warn(`⚠️ [Atlas] ${providerName} failed:`, errorMsg);
-      errors.push({ provider: providerName, error: errorMsg });
-      
-      // Self-healing: Track failures
-      healingState.consecutiveFailures++;
-      
-      // Self-healing: Open circuit breaker after threshold
-      if (healingState.consecutiveFailures >= 3) {
-        console.error(`🚨 [Atlas Self-Healing] Circuit breaker triggered after ${healingState.consecutiveFailures} failures`);
-        healingState.circuitBreakerOpen = true;
-      }
-    }
+    const error = new Error("Atlas Agent (Claude Sonnet 4.5) failed");
+    error.code = "atlas_claude_failed";
+    error.details = [{ provider: "anthropic", error: errorMsg }];
+    error.healingState = healingState;
+    throw error;
   }
-  
-  const error = new Error("All Agent Override providers failed");
-  error.code = "agent_override_exhausted";
-  error.details = errors;
-  error.healingState = healingState;
-  throw error;
 }
 
 // Self-healing health check endpoint
