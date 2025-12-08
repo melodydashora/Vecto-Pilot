@@ -1,5 +1,19 @@
 import React, { useState, useEffect, useCallback, useContext } from "react";
-import { MapPin, Clock, Settings, RefreshCw, Car, Droplet, Thermometer, CloudRain, Cloud, Sun, CloudSnow, CheckCircle2, Trash2 } from "lucide-react";
+import {
+  MapPin,
+  Clock,
+  Settings,
+  RefreshCw,
+  Car,
+  Droplet,
+  Thermometer,
+  CloudRain,
+  Cloud,
+  Sun,
+  CloudSnow,
+  CheckCircle2,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -37,9 +51,16 @@ const GlobalHeaderComponent: React.FC = () => {
   const [timeContextLabel, setTimeContextLabel] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
-  const [weather, setWeather] = useState<{temp: number; conditions: string; description?: string} | null>(null);
+  const [weather, setWeather] = useState<{
+    temp: number;
+    conditions: string;
+    description?: string;
+  } | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
-  const [airQuality, setAirQuality] = useState<{aqi: number; category: string} | null>(null);
+  const [airQuality, setAirQuality] = useState<{
+    aqi: number;
+    category: string;
+  } | null>(null);
   const [aqLoading, setAqLoading] = useState(false);
   const [snapshotReady, setSnapshotReady] = useState(false);
   const [latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
@@ -47,7 +68,10 @@ const GlobalHeaderComponent: React.FC = () => {
   const [isHoliday, setIsHoliday] = useState(false);
 
   // CRITICAL FIX Issue #5: Get device_id from localStorage for database query
-  const deviceId = typeof window !== 'undefined' ? localStorage.getItem('vecto_device_id') : null;
+  const deviceId =
+    typeof window !== "undefined"
+      ? localStorage.getItem("vecto_device_id")
+      : null;
 
   // CRITICAL FIX Issue #5 & #3: Query /api/users/me directly for fresh location from database
   // This bypasses context state lag and ensures header always shows current location
@@ -56,10 +80,12 @@ const GlobalHeaderComponent: React.FC = () => {
   // Root cause: 30 reqs/min per user × 50 concurrent users = production spike
   // Solution: Fetch on app init only, refetch on location change via context
   const { data: dbUserLocation } = useQuery({
-    queryKey: ['/api/users/me', deviceId],
+    queryKey: ["/api/users/me", deviceId],
     queryFn: async () => {
       if (!deviceId) return null;
-      const res = await fetch(`/api/users/me?device_id=${encodeURIComponent(deviceId)}`);
+      const res = await fetch(
+        `/api/users/me?device_id=${encodeURIComponent(deviceId)}`,
+      );
       if (!res.ok) return null;
       return res.json();
     },
@@ -82,32 +108,43 @@ const GlobalHeaderComponent: React.FC = () => {
 
   // CRITICAL FIX Issue #5 & #8: PRIORITY - Use database location, then override city, then context city/state
   const currentLocationString =
-    overrideCoords?.city ?? 
+    overrideCoords?.city ??
     (dbUserLocation?.ok && dbUserLocation?.city ? dbUserLocation.city : null) ??
-    (loc?.city && loc?.state ? `${loc.city}, ${loc.state}` : null) ?? 
-    (loc?.location?.city && loc?.location?.state ? `${loc.location.city}, ${loc.location.state}` : null) ??
-    loc?.currentLocationString ?? 
-    loc?.location?.currentLocation ??  // Try currentLocation (the actual state key)
-    loc?.location?.currentLocationString ?? 
+    (loc?.city && loc?.state ? `${loc.city}, ${loc.state}` : null) ??
+    (loc?.location?.city && loc?.location?.state
+      ? `${loc.location.city}, ${loc.location.state}`
+      : null) ??
+    loc?.currentLocationString ??
+    loc?.location?.currentLocation ?? // Try currentLocation (the actual state key)
+    loc?.location?.currentLocationString ??
     "";
 
   // Debug: Log what we're reading - PRIORITY database location
   useEffect(() => {
-    console.log("[GlobalHeader] CRITICAL FIX Issue #5 - Location source hierarchy:", {
-      dbLocation: dbUserLocation?.ok ? { city: dbUserLocation.city, state: dbUserLocation.state, updated_at: dbUserLocation.updated_at } : null,
-      overrideCoords: overrideCoords?.city,
-      contextLocationString: loc?.currentLocationString,
-      finalDisplayValue: currentLocationString,
-    });
+    console.log(
+      "[GlobalHeader] CRITICAL FIX Issue #5 - Location source hierarchy:",
+      {
+        dbLocation: dbUserLocation?.ok
+          ? {
+              city: dbUserLocation.city,
+              state: dbUserLocation.state,
+              updated_at: dbUserLocation.updated_at,
+            }
+          : null,
+        overrideCoords: overrideCoords?.city,
+        contextLocationString: loc?.currentLocationString,
+        finalDisplayValue: currentLocationString,
+      },
+    );
   }, [currentLocationString, dbUserLocation, loc]);
 
   // Header is "resolved" as soon as we have coords + city (don't wait for weather/AQ/events)
   const isLocationResolved = Boolean(
-    coords?.latitude && 
-    coords?.longitude && 
-    currentLocationString && 
-    currentLocationString !== "Getting location..." && 
-    currentLocationString !== "Detecting..."
+    coords?.latitude &&
+      coords?.longitude &&
+      currentLocationString &&
+      currentLocationString !== "Getting location..." &&
+      currentLocationString !== "Detecting...",
   );
   // CRITICAL FIX Issue #3: Get refreshGPS from the correctly imported context
   const refreshGPS: undefined | (() => Promise<void>) =
@@ -149,17 +186,24 @@ const GlobalHeaderComponent: React.FC = () => {
         setIsHoliday(false);
       }
     };
-    window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
-    return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
+    window.addEventListener(
+      "vecto-snapshot-saved",
+      handleSnapshotSaved as EventListener,
+    );
+    return () =>
+      window.removeEventListener(
+        "vecto-snapshot-saved",
+        handleSnapshotSaved as EventListener,
+      );
   }, []);
-
 
   // Compute local time fields for display with timezone
   // CRITICAL FIX Issue #5: PRIORITY database timezone over context
   useEffect(() => {
-    const tz = dbUserLocation?.ok && dbUserLocation?.timezone 
-      ? dbUserLocation.timezone
-      : (loc?.timeZone || loc?.location?.timeZone);
+    const tz =
+      dbUserLocation?.ok && dbUserLocation?.timezone
+        ? dbUserLocation.timezone
+        : loc?.timeZone || loc?.location?.timeZone;
 
     // Only pass timeZone if we have it, otherwise use browser's local timezone
     const formatter = new Intl.DateTimeFormat("en-US", {
@@ -169,7 +213,7 @@ const GlobalHeaderComponent: React.FC = () => {
       hour12: true,
       ...(tz && { timeZone: tz }),
     });
-    const dayFmt = new Intl.DateTimeFormat("en-US", { 
+    const dayFmt = new Intl.DateTimeFormat("en-US", {
       weekday: "long",
       ...(tz && { timeZone: tz }),
     });
@@ -196,7 +240,11 @@ const GlobalHeaderComponent: React.FC = () => {
 
   const formatLocation = () => {
     // CRITICAL FIX Issue #5: Show resolved city from database (freshest source)
-    if (currentLocationString && currentLocationString !== "Getting location..." && currentLocationString !== "Detecting...") {
+    if (
+      currentLocationString &&
+      currentLocationString !== "Getting location..." &&
+      currentLocationString !== "Detecting..."
+    ) {
       // If database location, show with formatted_address for precision
       if (dbUserLocation?.ok && dbUserLocation?.formatted_address) {
         return `📍 ${dbUserLocation.formatted_address}`;
@@ -214,12 +262,21 @@ const GlobalHeaderComponent: React.FC = () => {
 
   const getAqiIndicator = (aqi: number) => {
     // EPA Air Quality Index colors
-    if (aqi <= 50) return { emoji: '🟢', color: 'text-green-300', label: 'Good' };
-    if (aqi <= 100) return { emoji: '🟡', color: 'text-yellow-300', label: 'Moderate' };
-    if (aqi <= 150) return { emoji: '🟠', color: 'text-orange-300', label: 'Unhealthy for Sensitive' };
-    if (aqi <= 200) return { emoji: '🔴', color: 'text-red-300', label: 'Unhealthy' };
-    if (aqi <= 300) return { emoji: '🟣', color: 'text-purple-300', label: 'Very Unhealthy' };
-    return { emoji: '🟤', color: 'text-red-500', label: 'Hazardous' };
+    if (aqi <= 50)
+      return { emoji: "🟢", color: "text-green-300", label: "Good" };
+    if (aqi <= 100)
+      return { emoji: "🟡", color: "text-yellow-300", label: "Moderate" };
+    if (aqi <= 150)
+      return {
+        emoji: "🟠",
+        color: "text-orange-300",
+        label: "Unhealthy for Sensitive",
+      };
+    if (aqi <= 200)
+      return { emoji: "🔴", color: "text-red-300", label: "Unhealthy" };
+    if (aqi <= 300)
+      return { emoji: "🟣", color: "text-purple-300", label: "Very Unhealthy" };
+    return { emoji: "🟤", color: "text-red-500", label: "Hazardous" };
   };
 
   // Reverse geocode and timezone fetch (server preferred; fallbacks included)
@@ -233,10 +290,10 @@ const GlobalHeaderComponent: React.FC = () => {
           city?: string;
           state?: string;
           country?: string;
-          formattedAddress?: string;  // Full street address
+          formattedAddress?: string; // Full street address
         };
     } catch (err) {
-      console.error('[GlobalHeader] Reverse geocode failed:', err);
+      console.error("[GlobalHeader] Reverse geocode failed:", err);
     }
     return {};
   };
@@ -248,7 +305,7 @@ const GlobalHeaderComponent: React.FC = () => {
       });
       if (res.ok) return (await res.json()) as { timeZone?: string };
     } catch (err) {
-      console.error('[GlobalHeader] Timezone fetch failed:', err);
+      console.error("[GlobalHeader] Timezone fetch failed:", err);
     }
     return { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
   };
@@ -262,10 +319,10 @@ const GlobalHeaderComponent: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         if (data.available) {
-          setWeather({ 
-            temp: data.temperature, 
+          setWeather({
+            temp: data.temperature,
             conditions: data.conditions,
-            description: data.description 
+            description: data.description,
           });
           return data;
         }
@@ -281,15 +338,18 @@ const GlobalHeaderComponent: React.FC = () => {
   const getAirQuality = async (lat: number, lng: number) => {
     setAqLoading(true);
     try {
-      const res = await fetch(`/api/location/airquality?lat=${lat}&lng=${lng}`, {
-        credentials: "include",
-      });
+      const res = await fetch(
+        `/api/location/airquality?lat=${lat}&lng=${lng}`,
+        {
+          credentials: "include",
+        },
+      );
       if (res.ok) {
         const data = await res.json();
         if (data.available) {
-          setAirQuality({ 
-            aqi: data.aqi, 
-            category: data.category 
+          setAirQuality({
+            aqi: data.aqi,
+            category: data.category,
           });
           return {
             aqi: data.aqi,
@@ -401,9 +461,9 @@ const GlobalHeaderComponent: React.FC = () => {
           {/* Time + Settings */}
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <div 
-                className="text-lg font-bold font-mono tabular-nums" 
-                aria-live="off" 
+              <div
+                className="text-lg font-bold font-mono tabular-nums"
+                aria-live="off"
                 aria-hidden="true"
               >
                 {timeString}
@@ -413,39 +473,56 @@ const GlobalHeaderComponent: React.FC = () => {
                   <Clock className="inline mr-1 h-3 w-3" />
                   {/* Prioritize holiday name over day part label when available */}
                   {isHoliday && holiday ? (
-                    <span className="text-amber-300 font-semibold">{holiday}</span>
+                    <span className="text-amber-300 font-semibold">
+                      {holiday}
+                    </span>
                   ) : (
-                    <>{dayOfWeek} {timeContextLabel}</>
+                    <>
+                      {dayOfWeek} {timeContextLabel}
+                    </>
                   )}
                 </span>
                 {weatherLoading ? (
-                  <div className="h-5 w-14 rounded-full bg-white/10 animate-pulse" aria-hidden="true" />
+                  <div
+                    className="h-5 w-14 rounded-full bg-white/10 animate-pulse"
+                    aria-hidden="true"
+                  />
                 ) : weather ? (
-                  <span 
+                  <span
                     className="flex items-center gap-1 bg-white/15 rounded-full px-2 py-0.5 transition-opacity"
-                    title={weather.description || `${weather.conditions}, ${weather.temp}°`}
+                    title={
+                      weather.description ||
+                      `${weather.conditions}, ${weather.temp}°`
+                    }
                   >
-                    {weather.conditions.toLowerCase().includes('rain') ? (
+                    {weather.conditions.toLowerCase().includes("rain") ? (
                       <CloudRain className="h-3.5 w-3.5" />
-                    ) : weather.conditions.toLowerCase().includes('cloud') ? (
+                    ) : weather.conditions.toLowerCase().includes("cloud") ? (
                       <Cloud className="h-3.5 w-3.5" />
-                    ) : weather.conditions.toLowerCase().includes('snow') ? (
+                    ) : weather.conditions.toLowerCase().includes("snow") ? (
                       <CloudSnow className="h-3.5 w-3.5" />
                     ) : (
                       <Sun className="h-3.5 w-3.5" />
                     )}
-                    <span className="font-semibold">{Math.round(weather.temp)}°</span>
+                    <span className="font-semibold">
+                      {Math.round(weather.temp)}°
+                    </span>
                   </span>
                 ) : null}
                 {aqLoading ? (
-                  <div className="h-5 w-16 rounded-full bg-white/10 animate-pulse" aria-hidden="true" />
+                  <div
+                    className="h-5 w-16 rounded-full bg-white/10 animate-pulse"
+                    aria-hidden="true"
+                  />
                 ) : airQuality ? (
-                  <span 
+                  <span
                     className="flex items-center gap-1 bg-white/15 rounded-full px-2 py-0.5 transition-opacity"
                     title={`Air Quality: ${airQuality.category} (AQI ${airQuality.aqi})`}
                   >
                     <span>{getAqiIndicator(airQuality.aqi).emoji}</span>
-                    <span className="font-semibold text-xs">AQI {airQuality.aqi}</span>
+                    <span className="font-semibold text-xs">
+                      AQI {airQuality.aqi}
+                    </span>
                   </span>
                 ) : null}
               </div>
