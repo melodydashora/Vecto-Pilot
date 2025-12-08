@@ -185,6 +185,7 @@ function buildProviders() {
         controller.signal.addEventListener('abort', onAbort2, { once: true });
         composite.signal.addEventListener('abort', onAbort2, { once: true });
         try {
+          // FIX: API key in URL as query parameter, no x-goog-api-key header needed
           const apiKey = process.env.GEMINI_API_KEY;
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
           const parts = [{ text: user }];

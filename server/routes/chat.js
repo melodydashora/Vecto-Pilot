@@ -200,6 +200,7 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
       const abortController = new AbortController();
       const timeoutId = setTimeout(() => abortController.abort(), 90000);
       
+      // FIX: API key already in URL as query parameter, no header needed
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
         {
