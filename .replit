@@ -98,7 +98,7 @@ integrations = ["perplexity_v0:1.0.0"]
 [userenv.shared]
 STRATEGY_STRATEGIST = "claude-sonnet-4-5-20250929"
 STRATEGY_BRIEFER = "gemini-3-pro-preview"
-STRATEGY_CONSOLIDATOR = "gpt-5.1"
+STRATEGY_CONSOLIDATOR = "gemini-3-pro-preview"
 GEMINI_MODEL = "gemini-3-pro-preview"
 STRATEGY_CONSOLIDATOR_MAX_TOKENS = "64000"
 STRATEGY_CONSOLIDATOR_REASONING_EFFORT = "medium"
