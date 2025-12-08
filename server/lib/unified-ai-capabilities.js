@@ -6,6 +6,11 @@
  */
 
 export const UNIFIED_CAPABILITIES = {
+  // Model Configuration - All systems use Claude Sonnet 4.5
+  model: "claude-sonnet-4-5-20250929",
+  context_window: 200000,
+  thinking_mode: "ultra-deep",
+  
   // Core Intelligence
   enhanced_memory: true,
   cross_chat_awareness: true,
@@ -14,6 +19,7 @@ export const UNIFIED_CAPABILITIES = {
   semantic_search: true,
   pattern_recognition: true,
   behavioral_learning: true,
+  ultra_deep_thinking: true,
   
   // Research & Knowledge
   web_research: true,
@@ -29,6 +35,7 @@ export const UNIFIED_CAPABILITIES = {
   fs_rename: true,
   fs_move: true,
   full_repo_access: true,
+  full_workspace_access: true,
   
   // Shell & System
   shell_exec: true,
@@ -76,7 +83,13 @@ export const UNIFIED_CAPABILITIES = {
   error_prediction: true,
   auto_remediation: true,
   health_monitoring: true,
+  circuit_breaker_active: true,
   circuit_breaker_override: true,
+  
+  // Request Routing
+  unified_routing: true,
+  assistant_interception: true,
+  request_consolidation: true,
   
   // Memory & Persistence
   cross_thread_memory: true,

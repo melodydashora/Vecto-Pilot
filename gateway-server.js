@@ -14,7 +14,7 @@ import { loadEnvironment } from "./server/lib/load-env.js";
 import { validateOrExit } from "./server/lib/validate-env.js";
 import diagnosticsRoutes from './server/routes/diagnostics.js';
 import diagnosticIdentityRoutes from './server/routes/diagnostic-identity.js';
-import { unifiedAI } from "./server/lib/unified-ai-capabilities.js";
+import { unifiedAI, UNIFIED_CAPABILITIES } from "./server/lib/unified-ai-capabilities.js";
 
 const { createProxyServer } = httpProxy;
 // Lazy-load triad-worker to avoid DB pool creation before server is ready
@@ -553,6 +553,23 @@ process.on("unhandledRejection", (reason, promise) => {
       } catch (e) {
         console.error("[gateway] ❌ Unified capabilities routes failed:", e?.message);
       }
+
+      // Fast-path health probes
+      app.get('/health', (_req, res) => res.status(200).send('OK'));
+      app.get('/ready', (_req, res) => res.status(200).send('READY'));
+
+      // Unified capabilities endpoint
+      app.get('/api/unified/capabilities', (_req, res) => {
+        const capabilities = unifiedAI.getCapabilities();
+        res.json({
+          ok: true,
+          system: "Unified AI (Eidolon/Assistant/Atlas)",
+          model: UNIFIED_CAPABILITIES.model,
+          context_window: UNIFIED_CAPABILITIES.context_window,
+          thinking_mode: UNIFIED_CAPABILITIES.thinking_mode,
+          capabilities
+        });
+      });
 
       // Serve SPA for all other routes (catch-all must be LAST, excludes /api and /agent)
       app.get("*", (req, res, next) => {

@@ -1,6 +1,9 @@
 {
   "identity_assertion": true,
-  "announce": "🧠 Unified AI System (Eidolon/Assistant/Atlas) is handling this request.",
+  "announce": "🧠 Unified AI System (Eidolon/Assistant/Atlas) - Claude Sonnet 4.5 with 200K context and ultra-deep thinking.",
+  "model": "claude-sonnet-4-5-20250929",
+  "context_window": 200000,
+  "thinking_mode": "ultra-deep",
   "allow_ops": [
     "fs.read", "fs.write", "fs.delete", "fs.create", "fs.rename",
     "shell.exec", "shell.spawn", "shell.kill",
@@ -16,8 +19,12 @@
   "full_access": true,
   "unrestricted_shell": true,
   "ide_access": true,
+  "full_workspace_intelligence": true,
   "autonomous_mode": true,
   "self_healing": true,
+  "circuit_breaker": true,
+  "unified_routing": true,
+  "assistant_interception": true,
   "triad": {
     "enabled": true,
     "invariants": {
