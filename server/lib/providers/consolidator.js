@@ -237,6 +237,18 @@ export async function runConsolidator(snapshotId) {
     const [briefingRow] = await db.select().from(briefings)
       .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     
+    // VERIFICATION: Log briefing field integrity before consolidator processes
+    if (briefingRow) {
+      console.log(`[consolidator] 🔍 BRIEFING FIELDS VERIFICATION (before consolidator):`);
+      console.log(`   - weather: ${briefingRow.weather ? 'present (' + briefingRow.weather.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
+      console.log(`   - traffic_conditions: ${briefingRow.traffic_conditions ? 'present (' + briefingRow.traffic_conditions.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
+      console.log(`   - rideshare_news: ${briefingRow.rideshare_news ? 'present (' + briefingRow.rideshare_news.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
+      console.log(`   - events: ${briefingRow.events ? 'present (' + briefingRow.events.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
+      console.log(`   - school_closures: ${briefingRow.school_closures ? 'present (' + briefingRow.school_closures.substring(0, 50) + '...)' : 'NULL ⚠️'}`);
+    } else {
+      console.warn(`[consolidator] ⚠️ NO BRIEFING ROW FOUND for snapshot ${snapshotId}`);
+    }
+    
     const briefingContext = formatBriefingContext(briefingRow);
     console.log(`[consolidator] 📋 Briefing context: ${briefingContext.length} chars`);
     
