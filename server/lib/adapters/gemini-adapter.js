@@ -13,7 +13,7 @@ export async function callGemini({
   topP, 
   topK, 
   useSearch = false,
-  thinkingLevel = "HIGH" // Default to HIGH for gemini-3-pro-preview
+  thinkingLevel = "HIGH" // Default to HIGH for Gemini 3
 }) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -30,19 +30,25 @@ export async function callGemini({
                         (system && system.toLowerCase().includes('json'));
     const finalTemperature = expectsJson ? 0.2 : (temperature || 0.7);
     
+    // Construct generation config
+    const generationConfig = {
+      maxOutputTokens: maxTokens,
+      temperature: finalTemperature,
+      ...(topP !== undefined && { topP }),
+      ...(topK !== undefined && { topK }),
+    };
+
+    // ADDED: Support for Gemini 3.0 Thinking (Only for gemini-3-* models)
+    if (model.includes('gemini-3')) {
+      generationConfig.thinkingConfig = {
+        thinkingLevel: thinkingLevel // "HIGH" or "LOW"
+      };
+    }
+
     const generativeModel = genAI.getGenerativeModel({
       model,
       systemInstruction: system ? { parts: [{ text: system }] } : undefined,
-      generationConfig: {
-        maxOutputTokens: maxTokens,
-        temperature: finalTemperature,
-        ...(topP !== undefined && { topP }),
-        ...(topK !== undefined && { topK }),
-        // ADDED: Support for Gemini 3.0 Thinking (nested in thinkingConfig)
-        thinkingConfig: {
-          thinkingLevel: thinkingLevel
-        }
-      },
+      generationConfig,
       // ISSUE #16 FIX: Disable safety filters to prevent blocking traffic/event data
       safetySettings: [
         { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -54,7 +60,7 @@ export async function callGemini({
 
     const result = await generativeModel.generateContent({
       contents: [{ role: "user", parts: [{ text: user }] }],
-      // FIXED: Use 'googleSearch' (camelCase) for the JS SDK instead of 'google_search'
+      // CORRECT: Use 'googleSearch' (camelCase) for the JS SDK
       ...(useSearch && { tools: [{ googleSearch: {} }] })
     });
 
@@ -63,47 +69,38 @@ export async function callGemini({
     // GEMINI CLEANUP: Remove markdown code blocks and wrapper text
     if (output) {
       const rawLength = output.length;
-      
-      // Strategy 1: Remove markdown code blocks (```json ... ``` or ``` ... ```)
       const codeBlockMatch = output.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (codeBlockMatch) {
         output = codeBlockMatch[1].trim();
         console.log(`[model/gemini] 🧹 Removed markdown code block (${rawLength} → ${output.length} chars)`);
       }
       
-      // Strategy 2: If prompt asks for JSON, extract {...} objects or [...] arrays
       if (user.toLowerCase().includes('json')) {
         let jsonStart = -1;
         let jsonEnd = -1;
         let isArray = false;
         
-        // Look for array first [...], then object {...}
         const arrayStart = output.indexOf('[');
         const objectStart = output.indexOf('{');
         
         if (arrayStart !== -1 && (objectStart === -1 || arrayStart < objectStart)) {
-          // Array comes first
           jsonStart = arrayStart;
           jsonEnd = output.lastIndexOf(']');
           isArray = true;
         } else if (objectStart !== -1) {
-          // Object comes first (or only option)
           jsonStart = objectStart;
           jsonEnd = output.lastIndexOf('}');
           isArray = false;
         }
         
         if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-          // Only extract if there's wrapper text (not already pure JSON)
           if (jsonStart > 0 || jsonEnd < output.length - 1) {
             const extracted = output.slice(jsonStart, jsonEnd + 1);
-            // Validate it's actually JSON before replacing
             try {
               JSON.parse(extracted);
               output = extracted;
               console.log(`[model/gemini] 🧹 Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
             } catch (e) {
-              // Not valid JSON, keep original
               console.log(`[model/gemini] ⚠️ JSON extraction failed, keeping original output`);
             }
           }
