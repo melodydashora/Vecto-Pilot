@@ -32,12 +32,12 @@ export async function detectHoliday(context) {
 
   // 2. Strict JSON Prompt
   const prompt = `Use Google Search to determine if ${formattedDate} is a significant holiday in ${context.city}, ${context.state}.
-  
+
   CRITERIA for "Significant":
   - Federal/National holidays (e.g. Thanksgiving, Christmas, Memorial Day)
   - Major religious observances (e.g. Easter, Eid, Yom Kippur)
   - Major cultural events affecting traffic/business (e.g. Mardi Gras)
-  
+
   EXCLUDE:
   - Minor awareness days (e.g. Pizza Day, Siblings Day)
   - Time changes (e.g. Daylight Savings)
@@ -103,7 +103,7 @@ export async function detectHoliday(context) {
     // 4. Parse Strict JSON
     try {
       const parsed = JSON.parse(text);
-      
+
       const isHoliday = parsed.is_holiday === true;
       const holidayName = isHoliday ? parsed.name : null;
 
