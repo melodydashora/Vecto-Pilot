@@ -840,3 +840,27 @@ export async function getBriefingBySnapshotId(snapshotId) {
     return null;
   }
 }
+
+/**
+ * Get existing briefing or generate if missing
+ * @param {string} snapshotId 
+ * @param {object} snapshot - Full snapshot object
+ * @returns {Promise<object|null>} Parsed briefing data
+ */
+export async function getOrGenerateBriefing(snapshotId, snapshot) {
+  let briefing = await getBriefingBySnapshotId(snapshotId);
+  
+  if (!briefing) {
+    console.log(`[BriefingService] Auto-generating briefing: ${snapshotId}`);
+    try {
+      const result = await generateAndStoreBriefing({ snapshotId, snapshot });
+      if (result.success) {
+        briefing = result.briefing;
+      }
+    } catch (genErr) {
+      console.error('[BriefingService] Generation error:', genErr.message);
+    }
+  }
+  
+  return briefing;
+}
