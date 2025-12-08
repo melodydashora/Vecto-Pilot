@@ -1001,6 +1001,55 @@ All enrich/validate merges use stable keys (place_id preferred; name fallback) a
 
 ---
 
+### ~~formatBriefingContext() Summarization~~ (Replaced Dec 8, 2025)
+**Status:** REPLACED
+**Files:**
+- `server/lib/providers/consolidator.js` - Now passes raw JSON instead of summarized text
+
+**Before:**
+```javascript
+// OLD: formatBriefingContext() converted JSON to truncated text summaries
+const briefingContext = formatBriefingContext(briefingRow);
+// Lost details like "Eastbound Main St closed" 
+```
+
+**After:**
+```javascript
+// NEW: Raw JSON passed directly with labeled sections
+const trafficData = parseJsonField(briefingRow?.traffic_conditions);
+// === CURRENT_TRAFFIC_DATA ===
+// ${JSON.stringify(trafficData, null, 2)}
+```
+
+**Reason:** Summarization lost critical incident details (street names, closures, times). Raw JSON preserves all data so Gemini can reference specific details like "Eastbound Main St closed" in generated strategies.
+
+---
+
+### ~~Fallback/Stub Data in Briefing Service~~ (Removed Dec 8, 2025)
+**Status:** REMOVED
+**Files:**
+- `server/lib/briefing-service.js` - No more fallback placeholder data
+
+**Before:**
+```javascript
+// OLD: Returned stub data if Gemini failed
+if (!result.ok) {
+  return { summary: 'Real-time traffic data unavailable...' };
+}
+```
+
+**After:**
+```javascript
+// NEW: Throws error - fail-fast architecture
+if (!result.ok) {
+  throw new Error(`Gemini traffic API failed: ${result.error}`);
+}
+```
+
+**Reason:** Fail-fast architecture - if Gemini API fails, the entire briefing flow fails with a clear error. No silent fallbacks that hide API failures. Each Gemini call must return actual data OR a reason why not (e.g., `{items: [], reason: 'No events found'}`).
+
+---
+
 ## 🏗️ SYSTEM ARCHITECTURE
 
 ### Multi-Server Architecture (Production)
