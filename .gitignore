@@ -197,3 +197,6 @@ keys/
 env/shared.env
 *.env.shared
 shared.env
+.env.example
+.env.unified
+mono-mode.env
