@@ -9,84 +9,86 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!process.env.GEMINI_API_KEY);
 
 /**
- * Core Gemini API helper with Google Search, safety overrides, and thinking_level
- * Per MODEL.md: Use gemini-3-pro-preview with google_search tool
+ * Unified helper for Gemini 3.0 Pro calls with Retry Logic
+ * Handles authentication, safety settings, JSON parsing, and 503/429 backoff
  */
 async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.1, responseMimeType = "application/json" }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const callStart = Date.now();
-  
-  console.log(`[BriefingService] 🔄 callGeminiWithSearch START at ${new Date().toISOString()}`);
-  console.log(`[BriefingService] 🔑 API Key exists: ${!!apiKey}, length: ${apiKey?.length || 0}`);
-
+  const apiKey = process.env.GEMINI_API_KEY; 
   if (!apiKey) {
-    console.error('[BriefingService] ❌ GEMINI_API_KEY not configured at runtime');
+    console.error('[BriefingService] ❌ GEMINI_API_KEY not configured');
     return { ok: false, error: 'GEMINI_API_KEY not configured' };
   }
 
-  const model = 'gemini-3-pro-preview';
-  
-  try {
-    console.log(`[BriefingService] 📡 Sending Gemini request to ${model}...`);
-    
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
-          safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-          ],
-          generationConfig: {
-            thinkingConfig: {
-              thinkingLevel: "HIGH"
-            },
-            temperature,
-            topP: 0.95,
-            topK: 40,
-            maxOutputTokens: maxTokens,
-            responseMimeType
-          }
-        })
+  // RETRY CONFIGURATION: 3 attempts with 2s, 4s, 8s delays
+  const MAX_RETRIES = 3;
+  const BASE_DELAY_MS = 2000;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+    try {
+      if (attempt > 1) {
+        console.log(`[BriefingService] ⏳ Retry attempt ${attempt-1}/${MAX_RETRIES} due to overload...`);
       }
-    );
 
-    const elapsed = Date.now() - callStart;
-    console.log(`[BriefingService] 📥 Gemini response received in ${elapsed}ms, status: ${response.status}`);
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            tools: [{ google_search: {} }],
+            safetySettings: [
+              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+            ],
+            generationConfig: {
+              thinkingConfig: {
+                thinkingLevel: "HIGH"
+              },
+              temperature,
+              maxOutputTokens: maxTokens,
+              responseMimeType
+            }
+          })
+        }
+      );
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`[BriefingService] Gemini API Error ${response.status}: ${errText.substring(0, 500)}`);
-      
-      if (response.status === 400 && errText.includes('API key expired')) {
-        console.error('[BriefingService] ⚠️ ACTION REQUIRED: Update GEMINI_API_KEY in Secrets');
-        return { ok: false, error: 'GEMINI_API_KEY expired - update in Secrets' };
+      // Handle Overloaded (503) or Rate Limited (429)
+      if (response.status === 503 || response.status === 429) {
+        const errText = await response.text();
+        console.warn(`[BriefingService] ⚠️ Gemini Busy (Status ${response.status}): ${errText.substring(0, 100)}`);
+        
+        if (attempt <= MAX_RETRIES) {
+          // Wait before retrying (Exponential Backoff)
+          const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1); 
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue; // Retry loop
+        }
+        return { ok: false, error: `Gemini Overloaded after ${MAX_RETRIES} retries` };
       }
-      
-      return { ok: false, error: `API error ${response.status}` };
+
+      if (!response.ok) {
+        const err = await response.text();
+        return { ok: false, error: `Gemini API ${response.status}: ${err}` };
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) return { ok: false, error: 'Empty response from Gemini' };
+
+      const cleanText = text.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      return { ok: true, output: cleanText };
+
+    } catch (error) {
+      console.error(`[BriefingService] Network error (Attempt ${attempt}):`, error.message);
+      if (attempt <= MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, BASE_DELAY_MS));
+        continue;
+      }
+      return { ok: false, error: error.message };
     }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      console.warn('[BriefingService] Empty response from Gemini');
-      return { ok: false, error: 'Empty response' };
-    }
-
-    console.log(`[BriefingService] ✅ Gemini returned ${text.length} chars in ${Date.now() - callStart}ms`);
-    const cleanText = text.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    return { ok: true, output: cleanText };
-  } catch (error) {
-    const elapsed = Date.now() - callStart;
-    console.error(`[BriefingService] Gemini fetch error after ${elapsed}ms:`, error.message);
-    return { ok: false, error: error.message };
   }
 }
 
