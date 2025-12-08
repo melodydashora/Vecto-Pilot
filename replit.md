@@ -28,7 +28,11 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
 **System Design Choices**:
 - **Core Services**: Gateway Server, SDK Server, Agent Server.
 - **Memory Systems & Data Isolation**: Assistant (user preferences), Eidolon (project/session state with snapshots), Agent Memory (agent service state). All are scoped by `user_id` and secured with JWT.
-- **AI Configuration**: Role-based, model-agnostic architecture using configurable AI models (Strategist, Briefer, Consolidator, Holiday Checker) for event-driven strategy generation.
+- **AI Configuration**: Role-based architecture using configurable AI models for event-driven strategy generation:
+  - **Strategist**: Claude Sonnet 4.5 for strategic overview (minstrategy)
+  - **Briefer**: Gemini 3 Pro Preview for Type A briefing data (news, events, traffic, weather, closures)
+  - **Consolidator**: Gemini 3 Pro Preview as "Tactical Dispatcher" - synthesizes minstrategy + snapshot + Type A briefing JSON into actionable "Strategy for Now" (no deep research, just consolidation)
+  - **Holiday Checker**: Perplexity for holiday detection
 - **Data Storage**: PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data using unique indexes and JSONB.
 - **Architecture Pattern - Snapshots as Central Connector for ML**: Snapshots act as the authoritative connector across all data sources, enabling machine learning and analytics by linking all enrichments (strategies, briefings, rankings, actions, venue feedback) to a `snapshot_id`.
 - **Authentication & Security**: JWT with RS256 Asymmetric Keys and security middleware for rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.
@@ -38,7 +42,8 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
 ## External Dependencies
 
 ### Third-Party APIs
--   **AI & Research**: Anthropic (Claude), OpenAI (GPT-4o Realtime, GPT-5.1), Google (Gemini 3.0 Pro with Web Search, Gemini 2.0 Flash), Perplexity.
+-   **AI & Research**: Anthropic (Claude Sonnet 4.5), OpenAI (GPT-4o Realtime), Google (Gemini 3.0 Pro Preview with Web Search for briefing + consolidation), Perplexity (holiday detection).
+-   **DEPRECATED**: GPT-5.1 consolidation removed - replaced by Gemini 3 Pro Preview Tactical Dispatcher.
 -   **Voice Chat**: OpenAI Realtime API.
 -   **Location & Mapping**: Google Places API, Google Routes API, Google Geocoding API, Google Timezone API.
 -   **Weather**: Google Weather API.
