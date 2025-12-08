@@ -178,12 +178,18 @@ process.on("unhandledRejection", (reason, promise) => {
       process.exit(1);
     });
 
-    server.listen(PORT, "0.0.0.0", () => {
-      console.log(
-        `[ready] ✅ Server listening on 0.0.0.0:${PORT} in ${Date.now() - startTime}ms`,
-      );
-      console.log(`[ready] 🚀 Health endpoints ready - accepting requests`);
-    });
+    // Only start server if not being imported for testing
+    if (import.meta.url === `file://${process.argv[1]}`) {
+      server.listen(PORT, "0.0.0.0", () => {
+        console.log(
+          `[ready] ✅ Server listening on 0.0.0.0:${PORT} in ${Date.now() - startTime}ms`,
+        );
+        console.log(`[ready] 🚀 Health endpoints ready - accepting requests`);
+      });
+    }
+
+    // Export app for testing
+    globalThis.testApp = app;
 
     // NOTE: In mono mode, consolidation listener runs in separate strategy-generator.js process
     // Gateway should NOT start an inline listener to avoid conflicts with separate worker
@@ -533,3 +539,6 @@ process.on("unhandledRejection", (reason, promise) => {
     process.exit(1);
   }
 })();
+
+// Export for testing (after bootstrap completes)
+export default globalThis.testApp;
