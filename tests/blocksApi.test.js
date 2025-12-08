@@ -108,6 +108,7 @@ describe("Blocks API Contract", () => {
 
       expect(res.status).toBe(404);
     });
+  });
 
   describe("Block validation function", () => {
     it("validates header block with all required fields", () => {
