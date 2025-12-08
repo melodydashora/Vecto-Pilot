@@ -120,7 +120,9 @@ GEMINI_MODEL=gemini-3-pro-preview
   "model": "gemini-3-pro-preview",
   "contents": [...],
   "generationConfig": {
-    "thinking_level": "low" | "high",        // ✅ NEW: Replaces thinking_budget
+    "thinkingConfig": {
+      "thinkingLevel": "LOW" | "HIGH"        // ✅ NEW: Replaces thinking_budget (must be nested)
+    },
     "temperature": 0.7,
     "topP": 0.95,
     "maxOutputTokens": 2048,
@@ -144,7 +146,7 @@ GEMINI_MODEL=gemini-3-pro-preview
 - **`gemini-2.0-flash`**: GA production (extremely fast/cheap)
 
 **❌ DEPRECATED PARAMETERS**:
-- `thinking_budget` → Use `thinking_level` instead (causes 400 error if both used)
+- `thinking_budget` → Use `thinkingConfig.thinkingLevel` instead (must be nested in thinkingConfig object)
 
 **⚠️ CRITICAL CONSTRAINT**:
 - Must return and pass `thought_signature` in multi-turn function calls or get 400 Error
@@ -200,7 +202,9 @@ PERPLEXITY_MODEL=sonar-pro
   "model": "gemini-3-pro-preview",
   "tools": [{ "google_search": {} }],
   "generationConfig": {
-    "thinking_level": "high",              // ✅ Improves location filtering
+    "thinkingConfig": {
+      "thinkingLevel": "HIGH"              // ✅ Improves location filtering (nested structure required)
+    },
     "response_mime_type": "application/json",
     "response_schema": {
       "type": "ARRAY",
@@ -291,7 +295,7 @@ TICKETMASTER_API_KEY=<your_key>
 ### Google Gemini 3.0
 | **REMOVE** ❌ | **USE INSTEAD** ✅ | **CRITICAL CONSTRAINT** ⚠️ |
 |--------------|-------------------|---------------------------|
-| `thinking_budget` | `thinking_level` | Must return `thought_signature` in function calls |
+| `thinking_budget` | `generationConfig.thinkingConfig.thinkingLevel` | Must be nested in thinkingConfig object; returns `thought_signature` in function calls |
 
 ### OpenAI o1 / GPT-5.1
 | **REMOVE** ❌ | **USE INSTEAD** ✅ | **CRITICAL CONSTRAINT** ⚠️ |
@@ -340,7 +344,9 @@ curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-p
     }],
     "tools": [{"googleSearch": {}}],
     "generationConfig": {
-      "thinking_level": "high",
+      "thinkingConfig": {
+        "thinkingLevel": "HIGH"
+      },
       "responseMimeType": "application/json"
     }
   }' | jq .
@@ -438,6 +444,9 @@ async function testGemini3ProStrict() {
     ],
     // ✅ CRITICAL: Force JSON mode so the app doesn't crash on markdown
     generationConfig: {
+      thinkingConfig: {
+        thinkingLevel: "HIGH"  // ✅ Must be nested in thinkingConfig
+      },
       temperature: 0.0,
       topP: 0.8,
       topK: 40,
@@ -491,6 +500,7 @@ testGemini3ProStrict();
 | :--- | :--- | :--- | :--- |
 | **Model** | `gemini-3-pro-preview` | `gemini-3-pro-preview` | Matches requirement |
 | **Search Tool** | Relies on prompt text only | `tools: [{google_search: {}}]` | Ensures actual web search, prevents hallucination |
+| **Thinking Config** | `thinking_level: "high"` (wrong) | `thinkingConfig: {thinkingLevel: "HIGH"}` | Must be nested in thinkingConfig object |
 | **Output Format** | Plain text (asks for JSON) | `responseMimeType: "application/json"` | Prevents markdown code blocks that break parsers |
 | **API Key** | Header: `x-goog-api-key` | URL parameter: `?key=` | Correct authentication method |
 
