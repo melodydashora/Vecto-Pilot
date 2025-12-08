@@ -9,6 +9,65 @@ import { eq } from 'drizzle-orm';
 import { getFullSnapshot } from '../snapshot/get-snapshot-context.js';
 
 /**
+ * Call GPT-5.1 to generate immediate strategy from consolidated output
+ */
+async function callGPT5ForImmediateStrategy({ consolidatedStrategy, userAddress, cityDisplay, timestamp }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[consolidator] ⚠️ OPENAI_API_KEY not configured, skipping immediate strategy');
+    return { strategy: '' };
+  }
+
+  try {
+    const prompt = `You are a tactical rideshare coach. Based on the consolidated daily strategy below, generate a focused "Strategy for RIGHT NOW" (next 1 hour).
+
+CONSOLIDATED DAILY STRATEGY:
+${consolidatedStrategy}
+
+LOCATION: ${userAddress} (${cityDisplay})
+TIME: ${timestamp}
+
+Generate ONLY a concise 2-3 sentence tactical instruction for what the driver should do RIGHT NOW to maximize earnings in the next hour. Be specific to the location and time. Reference details from the consolidated strategy above.`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-5.1',
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        reasoning: { effort: 'medium' },
+        max_completion_tokens: 500
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`[consolidator] ⚠️ GPT-5.1 failed (${response.status}): ${errText.substring(0, 100)}`);
+      return { strategy: '' };
+    }
+
+    const data = await response.json();
+    const strategy = data.choices?.[0]?.message?.content || '';
+    
+    if (strategy) {
+      console.log(`[consolidator] ✅ GPT-5.1 returned immediate strategy: ${strategy.substring(0, 100)}...`);
+      return { strategy };
+    }
+    
+    console.warn('[consolidator] ⚠️ GPT-5.1 returned empty response');
+    return { strategy: '' };
+  } catch (error) {
+    console.warn(`[consolidator] ⚠️ GPT-5.1 call failed:`, error.message);
+    return { strategy: '' };
+  }
+}
+
+/**
  * Call Gemini 3 Pro Preview with Google Search tool and Retry Logic
  * Handles 503/429 overload errors with exponential backoff
  */
@@ -272,16 +331,28 @@ DO NOT: List venues, give vague advice, repeat minstrategy verbatim, output JSON
     console.log(`[consolidator] ✅ Got strategy: ${consolidatedStrategy.length} chars`);
     console.log(`[consolidator] 📖 Preview: ${consolidatedStrategy.substring(0, 150)}...`);
     
-    // Step 6: Write to strategies table
+    // Step 6a: Call GPT-5.1 for immediate strategy from consolidated output + location
+    console.log(`[consolidator] 🔄 Calling GPT-5.1 for immediate strategy...`);
+    const immediateStrategyResult = await callGPT5ForImmediateStrategy({
+      consolidatedStrategy,
+      userAddress,
+      cityDisplay,
+      timestamp: localTime
+    });
+    
+    const strategyForNow = immediateStrategyResult?.strategy || '';
+    
+    // Step 6b: Write to strategies table
     const totalDuration = Date.now() - startTime;
     
     await db.update(strategies).set({
       consolidated_strategy: consolidatedStrategy,
+      strategy_for_now: strategyForNow,
       status: 'ok',
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    console.log(`[consolidator] ✅ SAVED consolidated_strategy for ${snapshotId}`);
+    console.log(`[consolidator] ✅ SAVED consolidated_strategy + strategy_for_now for ${snapshotId}`);
     console.log(`[consolidator] ⏱️ Total time: ${totalDuration}ms`);
     
     return { 

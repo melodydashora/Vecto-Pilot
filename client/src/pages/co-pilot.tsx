@@ -1985,6 +1985,7 @@ const CoPilot: React.FC = () => {
               newsData={newsData}
               eventsData={eventsData}
               schoolClosuresData={schoolClosuresData}
+              consolidatedStrategy={persistentStrategy}
             />
           </div>
         )}

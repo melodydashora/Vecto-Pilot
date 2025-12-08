@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Newspaper, Cloud, CloudRain, Sun, Wind, Droplets,
   AlertTriangle, Car, RefreshCw, Loader, Clock, ExternalLink,
-  ChevronDown, ChevronUp, BookOpen
+  ChevronDown, ChevronUp, BookOpen, Sparkles
 } from "lucide-react";
 import EventsComponent from "./EventsComponent";
 
@@ -25,6 +25,7 @@ interface BriefingTabProps {
   newsData?: any;
   eventsData?: any;
   schoolClosuresData?: any;
+  consolidatedStrategy?: string;
 }
 
 export default function BriefingTab({ 
@@ -33,7 +34,8 @@ export default function BriefingTab({
   trafficData, 
   newsData, 
   eventsData, 
-  schoolClosuresData 
+  schoolClosuresData,
+  consolidatedStrategy
 }: BriefingTabProps) {
   const [expandedWeather, setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
@@ -354,6 +356,21 @@ export default function BriefingTab({
         </Card>
       ) : (
         <EventsComponent events={eventsToday} isLoading={false} />
+      )}
+
+      {/* Consolidated Daily Strategy - NEW */}
+      {consolidatedStrategy && (
+        <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200" data-testid="consolidated-strategy-card">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-600" />
+              Daily Strategy Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-700 leading-relaxed">{consolidatedStrategy}</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* School Closures Section - LAST */}
