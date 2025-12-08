@@ -2,7 +2,7 @@
 // Briefer provider - Uses Gemini 3.0 Pro for all briefing data (events, traffic, weather, news, closures)
 
 import { db } from '../../db/drizzle.js';
-import { briefings, snapshots } from '../../../shared/schema.js';
+import { snapshots } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { generateAndStoreBriefing } from '../briefing-service.js';
 
