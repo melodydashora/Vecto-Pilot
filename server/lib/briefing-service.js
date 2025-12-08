@@ -281,7 +281,12 @@ RETURN FORMAT (ONLY this JSON, no markdown):
 
   const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
 
+  // Handle empty response gracefully - Gemini sometimes returns OK with no content
   if (!result.ok) {
+    if (result.error === 'Empty response' || result.error === 'Empty response from Gemini') {
+      console.warn(`[BriefingService] ⚠️ Gemini returned empty events response for ${city}, ${state}`);
+      return { items: [], reason: 'Gemini returned empty response - may be overloaded' };
+    }
     const errorMsg = `Gemini events API failed: ${result.error}`;
     console.error(`[BriefingService] ❌ ${errorMsg}`);
     throw new Error(errorMsg);
@@ -606,7 +611,22 @@ CRITICAL: Include highDemandZones and repositioning.`;
 
   const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
 
+  // Handle empty response gracefully - Gemini sometimes returns OK with no content
   if (!result.ok) {
+    if (result.error === 'Empty response') {
+      console.warn(`[BriefingService] ⚠️ Gemini returned empty traffic response for ${city}, ${state}`);
+      return {
+        summary: `Traffic data temporarily unavailable for ${city}, ${state}. Check local traffic sources.`,
+        incidents: [],
+        congestionLevel: 'unknown',
+        highDemandZones: [],
+        repositioning: null,
+        surgePricing: false,
+        safetyAlert: null,
+        fetchedAt: new Date().toISOString(),
+        reason: 'Gemini returned empty response - may be overloaded or no data available'
+      };
+    }
     throw new Error(`Gemini traffic API failed: ${result.error}`);
   }
 
@@ -666,7 +686,12 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
 
   const result = await callGeminiWithSearch({ prompt, maxTokens: 2048 });
 
+  // Handle empty response gracefully - Gemini sometimes returns OK with no content
   if (!result.ok) {
+    if (result.error === 'Empty response') {
+      console.warn(`[BriefingService] ⚠️ Gemini returned empty news response for ${city}, ${state}`);
+      return { items: [], reason: 'Gemini returned empty response - may be overloaded' };
+    }
     throw new Error(`Gemini news API failed: ${result.error}`);
   }
 
