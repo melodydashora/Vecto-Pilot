@@ -868,21 +868,21 @@ All enrich/validate merges use stable keys (place_id preferred; name fallback) a
 ## ⚠️ DEPRECATED FEATURES (Struck Through)
 
 ### ~~Multi-Model Router with Fallback/Hedging~~
-**Status:** DEPRECATED (October 2025)  
+**Status:** ~~DEPRECATED (October 2025)~~  
 **Files:**
-- ~~`server/lib/llm-router-v2.js`~~ - Multi-model hedging router
-- ~~`tools/debug/test-v2-router.mjs`~~ - Router testing
+- ~~`server/lib/llm-router-v2.js` - Multi-model hedging router~~
+- ~~`tools/debug/test-v2-router.mjs` - Router testing~~
 
-**Reason:** Single-path orchestration is more reliable and auditable. Model-agnostic providers replace hedging.
+**Reason:** ~~Single-path orchestration is more reliable and auditable. Model-agnostic providers replace hedging.~~
 
 ---
 
 ### ~~Global JSON Body Parsing~~
-**Status:** DEPRECATED (November 2025)  
+**Status:** ~~DEPRECATED (November 2025)~~  
 **Files:**
-- ~~`gateway-server.js`~~ - Global `express.json()` removed
+- ~~`gateway-server.js` - Global `express.json()` removed~~
 
-**Reason:** Per-route validation prevents HTML error pages and enables custom size limits.
+**Reason:** ~~Per-route validation prevents HTML error pages and enables custom size limits.~~
 
 ---
 
