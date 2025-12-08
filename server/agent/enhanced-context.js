@@ -40,14 +40,64 @@ export async function getEnhancedProjectContext(options = {}) {
     configFiles: {},
     rootFiles: [],
 
-    // Capabilities
+    // Unified Maximum Capabilities (shared across all AI systems)
     capabilities: {
+      // Intelligence & Research
       internetSearch: true,
       perplexityResearch: true,
-      fullRepoAccess: true,
       enhancedMemory: true,
       deepContextAwareness: true,
-      threadAwareness: true // NEW capability
+      threadAwareness: true,
+      semanticSearch: true,
+      patternRecognition: true,
+      
+      // File System (IDE Integration)
+      fullRepoAccess: true,
+      fsRead: true,
+      fsWrite: true,
+      fsDelete: true,
+      fsCreate: true,
+      fsRename: true,
+      
+      // Shell & System
+      shellExec: true,
+      shellUnrestricted: true,
+      systemDiagnostics: true,
+      processManagement: true,
+      
+      // Database
+      sqlQuery: true,
+      sqlExecute: true,
+      sqlDDL: true,
+      sqlDML: true,
+      schemaIntrospection: true,
+      
+      // Network & API
+      httpFetch: true,
+      apiIntegration: true,
+      websocketAccess: true,
+      
+      // IDE & Workspace
+      ideFullAccess: true,
+      workspaceModification: true,
+      configManagement: true,
+      dependencyManagement: true,
+      
+      // Autonomy & Self-Healing
+      autonomousMode: true,
+      selfHealing: true,
+      autoRecovery: true,
+      errorPrediction: true,
+      autoRemediation: true,
+      healthMonitoring: true
+    },
+    
+    // Self-healing status
+    selfHealing: {
+      enabled: true,
+      healthScore: 1.0,
+      lastCheck: new Date().toISOString(),
+      activeRecoveries: 0
     }
   };
 
