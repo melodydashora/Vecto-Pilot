@@ -50,6 +50,7 @@ export async function validateWithGemini({
   };
 
   try {
+    // FIX: API key in URL as query parameter, no x-goog-api-key header needed
     const res = await fetch(`${GEMINI_URL(model)}?key=${key}`, {
       method: "POST",
       headers: { "content-type": "application/json" },

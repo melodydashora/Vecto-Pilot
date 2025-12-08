@@ -12,6 +12,7 @@ export async function callGeminiGenerateContent({
 }) {
   if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
   if (!model) throw new Error("Missing GEMINI_MODEL environment variable");
+  // FIX: API key in URL as query parameter, no x-goog-api-key header needed
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const body = {
     systemInstruction: systemInstruction ? { role: "system", parts: [{ text: systemInstruction }] } : undefined,
