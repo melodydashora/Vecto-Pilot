@@ -1,9 +1,20 @@
+
 // server/lib/adapters/gemini-adapter.js
 // Generic Gemini adapter - returns { ok, output } shape
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export async function callGemini({ model, system, user, maxTokens, temperature, topP, topK, useSearch = false }) {
+export async function callGemini({ 
+  model, 
+  system, 
+  user, 
+  maxTokens, 
+  temperature, 
+  topP, 
+  topK, 
+  useSearch = false,
+  thinkingLevel = "HIGH" // Default to HIGH for gemini-3-pro-preview
+}) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -26,7 +37,11 @@ export async function callGemini({ model, system, user, maxTokens, temperature, 
         maxOutputTokens: maxTokens,
         temperature: finalTemperature,
         ...(topP !== undefined && { topP }),
-        ...(topK !== undefined && { topK })
+        ...(topK !== undefined && { topK }),
+        // ADDED: Support for Gemini 3.0 Thinking (nested in thinkingConfig)
+        thinkingConfig: {
+          thinkingLevel: thinkingLevel
+        }
       },
       // ISSUE #16 FIX: Disable safety filters to prevent blocking traffic/event data
       safetySettings: [
@@ -39,7 +54,8 @@ export async function callGemini({ model, system, user, maxTokens, temperature, 
 
     const result = await generativeModel.generateContent({
       contents: [{ role: "user", parts: [{ text: user }] }],
-      ...(useSearch && { tools: [{ google_search: {} }] })
+      // FIXED: Use 'googleSearch' (camelCase) for the JS SDK instead of 'google_search'
+      ...(useSearch && { tools: [{ googleSearch: {} }] })
     });
 
     let output = result?.response?.text()?.trim() || "";
