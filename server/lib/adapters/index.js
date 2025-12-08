@@ -44,7 +44,10 @@ export async function callModel(role, { system, user }) {
   if (model.startsWith("gemini-")) {
     const topP = process.env[`${key}_TOP_P`] ? Number(process.env[`${key}_TOP_P`]) : undefined;
     const topK = process.env[`${key}_TOP_K`] ? Number(process.env[`${key}_TOP_K`]) : undefined;
-    return callGemini({ model, system, user, maxTokens, temperature, topP, topK });
+    // Enable Google Search for roles that need real-time data
+    const searchRoles = ['consolidator', 'briefer'];
+    const useSearch = searchRoles.includes(role.toLowerCase());
+    return callGemini({ model, system, user, maxTokens, temperature, topP, topK, useSearch });
   }
   
   // Perplexity disabled - briefing system uses Gemini 3.0 Pro directly
