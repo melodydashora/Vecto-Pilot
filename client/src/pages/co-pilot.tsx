@@ -1205,9 +1205,6 @@ const CoPilot: React.FC = () => {
                       <p className="font-bold text-amber-900 text-lg">
                         🎉 Happy {strategyData.strategy.holiday}!
                       </p>
-                      <p className="text-sm text-amber-800">
-                        Holiday demand patterns in effect - expect increased airport traffic and surge pricing opportunities
-                      </p>
                     </div>
                   </div>
                 </CardContent>
