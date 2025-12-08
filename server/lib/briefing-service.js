@@ -94,6 +94,52 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
 
 const inFlightBriefings = new Map();
 
+/**
+ * Safely parse JSON from Gemini responses
+ * Handles unescaped newlines, markdown blocks, and other formatting issues
+ */
+function safeJsonParse(jsonString) {
+  try {
+    // Remove markdown code blocks if present
+    let cleaned = jsonString.trim();
+    if (cleaned.startsWith('```json')) {
+      cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+    } else if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+    }
+    
+    // Try direct parse first
+    return JSON.parse(cleaned);
+  } catch (e1) {
+    try {
+      // Second attempt: normalize whitespace and escape issues
+      // This handles cases where Gemini returns JSON with actual newlines in strings
+      const normalized = jsonString
+        .replace(/\r\n/g, '\\n')  // Windows newlines to escaped newlines
+        .replace(/(?<!\\)\n/g, '\\n')  // Unix newlines to escaped newlines (negative lookbehind for already escaped)
+        .replace(/\t/g, '\\t');  // Tabs to escaped tabs
+      
+      return JSON.parse(normalized);
+    } catch (e2) {
+      // Last resort: try to extract JSON structure manually
+      const jsonMatch = jsonString.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const extracted = jsonMatch[0]
+            .replace(/\r\n/g, '\\n')
+            .replace(/(?<!\\)\n/g, '\\n')
+            .replace(/\t/g, '\\t');
+          return JSON.parse(extracted);
+        } catch (e3) {
+          console.error('[BriefingService] Failed to parse even extracted JSON:', e3.message);
+          throw new Error(`JSON parse failed: ${e1.message}`);
+        }
+      }
+      throw new Error(`JSON parse failed: ${e1.message}`);
+    }
+  }
+}
+
 const LocalEventSchema = z.object({
   title: z.string(),
   summary: z.string(),
@@ -241,7 +287,7 @@ RETURN FORMAT (ONLY this JSON, no markdown):
   }
 
   try {
-    const parsed = JSON.parse(result.output);
+    const parsed = safeJsonParse(result.output);
     const events = Array.isArray(parsed) ? parsed : [parsed];
     const validEvents = events.filter(e => e.title && e.venue && e.address);
 
@@ -304,7 +350,7 @@ Return JSON array with one object per event.`;
   }
 
   try {
-    const confirmed = JSON.parse(result.output);
+    const confirmed = safeJsonParse(result.output);
     return events.map(event => {
       const match = confirmed.find(c => c.title === event.title);
       if (match && match.confidence !== 'low') {
@@ -350,7 +396,7 @@ export async function fetchWeatherForecast({ snapshot }) {
   }
 
   try {
-    const weatherData = JSON.parse(result.output);
+    const weatherData = safeJsonParse(result.output);
     console.log('[fetchWeatherForecast] ✅ Got forecast:', { current: !!weatherData.current, forecast_hours: weatherData.forecast?.length || 0 });
     return weatherData;
   } catch (parseErr) {
@@ -518,7 +564,7 @@ Return ONLY valid JSON array:
   }
 
   try {
-    const closures = JSON.parse(result.output);
+    const closures = safeJsonParse(result.output);
     const closuresArray = Array.isArray(closures) ? closures : [];
     console.log(`[BriefingService] ✅ Found ${closuresArray.length} school closures for ${city}, ${state}`);
     return closuresArray;
@@ -572,7 +618,7 @@ CRITICAL: Include highDemandZones and repositioning.`;
   }
 
   try {
-    const parsed = JSON.parse(result.output);
+    const parsed = safeJsonParse(result.output);
     console.log(`[BriefingService] ✅ Traffic analysis complete: ${parsed.summary?.substring(0, 80)}`);
 
     return {
@@ -640,7 +686,7 @@ Return 2-5 items if found. Never return empty array.`;
   }
 
   try {
-    const parsed = JSON.parse(result.output);
+    const parsed = safeJsonParse(result.output);
     let newsArray = Array.isArray(parsed) ? parsed : [];
 
     if (newsArray.length === 0 || !newsArray[0]?.title) {
