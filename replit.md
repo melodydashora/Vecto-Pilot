@@ -31,7 +31,7 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
 - **AI Configuration**: Role-based architecture using configurable AI models for event-driven strategy generation:
   - **Strategist**: Claude Sonnet 4.5 for strategic overview (minstrategy)
   - **Briefer**: Gemini 3 Pro Preview for Type A briefing data (news, events, traffic, weather, closures)
-  - **Consolidator**: Gemini 3 Pro Preview as "Tactical Dispatcher" - synthesizes minstrategy + snapshot + Type A briefing JSON into actionable "Strategy for Now" (no deep research, just consolidation)
+  - **Consolidator**: Gemini 3 Pro Preview as "Tactical Dispatcher" - receives RAW JSON from briefings table (traffic_conditions, events, news, weather_current, school_closures) + full snapshot + minstrategy. Passes labeled JSON sections directly to Gemini (CURRENT_TRAFFIC_DATA, CURRENT_EVENTS_DATA, etc.) so strategy can reference specific details like "Eastbound Main St closed"
   - **Holiday Checker**: Perplexity for holiday detection
 - **Data Storage**: PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data using unique indexes and JSONB.
 - **Architecture Pattern - Snapshots as Central Connector for ML**: Snapshots act as the authoritative connector across all data sources, enabling machine learning and analytics by linking all enrichments (strategies, briefings, rankings, actions, venue feedback) to a `snapshot_id`.

@@ -109,87 +109,18 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
 }
 
 /**
- * Format Type A briefing data for the prompt
- * Extracts and formats news, events, traffic, weather from briefings table
+ * Parse JSON field safely - handles both string and object formats
  */
-function formatBriefingContext(briefing) {
-  if (!briefing) return 'No briefing data available yet.';
-  
-  const sections = [];
-  
-  if (briefing.weather_current) {
-    const w = typeof briefing.weather_current === 'string' 
-      ? JSON.parse(briefing.weather_current) 
-      : briefing.weather_current;
-    sections.push(`WEATHER: ${w.temperature || w.tempF || 'N/A'}°F, ${w.conditions || w.description || 'N/A'}`);
-  }
-  
-  if (briefing.traffic_conditions) {
-    const t = typeof briefing.traffic_conditions === 'string'
-      ? JSON.parse(briefing.traffic_conditions)
-      : briefing.traffic_conditions;
-    if (t.summary) {
-      sections.push(`TRAFFIC: ${t.summary}`);
-    }
-    if (t.incidents && Array.isArray(t.incidents) && t.incidents.length > 0) {
-      const incidentList = t.incidents.slice(0, 3).map(i => `- ${i.description || i.title || i}`).join('\n');
-      sections.push(`TRAFFIC INCIDENTS:\n${incidentList}`);
+function parseJsonField(field) {
+  if (!field) return null;
+  if (typeof field === 'string') {
+    try {
+      return JSON.parse(field);
+    } catch {
+      return null;
     }
   }
-  
-  if (briefing.events) {
-    const events = typeof briefing.events === 'string'
-      ? JSON.parse(briefing.events)
-      : briefing.events;
-    if (Array.isArray(events) && events.length > 0) {
-      const eventList = events.slice(0, 5).map(e => 
-        `- ${e.title || e.name}: ${e.summary || ''} (Impact: ${e.impact || 'unknown'})`
-      ).join('\n');
-      sections.push(`LOCAL EVENTS:\n${eventList}`);
-    }
-  }
-  
-  if (briefing.news) {
-    const newsData = typeof briefing.news === 'string'
-      ? JSON.parse(briefing.news)
-      : briefing.news;
-    
-    // Handle nested structure: { items: [], filtered: [] } or direct array
-    let newsItems = [];
-    if (Array.isArray(newsData)) {
-      newsItems = newsData;
-    } else if (newsData && Array.isArray(newsData.items)) {
-      newsItems = newsData.items;
-    } else if (newsData && Array.isArray(newsData.filtered)) {
-      newsItems = newsData.filtered;
-    }
-    
-    if (newsItems.length > 0) {
-      const newsList = newsItems.slice(0, 3).map(n => 
-        `- ${n.title || n.headline}: ${n.summary || n.description || ''}`
-      ).join('\n');
-      sections.push(`RIDESHARE NEWS:\n${newsList}`);
-    }
-  }
-  
-  if (briefing.school_closures) {
-    const closures = typeof briefing.school_closures === 'string'
-      ? JSON.parse(briefing.school_closures)
-      : briefing.school_closures;
-    if (Array.isArray(closures) && closures.length > 0) {
-      const closureList = closures.slice(0, 3).map(c => 
-        `- ${c.name || c.school}: ${c.reason || c.status || 'Closed'}`
-      ).join('\n');
-      sections.push(`SCHOOL CLOSURES:\n${closureList}`);
-    } else if (closures && closures.status) {
-      sections.push(`SCHOOL STATUS: ${closures.status}`);
-    }
-  }
-  
-  // Log what sections were included for debugging
-  console.log(`[consolidator] 📊 Briefing sections included: ${sections.map(s => s.split(':')[0]).join(', ')}`);
-  
-  return sections.length > 0 ? sections.join('\n\n') : 'Briefing data is empty.';
+  return field;
 }
 
 /**
@@ -233,13 +164,20 @@ export async function runConsolidator(snapshotId) {
     
     console.log(`[consolidator] ✅ Minstrategy ready (${minstrategy.length} chars)`);
     
-    // Step 2: Fetch Type A briefing data from DB
+    // Step 2: Fetch briefing row from DB (raw JSON, not summarized)
     const [briefingRow] = await db.select().from(briefings)
       .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     
-    const briefingContext = formatBriefingContext(briefingRow);
+    // Parse raw briefing JSON fields
+    const trafficData = parseJsonField(briefingRow?.traffic_conditions);
+    const eventsData = parseJsonField(briefingRow?.events);
+    const newsData = parseJsonField(briefingRow?.news);
+    const weatherData = parseJsonField(briefingRow?.weather_current);
+    const closuresData = parseJsonField(briefingRow?.school_closures);
     
-    // Step 3: Fetch snapshot for location/time context
+    console.log(`[consolidator] 📊 Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}, closures=${!!closuresData}`);
+    
+    // Step 3: Fetch full snapshot for context
     const ctx = await getFullSnapshot(snapshotId);
     const userAddress = ctx.formatted_address;
     const cityDisplay = ctx.city || 'your area';
@@ -262,10 +200,8 @@ export async function runConsolidator(snapshotId) {
     console.log(`[consolidator] 📍 Location: ${userAddress}`);
     console.log(`[consolidator] 🕐 Time: ${localTime} (${dayPart})`);
     
-    // Step 4: Build Tactical Dispatcher prompt with explicit briefing data
-    const prompt = `You are a TACTICAL DISPATCHER for rideshare drivers. Your job is to synthesize intelligence into a clear, actionable "Strategy for Now."
-
-Your PRIMARY task is to synthesize the data provided below. You have access to Google Search only for final sanity check on breaking news.
+    // Step 4: Build Tactical Dispatcher prompt with RAW briefing JSON
+    const prompt = `You are a TACTICAL DISPATCHER for rideshare drivers. Synthesize the intelligence below into a clear, actionable "Strategy for Now."
 
 === DRIVER CONTEXT ===
 Location: ${userAddress}
@@ -274,43 +210,47 @@ City: ${cityDisplay}, ${ctx.state || ''}
 Time: ${localTime}
 Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
 Day Part: ${dayPart}
-${ctx.is_holiday ? `🎉 HOLIDAY: ${ctx.holiday}` : ''}
-${ctx.airport_context?.airport_code ? `Nearby Airport: ${ctx.airport_context.airport_code} (${ctx.airport_context.distance_miles} mi)` : ''}
+${ctx.is_holiday ? `HOLIDAY: ${ctx.holiday}` : ''}
+
+=== FULL SNAPSHOT DATA ===
+${JSON.stringify(ctx, null, 2)}
 
 === STRATEGIC ASSESSMENT (from Claude Sonnet) ===
 ${minstrategy}
 
-=== LIVE BRIEFING DATA (Real-time from Gemini + Google APIs - USE THIS DATA) ===
-${briefingContext}
+=== CURRENT_TRAFFIC_DATA ===
+${JSON.stringify(trafficData, null, 2)}
+
+=== CURRENT_EVENTS_DATA ===
+${JSON.stringify(eventsData, null, 2)}
+
+=== CURRENT_NEWS_DATA ===
+${JSON.stringify(newsData, null, 2)}
+
+=== CURRENT_WEATHER_DATA ===
+${JSON.stringify(weatherData, null, 2)}
+
+=== SCHOOL_CLOSURES_DATA ===
+${JSON.stringify(closuresData, null, 2)}
 
 === YOUR TASK ===
-Synthesize ALL the above into a clear, immediate "Strategy for Now" for this driver.
+Synthesize ALL the above into a clear "Strategy for Now" for this driver.
 
-CRITICAL: You MUST reference the live briefing data (traffic incidents, events, news) in your strategy.
+CRITICAL: Reference SPECIFIC details from the data above (traffic incidents by name, event venues, closure streets).
 
-Your output should be 3-5 paragraphs that:
-1. START with the current situation: "Right now in ${cityDisplay}..."
-2. Reference specific traffic incidents/conditions from the briefing data
-3. Call out events/venues happening today that impact demand
-4. Highlight any hazards or avoid-zones (closures, congestion, enforcement)
-5. Give a clear RECOMMENDATION: "Your best move right now is..."
-6. End with timing guidance: how long this window lasts
+Output 3-5 paragraphs:
+1. Current situation: "Right now in ${cityDisplay}..."
+2. Reference specific traffic incidents/conditions from CURRENT_TRAFFIC_DATA
+3. Call out events happening today from CURRENT_EVENTS_DATA
+4. Hazards or avoid-zones
+5. Clear RECOMMENDATION: "Your best move right now is..."
+6. Timing guidance
 
-STYLE REQUIREMENTS:
-- Write in direct, conversational language (like a dispatcher on the radio)
-- Be specific about locations, street names, events, and times
-- Use details from the briefing data (mention incidents like "Eastbound Main St closed")
-- No bullet points - use flowing paragraphs
-- No generic advice - make it specific to THIS driver at THIS moment
+STYLE: Direct, conversational (like a dispatcher). Be specific about locations, streets, times. No bullet points. No generic advice.
 
-DO NOT:
-- List venues (that's handled by Smart Blocks)
-- Give vague advice like "be safe"
-- Repeat the minstrategy verbatim
-- Output JSON - just plain text paragraphs`;
+DO NOT: List venues, give vague advice, repeat minstrategy verbatim, output JSON.`;
 
     console.log(`[consolidator] 📝 Prompt size: ${prompt.length} chars`);
-    console.log(`[consolidator] 📄 Briefing context being sent:\n${briefingContext}`);
     
     // Step 5: Call Gemini
     const result = await callGeminiConsolidator({

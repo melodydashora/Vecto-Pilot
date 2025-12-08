@@ -274,17 +274,28 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
 router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
-    const allEvents = briefing && Array.isArray(briefing.events) ? briefing.events : [];
+    
+    // Handle both array format and {items: [], reason: string} format
+    let allEvents = [];
+    let reason = null;
+    if (Array.isArray(briefing?.events)) {
+      allEvents = briefing.events;
+    } else if (briefing?.events?.items && Array.isArray(briefing.events.items)) {
+      allEvents = briefing.events.items;
+      reason = briefing.events.reason || null;
+    }
 
     console.log(`[BriefingRoute] 📍 Events endpoint - returning:`, {
       hasEvents: !!briefing?.events,
       eventsLength: allEvents.length,
+      reason,
       firstEvent: allEvents[0] ? { title: allEvents[0].title, venue: allEvents[0].venue } : null
     });
 
     res.json({
       success: true,
       events: allEvents,
+      reason,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -292,6 +303,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     res.json({
       success: true,
       events: [],
+      reason: error.message,
       timestamp: new Date().toISOString()
     });
   }
@@ -301,9 +313,22 @@ router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership
   try {
     const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
 
+    // Handle both array format and {items: [], reason: string} format
+    let closures = [];
+    let reason = null;
+    if (Array.isArray(briefing?.school_closures)) {
+      closures = briefing.school_closures;
+    } else if (briefing?.school_closures?.items && Array.isArray(briefing.school_closures.items)) {
+      closures = briefing.school_closures.items;
+      reason = briefing.school_closures.reason || null;
+    } else if (briefing?.school_closures?.reason) {
+      reason = briefing.school_closures.reason;
+    }
+
     res.json({
       success: true,
-      school_closures: briefing?.school_closures || [],
+      school_closures: closures,
+      reason,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -311,6 +336,7 @@ router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership
     res.json({
       success: true,
       school_closures: [],
+      reason: error.message,
       timestamp: new Date().toISOString()
     });
   }

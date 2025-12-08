@@ -142,12 +142,16 @@ export default function BriefingTab({
     // Map event_type to subtype for EventsComponent compatibility
     subtype: event.event_type || event.subtype,
   }));
+  const eventsReason = eventsData?.reason || null;
+  
   const allClosures = schoolClosuresData?.school_closures || [];
+  const closuresReason = schoolClosuresData?.reason || null;
   const schoolClosures = allClosures.filter(isClosureActive);
   
   // Show all events and news - backend already filters by relevance/date
   const eventsToday = allEvents;
   const newsItems = (news?.filtered || news?.items || []);
+  const newsReason = news?.reason || null;
 
   return (
     <div className="space-y-6" data-testid="briefing-container">
@@ -330,7 +334,9 @@ export default function BriefingTab({
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm text-center py-4">No rideshare news today</p>
+              <p className="text-gray-500 text-sm text-center py-4">
+                {newsReason || 'No rideshare news today'}
+              </p>
             )}
           </CardContent>
         )}
@@ -406,7 +412,9 @@ export default function BriefingTab({
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm text-center py-4">No school closures reported</p>
+              <p className="text-gray-500 text-sm text-center py-4">
+                {closuresReason || 'No school closures reported'}
+              </p>
             )}
           </CardContent>
         )}

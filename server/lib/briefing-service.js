@@ -749,52 +749,34 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     weatherResult = { current: null, forecast: [] };
   }
 
-  const [rawEvents, newsItems, trafficResult, schoolClosures] = await Promise.all([
-    snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve([]),
+  const [eventsResult, newsResult, trafficResult, schoolClosures] = await Promise.all([
+    snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
     fetchRideshareNews({ snapshot }),
     fetchTrafficConditions({ snapshot }),
     fetchSchoolClosures({ snapshot })
   ]);
 
-  console.log(`[BriefingService] ✅ APIs returned: events=${rawEvents.length}, news=${newsItems.length}`);
+  const eventsItems = eventsResult?.items || [];
+  const newsItems = newsResult?.items || [];
+  
+  console.log(`[BriefingService] ✅ APIs returned: events=${eventsItems.length}, news=${newsItems.length}, traffic=${!!trafficResult}, closures=${schoolClosures?.length || 0}`);
 
   const weatherCurrent = weatherResult?.current || null;
-
-  let finalNews = newsItems && newsItems.length > 0 ? newsItems : [
-    {
-      "title": "Holiday Shopping Surge Expected",
-      "summary": "December brings peak holiday shopping demand",
-      "impact": "high",
-      "source": "Local Trends",
-      "link": "#"
-    }
-  ];
-
-  let finalEvents = rawEvents && rawEvents.length > 0 ? rawEvents : [
-    {
-      title: "Local Event - Check Venue Calendar",
-      venue: "Local Venues",
-      address: `${city}, ${state}`,
-      event_date: new Date().toISOString().split('T')[0],
-      event_time: "TBD",
-      event_end_time: "TBD",
-      subtype: "entertainment",
-      impact: "medium",
-      summary: "Local events happening today - check venue websites for times"
-    }
-  ];
 
   const briefingData = {
     snapshot_id: snapshotId,
     formatted_address: formatted_address,
     city,
     state,
-    news: { items: finalNews, filtered: finalNews },
+    news: { 
+      items: newsItems, 
+      reason: newsResult?.reason || null 
+    },
     weather_current: weatherCurrent,
     weather_forecast: weatherResult?.forecast || [],
     traffic_conditions: trafficResult,
-    events: finalEvents,
-    school_closures: schoolClosures.length > 0 ? schoolClosures : null,
+    events: eventsItems.length > 0 ? eventsItems : { items: [], reason: eventsResult?.reason || 'No events found' },
+    school_closures: schoolClosures.length > 0 ? schoolClosures : { items: [], reason: 'No school closures found' },
     created_at: new Date(),
     updated_at: new Date()
   };
@@ -803,28 +785,16 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     const existing = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
 
     if (existing.length > 0) {
-      const current = existing[0];
-
-      const mergedNews = (briefingData.news?.items?.length > 0) ? briefingData.news : (current.news || briefingData.news);
-      const mergedEvents = (briefingData.events?.length > 0) ? briefingData.events : (current.events || []);
-      
-      let mergedTraffic = briefingData.traffic_conditions;
-      if (current.traffic_conditions &&
-          briefingData.traffic_conditions?.summary?.includes('unavailable') &&
-          current.traffic_conditions?.incidents?.length > 0) {
-        mergedTraffic = current.traffic_conditions;
-      }
-
       await db.update(briefings)
         .set({
           formatted_address: briefingData.formatted_address,
           city: briefingData.city,
           state: briefingData.state,
-          news: mergedNews,
+          news: briefingData.news,
           weather_current: briefingData.weather_current,
           weather_forecast: briefingData.weather_forecast,
-          traffic_conditions: mergedTraffic,
-          events: mergedEvents,
+          traffic_conditions: briefingData.traffic_conditions,
+          events: briefingData.events,
           school_closures: briefingData.school_closures,
           updated_at: new Date()
         })
