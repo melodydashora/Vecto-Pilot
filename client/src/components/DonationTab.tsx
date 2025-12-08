@@ -315,6 +315,75 @@ export const DonationTab: React.FC<DonationTabProps> = ({ userId }) => {
         </CardContent>
       </Card>
 
+      {/* System Diagnostics Card */}
+      <Card className="border-blue-200 bg-blue-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Code2 className="w-5 h-5 text-blue-600" />
+            System Diagnostics
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button 
+            variant="outline"
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/diagnostic/identity');
+                const data = await res.json();
+                
+                // Format the JSON nicely
+                const formatted = JSON.stringify(data, null, 2);
+                
+                // Open in new window with formatted text
+                const newWindow = window.open('', '_blank');
+                if (newWindow) {
+                  newWindow.document.write(`
+                    <html>
+                      <head>
+                        <title>System Identity Diagnostics</title>
+                        <style>
+                          body { 
+                            font-family: monospace; 
+                            padding: 20px; 
+                            background: #1e1e1e; 
+                            color: #d4d4d4;
+                          }
+                          pre { 
+                            white-space: pre-wrap; 
+                            word-wrap: break-word;
+                            background: #252526;
+                            padding: 15px;
+                            border-radius: 5px;
+                            border: 1px solid #3e3e42;
+                          }
+                          h1 {
+                            color: #4ec9b0;
+                            margin-bottom: 20px;
+                          }
+                        </style>
+                      </head>
+                      <body>
+                        <h1>🔍 System Identity Diagnostics</h1>
+                        <pre>${formatted}</pre>
+                      </body>
+                    </html>
+                  `);
+                }
+              } catch (err) {
+                alert('Failed to fetch diagnostics: ' + err.message);
+              }
+            }}
+            className="w-full"
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            View System Identity
+          </Button>
+          <p className="text-xs text-gray-600 mt-2">
+            Shows which AI systems are active, authentication status, and routing configuration
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Footer note */}
       <div className="text-center text-xs text-gray-500">
         <p>Vecto Pilot™ - Built with care for rideshare drivers worldwide</p>
