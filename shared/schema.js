@@ -602,4 +602,32 @@ export const connection_audit = pgTable("connection_audit", {
   idxEventTime: sql`create index if not exists idx_connection_audit_event_time on ${table} (event, occurred_at desc)`,
 }));
 
+// Coords cache: Global lookup table for geocode/timezone data by coordinate hash
+// Stores full 6-decimal precision coords, matches on 4-decimal key (~11m tolerance)
+// Prevents duplicate geocode/timezone API calls for same location
+export const coords_cache = pgTable("coords_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Cache key: 4 decimal places (~11m precision) for matching
+  coord_key: text("coord_key").notNull().unique(), // Format: "lat4d_lng4d" e.g., "33.1284_-96.8688"
+  // Full precision storage: 6 decimals (~11cm precision)
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  // Resolved location data (from Google Geocoding API)
+  formatted_address: text("formatted_address").notNull(),
+  city: text("city"),
+  state: text("state"),
+  country: text("country"),
+  // Timezone (from Google Timezone API)
+  timezone: text("timezone"),
+  // Optional: closest airport for airport context
+  closest_airport: text("closest_airport"),
+  closest_airport_code: text("closest_airport_code"),
+  // Metadata
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  hit_count: integer("hit_count").notNull().default(0), // Track cache utilization
+}, (table) => ({
+  idxCoordKey: sql`create unique index if not exists idx_coords_cache_coord_key on ${table} (coord_key)`,
+  idxCityState: sql`create index if not exists idx_coords_cache_city_state on ${table} (city, state)`,
+}));
+
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
