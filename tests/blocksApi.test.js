@@ -36,8 +36,16 @@ const blockSchema = {
   },
 };
 
-// Generate a test JWT token
-const testToken = "test-jwt-token"; // In a real scenario, this would be generated securely
+// Generate a valid JWT token for testing
+import crypto from 'crypto';
+
+function generateTestToken(userId = 'test-user-12345678') {
+  const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'dev-secret-change-in-production';
+  const signature = crypto.createHmac('sha256', secret).update(userId).digest('hex');
+  return `${userId}.${signature}`;
+}
+
+const testToken = generateTestToken();
 
 /**
  * Validate a block against the schema contract
