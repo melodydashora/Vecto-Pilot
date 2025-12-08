@@ -116,6 +116,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         strategy: {
           min: strategy.minstrategy || "",
           consolidated: strategy.consolidated_strategy || "",
+          strategy_for_now: strategy.strategy_for_now || "",
           holiday: snapshot?.holiday || null,
         },
         blocks: [],
@@ -130,6 +131,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       strategy: {
         min: strategy.minstrategy || "",
         consolidated: strategy.consolidated_strategy || "",
+        strategy_for_now: strategy.strategy_for_now || "",
         holiday: snapshot?.holiday || null,
       },
       blocks,

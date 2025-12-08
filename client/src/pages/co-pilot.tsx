@@ -143,7 +143,8 @@ const CoPilot: React.FC = () => {
   const [modelParameter, setModelParameter] = useState<string>('0.7');
   const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null); // Start empty for fresh load
-  const [persistentStrategy, setPersistentStrategy] = useState<string | null>(null); // Start empty for fresh load
+  const [persistentStrategy, setPersistentStrategy] = useState<string | null>(null); // Start empty for fresh load (consolidated daily strategy)
+  const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null); // Strategy for right now (GPT-5.1 generated)
   const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null); // Start empty for fresh load
   const [strategyReadyTime, setStrategyReadyTime] = useState<number | null>(null); // Track when strategy became ready
   const [enrichedReasonings, setEnrichedReasonings] = useState<Map<string, string>>(new Map());
@@ -236,6 +237,7 @@ const CoPilot: React.FC = () => {
     localStorage.removeItem('vecto_persistent_strategy');
     localStorage.removeItem('vecto_strategy_snapshot_id');
     setPersistentStrategy(null);
+    setImmediateStrategy(null);
     setStrategySnapshotId(null);
   }, []);
 
@@ -246,6 +248,7 @@ const CoPilot: React.FC = () => {
       localStorage.removeItem('vecto_persistent_strategy');
       localStorage.removeItem('vecto_strategy_snapshot_id');
       setPersistentStrategy(null);
+      setImmediateStrategy(null);
       setStrategySnapshotId(null);
       // Force immediate query restart for new snapshot (ensures progress bar starts fresh)
       queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
@@ -492,17 +495,24 @@ const CoPilot: React.FC = () => {
     return () => clearInterval(interval);
   }, [enrichmentStartTime, enrichmentPhase]);
 
-  // Update persistent strategy when new strategy arrives
+  // Update persistent strategy and immediate strategy when new strategy arrives
   useEffect(() => {
     const consolidatedStrategy = strategyData?.strategy?.consolidated;
+    const strategyForNow = strategyData?.strategy?.strategy_for_now;
+    
     if (consolidatedStrategy && consolidatedStrategy !== persistentStrategy) {
-      console.log("📝 New strategy received, persisting to localStorage");
+      console.log("📝 New consolidated strategy received, persisting to localStorage");
       localStorage.setItem('vecto_persistent_strategy', consolidatedStrategy);
       localStorage.setItem('vecto_strategy_snapshot_id', lastSnapshotId || '');
       setPersistentStrategy(consolidatedStrategy);
       setStrategySnapshotId(lastSnapshotId);
     }
-  }, [strategyData, lastSnapshotId, persistentStrategy]);
+    
+    if (strategyForNow && strategyForNow !== immediateStrategy) {
+      console.log("🎯 New immediate strategy received for right now");
+      setImmediateStrategy(strategyForNow);
+    }
+  }, [strategyData, lastSnapshotId, persistentStrategy, immediateStrategy]);
 
   // Distance filtering is handled server-side via snapshot-scoped blocks
   // Client distanceFilter state retained for potential future UI filters
@@ -1302,49 +1312,71 @@ const CoPilot: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-          ) : persistentStrategy ? (
-            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="strategy-complete-card">
-              <CardContent className="p-5">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100">
-                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-purple-900">Strategic Overview</p>
-                      <div className="flex items-center gap-2">
-                        <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
-                          ✅ Complete
-                        </Badge>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleReadStrategy}
-                                className="h-6 w-6 p-0 hover:bg-purple-200"
-                                data-testid="button-read-strategy"
-                              >
-                                {isSpeaking ? (
-                                  <Square className="w-3 h-3 text-red-600 fill-red-600" />
-                                ) : (
-                                  <Volume2 className="w-3 h-3 text-purple-600" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="left">
-                              {isSpeaking ? 'Stop reading' : 'Read strategy aloud'}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+          ) : immediateStrategy || persistentStrategy ? (
+            <div className="space-y-4">
+              {/* Immediate Strategy (Right Now) - Primary Focus */}
+              {immediateStrategy && (
+                <Card className="bg-gradient-to-br from-orange-50 via-yellow-50 to-orange-50 border-orange-300 shadow-md" data-testid="immediate-strategy-card">
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-orange-100">
+                        <Zap className="w-5 h-5 text-orange-600 flex-shrink-0" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-orange-900 mb-2">🎯 Right Now Strategy</p>
+                        <p className="text-sm text-gray-800 leading-relaxed">{immediateStrategy}</p>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* Consolidated Daily Strategy - Secondary Reference */}
+              {persistentStrategy && (
+                <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="strategy-complete-card">
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-purple-100">
+                        <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-semibold text-purple-900">Daily Overview</p>
+                          <div className="flex items-center gap-2">
+                            <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
+                              ✅ Complete
+                            </Badge>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleReadStrategy}
+                                    className="h-6 w-6 p-0 hover:bg-purple-200"
+                                    data-testid="button-read-strategy"
+                                  >
+                                    {isSpeaking ? (
+                                      <Square className="w-3 h-3 text-red-600 fill-red-600" />
+                                    ) : (
+                                      <Volume2 className="w-3 h-3 text-purple-600" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  {isSpeaking ? 'Stop reading' : 'Read strategy aloud'}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           ) : strategyData?.status === 'failed' ? (
             <Card className="bg-gradient-to-br from-red-50 via-pink-50 to-red-50 border-red-300 shadow-md" data-testid="strategy-failed-card">
               <CardContent className="p-5">
