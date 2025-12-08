@@ -2,6 +2,7 @@
 // Development seed script for Block Schema Contract testing
 // Creates test snapshots with complete strategies for immediate testing
 
+import crypto from 'crypto';
 import { db } from "../server/db/drizzle.js";
 import { snapshots, strategies, briefings } from "../shared/schema.js";
 import { randomUUID } from 'crypto';
@@ -12,14 +13,14 @@ async function seed() {
   const userId = randomUUID();
   const deviceId = randomUUID();
   const sessionId = randomUUID();
-  const snapshotId = process.env.TEST_SNAPSHOT_ID || 'test-snapshot-001';
-  
+  const testSnapshotId = process.env.TEST_SNAPSHOT_ID || crypto.randomUUID();
+
   try {
     // 1. Insert snapshot with realistic location data
-    console.log(`📍 Creating snapshot: ${snapshotId}`);
+    console.log(`📍 Creating snapshot: ${testSnapshotId}`);
     await db.insert(snapshots)
       .values({
-        snapshot_id: snapshotId,
+        snapshot_id: testSnapshotId,
         user_id: userId,
         device_id: deviceId,
         session_id: sessionId,
@@ -73,7 +74,7 @@ This strategy is valid for the next 60 minutes based on current conditions.`;
 
     await db.insert(strategies)
       .values({
-        snapshot_id: snapshotId,
+        snapshot_id: testSnapshotId,
         user_id: userId,
         status: 'complete',
         minstrategy: 'Focus on airport corridor during morning rush. Stage near Terminal 1 for business travelers.',
@@ -97,7 +98,7 @@ This strategy is valid for the next 60 minutes based on current conditions.`;
     console.log('📰 Creating briefing data...');
     await db.insert(briefings)
       .values({
-        snapshot_id: snapshotId,
+        snapshot_id: testSnapshotId,
         global_travel: 'No major international disruptions affecting SFO today.',
         domestic_travel: 'Moderate air traffic. Peak departure times: 6-9 AM, 4-7 PM.',
         local_traffic: 'Highway 101 northbound experiencing delays near airport exit. Allow extra 5-10 minutes.',
@@ -118,15 +119,15 @@ This strategy is valid for the next 60 minutes based on current conditions.`;
     console.log('✅ Seed complete!');
     console.log('');
     console.log('📋 Test Data Created:');
-    console.log(`   Snapshot ID: ${snapshotId}`);
+    console.log(`   Snapshot ID: ${testSnapshotId}`);
     console.log(`   User ID: ${userId}`);
     console.log('');
     console.log('🧪 Test Endpoints:');
-    console.log(`   GET /api/strategy/${snapshotId}`);
-    console.log(`   GET /api/blocks/strategy/${snapshotId}`);
+    console.log(`   GET /api/strategy/${testSnapshotId}`);
+    console.log(`   GET /api/blocks/strategy/${testSnapshotId}`);
     console.log('');
     console.log('💡 To run tests:');
-    console.log(`   TEST_SNAPSHOT_ID=${snapshotId} NODE_OPTIONS='--experimental-vm-modules' npx jest tests/blocksApi.test.js`);
+    console.log(`   TEST_SNAPSHOT_ID=${testSnapshotId} NODE_OPTIONS='--experimental-vm-modules' npx jest tests/blocksApi.test.js`);
     console.log('');
 
   } catch (error) {
