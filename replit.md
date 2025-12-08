@@ -27,6 +27,12 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
 - **Data Flow Consistency**: All data flows follow a three-phase pattern: Fetch, Resolve, and Return, ensuring data consistency, validation, and proper formatting.
 - **GPS Location Behavior**: Location refresh is manual only, requesting fresh permissions (`maximumAge: 0`) upon opening or manual trigger.
 - **localStorage Behavior**: Strategy data clears on app mount to show fresh loading states for both consolidated and immediate strategies. Both states reset on new snapshot detection.
+- **Coords Cache (NEW)**: Global lookup table (`coords_cache`) caches geocode/timezone data by coordinate hash to eliminate duplicate API calls:
+  - Cache key: 4 decimal places (~11m precision) for matching similar locations
+  - Storage: 6 decimal places (~11cm precision) for accurate data
+  - On cache hit: Skip Google Geocode/Timezone APIs, use cached city/state/timezone/formatted_address
+  - On cache miss: Call APIs, store complete result for future lookups
+  - Tracks hit_count for cache utilization analytics
 
 **Feature Specifications**:
 - **Briefing Data**: Includes real-time traffic analysis, AI-curated local rideshare news, local events with venues/times, concerts, and school closures.
