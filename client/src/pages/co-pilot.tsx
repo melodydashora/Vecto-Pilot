@@ -1374,29 +1374,43 @@ const CoPilot: React.FC = () => {
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-semibold text-blue-900">⏳ Generating your strategy...</p>
                       <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                        Pending
+                        {enrichmentPhase === 'strategy' ? 'Analyzing' : enrichmentPhase === 'blocks' ? 'Finding Venues' : 'Starting'}
                       </Badge>
                     </div>
-                    <p className="text-xs text-blue-700 mb-3">analyzing your location and conditions</p>
+                    <p className="text-xs text-blue-700 mb-3">
+                      {enrichmentPhase === 'strategy' 
+                        ? '📊 Analyzing location, traffic, weather, and demand patterns...' 
+                        : enrichmentPhase === 'blocks'
+                        ? '🏢 Identifying high-earning venues and staging areas...'
+                        : 'Getting location...'}
+                    </p>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs text-blue-700">
-                        <span>Time Elapsed</span>
-                        <span className="font-mono">{strategyData?.timeElapsedMs ? Math.round(strategyData.timeElapsedMs / 1000) : 0}s / 60s</span>
+                        <span>Progress</span>
+                        <span className="font-mono">{Math.round(enrichmentProgress)}%</span>
                       </div>
                       <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
                         <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
                           style={{ 
-                            width: strategyData?.timeElapsedMs ? `${Math.min((strategyData.timeElapsedMs / 60000) * 100, 100)}%` : '0%'
+                            width: `${Math.min(enrichmentProgress, 100)}%`
                           }}
                         />
                       </div>
-                      <p className="text-xs text-blue-600 italic">
-                        {strategyData?.waitFor && strategyData.waitFor.length > 0 
-                          ? `Waiting for: ${strategyData.waitFor.join(', ')}`
-                          : 'Processing...'
-                        }
-                      </p>
+                      <div className="space-y-1 mt-2">
+                        <p className="text-xs text-blue-600 italic">
+                          {enrichmentPhase === 'strategy' && '📍 Step 1 of 2: Strategy Analysis'}
+                          {enrichmentPhase === 'blocks' && '🎯 Step 2 of 2: Venue Discovery'}
+                          {enrichmentPhase === 'idle' && '⏳ Initializing...'}
+                        </p>
+                        {enrichmentPhase === 'blocks' && (
+                          <p className="text-xs text-blue-600">
+                            {enrichmentProgress < 50 && 'Fetching venue data...'}
+                            {enrichmentProgress >= 50 && enrichmentProgress < 80 && 'Calculating distance & drive time...'}
+                            {enrichmentProgress >= 80 && 'Finalizing recommendations...'}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
