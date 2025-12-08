@@ -370,6 +370,14 @@ process.on("unhandledRejection", (reason, promise) => {
           console.error("[mono] Auth endpoint failed:", e?.message, e?.stack);
         }
         try {
+          console.log("[gateway] Loading Identity Diagnostic endpoint...");
+          const identityRouter = (await import("./server/routes/diagnostic-identity.js")).default;
+          app.use("/api/diagnostic/identity", identityRouter);
+          console.log("[gateway] ✅ Identity Diagnostic endpoint mounted at /api/diagnostic/identity");
+        } catch (e) {
+          console.error("[mono] Identity Diagnostic endpoint failed:", e?.message, e?.stack);
+        }
+        try {
           console.log("[gateway] Loading Location endpoint...");
           const locationRouter = (await import("./server/routes/location.js"))
             .default;
