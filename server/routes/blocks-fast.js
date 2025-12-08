@@ -327,17 +327,40 @@ router.post('/', async (req, res) => {
             school_closures: []
           };
 
-          await consolidateStrategy({
-            snapshotId,
-            claudeStrategy: strategy.minstrategy,
-            briefing: briefing || fallbackBriefing,
-            user: null,
-            snapshot: snapshot,
-            holiday: strategy.holiday
+          console.log(`[blocks-fast POST] 🔄 Calling consolidateStrategy for snapshot ${snapshotId}`);
+          console.log(`[blocks-fast POST] 📊 Consolidator inputs:`, {
+            minstrategy_length: strategy.minstrategy?.length || 0,
+            briefing_present: !!briefing,
+            briefing_fields: briefing ? Object.keys(briefing) : 'none',
+            snapshot_location: snapshot.formatted_address,
+            snapshot_weather: snapshot.weather ? 'present' : 'missing',
+            snapshot_air: snapshot.air ? 'present' : 'missing'
           });
+          
+          try {
+            await consolidateStrategy({
+              snapshotId,
+              claudeStrategy: strategy.minstrategy,
+              briefing: briefing || fallbackBriefing,
+              user: null,
+              snapshot: snapshot,
+              holiday: strategy.holiday
+            });
+          } catch (consolidateErr) {
+            console.error(`[blocks-fast POST] ❌ consolidateStrategy threw error:`, consolidateErr.message);
+            throw consolidateErr;
+          }
           
           // Generate smart blocks
           const [consolidated] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+          
+          console.log(`[blocks-fast POST] 📝 After consolidation, strategy status:`, {
+            snapshot_id: snapshotId,
+            status: consolidated?.status,
+            consolidated_strategy_length: consolidated?.consolidated_strategy?.length || 0,
+            consolidated_strategy_preview: consolidated?.consolidated_strategy?.substring(0, 100) || '(empty)',
+            error_message: consolidated?.error_message || 'none'
+          });
           
           if (consolidated?.consolidated_strategy) {
             // Create a robust fallback using the snapshot's own weather data
