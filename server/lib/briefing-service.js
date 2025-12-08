@@ -44,7 +44,9 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
             { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
           ],
           generationConfig: {
-            thinking_level: "high",
+            thinkingConfig: {
+              thinkingLevel: "HIGH"
+            },
             temperature,
             topP: 0.95,
             topK: 40,
