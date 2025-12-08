@@ -24,6 +24,7 @@ console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!pro
 /**
  * Raw fetch to Gemini 3.0 Pro Preview with Google Search and safety overrides
  * CRITICAL: Reads API key at runtime (not module-level caching) to support key rotation
+ * Per MODEL.md: Use gemini-3-pro-preview with google_search tool and thinking_level
  * @param {Object} options - { prompt, maxTokens }
  * @returns {Promise<{ ok: boolean, output?: string, error?: string }>}
  */
@@ -38,18 +39,27 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096 }) {
     return { ok: false, error: 'GEMINI_API_KEY not configured' };
   }
 
+  // Per MODEL.md: Use gemini-3-pro-preview model
+  const model = 'gemini-3-pro-preview';
+  
   try {
-    console.log(`[BriefingService] 📡 Sending Gemini request...`);
+    console.log(`[BriefingService] 📡 Sending Gemini request to ${model}...`);
+    
+    // Per MODEL.md: Query param authentication (no headers except Content-Type)
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          tools: [{ googleSearch: {} }],
+          contents: [{ 
+            role: 'user', 
+            parts: [{ text: prompt }] 
+          }],
+          // Per MODEL.md: Use google_search tool (not googleSearch)
+          tools: [{ google_search: {} }],
           safetySettings: [
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -57,6 +67,8 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096 }) {
             { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
           ],
           generationConfig: {
+            // Per MODEL.md: Use thinking_level instead of deprecated thinking_budget
+            thinking_level: "high",
             temperature: 0.1,
             topP: 0.95,
             topK: 40,
@@ -72,7 +84,14 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096 }) {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[BriefingService] Gemini API Error ${response.status}: ${errText.substring(0, 200)}`);
+      console.error(`[BriefingService] Gemini API Error ${response.status}: ${errText.substring(0, 500)}`);
+      
+      // Provide actionable error message
+      if (response.status === 400 && errText.includes('API key expired')) {
+        console.error('[BriefingService] ⚠️ ACTION REQUIRED: Update GEMINI_API_KEY in Secrets');
+        return { ok: false, error: 'GEMINI_API_KEY expired - update in Secrets' };
+      }
+      
       return { ok: false, error: `API error ${response.status}` };
     }
 
