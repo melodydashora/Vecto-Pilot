@@ -281,12 +281,18 @@ ${ctx.is_holiday ? `- Factor in holiday demand for ${ctx.holiday}` : ''}
     const totalDuration = Date.now() - startTime;
     
     // Step 8: Write summary + status to strategies table (preserve model_name)
-    await db.update(strategies).set({
+    const updateResult = await db.update(strategies).set({
       consolidated_strategy: summary,
       status: 'ok',
       // REMOVED: model_name - already set during INSERT, must preserve full chain
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
+
+    console.log(`[consolidator] ✅ UPDATED DB with consolidated_strategy for ${snapshotId}:`, {
+      summary_length: summary.length,
+      summary_preview: summary.substring(0, 80),
+      update_result: updateResult
+    });
 
     // OBSERVABILITY: Emit completion event with full metrics
     console.log(`[consolidator] ✅ Complete for ${snapshotId}`, {
