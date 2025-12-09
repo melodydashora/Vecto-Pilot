@@ -1,11 +1,10 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  CheckCircle2, 
-  Clock, 
-  RefreshCw, 
+import {
+  CheckCircle2,
+  Clock,
+  RefreshCw,
   AlertCircle,
-  Zap,
   MapPin,
   Sparkles
 } from 'lucide-react';
@@ -24,7 +23,7 @@ interface SmartBlocksStatusProps {
 }
 
 export function SmartBlocksStatus({
-  strategyStatus,
+  strategyStatus: _strategyStatus,
   strategyReady,
   isStrategyFetching,
   hasBlocks,
@@ -44,7 +43,7 @@ export function SmartBlocksStatus({
     return 'idle';
   };
 
-  const stage = getPipelineStage();
+  const _stage = getPipelineStage();
 
   // ALWAYS show progress bars - don't hide them
   const showStrategyProgress = enrichmentPhase === 'strategy' || (enrichmentPhase === 'blocks' && enrichmentProgress < 30);

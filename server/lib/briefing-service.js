@@ -1,7 +1,7 @@
 
 import { db } from '../db/drizzle.js';
 import { briefings, snapshots } from '../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { z } from 'zod';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -75,8 +75,47 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
       }
 
       const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) return { ok: false, error: 'Empty response from Gemini' };
+
+      // Debug: Log full response structure when there's an issue
+      const candidate = data.candidates?.[0];
+      if (!candidate) {
+        console.error('[BriefingService] ❌ No candidates in Gemini response:', JSON.stringify(data, null, 2).substring(0, 500));
+        return { ok: false, error: `No candidates in response: ${data.error?.message || 'unknown'}` };
+      }
+
+      // Check for safety blocking
+      if (candidate.finishReason === 'SAFETY') {
+        console.error('[BriefingService] ❌ Response blocked by safety filter:', candidate.safetyRatings);
+        return { ok: false, error: `Response blocked by safety filter` };
+      }
+
+      // With thinkingConfig enabled, text may be in different parts
+      // Look for the actual text content (not thinking content)
+      const parts = candidate.content?.parts || [];
+      let text = null;
+
+      for (const part of parts) {
+        // Skip thinking parts (they have a 'thought' field)
+        if (part.thought) continue;
+        // Get the text content
+        if (part.text) {
+          text = part.text;
+          break;
+        }
+      }
+
+      if (!text) {
+        // Log comprehensive debug info for root cause analysis
+        console.error('[BriefingService] ❌ EMPTY RESPONSE DEBUG:');
+        console.error('[BriefingService]   Parts count:', parts.length);
+        console.error('[BriefingService]   Parts keys:', JSON.stringify(parts.map(p => Object.keys(p))));
+        console.error('[BriefingService]   finishReason:', candidate.finishReason);
+        console.error('[BriefingService]   Content exists:', !!candidate.content);
+        console.error('[BriefingService]   Raw parts:', JSON.stringify(parts).substring(0, 500));
+        // Log full candidate for debugging (truncated)
+        console.error('[BriefingService]   Full candidate:', JSON.stringify(candidate).substring(0, 1000));
+        return { ok: false, error: `Empty response from Gemini (finishReason: ${candidate.finishReason || 'unknown'}, parts: ${parts.length})` };
+      }
 
       const cleanText = text.replace(/^```json\s*/, '').replace(/\s*```$/, '');
       return { ok: true, output: cleanText };
@@ -312,21 +351,18 @@ RETURN FORMAT (ONLY this JSON, no markdown):
 }
 
 export async function fetchEventsForBriefing({ snapshot } = {}) {
-  console.log(`[fetchEventsForBriefing] Called with snapshot:`, snapshot ? `lat=${snapshot.lat}, lng=${snapshot.lng}` : 'null');
-  console.log('[fetchEventsForBriefing] 🔑 Checking GEMINI_API_KEY - exists:', !!process.env.GEMINI_API_KEY);
-
   if (!snapshot) {
     throw new Error('Snapshot is required for events fetch');
   }
 
+  // Delegate to Gemini 3 Pro (the actual implementation)
   const result = await fetchEventsWithGemini3ProPreview({ snapshot });
-  
+
   if (result.items && result.items.length > 0) {
     const normalizedEvents = mapGeminiEventsToLocalEvents(result.items, { lat: snapshot.lat, lng: snapshot.lng });
-    console.log(`[fetchEventsForBriefing] Returning ${normalizedEvents.length} events`);
     return { items: normalizedEvents, reason: null };
   }
-  
+
   return { items: [], reason: result.reason || 'No events found' };
 }
 
@@ -735,8 +771,51 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     air: snapshot.air
   });
 
-  const { lat, lng, city, state, formatted_address } = snapshot;
+  const { city, state } = snapshot;
 
+  // SPLIT CACHE STRATEGY:
+  // - Daily data (events, news, closures): Cache by CITY+STATE (city-level data)
+  // - Traffic: ALWAYS refresh on every snapshot
+
+  // Step 1: Check for existing briefing by city+state (daily cache is city-level)
+  // Events, news, concerts, closures are the same for all users in the same city
+  // JOIN briefings with snapshots to get city/state (briefings table no longer stores location)
+  let cachedDailyData = null;
+  try {
+    const existingBriefings = await db.select({
+      briefing: briefings,
+      city: snapshots.city,
+      state: snapshots.state
+    })
+      .from(briefings)
+      .innerJoin(snapshots, eq(briefings.snapshot_id, snapshots.snapshot_id))
+      .where(and(eq(snapshots.city, city), eq(snapshots.state, state)))
+      .orderBy(desc(briefings.updated_at))  // DESC = newest first (fixes stale cache bug)
+      .limit(1);
+
+    if (existingBriefings.length > 0) {
+      const existing = existingBriefings[0].briefing; // Access briefing from join result
+      const userTimezone = snapshot.timezone || 'America/Chicago';
+
+      if (!isDailyBriefingStale(existing, userTimezone)) {
+        const ageMinutes = Math.round((Date.now() - new Date(existing.updated_at).getTime()) / 60000);
+        console.log(`[BriefingService] ⚡ CACHE HIT: Reusing daily data for ${city}, ${state} (same day, ${ageMinutes}min old)`);
+        cachedDailyData = {
+          events: existing.events,
+          news: existing.news,
+          school_closures: existing.school_closures
+        };
+      } else {
+        console.log(`[BriefingService] 📅 NEW DAY: Refreshing all daily data for ${city}, ${state}`);
+      }
+    } else {
+      console.log(`[BriefingService] 🆕 CACHE MISS: No existing briefing for ${city}, ${state}`);
+    }
+  } catch (cacheErr) {
+    console.warn(`[BriefingService] Cache lookup failed:`, cacheErr.message);
+  }
+
+  // Step 2: Get weather from snapshot
   let weatherResult = null;
   let existingWeather = null;
   try {
@@ -756,28 +835,54 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     weatherResult = { current: null, forecast: [] };
   }
 
-  const [eventsResult, newsResult, trafficResult, schoolClosures] = await Promise.all([
-    snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
-    fetchRideshareNews({ snapshot }),
-    fetchTrafficConditions({ snapshot }),
-    fetchSchoolClosures({ snapshot })
-  ]);
+  // Step 3: ALWAYS fetch fresh traffic (every snapshot)
+  let trafficResult;
+  try {
+    console.log(`[BriefingService] 🚗 Fetching FRESH traffic for snapshot ${snapshotId}`);
+    trafficResult = await fetchTrafficConditions({ snapshot });
+  } catch (trafficErr) {
+    console.error(`[BriefingService] ❌ Traffic fetch failed:`, trafficErr.message);
+    throw trafficErr; // FAIL-FAST
+  }
+
+  // Step 4: Get daily data (from cache or fresh)
+  let eventsResult, newsResult, schoolClosures;
+
+  if (cachedDailyData) {
+    // CACHE HIT: Use cached daily data
+    console.log(`[BriefingService] ✅ Using CACHED daily data (events, news, closures)`);
+    eventsResult = { items: cachedDailyData.events?.items || cachedDailyData.events || [] };
+    newsResult = { items: cachedDailyData.news?.items || [] };
+    schoolClosures = cachedDailyData.school_closures?.items || cachedDailyData.school_closures || [];
+  } else {
+    // CACHE MISS: Fetch all daily data from Gemini
+    console.log(`[BriefingService] 🔄 Fetching FRESH daily data (events, news, closures) from Gemini`);
+    try {
+      [eventsResult, newsResult, schoolClosures] = await Promise.all([
+        snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
+        fetchRideshareNews({ snapshot }),
+        fetchSchoolClosures({ snapshot })
+      ]);
+    } catch (dailyErr) {
+      console.error(`[BriefingService] ❌ FAIL-FAST: Daily data fetch failed:`, dailyErr.message);
+      throw dailyErr;
+    }
+  }
 
   const eventsItems = eventsResult?.items || [];
   const newsItems = newsResult?.items || [];
-  
-  console.log(`[BriefingService] ✅ APIs returned: events=${eventsItems.length}, news=${newsItems.length}, traffic=${!!trafficResult}, closures=${schoolClosures?.length || 0}`);
+
+  console.log(`[BriefingService] ✅ Briefing data ready: events=${eventsItems.length}, news=${newsItems.length}, traffic=${!!trafficResult}, closures=${schoolClosures?.length || 0}`);
+  console.log(`[BriefingService] 📊 Data sources: daily=${cachedDailyData ? 'CACHED' : 'FRESH'}, traffic=FRESH`);
 
   const weatherCurrent = weatherResult?.current || null;
 
   const briefingData = {
     snapshot_id: snapshotId,
-    formatted_address: formatted_address,
-    city,
-    state,
-    news: { 
-      items: newsItems, 
-      reason: newsResult?.reason || null 
+    // Location (city, state, formatted_address) available via snapshot_id JOIN
+    news: {
+      items: newsItems,
+      reason: newsResult?.reason || null
     },
     weather_current: weatherCurrent,
     weather_forecast: weatherResult?.forecast || [],
@@ -794,9 +899,6 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     if (existing.length > 0) {
       await db.update(briefings)
         .set({
-          formatted_address: briefingData.formatted_address,
-          city: briefingData.city,
-          state: briefingData.state,
           news: briefingData.news,
           weather_current: briefingData.weather_current,
           weather_forecast: briefingData.weather_forecast,
@@ -837,23 +939,32 @@ export async function getBriefingBySnapshotId(snapshotId) {
 }
 
 /**
- * Check if daily briefing is stale (older than 24 hours)
- * Daily briefing = news, events, closures, construction (doesn't change intraday)
+ * Check if daily briefing is stale (different calendar day in user's timezone)
+ * Daily briefing = news, events, closures, construction (refreshes at midnight)
  * @param {object} briefing - Briefing row from database
- * @returns {boolean} True if briefing is older than 24 hours
+ * @param {string} timezone - User's timezone (e.g., 'America/Chicago')
+ * @returns {boolean} True if briefing is from a different calendar day
  */
-function isDailyBriefingStale(briefing) {
+function isDailyBriefingStale(briefing, timezone = 'America/Chicago') {
   if (!briefing?.updated_at) return true;
-  
+
   const updatedAt = new Date(briefing.updated_at);
   const now = new Date();
-  const ageMinutes = (now - updatedAt) / (1000 * 60);
-  const ttlMinutes = 1440; // 24 hours
-  
-  const isStale = ageMinutes > ttlMinutes;
+
+  // Get calendar date strings in user's timezone
+  const briefingDate = updatedAt.toLocaleDateString('en-US', { timeZone: timezone });
+  const todayDate = now.toLocaleDateString('en-US', { timeZone: timezone });
+
+  // Stale if it's a different calendar day
+  const isStale = briefingDate !== todayDate;
+
   if (isStale) {
-    console.log(`[BriefingService] ⏰ Daily briefing is stale: ${Math.round(ageMinutes)} min old (TTL: 24h)`);
+    console.log(`[BriefingService] 📅 NEW DAY - Daily briefing stale: cached=${briefingDate}, today=${todayDate} (${timezone})`);
+  } else {
+    const ageMinutes = Math.round((now - updatedAt) / (1000 * 60));
+    console.log(`[BriefingService] ✓ Same day briefing: ${briefingDate} (${ageMinutes} min old)`);
   }
+
   return isStale;
 }
 

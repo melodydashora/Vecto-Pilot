@@ -1,11 +1,11 @@
 /**
  * ROUTES API - Traffic-Aware Distance & ETA Calculations
- * 
+ *
  * Replaces haversine estimates with Google Maps Routes API for:
  * - Real-time traffic-aware ETAs
  * - Accurate road distance (not straight-line)
  * - Traffic models: TRAFFIC_AWARE (balanced speed/accuracy)
- * 
+ *
  * Cost: $10 per 1,000 requests (Advanced tier with traffic)
  */
 
@@ -21,7 +21,7 @@ const ROUTES_API_URL = 'https://routes.googleapis.com/directions/v2:computeRoute
 export async function getRouteWithTraffic(origin, destination, options = {}) {
   // Default to 30 seconds in the future (Routes API requires future timestamp)
   const futureTime = new Date(Date.now() + 30000).toISOString();
-  
+
   const {
     departureTime = futureTime,
     trafficModel = 'TRAFFIC_AWARE', // TRAFFIC_UNAWARE, TRAFFIC_AWARE, TRAFFIC_AWARE_OPTIMAL
@@ -80,7 +80,7 @@ export async function getRouteWithTraffic(origin, destination, options = {}) {
     }
 
     const route = data.routes[0];
-    
+
     // Parse duration strings (e.g., "1234s" -> 1234)
     const durationSeconds = parseInt(route.duration?.replace('s', '') || '0');
     const staticDuration = parseInt(route.staticDuration?.replace('s', '') || durationSeconds);

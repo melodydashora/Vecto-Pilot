@@ -2,7 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { db } from '../db/drizzle.js';
 import { sql, eq } from 'drizzle-orm';
-import { strategies, snapshots } from '../../shared/schema.js';
+import { strategies, snapshots, briefings } from '../../shared/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -163,13 +163,11 @@ router.get('/', requireAuth, async (req, res) => {
 router.get('/db-data', requireAuth, async (req, res) => {
   try {
     const snapshots = await db.execute(sql`
-      SELECT snapshot_id, city, state, created_at, 
-             news_briefing IS NOT NULL as has_news_briefing,
-             news_briefing::text as news_briefing_preview,
+      SELECT snapshot_id, city, state, created_at,
              weather IS NOT NULL as has_weather,
              air IS NOT NULL as has_air
-      FROM snapshots 
-      ORDER BY created_at DESC 
+      FROM snapshots
+      ORDER BY created_at DESC
       LIMIT 5
     `);
     
@@ -210,25 +208,9 @@ router.get('/db-data', requireAuth, async (req, res) => {
 router.post('/migrate', requireAuth, async (req, res) => {
   try {
     const results = [];
-    
-    // Add news_briefing column if missing
-    try {
-      const checkCol = await db.execute(sql`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'snapshots' AND column_name = 'news_briefing'
-      `);
-      
-      if (checkCol.rows.length === 0) {
-        await db.execute(sql`ALTER TABLE snapshots ADD COLUMN news_briefing jsonb`);
-        results.push({ table: 'snapshots', column: 'news_briefing', action: 'added' });
-      } else {
-        results.push({ table: 'snapshots', column: 'news_briefing', action: 'exists' });
-      }
-    } catch (err) {
-      results.push({ table: 'snapshots', column: 'news_briefing', action: 'error', error: err.message });
-    }
-    
+
+    // NOTE: news_briefing and local_news columns removed Dec 2025 - briefing data is now in 'briefings' table
+
     // Add unique constraints to memory tables
     const memoryTables = ['assistant_memory', 'eidolon_memory', 'cross_thread_memory'];
     
@@ -433,7 +415,7 @@ router.get('/model-ping', async (req, res) => {
 
       try {
         const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-        const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-5-20250929';
+        const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-5-20251101';
         const response = await anthropic.messages.create({
           model: modelId,
           max_tokens: 10,
@@ -592,7 +574,7 @@ router.get('/workflow-dry-run', async (req, res) => {
     try {
       const { default: Anthropic } = await import('@anthropic-ai/sdk');
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-5-20250929';
+      const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-5-20251101';
       
       await anthropic.messages.create({
         model: modelId,
@@ -668,13 +650,17 @@ router.post('/test-consolidate/:snapshotId', requireAuth, async (req, res) => {
     // Check result
     const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
     
-    res.json({ 
-      ok: true, 
+    // Check briefing from separate briefings table
+    const [briefingRow] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+
+    res.json({
+      ok: true,
       snapshotId,
       consolidationComplete: row?.consolidated_strategy != null,
       status: row?.status,
       hasStrategy: row?.minstrategy != null,
-      hasBriefings: row?.briefing_news != null && row?.briefing_events != null && row?.briefing_traffic != null
+      hasBriefing: !!briefingRow
     });
   } catch (err) {
     console.error('[diagnostics/test-consolidate] Error:', err);

@@ -10,7 +10,7 @@ app.get('/health', (_req: Request, res: Response) => res.status(200).send('OK'))
 app.get('/ready', (_req: Request, res: Response) => res.status(200).send('READY'));
 
 const {
-  CLAUDE_MODEL = "claude-sonnet-4-5-20250929",
+  CLAUDE_MODEL = "claude-opus-4-5-20251101",
   ANTHROPIC_API_KEY = "",
   ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1",
   ANTHROPIC_VERSION = "2023-06-01",
@@ -83,7 +83,7 @@ const eidolonReply = async (payload: any) => {
 
   const result = finalize(validator);
   return {
-    identity: `🧠 Eidolon (Claude Sonnet 4.5 Enhanced SDK) • slug=${REPL_SLUG} owner=${REPL_OWNER}`,
+    identity: `🧠 Eidolon (Claude Opus 4.5 Enhanced) • slug=${REPL_SLUG} owner=${REPL_OWNER}`,
     triad: { strategist, planner, validator },
     result,
   };

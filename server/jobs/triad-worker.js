@@ -116,13 +116,11 @@ export async function startConsolidationListener() {
           
           // Build briefing object from briefing table row
           const briefingData = briefingRow ? {
-            global_travel: briefingRow.global_travel,
-            domestic_travel: briefingRow.domestic_travel,
-            local_traffic: briefingRow.local_traffic,
-            weather_impacts: briefingRow.weather_impacts,
-            events_nearby: briefingRow.events_nearby,
-            holidays: briefingRow.holidays,
-            rideshare_intel: briefingRow.rideshare_intel
+            events: briefingRow.events || [],
+            news: briefingRow.news || { items: [] },
+            traffic_conditions: briefingRow.traffic_conditions || null,
+            weather_current: briefingRow.weather_current || null,
+            school_closures: briefingRow.school_closures || []
           } : {};
 
           const result = await consolidateStrategy({
@@ -154,8 +152,9 @@ export async function startConsolidationListener() {
           .where(eq(strategies.snapshot_id, snapshotId))
           .limit(1);
 
-        if (!updatedRow?.consolidated_strategy) {
-          console.warn(`[consolidation-listener] ⚠️ No consolidated_strategy present for ${snapshotId}`);
+        // Smart Blocks need the IMMEDIATE strategy (strategy_for_now), not daily consolidated
+        if (!updatedRow?.strategy_for_now) {
+          console.warn(`[consolidation-listener] ⚠️ No strategy_for_now present for ${snapshotId}`);
           return;
         }
 
@@ -170,12 +169,13 @@ export async function startConsolidationListener() {
           .where(eq(briefings.snapshot_id, snapshotId))
           .limit(1);
 
-        // Generate enhanced smart blocks
+        // Generate enhanced smart blocks using IMMEDIATE strategy for "where to go NOW"
         try {
           console.log(`[consolidation-listener] 🎯 Generating enhanced smart blocks for ${snapshotId}...`);
+          console.log(`[consolidation-listener] Using strategy_for_now: "${updatedRow.strategy_for_now?.slice(0, 80)}..."`);
           await generateEnhancedSmartBlocks({
             snapshotId,
-            consolidated: updatedRow.consolidated_strategy,
+            immediateStrategy: updatedRow.strategy_for_now, // NOW uses immediate strategy
             briefing: updatedBriefing || { events: [], holidays: [], traffic: [], news: [] },
             snapshot: {
               ...snap,

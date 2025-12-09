@@ -94,23 +94,28 @@ This strategy is valid for the next 60 minutes based on current conditions.`;
       })
       .onConflictDoNothing();
 
-    // 3. Insert briefing data (Perplexity research)
+    // 3. Insert briefing data (Gemini + Google Search)
+    // Location (city, state) available via snapshot_id JOIN to snapshots table
     console.log('📰 Creating briefing data...');
     await db.insert(briefings)
       .values({
         snapshot_id: testSnapshotId,
-        global_travel: 'No major international disruptions affecting SFO today.',
-        domestic_travel: 'Moderate air traffic. Peak departure times: 6-9 AM, 4-7 PM.',
-        local_traffic: 'Highway 101 northbound experiencing delays near airport exit. Allow extra 5-10 minutes.',
-        weather_impacts: 'Clear skies until 2 PM. Rain expected in afternoon - consider indoor staging.',
-        events_nearby: 'Oracle Park has evening game at 7 PM. Expect surge pricing in SOMA area.',
-        holidays: null,
-        rideshare_intel: 'Airport corridor showing 2.5x surge. Downtown SF has standard rates.',
-        citations: [
-          'https://511.org/traffic',
-          'https://www.flysfo.com/flight-info',
-          'https://www.weather.gov/mtr/'
+        news: {
+          items: [
+            { title: 'Airport corridor showing 2.5x surge', summary: 'Downtown SF has standard rates', impact: 'high' }
+          ]
+        },
+        weather_current: { tempF: 65, conditions: 'Clear', humidity: 55 },
+        weather_forecast: [],
+        traffic_conditions: {
+          summary: 'Highway 101 northbound experiencing delays near airport exit',
+          congestionLevel: 'medium',
+          incidents: [{ description: 'Allow extra 5-10 minutes for airport routes', severity: 'medium' }]
+        },
+        events: [
+          { title: 'Giants vs. Dodgers', venue: 'Oracle Park', event_time: '7:00 PM', impact: 'high' }
         ],
+        school_closures: [],
         created_at: new Date(),
         updated_at: new Date()
       })

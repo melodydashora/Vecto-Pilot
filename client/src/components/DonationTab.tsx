@@ -29,7 +29,7 @@ interface DonationTabProps {
   userId?: string;
 }
 
-export const DonationTab: React.FC<DonationTabProps> = ({ userId }) => {
+export const DonationTab: React.FC<DonationTabProps> = ({ userId: _userId }) => {
   const [showInstructions, setShowInstructions] = useState(false);
   const donationLink = 'https://square.link/u/6PbBaNCi?src=sheet';
 

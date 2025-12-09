@@ -64,18 +64,13 @@ fullContext = {
     created_at, updated_at
   },
   briefing: {
-    // 15 fields from briefings table
+    // Fields from briefings table
     news,              // Filtered rideshare-relevant news
     weather_current,   // Current conditions
     weather_forecast,  // 6-hour forecast
     traffic_conditions,// Incidents + congestion
     events,            // Local events (Gemini + Google Search)
     school_closures,   // School/college closures
-    tactical_traffic,  // 30-min traffic forecast
-    tactical_closures, // Upcoming closures
-    tactical_enforcement, // Enforcement activity
-    tactical_sources,  // Data sources
-    global_travel, domestic_travel, local_traffic // Perplexity research
   },
   smartBlocks: [
     // 25 fields per venue from ranking_candidates
@@ -522,7 +517,7 @@ const context = await coachDAL.getCompleteContext(snapshotId, strategyId);
 |-------|---------|------------|-----------|
 | snapshots | Location, time, weather, air quality, airport | strategy_id → snapshot_id | user_id, session_id |
 | strategies | AI-generated strategy, consolidation status | strategy_id | user_id, snapshot_id |
-| briefings | Perplexity + GPT-5 research (30+ fields) | snapshot_id | user_id (add if missing) |
+| briefings | Gemini briefing data (events, news, traffic, weather) | snapshot_id | user_id (add if missing) |
 | rankings | Venue ranking metadata | snapshot_id | user_id (add if missing) |
 | ranking_candidates | Smart blocks with all details | snapshot_id | user_id (add if missing) |
 | venue_feedback | Community venue votes (up/down) | snapshot_id | user_id |
@@ -649,32 +644,19 @@ strategy: {
 }
 ```
 
-## Briefing Data (Perplexity + GPT-5)
+## Briefing Data (Gemini + Google Search)
 
-Coach receives BOTH strategies JSONB and briefings table:
+Coach receives briefing data from the briefings table:
 
 ```javascript
 briefing: {
-  // From strategies table (quick briefing)
-  events: [...],
-  news: [...],
-  traffic: [...],
-  
-  // From briefings table (deep research)
-  global_travel: "Text about global travel conditions...",
-  domestic_travel: "Text about US domestic travel...",
-  local_traffic: "Text about local incidents, construction...",
-  weather_impacts: "Text about how weather affects rideshare...",
-  events_nearby: "Text about concerts, games, festivals...",
-  rideshare_intel: "Text about rideshare-specific patterns...",
-  
-  // GPT-5 Tactical 30-minute forecast
-  tactical_traffic: "Text about next 30 min traffic...",
-  tactical_closures: "Text about upcoming closures...",
-  tactical_enforcement: "Text about enforcement activity...",
-  tactical_sources: "List of sources checked...",
-  
-  citations: [...]  // Perplexity source URLs
+  // From briefings table (Gemini 3.0 Pro with Google Search)
+  events: [...],           // Local events from Gemini search
+  news: { items: [...] },  // Rideshare-relevant news
+  traffic_conditions: {},  // Traffic data
+  weather_current: {},     // Current weather conditions
+  weather_forecast: [],    // 6-hour forecast
+  school_closures: [...]   // School/college closures
 }
 ```
 
@@ -827,10 +809,9 @@ Temperature: 72°F, Partly Cloudy
 [Full consolidated strategy text]
 
 === COMPREHENSIVE BRIEFING ===
-🌐 Global Travel: [Perplexity research]
-🛣️ Local Traffic: [Perplexity research]
-🎭 Local Events: [Perplexity research]
-⚡ NEXT 30 MINUTES: [GPT-5 tactical forecast]
+🚗 Traffic: [Current conditions]
+🎭 Local Events: [Gemini + Google Search]
+📰 News: [Rideshare-relevant updates]
 
 📍 RECOMMENDED LOCATIONS (Top 6)
 1. Union Square - 1.2mi, 8min [A value]
@@ -844,7 +825,7 @@ Strategy Votes: 3 up, 0 down
 📋 DATA ACCESS SUMMARY
 ✓ Snapshot: Complete (31 fields)
 ✓ Strategy: Ready (12 fields)
-✓ Briefing: Complete (15+ fields)
+✓ Briefing: Complete (6 fields)
 ✓ Smart Blocks: 6 venues (25 fields each)
 ✓ Feedback: 6 venue votes
 ✓ Actions: 3 recorded

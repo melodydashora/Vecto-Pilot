@@ -156,9 +156,9 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │ • File: venue-event-verifier.js → adapters/gemini-adapter.js    │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Perplexity Sonar Pro                                            │   │
-│  │ • Holiday detection (holiday-checker provider)                  │   │
-│  │ • File: providers/holiday-checker.js → adapters/perplexity-...  │   │
+│  │ Gemini 3.0 Pro (Holiday Detection - at Snapshot Creation)       │   │
+│  │ • Holiday detection with Google Search grounding                │   │
+│  │ • File: lib/holiday-detector.js (called by location.js)         │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google APIs (Maps Platform)                                     │   │

@@ -8,39 +8,7 @@ run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-repli
 
 # Nix/packages configuration
 [nix]
-packages = [
-  "at",
-  "imagemagick_light",
-  "jq",
-  "lsof",
-  "nodejs-22",
-  "spidermonkey_91",
-  "tree",
-  "mailutils",
-  "pgroll",
-  "unpackerr",
-  # Playwright browser dependencies
-  "glib",
-  "nspr",
-  "nss",
-  "dbus",
-  "atk",
-  "at-spi2-atk",
-  "cups",
-  "libxcb",
-  "libxkbcommon",
-  "at-spi2-core",
-  "xorg.libX11",
-  "xorg.libXcomposite",
-  "xorg.libXdamage",
-  "xorg.libXext",
-  "xorg.libXfixes",
-  "xorg.libXrandr",
-  "mesa",
-  "cairo",
-  "pango",
-  "alsa-lib"
-]
+packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "glib", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nodejs-22", "nspr", "nss", "pango", "pgroll", "spidermonkey_91", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr"]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)
@@ -56,6 +24,10 @@ externalPort = 80
 [[ports]]
 localPort = 5173
 externalPort = 5173
+
+[[ports]]
+localPort = 5999
+externalPort = 5000
 
 [[ports]]
 localPort = 9323

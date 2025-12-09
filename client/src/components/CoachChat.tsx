@@ -1,8 +1,8 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageSquare, Send, Mic, Square, Loader, Zap, Paperclip, X } from "lucide-react";
+import { MessageSquare, Send, Loader, Zap, Paperclip, X } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -21,7 +21,6 @@ interface SnapshotData {
   day_part_key?: string;
   weather?: any; // { temp, condition, windSpeed, etc. }
   air?: any; // { aqi, pollutants, etc. }
-  local_news?: any;
   holiday?: string;
   is_holiday?: boolean;
   timezone?: string;
@@ -58,7 +57,7 @@ export default function CoachChat({
   const controllerRef = useRef<AbortController | null>(null);
   const realtimeRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const _audioContextRef = useRef<AudioContext | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -243,7 +242,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       // User stopped speaking
       console.log('[voice] User speech ended');
     }
-  };
+  }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.currentTarget.files;
@@ -314,7 +313,6 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
             air: snapshot.air,
             holiday: snapshot.holiday,
             is_holiday: snapshot.is_holiday,
-            local_news: snapshot.local_news,
             coordinates: snapshot.lat && snapshot.lng ? { lat: snapshot.lat, lng: snapshot.lng } : undefined
           } : undefined,
           strategyReady // Helps Coach know if strategy is still generating
@@ -333,6 +331,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       const dec = new TextDecoder();
       let acc = "";
 
+      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -364,7 +363,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
                 return copy;
               });
             }
-          } catch (err) {
+          } catch (_err) {
             // Ignore parse errors for partial SSE data
           }
         }
@@ -372,9 +371,10 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
         const lastNl = acc.lastIndexOf("\n");
         if (lastNl >= 0) acc = acc.slice(lastNl + 1);
       }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Connection error: ${err.message}` }]);
+    } catch (err: unknown) {
+      const error = err as Error;
+      if (error.name !== 'AbortError') {
+        setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Connection error: ${error.message}` }]);
       }
     } finally {
       setIsStreaming(false);
@@ -382,9 +382,9 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
   }
 
   const suggestedQuestions = [
-    "Where should I stage right now?",
-    "How's my strategy looking?",
-    "Just want to chat - how are you?",
+    "Where should I go right now?",
+    "What's happening in my area?",
+    "Let's just chat",
   ];
 
   return (
@@ -398,11 +398,6 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
           <h3 className="font-semibold text-sm">Rideshare Coach</h3>
           <p className="text-xs text-white/80">AI Strategy Assistant</p>
         </div>
-        {isVoiceActive && (
-          <div className="ml-auto">
-            <span className="text-xs bg-white/20 px-2 py-1 rounded-full animate-pulse">🎤 Listening</span>
-          </div>
-        )}
       </div>
 
       {/* Messages Area - Light background for readability */}
@@ -413,9 +408,9 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
               <MessageSquare className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Welcome to Your Rideshare Coach!</h4>
+              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Hey! I'm Your AI Companion</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300 max-w-sm mx-auto leading-relaxed">
-                Get instant advice on venues, strategy, and earnings tips. Tap any suggestion to get started!
+                Ask me anything - rideshare strategy, life advice, or just chat. I can search the web too!
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center pt-3">
@@ -470,15 +465,6 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Voice Transcript Display */}
-      {voiceTranscript && (
-        <div className="px-4 py-2.5 bg-blue-50 dark:bg-blue-900/50 border-t border-blue-200 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-200 max-h-12 overflow-auto flex items-center gap-2">
-          <span className="animate-pulse">🎤</span>
-          <span className="font-medium">You said:</span>
-          <span className="italic">{voiceTranscript}</span>
-        </div>
-      )}
-
       {/* Attachments Display */}
       {attachments.length > 0 && (
         <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/50 border-t border-blue-200 dark:border-blue-800 flex flex-wrap gap-2">
@@ -502,11 +488,11 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 flex gap-2">
         <Input
           className="flex-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          placeholder={isVoiceActive ? "Listening... speak now" : "Ask about strategy, venues, or earnings... or upload files"}
+          placeholder="Ask anything - rideshare tips, life advice, or just chat..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !isStreaming && !isVoiceActive && send()}
-          disabled={isStreaming || isVoiceActive}
+          onKeyDown={(e) => e.key === "Enter" && !isStreaming && send()}
+          disabled={isStreaming}
           data-testid="input-chat-message"
         />
         
@@ -527,32 +513,16 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
           size="icon"
           className="rounded-full h-10 w-10 bg-gray-500 hover:bg-gray-600 text-white"
           title="Upload files (images, PDFs, documents)"
-          disabled={isStreaming || isVoiceActive}
+          disabled={isStreaming}
           data-testid="button-upload-file"
         >
           <Paperclip className="h-4 w-4" />
         </Button>
         
-        {/* Voice Button */}
-        <Button
-          onClick={isVoiceActive ? stopVoiceChat : startVoiceChat}
-          size="icon"
-          className={`rounded-full h-10 w-10 ${
-            isVoiceActive 
-              ? "bg-red-500 hover:bg-red-600 text-white animate-pulse" 
-              : "bg-blue-600 hover:bg-blue-700 text-white"
-          }`}
-          title={isVoiceActive ? "Stop voice chat" : "Start voice chat"}
-          disabled={attachments.length > 0}
-          data-testid="button-voice-chat"
-        >
-          {isVoiceActive ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        </Button>
-
-        {/* Text Send Button */}
+        {/* Send Button */}
         <Button
           onClick={send}
-          disabled={!input.trim() || isStreaming || isVoiceActive}
+          disabled={!input.trim() || isStreaming}
           size="icon"
           className="rounded-full h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
           data-testid="button-send-message"

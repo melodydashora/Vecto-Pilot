@@ -55,16 +55,15 @@ export const snapshots = pgTable("snapshots", {
   weather: jsonb("weather"),
   air: jsonb("air"),
   airport_context: jsonb("airport_context"),
-  local_news: jsonb("local_news"), // Perplexity daily local news affecting rideshare (events, road closures, traffic)
-  news_briefing: jsonb("news_briefing"), // Gemini-generated 60-minute briefing (airports, traffic, events, policy, takeaways)
+  // NOTE: local_news, news_briefing, extras, trigger_reason removed Dec 2025
+  // - briefing data is now in separate 'briefings' table
+  // - trigger_reason moved to strategies table
+  // - extras was never used
   device: jsonb("device"),
   permissions: jsonb("permissions"),
-  extras: jsonb("extras"),
-  last_strategy_day_part: text("last_strategy_day_part").default(null),
-  trigger_reason: text("trigger_reason").default(null),
-  // Holiday information from Perplexity briefing
-  holiday: text("holiday"), // Holiday name if today is a holiday (e.g., "Thanksgiving", "Christmas"), null otherwise
-  is_holiday: boolean("is_holiday").default(false), // Boolean flag: true if today is a holiday
+  // Holiday detection at snapshot creation (via Gemini 3.0 Pro + Google Search)
+  holiday: text("holiday").notNull().default('none'), // Holiday name (e.g., "Thanksgiving", "Christmas") or 'none'
+  is_holiday: boolean("is_holiday").notNull().default(false), // Boolean flag: true if today is a holiday
 });
 
 export const strategies = pgTable("strategies", {
@@ -74,6 +73,7 @@ export const strategies = pgTable("strategies", {
   correlation_id: uuid("correlation_id"),
   strategy: text("strategy"),
   status: text("status").notNull().default("pending"), // pending|ok|failed
+  trigger_reason: text("trigger_reason"), // 'initial' | 'retry' | 'refresh' - why strategy was generated
   error_code: integer("error_code"),
   error_message: text("error_message"),
   attempt: integer("attempt").notNull().default(1),
@@ -109,43 +109,26 @@ export const strategies = pgTable("strategies", {
   // Model-agnostic provider outputs (generic columns for parallel multi-model pipeline)
   minstrategy: text("minstrategy"), // Strategic overview from strategist provider (Claude)
   consolidated_strategy: text("consolidated_strategy"), // Actionable summary for Co-Pilot from consolidator (GPT-5)
-  // Holiday detection (written early by holiday-checker for instant UI feedback)
-  holiday: text("holiday"), // Holiday name if today is a holiday (e.g., "Thanksgiving", "Christmas")
+  // DEPRECATED: Holiday is now stored in snapshots table (populated at snapshot creation)
+  holiday: text("holiday"), // Legacy column - use snapshots.holiday instead
   // DEPRECATED COLUMNS (Perplexity now writes to briefings table instead)
   briefing_news: jsonb("briefing_news"), 
   briefing_events: jsonb("briefing_events"),
   briefing_traffic: jsonb("briefing_traffic")
 });
 
-// Perplexity comprehensive travel briefing + GPT-5 tactical 30-min intelligence
+// Briefing data from Gemini 3.0 Pro with Google Search
 export const briefings = pgTable("briefings", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
-  // Resolved precise location from snapshot
-  formatted_address: text("formatted_address"),
-  city: text("city"),
-  state: text("state"),
-  // NEW: Structured briefing data from external APIs
-  news: jsonb("news"), // Rideshare-relevant news from SerpAPI + Gemini filtering
+  // Location data available via snapshot_id JOIN to snapshots table
+  // Structured briefing data from Gemini + Google Search
+  news: jsonb("news"), // Rideshare-relevant news from Gemini filtering
   weather_current: jsonb("weather_current"), // Current conditions from Google Weather API
   weather_forecast: jsonb("weather_forecast"), // Hourly forecast (next 3-6 hours) from Google Weather API
   traffic_conditions: jsonb("traffic_conditions"), // Traffic data from Google Routes API
   events: jsonb("events"), // Local events affecting rideshare drivers
   school_closures: jsonb("school_closures"), // School district & college closures/reopenings (array of {schoolName, closureStart, reopeningDate, type, impact})
-  // Perplexity comprehensive research (background context)
-  global_travel: text("global_travel"), // Global conditions affecting this region
-  domestic_travel: text("domestic_travel"), // National/domestic travel conditions
-  local_traffic: text("local_traffic"), // Local traffic, construction, incidents
-  weather_impacts: text("weather_impacts"), // Weather affecting travel
-  events_nearby: text("events_nearby"), // Events within 50 miles
-  holidays: text("holidays"), // If today is a holiday
-  rideshare_intel: text("rideshare_intel"), // Rideshare-specific intelligence
-  citations: jsonb("citations"), // Perplexity source URLs
-  // GPT-5 tactical 30-minute intelligence (next 30 min only)
-  tactical_traffic: text("tactical_traffic"), // Traffic/incidents for next 30 minutes
-  tactical_closures: text("tactical_closures"), // Closures/construction for next 30 minutes
-  tactical_enforcement: text("tactical_enforcement"), // Enforcement activity for next 30 minutes
-  tactical_sources: text("tactical_sources"), // Sources checked by GPT-5
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

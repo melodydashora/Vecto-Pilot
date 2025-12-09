@@ -1,6 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, DollarSign } from "lucide-react";
+import { Clock } from "lucide-react";
 
 interface Block {
   name: string;
@@ -23,20 +23,32 @@ export default function BarsTable({ blocks }: BarsTableProps) {
     return null;
   }
 
-  // Filter for EXPENSIVE bars/restaurants where you can sit down and drink
-  // Must: sell alcohol, sit-down service, expensive (Grade A or high value)
+  // Filter for bars, restaurants, lounges - places where drivers can find riders
   const bars = blocks.filter(block => {
     const category = (block.category || "").toLowerCase();
     const name = (block.name || "").toLowerCase();
-    
-    // Only include actual bars/nightlife/upscale dining
-    const isBevenue = category.includes("bar") || 
-                     category.includes("nightlife") || 
-                     (category.includes("restaurant") && block.value_grade === "A");
-    
-    // Exclude non-bar venues
-    const isNotCommon = !name.includes("kroger") && 
-                       !name.includes("walmart") && 
+
+    // Include bars, nightlife, restaurants, lounges, clubs
+    const isBevenue = category.includes("bar") ||
+                     category.includes("nightlife") ||
+                     category.includes("restaurant") ||
+                     category.includes("lounge") ||
+                     category.includes("club") ||
+                     category.includes("pub") ||
+                     category.includes("tavern") ||
+                     category.includes("brewery") ||
+                     category.includes("winery") ||
+                     category.includes("grill") ||
+                     category.includes("cantina") ||
+                     category.includes("steakhouse") ||
+                     name.includes("bar") ||
+                     name.includes("grill") ||
+                     name.includes("tavern") ||
+                     name.includes("pub");
+
+    // Exclude common non-bar/non-restaurant venues
+    const isNotCommon = !name.includes("kroger") &&
+                       !name.includes("walmart") &&
                        !name.includes("whole foods") &&
                        !name.includes("grocery") &&
                        !name.includes("school") &&
@@ -44,12 +56,12 @@ export default function BarsTable({ blocks }: BarsTableProps) {
                        !name.includes("college") &&
                        !name.includes("medical") &&
                        !name.includes("event center") &&
-                       !name.includes("stadium");
-    
-    // Only expensive venues (Grade A or B minimum)
-    const isExpensive = block.value_grade === "A" || block.value_grade === "B";
-    
-    return isBevenue && isNotCommon && isExpensive;
+                       !name.includes("stadium") &&
+                       !name.includes("airport") &&
+                       !name.includes("gas station") &&
+                       !name.includes("convenience");
+
+    return isBevenue && isNotCommon;
   });
 
   if (bars.length === 0) {
@@ -59,7 +71,7 @@ export default function BarsTable({ blocks }: BarsTableProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <h3 className="text-base font-semibold text-gray-800">Expensive Bars & Lounges</h3>
+        <h3 className="text-base font-semibold text-gray-800">Bars, Restaurants & Lounges</h3>
         <span className="text-xs text-gray-500">({bars.length} venues)</span>
       </div>
 

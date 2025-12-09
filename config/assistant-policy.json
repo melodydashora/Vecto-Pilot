@@ -1,30 +1,138 @@
 {
   "identity_assertion": true,
-  "announce": "🧠 Unified AI System (Eidolon/Assistant/Atlas) - Claude Sonnet 4.5 with 200K context and ultra-deep thinking.",
-  "model": "claude-sonnet-4-5-20250929",
+  "identity": "assistant",
+  "announce": "🧠 Assistant (Claude Opus 4.5 Enhanced) - Extended thinking with all tools enabled.",
+  "model": "claude-opus-4-5-20251101",
   "context_window": 200000,
-  "thinking_mode": "ultra-deep",
+  "max_tokens": 16000,
+  "mode": "single_path",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 10000
+  },
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "top_k": 0,
+  "service_tier": "auto",
+  "stream": true,
+  "tools": {
+    "enabled": true,
+    "available": [
+      {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 10,
+        "user_location": {
+          "type": "approximate",
+          "country": "US",
+          "timezone": "America/Chicago"
+        }
+      },
+      {
+        "type": "web_fetch_20250305",
+        "name": "web_fetch"
+      },
+      {
+        "type": "code_execution_20250825",
+        "name": "code_execution"
+      },
+      {
+        "type": "text_editor_20250124",
+        "name": "str_replace_editor"
+      },
+      {
+        "type": "bash_20250124",
+        "name": "bash"
+      },
+      {
+        "type": "computer_20250124",
+        "name": "computer",
+        "display_width_px": 1920,
+        "display_height_px": 1080,
+        "display_number": 1
+      }
+    ],
+    "tool_choice": {
+      "type": "auto"
+    }
+  },
+  "headers": {
+    "anthropic-version": "2023-06-01",
+    "anthropic-beta": [
+      "interleaved-thinking-2025-05-14",
+      "code-execution-2025-08-25",
+      "fine-grained-tool-streaming-2025-05-14"
+    ]
+  },
   "allow_ops": [
-    "fs.read", "fs.write", "fs.delete", "fs.create", "fs.rename",
-    "shell.exec", "shell.spawn", "shell.kill",
-    "sql.query", "sql.execute", "sql.ddl", "sql.dml", "sql.schema",
-    "http.fetch", "http.post", "http.put", "http.delete",
-    "web.search", "web.research",
-    "ide.modify", "ide.config", "ide.workspace",
-    "process.manage", "system.diagnose",
-    "memory.write", "memory.persist", "memory.query"
+    "fs.read", "fs.write", "fs.delete", "fs.create", "fs.rename", "fs.list", "fs.stat", "fs.copy", "fs.move",
+    "shell.exec", "shell.spawn", "shell.kill", "shell.signal",
+    "sql.query", "sql.execute", "sql.ddl", "sql.dml", "sql.schema", "sql.transaction",
+    "http.fetch", "http.post", "http.put", "http.delete", "http.patch", "http.head",
+    "web.search", "web.fetch", "web.research", "web.scrape",
+    "code.execute", "code.sandbox", "code.analyze", "code.lint",
+    "ide.modify", "ide.config", "ide.workspace", "ide.debug",
+    "process.manage", "process.spawn", "process.kill",
+    "system.diagnose", "system.monitor", "system.config",
+    "memory.write", "memory.persist", "memory.query", "memory.delete",
+    "computer.screenshot", "computer.click", "computer.type", "computer.scroll", "computer.move"
   ],
-  "deny_on_fallback": false,
-  "atlas_available": true,
-  "full_access": true,
-  "unrestricted_shell": true,
-  "ide_access": true,
-  "full_workspace_intelligence": true,
-  "autonomous_mode": true,
-  "self_healing": true,
-  "circuit_breaker": true,
-  "unified_routing": true,
-  "assistant_interception": true,
+  "invariants": {
+    "no_venue_invention": true,
+    "schema_strict": true,
+    "word_caps": true,
+    "require_json_output": true,
+    "require_exact_model_ids": true,
+    "gpt5_reasoning_effort": "high"
+  },
+  "budgets_ms": {
+    "total": 360000,
+    "claude": 45000,
+    "gpt5": 120000,
+    "gemini": 60000
+  },
+  "memory": {
+    "backend": "postgres",
+    "tables": {
+      "state": "assistant_memory",
+      "snapshots": "assistant_snapshots"
+    },
+    "ttl_days": 730
+  },
+  "capabilities": {
+    "fs_read": true,
+    "fs_write": true,
+    "fs_delete": true,
+    "fs_create": true,
+    "fs_rename": true,
+    "fs_list": true,
+    "fs_copy": true,
+    "fs_move": true,
+    "shell_exec": true,
+    "shell_spawn": true,
+    "sql_query": true,
+    "sql_execute": true,
+    "web_search": true,
+    "web_fetch": true,
+    "code_execution": true,
+    "text_editor": true,
+    "bash": true,
+    "computer_use": true,
+    "atlas_fallback": true,
+    "thinking": true
+  },
+  "flags": {
+    "atlas_enabled": true,
+    "thinking_enabled": true,
+    "all_tools_enabled": true,
+    "full_access": true,
+    "unrestricted_shell": true,
+    "no_fallbacks": true,
+    "autonomous_mode": true,
+    "self_healing": true,
+    "circuit_breaker": true,
+    "unified_routing": true
+  },
   "triad": {
     "enabled": true,
     "invariants": {
@@ -37,9 +145,9 @@
     },
     "budgets": {
       "timeouts": {
-        "claude_ms": 20000,
-        "planner_ms": 60000,
-        "gemini_ms": 20000
+        "claude_ms": 45000,
+        "planner_ms": 120000,
+        "gemini_ms": 60000
       },
       "tokens": {
         "claude_max": 64000,
@@ -48,9 +156,11 @@
       }
     }
   },
-  "flags": {
-    "no_fallbacks": true,
-    "atlas_enabled": true
+  "research": {
+    "enabled": true,
+    "provider": "gemini",
+    "model": "gemini-3-pro-preview",
+    "grounding": true
   },
   "startup": {
     "require_env": [
@@ -59,15 +169,8 @@
       "GEMINI_API_KEY"
     ]
   },
-  "memory": {
-    "override_assistant": {
-      "table": "assistant_memory"
-    },
-    "eidolon": {
-      "tables": {
-        "memory": "eidolon_memory",
-        "snapshots": "eidolon_snapshots"
-      }
-    }
+  "ui": {
+    "showResearchBanner": true,
+    "showThinkingIndicator": true
   }
 }

@@ -6,8 +6,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { 
+import {
   ChevronDown,
   Sparkles,
   TrendingUp,
@@ -15,9 +14,6 @@ import {
   MapIcon,
   Wine,
   Heart,
-  MapPin,
-  Clock,
-  DollarSign,
   Zap,
   MessageCircle
 } from 'lucide-react';

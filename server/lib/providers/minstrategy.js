@@ -66,14 +66,14 @@ Provide a brief strategic assessment of positioning opportunities for the next h
     
     const text = result.output;
     
-    // Write to model-agnostic field using raw SQL (ensures trigger fires)
-    // CRITICAL: Setting status='complete' triggers NOTIFY strategy_ready
+    // Write to model-agnostic field
+    // NOTE: Using status='partial' to avoid premature NOTIFY - consolidator will set 'ok' when done
     try {
       await db.execute(sql`
-        UPDATE strategies 
-        SET 
+        UPDATE strategies
+        SET
           minstrategy = ${text},
-          status = 'complete',
+          status = 'partial',
           user_resolved_address = ${ctx.formatted_address},
           user_resolved_city = ${ctx.city},
           user_resolved_state = ${ctx.state},
@@ -81,7 +81,7 @@ Provide a brief strategic assessment of positioning opportunities for the next h
           updated_at = NOW()
         WHERE snapshot_id = ${snapshotId}
       `);
-      console.log(`[minstrategy] ✅ Trigger fired - NOTIFY strategy_ready should broadcast to SSE clients`);
+      console.log(`[minstrategy] ✅ Saved minstrategy (status=partial, waiting for consolidator)`);
     } catch (dbError) {
       console.error(`[minstrategy] ❌ Database UPDATE failed for ${snapshotId}:`, {
         error: dbError.message,
