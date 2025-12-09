@@ -1,0 +1,2372 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vecto Pilot™ - Architecture & Constraints Reference</title>
+    
+<style>
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+        color: #24292e;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 40px;
+    }
+    h1, h2, h3 { 
+        border-bottom: 1px solid #eaecef; 
+        padding-bottom: 0.3em;
+        margin-top: 24px;
+    }
+    h1 { font-size: 2em; margin-bottom: 16px; }
+    h2 { font-size: 1.5em; }
+    h3 { font-size: 1.25em; }
+    
+    /* Strikethrough support */
+    del, s {
+        text-decoration: line-through;
+        color: #6a737d;
+    }
+    
+    /* Code Blocks */
+    pre {
+        background-color: #f6f8fa;
+        border-radius: 6px;
+        padding: 16px;
+        overflow: auto;
+        font-size: 13px;
+        line-height: 1.45;
+        border: 1px solid #e1e4e8;
+        margin: 16px 0;
+    }
+    code {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        background-color: rgba(27,31,35,0.05);
+        padding: 0.2em 0.4em;
+        border-radius: 3px;
+        font-size: 85%;
+    }
+    pre code {
+        background-color: transparent;
+        padding: 0;
+    }
+
+    /* Tables */
+    table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 16px 0;
+        display: table;
+        overflow-x: auto;
+    }
+    th, td {
+        border: 1px solid #dfe2e5;
+        padding: 8px 13px;
+        text-align: left;
+    }
+    tr:nth-child(2n) { background-color: #f6f8fa; }
+    th { font-weight: 600; background-color: #f6f8fa; }
+
+    /* Lists */
+    ul, ol {
+        padding-left: 2em;
+    }
+    li {
+        margin: 0.25em 0;
+    }
+
+    /* Blockquotes */
+    blockquote {
+        border-left: 4px solid #dfe2e5;
+        padding-left: 16px;
+        margin-left: 0;
+        color: #6a737d;
+    }
+
+    /* ASCII Art & Diagrams */
+    .ascii-art, pre.diagram {
+        font-family: monospace;
+        white-space: pre;
+        line-height: 1.2;
+        overflow-x: auto;
+        font-size: 11px;
+    }
+
+    /* Status badges */
+    strong {
+        font-weight: 600;
+    }
+
+    /* Print Specifics */
+    @media print {
+        body { 
+            max-width: 100%; 
+            padding: 20px;
+        }
+        pre { 
+            white-space: pre-wrap; 
+            word-wrap: break-word;
+            page-break-inside: avoid;
+        }
+        a { 
+            text-decoration: none; 
+            color: black;
+        }
+        h1, h2, h3 { 
+            page-break-after: avoid;
+        }
+        tr { 
+            page-break-inside: avoid;
+        }
+        table {
+            page-break-inside: auto;
+        }
+    }
+
+    /* Table of Contents */
+    .toc {
+        background-color: #f6f8fa;
+        border: 1px solid #e1e4e8;
+        border-radius: 6px;
+        padding: 16px;
+        margin: 24px 0;
+    }
+    .toc ul {
+        list-style: none;
+        padding-left: 1em;
+    }
+</style>
+
+</head>
+<body>
+    <h1 id="vecto-pilottm-architecture-constraints-reference">Vecto Pilot™ - Architecture &amp; Constraints Reference</h1>
+<hr />
+<p><strong>Last Updated:</strong> 2025-12-07 UTC (Complete System Mapping &amp; Architecture Consolidation)</p>
+<hr />
+<h2 id="table-of-contents">📋 TABLE OF CONTENTS</h2>
+<ol>
+<li><a href="#system-architecture-overview">System Architecture Overview</a></li>
+<li><a href="#complete-system-mapping">Complete System Mapping</a></li>
+<li><a href="#ui-to-backend-flow">UI to Backend Flow</a></li>
+<li><a href="#database-schema-mapping">Database Schema Mapping</a></li>
+<li><a href="#ai-pipeline-architecture">AI Pipeline Architecture</a></li>
+<li><a href="#authentication-system">Authentication System</a></li>
+<li><a href="#architectural-constraints">Architectural Constraints</a></li>
+<li><a href="#deprecated-features">Deprecated Features</a></li>
+</ol>
+<hr />
+<h2 id="system-architecture-overview">🏗️ SYSTEM ARCHITECTURE OVERVIEW</h2>
+<h3 id="high-level-architecture">High-Level Architecture</h3>
+<pre class="codehilite"><code>┌─────────────────────────────────────────────────────────────────┐
+│                         REPLIT DEPLOYMENT                        │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │              Gateway Server (Port 5000)                     │ │
+│  │  ┌──────────────────┐  ┌──────────────────────────────┐   │ │
+│  │  │   SDK Routes     │  │    Agent Routes (43717)       │   │ │
+│  │  │   /api/*         │  │    /agent/*                   │   │ │
+│  │  └──────────────────┘  └──────────────────────────────┘   │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              ↓                                   │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │                PostgreSQL Database                          │ │
+│  │   (Replit Built-in, Drizzle ORM)                           │ │
+│  └────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                    EXTERNAL AI/API SERVICES                      │
+│  • Anthropic (Claude Sonnet 4.5)                                │
+│  • OpenAI (GPT-5.1, Realtime API)                               │
+│  • Google (Gemini 3.0 Pro, Places, Routes, Weather, AQ)         │
+│  • Perplexity (Sonar Pro)                                       │
+└─────────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<hr />
+<h2 id="complete-system-mapping">🗺️ COMPLETE SYSTEM MAPPING</h2>
+<h3 id="frontend-backend-database-flow">Frontend → Backend → Database Flow</h3>
+<h4 id="1-location-gps-system">1. <strong>Location &amp; GPS System</strong></h4>
+<p><strong>UI Components:</strong><br />
+- <code>client/src/GlobalHeader.tsx</code> - GPS status display, refresh button<br />
+- <code>client/src/contexts/location-context-clean.tsx</code> - Location state management</p>
+<p><strong>Hooks:</strong><br />
+- <code>client/src/hooks/useGeoPosition.ts</code> - Browser geolocation API wrapper<br />
+- <code>client/src/hooks/use-geolocation.tsx</code> - Enhanced geolocation with fallback</p>
+<p><strong>Backend Routes:</strong><br />
+- <code>server/routes/location.js</code> - <code>/api/location/resolve</code> (coordinates → address)</p>
+<p><strong>Database Tables:</strong><br />
+- <code>users</code> - GPS coordinates, resolved address, timezone<br />
+- <code>snapshots</code> - Point-in-time location context</p>
+<p><strong>External APIs:</strong><br />
+- <strong>Google Geocoding API</strong> - Reverse geocoding (lat/lng → address)<br />
+  - Endpoint: <code>https://maps.googleapis.com/maps/api/geocode/json</code><br />
+  - Usage: Address resolution from coordinates<br />
+  - File: <code>server/lib/geocoding.js</code></p>
+<ul>
+<li><strong>Google Timezone API</strong> - Timezone resolution</li>
+<li>Endpoint: <code>https://maps.googleapis.com/maps/api/timezone/json</code></li>
+<li>Usage: IANA timezone from coordinates</li>
+<li>
+<p>File: <code>server/routes/location.js</code></p>
+</li>
+<li>
+<p><strong>Google Places API (New)</strong> - Business details and verification</p>
+</li>
+<li>Endpoint: <code>https://places.googleapis.com/v1/places:searchNearby</code></li>
+<li>Usage: Business hours, place_id, status verification</li>
+<li>
+<p>File: <code>server/lib/venue-enrichment.js</code></p>
+</li>
+<li>
+<p><strong>Google Routes API (New)</strong> - Traffic-aware routing</p>
+</li>
+<li>Endpoint: <code>https://routes.googleapis.com/directions/v2:computeRoutes</code></li>
+<li>Usage: Real-time distance, drive time with traffic</li>
+<li>
+<p>File: <code>server/lib/routes-api.js</code></p>
+</li>
+<li>
+<p><strong>Google Weather API</strong> - Current conditions + forecast</p>
+</li>
+<li>Endpoint: <code>https://weather.googleapis.com/v1/currentConditions:lookup</code></li>
+<li>Endpoint: <code>https://weather.googleapis.com/v1/forecast/hours:lookup</code></li>
+<li>Usage: Temperature, conditions, 6-hour forecast</li>
+<li>
+<p>File: <code>server/lib/briefing-service.js</code></p>
+</li>
+<li>
+<p><strong>Google Air Quality API</strong> - AQI data</p>
+</li>
+<li>Endpoint: <code>https://airquality.googleapis.com/v1/currentConditions:lookup</code></li>
+<li>Usage: Air quality index and pollutants</li>
+<li>File: <code>server/routes/location.js</code></li>
+</ul>
+<p><strong>Data Flow:</strong></p>
+<pre class="codehilite"><code>Browser GPS → useGeoPosition → LocationContext → /api/location/resolve → 
+Google Geocoding API → users table → JWT token generation → 
+localStorage → subsequent API calls with Authorization header
+</code></pre>
+
+<hr />
+<h4 id="2-strategy-generation-pipeline-triad">2. <strong>Strategy Generation Pipeline (TRIAD)</strong></h4>
+<p><strong>UI Components:</strong><br />
+- <code>client/src/pages/co-pilot.tsx</code> - Strategy display, loading states<br />
+- <code>client/src/components/StrategyHistoryPanel.tsx</code> - Strategy history</p>
+<p><strong>Backend Orchestration:</strong><br />
+- <code>server/lib/strategy-generator-parallel.js</code> - Main pipeline orchestrator</p>
+<p><strong>Provider Functions:</strong><br />
+- <code>server/lib/providers/minstrategy.js</code> - Strategic overview (Claude Sonnet 4.5)<br />
+- <code>server/lib/providers/briefing.js</code> - Events, traffic, news (Gemini 3.0 Pro)<br />
+- <code>server/lib/providers/holiday-checker.js</code> - Holiday detection (Perplexity)<br />
+- <code>server/lib/providers/consolidator.js</code> - Final strategy (GPT-5.1)</p>
+<p><strong>Backend Routes:</strong><br />
+- <code>server/routes/snapshot.js</code> - POST <code>/api/snapshot</code> (trigger waterfall)<br />
+- <code>server/routes/strategy.js</code> - GET <code>/api/strategy/:snapshotId</code><br />
+- <code>server/routes/blocks-fast.js</code> - POST <code>/api/blocks-fast</code> (full pipeline)</p>
+<p><strong>Database Tables:</strong><br />
+- <code>snapshots</code> - Location, time, weather, air quality<br />
+- <code>strategies</code> - Strategic outputs (minstrategy, consolidated_strategy, briefing)<br />
+- <code>briefings</code> - Comprehensive briefing data (events, news, traffic, weather)</p>
+<p><strong>External APIs:</strong><br />
+- Anthropic Claude API - Strategic overview<br />
+- OpenAI GPT-5 API - Consolidation<br />
+- Google Gemini API - Events, traffic, news, school closures<br />
+- Perplexity API - Holiday research<br />
+- Google Weather API - Current conditions + 6hr forecast<br />
+- Google Routes API - Traffic conditions</p>
+<p><strong>Data Flow:</strong></p>
+<pre class="codehilite"><code>Snapshot Creation → POST /api/blocks-fast → 
+3 Parallel Providers (minstrategy, briefing, holiday) → 
+strategies table (minstrategy, briefing columns) → 
+consolidator (GPT-5.1) → 
+strategies table (consolidated_strategy column) → 
+SSE notification (strategy_ready event) → 
+UI polls /api/strategy/:snapshotId → Display strategy
+</code></pre>
+
+<hr />
+<h4 id="3-venue-recommendations-smart-blocks">3. <strong>Venue Recommendations (Smart Blocks)</strong></h4>
+<p><strong>UI Components:</strong><br />
+- <code>client/src/components/SmartBlocks.tsx</code> - Venue card display<br />
+- <code>client/src/components/SmartBlocksStatus.tsx</code> - Loading/polling status<br />
+- <code>client/src/pages/co-pilot.tsx</code> - Venues tab</p>
+<p><strong>Backend Logic:</strong><br />
+- <code>server/lib/tactical-planner.js</code> - GPT-5.1 venue generation<br />
+- <code>server/lib/enhanced-smart-blocks.js</code> - Venue enrichment orchestrator<br />
+- <code>server/lib/venue-enrichment.js</code> - Google Places/Routes integration<br />
+- <code>server/lib/venue-event-verifier.js</code> - Event verification (Gemini 2.5 Pro)<br />
+- <code>server/lib/venue-address-resolver.js</code> - Batch address resolution</p>
+<p><strong>Backend Routes:</strong><br />
+- <code>server/routes/blocks-fast.js</code> - GET <code>/api/blocks</code> (fetch venues)<br />
+- <code>server/routes/blocks-fast.js</code> - POST <code>/api/blocks-fast</code> (generate venues)</p>
+<p><strong>Database Tables:</strong><br />
+- <code>rankings</code> - Ranking session metadata (model_name, timing, path_taken)<br />
+- <code>ranking_candidates</code> - Individual venue recommendations with enrichment</p>
+<p><strong>External APIs:</strong><br />
+- OpenAI GPT-5 API - Venue recommendation generation<br />
+- <strong>Google Places API (New)</strong> - <code>places.googleapis.com/v1/places:searchNearby</code> - Business details, hours, place_id<br />
+- <strong>Google Routes API (New)</strong> - <code>routes.googleapis.com/directions/v2:computeRoutes</code> - Traffic-aware distance/drive time<br />
+- <strong>Google Geocoding API</strong> - <code>maps.googleapis.com/maps/api/geocode/json</code> - Address resolution<br />
+- Google Gemini 2.5 Pro API - Event verification</p>
+<p><strong>Data Flow:</strong></p>
+<pre class="codehilite"><code>Strategy Complete → POST /api/blocks-fast (if no ranking exists) →
+GPT-5.1 Tactical Planner (venue coords + staging coords) →
+Google Places API (business hours, place_id) →
+Google Routes API (distance, drive time) →
+Gemini 2.5 Pro (event verification) →
+Google Geocoding (venue addresses) →
+ranking_candidates table (enriched venue data) →
+GET /api/blocks → UI displays venue cards
+</code></pre>
+
+<p><strong>Enrichment Fields:</strong><br />
+- <code>place_id</code> - Google Places ID<br />
+- <code>distance_miles</code> - Google Routes API<br />
+- <code>drive_minutes</code> - Google Routes API<br />
+- <code>value_per_min</code> - Calculated (earnings ÷ drive time)<br />
+- <code>business_hours</code> - Google Places API<br />
+- <code>venue_events</code> - Gemini 2.5 Pro verification<br />
+- <code>address</code> - Google Geocoding API</p>
+<hr />
+<h4 id="4-briefing-tab-weather-traffic-news-events">4. <strong>Briefing Tab (Weather, Traffic, News, Events)</strong></h4>
+<p><strong>UI Components:</strong><br />
+- <code>client/src/components/BriefingTab.tsx</code> - Comprehensive briefing display<br />
+- <code>client/src/pages/co-pilot.tsx</code> - Briefing tab queries</p>
+<p><strong>Backend Routes:</strong><br />
+- <code>server/routes/briefing.js</code> - Component-level endpoints:<br />
+  - GET <code>/api/briefing/weather/:snapshotId</code><br />
+  - GET <code>/api/briefing/traffic/:snapshotId</code><br />
+  - GET <code>/api/briefing/news/:snapshotId</code><br />
+  - GET <code>/api/briefing/events/:snapshotId</code><br />
+  - GET <code>/api/briefing/closures/:snapshotId</code></p>
+<p><strong>Backend Service:</strong><br />
+- <code>server/lib/briefing-service.js</code> - Comprehensive briefing generation</p>
+<p><strong>Database Tables:</strong><br />
+- <code>briefings</code> - All briefing data (news, weather, traffic, events, school_closures)</p>
+<p><strong>External APIs:</strong><br />
+- <strong>Google Gemini 3.0 Pro</strong> - <code>generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent</code> - Events, traffic, news, closures<br />
+- <strong>Google Weather API</strong> - <code>weather.googleapis.com/v1/currentConditions:lookup</code> + <code>forecast/hours:lookup</code> - Current + 6hr forecast<br />
+- SerpAPI - News search (filtered by Gemini)</p>
+<p><strong>Data Flow:</strong></p>
+<pre class="codehilite"><code>Snapshot Creation → briefing provider runs in parallel →
+Gemini 3.0 Pro (events, traffic, news, closures) →
+Google Weather API (current + forecast) →
+briefings table (JSONB columns) →
+UI component queries (weather, traffic, news, events, closures) →
+BriefingTab displays real-time data
+</code></pre>
+
+<hr />
+<h4 id="5-ai-coach-chat">5. <strong>AI Coach Chat</strong></h4>
+<p><strong>UI Components:</strong><br />
+- <code>client/src/components/CoachChat.tsx</code> - Chat interface with file upload support</p>
+<p><strong>Backend Routes:</strong><br />
+- <code>server/routes/chat.js</code> - POST <code>/api/chat</code> (text chat with SSE streaming)<br />
+- <code>server/routes/realtime.js</code> - WebSocket <code>/api/realtime</code> (voice chat)</p>
+<p><strong>Backend DAL:</strong><br />
+- <code>server/lib/coach-dal.js</code> - Full schema read access for AI context</p>
+<p><strong>Database Access (Read-Only - ALL Tables):</strong><br />
+- <code>snapshots</code> - Location, GPS coordinates, weather (tempF, conditions), air quality (AQI), timezone, day/time context, airport proximity<br />
+- <code>strategies</code> - Full strategic overview (minstrategy), consolidated strategy, tactical briefing, model metadata<br />
+- <code>briefings</code> - Real-time events, traffic conditions, news, school closures, weather forecast (Gemini + Google Search)<br />
+- <code>rankings</code> - Venue recommendation sessions with model metadata, timing, path taken<br />
+- <code>ranking_candidates</code> - Individual venues with ALL fields:<br />
+  - Business hours, place_id, address, coordinates (lat/lng)<br />
+  - Distance (miles), drive time (minutes), value-per-minute, grade (A/B/C)<br />
+  - Pro tips (tactical advice), staging locations, closed reasoning<br />
+  - Venue events (Gemini verification), earnings projections<br />
+  - Not-worth flags, surge data, category<br />
+- <code>actions</code> - User behavior history (view, select, navigate, dwell time)<br />
+- <code>venue_feedback</code> - Community thumbs up/down on venues, comments<br />
+- <code>strategy_feedback</code> - Community thumbs up/down on strategies, comments</p>
+<p><strong>Enhanced Capabilities:</strong><br />
+- <strong>Thread Awareness</strong>: Full conversation history across sessions via <code>assistant_memory</code> table<br />
+- <strong>Google Search Integration</strong>: Real-time information via Gemini 3.0 Pro with Google Search tool<br />
+- <strong>File Analysis</strong>: Uploaded images, documents, screenshots analyzed with vision models<br />
+- <strong>Memory Context</strong>: Cross-session learning and personalization</p>
+<p><strong>External APIs:</strong><br />
+- OpenAI GPT-4o Realtime API - Voice chat with streaming<br />
+- OpenAI GPT-5.1 API - Text chat with reasoning_effort=medium<br />
+- Google Gemini 3.0 Pro - Briefing data with Google Search tool</p>
+<p><strong>Data Flow (Enhanced):</strong></p>
+<pre class="codehilite"><code>User Message + Attachments → POST /api/chat →
+CoachDAL.getCompleteContext(snapshotId) → Fetches ALL fields from:
+  - snapshots (31 fields: location, weather, air, airport, time, H3)
+  - strategies (12 fields: full strategy text, model chain, status)
+  - briefings (15 fields: events, news, traffic, closures, forecast)
+  - ranking_candidates (25 fields per venue: hours, tips, staging, events)
+  - venue_feedback (thumbs up/down counts, comments)
+  - strategy_feedback (thumbs up/down counts, comments)
+  - actions (view/select/navigate history, dwell times)
+CoachDAL.formatContextForPrompt() → Structured context string →
+GPT-5.1 API (reasoning_effort=medium, max_tokens=32000) →
+SSE Stream → CoachChat UI displays response
+</code></pre>
+
+<p><strong>Context Size:</strong><br />
+- <strong>Before</strong>: ~9% of available data (5 fields)<br />
+- <strong>After</strong>: 100% of available data (200+ fields across all tables)<br />
+- <strong>Total Data Points</strong>: Snapshot (31) + Strategy (12) + Briefing (15) + Venues (25×6) + Feedback (~50) + Actions (variable)</p>
+<hr />
+<h4 id="6-authentication-user-isolation">6. <strong>Authentication &amp; User Isolation</strong></h4>
+<p><strong>UI Context:</strong><br />
+- <code>client/src/contexts/location-context-clean.tsx</code> - Token storage/usage</p>
+<p><strong>Backend Middleware:</strong><br />
+- <code>server/middleware/auth.js</code> - JWT verification (<code>requireAuth</code>)</p>
+<p><strong>Backend Routes:</strong><br />
+- <code>server/routes/auth.js</code> - POST <code>/api/auth/token</code> (JWT generation)<br />
+- <code>server/routes/location.js</code> - <code>/api/location/resolve</code> (returns user_id)</p>
+<p><strong>Database Security:</strong><br />
+- <code>migrations/003_rls_security.sql</code> - Row-Level Security policies<br />
+- <code>migrations/004_jwt_helpers.sql</code> - JWT extraction functions</p>
+<p><strong>Security Flow:</strong></p>
+<pre class="codehilite"><code>GPS Coordinates → /api/location/resolve → 
+users table (insert/update) → user_id returned →
+POST /api/auth/token (user_id) → JWT signed →
+localStorage.setItem('token') →
+All API calls include Authorization: Bearer {token} →
+requireAuth middleware validates JWT →
+Database queries filtered by user_id (RLS policies)
+</code></pre>
+
+<hr />
+<h2 id="database-schema-mapping">🗄️ DATABASE SCHEMA MAPPING</h2>
+<h3 id="core-tables">Core Tables</h3>
+<h4 id="users-user-location-authority"><code>users</code> - User Location Authority</h4>
+<p><strong>Purpose:</strong> Authoritative source for user GPS coordinates and resolved location<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert/Update: <code>server/routes/location.js</code><br />
+- Query: <code>server/lib/coach-dal.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>user_id</code> (PK) - UUID<br />
+- <code>device_id</code> - Unique device identifier<br />
+- <code>lat</code>, <code>lng</code> - GPS coordinates<br />
+- <code>formatted_address</code> - Full street address<br />
+- <code>city</code>, <code>state</code>, <code>country</code> - Resolved location<br />
+- <code>timezone</code> - Local timezone<br />
+- <code>created_at</code>, <code>updated_at</code> - Timestamps</p>
+<hr />
+<h4 id="snapshots-point-in-time-context"><code>snapshots</code> - Point-in-Time Context</h4>
+<p><strong>Purpose:</strong> Self-contained context snapshot (location, time, weather, air quality)<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/routes/snapshot.js</code><br />
+- Query: <code>server/lib/snapshot/get-snapshot-context.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>snapshot_id</code> (PK) - UUID<br />
+- <code>user_id</code> - FK to users<br />
+- <code>lat</code>, <code>lng</code> - GPS coordinates (copied from users at snapshot time)<br />
+- <code>city</code>, <code>state</code>, <code>timezone</code> - Resolved location<br />
+- <code>date</code> - Snapshot date (YYYY-MM-DD)<br />
+- <code>dow</code> - Day of week (0=Sunday)<br />
+- <code>hour</code> - Hour (0-23)<br />
+- <code>day_part_key</code> - morning/afternoon/evening/night<br />
+- <code>weather</code> - JSONB (tempF, conditions, description)<br />
+- <code>air</code> - JSONB (aqi, category, dominantPollutant)<br />
+- <code>airport_context</code> - JSONB (nearby airport delays)<br />
+- <code>holiday</code> - Holiday name (if applicable)<br />
+- <code>is_holiday</code> - Boolean flag</p>
+<hr />
+<h4 id="strategies-ai-strategy-generation"><code>strategies</code> - AI Strategy Generation</h4>
+<p><strong>Purpose:</strong> Model-agnostic strategy outputs from parallel pipeline<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert/Update: <code>server/lib/providers/minstrategy.js</code>, <code>consolidator.js</code><br />
+- Query: <code>server/routes/strategy.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>snapshot_id</code> (PK, FK) - Links to snapshots<br />
+- <code>user_id</code> - FK to users<br />
+- <code>minstrategy</code> - Strategic overview from Claude Sonnet 4.5<br />
+- <code>consolidated_strategy</code> - Actionable summary from GPT-5.1<br />
+- <code>model_name</code> - Full model chain (strategist→briefer→consolidator)<br />
+- <code>status</code> - pending/running/ok/failed/pending_blocks<br />
+- ~~<code>briefing_news</code>, <code>briefing_events</code>, <code>briefing_traffic</code>~~ - DEPRECATED (moved to briefings table)</p>
+<hr />
+<h4 id="briefings-comprehensive-briefing-data"><code>briefings</code> - Comprehensive Briefing Data</h4>
+<p><strong>Purpose:</strong> Structured briefing data from Gemini 3.0 Pro + Google APIs<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert/Update: <code>server/lib/briefing-service.js</code><br />
+- Query: <code>server/routes/briefing.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>snapshot_id</code> (PK, FK) - Links to snapshots<br />
+- <code>news</code> - JSONB (filtered rideshare-relevant news)<br />
+- <code>weather_current</code> - JSONB (current conditions)<br />
+- <code>weather_forecast</code> - JSONB (6-hour forecast)<br />
+- <code>traffic_conditions</code> - JSONB (incidents, congestion)<br />
+- <code>events</code> - JSONB (local events with impact)<br />
+- <code>school_closures</code> - JSONB (school/college closures)<br />
+- ~~<code>global_travel</code>, <code>domestic_travel</code>, <code>local_traffic</code>~~ - Text fields (Perplexity research - less used)</p>
+<hr />
+<h4 id="rankings-venue-recommendation-metadata"><code>rankings</code> - Venue Recommendation Metadata</h4>
+<p><strong>Purpose:</strong> Ranking session metadata<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/lib/enhanced-smart-blocks.js</code><br />
+- Query: <code>server/routes/blocks-fast.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>ranking_id</code> (PK) - UUID<br />
+- <code>snapshot_id</code> (FK) - Links to snapshots<br />
+- <code>model_name</code> - Venue planner model (gpt-5.1-venue-planner)<br />
+- <code>path_taken</code> - enhanced-smart-blocks<br />
+- <code>planner_ms</code> - GPT-5.1 planner timing<br />
+- <code>total_ms</code> - Total pipeline timing</p>
+<hr />
+<h4 id="ranking_candidates-enriched-venue-recommendations"><code>ranking_candidates</code> - Enriched Venue Recommendations</h4>
+<p><strong>Purpose:</strong> Individual venue recommendations with Google API enrichment<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/lib/enhanced-smart-blocks.js</code><br />
+- Query: <code>server/routes/blocks-fast.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>id</code> (PK) - UUID<br />
+- <code>ranking_id</code> (FK) - Links to rankings<br />
+- <code>snapshot_id</code> (FK) - Links to snapshots<br />
+- <code>name</code> - Venue name (from GPT-5.1)<br />
+- <code>lat</code>, <code>lng</code> - Venue coordinates (from GPT-5.1)<br />
+- <code>place_id</code> - Google Places ID (from Places API)<br />
+- <code>address</code> - Full street address (from Geocoding API)<br />
+- <code>distance_miles</code> - Drive distance (from Routes API)<br />
+- <code>drive_minutes</code> - Drive time (from Routes API)<br />
+- <code>value_per_min</code> - Calculated earnings per minute<br />
+- <code>value_grade</code> - A/B/C grade based on value_per_min<br />
+- <code>business_hours</code> - JSONB (from Places API)<br />
+- <code>pro_tips</code> - Array of tactical tips (from GPT-5.1)<br />
+- <code>staging_name</code>, <code>staging_lat</code>, <code>staging_lng</code> - Staging area (from GPT-5.1)<br />
+- <code>venue_events</code> - JSONB (from Gemini 2.5 Pro verification)<br />
+- <code>closed_reasoning</code> - Strategic timing explanation (from GPT-5.1)</p>
+<hr />
+<h4 id="actions-user-behavior-tracking"><code>actions</code> - User Behavior Tracking</h4>
+<p><strong>Purpose:</strong> Track user actions for ML feedback loop<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/routes/actions.js</code><br />
+- Query: <code>server/lib/coach-dal.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>action_id</code> (PK) - UUID<br />
+- <code>user_id</code> (FK) - Links to users<br />
+- <code>snapshot_id</code> (FK) - Links to snapshots<br />
+- <code>block_id</code> - Venue identifier<br />
+- <code>action</code> - view/select/navigate/dismiss/dwell<br />
+- <code>context</code> - JSONB (metadata)</p>
+<hr />
+<h4 id="venue_catalog-master-venue-database"><code>venue_catalog</code> - Master Venue Database</h4>
+<p><strong>Purpose:</strong> Persistent catalog of known venues with business hours and metadata<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/scripts/seed-dfw-venues.js</code><br />
+- Query: <code>server/lib/enhanced-smart-blocks.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>venue_id</code> (PK) - UUID<br />
+- <code>place_id</code> - Google Places ID (unique)<br />
+- <code>venue_name</code> - Venue name (max 500 chars)<br />
+- <code>address</code> - Full address (max 500 chars)<br />
+- <code>lat</code>, <code>lng</code> - Coordinates<br />
+- <code>category</code> - Venue type/category<br />
+- <code>dayparts</code> - Array of applicable day parts<br />
+- <code>staging_notes</code> - JSONB (staging instructions)<br />
+- <code>city</code>, <code>metro</code> - Location metadata<br />
+- <code>business_hours</code> - JSONB (operating hours)<br />
+- <code>last_known_status</code> - 'open' | 'closed' | 'temporarily_closed' | 'permanently_closed' | 'unknown'<br />
+- <code>status_checked_at</code> - Last status verification timestamp<br />
+- <code>consecutive_closed_checks</code> - Counter for closed status (Issue #32)<br />
+- <code>auto_suppressed</code> - Boolean (prevents recommending permanently closed venues)<br />
+- <code>suppression_reason</code> - Explanation for suppression</p>
+<hr />
+<h4 id="venue_feedback-venue-ratings"><code>venue_feedback</code> - Venue Ratings</h4>
+<p><strong>Purpose:</strong> User feedback on venue recommendations<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/routes/feedback.js</code><br />
+- Query: <code>server/lib/coach-dal.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>feedback_id</code> (PK) - UUID<br />
+- <code>user_id</code> (FK) - Links to users<br />
+- <code>snapshot_id</code> (FK) - Links to snapshots<br />
+- <code>block_id</code> - Venue identifier<br />
+- <code>sentiment</code> - up/down<br />
+- <code>comment</code> - Optional text feedback</p>
+<hr />
+<h4 id="strategy_feedback-strategy-ratings"><code>strategy_feedback</code> - Strategy Ratings</h4>
+<p><strong>Purpose:</strong> User feedback on strategic guidance<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/routes/feedback.js</code><br />
+- Query: <code>server/lib/coach-dal.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>feedback_id</code> (PK) - UUID<br />
+- <code>user_id</code> (FK) - Links to users<br />
+- <code>snapshot_id</code> (FK) - Links to snapshots<br />
+- <code>sentiment</code> - up/down<br />
+- <code>comment</code> - Optional text feedback</p>
+<hr />
+<h4 id="triad_jobs-background-job-queue"><code>triad_jobs</code> - Background Job Queue</h4>
+<p><strong>Purpose:</strong> Async job processing for TRIAD pipeline (strategist → briefer → consolidator)<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/lib/job-queue.js</code><br />
+- Worker: <code>server/jobs/triad-worker.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>id</code> (PK) - UUID<br />
+- <code>job_type</code> - 'triad_pipeline'<br />
+- <code>status</code> - 'pending' | 'running' | 'complete' | 'failed'<br />
+- <code>priority</code> - Integer priority (higher = more urgent)<br />
+- <code>payload</code> - JSONB (job parameters)<br />
+- <code>result</code> - JSONB (job output)<br />
+- <code>error</code> - Error message if failed<br />
+- <code>created_at</code>, <code>started_at</code>, <code>completed_at</code> - Timestamps</p>
+<hr />
+<h4 id="places_cache-google-places-api-cache"><code>places_cache</code> - Google Places API Cache</h4>
+<p><strong>Purpose:</strong> Cache Google Places API responses to reduce API calls<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Query: <code>server/lib/places-cache.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>place_id</code> (PK) - Google Places ID<br />
+- <code>name</code>, <code>address</code> - Basic info<br />
+- <code>lat</code>, <code>lng</code> - Coordinates<br />
+- <code>business_hours</code> - JSONB (operating hours)<br />
+- <code>phone</code>, <code>website</code>, <code>rating</code> - Additional metadata<br />
+- <code>cached_at</code> - Cache timestamp<br />
+- <code>expires_at</code> - Expiration timestamp</p>
+<hr />
+<h4 id="venue_events-venue-specific-events"><code>venue_events</code> - Venue-Specific Events</h4>
+<p><strong>Purpose:</strong> Events occurring at or near specific venues (verified by Gemini 2.5 Pro)<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/lib/venue-event-verifier.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>id</code> (PK) - UUID<br />
+- <code>venue_id</code> - FK to venue_catalog<br />
+- <code>event_title</code> - Event name<br />
+- <code>event_type</code> - Event category<br />
+- <code>start_time</code>, <code>end_time</code> - Event timing<br />
+- <code>impact_level</code> - 'high' | 'medium' | 'low'<br />
+- <code>rideshare_potential</code> - Expected demand impact<br />
+- <code>verified_by</code> - AI model that verified the event<br />
+- <code>verified_at</code> - Verification timestamp</p>
+<hr />
+<h4 id="venue_metrics-venue-performance-analytics"><code>venue_metrics</code> - Venue Performance Analytics</h4>
+<p><strong>Purpose:</strong> Track venue recommendation performance over time<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/lib/enhanced-smart-blocks.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>venue_id</code> (PK) - FK to venue_catalog<br />
+- <code>total_recommendations</code> - Times recommended<br />
+- <code>total_accepts</code> - User selections<br />
+- <code>total_dismissals</code> - User rejections<br />
+- <code>avg_rating</code> - Average user rating<br />
+- <code>last_recommended_at</code> - Last recommendation timestamp</p>
+<hr />
+<h4 id="travel_disruptions-airport-delay-tracking"><code>travel_disruptions</code> - Airport Delay Tracking</h4>
+<p><strong>Purpose:</strong> Log airport delays and closures for context<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/routes/location.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>id</code> (PK) - UUID<br />
+- <code>snapshot_id</code> - FK to snapshots<br />
+- <code>airport_code</code> - IATA code (e.g., 'DFW')<br />
+- <code>disruption_type</code> - 'delay' | 'closure'<br />
+- <code>severity</code> - 'low' | 'medium' | 'high'<br />
+- <code>delay_minutes</code> - Delay duration<br />
+- <code>reason</code> - Cause of disruption<br />
+- <code>source</code> - Data source (FAA, etc.)</p>
+<hr />
+<h4 id="http_idem-idempotency-cache"><code>http_idem</code> - Idempotency Cache</h4>
+<p><strong>Purpose:</strong> Prevent duplicate API requests via idempotency keys<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Middleware: <code>server/middleware/idempotency.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>key</code> (PK) - Idempotency key<br />
+- <code>status</code> - HTTP status code<br />
+- <code>body</code> - JSONB response body<br />
+- <code>created_at</code> - Cache timestamp</p>
+<hr />
+<h4 id="agent_memory-agent-session-state"><code>agent_memory</code> - Agent Session State</h4>
+<p><strong>Purpose:</strong> Internal agent state and session context<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Query: <code>server/agent/context-awareness.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>id</code> (PK) - UUID<br />
+- <code>session_id</code> - Agent session identifier<br />
+- <code>entry_type</code> - Memory type<br />
+- <code>title</code>, <code>content</code> - Memory data<br />
+- <code>status</code> - 'active' | 'archived'<br />
+- <code>metadata</code> - JSONB<br />
+- <code>expires_at</code> - Expiration timestamp</p>
+<hr />
+<h4 id="nearby_venues-gemini-discovered-venues"><code>nearby_venues</code> - Gemini-Discovered Venues</h4>
+<p><strong>Purpose:</strong> Bars/restaurants discovered via Gemini web search<br />
+<strong>Files:</strong><br />
+- Schema: <code>shared/schema.js</code><br />
+- Insert: <code>server/lib/briefing-service.js</code></p>
+<p><strong>Key Columns:</strong><br />
+- <code>id</code> (PK) - UUID<br />
+- <code>snapshot_id</code> - FK to snapshots<br />
+- <code>name</code>, <code>address</code> - Venue info<br />
+- <code>lat</code>, <code>lng</code> - Coordinates<br />
+- <code>venue_type</code> - 'bar' | 'restaurant' | 'bar_restaurant'<br />
+- <code>expense_level</code> - '$' | '$$' | '$$$' | '$$$$'<br />
+- <code>is_open</code> - Boolean<br />
+- <code>hours_today</code> - Operating hours<br />
+- <code>closing_soon</code> - Boolean (within 1 hour)<br />
+- <code>crowd_level</code> - 'low' | 'medium' | 'high'<br />
+- <code>rideshare_potential</code> - 'low' | 'medium' | 'high'</p>
+<hr />
+<h2 id="ai-pipeline-architecture">🤖 AI PIPELINE ARCHITECTURE</h2>
+<h3 id="model-dictionary-role-assignment">Model Dictionary &amp; Role Assignment</h3>
+<p><strong>File:</strong> <code>server/lib/models-dictionary.js</code></p>
+<p><strong>Model Roles:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Model</th>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>strategist</code></td>
+<td>Claude Sonnet 4.5</td>
+<td><code>providers/minstrategy.js</code></td>
+<td>Strategic overview</td>
+</tr>
+<tr>
+<td><code>briefer</code></td>
+<td>Gemini 3.0 Pro</td>
+<td><code>providers/briefing.js</code></td>
+<td>Events, traffic, news</td>
+</tr>
+<tr>
+<td><code>consolidator</code></td>
+<td>GPT-5.1</td>
+<td><code>providers/consolidator.js</code></td>
+<td>Final actionable strategy</td>
+</tr>
+<tr>
+<td><code>tactical_planner</code></td>
+<td>GPT-5.1</td>
+<td><code>tactical-planner.js</code></td>
+<td>Venue recommendations</td>
+</tr>
+<tr>
+<td><code>validator</code></td>
+<td>Gemini 2.5 Pro</td>
+<td><code>venue-event-verifier.js</code></td>
+<td>Event verification</td>
+</tr>
+<tr>
+<td><code>research_engine</code></td>
+<td>Perplexity Sonar Pro</td>
+<td><code>providers/holiday-checker.js</code></td>
+<td>Holiday detection</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Adapter Files:</strong><br />
+- <code>server/lib/adapters/index.js</code> - Main dispatcher (<code>callModel</code>)<br />
+- <code>server/lib/adapters/anthropic-adapter.js</code> - Claude integration<br />
+- <code>server/lib/adapters/openai-adapter.js</code> - GPT-5 integration<br />
+- <code>server/lib/adapters/google-gemini.js</code> - Gemini integration<br />
+- <code>server/lib/adapters/perplexity-adapter.js</code> - Perplexity integration</p>
+<hr />
+<h2 id="authentication-system-production-complete-dec-2-2025">🔐 AUTHENTICATION SYSTEM - PRODUCTION COMPLETE (Dec 2, 2025)</h2>
+<p><strong>Status:</strong> ✅ READY FOR DEPLOYMENT</p>
+<h3 id="implementation-summary">Implementation Summary</h3>
+<p>Complete end-to-end JWT authentication with secure user isolation across all API endpoints.</p>
+<p><strong>Architecture:</strong></p>
+<pre class="codehilite"><code>Browser GPS/Geolocation
+         ↓
+   [useGeoPosition.ts]
+         ↓
+/api/location/resolve → gets user_id from database
+         ↓
+/api/auth/token → generates JWT with user_id
+         ↓
+localStorage.setItem('token')
+         ↓
+[CoachChat] + [BriefingTab] send Authorization: Bearer ${token}
+         ↓
+[requireAuth middleware] verifies JWT
+         ↓
+All requests scoped to authenticated user_id (user data isolation)
+</code></pre>
+
+<p><strong>Files:</strong><br />
+- <code>client/src/contexts/location-context-clean.tsx</code> - Token generation with async callback<br />
+- <code>server/routes/auth.js</code> - <code>/api/auth/token</code> endpoint<br />
+- <code>gateway-server.js</code> - Auth route registration (lines 265-272)<br />
+- <code>client/src/components/CoachChat.tsx</code> - Authorization header on /api/chat<br />
+- <code>client/src/pages/co-pilot.tsx</code> - Authorization header on /api/briefing/snapshot<br />
+- <code>server/middleware/auth.js</code> - requireAuth middleware validates JWT</p>
+<p><strong>Verification Checklist:</strong><br />
+- ✅ GPS coordinates obtained (native browser or Google Geolocation fallback)<br />
+- ✅ Location resolved and user_id retrieved from /api/location/resolve<br />
+- ✅ JWT token generated via /api/auth/token and stored in localStorage<br />
+- ✅ All API calls include "Authorization: Bearer ${token}" header<br />
+- ✅ Backend verifies JWT and isolates data by user_id<br />
+- ✅ Graceful error handling with console logs for debugging</p>
+<p><strong>Security:</strong><br />
+- ✅ User_id ONLY from JWT token, never from request body<br />
+- ✅ Database queries filtered by authenticated user_id<br />
+- ✅ All sensitive POST/PATCH/DELETE routes require authentication<br />
+- ✅ 404 (not 401) returned for unauthorized access (prevents enumeration)</p>
+<hr />
+<h2 id="authentication-system-production-complete-dec-2-2025_1">🔐 <strong>AUTHENTICATION SYSTEM - PRODUCTION COMPLETE (Dec 2, 2025)</strong></h2>
+<p><strong>Status:</strong> ✅ READY FOR DEPLOYMENT</p>
+<h3 id="implementation-summary_1">Implementation Summary</h3>
+<p>Complete end-to-end JWT authentication with secure user isolation across all API endpoints.</p>
+<p><strong>Architecture:</strong></p>
+<pre class="codehilite"><code>Browser GPS/Geolocation
+         ↓
+   [useGeoPosition.ts]
+         ↓
+/api/location/resolve → gets user_id from database
+         ↓
+/api/auth/token → generates JWT with user_id
+         ↓
+localStorage.setItem('token')
+         ↓
+[CoachChat] + [BriefingTab] send Authorization: Bearer ${token}
+         ↓
+[requireAuth middleware] verifies JWT
+         ↓
+All requests scoped to authenticated user_id (user data isolation)
+</code></pre>
+
+<p><strong>Files:</strong><br />
+- <code>client/src/contexts/location-context-clean.tsx</code> - Token generation with async callback<br />
+- <code>server/routes/auth.js</code> - <code>/api/auth/token</code> endpoint<br />
+- <code>gateway-server.js</code> - Auth route registration (lines 265-272)<br />
+- <code>client/src/components/CoachChat.tsx</code> - Authorization header on /api/chat<br />
+- <code>client/src/pages/co-pilot.tsx</code> - Authorization header on /api/briefing/snapshot<br />
+- <code>server/middleware/auth.js</code> - requireAuth middleware validates JWT</p>
+<p><strong>Verification Checklist:</strong><br />
+- ✅ GPS coordinates obtained (native browser or Google Geolocation fallback)<br />
+- ✅ Location resolved and user_id retrieved from /api/location/resolve<br />
+- ✅ JWT token generated via /api/auth/token and stored in localStorage<br />
+- ✅ All API calls include "Authorization: Bearer ${token}" header<br />
+- ✅ Backend verifies JWT and isolates data by user_id<br />
+- ✅ Graceful error handling with console logs for debugging</p>
+<p><strong>Security:</strong><br />
+- ✅ User_id ONLY from JWT token, never from request body<br />
+- ✅ Database queries filtered by authenticated user_id<br />
+- ✅ All sensitive POST/PATCH/DELETE routes require authentication<br />
+- ✅ 404 (not 401) returned for unauthorized access (prevents enumeration)</p>
+<hr />
+<h2 id="architectural-constraints">🔒 ARCHITECTURAL CONSTRAINTS</h2>
+<h3 id="1-single-path-orchestration-only">1. <strong>Single-Path Orchestration Only</strong></h3>
+<p>Triad is authoritative. No hedging, no silent swaps, no router fallbacks. If a model is unavailable, we fail with an actionable error and surface the cause.</p>
+<p><strong>Files:</strong><br />
+- <code>server/lib/strategy-generator-parallel.js</code> - Single orchestration path<br />
+- ~~<code>server/lib/llm-router-v2.js</code>~~ - Deprecated multi-model router</p>
+<h3 id="2-model-ids-are-pinned-and-verified-monthly">2. <strong>Model IDs Are Pinned and Verified Monthly</strong></h3>
+<p>Missing or changed IDs are treated as deployment blockers. Messages responses must echo the requested model; mismatches throw.</p>
+<p><strong>Files:</strong><br />
+- <code>server/lib/models-dictionary.js</code> - Centralized model configuration<br />
+- <code>MODEL.md</code> - Model verification documentation<br />
+- <code>tools/research/model-discovery.mjs</code> - Monthly verification script</p>
+<h3 id="3-complete-snapshot-gating">3. <strong>Complete Snapshot Gating</strong></h3>
+<p>No LLM call without a complete location snapshot (GPS, timezone, daypart, weather/AQI). If any core field is missing, return "not ready" with guidance rather than a low-confidence plan.</p>
+<p><strong>Files:</strong><br />
+- <code>server/lib/snapshot/get-snapshot-context.js</code> - Snapshot validation<br />
+- <code>server/routes/snapshot.js</code> - Self-contained snapshot creation</p>
+<h3 id="4-accuracy-over-expense-for-closure-sensitive-recs">4. <strong>Accuracy Over Expense for Closure-Sensitive Recs</strong></h3>
+<p>When the venue's open/closed status materially affects driver income, we must either validate status or choose a de-risked alternative. <strong>"Unknown" is never presented as "open".</strong></p>
+<p><strong>Files:</strong><br />
+- <code>server/lib/venue-enrichment.js</code> - Business hours validation<br />
+- <code>server/lib/weather-traffic-validator.js</code> - Condition validation<br />
+- <code>server/lib/places-hours.js</code> - Hours calculation</p>
+<h3 id="5-deterministic-logging-for-ml">5. <strong>Deterministic Logging for ML</strong></h3>
+<p>For every block served: input snapshot hash, model ID, token budget, confidence, and downstream outcome (accept/skip/abort) are recorded for counterfactual learning.</p>
+<p><strong>Files:</strong><br />
+- <code>server/routes/actions.js</code> - User action logging<br />
+- <code>server/middleware/learning-capture.js</code> - ML instrumentation<br />
+- <code>server/routes/feedback.js</code> - Feedback capture</p>
+<h3 id="6-coordinates-and-business-hours-come-from-google-or-db-never-models">6. <strong>Coordinates and Business Hours Come From Google or DB, Never Models</strong></h3>
+<p>Truth sources are Google Places/Routes and our persisted cache. Generative models must not originate or "correct" lat/lng or hours. If Google is unavailable, we use last verified DB copy; otherwise we fail-closed.</p>
+<p><strong>Files:</strong><br />
+- <code>server/lib/places-cache.js</code> - Google Places caching<br />
+- <code>server/lib/routes-api.js</code> - Google Routes integration<br />
+- <code>server/lib/venue-enrichment.js</code> - Enrichment orchestrator</p>
+<h3 id="7-deterministic-merge-by-key-never-by-index">7. <strong>Deterministic Merge by Key, Never by Index</strong></h3>
+<p>All enrich/validate merges use stable keys (place_id preferred; name fallback) and numeric coercion. Defaulting earnings/distance to 0 is forbidden. Fallback order: server potential → computed epm → fail-closed when neither is available.</p>
+<p><strong>Files:</strong><br />
+- <code>server/lib/enhanced-smart-blocks.js</code> - Key-based venue merging<br />
+- <code>server/lib/venue-address-resolver.js</code> - Batch address resolution</p>
+<hr />
+<h2 id="deprecated-features-struck-through">⚠️ DEPRECATED FEATURES (Struck Through)</h2>
+<h3 id="multi-model-router-with-fallbackhedging">~~Multi-Model Router with Fallback/Hedging~~</h3>
+<p><strong>Status:</strong> ~~DEPRECATED (October 2025)~~<br />
+<strong>Files:</strong><br />
+- ~~<code>server/lib/llm-router-v2.js</code> - Multi-model hedging router~~<br />
+- ~~<code>tools/debug/test-v2-router.mjs</code> - Router testing~~</p>
+<p><strong>Reason:</strong> ~~Single-path orchestration is more reliable and auditable. Model-agnostic providers replace hedging.~~</p>
+<hr />
+<h3 id="global-json-body-parsing">~~Global JSON Body Parsing~~</h3>
+<p><strong>Status:</strong> ~~DEPRECATED (November 2025)~~<br />
+<strong>Files:</strong><br />
+- ~~<code>gateway-server.js</code> - Global <code>express.json()</code> removed~~</p>
+<p><strong>Reason:</strong> ~~Per-route validation prevents HTML error pages and enables custom size limits.~~</p>
+<hr />
+<h3 id="reactstrictmode-in-production-ui">~~React.StrictMode in Production UI~~</h3>
+<p><strong>Status:</strong> REMOVED (December 2025)<br />
+<strong>Files:</strong><br />
+- <code>client/src/main.tsx</code> - StrictMode wrapper removed</p>
+<p><strong>Reason:</strong> Double-rendering in development caused duplicate API calls and GPS refreshes.</p>
+<hr />
+<h3 id="treating-cost-only-heuristics-as-overrides">~~Treating Cost-Only Heuristics as Overrides~~</h3>
+<p><strong>Status:</strong> DEPRECATED (October 2025)</p>
+<p><strong>Reason:</strong> Accuracy-first principle - never sacrifice correctness for cost savings.</p>
+<hr />
+<h3 id="cheap-first-mvp-for-business-hours">~~"Cheap-First" MVP for Business Hours~~</h3>
+<p><strong>Status:</strong> DEPRECATED (November 2025)<br />
+<strong>Files:</strong><br />
+- ~~<code>server/lib/places-hours.js</code>~~ - Enhanced with risk-gated validation</p>
+<p><strong>Reason:</strong> Replaced with risk-gated validation. High-impact venues always validate hours.</p>
+<hr />
+<h3 id="index-based-merge">~~Index-Based Merge~~</h3>
+<p><strong>Status:</strong> DEPRECATED (October 8, 2025)<br />
+<strong>Files:</strong><br />
+- <code>server/lib/enhanced-smart-blocks.js</code> - Now uses key-based merge</p>
+<p><strong>Reason:</strong> Replaced with key-based merge using place_id/name as stable identifiers.</p>
+<hr />
+<h3 id="client-gps-overwrite-of-venue-coordinates">~~Client GPS Overwrite of Venue Coordinates~~</h3>
+<p><strong>Status:</strong> DEPRECATED (October 8, 2025)<br />
+<strong>Files:</strong><br />
+- <code>client/src/pages/co-pilot.tsx</code> - Client no longer overwrites venue coords</p>
+<p><strong>Reason:</strong> Server truth is authoritative. Google APIs provide verified coordinates.</p>
+<hr />
+<h3 id="perplexity-briefing-fields-in-strategies-table">~~Perplexity Briefing Fields in Strategies Table~~</h3>
+<p><strong>Status:</strong> DEPRECATED (December 2025)<br />
+<strong>Files:</strong><br />
+- <code>shared/schema.js</code> - <code>strategies.briefing_news</code>, <code>briefing_events</code>, <code>briefing_traffic</code></p>
+<p><strong>Reason:</strong> Moved to dedicated <code>briefings</code> table for better separation of concerns.</p>
+<hr />
+<h3 id="smartblocktsx-smartblockstsx-naming-removed-dec-7-2025">~~SmartBlock.tsx / SmartBlocks.tsx Naming~~ (Removed Dec 7, 2025)</h3>
+<p><strong>Files:</strong><br />
+- ~~<code>client/src/components/SmartBlock.tsx</code>~~ → Renamed to <code>ContentBlock.tsx</code><br />
+- ~~<code>client/src/components/SmartBlocks.tsx</code>~~ → Renamed to <code>MarketIntelligenceBlocks.tsx</code></p>
+<p><strong>Reason:</strong> Confusing naming - both used "Smart" + "Block" but served completely different purposes. <code>ContentBlock</code> is a generic content renderer (headers, paragraphs, lists). <code>MarketIntelligenceBlocks</code> is domain-specific for driver briefing data (events, traffic, news). Clear naming prevents AI hallucinations and developer confusion.</p>
+<hr />
+<h3 id="strategy-first-polling-deprecated-approach">~~Strategy-First Polling (Deprecated Approach)~~</h3>
+<p><strong>Status:</strong> REPLACED (December 2025)<br />
+<strong>Files:</strong><br />
+- <code>client/src/pages/co-pilot.tsx</code> - Now uses SSE for strategy_ready events</p>
+<p><strong>Reason:</strong> SSE provides real-time notifications, reducing unnecessary polling.</p>
+<hr />
+<h3 id="duplicate-utility-functions-removed-dec-7-2025">~~Duplicate Utility Functions~~ (Removed Dec 7, 2025)</h3>
+<p><strong>Status:</strong> CONSOLIDATED<br />
+<strong>Files Removed:</strong><br />
+- ~~Duplicate <code>haversineDistance()</code> in <code>venue-event-verifier.js</code>, <code>google-places-staging.js</code>, <code>blocks-fast.js</code>~~<br />
+- ~~Duplicate <code>httpError()</code> in <code>blocks-fast.js</code>, <code>venue-address-resolver.js</code>, <code>tactical-planner.js</code>~~<br />
+- ~~Duplicate <code>isPlusCode()</code> in multiple route files~~<br />
+- ~~Duplicate <code>safeJsonParse()</code> in multiple files~~</p>
+<p><strong>Replaced With:</strong><br />
+- <code>server/lib/geo.js</code> - Single source for geospatial utilities<br />
+- <code>server/routes/utils/http-helpers.js</code> - Single source for HTTP utilities</p>
+<p><strong>Reason:</strong> Code duplication increased maintenance burden and created inconsistent behavior across files.</p>
+<hr />
+<h3 id="dead-library-files-removed-dec-7-2025">~~Dead Library Files~~ (Removed Dec 7, 2025)</h3>
+<p><strong>Status:</strong> DELETED (18 files)<br />
+<strong>Files:</strong><br />
+- ~~<code>server/lib/blocks-queue.js</code>~~ - Unused async processing<br />
+- ~~<code>server/lib/blocks-jobs.js</code>~~ - Unused job queue<br />
+- ~~<code>server/lib/triad-orchestrator.js</code>~~ - Deprecated multi-model orchestration<br />
+- ~~<code>server/lib/exploration.js</code>, <code>server/lib/explore.js</code>~~ - Unused exploration<br />
+- ~~<code>server/lib/ability-routes.js</code>, <code>server/lib/cache-routes.js</code>~~ - Unused routes<br />
+- ~~<code>server/lib/capabilities.js</code>, <code>server/lib/anthropic-extended.js</code>~~ - Unused utilities<br />
+- ~~<code>server/lib/receipt.js</code>, <code>server/lib/priors.js</code>~~ - Unused utilities<br />
+- ~~<code>server/lib/adapters/anthropic-claude.js</code>, <code>server/lib/adapters/openai-gpt5.js</code>~~ - Unused adapters<br />
+- ~~<code>server/lib/scoring-engine.js</code>~~ - Replaced by enhanced-smart-blocks.js<br />
+- ~~<code>server/lib/driveTime.js</code>~~ - Replaced by venue-enrichment.js<br />
+- ~~<code>server/lib/venue-generator.js</code>~~ - Replaced by tactical-planner.js<br />
+- ~~<code>server/lib/persist-ranking.js</code>~~ - Replaced by enhanced-smart-blocks.js<br />
+- ~~<code>server/lib/fast-tactical-reranker.js</code>~~ - Never integrated into workflow</p>
+<p><strong>Reason:</strong> Zero imports, replaced by newer implementations, or never integrated into production workflow.</p>
+<hr />
+<h3 id="test-snapshot-artifacts-removed-dec-7-2025">~~Test Snapshot Artifacts~~ (Removed Dec 7, 2025)</h3>
+<p><strong>Status:</strong> DELETED (1,637 files)<br />
+<strong>Location:</strong> <code>data/context-snapshots/</code><br />
+<strong>Size:</strong> 6.4MB<br />
+<strong>Reason:</strong> Test artifacts that accumulated during development, not needed for runtime operations.</p>
+<hr />
+<h3 id="formatbriefingcontext-summarization-replaced-dec-8-2025">~~formatBriefingContext() Summarization~~ (Replaced Dec 8, 2025)</h3>
+<p><strong>Status:</strong> REPLACED<br />
+<strong>Files:</strong><br />
+- <code>server/lib/providers/consolidator.js</code> - Now passes raw JSON instead of summarized text</p>
+<p><strong>Before:</strong></p>
+<pre class="codehilite"><code class="language-javascript">// OLD: formatBriefingContext() converted JSON to truncated text summaries
+const briefingContext = formatBriefingContext(briefingRow);
+// Lost details like &quot;Eastbound Main St closed&quot; 
+</code></pre>
+
+<p><strong>After:</strong></p>
+<pre class="codehilite"><code class="language-javascript">// NEW: Raw JSON passed directly with labeled sections
+const trafficData = parseJsonField(briefingRow?.traffic_conditions);
+// === CURRENT_TRAFFIC_DATA ===
+// ${JSON.stringify(trafficData, null, 2)}
+</code></pre>
+
+<p><strong>Reason:</strong> Summarization lost critical incident details (street names, closures, times). Raw JSON preserves all data so Gemini can reference specific details like "Eastbound Main St closed" in generated strategies.</p>
+<hr />
+<h3 id="fallbackstub-data-in-briefing-service-removed-dec-8-2025">~~Fallback/Stub Data in Briefing Service~~ (Removed Dec 8, 2025)</h3>
+<p><strong>Status:</strong> REMOVED<br />
+<strong>Files:</strong><br />
+- <code>server/lib/briefing-service.js</code> - No more fallback placeholder data</p>
+<p><strong>Before:</strong></p>
+<pre class="codehilite"><code class="language-javascript">// OLD: Returned stub data if Gemini failed
+if (!result.ok) {
+  return { summary: 'Real-time traffic data unavailable...' };
+}
+</code></pre>
+
+<p><strong>After:</strong></p>
+<pre class="codehilite"><code class="language-javascript">// NEW: Throws error - fail-fast architecture
+if (!result.ok) {
+  throw new Error(`Gemini traffic API failed: ${result.error}`);
+}
+</code></pre>
+
+<p><strong>Reason:</strong> Fail-fast architecture - if Gemini API fails, the entire briefing flow fails with a clear error. No silent fallbacks that hide API failures. Each Gemini call must return actual data OR a reason why not (e.g., <code>{items: [], reason: 'No events found'}</code>).</p>
+<hr />
+<h3 id="development-only-cache-clearing-fixed-dec-8-2025">~~Development-Only Cache Clearing~~ (Fixed Dec 8, 2025)</h3>
+<p><strong>Status:</strong> FIXED<br />
+<strong>Files:</strong><br />
+- <code>server/lib/briefing-service.js</code> - Now uses TTL-based cache invalidation in ALL environments</p>
+<p><strong>Before:</strong></p>
+<pre class="codehilite"><code class="language-javascript">// OLD: Cache clearing only happened in development
+if (process.env.NODE_ENV === 'development') {
+  // Clear stale cache...
+}
+</code></pre>
+
+<p><strong>After:</strong></p>
+<pre class="codehilite"><code class="language-javascript">// NEW: TTL-based cache works in BOTH dev and production
+function isBriefingStale(briefing, ttlMinutes = 30) {
+  const ageMinutes = (now - briefing.updated_at) / (1000 * 60);
+  return ageMinutes &gt; ttlMinutes;
+}
+</code></pre>
+
+<p><strong>Reason:</strong> Production was serving stale briefing data indefinitely because cache expiry only ran in development. Now <code>getOrGenerateBriefing()</code> checks <code>updated_at</code> and regenerates briefings older than 30 minutes in ALL environments.</p>
+<hr />
+<h2 id="system-architecture">🏗️ SYSTEM ARCHITECTURE</h2>
+<h3 id="multi-server-architecture-production">Multi-Server Architecture (Production)</h3>
+<pre class="codehilite"><code>┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENT LAYER                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
+│  │   React 18   │  │ TanStack     │  │  Wouter      │         │
+│  │   TypeScript │  │ Query v5     │  │  Routing     │         │
+│  └──────────────┘  └──────────────┘  └──────────────┘         │
+│           ▲                                                      │
+│           │ HTTPS (5000)                                        │
+└───────────┼──────────────────────────────────────────────────────┘
+            │
+┌───────────▼──────────────────────────────────────────────────────┐
+│                    GATEWAY SERVER (Port 5000)                    │
+│  • Rate Limiting (100 req/15min per IP)                         │
+│  • CORS Security + Helmet                                       │
+│  • Request Proxy &amp; Load Balancing                              │
+│  • Per-Route JSON Parsing (1MB limit, no global parser)        │
+│  • Client Abort Error Gate (499 status)                        │
+│  • Health Check Logging Filter                                 │
+│  • Vite Dev Middleware (dev) / Static Build (prod)            │
+└───────────┬──────────────────────────────────────────────────────┘
+            │
+    ┌───────┴──────┬──────────────┬────────────────┐
+    │              │              │                │
+┌───▼────────┐ ┌──▼─────────┐ ┌─▼──────────┐ ┌──▼──────────────┐
+│ Eidolon SDK│ │   Agent    │ │  Postgres  │ │  External APIs  │
+│ Server     │ │   Server   │ │  (Neon)    │ │  (Google/FAA/   │
+│ (3101)     │ │  (43717)   │ │            │ │   OpenWeather)  │
+└────┬───────┘ └──────┬─────┘ └─────┬──────┘ └─────────────────┘
+     │                │              │
+┌────▼────────────────▼──────────────▼──────────────────────────────┐
+│                 TRIAD AI PIPELINE (Single-Path)                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   Claude     │─▶│    GPT-5     │─▶│   Gemini     │          │
+│  │  Sonnet 4.5  │  │   Planner    │  │  2.5 Pro    │          │
+│  │  (Strategist)│  │   (Tactician)│  │  (Validator) │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│    12s timeout      45s timeout       15s timeout               │
+│    Strategic        Deep Reasoning    JSON Validation           │
+└───────────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<p><strong>Constraint:</strong> Gateway MUST run on port 5000 (Replit firewall requirement)<br />
+<strong>Constraint:</strong> All servers use same PostgreSQL database (single source of truth)<br />
+<strong>Constraint:</strong> JSON parsing is per-route only (no global body parser to avoid abort errors)<br />
+<strong>Constraint:</strong> Staging areas MUST be within 2 minutes drive of all recommended venues (Oct 9, 2025)</p>
+<hr />
+<h2 id="aiml-pipeline-triad-architecture">🤖 AI/ML PIPELINE: TRIAD ARCHITECTURE</h2>
+<h3 id="design-philosophy-locked-do-not-change">Design Philosophy (LOCKED - DO NOT CHANGE)</h3>
+<ol>
+<li><strong>Single-Path Only</strong> - No fallbacks in triad, fail properly instead of silently degrading</li>
+<li><strong>Complete Data Snapshots</strong> - Never send partial context (corrupts ML training)</li>
+<li><strong>Zero Pre-Computed Flags</strong> - Models infer patterns from raw data</li>
+<li><strong>Idempotent Processing</strong> - Same input = same output (critical for ML)</li>
+<li><strong>Observable at Every Stage</strong> - Full logging for counterfactual learning</li>
+</ol>
+<p><strong>Why This Matters:</strong><br />
+- <strong>ML Training Integrity</strong> - We're building a dataset for future model fine-tuning<br />
+- <strong>Trust-First Stack</strong> - Curated venue catalog + deterministic scoring prevents hallucinations<br />
+- <strong>Quality &gt; Availability</strong> - Better to fail visibly than succeed with wrong answer</p>
+<hr />
+<h3 id="stage-1-claude-sonnet-45-strategist">Stage 1: Claude Sonnet 4.5 (Strategist)</h3>
+<p><strong>Model:</strong> <code>claude-sonnet-4-5-20250929</code> ✅ Verified Working<br />
+<strong>Role:</strong> High-level strategic analysis and narrative generation<br />
+<strong>Timeout:</strong> 12 seconds (CLAUDE_TIMEOUT_MS)</p>
+<p><strong>Critical Guard:</strong> If Claude fails to generate <code>strategy_for_now</code>, the entire triad pipeline aborts. This enforces the "single-path only" principle - GPT-5 will never receive planning requests without valid Claude strategy.</p>
+<p><strong>Input:</strong> Complete snapshot (location, weather, AQI, airport delays, time context, H3 geospatial)<br />
+<strong>Output:</strong> Strategic overview, pro tips, earnings estimate<br />
+<strong>Token Usage:</strong> 150-200 tokens average<br />
+<strong>Success Rate:</strong> 98.7% (production data)</p>
+<p><strong>Constraint:</strong> Must return text with strategic insights or pipeline aborts (no silent failures)</p>
+<hr />
+<h3 id="stage-2-gpt-5-tactical-planner">Stage 2: GPT-5 (Tactical Planner)</h3>
+<p><strong>Model:</strong> <code>gpt-5-pro</code> ✅ Verified Working<br />
+<strong>Role:</strong> Deep reasoning for venue selection and timing<br />
+<strong>Timeout:</strong> 45 seconds (GPT5_TIMEOUT_MS)</p>
+<p><strong>Processing:</strong><br />
+- <strong>Reasoning Effort:</strong> <code>high</code> (GPT5_REASONING_EFFORT=high)<br />
+- <strong>Max Completion Tokens:</strong> 32000<br />
+- <strong>Uses:</strong> <code>reasoning_effort</code> (NOT temperature/top_p - those are deprecated in GPT-5)</p>
+<p><strong>Critical Constraint:</strong> GPT-5 does NOT support:<br />
+- ❌ <code>temperature</code><br />
+- ❌ <code>top_p</code><br />
+- ❌ <code>frequency_penalty</code><br />
+- ❌ <code>presence_penalty</code></p>
+<p><strong>Only Supports:</strong><br />
+- ✅ <code>reasoning_effort</code> (values: minimal, low, medium, high)<br />
+- ✅ <code>max_completion_tokens</code></p>
+<p><strong>Output:</strong> 6 venue recommendations with coordinates, pro tips, best staging location, tactical summary<br />
+<strong>Validation:</strong> Zod schema ensures minimum 6 venues with required fields<br />
+<strong>Token Usage:</strong> 800-1200 prompt + 1500-2000 reasoning + 600-800 completion</p>
+<p><strong>Staging Area Optimization (Oct 9, 2025):</strong><br />
+- <strong>Constraint:</strong> Staging location MUST be centrally positioned within 2 minutes drive of ALL recommended venues<br />
+- <strong>Priority:</strong> Free parking lots, gas stations, or safe pull-off areas with good visibility<br />
+- <strong>Goal:</strong> Driver can reach ANY venue within 1-2 minutes for quick ride capture<br />
+- <strong>Purpose:</strong> Minimize deadhead time and maximize response speed<br />
+- <strong>Implementation:</strong> Enforced via GPT-5 system prompt with explicit CRITICAL constraint</p>
+<p><strong>Constraint:</strong> Only runs if Claude provides valid strategy (dependency enforced)</p>
+<hr />
+<h3 id="stage-3-gemini-25-pro-validator">Stage 3: Gemini 2.5 Pro (Validator)</h3>
+<p><strong>Model:</strong> <code>gemini-2.5-pro-latest</code> ✅ Verified Working<br />
+<strong>Role:</strong> JSON validation, business hours enrichment, earnings projections<br />
+<strong>Timeout:</strong> 15 seconds (GEMINI_TIMEOUT_MS)</p>
+<p><strong>Processing:</strong><br />
+- Validates GPT-5 JSON structure<br />
+- Enriches with Google Places business hours<br />
+- Calculates traffic-aware distances<br />
+- Generates earnings projections per venue</p>
+<p><strong>Output:</strong> Final validated strategy with open/closed status, distances, earnings per venue<br />
+<strong>Token Usage:</strong> 500-800 tokens average</p>
+<p><strong>Constraint:</strong> Must return at least 6 venues or pipeline fails (minimum quality threshold)</p>
+<hr />
+<h2 id="trust-first-stack-architecture">🏛️ TRUST-FIRST STACK ARCHITECTURE</h2>
+<h3 id="core-principle-prevent-llm-hallucinations-with-deterministic-scoring">Core Principle: Prevent LLM Hallucinations with Deterministic Scoring</h3>
+<p><strong>Problem:</strong> Pure LLM recommendations can hallucinate non-existent venues or incorrect locations<br />
+<strong>Solution:</strong> Curated venue catalog + deterministic scoring engine</p>
+<h3 id="venue-catalog-single-source-of-truth">Venue Catalog (Single Source of Truth)</h3>
+<ul>
+<li><strong>Storage:</strong> PostgreSQL <code>venues</code> table</li>
+<li><strong>Source:</strong> Google Places API (verified real businesses)</li>
+<li><strong>Fields:</strong> name, lat, lng, category, h3_r8 (geospatial index), business_hours, rating</li>
+<li><strong>Update Frequency:</strong> Weekly via Google Places sync</li>
+</ul>
+<p><strong>Constraint:</strong> LLMs can ONLY recommend venues from this catalog (no hallucinated locations)</p>
+<h3 id="deterministic-scoring-engine">Deterministic Scoring Engine</h3>
+<p><strong>Formula:</strong> <code>score = f(proximity, reliability, event_intensity, personalization)</code></p>
+<p><strong>Factors:</strong><br />
+1. <strong>Proximity</strong> - H3 geospatial distance (deterministic)<br />
+2. <strong>Reliability</strong> - Historical success rate from ML data (deterministic)<br />
+3. <strong>Event Intensity</strong> - Day/hour/weather patterns (deterministic)<br />
+4. <strong>Personalization</strong> - User history match (deterministic)</p>
+<p><strong>Why This Works:</strong><br />
+- LLMs provide strategic narrative and pro tips (qualitative)<br />
+- Scoring engine ranks venues (quantitative, auditable)<br />
+- No hallucinations possible (venues must exist in catalog)</p>
+<p><strong>Constraint:</strong> Scoring engine is separate from LLM pipeline (can be A/B tested independently)</p>
+<hr />
+<h2 id="strategy-component-framework-workflow-order">🎯 STRATEGY COMPONENT FRAMEWORK (Workflow Order)</h2>
+<h3 id="overview-the-recommendation-pipeline">Overview: The Recommendation Pipeline</h3>
+<p>Every block recommendation flows through 13 strategic components in sequence. Each component builds on the previous, ensuring accuracy, context-awareness, and driver value optimization. This framework demonstrates how AI-built systems achieve accuracy enforcement, root cause analysis, and ML instrumentation at scale.</p>
+<h3 id="component-architecture">Component Architecture</h3>
+<h4 id="0-header-strategy-context-capture"><strong>0. HEADER STRATEGY (Context Capture)</strong> 📋</h4>
+<ul>
+<li><strong>What</strong>: Complete environmental snapshot capturing GPS, weather, time, and contextual data</li>
+<li><strong>Why</strong>: Foundation for all downstream decisions; incomplete context corrupts ML training</li>
+<li><strong>When</strong>: On every recommendation request before any AI processing</li>
+<li><strong>How</strong>: Browser Geolocation → Geocoding → Timezone detection → Weather/AQI APIs → H3 geospatial indexing → Airport proximity check</li>
+<li><strong>Data Storage</strong>: <code>snapshots</code> table</li>
+<li><strong>Key Fields</strong>: <code>snapshot_id</code> (UUID PK), <code>lat/lng</code> (GPS), <code>city/state/timezone</code> (geocoded), <code>dow/hour/day_part_key</code> (temporal), <code>h3_r8</code> (geospatial), <code>weather/air/airport_context</code> (JSONB context), <code>trigger_reason</code> (why snapshot created)</li>
+<li><strong>Linkage</strong>: Foreign key for <code>strategies</code>, <code>rankings</code>, <code>actions</code> tables</li>
+<li><strong>System Impact</strong>: Gates entire pipeline; missing fields abort processing with clear error</li>
+<li><strong>ML Impact</strong>: </li>
+<li><strong>Training Data</strong>: Every field becomes model input; incomplete snapshots excluded from training</li>
+<li><strong>Feature Engineering</strong>: <code>dow</code> enables weekend pattern learning, <code>h3_r8</code> enables geo-clustering</li>
+<li><strong>Counterfactual Analysis</strong>: <code>trigger_reason</code> tracks why snapshot created (location change, time shift, manual)</li>
+<li><strong>Quality Metrics</strong>: <code>accuracy_m</code> (GPS precision), <code>coord_source</code> (browser/fallback) logged for reliability analysis</li>
+<li><strong>Accuracy Foundation</strong>: "Complete Snapshot Gating" invariant enforced; no partial context sent to LLMs</li>
+</ul>
+<h4 id="1-strategic-overview-triad-intelligence"><strong>1. STRATEGIC OVERVIEW (Triad Intelligence)</strong> 📍</h4>
+<ul>
+<li><strong>What</strong>: 2-3 sentence AI narrative synthesizing conditions into actionable insights</li>
+<li><strong>Why</strong>: Provides contextual frame for all downstream decisions</li>
+<li><strong>When</strong>: Location change &gt;2mi, time transition, manual refresh, or 30min inactivity</li>
+<li><strong>How</strong>: Claude Sonnet 4.5 analyzes complete snapshot at T=0.0 with 12s timeout</li>
+<li><strong>Data Storage</strong>: <code>strategies</code> table</li>
+<li><strong>Key Fields</strong>: <code>id</code> (UUID PK), <code>snapshot_id</code> (FK to snapshots, CASCADE), <code>strategy</code> (AI text), <code>status</code> (pending/ok/failed), <code>error_code/error_message</code> (failure tracking), <code>attempt</code> (retry count), <code>latency_ms</code> (performance), <code>tokens</code> (cost tracking)</li>
+<li><strong>Caching</strong>: ETag-based HTTP cache for duplicate requests</li>
+<li><strong>System Impact</strong>: Gates entire triad pipeline; failure aborts all downstream processing</li>
+<li><strong>ML Impact</strong>: </li>
+<li><strong>Snapshot Linkage</strong>: Every strategy linked to snapshot_id for context correlation</li>
+<li><strong>Strategy Effectiveness</strong>: Tracked via downstream venue selection patterns</li>
+<li><strong>Performance Tracking</strong>: <code>latency_ms</code> identifies slow Claude calls for optimization</li>
+<li><strong>Cost Monitoring</strong>: <code>tokens</code> field enables cost per recommendation analysis</li>
+<li><strong>Quality Metrics</strong>: <code>attempt</code> count measures retry frequency; high retries indicate model instability</li>
+<li><strong>Error Classification</strong>: <code>error_code</code> enables failure pattern analysis (timeout vs API error vs validation)</li>
+<li><strong>Accuracy Foundation</strong>: Complete snapshot gating ensures no strategy without GPS/weather/AQI/timezone</li>
+</ul>
+<h4 id="2-venue-discovery-catalog-exploration"><strong>2. VENUE DISCOVERY (Catalog + Exploration)</strong> 🎯</h4>
+<ul>
+<li><strong>What</strong>: Candidate selection from curated catalog + 20% AI-discovered new venues</li>
+<li><strong>Why</strong>: Prevents hallucinations while enabling exploration of emerging hotspots</li>
+<li><strong>When</strong>: On every recommendation request after strategic overview</li>
+<li><strong>How</strong>: H3 geospatial filtering + deterministic scoring + Gemini exploration (20% budget). <strong>Key discipline:</strong> every venue entering the pipeline must carry a stable merge key (place_id preferred; name fallback). Validators must echo the same key unchanged. Any response missing the key is rejected and logged.</li>
+<li><strong>Data Storage</strong>: <code>venue_catalog</code> + <code>llm_venue_suggestions</code> + <code>venue_metrics</code> tables</li>
+<li><strong>venue_catalog</strong>: <code>venue_id</code> (UUID PK), <code>place_id</code> (Google Places unique ID), <code>name/address/category</code>, <code>lat/lng</code>, <code>dayparts[]</code> (text array), <code>staging_notes/business_hours</code> (JSONB), <code>discovery_source</code> (seed/llm/driver), <code>validated_at</code></li>
+<li><strong>llm_venue_suggestions</strong>: <code>suggestion_id</code> (UUID PK), <code>model_name</code>, <code>ranking_id</code> (FK), <code>venue_name</code>, <code>validation_status</code> (pending/valid/rejected), <code>place_id_found</code>, <code>rejection_reason</code></li>
+<li><strong>venue_metrics</strong>: <code>venue_id</code> (FK to catalog), <code>times_recommended/times_chosen</code> (counters), <code>positive_feedback/negative_feedback</code>, <code>reliability_score</code> (0.0-1.0)</li>
+<li><strong>System Impact</strong>: Single source of truth from venues table prevents non-existent locations</li>
+<li><strong>ML Impact</strong>: </li>
+<li><strong>Exploration Tracking</strong>: <code>discovery_source</code> field enables "seed vs LLM vs driver" performance comparison</li>
+<li><strong>Validation Pipeline</strong>: <code>llm_venue_suggestions</code> logs AI recommendations before catalog entry; <code>validation_status</code> tracks success rate</li>
+<li><strong>Reliability Learning</strong>: <code>venue_metrics.reliability_score</code> refined from <code>positive_feedback/negative_feedback</code> ratio</li>
+<li><strong>Geospatial Patterns</strong>: H3 distance calculations enable proximity-based filtering and geo-clustering analysis</li>
+<li><strong>A/B Testing</strong>: <code>dayparts[]</code> enables time-of-day recommendation optimization</li>
+<li><strong>Accuracy Foundation</strong>: Only Google Places-validated venues enter consideration set</li>
+</ul>
+<h4 id="3-venue-hours-accuracy-first"><strong>3. VENUE HOURS (Accuracy-First)</strong> 🏢</h4>
+<ul>
+<li><strong>What</strong>: Risk-gated validation ensuring "unknown" never presented as "open"</li>
+<li><strong>Why</strong>: Closure status materially affects driver income and trust</li>
+<li><strong>When</strong>: Closure risk &gt;0.3 triggers validation; &lt;0.1 uses estimates with badge</li>
+<li><strong>How</strong>: Closure risk calculation → Google Places API validation → cache 24h → substitute if unknown. <strong>DB-first policy:</strong> for any known place_id, read address, lat/lng, and the last known open/closed metadata from our places cache before calling external APIs. TTL: coords_verified_at is authoritative for coordinates; hours_last_checked is authoritative for open/closed metadata. If both are within policy, skip the external call.</li>
+<li><strong>Data Storage</strong>: <code>places_cache</code> table + <code>venue_feedback</code> table</li>
+<li><strong>places_cache</strong>: <code>place_id</code> (PK), <code>formatted_hours</code> (JSONB), <code>cached_at</code>, <code>access_count</code> (48h TTL constraint)</li>
+<li><strong>venue_feedback</strong>: <code>id</code> (UUID PK), <code>venue_id</code> (FK), <code>driver_user_id</code>, <code>feedback_type</code> (hours_wrong/closed_when_open), <code>comment</code>, <code>reported_at</code></li>
+<li><strong>Outcome Logging</strong>: Each recommendation tagged with <code>open_confirmed/closed_confirmed/estimated_open/unknown_substituted</code> in rankings</li>
+<li><strong>System Impact</strong>: 24h metadata caching prevents quota exhaustion while ensuring accuracy</li>
+<li><strong>ML Impact</strong>: </li>
+<li><strong>Risk Model Training</strong>: Closure risk predictions refined from actual outcomes (was venue actually open/closed?)</li>
+<li><strong>Validation ROI</strong>: Cost/accuracy tradeoffs measured for threshold optimization (when is validation worth the API call?)</li>
+<li><strong>Driver Feedback Loop</strong>: <code>venue_feedback</code> reports improve risk calculations for future predictions</li>
+<li><strong>Cache Hit Rate</strong>: <code>access_count</code> tracks how often cached hours are reused (cost savings metric)</li>
+<li><strong>Substitution Analysis</strong>: Tracks when high-risk venues replaced vs validated (substitution strategy effectiveness)</li>
+<li><strong>Accuracy Foundation</strong>: Prioritizes correctness over cost when driver earnings affected</li>
+</ul>
+<h4 id="4-distance-eta-traffic-aware"><strong>4. DISTANCE &amp; ETA (Traffic-Aware)</strong> 📏</h4>
+<ul>
+<li><strong>What</strong>: Real-time traffic-aware distance and drive time calculations</li>
+<li><strong>Why</strong>: Straight-line estimates underestimate actual drive time, reducing earnings accuracy</li>
+<li><strong>When</strong>: For top-ranked venues after scoring, re-calculated on navigation launch</li>
+<li><strong>How</strong>: Google Routes API with TRAFFIC_AWARE routing → fallback to Haversine if API fails. <strong>Source of truth:</strong> distance shown to drivers is the server calculation (Routes when available; otherwise Haversine). The client must never overwrite venue coordinates with device GPS for display or math. Any UI calculation relies on server-returned venue lat/lng.</li>
+<li><strong>System Impact</strong>: $10 per 1,000 requests balanced against accuracy needs</li>
+<li><strong>ML Impact</strong>: Logs actual drive times vs. estimates for prediction model training</li>
+<li><strong>Accuracy Foundation</strong>: Live traffic data ensures realistic ETAs for earnings projections</li>
+</ul>
+<h3 id="distance-eta-traffic-aware-documentation-update"><strong>Distance &amp; ETA (Traffic-Aware)</strong> - Documentation Update</h3>
+<p><strong>Core Principle:</strong> Provide accurate, traffic-aware distance and ETA calculations using live road conditions, not straight-line estimates. <strong>Coordinates and address come from Geocoding API (reverse/forward). Places Details is used only for business metadata (opening_hours, business_status). Distances/times come from Routes API.</strong></p>
+<p><strong>Data Sources - Split of Duties</strong></p>
+<p><strong>Architectural Rule: Each Google API has a specific, non-overlapping purpose</strong></p>
+<ol>
+<li>
+<p><strong>Geocoding API</strong>: Coordinates ⇄ address conversion (+ place_id)<br />
+   - Forward geocoding: address → coordinates + place_id<br />
+   - Reverse geocoding: coordinates → address + place_id<br />
+   - <strong>Purpose</strong>: Resolve location data ONLY</p>
+</li>
+<li>
+<p><strong>Places Details API</strong>: Business metadata ONLY<br />
+   - opening_hours (regular + holiday hours)<br />
+   - business_status (open/closed)<br />
+   - <strong>Purpose</strong>: Business operational data ONLY<br />
+   - <strong>Never used for coordinates or address resolution</strong></p>
+</li>
+<li>
+<p><strong>Routes API</strong>: Distance and time calculations<br />
+   - Traffic-aware distance (meters)<br />
+   - ETA with current traffic conditions<br />
+   - <strong>Purpose</strong>: Navigation metrics ONLY</p>
+</li>
+<li>
+<p><strong>Database</strong>: Source of truth for cached place data<br />
+   - place_id, lat, lng, formatted_address cached<br />
+   - Business hours cached separately<br />
+   - <strong>Purpose</strong>: Prevent redundant API calls</p>
+</li>
+</ol>
+<p><strong>Venue Resolution Flow (DB-first)</strong></p>
+<pre class="codehilite"><code class="language-javascript">// Order for every candidate:
+// a) DB-first: If we have place_id in DB → load lat/lng + address. Done.
+// b) If only name (from GPT): Use Places Find Place to get place_id + coords
+// c) If only coords (from GPT): Use Geocoding Reverse to get place_id + address  
+// d) Hours: Use Places Details(fields=opening_hours,business_status) after we have place_id
+// e) Distance/time: Use Routes with validated coords
+</code></pre>
+
+<p><strong>Model-supplied coordinates are untrusted. Names from models may seed search. place_id is obtained via Places Find Place/Text Search or via Geocoding→place_id; hours then come from Places Details.</strong></p>
+<p><strong>How It Works</strong></p>
+<p><strong>Primary Method - Google Routes API:</strong></p>
+<pre class="codehilite"><code class="language-javascript">{
+  origin: { lat, lng },           // From snapshot (validated, non-null)
+  destination: { lat, lng },       // From Geocoding/Places (validated, non-null)
+  travelMode: 'DRIVE',
+  routingPreference: 'TRAFFIC_AWARE',
+  departureTime: now + 30s        // Routes API requires future timestamp
+}
+</code></pre>
+
+<p><strong>Returns:</strong><br />
+- <code>distanceMeters</code>: Actual road distance<br />
+- <code>durationSeconds</code>: ETA without traffic<br />
+- <code>durationInTrafficSeconds</code>: ETA with current traffic</p>
+<p><strong>Fallback - Haversine Formula:</strong></p>
+<pre class="codehilite"><code class="language-javascript">distance = 2 * R * asin(sqrt(sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δlng/2)))
+</code></pre>
+
+<ul>
+<li>Used only when Google Routes API fails</li>
+<li>Provides straight-line distance estimate</li>
+<li>Flagged as <code>distanceSource: "fallback"</code> for transparency</li>
+</ul>
+<p><strong>Why This Approach</strong><br />
+<strong>Accuracy</strong>: Live traffic data ensures realistic ETAs<br />
+<strong>Reliability</strong>: Fallback ensures distance info always available<br />
+<strong>Cost-Aware</strong>: $10 per 1,000 requests monitored; cached where appropriate  </p>
+<p><strong>When It Runs</strong><br />
+- <strong>Always</strong>: For top-ranked venues after initial scoring<br />
+- <strong>Real-Time</strong>: Recalculated on demand for navigation requests</p>
+<p><strong>System Impact</strong><br />
+- <strong>API Cost</strong>: $10/1k requests monitored; cached where appropriate<br />
+- <strong>Fallback Transparency</strong>: distanceSource flag prevents hidden degradation<br />
+- <strong>Traffic Window</strong>: 30s future timestamp required by Routes API</p>
+<p><strong>ML Impact</strong><br />
+- <strong>Actual vs Estimated</strong>: Logs predicted ETA vs actual drive time for calibration<br />
+- <strong>Traffic Patterns</strong>: Time-of-day/day-of-week correlations for better defaults<br />
+- <strong>Fallback Analysis</strong>: Measures accuracy loss when API unavailable</p>
+<p><strong>UI Display Policy</strong><br />
+<strong>Center metric shows Distance in miles from server.</strong> Subtext <code>&lt;0.1 mile</code> is shown for values less than 0.1 miles. If <code>distanceSource=haversine_fallback</code>, show an "est." badge next to the miles to indicate fallback estimation. Routes API is the only source of distance/time. Cards display Distance and 'est drive time'. Sorting never uses client math. If Routes fails, the endpoint returns 502; Haversine is NOT used in production.</p>
+<h4 id="5-surge-detection-opportunity-capture"><strong>5. SURGE DETECTION (Opportunity Capture)</strong> 🔥</h4>
+<ul>
+<li><strong>What</strong>: Real-time surge pricing detection with high-multiplier flagging</li>
+<li><strong>Why</strong>: Surge opportunities are time-sensitive and income-critical</li>
+<li><strong>When</strong>: For high-demand venues on every refresh (airports, events, stadiums)</li>
+<li><strong>How</strong>: Uber/Lyft API surge checks → threshold filter (&gt;1.5x) → priority flag (≥2.0x)</li>
+<li><strong>System Impact</strong>: Rate limit management ensures continuous monitoring without quota exhaustion</li>
+<li><strong>ML Impact</strong>: Historical surge patterns stored for predictive window identification</li>
+<li><strong>Accuracy Foundation</strong>: Real-time API calls prevent stale surge data affecting recommendations</li>
+</ul>
+<h4 id="6-earnings-projection-income-accuracy"><strong>6. EARNINGS PROJECTION (Income Accuracy)</strong> 💰</h4>
+<ul>
+<li><strong>What</strong>: Realistic per-ride earnings estimates based on context and historical data</li>
+<li><strong>Why</strong>: Drivers need accurate income projections to evaluate opportunity cost</li>
+<li><strong>When</strong>: For every recommended venue after hours/distance/surge enrichment</li>
+<li><strong>How</strong>: base_earnings_hr × adjustment_factor (open=0.9x, closed=0.7x, event=variable, surge=additive). <strong>Deterministic fallbacks:</strong> when validator earnings fields are absent or unparsable, use server "potential" as the first fallback. If potential is absent, derive earnings_per_mile from distance and a conservative base_earnings_hr; if still undefined, fail-closed instead of returning $0.</li>
+<li><strong>System Impact</strong>: Pulls from venue_metrics historical performance for grounded estimates</li>
+<li><strong>ML Impact</strong>: Logs projected vs. actual earnings for calibration model training</li>
+<li><strong>Accuracy Foundation</strong>: Context-aware adjustments prevent over-optimistic projections</li>
+</ul>
+<h4 id="7-priority-flagging-urgency-intelligence"><strong>7. PRIORITY FLAGGING (Urgency Intelligence)</strong> ⭐</h4>
+<ul>
+<li><strong>What</strong>: High/normal/low priority assignment based on urgency indicators</li>
+<li><strong>Why</strong>: Time-sensitive opportunities need immediate driver attention</li>
+<li><strong>When</strong>: During ranking process after all enrichment complete</li>
+<li><strong>How</strong>: if (surge≥2.0 OR earnings≥$60 OR eventStartsSoon) → high; if (closed AND driveTime&gt;30) → low</li>
+<li><strong>System Impact</strong>: Visual priority indicators drive faster decision-making</li>
+<li><strong>ML Impact</strong>: Logs priority vs. driver response time for urgency calibration</li>
+<li><strong>Accuracy Foundation</strong>: Multi-factor urgency prevents false alarms while catching real opportunities</li>
+</ul>
+<h4 id="8-block-ranking-value-optimization"><strong>8. BLOCK RANKING (Value Optimization)</strong> 📊</h4>
+<ul>
+<li><strong>What</strong>: Deterministic venue sorting by expected driver value</li>
+<li><strong>Why</strong>: Present best opportunities first while maintaining category diversity</li>
+<li><strong>When</strong>: Final step before presentation after all enrichment complete</li>
+<li><strong>How</strong>: score(proximity, reliability, events, personalization) → diversity check → final sort</li>
+<li><strong>System Impact</strong>: Deterministic scoring enables A/B testing and auditing</li>
+<li><strong>ML Impact</strong>: Every ranking logged with <code>ranking_id</code> for counterfactual "what if" analysis</li>
+<li><strong>Accuracy Foundation</strong>: Quantitative scoring prevents LLM ranking bias</li>
+</ul>
+<h4 id="85-ml-training-data-persistence-atomic-capture"><strong>8.5 ML TRAINING DATA PERSISTENCE (Atomic Capture)</strong> 💾</h4>
+<ul>
+<li><strong>What</strong>: Transactional persistence of rankings and candidates for ML training</li>
+<li><strong>Why</strong>: Partial writes corrupt training data; atomic commits ensure data integrity</li>
+<li><strong>When</strong>: Immediately after final enrichment, before returning blocks to UI</li>
+<li><strong>How</strong>: Single transaction writes one <code>rankings</code> row + N <code>ranking_candidates</code> rows (target 6). If transaction fails, endpoint returns 502 and blocks UI response. No partial data lands in DB.</li>
+<li><strong>Data Storage</strong>: <code>rankings</code> + <code>ranking_candidates</code> tables with strict constraints</li>
+<li><strong>rankings</strong>: <code>ranking_id</code> (UUID PK), <code>snapshot_id</code> (FK), <code>user_id</code>, <code>city</code>, <code>model_name</code>, <code>correlation_id</code>, <code>created_at</code></li>
+<li><strong>ranking_candidates</strong>: <code>id</code> (serial PK), <code>ranking_id</code> (FK CASCADE), <code>name</code>, <code>place_id</code>, <code>category</code>, <code>rank</code> (1-N), <code>distance_miles</code>, <code>drive_time_minutes</code>, <code>value_per_min</code>, <code>value_grade</code>, <code>surge</code>, <code>est_earnings</code></li>
+<li><strong>Constraints</strong>: Unique index on <code>(ranking_id, rank)</code> prevents duplicate ranks; check constraint ensures <code>distance_miles ≥ 0</code> and <code>drive_time_minutes ≥ 0</code>; FK cascade deletes orphaned candidates</li>
+<li><strong>Required Fields Per Candidate</strong>: <code>name</code>, <code>place_id</code>, <code>rank</code>, <code>distance_miles</code>, <code>drive_time_minutes</code> (NULLs forbidden for these core fields)</li>
+<li><strong>System Impact</strong>: Fail-hard on persistence errors keeps DB and UI consistent; no stale/partial data</li>
+<li><strong>ML Impact</strong>: </li>
+<li><strong>Training Data Quality</strong>: Atomic writes guarantee complete training examples; no partial rankings</li>
+<li><strong>Counterfactual Integrity</strong>: <code>correlation_id</code> links rankings to strategies/actions for "what we recommended vs what they chose" analysis</li>
+<li><strong>Feature Completeness</strong>: Every candidate has distance/time/earnings for model training</li>
+<li><strong>Audit Trail</strong>: <code>created_at</code> + <code>snapshot_id</code> + <code>correlation_id</code> enable full pipeline reconstruction</li>
+<li><strong>Accuracy Foundation</strong>: "Persist or fail" rule prevents corrupted training data from landing in DB</li>
+</ul>
+<h4 id="9-staging-intelligence-waiting-strategy"><strong>9. STAGING INTELLIGENCE (Waiting Strategy)</strong> 🅿️</h4>
+<ul>
+<li><strong>What</strong>: Specific waiting location recommendations with parking/walk-time details</li>
+<li><strong>Why</strong>: Helps drivers avoid tickets and optimize positioning for pickups</li>
+<li><strong>When</strong>: Enrichment phase for top-ranked venues during final presentation</li>
+<li><strong>How</strong>: AI-suggested staging + driver feedback database + venue metadata (type/location/walk/parking)</li>
+<li><strong>Data Storage</strong>: <code>venue_catalog.staging_notes</code> (JSONB) + driver preference tracking</li>
+<li><strong>staging_notes Fields</strong>: <code>type</code> (Premium/Standard/Free/Street), <code>name</code>, <code>address</code>, <code>walk_time</code>, <code>parking_tip</code></li>
+<li><strong>Driver Preferences</strong>: <code>preferredStagingTypes[]</code> stored in user profile</li>
+<li><strong>System Impact</strong>: Personalization boost (+0.1) for preferred staging types</li>
+<li><strong>ML Impact</strong>:</li>
+<li><strong>Preference Learning</strong>: Driver's staging type selections tracked to identify patterns (covered vs open, paid vs free)</li>
+<li><strong>Success Correlation</strong>: Staging quality vs ride acceptance rate measured</li>
+<li><strong>Crowd-Sourced Intel</strong>: Driver feedback enriches <code>staging_notes</code> database</li>
+<li><strong>Venue-Specific Learning</strong>: Each venue accumulates staging recommendations from AI + drivers</li>
+<li><strong>Accuracy Foundation</strong>: Combines AI analysis with crowd-sourced local knowledge</li>
+</ul>
+<h4 id="10-pro-tips-tactical-guidance"><strong>10. PRO TIPS (Tactical Guidance)</strong> 💡</h4>
+<ul>
+<li><strong>What</strong>: 1-4 concise tactical tips per venue (max 250 chars each)</li>
+<li><strong>Why</strong>: Actionable advice improves driver success rate at specific venues</li>
+<li><strong>When</strong>: Generated by GPT-5 during tactical planning stage</li>
+<li><strong>How</strong>: GPT-5 Planner analyzes venue+time context → generates tips → Zod schema validation</li>
+<li><strong>Data Storage</strong>: Generated by GPT-5, stored in-memory during request, not persisted to DB (ephemeral)</li>
+<li><strong>Validation</strong>: Zod schema enforces <code>z.array(z.string().max(250)).min(1).max(4)</code></li>
+<li><strong>Context</strong>: Generated from snapshot + venue + historical patterns</li>
+<li><strong>System Impact</strong>: Character limits ensure mobile-friendly display</li>
+<li><strong>ML Impact</strong>:</li>
+<li><strong>Tip Effectiveness</strong>: Correlation between tip categories (timing/staging/events) and venue success</li>
+<li><strong>Topic Analysis</strong>: NLP on tip content identifies which advice types drive driver action</li>
+<li><strong>Quality Metrics</strong>: Tip length, count, category distribution logged per model/venue</li>
+<li><strong>Contextual Relevance</strong>: Tips tagged with snapshot conditions for "tip → outcome" analysis</li>
+<li><strong>A/B Testing</strong>: Tip presence vs absence measured for conversion impact</li>
+<li><strong>Accuracy Foundation</strong>: Context-aware generation prevents generic advice</li>
+</ul>
+<h4 id="11-gesture-feedback-learning-loop"><strong>11. GESTURE FEEDBACK (Learning Loop)</strong> 👍</h4>
+<ul>
+<li><strong>What</strong>: Like/hide/helpful actions captured for personalization</li>
+<li><strong>Why</strong>: System learns individual driver preferences over time</li>
+<li><strong>When</strong>: Immediately on driver interaction, applied in next recommendation cycle</li>
+<li><strong>How</strong>: action logged → venue_metrics updated → if (3+ hides) → add to noGoZones → suppress future</li>
+<li><strong>Data Storage</strong>: <code>actions</code> table + <code>venue_metrics</code> updates</li>
+<li><strong>actions</strong>: <code>action_id</code> (UUID PK), <code>created_at</code>, <code>ranking_id</code> (FK), <code>snapshot_id</code> (FK CASCADE), <code>user_id</code>, <code>action</code> (like/hide/helpful/not_helpful), <code>block_id</code>, <code>dwell_ms</code> (time spent viewing), <code>from_rank</code> (position in list), <code>raw</code> (JSONB metadata)</li>
+<li><strong>venue_metrics</strong>: <code>positive_feedback++</code> (on like/helpful), <code>negative_feedback++</code> (on hide/not_helpful), <code>reliability_score</code> recalculated</li>
+<li><strong>Driver Profile</strong>: <code>successfulVenues[]</code> (liked), <code>noGoZones[]</code> (hidden 3+times)</li>
+<li><strong>System Impact</strong>: Personalization boost (+0.3) for liked venues, null return for hidden</li>
+<li><strong>ML Impact</strong>:</li>
+<li><strong>Counterfactual Learning</strong>: "What we recommended vs what they chose" enables ranking algorithm optimization</li>
+<li><strong>Venue Reliability</strong>: <code>positive_feedback/negative_feedback</code> ratio updates <code>reliability_score</code> (0.0-1.0 scale)</li>
+<li><strong>Pattern Recognition</strong>: Identifies venue types/times driver prefers/avoids across sessions</li>
+<li><strong>Suppression Threshold</strong>: 3+ hides triggers <code>noGoZones[]</code> addition (permanent unless manually removed)</li>
+<li><strong>Dwell Time Analysis</strong>: <code>dwell_ms</code> measures engagement; low dwell + hide = immediate rejection signal</li>
+<li><strong>Position Bias Correction</strong>: <code>from_rank</code> enables "position in list → action" correlation for ranking bias adjustment</li>
+<li><strong>Accuracy Foundation</strong>: Respects explicit driver preferences as ground truth</li>
+</ul>
+<h4 id="12-navigation-launch-seamless-routing"><strong>12. NAVIGATION LAUNCH (Seamless Routing)</strong> 🧭</h4>
+<ul>
+<li><strong>What</strong>: Deep-link navigation to Google Maps/Apple Maps with traffic awareness</li>
+<li><strong>Why</strong>: Frictionless transition from recommendation to action</li>
+<li><strong>When</strong>: On-demand when driver taps "Navigate" button</li>
+<li><strong>How</strong>: Platform detection → native app deep-link → fallback to web → airport context alerts</li>
+<li><strong>Data Storage</strong>: <code>actions</code> table (navigate action) + Routes API call (real-time, not stored)</li>
+<li><strong>Navigation Action</strong>: <code>action='navigate'</code>, <code>block_id</code> (venue navigated to), <code>dwell_ms</code> (time before tap), <code>raw.platform</code> (iOS/Android), <code>raw.eta_shown</code> (projected ETA)</li>
+<li><strong>Actual Arrival</strong>: Not captured (future enhancement: compare projected vs actual ETA)</li>
+<li><strong>System Impact</strong>: Routes API recalculates ETA with current traffic on launch</li>
+<li><strong>ML Impact</strong>:</li>
+<li><strong>Acceptance Signal</strong>: Navigate action = strongest positive signal (driver committed to venue)</li>
+<li><strong>ETA Accuracy</strong>: <code>raw.eta_shown</code> vs actual arrival time (if tracked) measures projection accuracy</li>
+<li><strong>Platform Effectiveness</strong>: iOS vs Android navigation success rates compared</li>
+<li><strong>Decision Latency</strong>: <code>dwell_ms</code> before navigate measures driver confidence (fast tap = high confidence)</li>
+<li><strong>Conversion Funnel</strong>: View → Dwell → Navigate funnel analysis per venue/ranking position</li>
+<li><strong>Airport Context Impact</strong>: FAA delay alerts shown → navigate rate measures value of contextual warnings</li>
+<li><strong>Accuracy Foundation</strong>: Traffic-aware routing ensures driver sees same ETA we projected</li>
+</ul>
+<h3 id="system-integration-points">System Integration Points</h3>
+<pre class="codehilite"><code>┌──────────────────────────────────────────────────────────────────────┐
+│                     RECOMMENDATION PIPELINE FLOW                      │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  1. STRATEGIC OVERVIEW (Claude Sonnet 4.5)                   │   │
+│  │     ← Anthropic API (claude-sonnet-4-5-20250929)             │   │
+│  │     ← Complete Snapshot (GPS/Weather/AQI/Timezone)           │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  2. VENUE DISCOVERY (Scoring Engine + Gemini)                │   │
+│  │     ← PostgreSQL venues catalog                              │   │
+│  │     ← H3 Geospatial (h3-js)                                  │   │
+│  │     ← Google Generative AI (20% exploration)                 │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  3. VENUE HOURS (Risk-Gated Validation)                      │   │
+│  │     ← Google Places API (business hours, if risk &gt; 0.3)      │   │
+│  │     ← 24h metadata cache (prevents quota exhaustion)         │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  4. DISTANCE &amp; ETA (Traffic-Aware Routing)                   │   │
+│  │     ← Google Routes API (TRAFFIC_AWARE mode)                 │   │
+│  │     ← Haversine fallback (if API unavailable)                │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  5. SURGE DETECTION (Real-Time Pricing)                      │   │
+│  │     ← Uber/Lyft Surge APIs                                   │   │
+│  │     ← Rate limit management (prevent quota exhaustion)       │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  6. EARNINGS PROJECTION (Context-Aware Calculations)         │   │
+│  │     ← venue_metrics (historical performance)                 │   │
+│  │     ← Adjustment factors (open/closed/event/surge)           │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  7. PRIORITY FLAGGING (Urgency Logic)                        │   │
+│  │     ← Multi-factor urgency (surge/earnings/events/timing)    │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  8. BLOCK RANKING (Deterministic Scoring)                    │   │
+│  │     ← Scoring engine (proximity/reliability/events/personal) │   │
+│  │     ← Diversity guardrails (max 2 per category)              │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  9. STAGING INTELLIGENCE (GPT-5 Planner)                     │   │
+│  │     ← OpenAI API (gpt-5-pro, reasoning_effort=high)          │   │
+│  │     ← Driver feedback DB (historical staging preferences)    │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  10. PRO TIPS (Tactical Advice Generation)                   │   │
+│  │     ← GPT-5 Planner (1-4 tips, max 250 chars each)           │   │
+│  │     ← Zod schema validation (quality enforcement)            │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  11. GESTURE FEEDBACK (Personalization Learning)             │   │
+│  │     ← actions table (like/hide/helpful interactions)         │   │
+│  │     ← venue_metrics (positive/negative feedback counters)    │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  12. NAVIGATION LAUNCH (Platform-Aware Deep-Linking)         │   │
+│  │     ← Google Maps / Apple Maps (platform detection)          │   │
+│  │     ← Routes API (real-time ETA recalculation)               │   │
+│  │     ← FAA ASWS (airport delay context)                       │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<h3 id="critical-success-factors">Critical Success Factors</h3>
+<ol>
+<li><strong>Sequential Dependency</strong>: Each component depends on previous components' output</li>
+<li><strong>Fail-Closed Architecture</strong>: Missing data at any stage aborts downstream processing</li>
+<li><strong>ML Instrumentation</strong>: Every component logs inputs/outputs for counterfactual learning</li>
+<li><strong>API Cost Management</strong>: Caching, gating, and fallbacks prevent quota exhaustion</li>
+<li><strong>Accuracy-First Posture</strong>: When driver income affected, correctness trumps cost</li>
+</ol>
+<hr />
+<h2 id="1-strategic-overview-triad-intelligence_1">📍 1. STRATEGIC OVERVIEW (Triad Intelligence)</h2>
+<h3 id="core-principle">Core Principle</h3>
+<p>Provide drivers with a 2-3 sentence AI-generated strategic overview that synthesizes current conditions into actionable intelligence.</p>
+<h3 id="how-it-works">How It Works</h3>
+<p><strong>Trigger Conditions:</strong><br />
+1. <strong>Location Change</strong>: Driver moves more than 2 miles from last strategy<br />
+2. <strong>Time Change</strong>: Day part transitions (morning → afternoon → evening → night)<br />
+3. <strong>Manual Refresh</strong>: Driver explicitly requests updated strategy<br />
+4. <strong>Inactivity</strong>: 30 minutes since last strategy update</p>
+<p><strong>Generation Process:</strong><br />
+- <strong>Model</strong>: Claude Sonnet 4.5 (Strategist role in Triad)<br />
+- <strong>Input Context</strong>: Complete snapshot (GPS, weather, AQI, time, airport proximity, timezone)<br />
+- <strong>Temperature</strong>: 0.0 (maximum determinism)<br />
+- <strong>Max Tokens</strong>: 500 (sufficient for 2-3 sentences)<br />
+- <strong>Output</strong>: Concise strategic narrative with earnings estimates</p>
+<p><strong>Storage &amp; Caching:</strong><br />
+- Persisted to <code>strategies</code> table with <code>snapshot_id</code> linkage<br />
+- ETag-based HTTP caching prevents redundant generation<br />
+- 202 status code during pending generation, 304 for cache hits</p>
+<h3 id="why-this-approach">Why This Approach</h3>
+<p><strong>Accuracy</strong>: Zero-temperature ensures consistent strategic advice without hallucination<br />
+<strong>Efficiency</strong>: Caching prevents duplicate API calls for same conditions<br />
+<strong>Trust</strong>: Complete snapshot gating ensures no strategy without full context  </p>
+<h3 id="when-it-runs">When It Runs</h3>
+<ul>
+<li><strong>Always</strong>: On significant location or time changes</li>
+<li><strong>Never</strong>: Without complete GPS, timezone, weather, and AQI data</li>
+</ul>
+<h3 id="system-impact">System Impact</h3>
+<ul>
+<li><strong>Triad Gate</strong>: Claude failure aborts entire pipeline (no GPT-5/Gemini without strategy)</li>
+<li><strong>Cache Hit Rate</strong>: 73% in production (prevents redundant API calls)</li>
+<li><strong>ETag Validation</strong>: Prevents duplicate strategy generation for same context</li>
+</ul>
+<h3 id="ml-impact">ML Impact</h3>
+<ul>
+<li><strong>Snapshot Linkage</strong>: Every strategy linked to snapshot_id for context correlation</li>
+<li><strong>Strategy Effectiveness</strong>: Tracked via downstream venue selection patterns</li>
+<li><strong>Quality Metrics</strong>: Token usage, generation time, cache hit/miss logged</li>
+</ul>
+<hr />
+<h2 id="2-venue-discovery-catalog-exploration_1">🎯 2. VENUE DISCOVERY (Catalog + Exploration)</h2>
+<h3 id="core-principle_1">Core Principle</h3>
+<p>Recommend venues that maximize earnings per mile of approach, balancing proximity with earnings potential through curated catalog + AI exploration.</p>
+<h3 id="how-it-works_1">How It Works</h3>
+<p><strong>Candidate Selection:</strong><br />
+1. <strong>Seeded Best Venues</strong>: Curated catalog of proven high-performers<br />
+2. <strong>AI Discovery (20% exploration)</strong>: New venues suggested by Gemini, validated via Google Places API<br />
+3. <strong>H3 Geospatial Filtering</strong>: Venues within reasonable H3 grid distance from driver</p>
+<p><strong>Scoring Formula:</strong></p>
+<pre class="codehilite"><code>score = 2.0 * proximityBand + 1.2 * reliability + 0.6 * eventBoost + 0.8 * openProb + personalBoost
+</code></pre>
+
+<p><strong>Proximity Bands (H3 Grid Distance):</strong><br />
+- Distance 0 (same cell): 1.0 score<br />
+- Distance 1 (adjacent): 0.8 score<br />
+- Distance 2 (near): 0.6 score<br />
+- Distance 3-4 (medium): 0.4 score<br />
+- Distance 5+ (far): 0.2 score</p>
+<p><strong>Tie-Breaking Hierarchy:</strong><br />
+1. <strong>Primary</strong>: Earnings per mile of approach<br />
+2. <strong>Secondary</strong>: Drive time (shorter wins)<br />
+3. <strong>Tertiary</strong>: Demand prior (time/day/weekend context)</p>
+<p><strong>Diversity Guardrails:</strong><br />
+- Maximum 2 venues from same category in top 5<br />
+- Ensures mix of venue types (airport, mall, entertainment, etc.)<br />
+- 20% exploration budget for discovering new venues</p>
+<h3 id="why-this-approach_1">Why This Approach</h3>
+<p><strong>Deterministic</strong>: Scoring engine is separate from LLM, preventing hallucinations<br />
+<strong>Auditable</strong>: All factors are quantitative and logged for ML training<br />
+<strong>Personalized</strong>: Learns from driver's historical success patterns  </p>
+<h3 id="when-it-runs_1">When It Runs</h3>
+<ul>
+<li><strong>Always</strong>: On every block recommendation request</li>
+<li><strong>With Live Data</strong>: Traffic-aware drive times via Google Routes API</li>
+</ul>
+<h3 id="system-impact_1">System Impact</h3>
+<ul>
+<li><strong>Single Source of Truth</strong>: PostgreSQL venues table prevents hallucinated locations</li>
+<li><strong>Exploration Budget</strong>: 20% controlled exploration prevents over-reliance on known venues</li>
+<li><strong>Category Diversity</strong>: Prevents echo chamber of same venue types</li>
+</ul>
+<h3 id="ml-impact_1">ML Impact</h3>
+<ul>
+<li><strong>All Candidates Logged</strong>: Every scored venue recorded with h3_distance and score components</li>
+<li><strong>Exploratory Tracking</strong>: AI-suggested venues flagged for validation performance analysis</li>
+<li><strong>Proximity Patterns</strong>: H3 distance correlations used for geo-aware optimization</li>
+</ul>
+<p>Model-supplied coordinates or hours are rejected; Places/DB only.</p>
+<hr />
+<h2 id="3-venue-hours-accuracy-first_1">🏢 3. VENUE HOURS (Accuracy-First)</h2>
+<h3 id="core-principle_2">Core Principle</h3>
+<p>When venue's open/closed status materially affects driver income, validate or de-risk. <strong>"Unknown" is never presented as "open".</strong></p>
+<h3 id="risk-gated-validation-approach">Risk-Gated Validation Approach</h3>
+<p><strong>1. For High-Risk Venues (Airports, Stadiums, Event Venues):</strong><br />
+- Treat event calendars and operating windows as ground truth<br />
+- Assume "open" only inside confirmed windows<br />
+- No guessing on edge cases</p>
+<p><strong>2. For Closure-Sensitive Venues (Restaurants/Bars at Edge Hours):</strong><br />
+- <strong>Holiday windows or late-night edge cases:</strong> Trigger single validation path if closure risk is non-trivial<br />
+- <strong>Alternative:</strong> Demote venue ranking rather than present as "open" with unknown status<br />
+- <strong>Cache:</strong> Single validation call per high-risk venue per 24h (metadata only, per ToS)</p>
+<p><strong>3. For Low-Impact Venues (Daytime, Well-Known Hours):</strong><br />
+- Allow feedback-first path<br />
+- Label as "hours estimated" with visible badge<br />
+- Driver can expand for details</p>
+<h3 id="closure-risk-calculation">Closure Risk Calculation</h3>
+<pre class="codehilite"><code>closure_risk = f(category, daypart, holiday_proximity, historic_feedback)
+</code></pre>
+
+<p><strong>Thresholds:</strong><br />
+- <code>closure_risk &gt; 0.3</code> → Trigger validation or substitute venue<br />
+- <code>closure_risk &lt; 0.1</code> → Use estimated hours with badge<br />
+- <code>0.1 ≤ closure_risk ≤ 0.3</code> → Show with warning badge</p>
+<h3 id="outcome-tracking-ml-pipeline">Outcome Tracking (ML Pipeline)</h3>
+<p>Every venue recommendation logs:<br />
+- <code>open_confirmed</code> - Validated open via API<br />
+- <code>closed_confirmed</code> - Validated closed via API<br />
+- <code>estimated_open</code> - Inferred from patterns (with badge)<br />
+- <code>unknown_substituted</code> - High-risk venue replaced with known alternative</p>
+<h3 id="cost-posture">Cost Posture</h3>
+<p><strong>We prefer correctness when it directly impacts earnings.</strong> Costs are constrained by:<br />
+- Single validation call per venue per 24h (cached)<br />
+- Gating on closure risk threshold (not validating everything)<br />
+- Substitution with equal/higher earnings alternatives when validation would exceed budget</p>
+<p>~~<strong>Old Approach (Deprecated):</strong>~~<br />
+- ~~Option 3 (Minimal + feedback) as MVP default - "cheap-first"~~<br />
+- ~~Zero validation, rely entirely on crowd feedback~~</p>
+<p><strong>New Approach (Accuracy-First):</strong><br />
+- Risk-gated validation for closure-sensitive cases<br />
+- Transparent labeling when using estimates<br />
+- Substitution over unknown status presentation</p>
+<h3 id="system-impact_2">System Impact</h3>
+<ul>
+<li><strong>24h Cache</strong>: Prevents quota exhaustion while maintaining accuracy</li>
+<li><strong>Risk Threshold</strong>: Gating at &gt;0.3 balances cost vs. correctness</li>
+<li><strong>Substitution Logic</strong>: Equal/higher earnings alternatives prevent unknown status display</li>
+</ul>
+<h3 id="ml-impact_2">ML Impact</h3>
+<ul>
+<li><strong>Outcome Logging</strong>: open_confirmed/closed_confirmed/estimated_open/unknown_substituted tracked</li>
+<li><strong>Risk Model Training</strong>: Closure risk predictions refined from actual outcomes</li>
+<li><strong>Validation ROI</strong>: Cost/accuracy tradeoffs measured for threshold optimization</li>
+</ul>
+<p>Model-supplied coordinates or hours are rejected; Places/DB only.</p>
+<hr />
+<h4 id="4-distance-eta-traffic-aware_1"><strong>4. DISTANCE &amp; ETA (Traffic-Aware)</strong> 📏</h4>
+<ul>
+<li><strong>What</strong>: Real-time traffic-aware distance and drive time calculations</li>
+<li><strong>Why</strong>: Straight-line estimates underestimate actual drive time, reducing earnings accuracy</li>
+<li><strong>When</strong>: For top-ranked venues after scoring, re-calculated on navigation launch</li>
+<li><strong>How</strong>: Google Routes API with TRAFFIC_AWARE routing → fallback to Haversine if API fails. <strong>Source of truth:</strong> distance shown to drivers is the server calculation (Routes when available; otherwise Haversine). The client must never overwrite venue coordinates with device GPS for display or math. Any UI calculation relies on server-returned venue lat/lng.</li>
+<li><strong>System Impact</strong>: $10 per 1,000 requests balanced against accuracy needs</li>
+<li><strong>ML Impact</strong>: Logs actual drive times vs. estimates for prediction model training</li>
+<li><strong>Accuracy Foundation</strong>: Live traffic data ensures realistic ETAs for earnings projections</li>
+</ul>
+<h3 id="distance-eta-traffic-aware-documentation-update_1"><strong>Distance &amp; ETA (Traffic-Aware)</strong> - Documentation Update</h3>
+<p><strong>Core Principle:</strong> Provide accurate, traffic-aware distance and ETA calculations using live road conditions, not straight-line estimates. <strong>Coordinates and address come from Geocoding API (reverse/forward). Places Details is used only for business metadata (opening_hours, business_status). Distances/times come from Routes API.</strong></p>
+<p><strong>Data Sources - Split of Duties</strong></p>
+<p><strong>Architectural Rule: Each Google API has a specific, non-overlapping purpose</strong></p>
+<ol>
+<li>
+<p><strong>Geocoding API</strong>: Coordinates ⇄ address conversion (+ place_id)<br />
+   - Forward geocoding: address → coordinates + place_id<br />
+   - Reverse geocoding: coordinates → address + place_id<br />
+   - <strong>Purpose</strong>: Resolve location data ONLY</p>
+</li>
+<li>
+<p><strong>Places Details API</strong>: Business metadata ONLY<br />
+   - opening_hours (regular + holiday hours)<br />
+   - business_status (open/closed)<br />
+   - <strong>Purpose</strong>: Business operational data ONLY<br />
+   - <strong>Never used for coordinates or address resolution</strong></p>
+</li>
+<li>
+<p><strong>Routes API</strong>: Distance and time calculations<br />
+   - Traffic-aware distance (meters)<br />
+   - ETA with current traffic conditions<br />
+   - <strong>Purpose</strong>: Navigation metrics ONLY</p>
+</li>
+<li>
+<p><strong>Database</strong>: Source of truth for cached place data<br />
+   - place_id, lat, lng, formatted_address cached<br />
+   - Business hours cached separately<br />
+   - <strong>Purpose</strong>: Prevent redundant API calls</p>
+</li>
+</ol>
+<p><strong>Venue Resolution Flow (DB-first)</strong></p>
+<pre class="codehilite"><code class="language-javascript">// Order for every candidate:
+// a) DB-first: If we have place_id in DB → load lat/lng + address. Done.
+// b) If only name (from GPT): Use Places Find Place to get place_id + coords
+// c) If only coords (from GPT): Use Geocoding Reverse to get place_id + address  
+// d) Hours: Use Places Details(fields=opening_hours,business_status) after we have place_id
+// e) Distance/time: Use Routes with validated coords
+</code></pre>
+
+<p><strong>Model-supplied coordinates are untrusted. Names from models may seed search. place_id is obtained via Places Find Place/Text Search or via Geocoding→place_id; hours then come from Places Details.</strong></p>
+<p><strong>How It Works</strong></p>
+<p><strong>Primary Method - Google Routes API:</strong></p>
+<pre class="codehilite"><code class="language-javascript">{
+  origin: { lat, lng },           // From snapshot (validated, non-null)
+  destination: { lat, lng },       // From Geocoding/Places (validated, non-null)
+  travelMode: 'DRIVE',
+  routingPreference: 'TRAFFIC_AWARE',
+  departureTime: now + 30s        // Routes API requires future timestamp
+}
+</code></pre>
+
+<p><strong>Returns:</strong><br />
+- <code>distanceMeters</code>: Actual road distance<br />
+- <code>durationSeconds</code>: ETA without traffic<br />
+- <code>durationInTrafficSeconds</code>: ETA with current traffic</p>
+<p><strong>Fallback - Haversine Formula:</strong></p>
+<pre class="codehilite"><code class="language-javascript">distance = 2 * R * asin(sqrt(sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δlng/2)))
+</code></pre>
+
+<ul>
+<li>Used only when Google Routes API fails</li>
+<li>Provides straight-line distance estimate</li>
+<li>Flagged as <code>distanceSource: "fallback"</code> for transparency</li>
+</ul>
+<p><strong>Why This Approach</strong><br />
+<strong>Accuracy</strong>: Live traffic data ensures realistic ETAs<br />
+<strong>Reliability</strong>: Fallback ensures distance info always available<br />
+<strong>Cost-Aware</strong>: $10 per 1,000 requests monitored; cached where appropriate  </p>
+<p><strong>When It Runs</strong><br />
+- <strong>Always</strong>: For top-ranked venues after initial scoring<br />
+- <strong>Real-Time</strong>: Recalculated on demand for navigation requests</p>
+<p><strong>System Impact</strong><br />
+- <strong>API Cost</strong>: $10/1k requests monitored; cached where appropriate<br />
+- <strong>Fallback Transparency</strong>: distanceSource flag prevents hidden degradation<br />
+- <strong>Traffic Window</strong>: 30s future timestamp required by Routes API</p>
+<p><strong>ML Impact</strong><br />
+- <strong>Actual vs Estimated</strong>: Logs predicted ETA vs actual drive time for calibration<br />
+- <strong>Traffic Patterns</strong>: Time-of-day/day-of-week correlations for better defaults<br />
+- <strong>Fallback Analysis</strong>: Measures accuracy loss when API unavailable</p>
+<p><strong>UI Display Policy</strong><br />
+<strong>Center metric shows Distance in miles from server.</strong> Subtext <code>&lt;0.1 mile</code> is shown for values less than 0.1 miles. If <code>distanceSource=haversine_fallback</code>, show an "est." badge next to the miles to indicate fallback estimation. Routes API is the only source of distance/time. Cards display Distance and 'est drive time'. Sorting never uses client math. If Routes fails, the endpoint returns 502; Haversine is NOT used in production.</p>
+<h4 id="5-surge-detection-opportunity-capture_1"><strong>5. SURGE DETECTION (Opportunity Capture)</strong> 🔥</h4>
+<ul>
+<li><strong>What</strong>: Real-time surge pricing detection with high-multiplier flagging</li>
+<li><strong>Why</strong>: Surge opportunities are time-sensitive and income-critical</li>
+<li><strong>When</strong>: For high-demand venues on every refresh (airports, events, stadiums)</li>
+<li><strong>How</strong>: Uber/Lyft API surge checks → threshold filter (&gt;1.5x) → priority flag (≥2.0x)</li>
+<li><strong>System Impact</strong>: Rate limit management ensures continuous monitoring without quota exhaustion</li>
+<li><strong>ML Impact</strong>: Historical surge patterns stored for predictive window identification</li>
+<li><strong>Accuracy Foundation</strong>: Real-time API calls prevent stale surge data affecting recommendations</li>
+</ul>
+<h4 id="6-earnings-projection-income-accuracy_1"><strong>6. EARNINGS PROJECTION (Income Accuracy)</strong> 💰</h4>
+<ul>
+<li><strong>What</strong>: Realistic per-ride earnings estimates based on context and historical data</li>
+<li><strong>Why</strong>: Drivers need accurate income projections to evaluate opportunity cost</li>
+<li><strong>When</strong>: For every recommended venue after hours/distance/surge enrichment</li>
+<li><strong>How</strong>: base_earnings_hr × adjustment_factor (open=0.9x, closed=0.7x, event=variable, surge=additive). <strong>Deterministic fallbacks:</strong> when validator earnings fields are absent or unparsable, use server "potential" as the first fallback. If potential is absent, derive earnings_per_mile from distance and a conservative base_earnings_hr; if still undefined, fail-closed instead of returning $0.</li>
+<li><strong>System Impact</strong>: Pulls from venue_metrics historical performance for grounded estimates</li>
+<li><strong>ML Impact</strong>: Logs projected vs. actual earnings for calibration model training</li>
+<li><strong>Accuracy Foundation</strong>: Context-aware adjustments prevent over-optimistic projections</li>
+</ul>
+<h4 id="7-priority-flagging-urgency-intelligence_1"><strong>7. PRIORITY FLAGGING (Urgency Intelligence)</strong> ⭐</h4>
+<ul>
+<li><strong>What</strong>: High/normal/low priority assignment based on urgency indicators</li>
+<li><strong>Why</strong>: Time-sensitive opportunities need immediate driver attention</li>
+<li><strong>When</strong>: During ranking process after all enrichment complete</li>
+<li><strong>How</strong>: if (surge≥2.0 OR earnings≥$60 OR eventStartsSoon) → high; if (closed AND driveTime&gt;30) → low</li>
+<li><strong>System Impact</strong>: Visual priority indicators drive faster decision-making</li>
+<li><strong>ML Impact</strong>: Logs priority vs. driver response time for urgency calibration</li>
+<li><strong>Accuracy Foundation</strong>: Multi-factor urgency prevents false alarms while catching real opportunities</li>
+</ul>
+<h4 id="8-block-ranking-value-optimization_1"><strong>8. BLOCK RANKING (Value Optimization)</strong> 📊</h4>
+<ul>
+<li><strong>What</strong>: Deterministic venue sorting by expected driver value</li>
+<li><strong>Why</strong>: Present best opportunities first while maintaining category diversity</li>
+<li><strong>When</strong>: Final step before presentation after all enrichment complete</li>
+<li><strong>How</strong>: score(proximity, reliability, events, personalization) → diversity check → final sort</li>
+<li><strong>System Impact</strong>: Deterministic scoring enables A/B testing and auditing</li>
+<li><strong>ML Impact</strong>: Every ranking logged with <code>ranking_id</code> for counterfactual "what if" analysis</li>
+<li><strong>Accuracy Foundation</strong>: Quantitative scoring prevents LLM ranking bias</li>
+</ul>
+<h4 id="85-ml-training-data-persistence-atomic-capture_1"><strong>8.5 ML TRAINING DATA PERSISTENCE (Atomic Capture)</strong> 💾</h4>
+<ul>
+<li><strong>What</strong>: Transactional persistence of rankings and candidates for ML training</li>
+<li><strong>Why</strong>: Partial writes corrupt training data; atomic commits ensure data integrity</li>
+<li><strong>When</strong>: Immediately after final enrichment, before returning blocks to UI</li>
+<li><strong>How</strong>: Single transaction writes one <code>rankings</code> row + N <code>ranking_candidates</code> rows (target 6). If transaction fails, endpoint returns 502 and blocks UI response. No partial data lands in DB.</li>
+<li><strong>Data Storage</strong>: <code>rankings</code> + <code>ranking_candidates</code> tables with strict constraints</li>
+<li><strong>rankings</strong>: <code>ranking_id</code> (UUID PK), <code>snapshot_id</code> (FK), <code>user_id</code>, <code>city</code>, <code>model_name</code>, <code>correlation_id</code>, <code>created_at</code></li>
+<li><strong>ranking_candidates</strong>: <code>id</code> (serial PK), <code>ranking_id</code> (FK CASCADE), <code>name</code>, <code>place_id</code>, <code>category</code>, <code>rank</code> (1-N), <code>distance_miles</code>, <code>drive_time_minutes</code>, <code>value_per_min</code>, <code>value_grade</code>, <code>surge</code>, <code>est_earnings</code></li>
+<li><strong>Constraints</strong>: Unique index on <code>(ranking_id, rank)</code> prevents duplicate ranks; check constraint ensures <code>distance_miles ≥ 0</code> and <code>drive_time_minutes ≥ 0</code>; FK cascade deletes orphaned candidates</li>
+<li><strong>Required Fields Per Candidate</strong>: <code>name</code>, <code>place_id</code>, <code>rank</code>, <code>distance_miles</code>, <code>drive_time_minutes</code> (NULLs forbidden for these core fields)</li>
+<li><strong>System Impact</strong>: Fail-hard on persistence errors keeps DB and UI consistent; no stale/partial data</li>
+<li><strong>ML Impact</strong>: </li>
+<li><strong>Training Data Quality</strong>: Atomic writes guarantee complete training examples; no partial rankings</li>
+<li><strong>Counterfactual Integrity</strong>: <code>correlation_id</code> links rankings to strategies/actions for "what we recommended vs what they chose" analysis</li>
+<li><strong>Feature Completeness</strong>: Every candidate has distance/time/earnings for model training</li>
+<li><strong>Audit Trail</strong>: <code>created_at</code> + <code>snapshot_id</code> + <code>correlation_id</code> enable full pipeline reconstruction</li>
+<li><strong>Accuracy Foundation</strong>: "Persist or fail" rule prevents corrupted training data from landing in DB</li>
+</ul>
+<h4 id="9-staging-intelligence-waiting-strategy_1"><strong>9. STAGING INTELLIGENCE (Waiting Strategy)</strong> 🅿️</h4>
+<ul>
+<li><strong>What</strong>: Specific waiting location recommendations with parking/walk-time details</li>
+<li><strong>Why</strong>: Helps drivers avoid tickets and optimize positioning for pickups</li>
+<li><strong>When</strong>: Enrichment phase for top-ranked venues during final presentation</li>
+<li><strong>How</strong>: AI-suggested staging + driver feedback database + venue metadata (type/location/walk/parking)</li>
+<li><strong>Data Storage</strong>: <code>venue_catalog.staging_notes</code> (JSONB) + driver preference tracking</li>
+<li><strong>staging_notes Fields</strong>: <code>type</code> (Premium/Standard/Free/Street), <code>name</code>, <code>address</code>, <code>walk_time</code>, <code>parking_tip</code></li>
+<li><strong>Driver Preferences</strong>: <code>preferredStagingTypes[]</code> stored in user profile</li>
+<li><strong>System Impact</strong>: Personalization boost (+0.1) for preferred staging types</li>
+<li><strong>ML Impact</strong>:</li>
+<li><strong>Preference Learning</strong>: Driver's staging type choices tracked to identify patterns (covered vs open, paid vs free)</li>
+<li><strong>Success Correlation</strong>: Staging quality vs ride acceptance rate measured</li>
+<li><strong>Crowd-Sourced Intel</strong>: Driver feedback enriches <code>staging_notes</code> database</li>
+<li><strong>Venue-Specific Learning</strong>: Each venue accumulates staging recommendations from AI + drivers</li>
+<li><strong>Accuracy Foundation</strong>: Combines AI analysis with crowd-sourced local knowledge</li>
+</ul>
+<h4 id="10-pro-tips-tactical-guidance_1"><strong>10. PRO TIPS (Tactical Guidance)</strong> 💡</h4>
+<ul>
+<li><strong>What</strong>: 1-4 concise tactical tips per venue (max 250 chars each)</li>
+<li><strong>Why</strong>: Actionable advice improves driver success rate at specific venues</li>
+<li><strong>When</strong>: Generated by GPT-5 during tactical planning stage</li>
+<li><strong>How</strong>: GPT-5 Planner analyzes venue+time context → generates tips → Zod schema validation</li>
+<li><strong>Data Storage</strong>: Generated by GPT-5, stored in-memory during request, not persisted to DB (ephemeral)</li>
+<li><strong>Validation</strong>: Zod schema enforces <code>z.array(z.string().max(250)).min(1).max(4)</code></li>
+<li><strong>Context</strong>: Generated from snapshot + venue + historical patterns</li>
+<li><strong>System Impact</strong>: Character limits ensure mobile-friendly display</li>
+<li><strong>ML Impact</strong>:</li>
+<li><strong>Tip Effectiveness</strong>: Correlation between tip categories (timing/staging/events) and venue success</li>
+<li><strong>Topic Analysis</strong>: NLP on tip content identifies which advice types drive driver action</li>
+<li><strong>Quality Metrics</strong>: Tip length, count, category distribution logged per model/venue</li>
+<li><strong>Contextual Relevance</strong>: Tips tagged with snapshot conditions for "tip → outcome" analysis</li>
+<li><strong>A/B Testing</strong>: Tip presence vs absence measured for conversion impact</li>
+<li><strong>Accuracy Foundation</strong>: Context-aware generation prevents generic advice</li>
+</ul>
+<h4 id="11-gesture-feedback-learning-loop_1"><strong>11. GESTURE FEEDBACK (Learning Loop)</strong> 👍</h4>
+<ul>
+<li><strong>What</strong>: Like/hide/helpful actions captured for personalization</li>
+<li><strong>Why</strong>: System learns individual driver preferences over time</li>
+<li><strong>When</strong>: Immediately on driver interaction, applied in next recommendation cycle</li>
+<li><strong>How</strong>: action logged → venue_metrics updated → if (3+ hides) → add to noGoZones → suppress future</li>
+<li><strong>Data Storage</strong>: <code>actions</code> table + <code>venue_metrics</code> updates</li>
+<li><strong>actions</strong>: <code>action_id</code> (UUID PK), <code>created_at</code>, <code>ranking_id</code> (FK), <code>snapshot_id</code> (FK CASCADE), <code>user_id</code>, <code>action</code> (like/hide/helpful/not_helpful), <code>block_id</code>, <code>dwell_ms</code> (time spent viewing), <code>from_rank</code> (position in list), <code>raw</code> (JSONB metadata)</li>
+<li><strong>venue_metrics</strong>: <code>positive_feedback++</code> (on like/helpful), <code>negative_feedback++</code> (on hide/not_helpful), <code>reliability_score</code> recalculated</li>
+<li><strong>Driver Profile</strong>: <code>successfulVenues[]</code> (liked), <code>noGoZones[]</code> (hidden 3+times)</li>
+<li><strong>System Impact</strong>: Personalization boost (+0.3) for liked venues, null return for hidden</li>
+<li><strong>ML Impact</strong>:</li>
+<li><strong>Counterfactual Learning</strong>: "What we recommended vs what they chose" enables ranking algorithm optimization</li>
+<li><strong>Venue Reliability</strong>: <code>positive_feedback/negative_feedback</code> ratio updates <code>reliability_score</code> (0.0-1.0 scale)</li>
+<li><strong>Pattern Recognition</strong>: Identifies venue types/times driver prefers/avoids across sessions</li>
+<li><strong>Suppression Threshold</strong>: 3+ hides triggers <code>noGoZones[]</code> addition (permanent unless manually removed)</li>
+<li><strong>Dwell Time Analysis</strong>: <code>dwell_ms</code> measures engagement; low dwell + hide = immediate rejection signal</li>
+<li><strong>Position Bias Correction</strong>: <code>from_rank</code> enables "position in list → action" correlation for ranking bias adjustment</li>
+<li><strong>Accuracy Foundation</strong>: Respects explicit driver preferences as ground truth</li>
+</ul>
+<h4 id="12-navigation-launch-seamless-routing_1"><strong>12. NAVIGATION LAUNCH (Seamless Routing)</strong> 🧭</h4>
+<ul>
+<li><strong>What</strong>: Deep-link navigation to Google Maps/Apple Maps with traffic awareness</li>
+<li><strong>Why</strong>: Frictionless transition from recommendation to action</li>
+<li><strong>When</strong>: On-demand when driver taps "Navigate" button</li>
+<li><strong>How</strong>: Platform detection → native app deep-link → fallback to web → airport context alerts</li>
+<li><strong>Data Storage</strong>: <code>actions</code> table (navigate action) + Routes API call (real-time, not stored)</li>
+<li><strong>Navigation Action</strong>: <code>action='navigate'</code>, <code>block_id</code> (venue navigated to), <code>dwell_ms</code> (time before tap), <code>raw.platform</code> (iOS/Android), <code>raw.eta_shown</code> (projected ETA)</li>
+<li><strong>Actual Arrival</strong>: Not captured (future enhancement: compare projected vs actual ETA)</li>
+<li><strong>System Impact</strong>: Routes API recalculates ETA with current traffic on launch</li>
+<li><strong>ML Impact</strong>:</li>
+<li><strong>Acceptance Signal</strong>: Navigate action = strongest positive signal (driver committed to venue)</li>
+<li><strong>ETA Accuracy</strong>: <code>raw.eta_shown</code> vs actual arrival time (if tracked) measures projection accuracy</li>
+<li><strong>Platform Effectiveness</strong>: iOS vs Android navigation success rates compared</li>
+<li><strong>Decision Latency</strong>: <code>dwell_ms</code> before navigate measures driver confidence (fast tap = high confidence)</li>
+<li><strong>Conversion Funnel</strong>: View → Dwell → Navigate funnel analysis per venue/ranking position</li>
+<li><strong>Airport Context Impact</strong>: FAA delay alerts shown → navigate rate measures value of contextual warnings</li>
+<li><strong>Accuracy Foundation</strong>: Traffic-aware routing ensures driver sees same ETA we projected</li>
+</ul>
+<h3 id="system-integration-points_1">System Integration Points</h3>
+<pre class="codehilite"><code>┌──────────────────────────────────────────────────────────────────────┐
+│                     RECOMMENDATION PIPELINE FLOW                      │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  1. STRATEGIC OVERVIEW (Claude Sonnet 4.5)                   │   │
+│  │     ← Anthropic API (claude-sonnet-4-5-20250929)             │   │
+│  │     ← Complete Snapshot (GPS/Weather/AQI/Timezone)           │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  2. VENUE DISCOVERY (Scoring Engine + Gemini)                │   │
+│  │     ← PostgreSQL venues catalog                              │   │
+│  │     ← H3 Geospatial (h3-js)                                  │   │
+│  │     ← Google Generative AI (20% exploration)                 │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  3. VENUE HOURS (Risk-Gated Validation)                      │   │
+│  │     ← Google Places API (business hours, if risk &gt; 0.3)      │   │
+│  │     ← 24h metadata cache (prevents quota exhaustion)         │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  4. DISTANCE &amp; ETA (Traffic-Aware Routing)                   │   │
+│  │     ← Google Routes API (TRAFFIC_AWARE mode)                 │   │
+│  │     ← Haversine fallback (if API unavailable)                │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  5. SURGE DETECTION (Real-Time Pricing)                      │   │
+│  │     ← Uber/Lyft Surge APIs                                   │   │
+│  │     ← Rate limit management (prevent quota exhaustion)       │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  6. EARNINGS PROJECTION (Context-Aware Calculations)         │   │
+│  │     ← venue_metrics (historical performance)                 │   │
+│  │     ← Adjustment factors (open/closed/event/surge)           │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  7. PRIORITY FLAGGING (Urgency Logic)                        │   │
+│  │     ← Multi-factor urgency (surge/earnings/events/timing)    │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  8. BLOCK RANKING (Deterministic Scoring)                    │   │
+│  │     ← Scoring engine (proximity/reliability/events/personal) │   │
+│  │     ← Diversity guardrails (max 2 per category)              │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  9. STAGING INTELLIGENCE (GPT-5 Planner)                     │   │
+│  │     ← OpenAI API (gpt-5-pro, reasoning_effort=high)          │   │
+│  │     ← Driver feedback DB (historical staging preferences)    │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  10. PRO TIPS (Tactical Advice Generation)                   │   │
+│  │     ← GPT-5 Planner (1-4 tips, max 250 chars each)           │   │
+│  │     ← Zod schema validation (quality enforcement)            │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  11. GESTURE FEEDBACK (Personalization Learning)             │   │
+│  │     ← actions table (like/hide/helpful interactions)         │   │
+│  │     ← venue_metrics (positive/negative feedback counters)    │   │
+│  └─────────────────────────────┬───────────────────────────────┘   │
+│                                 ▼                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  12. NAVIGATION LAUNCH (Platform-Aware Deep-Linking)         │   │
+│  │     ← Google Maps / Apple Maps (platform detection)          │   │
+│  │     ← Routes API (real-time ETA recalculation)               │   │
+│  │     ← FAA ASWS (airport delay context)                       │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<h3 id="critical-success-factors_1">Critical Success Factors</h3>
+<ol>
+<li><strong>Sequential Dependency</strong>: Each component depends on previous components' output</li>
+<li><strong>Fail-Closed Architecture</strong>: Missing data at any stage aborts downstream processing</li>
+<li><strong>ML Instrumentation</strong>: Every component logs inputs/outputs for counterfactual learning</li>
+<li><strong>API Cost Management</strong>: Caching, gating, and fallbacks prevent quota exhaustion</li>
+<li><strong>Accuracy-First Posture</strong>: When driver income affected, correctness trumps cost</li>
+</ol>
+<hr />
+<h2 id="fix-capsule-coordinate-persistence-oct-9-2025">🔧 FIX CAPSULE: Coordinate Persistence (Oct 9, 2025)</h2>
+<p><strong>Issue:</strong> Venue coordinates were persisting as lat=0, lng=0 in database instead of actual values.</p>
+<p><strong>Symptoms:</strong><br />
+- Rankings and candidates tables showed 0,0 coordinates for all venues<br />
+- ML training data corrupted with invalid geospatial information<br />
+- Workflow analysis showed correct coordinates in API responses but 0,0 in DB</p>
+<p><strong>Root Cause:</strong><br />
+Database mapping in <code>server/routes/blocks.js</code> (lines 697-711) was missing lat/lng field extraction:</p>
+<pre class="codehilite"><code class="language-javascript">// BEFORE (missing lat/lng):
+const venueForDB = {
+  place_id: venue.placeId,
+  name: venue.name,
+  address: venue.address,
+  category: venue.category,
+  // ... lat/lng missing
+  estimated_distance_miles: Number(venue.estimated_distance_miles ?? 0),
+  drive_time_minutes: Number(venue.driveTimeMinutes ?? 0)
+};
+
+// AFTER (includes coordinates):
+const venueForDB = {
+  place_id: venue.placeId,
+  name: venue.name,
+  address: venue.address,
+  category: venue.category,
+  lat: venue.lat,                    // ← Added
+  lng: venue.lng,                    // ← Added
+  estimated_distance_miles: Number(venue.estimated_distance_miles ?? 0),
+  drive_time_minutes: Number(venue.driveTimeMinutes ?? 0)
+};
+</code></pre>
+
+<p><strong>Fix Strategy:</strong><br />
+1. Added <code>lat: venue.lat</code> and <code>lng: venue.lng</code> to venue mapper<br />
+2. Removed complex fallback chain from persist-ranking.js (simplified to direct access)<br />
+3. Verified coordinates are already properly set in venue objects from enrichment stage</p>
+<p><strong>Verification:</strong></p>
+<pre class="codehilite"><code class="language-bash"># Database query confirms fix:
+SELECT place_id, name, lat, lng FROM ranking_candidates WHERE ranking_id = '...';
+# Before: lat=0, lng=0
+# After:  lat=33.1106, lng=-96.8283 (actual coordinates)
+</code></pre>
+
+<p><strong>Files Changed:</strong><br />
+- <code>server/routes/blocks.js</code> - Added lat/lng to venue mapping (lines 705-706)<br />
+- <code>server/lib/persist-ranking.js</code> - Simplified coordinate extraction</p>
+<p><strong>Architectural Insight:</strong><br />
+- Coordinates are already correct in venue objects from enrichment stage<br />
+- Issue was purely in DB mapping layer, not data flow<br />
+- Demonstrates importance of field-level logging to catch silent data loss</p>
+<p><strong>Testing Protocol:</strong></p>
+<pre class="codehilite"><code class="language-bash">node scripts/full-workflow-analysis.mjs
+# Validates coordinates persist correctly end-to-end
+</code></pre>
+
+<hr />
+<h3 id="fix-capsule-per-ranking-feedback-system-oct-9-2025">Fix Capsule — Per-Ranking Feedback System (Oct 9, 2025)</h3>
+<p><strong>Impact</strong><br />
+Drivers can now provide thumbs up/down feedback on both individual venues and the overall strategy, creating a continuous learning loop to improve future recommendations.</p>
+<p><strong>Problem</strong><br />
+No mechanism existed for drivers to quickly signal which venues were successful or unsuccessful, making it impossible to incorporate real-world driver feedback into ML training data and venue reliability scores.</p>
+<p><strong>Solution Architecture</strong><br />
+1. <strong>Database Schema (PostgreSQL)</strong><br />
+   - <code>venue_feedback</code> table: user_id, snapshot_id, ranking_id, place_id, venue_name, sentiment ('up'/'down'), comment<br />
+   - <code>strategy_feedback</code> table: Same structure minus place_id/venue_name<br />
+   - Unique constraints: One vote per user per venue per ranking (upserts allowed)<br />
+   - Indexes: ranking_id, place_id for fast aggregation</p>
+<ol start="2">
+<li>
+<p><strong>API Endpoints</strong><br />
+   - <code>POST /api/feedback/venue</code> - Record/update venue feedback with rate limiting (10/min/user)<br />
+   - <code>GET /api/feedback/venue/summary?ranking_id=&lt;UUID&gt;</code> - Get aggregated counts per venue<br />
+   - <code>POST /api/feedback/strategy</code> - Record/update strategy-level feedback</p>
+</li>
+<li>
+<p><strong>Blocks Enrichment (Non-Blocking)</strong><br />
+   - Query feedback counts after ranking persistence<br />
+   - Left join with feedback aggregates grouped by place_id<br />
+   - Attach <code>up_count</code> and <code>down_count</code> to each block<br />
+   - Graceful degradation: If feedback query fails, blocks still return with counts=0</p>
+</li>
+<li>
+<p><strong>UI Components</strong><br />
+   - Replaced Like/Hide buttons with 👍/👎 buttons showing counts<br />
+   - <code>FeedbackModal</code> component: sentiment selection + optional comment (max 1000 chars)<br />
+   - Strategy header: "Give feedback" button opens strategy feedback modal<br />
+   - Optimistic UI updates: Increment counts locally on successful submission</p>
+</li>
+</ol>
+<p><strong>Security &amp; Safety</strong><br />
+- Rate limiting: 10 requests per minute per user_id (429 on exceed)<br />
+- Comment sanitization: Strip HTML, max 1000 characters<br />
+- Validate sentiment: Only 'up' or 'down' accepted<br />
+- Actions logging: Optional instrumentation for analytics</p>
+<p><strong>Observability</strong>  </p>
+<pre class="codehilite"><code>[feedback] upsert ok {corr:&lt;id&gt;, user:&lt;uuid&gt;, ranking:&lt;uuid&gt;, place:&lt;id|null&gt;, sent:'up'}
+[feedback] summary {ranking:&lt;uuid&gt;, rows:&lt;n&gt;}
+📊 [correlationId] Feedback enrichment: 3 venues with feedback
+</code></pre>
+
+<p><strong>No Regressions</strong><br />
+- Origin gating: Unchanged (device GPS → snapshot)<br />
+- Geocoding/Places/Routes: Duties unchanged<br />
+- Distance/time/earnings: Blocks payload unchanged except added counts<br />
+- ACID persistence: Rankings + candidates transaction still atomic<br />
+- Triad pipeline: Zero changes to model routing or prompt flow</p>
+<p><strong>Files Changed</strong><br />
+- <code>shared/schema.js</code> - Added venue_feedback &amp; strategy_feedback tables<br />
+- <code>server/routes/feedback.js</code> - New endpoints with rate limiting &amp; sanitization<br />
+- <code>server/routes/blocks.js</code> - Added feedback enrichment query (non-blocking)<br />
+- <code>client/src/components/FeedbackModal.tsx</code> - Reusable feedback modal component<br />
+- <code>client/src/pages/co-pilot.tsx</code> - Thumbs up/down buttons + modals</p>
+<p><strong>Exit Criteria (All Passed)</strong><br />
+✅ DB migration: Tables + indexes created<br />
+✅ POST endpoints: Return 200 {ok:true}, upsert behavior verified<br />
+✅ GET summary: Returns counts per venue for ranking_id<br />
+✅ Blocks enrichment: up_count/down_count present on cards (≥0)<br />
+✅ UI: Thumbs buttons functional, modal submits, counts update<br />
+✅ Strategy feedback: "Give feedback" link works, POSTs successfully<br />
+✅ No regressions: Snapshot gating, ACID persistence, triad flow intact</p>
+<hr />
+<h3 id="fix-capsule-ui-mapper-for-distanceeta-oct-8-2025">Fix Capsule — UI Mapper for Distance/ETA (Oct 8, 2025)</h3>
+<p><strong>Impact</strong><br />
+Eliminates 0.0 mi and 0 min artifacts in UI. Client now displays exact server-calculated distance and drive time from Routes API, never recalculating or dropping fields.</p>
+<p><strong>When</strong><br />
+Frontend transformation of <code>/api/blocks</code> response in <code>client/src/pages/co-pilot.tsx</code> (lines 284-320).</p>
+<p><strong>Why</strong><br />
+UI mapper was dropping critical fields (<code>estimated_distance_miles</code>, <code>driveTimeMinutes</code>, <code>distanceSource</code>, <code>value_per_min</code>, <code>value_grade</code>, <code>not_worth</code>, <code>surge</code>, <code>earnings_per_mile</code>) that server was sending. Raw API response had correct data but transformed blocks lost it, causing 0's in UI.</p>
+<p><strong>How</strong><br />
+Updated mapper to copy all server fields verbatim:</p>
+<pre class="codehilite"><code class="language-javascript">// OLD (dropped distance/time fields):
+blocks: data.blocks?.map((block) =&gt; ({
+  name: block.name,
+  estimatedWaitTime: block.estimatedWaitTime,
+  // ... missing distance, driveTime, value metrics
+}))
+
+// NEW (preserves all fields):
+blocks: data.blocks?.map((v) =&gt; ({
+  name: v.name,
+  placeId: v.placeId,
+  coordinates: { lat: v.coordinates?.lat ?? v.lat, lng: v.coordinates?.lng ?? v.lng },
+  estimated_distance_miles: Number(v.estimated_distance_miles ?? v.distance ?? 0),
+  driveTimeMinutes: Number(v.driveTimeMinutes ?? v.drive_time ?? 0),
+  distanceSource: v.distanceSource ?? &quot;routes_api&quot;,
+  estimatedEarningsPerRide: v.estimated_earnings ?? v.estimatedEarningsPerRide ?? null,
+  earnings_per_mile: v.earnings_per_mile ?? null,
+  value_per_min: v.value_per_min ?? null,
+  value_grade: v.value_grade ?? null,
+  not_worth: !!v.not_worth,
+  surge: v.surge ?? null,
+  // ... plus all other fields
+}))
+</code></pre>
+
+<p><strong>Files Touched</strong><br />
+- <code>client/src/pages/co-pilot.tsx</code> - Fixed mapper to preserve distance/time/value fields</p>
+<p><strong>Tests and Acceptance</strong>  </p>
+<pre class="codehilite"><code class="language-bash"># Run complete workflow analysis with validation:
+node scripts/full-workflow-analysis.mjs
+
+# Expected validation output:
+# 🔷 STEP 4: VALIDATE FIRST VENUE (Routes API data)
+#    📍 Name: &quot;...&quot;
+#    🆔 Place ID: ChIJ...
+#    📏 Distance: 4.33 mi        # ← non-zero
+#    ⏱️  Drive Time: 11 min       # ← non-zero
+#    📡 Source: routes_api        # ← from Routes API
+#    ✅ VALIDATION PASSED: Distance and time are non-zero
+</code></pre>
+
+<p><strong>Observability</strong><br />
+Browser console logs now show:<br />
+- <code>🔍 Raw API response:</code> - server data (should have miles/minutes)<br />
+- <code>🔄 Transforming block:</code> - per-venue showing <code>estimated_distance_miles</code>, <code>driveTimeMinutes</code>, <code>distanceSource</code>, <code>value_per_min</code>, <code>value_grade</code><br />
+- <code>✅ Transformed blocks:</code> - final data (should match raw)</p>
+<p><strong>Back/Forward Pressure</strong><br />
+<strong>Backward:</strong> Removed field-dropping mapper logic.<br />
+<strong>Forward:</strong> All server distance/time/value fields flow through to UI; client never synthesizes or recalculates server metrics.</p>
+<hr />
+<h3 id="october-9-2025">October 9, 2025</h3>
+<ul>
+<li>✅ <strong>Implemented:</strong> Per-ranking feedback system for venues and strategy</li>
+<li>Database: venue_feedback &amp; strategy_feedback tables with unique constraints</li>
+<li>API: POST /api/feedback/venue, POST /api/feedback/strategy with rate limiting (10/min/user)</li>
+<li>Enrichment: Non-blocking feedback counts query in /api/blocks (up_count, down_count)</li>
+<li>UI: Thumbs up/down buttons with modal, strategy feedback link, optimistic updates</li>
+<li>Security: Rate limiting, HTML sanitization, comment length validation</li>
+<li>Impact: Creates learning loop for ML training and venue reliability scoring</li>
+<li>✅ <strong>Fixed:</strong> Coordinate persistence in database (rankings + candidates atomic writes)</li>
+<li>Root cause: Venue mapping for DB persistence was missing lat/lng fields</li>
+<li>Solution: Added <code>lat: venue.lat</code> and <code>lng: venue.lng</code> to venue mapper in blocks.js</li>
+<li>Impact: All venue coordinates now correctly persisted (no more 0,0 values)</li>
+<li>Verification: Database query shows actual coordinates (e.g., 33.1106, -96.8283)</li>
+<li>✅ <strong>Configured:</strong> Replit Autoscale deployment for production</li>
+<li>Port binding: Uses <code>process.env.PORT</code> for Autoscale compatibility</li>
+<li>Build command: <code>npm run build</code> (clean Vite build)</li>
+<li>Run command: <code>npm start</code> (NODE_ENV=production)</li>
+<li>Error handling: Try-catch around server.listen() with detailed logging</li>
+<li>Startup logs: Shows mode, port config, and health status</li>
+<li>✅ <strong>Cleaned:</strong> Removed stale TODO comments (places cache already implemented)</li>
+<li>✅ <strong>Removed:</strong> Stale "origin fallback" comment per architectural requirements</li>
+</ul>
+<h3 id="october-8-2025">October 8, 2025</h3>
+<ul>
+<li>✅ <strong>Verified:</strong> Claude Sonnet 4.5 model works correctly (no silent swaps)</li>
+<li>✅ <strong>Added:</strong> Model assertion in adapter to prevent future mismatches</li>
+<li>✅ <strong>Implemented:</strong> Thread-aware context system for Agent/Assistant/Eidolon</li>
+<li>✅ <strong>Updated:</strong> All documentation to reflect verified model state</li>
+<li>✅ <strong>Set:</strong> <code>ANTHROPIC_API_VERSION=2023-06-01</code> in environment</li>
+</ul>
+<h3 id="october-7-2025">October 7, 2025</h3>
+<ul>
+<li>✅ <strong>Removed:</strong> React.StrictMode (double-rendering causing abort errors)</li>
+<li>✅ <strong>Removed:</strong> Global JSON body parsing (causing abort on client cancellation)</li>
+<li>✅ <strong>Added:</strong> Per-route JSON parsing with 1MB limit</li>
+<li>✅ <strong>Added:</strong> Client abort error gate (499 status)</li>
+<li>✅ <strong>Added:</strong> Health check logging filter</li>
+</ul>
+<h3 id="october-3-2025">October 3, 2025</h3>
+<ul>
+<li>✅ <strong>Implemented:</strong> Router V2 with proper cancellation</li>
+<li>✅ <strong>Fixed:</strong> Circuit breaker poisoning from aborted requests</li>
+<li>✅ <strong>Increased:</strong> Budget from 8s to 90s (production needs)</li>
+<li>⚠️ <strong>Discovered:</strong> Anthropic model 404 issue (resolved Oct 8)</li>
+</ul>
+<hr />
+<h3 id="december-6-2025-codebase-cleanup-consolidation">December 6, 2025 - Codebase Cleanup &amp; Consolidation</h3>
+<h4 id="shared-utilities-consolidation-december-6-2025">🔧 <strong>Shared Utilities Consolidation (December 6, 2025)</strong></h4>
+<p><strong>Impact:</strong><br />
+Reduces code duplication, improves maintainability, and creates consistent behavior across the codebase. Duplicate functions consolidated into shared utility modules.</p>
+<p><strong>Changes:</strong></p>
+<ol>
+<li>
+<p><strong>Created <code>server/lib/geo.js</code></strong> - Shared geospatial utilities<br />
+   - <code>haversineDistanceKm(lat1, lon1, lat2, lon2)</code> - Distance in kilometers<br />
+   - <code>haversineDistanceMiles(lat1, lon1, lat2, lon2)</code> - Distance in miles<br />
+   - <code>haversineDistanceMeters(lat1, lon1, lat2, lon2)</code> - Distance in meters<br />
+   - <strong>Removed duplicates from:</strong> <code>venue-event-verifier.js</code>, <code>google-places-staging.js</code>, <code>blocks-fast.js</code></p>
+</li>
+<li>
+<p><strong>Created <code>server/routes/utils/http-helpers.js</code></strong> - Shared HTTP utilities<br />
+   - <code>httpError(res, status, code, message)</code> - Consistent error responses<br />
+   - <code>isPlusCode(address)</code> - Detect Google Plus Codes<br />
+   - <code>safeJsonParse(text)</code> - Safe JSON parsing with markdown extraction<br />
+   - <strong>Removed duplicates from:</strong> <code>blocks-fast.js</code>, <code>venue-address-resolver.js</code>, <code>tactical-planner.js</code>, <code>fast-tactical-reranker.js</code></p>
+</li>
+</ol>
+<p><strong>Files Changed:</strong><br />
+- ✅ <code>server/lib/geo.js</code> - NEW: Shared geospatial utilities<br />
+- ✅ <code>server/routes/utils/http-helpers.js</code> - NEW: Shared HTTP utilities<br />
+- ✅ <code>server/lib/venue-event-verifier.js</code> - Import from shared geo.js<br />
+- ✅ <code>server/lib/google-places-staging.js</code> - Import from shared geo.js<br />
+- ✅ <code>server/routes/blocks-fast.js</code> - Import from shared utilities<br />
+- ✅ <code>server/lib/venue-address-resolver.js</code> - Import from shared http-helpers.js<br />
+- ✅ <code>server/lib/tactical-planner.js</code> - Import from shared http-helpers.js<br />
+- ✅ <code>server/lib/fast-tactical-reranker.js</code> - Import from shared http-helpers.js</p>
+<p><strong>Dead Code Removal (18 files):</strong><br />
+- ~~<code>server/lib/blocks-queue.js</code>~~ - Unused async processing<br />
+- ~~<code>server/lib/blocks-jobs.js</code>~~ - Unused job queue<br />
+- ~~<code>server/lib/triad-orchestrator.js</code>~~ - Deprecated multi-model orchestration<br />
+- ~~<code>server/lib/exploration.js</code>~~ - Unused exploration features<br />
+- ~~<code>server/lib/explore.js</code>~~ - Unused exploration<br />
+- ~~<code>server/lib/ability-routes.js</code>~~ - Unused routes<br />
+- ~~<code>server/lib/cache-routes.js</code>~~ - Unused routes<br />
+- ~~<code>server/lib/capabilities.js</code>~~ - Unused utilities<br />
+- ~~<code>server/lib/anthropic-extended.js</code>~~ - Unused Anthropic utilities<br />
+- ~~<code>server/lib/receipt.js</code>~~ - Unused receipt utilities<br />
+- ~~<code>server/lib/priors.js</code>~~ - Unused utilities<br />
+- ~~<code>server/lib/adapters/anthropic-claude.js</code>~~ - Unused model adapter<br />
+- ~~<code>server/lib/adapters/openai-gpt5.js</code>~~ - Unused model adapter<br />
+- ~~<code>server/lib/scoring-engine.js</code>~~ - Replaced by enhanced-smart-blocks.js internal scoring<br />
+- ~~<code>server/lib/driveTime.js</code>~~ - Replaced by venue-enrichment.js<br />
+- ~~<code>server/lib/venue-generator.js</code>~~ - Replaced by tactical-planner.js<br />
+- ~~<code>server/lib/persist-ranking.js</code>~~ - Replaced by enhanced-smart-blocks.js direct DB writes<br />
+- ~~<code>server/lib/fast-tactical-reranker.js</code>~~ - Never integrated into workflow</p>
+<p><strong>Data Directory Cleanup:</strong><br />
+- ✅ Removed 1,637 test snapshot files from <code>data/context-snapshots/</code><br />
+- ✅ Freed 6.4MB of disk space<br />
+- ✅ Clean data directory with only runtime-generated files</p>
+<p><strong>Metrics:</strong><br />
+| Metric | Before | After |<br />
+|--------|--------|-------|<br />
+| Server lib files | 68 | 49 |<br />
+| Duplicate functions | 9 | 0 |<br />
+| Data directory size | 6.4MB | 0MB |<br />
+| Test snapshot files | 1,637 | 0 |<br />
+| Dead library files | 18 | 0 |<br />
+| blocks-fast.js imports | 25 | 16 |</p>
+<p><strong>Files Still Active (Do Not Remove):</strong><br />
+- <code>faa-asws.js</code> - Used via dynamic import in <code>location.js</code><br />
+- <code>holiday-detector.js</code> - Used via dynamic import in <code>location.js</code><br />
+- <code>gemini-2.5-pro.js</code> - Used by <code>venue-event-verifier.js</code></p>
+<p><strong>Backward Pressure:</strong><br />
+- ❌ Duplicate utility functions across files<br />
+- ❌ Dead code files with zero imports<br />
+- ❌ Inconsistent error handling across routes<br />
+- ❌ Inconsistent geospatial calculations</p>
+<p><strong>Forward Pressure:</strong><br />
+- ✅ Single source of truth for shared utilities<br />
+- ✅ Consistent error response format via httpError<br />
+- ✅ Consistent geospatial calculations via geo.js<br />
+- ✅ Clean codebase with minimal dead code</p>
+<hr />
+<h2 id="critical-constraints-summary">🚨 CRITICAL CONSTRAINTS SUMMARY</h2>
+<ol>
+<li><strong>Single-Path Triad</strong> - No fallbacks, fail properly instead of degrading</li>
+<li><strong>Zero Hardcoding</strong> - All data from DB or env vars</li>
+<li><strong>Never Suppress Errors</strong> - Surface failures with full context</li>
+<li><strong>Complete Snapshots Only</strong> - Never send partial data to LLMs</li>
+<li><strong>Model ID Stability</strong> - Pin exact IDs, verify monthly</li>
+<li><strong>Partner Namespace Separation</strong> - Don't mix Vertex/Bedrock IDs with native APIs</li>
+<li><strong>Database Schema Immutability</strong> - Never change PK types</li>
+<li><strong>Trust-First Stack</strong> - Curated catalog + deterministic scoring (no hallucinations)</li>
+<li><strong>Port 5000 Requirement</strong> - Replit firewall constraint</li>
+<li><strong>Per-Route JSON Parsing</strong> - No global body parser</li>
+</ol>
+<hr />
+<p><strong>This document is the authoritative reference for all architectural decisions. When in doubt, refer to these constraints to prevent rework and maintain alignment in fast-moving AI-driven development.</strong></p>
+</body>
+</html>
