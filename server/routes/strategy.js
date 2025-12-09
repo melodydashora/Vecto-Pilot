@@ -8,7 +8,6 @@ import { eq, desc } from 'drizzle-orm';
 import { ensureStrategyRow } from '../lib/strategy-utils.js';
 import { runMinStrategy } from '../lib/providers/minstrategy.js';
 import { runBriefing } from '../lib/providers/briefing.js';
-import { runHolidayCheck } from '../lib/providers/holiday-checker.js';
 import { safeElapsedMs } from './utils/safeElapsedMs.js';
 import crypto from 'crypto';
 import { validateBody } from '../middleware/validate.js';
@@ -32,8 +31,12 @@ router.get('/:snapshotId', async (req, res) => {
     console.log(`[strategy] ✅ Strategy found: status=${row.status}, has_consolidated=${!!row.consolidated_strategy}`);
 
     const hasMin = !!(row.minstrategy && row.minstrategy.trim().length);
-    const hasBriefing = !!(row.briefing && JSON.stringify(row.briefing) !== '{}');
     const hasConsolidated = !!(row.consolidated_strategy && row.consolidated_strategy.trim().length);
+
+    // Check briefing from separate briefings table (not from strategies)
+    const [briefingRow] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    const hasBriefing = !!briefingRow;
 
     const waitFor = [];
     if (!hasMin) waitFor.push('minstrategy');
@@ -47,7 +50,12 @@ router.get('/:snapshotId', async (req, res) => {
       status: hasConsolidated ? 'ok' : 'pending',
       snapshot_id: snapshotId,
       min: hasMin ? row.minstrategy : '',
-      briefing: row.briefing || { events: [], holidays: [], traffic: [], news: [] },
+      briefing: briefingRow ? {
+        events: briefingRow.events || [],
+        news: briefingRow.news || { items: [] },
+        traffic: briefingRow.traffic_conditions || {},
+        school_closures: briefingRow.school_closures || []
+      } : { events: [], holidays: [], traffic: [], news: [] },
       consolidated: hasConsolidated ? row.consolidated_strategy : '',
       waitFor,
       timeElapsedMs
@@ -119,20 +127,12 @@ router.get('/briefing/:snapshotId', async (req, res) => {
       ok: true,
       snapshot_id: snapshotId,
       briefing: {
-        // Perplexity comprehensive research
-        global_travel: briefingRow.global_travel || '',
-        domestic_travel: briefingRow.domestic_travel || '',
-        local_traffic: briefingRow.local_traffic || '',
-        weather_impacts: briefingRow.weather_impacts || '',
-        events_nearby: briefingRow.events_nearby || '',
-        holidays: briefingRow.holidays || '',
-        rideshare_intel: briefingRow.rideshare_intel || '',
-        citations: briefingRow.citations || [],
-        // GPT-5 tactical 30-minute intelligence
-        tactical_traffic: briefingRow.tactical_traffic || '',
-        tactical_closures: briefingRow.tactical_closures || '',
-        tactical_enforcement: briefingRow.tactical_enforcement || '',
-        tactical_sources: briefingRow.tactical_sources || ''
+        news: briefingRow.news || { items: [] },
+        weather_current: briefingRow.weather_current || null,
+        weather_forecast: briefingRow.weather_forecast || [],
+        traffic_conditions: briefingRow.traffic_conditions || null,
+        events: briefingRow.events || [],
+        school_closures: briefingRow.school_closures || []
       },
       created_at: briefingRow.created_at,
       updated_at: briefingRow.updated_at
@@ -193,19 +193,18 @@ router.post('/:snapshotId/retry', async (req, res) => {
       weather: originalSnapshot.weather,
       air: originalSnapshot.air,
       airport_context: originalSnapshot.airport_context,
-      local_news: originalSnapshot.local_news,
-      news_briefing: originalSnapshot.news_briefing,
       device: originalSnapshot.device,
       permissions: originalSnapshot.permissions,
-      extras: originalSnapshot.extras,
-      trigger_reason: 'retry',
       holiday: originalSnapshot.holiday,
       is_holiday: originalSnapshot.is_holiday
     });
-    
-    // Create strategy row and trigger generation
+
+    // Create strategy row and set trigger_reason on strategies table (not snapshots)
     await ensureStrategyRow(newSnapshotId);
-    
+    await db.update(strategies)
+      .set({ trigger_reason: 'retry' })
+      .where(eq(strategies.snapshot_id, newSnapshotId));
+
     // Retry uses the same blocks-fast pipeline
     console.log(`[strategy] ℹ️  Retry: Use POST /api/blocks-fast with snapshot_id=${newSnapshotId} for complete pipeline`);
     

@@ -213,7 +213,6 @@ router.get("/:snapshotId", requireAuth, async (req, res) => {
       day_part_key: snapshot.day_part_key,
       weather: snapshot.weather,
       air: snapshot.air,
-      local_news: snapshot.local_news,
       airport_context: snapshot.airport_context,
       holiday: snapshot.holiday,
       is_holiday: snapshot.is_holiday,

@@ -1,0 +1,267 @@
+✅ Last Briefing Record
+================================================================================
+
+id:
+  "60a478f4-4f0a-4a20-ac57-9b9803f343cb"
+
+snapshot_id:
+  "1571fefd-0471-4924-b08f-7c697d7d61e6"
+
+formatted_address:
+  "6058 Midnight Moon Dr, Frisco, TX 75036, USA"
+
+city:
+  "Frisco"
+
+state:
+  "TX"
+
+news:
+  {
+    "items": [
+      {
+        "link": "https://www.friscotexas.gov/CivicAlerts.aspx?AID=2086",
+        "title": "Eastbound Main Street Closed in Downtown Frisco",
+        "impact": "high",
+        "source": "City of Frisco",
+        "summary": "Eastbound Main Street is closed between 3rd and 5th streets from Dec 8 through Dec 12 for paver installation, requiring detours."
+      },
+      {
+        "link": "https://www.wfaa.com/article/tech/uber-robotaxi-dallas-avride-launch/287-12345678",
+        "title": "Uber Launches Robotaxi Service in Dallas",
+        "impact": "high",
+        "source": "WFAA / FOX 4",
+        "summary": "Uber has officially launched autonomous vehicle rides with Avride in Downtown, Uptown, and Deep Ellum as of Dec 3, introducing new competition for human drivers."
+      },
+      {
+        "link": "https://www.cbsnews.com/texas/news/north-texas-mom-speaks-after-uber-drivers-conviction/",
+        "title": "Safety Alert: Recent Driver Assault Conviction",
+        "impact": "medium",
+        "source": "CBS News Texas",
+        "summary": "A Frisco-area Uber driver was convicted in November for assaulting a passenger, prompting renewed calls for driver and rider safety awareness across North Texas."
+      },
+      {
+        "link": "https://www.freightwaves.com/news/new-labor-rule-gig-economy",
+        "title": "New Federal Gig Worker Rule Approaching",
+        "impact": "medium",
+        "source": "FreightWaves",
+        "summary": "Drivers should prepare for new Department of Labor worker classification rules taking effect in March 2025 that may impact independent contractor status."
+      }
+    ],
+    "reason": null
+  }
+
+weather_current:
+  {
+    "tempF": 36,
+    "conditions": "Clear",
+    "description": "Clear"
+  }
+
+weather_forecast:
+  []
+
+traffic_conditions:
+  {
+    "summary": "Traffic is generally moderate, but expect significant delays in the Rail District due to the Main Street closure and evening congestion around Frisco Square for holiday light displays.",
+    "fetchedAt": "2025-12-09T12:44:48.241Z",
+    "incidents": [
+      {
+        "severity": "high",
+        "description": "Eastbound Main St closed between 3rd St and 5th St for downtown reconstruction"
+      },
+      {
+        "severity": "medium",
+        "description": "Traffic shift on Westbound Main St near the Rail District"
+      }
+    ],
+    "safetyAlert": "Exercise extreme caution in the Main Street work zone and follow posted detours via Elm Street; watch for pedestrians near Frisco Square after dark.",
+    "surgePricing": true,
+    "repositioning": "Avoid the Main St construction detour during rush hour; position near Frisco Square and Coleman Blvd after 6:00 PM for holiday light attendees, or target The Star district for dinner crowds.",
+    "congestionLevel": "medium",
+    "highDemandZones": [
+      {
+        "zone": "Frisco Square / City Hall",
+        "reason": "Holiday Lights at Frisco Square event (6 PM - 10 PM)"
+      },
+      {
+        "zone": "Riders Field (Rough Riders Trail)",
+        "reason": "The Light Park drive-through holiday experience"
+      }
+    ]
+  }
+
+events:
+  [
+    {
+      "title": "Christmas in the Square",
+      "impact": "high",
+      "source": "Gemini Web Search",
+      "address": "8843 Coleman Blvd, Frisco, TX 75034",
+      "summary": "Christmas in the Square • Frisco Square • 2025-12-09 6:00 PM • Impact: high",
+      "location": "Frisco Square, 8843 Coleman Blvd, Frisco, TX 75034",
+      "event_date": "2025-12-09",
+      "event_time": "6:00 PM",
+      "event_type": "festival",
+      "distance_miles": 0.5,
+      "event_end_time": "10:00 PM"
+    },
+    {
+      "title": "Tianyu Lights Festival Dallas",
+      "impact": "medium",
+      "source": "Gemini Web Search",
+      "address": "1001 Texas Trust Way, Grand Prairie, TX 75050",
+      "summary": "Tianyu Lights Festival Dallas • Texas Trust CU Theatre Festival Grounds • 2025-12-09 5:30 PM • Impact: medium",
+      "location": "Texas Trust CU Theatre Festival Grounds, 1001 Texas Trust Way, Grand Prairie, TX 75050",
+      "event_date": "2025-12-09",
+      "event_time": "5:30 PM",
+      "event_type": "festival",
+      "distance_miles": 28.5,
+      "event_end_time": "10:00 PM"
+    },
+    {
+      "title": "Stuff the Tundra",
+      "impact": "low",
+      "source": "Gemini Web Search",
+      "address": "316 W Las Colinas Blvd, Irving, TX 75039",
+      "summary": "Stuff the Tundra • Toyota Music Factory (The Plaza) • 2025-12-09 5:00 PM • Impact: low",
+      "location": "Toyota Music Factory (The Plaza), 316 W Las Colinas Blvd, Irving, TX 75039",
+      "event_date": "2025-12-09",
+      "event_time": "5:00 PM",
+      "event_type": "other",
+      "distance_miles": 18.2,
+      "event_end_time": "8:00 PM"
+    },
+    {
+      "title": "Planning & Zoning Commission Meeting",
+      "impact": "low",
+      "source": "Gemini Web Search",
+      "address": "6101 Frisco Square Blvd, Frisco, TX 75034",
+      "summary": "Planning & Zoning Commission Meeting • George A. Purefoy Municipal Center • 2025-12-09 6:30 PM • Impact: low",
+      "location": "George A. Purefoy Municipal Center, 6101 Frisco Square Blvd, Frisco, TX 75034",
+      "event_date": "2025-12-09",
+      "event_time": "6:30 PM",
+      "event_type": "other",
+      "distance_miles": 0.6,
+      "event_end_time": "8:30 PM"
+    }
+  ]
+
+school_closures:
+  [
+    {
+      "type": "district",
+      "impact": "high",
+      "reason": "Winter Break & Staff Development",
+      "schoolName": "Frisco ISD",
+      "closureStart": "2025-12-22",
+      "reopeningDate": "2026-01-06"
+    },
+    {
+      "type": "district",
+      "impact": "high",
+      "reason": "Winter Break & Staff Development",
+      "schoolName": "Little Elm ISD",
+      "closureStart": "2025-12-22",
+      "reopeningDate": "2026-01-07"
+    },
+    {
+      "type": "district",
+      "impact": "high",
+      "reason": "Winter Break & Staff Development",
+      "schoolName": "Prosper ISD",
+      "closureStart": "2025-12-22",
+      "reopeningDate": "2026-01-06"
+    },
+    {
+      "type": "district",
+      "impact": "high",
+      "reason": "Winter Break & Staff Development",
+      "schoolName": "Lewisville ISD",
+      "closureStart": "2025-12-22",
+      "reopeningDate": "2026-01-06"
+    },
+    {
+      "type": "district",
+      "impact": "high",
+      "reason": "Winter Break & Staff Development",
+      "schoolName": "McKinney ISD",
+      "closureStart": "2025-12-22",
+      "reopeningDate": "2026-01-06"
+    },
+    {
+      "type": "district",
+      "impact": "high",
+      "reason": "Winter Break & Staff Development",
+      "schoolName": "Plano ISD",
+      "closureStart": "2025-12-22",
+      "reopeningDate": "2026-01-06"
+    },
+    {
+      "type": "district",
+      "impact": "high",
+      "reason": "Winter Break",
+      "schoolName": "Allen ISD",
+      "closureStart": "2025-12-22",
+      "reopeningDate": "2026-01-05"
+    },
+    {
+      "type": "college",
+      "impact": "high",
+      "reason": "Winter Break (Campus Closed)",
+      "schoolName": "Collin College (All Campuses)",
+      "closureStart": "2025-12-24",
+      "reopeningDate": "2026-01-05"
+    },
+    {
+      "type": "college",
+      "impact": "high",
+      "reason": "Winter Holiday (University Closed)",
+      "schoolName": "University of North Texas (Frisco)",
+      "closureStart": "2025-12-24",
+      "reopeningDate": "2026-01-05"
+    }
+  ]
+
+global_travel:
+  (null)
+
+domestic_travel:
+  (null)
+
+local_traffic:
+  (null)
+
+weather_impacts:
+  (null)
+
+events_nearby:
+  (null)
+
+holidays:
+  (null)
+
+rideshare_intel:
+  (null)
+
+citations:
+  (null)
+
+tactical_traffic:
+  (null)
+
+tactical_closures:
+  (null)
+
+tactical_enforcement:
+  (null)
+
+tactical_sources:
+  (null)
+
+created_at:
+  "2025-12-09T12:44:48.241Z"
+
+updated_at:
+  "2025-12-09T12:44:48.241Z"
+

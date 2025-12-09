@@ -37,12 +37,8 @@ export function validateEnvironment() {
     warnings.push('GOOGLEAQ_API_KEY not set - air quality data will be unavailable');
   }
   
-  if (!process.env.PERPLEXITY_API_KEY) {
-    warnings.push('PERPLEXITY_API_KEY not set - briefing research will be limited');
-  }
-  
   // Model configuration validation
-  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-sonnet-4-5-20250929';
+  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-5-20251101';
   const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3-pro-preview';
   const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.1-2025-11-13';
   

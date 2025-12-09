@@ -6,31 +6,22 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  MapPin, 
-  Navigation, 
-  TrendingUp, 
-  Clock, 
+import {
+  MapPin,
+  Navigation,
+  TrendingUp,
+  Clock,
   Sparkles,
-  Activity,
-  CheckCircle2,
   Zap,
   AlertCircle,
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
   MessageSquare,
-  Info,
-  PartyPopper,
-  Sun,
-  Moon,
-  Volume2,
-  Square,
   Wine,
   Loader
 } from 'lucide-react';
@@ -38,95 +29,23 @@ import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
-import { subscribeStrategyReady } from '@/services/strategyEvents';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
-import { MarketIntelligenceBlocks } from '@/components/MarketIntelligenceBlocks'; // Renamed from SmartBlocks
+import { MarketIntelligenceBlocks as _MarketIntelligenceBlocks } from '@/components/MarketIntelligenceBlocks';
 import BarsTable from '@/components/BarsTable';
 import BriefingTab from '@/components/BriefingTab';
 import MapTab from '@/components/MapTab';
 import { DonationTab } from '@/components/DonationTab';
-import {
-  Tooltip,
-  TooltipProvider,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Map as MapIcon, Heart } from 'lucide-react';
-import { ConsolidatedStrategyComp } from '@/components/strategy/ConsolidatedStrategyComp';
+import { ConsolidatedStrategyComp as _ConsolidatedStrategyComp } from '@/components/strategy/ConsolidatedStrategyComp';
 
-interface SmartBlock {
-  name: string;
-  description?: string;
-  address?: string;
-  coordinates: {
-    lat: number;
-    lng: number;
-  };
-  estimatedWaitTime?: number;
-  estimatedEarningsPerRide?: number;
-  estimated_earnings?: number;
-  potential?: number;
-  estimated_distance_miles?: number;
-  distanceSource?: string;
-  driveTimeMinutes?: number;
-  surge?: number;
-  type?: string;
-  // Value per minute fields
-  value_per_min?: number;
-  value_grade?: string;
-  not_worth?: boolean;
-  demandLevel?: string;
-  category?: string;
-  businessHours?: string;
-  isOpen?: boolean;
-  businessStatus?: string;
-  placeId?: string;
-  closedButStillGood?: string;
-  closed_venue_reasoning?: string;
-  hasEvent?: boolean;
-  eventBadge?: string;
-  eventSummary?: string;
-  eventImpact?: string;
-  stagingArea?: {
-    type: string;
-    name: string;
-    address: string;
-    walkTime: string;
-    parkingTip: string;
-    lat?: number;
-    lng?: number;
-  };
-  proTips?: string[];
-  up_count?: number;
-  down_count?: number;
-}
+// Shared types and utilities
+import type { SmartBlock, BlocksResponse, StrategyData } from '@/types/co-pilot';
+import { getAuthHeader, subscribeStrategyReady, logAction as logActionHelper } from '@/utils/co-pilot-helpers';
+import { BottomTabNavigation } from '@/components/co-pilot/BottomTabNavigation';
+import { GreetingBanner } from '@/components/co-pilot/GreetingBanner';
+import { useBriefingQueries } from '@/hooks/useBriefingQueries';
+import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
 
-interface BlocksResponse {
-  now: string;
-  timezone: string;
-  strategy?: string;
-  blocks: SmartBlock[];
-  ranking_id?: string;
-  path_taken?: string;
-  refined?: boolean;
-  error?: string; // e.g., "NOT_FOUND" when blocks not yet generated
-  timing?: {
-    scoring_ms?: number;
-    planner_ms?: number;
-    total_ms?: number;
-    timed_out?: boolean;
-    budget_ms?: number;
-  };
-  metadata?: {
-    totalBlocks: number;
-    processingTimeMs: number;
-    modelRoute?: string;
-    validation?: {
-      status: string;
-      flags?: string[];
-    };
-  };
-}
+// Types are now imported from @/types/co-pilot
 
 /**
  * CoPilot - AI-powered venue recommendations and strategy optimization
@@ -137,8 +56,9 @@ interface BlocksResponse {
 const CoPilot: React.FC = () => {
   const locationContext = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
-  const [distanceFilter, setDistanceFilter] = useState<'auto' | 'near' | 'far'>('auto');
+  const [distanceFilter, _setDistanceFilter] = useState<'auto' | 'near' | 'far'>('auto');
   const [selectedModel, setSelectedModel] = useState<'gemini' | 'gpt-5' | 'claude' | null>(null);
   const [modelParameter, setModelParameter] = useState<string>('0.7');
   const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
@@ -146,7 +66,7 @@ const CoPilot: React.FC = () => {
   const [persistentStrategy, setPersistentStrategy] = useState<string | null>(null); // Start empty for fresh load (consolidated daily strategy)
   const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null); // Strategy for right now (GPT-5.1 generated)
   const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null); // Start empty for fresh load
-  const [strategyReadyTime, setStrategyReadyTime] = useState<number | null>(null); // Track when strategy became ready
+  const [_strategyReadyTime, _setStrategyReadyTime] = useState<number | null>(null); // Track when strategy became ready
   const [enrichedReasonings, setEnrichedReasonings] = useState<Map<string, string>>(new Map());
 
   // Feedback modal state
@@ -187,14 +107,7 @@ const CoPilot: React.FC = () => {
   // Use override coords if available, otherwise GPS
   const coords = overrideCoords || gpsCoords;
 
-  // Helper to get auth headers with JWT token
-  const getAuthHeader = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('vecto_auth_token') : null;
-    if (!token) {
-      console.warn('[co-pilot] ⚠️ No auth token found in localStorage - requests will fail with 401');
-    }
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-  };
+  // getAuthHeader is now imported from @/utils/co-pilot-helpers
 
   // Listen for snapshot-saved event to trigger waterfall and load all tabs
   useEffect(() => {
@@ -324,176 +237,18 @@ const CoPilot: React.FC = () => {
     gcTime: 10 * 60 * 1000,
   });
 
-  // ===== BRIEFING TAB QUERIES (load in parallel regardless of active tab) =====
+  // ===== BRIEFING TAB QUERIES (using extracted hook) =====
+  const {
+    weatherData,
+    trafficData,
+    newsData,
+    eventsData,
+    schoolClosuresData,
+    isLoading: _briefingLoading
+  } = useBriefingQueries({ snapshotId: lastSnapshotId });
 
-  const { data: weatherData, isLoading: weatherLoading } = useQuery({
-    queryKey: ['/api/briefing/weather', lastSnapshotId],
-    queryFn: async () => {
-      console.log('[BriefingQuery] Fetching weather for', lastSnapshotId);
-      if (!lastSnapshotId) return { weather: null };
-      const response = await fetch(`/api/briefing/weather/${lastSnapshotId}`, {
-        headers: getAuthHeader()
-      });
-      if (!response.ok) {
-        console.error('[BriefingQuery] Weather failed:', response.status);
-        return { weather: null };
-      }
-      const data = await response.json();
-      console.log('[BriefingQuery] Weather received:', data);
-      return data;
-    },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    staleTime: 5 * 60 * 1000, // Cache weather for 5 minutes to prevent repeated fetches
-  });
-
-  const { data: trafficData, isLoading: trafficLoading } = useQuery({
-    queryKey: ['/api/briefing/traffic', lastSnapshotId],
-    queryFn: async () => {
-      console.log('[BriefingQuery] Fetching traffic for', lastSnapshotId);
-      if (!lastSnapshotId) return { traffic: null };
-      const response = await fetch(`/api/briefing/traffic/${lastSnapshotId}`, {
-        headers: getAuthHeader()
-      });
-      if (!response.ok) {
-        console.error('[BriefingQuery] Traffic failed:', response.status);
-        return { traffic: null };
-      }
-      const data = await response.json();
-      console.log('[BriefingQuery] Traffic received:', data);
-      return data;
-    },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    staleTime: 5 * 60 * 1000, // Cache traffic for 5 minutes to prevent repeated fetches
-  });
-
-  const { data: newsData } = useQuery({
-    queryKey: ['/api/briefing/rideshare-news', lastSnapshotId],
-    queryFn: async () => {
-      console.log('[BriefingQuery] Fetching news for', lastSnapshotId);
-      if (!lastSnapshotId) return { news: null };
-      const response = await fetch(`/api/briefing/rideshare-news/${lastSnapshotId}`, {
-        headers: getAuthHeader()
-      });
-      if (!response.ok) return { news: null };
-      const data = await response.json();
-      console.log('[BriefingQuery] News received:', data);
-      return data;
-    },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    staleTime: 45000,
-  });
-
-  const { data: eventsData, isLoading: eventsLoading } = useQuery({
-    queryKey: ['/api/briefing/events', lastSnapshotId],
-    queryFn: async () => {
-      console.log('[BriefingQuery] Fetching events for', lastSnapshotId);
-      if (!lastSnapshotId) return { events: [] };
-      const response = await fetch(`/api/briefing/events/${lastSnapshotId}`, {
-        headers: getAuthHeader()
-      });
-      if (!response.ok) {
-        console.error('[BriefingQuery] Events failed:', response.status);
-        return { events: [] };
-      }
-      const data = await response.json();
-      console.log('[BriefingQuery] Events received:', data);
-      return data;
-    },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    staleTime: 5 * 60 * 1000, // Cache events for 5 minutes to prevent repeated fetches
-  });
-
-  const { data: schoolClosuresData } = useQuery({
-    queryKey: ['/api/briefing/school-closures', lastSnapshotId],
-    queryFn: async () => {
-      console.log('[BriefingQuery] Fetching school closures for', lastSnapshotId);
-      if (!lastSnapshotId) return { school_closures: [] };
-      const response = await fetch(`/api/briefing/school-closures/${lastSnapshotId}`, {
-        headers: getAuthHeader()
-      });
-      if (!response.ok) return { school_closures: [] };
-      const data = await response.json();
-      console.log('[BriefingQuery] School closures received:', data);
-      return data;
-    },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    staleTime: 45000,
-  });
-
-  // UNIFIED ENRICHMENT PROGRESS: Tracks entire pipeline from GPS to blocks
-  // Phase 1: Strategy generation (0-30%) - starts when coords arrive
-  // Phase 2: Blocks generation (30-100%) - starts when strategy ready
-  const [enrichmentStartTime, setEnrichmentStartTime] = useState<number | null>(null);
-  const [enrichmentProgress, setEnrichmentProgress] = useState(0);
-  const [enrichmentPhase, setEnrichmentPhase] = useState<'idle' | 'strategy' | 'blocks'>('idle');
-
-  // Start enrichment timer IMMEDIATELY when coords arrive (before snapshot created)
-  useEffect(() => {
-    console.log('🔍 Enrichment check:', { hasCoords: !!coords, enrichmentPhase });
-    // Start as soon as we have coords and we're not already in an enrichment phase
-    if (coords && enrichmentPhase === 'idle') {
-      const now = Date.now();
-      console.log('⏰ Enrichment started immediately - coords received');
-      setEnrichmentStartTime(now);
-      setEnrichmentProgress(5); // Start at 5% to show immediate feedback
-      setEnrichmentPhase('strategy');
-    }
-  }, [coords, enrichmentPhase]);
-
-  // Update phase when strategy becomes ready
-  useEffect(() => {
-    const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks';
-    const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
-
-    if (strategyReady && snapshotMatches && enrichmentPhase === 'strategy') {
-      console.log('⏰ Strategy ready - moving to blocks phase');
-      setEnrichmentPhase('blocks');
-      // Jump progress to 30% when entering blocks phase
-      setEnrichmentProgress(30);
-    }
-  }, [strategyData, lastSnapshotId, enrichmentPhase]);
-
-  // Update progress bar every 500ms for smooth animation
-  useEffect(() => {
-    if (!enrichmentStartTime || enrichmentPhase === 'idle') return;
-
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - enrichmentStartTime;
-
-      if (enrichmentPhase === 'strategy') {
-        // Phase 1: Strategy generation (0-30% over ~15 seconds)
-        const strategyExpected = 15000; // 15 seconds expected for strategy
-        const strategyProgress = Math.min(30, (elapsed / strategyExpected) * 30);
-        setEnrichmentProgress(strategyProgress);
-      } else if (enrichmentPhase === 'blocks') {
-        // Phase 2: Blocks generation (30-100% over ~75 seconds after strategy ready)
-        // Use a separate timer from when blocks phase started
-        const blocksExpected = 75000; // 75 seconds expected for blocks
-        const blocksMax = 120000; // 120 seconds max
-
-        // Calculate blocks elapsed time (estimate based on total minus strategy time)
-        const strategyTime = 15000; // approximate strategy time
-        const blocksElapsed = Math.max(0, elapsed - strategyTime);
-
-        let progress;
-        if (blocksElapsed < blocksExpected) {
-          // Smooth progress from 30% to 95%
-          progress = 30 + (blocksElapsed / blocksExpected) * 65;
-        } else if (blocksElapsed < blocksMax) {
-          // Slow crawl from 95% to 100%
-          const remainingTime = blocksElapsed - blocksExpected;
-          const remainingProgress = (remainingTime / (blocksMax - blocksExpected)) * 5;
-          progress = 95 + remainingProgress;
-        } else {
-          progress = 100;
-        }
-
-        setEnrichmentProgress(Math.min(100, progress));
-      }
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [enrichmentStartTime, enrichmentPhase]);
+  // NOTE: Enrichment progress state is tracked via useEnrichmentProgress hook
+  // (called after blocksData query below)
 
   // Update persistent strategy and immediate strategy when new strategy arrives
   useEffect(() => {
@@ -676,86 +431,16 @@ const CoPilot: React.FC = () => {
     retryDelay: (attemptIndex) => Math.min(3000 * 2 ** attemptIndex, 10000), // Exponential backoff: 3s, 6s, 10s max
   });
 
-  // Separate query for venue-specific bars/nightlife blocks (for Venues tab)
-  const { data: venueBlocksData, isLoading: venueBlocksLoading } = useQuery<BlocksResponse>({
-    queryKey: ['/api/blocks-venues', lastSnapshotId],
-    queryFn: async () => {
-      if (!lastSnapshotId) throw new Error('No snapshot');
+  // Venues tab now uses blocksData from main query - no separate fetch needed
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 230000);
-
-      try {
-        // Fetch bars/nightlife specific blocks
-        const response = await fetch(`/api/blocks-fast?snapshotId=${lastSnapshotId}&venueType=nightlife`, {
-          method: 'GET',
-          signal: controller.signal,
-          headers: { ...getAuthHeader() }
-        });
-        clearTimeout(timeoutId);
-
-        if (!response.ok && response.status !== 202) {
-          throw new Error(`Failed to fetch venue blocks: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const transformed = {
-          now: data.generatedAt || new Date().toISOString(),
-          timezone: 'America/Chicago',
-          strategy: data.strategy_for_now,
-          blocks: data.blocks?.map((v: any) => ({
-            name: v.name,
-            address: v.address,
-            category: v.category,
-            placeId: v.placeId,
-            coordinates: { lat: v.coordinates?.lat ?? v.lat, lng: v.coordinates?.lng ?? v.lng },
-            estimated_distance_miles: Number(v.estimated_distance_miles ?? v.distance ?? 0),
-            driveTimeMinutes: Number(v.driveTimeMinutes ?? v.drive_time ?? 0),
-            distanceSource: v.distanceSource ?? "routes_api",
-            estimatedEarningsPerRide: v.estimated_earnings ?? v.estimatedEarningsPerRide ?? null,
-            earnings_per_mile: v.earnings_per_mile ?? null,
-            value_per_min: v.value_per_min ?? null,
-            value_grade: v.value_grade ?? null,
-            not_worth: !!v.not_worth,
-            surge: v.surge ?? null,
-            estimatedWaitTime: v.estimatedWaitTime,
-            demandLevel: v.demandLevel,
-            businessHours: v.businessHours,
-            isOpen: v.isOpen,
-            businessStatus: v.businessStatus,
-            closed_venue_reasoning: v.closed_venue_reasoning,
-            stagingArea: v.stagingArea,
-            proTips: v.proTips || v.pro_tips || []
-          })) || [],
-          ranking_id: data.ranking_id || data.correlationId,
-          metadata: {
-            totalBlocks: data.blocks?.length || 0,
-            processingTimeMs: data.elapsed_ms || 0,
-            modelRoute: data.model_route,
-            validation: data.validation
-          }
-        };
-        return transformed;
-      } catch (err) {
-        clearTimeout(timeoutId);
-        throw err;
-      }
-    },
-    enabled: !!lastSnapshotId && activeTab === 'venues',
-    retry: 2,
-    refetchInterval: (query) => {
-      const hasBlocks = query.state.data?.blocks && query.state.data.blocks.length > 0;
-      return hasBlocks ? false : 5000;
-    }
+  // Enrichment progress tracking (using extracted hook)
+  const hasBlocks = (blocksData?.blocks?.length ?? 0) > 0;
+  const { progress: enrichmentProgress, phase: enrichmentPhase } = useEnrichmentProgress({
+    coords: coords ? { latitude: coords.latitude, longitude: coords.longitude } : null,
+    strategyData: strategyData as StrategyData | null,
+    lastSnapshotId,
+    hasBlocks
   });
-
-  // Stop enrichment when blocks are loaded (must be after useQuery that defines blocksData)
-  useEffect(() => {
-    if (blocksData?.blocks && blocksData.blocks.length > 0) {
-      setEnrichmentPhase('idle');
-      setEnrichmentProgress(100);
-    }
-  }, [blocksData?.blocks]);
 
   useEffect(() => {
     if (error) {
@@ -768,8 +453,8 @@ const CoPilot: React.FC = () => {
   }, [error, toast]);
 
   // Retry strategy generation with same location context
-  const [isRetrying, setIsRetrying] = useState(false);
-  const retryStrategy = async () => {
+  const [_isRetrying, setIsRetrying] = useState(false);
+  const _retryStrategy = async () => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') {
       toast({
         title: 'Cannot Retry',
@@ -821,32 +506,9 @@ const CoPilot: React.FC = () => {
     }
   };
 
-  // Log action to backend with idempotency key
-  const logAction = async (action: string, blockId?: string, dwellMs?: number, fromRank?: number) => {
-    try {
-      const ranking_id = blocksData?.ranking_id || 'unknown';
-      const timestamp = new Date().toISOString();
-      const idempotencyKey = `${ranking_id}:${action}:${blockId || 'na'}:${timestamp}`;
-
-      // Uses fetch for custom X-Idempotency-Key header
-      await fetch('/api/actions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify({
-          ranking_id: ranking_id !== 'unknown' ? ranking_id : null,
-          action,
-          block_id: blockId || null,
-          dwell_ms: dwellMs || null,
-          from_rank: fromRank || null,
-          user_id: localStorage.getItem('vecto_user_id') || 'default',
-        }),
-      });
-    } catch (err) {
-      console.warn('[Co-Pilot] Failed to log action:', err);
-    }
+  // Log action wrapper using imported helper (provides rankingId from blocksData context)
+  const logAction = (action: string, blockId?: string, dwellMs?: number, fromRank?: number) => {
+    logActionHelper(blocksData?.ranking_id, action, blockId, dwellMs, fromRank);
   };
 
   // Server now returns Top6 pre-ranked by earnings per mile
@@ -869,8 +531,8 @@ const CoPilot: React.FC = () => {
   }
 
   const metadata = blocksData?.metadata;
-  const tacticalSummary = (blocksData as any)?.tactical_summary;
-  const bestStagingLocation = (blocksData as any)?.best_staging_location;
+  const _tacticalSummary = (blocksData as BlocksResponse | undefined)?.tactical_summary;
+  const _bestStagingLocation = (blocksData as BlocksResponse | undefined)?.best_staging_location;
 
   // Log view action when blocks are loaded
   useEffect(() => {
@@ -976,7 +638,7 @@ const CoPilot: React.FC = () => {
   }, [blocksData?.blocks, persistentStrategy]);
 
   // City search mutation
-  const citySearchMutation = useMutation({
+  const _citySearchMutation = useMutation({
     mutationFn: async (city: string) => {
       const response = await fetch(`/api/location/geocode/forward?city=${encodeURIComponent(city)}`);
       if (!response.ok) {
@@ -1009,7 +671,7 @@ const CoPilot: React.FC = () => {
     }
   });
 
-  const handleModelChange = (model: 'gemini' | 'gpt-5' | 'claude') => {
+  const _handleModelChange = (model: 'gemini' | 'gpt-5' | 'claude') => {
     setSelectedModel(model);
     // Set default parameter for each model
     if (model === 'gpt-5') {
@@ -1019,7 +681,7 @@ const CoPilot: React.FC = () => {
     }
   };
 
-  const clearManualCity = () => {
+  const _clearManualCity = () => {
     if (setOverrideCoords) {
       setOverrideCoords(null);
     }
@@ -1029,7 +691,7 @@ const CoPilot: React.FC = () => {
     });
   };
 
-  const toggleBlockSelection = (blockIndex: number) => {
+  const _toggleBlockSelection = (blockIndex: number) => {
     const block = blocks[blockIndex];
     if (!block) return;
 
@@ -1083,8 +745,8 @@ const CoPilot: React.FC = () => {
     });
   };
 
-  // Text-to-speech handler - uses OpenAI natural voice
-  const handleReadStrategy = async () => {
+  // Text-to-speech handler - uses OpenAI natural voice (currently disabled in UI)
+  const _handleReadStrategy = async () => {
     if (!persistentStrategy) return;
 
     if (isSpeaking) {
@@ -1154,7 +816,7 @@ const CoPilot: React.FC = () => {
   };
 
   // Get demand level badge
-  const getDemandBadge = (level?: string) => {
+  const _getDemandBadge = (level?: string) => {
     if (level === 'high') {
       return (
         <Badge className="bg-green-100 text-green-700 border-0 text-xs">
@@ -1188,61 +850,8 @@ const CoPilot: React.FC = () => {
         {/* Strategy Tab Content */}
         {activeTab === 'strategy' && (
           <>
-        {/* Greeting/Holiday Banner - Always visible with fallback */}
-        {(() => {
-          // Check for holiday from strategy data (always preserve holiday if found)
-          const hasHoliday = strategyData?.strategy?.holiday;
-          const hour = new Date().getHours();
-          const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-          const greetingIcon = hour < 12 ? '☀️' : hour < 18 ? '🌅' : '🌙';
-
-          // Only show holiday banner if we have holiday data
-          if (hasHoliday) {
-            return (
-              <Card className="mb-6 border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 shadow-lg" data-testid="holiday-banner">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-amber-100">
-                      <PartyPopper className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-amber-900 text-lg">
-                        🎉 Happy {strategyData.strategy.holiday}!
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          }
-
-          // Fallback to time-based greeting (always visible)
-          return (
-            <Card className="mb-6 border-2 border-blue-300 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 shadow-md" data-testid="greeting-banner">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-blue-100">
-                    {hour < 12 ? (
-                      <Sun className="w-6 h-6 text-blue-600" />
-                    ) : hour < 18 ? (
-                      <Sun className="w-6 h-6 text-orange-500" />
-                    ) : (
-                      <Moon className="w-6 h-6 text-indigo-600" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-gray-900 text-lg">
-                      {greetingIcon} {greeting}, driver!
-                    </p>
-                    <p className="text-sm text-gray-700">
-                      Your AI strategy is analyzing real-time conditions to maximize your earnings
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
+        {/* Greeting/Holiday Banner - Using extracted component */}
+        <GreetingBanner holiday={strategyData?.strategy?.holiday} />
 
         {/* Selection Controls */}
         {selectedBlocks.size > 0 && (
@@ -1312,71 +921,20 @@ const CoPilot: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-          ) : immediateStrategy || persistentStrategy ? (
-            <div className="space-y-4">
-              {/* Immediate Strategy (Right Now) - Primary Focus */}
-              {immediateStrategy && (
-                <Card className="bg-gradient-to-br from-orange-50 via-yellow-50 to-orange-50 border-orange-300 shadow-md" data-testid="immediate-strategy-card">
-                  <CardContent className="p-5">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-orange-100">
-                        <Zap className="w-5 h-5 text-orange-600 flex-shrink-0" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-orange-900 mb-2">🎯 Right Now Strategy</p>
-                        <p className="text-sm text-gray-800 leading-relaxed">{immediateStrategy}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              
-              {/* Consolidated Daily Strategy - Secondary Reference */}
-              {persistentStrategy && (
-                <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="strategy-complete-card">
-                  <CardContent className="p-5">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-purple-100">
-                        <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-semibold text-purple-900">Daily Overview</p>
-                          <div className="flex items-center gap-2">
-                            <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
-                              ✅ Complete
-                            </Badge>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleReadStrategy}
-                                    className="h-6 w-6 p-0 hover:bg-purple-200"
-                                    data-testid="button-read-strategy"
-                                  >
-                                    {isSpeaking ? (
-                                      <Square className="w-3 h-3 text-red-600 fill-red-600" />
-                                    ) : (
-                                      <Volume2 className="w-3 h-3 text-purple-600" />
-                                    )}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="left">
-                                  {isSpeaking ? 'Stop reading' : 'Read strategy aloud'}
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+          ) : immediateStrategy ? (
+            <Card className="bg-gradient-to-br from-orange-50 via-yellow-50 to-orange-50 border-orange-300 shadow-md" data-testid="immediate-strategy-card">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-orange-100">
+                    <Zap className="w-5 h-5 text-orange-600 flex-shrink-0" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-orange-900 mb-2">🎯 Where to Go NOW</p>
+                    <p className="text-sm text-gray-800 leading-relaxed">{immediateStrategy}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           ) : strategyData?.status === 'failed' ? (
             <Card className="bg-gradient-to-br from-red-50 via-pink-50 to-red-50 border-red-300 shadow-md" data-testid="strategy-failed-card">
               <CardContent className="p-5">
@@ -1566,7 +1124,7 @@ const CoPilot: React.FC = () => {
             {blocks.length > 0 && (
             <div className="space-y-4" data-testid="blocks-list">
               {blocks.map((block, index) => {
-                const isSelected = selectedBlocks.has(index);
+                const _isSelected = selectedBlocks.has(index);
 
                 // Gradient colors based on ranking icons
                 let cardGradient = 'bg-white border-gray-200';
@@ -2102,8 +1660,8 @@ const CoPilot: React.FC = () => {
               </Card>
             )}
 
-            {/* Venues Loading State */}
-            {venueBlocksLoading && (
+            {/* Venues Loading State - Uses same blocks as Strategy tab */}
+            {isLoading && (
               <Card className="p-6 border-purple-100 bg-purple-50/50 mb-6">
                 <div className="flex items-center gap-3">
                   <Loader className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />
@@ -2115,7 +1673,8 @@ const CoPilot: React.FC = () => {
               </Card>
             )}
 
-            {!venueBlocksLoading && <BarsTable blocks={venueBlocksData?.blocks} />}
+            {/* Use blocksData from main query - already has all venues including bars */}
+            {!isLoading && <BarsTable blocks={blocksData?.blocks} />}
           </div>
         )}
 
@@ -2129,76 +1688,8 @@ const CoPilot: React.FC = () => {
 
       </div>
 
-      {/* Bottom Tab Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50" data-testid="bottom-tabs">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex">
-            <button
-              onClick={() => setActiveTab('strategy')}
-              className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'strategy' 
-                  ? 'text-blue-600 bg-blue-50' 
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-              data-testid="tab-strategy"
-            >
-              <Sparkles className={`w-6 h-6 ${activeTab === 'strategy' ? 'text-blue-600' : 'text-gray-400'}`} />
-              <span className="text-xs font-medium">Strategy</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('venues')}
-              className={`relative flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'venues' 
-                  ? 'text-blue-600 bg-blue-50' 
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-              data-testid="tab-venues"
-            >
-              <div className="relative">
-                <TrendingUp className={`w-6 h-6 ${activeTab === 'venues' ? 'text-blue-600' : 'text-gray-400'}`} />
-                <span className="absolute -top-1 -right-2 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              </div>
-              <span className="text-xs font-medium">Venues</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('briefing')}
-              className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'briefing' 
-                  ? 'text-indigo-600 bg-indigo-50' 
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-              data-testid="tab-briefing"
-            >
-              <MessageSquare className={`w-6 h-6 ${activeTab === 'briefing' ? 'text-indigo-600' : 'text-gray-400'}`} />
-              <span className="text-xs font-medium">Briefing</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('map')}
-              className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'map' 
-                  ? 'text-green-600 bg-green-50' 
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-              data-testid="tab-map"
-            >
-              <MapIcon className={`w-6 h-6 ${activeTab === 'map' ? 'text-green-600' : 'text-gray-400'}`} />
-              <span className="text-xs font-medium">Map</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('donation')}
-              className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
-                activeTab === 'donation' 
-                  ? 'text-rose-600 bg-rose-50' 
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-              data-testid="tab-donation"
-            >
-              <Heart className={`w-6 h-6 ${activeTab === 'donation' ? 'text-rose-600' : 'text-gray-400'}`} />
-              <span className="text-xs font-medium">About</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Bottom Tab Navigation - Using extracted component */}
+      <BottomTabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Venue Feedback Modal */}
       <FeedbackModal

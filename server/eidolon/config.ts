@@ -1,17 +1,17 @@
 
 /**
  * Eidolon Enhanced SDK - MAXIMUM CONTEXT & CAPABILITIES
- * Claude Sonnet 4.5 (claude-sonnet-4-5-20250929) with 200K context window
+ * Claude Opus 4.5 (claude-opus-4-5-20251101) with 200K context window
  */
 
 export const EIDOLON_CONFIG = {
   version: "8.0.0-unified-max",
-  identity: "Eidolon Unified AI - Complete IDE Integration (Claude Sonnet 4.5 - 200K Context + Ultra-Deep Thinking)",
-  
+  identity: "Eidolon Unified AI - Complete IDE Integration (Claude Opus 4.5 - 200K Context + Ultra-Deep Thinking)",
+
   // UNIFIED MAXIMUM CAPABILITIES - All AI systems have identical access
   capabilities: {
     // Model & Thinking
-    model: "claude-sonnet-4-5-20250929",
+    model: "claude-opus-4-5-20251101",
     context_window: 200000,
     thinking_mode: "ultra-deep",
     
@@ -157,9 +157,9 @@ export const EIDOLON_CONFIG = {
     ]
   },
 
-  // Model configuration - Claude Sonnet 4.5 ULTRA-ENHANCED MODE
+  // Model configuration - Claude Opus 4.5 ULTRA-ENHANCED MODE
   model: {
-    primary: "claude-sonnet-4-5-20250929",
+    primary: "claude-opus-4-5-20251101",
     provider: "anthropic",
     max_tokens: 200000, // MAXIMUM - Full output capacity
     temperature: 1.0, // Optimal for deep reasoning and creativity

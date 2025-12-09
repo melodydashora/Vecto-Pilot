@@ -2,7 +2,7 @@
 
 ---
 
-**Last Updated:** 2025-12-07 UTC (Complete System Mapping & Architecture Consolidation)
+**Last Updated:** 2025-12-09 UTC (API Endpoints Verification & Frontend Cleanup)
 
 ---
 
@@ -11,11 +11,12 @@
 1. [System Architecture Overview](#system-architecture-overview)
 2. [Complete System Mapping](#complete-system-mapping)
 3. [UI to Backend Flow](#ui-to-backend-flow)
-4. [Database Schema Mapping](#database-schema-mapping)
-5. [AI Pipeline Architecture](#ai-pipeline-architecture)
-6. [Authentication System](#authentication-system)
-7. [Architectural Constraints](#architectural-constraints)
-8. [Deprecated Features](#deprecated-features)
+4. [Working API Endpoints](#working-api-endpoints-verified-dec-9-2025)
+5. [Database Schema Mapping](#database-schema-mapping)
+6. [AI Pipeline Architecture](#ai-pipeline-architecture)
+7. [Authentication System](#authentication-system)
+8. [Architectural Constraints](#architectural-constraints)
+9. [Deprecated Features](#deprecated-features)
 
 ---
 
@@ -45,7 +46,6 @@
 │  • Anthropic (Claude Sonnet 4.5)                                │
 │  • OpenAI (GPT-5.1, Realtime API)                               │
 │  • Google (Gemini 3.0 Pro, Places, Routes, Weather, AQ)         │
-│  • Perplexity (Sonar Pro)                                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -62,8 +62,7 @@
 - `client/src/contexts/location-context-clean.tsx` - Location state management
 
 **Hooks:**
-- `client/src/hooks/useGeoPosition.ts` - Browser geolocation API wrapper
-- `client/src/hooks/use-geolocation.tsx` - Enhanced geolocation with fallback
+- `client/src/hooks/use-mobile-detect.ts` - Device detection for responsive UI
 
 **Backend Routes:**
 - `server/routes/location.js` - `/api/location/resolve` (coordinates → address)
@@ -106,8 +105,8 @@
 
 **Data Flow:**
 ```
-Browser GPS → useGeoPosition → LocationContext → /api/location/resolve → 
-Google Geocoding API → users table → JWT token generation → 
+Browser GPS → LocationContext → /api/location/resolve →
+Google Geocoding API → users table → JWT token generation →
 localStorage → subsequent API calls with Authorization header
 ```
 
@@ -125,8 +124,10 @@ localStorage → subsequent API calls with Authorization header
 **Provider Functions:**
 - `server/lib/providers/minstrategy.js` - Strategic overview (Claude Sonnet 4.5)
 - `server/lib/providers/briefing.js` - Events, traffic, news (Gemini 3.0 Pro)
-- `server/lib/providers/holiday-checker.js` - Holiday detection (Perplexity)
 - `server/lib/providers/consolidator.js` - Final strategy (GPT-5.1)
+
+**Snapshot Enrichment:**
+- `server/lib/holiday-detector.js` - Holiday detection at snapshot creation (Gemini 3.0 Pro + Google Search)
 
 **Backend Routes:**
 - `server/routes/snapshot.js` - POST `/api/snapshot` (trigger waterfall)
@@ -141,19 +142,19 @@ localStorage → subsequent API calls with Authorization header
 **External APIs:**
 - Anthropic Claude API - Strategic overview
 - OpenAI GPT-5 API - Consolidation
-- Google Gemini API - Events, traffic, news, school closures
-- Perplexity API - Holiday research
+- Google Gemini API - Events, traffic, news, school closures (briefing) + holiday detection (snapshot)
 - Google Weather API - Current conditions + 6hr forecast
 - Google Routes API - Traffic conditions
 
 **Data Flow:**
 ```
-Snapshot Creation → POST /api/blocks-fast → 
-3 Parallel Providers (minstrategy, briefing, holiday) → 
-strategies table (minstrategy, briefing columns) → 
-consolidator (GPT-5.1) → 
-strategies table (consolidated_strategy column) → 
-SSE notification (strategy_ready event) → 
+Snapshot Creation (includes holiday detection via Gemini) →
+POST /api/blocks-fast →
+2 Parallel Providers (minstrategy, briefing) →
+strategies table (minstrategy, briefing columns) →
+consolidator (GPT-5.1) →
+strategies table (consolidated_strategy column) →
+SSE notification (strategy_ready event) →
 UI polls /api/strategy/:snapshotId → Display strategy
 ```
 
@@ -341,6 +342,53 @@ Database queries filtered by user_id (RLS policies)
 
 ---
 
+## 📡 WORKING API ENDPOINTS (Verified Dec 9, 2025)
+
+### Complete Frontend → Backend API Reference
+
+| Endpoint | Method | Backend Handler | Purpose |
+|---|---|---|---|
+| `/api/blocks-fast` | POST | `server/routes/blocks-fast.js` | Full TRIAD pipeline (strategy + venues) |
+| `/api/blocks/strategy/:id` | GET | `server/routes/content-blocks.js` | Fetch strategy content blocks |
+| `/api/chat` | POST | `server/routes/chat.js` | AI Coach chat with SSE streaming |
+| `/api/realtime/token` | GET | `server/routes/realtime.js` | OpenAI Realtime API token for voice |
+| `/api/feedback/venue` | POST | `server/routes/feedback.js` | Venue thumbs up/down feedback |
+| `/api/feedback/strategy` | POST | `server/routes/feedback.js` | Strategy thumbs up/down feedback |
+| `/api/feedback/app` | POST | `server/routes/feedback.js` | General app feedback |
+| `/api/location/resolve` | POST | `server/routes/location.js` | Resolve GPS → address + user_id |
+| `/api/location/weather` | GET | `server/routes/location.js` | Current weather for location |
+| `/api/location/airquality` | GET | `server/routes/location.js` | Air quality index for location |
+| `/api/location/snapshot` | POST | `server/routes/location.js` | Create location snapshot |
+| `/api/geocode/reverse` | GET | `server/routes/location.js` | Reverse geocode coordinates |
+| `/api/timezone` | GET | `server/routes/location.js` | Get timezone for coordinates |
+| `/api/users/me` | GET | `server/routes/location.js` | Get current user data |
+| `/api/snapshot/:id` | GET | `server/routes/snapshot.js` | Fetch snapshot by ID |
+| `/api/briefing/weather/:snapshotId` | GET | `server/routes/briefing.js` | Weather briefing data |
+| `/api/briefing/traffic/:snapshotId` | GET | `server/routes/briefing.js` | Traffic conditions data |
+| `/api/briefing/events/:snapshotId` | GET | `server/routes/briefing.js` | Local events data |
+| `/api/briefing/rideshare-news/:snapshotId` | GET | `server/routes/briefing.js` | Rideshare-relevant news |
+| `/api/briefing/school-closures/:snapshotId` | GET | `server/routes/briefing.js` | School/college closures |
+| `/api/diagnostic/identity` | GET | `server/routes/diagnostic-identity.js` | System identity check |
+| `/api/tts` | POST | `server/routes/tts.js` | Text-to-speech generation |
+| `/api/closed-venue-reasoning` | POST | `server/routes/closed-venue-reasoning.js` | AI reasoning for closed venues |
+| `/api/auth/token` | POST | `server/routes/auth.js` | Generate JWT from user_id |
+| `/api/actions` | POST | `server/routes/actions.js` | Log user actions (view, select, navigate) |
+| `/api/strategy/:snapshotId` | GET | `server/routes/strategy.js` | Fetch strategy for snapshot |
+
+### Removed Endpoints (Frontend Hooks Deleted Dec 9, 2025)
+
+The following endpoints were never implemented in the backend. Frontend code that called them has been removed:
+
+| Deleted Frontend File | Removed API Calls |
+|---|---|
+| `useGestureTracker.ts` | `/api/gesture/*` |
+| `usePreviewContext.ts` | `/api/preview/event` |
+| `useAuth.ts` | `/api/auth/*`, `/api/login` |
+| `useProfile.ts` | `/api/user/profile` |
+| `useVectoPilotProfile.ts` | `/api/user/preferences`, `/api/user/stats` |
+
+---
+
 ## 🗄️ DATABASE SCHEMA MAPPING
 
 ### Core Tables
@@ -420,7 +468,6 @@ Database queries filtered by user_id (RLS policies)
 - `traffic_conditions` - JSONB (incidents, congestion)
 - `events` - JSONB (local events with impact)
 - `school_closures` - JSONB (school/college closures)
-- ~~`global_travel`, `domestic_travel`, `local_traffic`~~ - Text fields (Perplexity research - less used)
 
 ---
 
@@ -755,14 +802,13 @@ Database queries filtered by user_id (RLS policies)
 | `consolidator` | GPT-5.1 | `providers/consolidator.js` | Final actionable strategy |
 | `tactical_planner` | GPT-5.1 | `tactical-planner.js` | Venue recommendations |
 | `validator` | Gemini 2.5 Pro | `venue-event-verifier.js` | Event verification |
-| `research_engine` | Perplexity Sonar Pro | `providers/holiday-checker.js` | Holiday detection |
+| `holiday_detector` | Gemini 3.0 Pro | `lib/holiday-detector.js` | Holiday detection (at snapshot) |
 
 **Adapter Files:**
 - `server/lib/adapters/index.js` - Main dispatcher (`callModel`)
 - `server/lib/adapters/anthropic-adapter.js` - Claude integration
 - `server/lib/adapters/openai-adapter.js` - GPT-5 integration
-- `server/lib/adapters/google-gemini.js` - Gemini integration
-- `server/lib/adapters/perplexity-adapter.js` - Perplexity integration
+- `server/lib/adapters/gemini-adapter.js` - Gemini integration
 
 ---
 
@@ -777,57 +823,7 @@ Complete end-to-end JWT authentication with secure user isolation across all API
 ```
 Browser GPS/Geolocation
          ↓
-   [useGeoPosition.ts]
-         ↓
-/api/location/resolve → gets user_id from database
-         ↓
-/api/auth/token → generates JWT with user_id
-         ↓
-localStorage.setItem('token')
-         ↓
-[CoachChat] + [BriefingTab] send Authorization: Bearer ${token}
-         ↓
-[requireAuth middleware] verifies JWT
-         ↓
-All requests scoped to authenticated user_id (user data isolation)
-```
-
-**Files:**
-- `client/src/contexts/location-context-clean.tsx` - Token generation with async callback
-- `server/routes/auth.js` - `/api/auth/token` endpoint
-- `gateway-server.js` - Auth route registration (lines 265-272)
-- `client/src/components/CoachChat.tsx` - Authorization header on /api/chat
-- `client/src/pages/co-pilot.tsx` - Authorization header on /api/briefing/snapshot
-- `server/middleware/auth.js` - requireAuth middleware validates JWT
-
-**Verification Checklist:**
-- ✅ GPS coordinates obtained (native browser or Google Geolocation fallback)
-- ✅ Location resolved and user_id retrieved from /api/location/resolve
-- ✅ JWT token generated via /api/auth/token and stored in localStorage
-- ✅ All API calls include "Authorization: Bearer ${token}" header
-- ✅ Backend verifies JWT and isolates data by user_id
-- ✅ Graceful error handling with console logs for debugging
-
-**Security:**
-- ✅ User_id ONLY from JWT token, never from request body
-- ✅ Database queries filtered by authenticated user_id
-- ✅ All sensitive POST/PATCH/DELETE routes require authentication
-- ✅ 404 (not 401) returned for unauthorized access (prevents enumeration)
-
----
-
-## 🔐 **AUTHENTICATION SYSTEM - PRODUCTION COMPLETE (Dec 2, 2025)**
-
-**Status:** ✅ READY FOR DEPLOYMENT
-
-### Implementation Summary
-Complete end-to-end JWT authentication with secure user isolation across all API endpoints.
-
-**Architecture:**
-```
-Browser GPS/Geolocation
-         ↓
-   [useGeoPosition.ts]
+   [LocationContext]
          ↓
 /api/location/resolve → gets user_id from database
          ↓
@@ -987,12 +983,15 @@ All enrich/validate merges use stable keys (place_id preferred; name fallback) a
 
 ---
 
-### ~~Perplexity Briefing Fields in Strategies Table~~
-**Status:** DEPRECATED (December 2025)  
-**Files:**
-- `shared/schema.js` - `strategies.briefing_news`, `briefing_events`, `briefing_traffic`
+### ~~Perplexity Integration~~
+**Status:** REMOVED (December 2025)
+**Removed Files:**
+- `server/lib/adapters/perplexity-adapter.js`
+- `server/lib/perplexity-research.js`
+- `server/lib/perplexity-event-prompt.js`
+- `server/lib/venue-event-research.js`
 
-**Reason:** Moved to dedicated `briefings` table for better separation of concerns.
+**Reason:** Briefing system migrated to Gemini 3.0 Pro with Google Search for all real-time research (events, traffic, news, holidays). Perplexity adapter and related utilities removed.
 
 ---
 
@@ -1131,6 +1130,29 @@ function isBriefingStale(briefing, ttlMinutes = 30) {
 ```
 
 **Reason:** Production was serving stale briefing data indefinitely because cache expiry only ran in development. Now `getOrGenerateBriefing()` checks `updated_at` and regenerates briefings older than 30 minutes in ALL environments.
+
+---
+
+### ~~Unused Frontend Hooks & Utilities~~ (Removed Dec 9, 2025)
+**Status:** DELETED (13 files)
+**Files:**
+- ~~`client/src/hooks/useGeoPosition.ts`~~ - Wrapper for browser geolocation (unused)
+- ~~`client/src/hooks/use-geolocation.tsx`~~ - Geolocation fallback (unused)
+- ~~`client/src/hooks/useGestureTracker.ts`~~ - Called missing `/api/gesture/*` endpoints
+- ~~`client/src/hooks/usePreviewContext.ts`~~ - Called missing `/api/preview/event`
+- ~~`client/src/hooks/useAuth.ts`~~ - Called missing `/api/auth/*`, `/api/login`
+- ~~`client/src/hooks/useResponseTuning.ts`~~ - Never imported anywhere
+- ~~`client/src/hooks/useProfile.ts`~~ - Wrapper for useVectoPilotProfile
+- ~~`client/src/hooks/useVectoPilotProfile.ts`~~ - Called missing `/api/user/*` endpoints
+- ~~`client/src/utils/mirrorFeedback.ts`~~ - Never imported
+- ~~`client/src/utils/getLocationZone.ts`~~ - Never imported
+- ~~`client/src/utils/getTimeMetadata.ts`~~ - Never imported
+- ~~`client/src/utils/openNavigation.ts`~~ - Never imported
+- ~~`client/src/utils/getGeoPosition.ts`~~ - Never imported
+- ~~`client/src/services/strategyEvents.ts`~~ - Never imported
+- ~~`client/src/components/ui/ThreadPatternRouter.ts`~~ - Never imported
+
+**Reason:** Dead code - hooks called non-existent backend endpoints, utilities were never imported. Removed during frontend-backend API verification cleanup.
 
 ---
 

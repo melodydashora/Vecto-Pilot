@@ -6,8 +6,8 @@
  */
 
 export const UNIFIED_CAPABILITIES = {
-  // Model Configuration - All systems use Claude Sonnet 4.5
-  model: "claude-sonnet-4-5-20250929",
+  // Model Configuration - All systems use Claude Opus 4.5
+  model: "claude-opus-4-5-20251101",
   context_window: 200000,
   thinking_mode: "ultra-deep",
   

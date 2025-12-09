@@ -153,7 +153,7 @@ export function synthesizeFallback(minstrategy, briefing) {
   // Add holiday information
   if (briefing?.holidays && Array.isArray(briefing.holidays) && briefing.holidays.length > 0) {
     const holidays = briefing.holidays.join(', ');
-    lines.push(`\n🎉 **Holidays:** ${holidays} - Expect increased demand patterns`);
+    lines.push(`\n🎉 **Holidays:** ${holidays}`);
   }
   
   // Add traffic intelligence
@@ -187,45 +187,22 @@ export function compressText(text, maxLength) {
 
 /**
  * Check if briefing has renderable content (not just an empty object)
- * @param {Object} briefing - Gemini briefing {events, holidays, traffic, news}
+ * @param {Object} briefing - Briefing data {events, traffic_conditions, news, weather_current, school_closures}
  * @returns {boolean} - True if briefing has at least one populated field
  */
 export function hasRenderableBriefing(briefing) {
   if (!briefing || typeof briefing !== 'object') return false;
-  
-  // Support NEW briefing table structure (text fields)
-  const {
-    global_travel,
-    domestic_travel,
-    local_traffic,
-    weather_impacts,
-    events_nearby,
-    holidays,
-    rideshare_intel
-  } = briefing;
-  
-  // Check if any text field has meaningful content (> 10 chars to avoid trivial/empty content)
-  const hasContent = [
-    global_travel,
-    domestic_travel,
-    local_traffic,
-    weather_impacts,
-    events_nearby,
-    holidays,
-    rideshare_intel
-  ].some(field => typeof field === 'string' && field.trim().length > 10);
-  
-  // Also support OLD structure (events/holidays/traffic/news arrays) for backward compatibility
-  const { events, traffic, news } = briefing;
-  const hasOldFormat = (
-    (Array.isArray(events) && events.length > 0) ||
-    (Array.isArray(holidays) && holidays.length > 0) ||
-    (Array.isArray(news) && news.length > 0) ||
-    (Array.isArray(traffic) && traffic.length > 0) ||
-    (traffic && typeof traffic === 'object' && Object.keys(traffic).length > 0)
-  );
-  
-  return hasContent || hasOldFormat;
+
+  const { events, traffic_conditions, news, weather_current, school_closures } = briefing;
+
+  // Check if any field has meaningful content
+  const hasEvents = Array.isArray(events) ? events.length > 0 : (events?.items?.length > 0);
+  const hasNews = news?.items?.length > 0;
+  const hasTraffic = traffic_conditions && typeof traffic_conditions === 'object' && Object.keys(traffic_conditions).length > 0;
+  const hasWeather = weather_current && typeof weather_current === 'object' && Object.keys(weather_current).length > 0;
+  const hasClosures = Array.isArray(school_closures) ? school_closures.length > 0 : (school_closures?.items?.length > 0);
+
+  return hasEvents || hasNews || hasTraffic || hasWeather || hasClosures;
 }
 
 /**

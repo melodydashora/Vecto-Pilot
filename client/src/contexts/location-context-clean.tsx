@@ -1,6 +1,30 @@
 
 import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
-import { getGeoPosition } from '@/utils/getGeoPosition';
+
+// Inline geolocation helper (previously in utils/getGeoPosition.ts)
+function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      console.warn('[getGeoPosition] Geolocation not supported');
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        });
+      },
+      (error) => {
+        console.warn('[getGeoPosition] Failed:', error.message);
+        resolve(null);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
 
 interface LocationContextType {
   currentCoords: { latitude: number; longitude: number } | null;
@@ -12,6 +36,9 @@ interface LocationContextType {
   lastUpdated: string | null;
   refreshGPS: () => Promise<void>;
   overrideCoords: { latitude: number; longitude: number; city?: string } | null;
+  // Weather and air quality - fetched once during enrichment, shared via context
+  weather: { temp: number; conditions: string; description?: string } | null;
+  airQuality: { aqi: number; category: string } | null;
 }
 
 export const LocationContext = createContext<LocationContextType | null>(null);
@@ -34,6 +61,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [overrideCoords, setOverrideCoords] = useState<{ latitude: number; longitude: number; city?: string } | null>(null);
+  // Weather and air quality state - fetched once during enrichment, exposed via context
+  const [weather, setWeather] = useState<{ temp: number; conditions: string; description?: string } | null>(null);
+  const [airQuality, setAirQuality] = useState<{ aqi: number; category: string } | null>(null);
   const generationCounterRef = useRef(0);
   const isInitialMountRef = useRef(true);
   const lastEnrichmentCoordsRef = useRef<string | null>(null);
@@ -68,6 +98,23 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const locationData = await locationRes.json();
       const weatherData = weatherRes.ok ? await weatherRes.json() : null;
       const airQualityData = airRes.ok ? await airRes.json() : null;
+
+      // Set weather state for context consumers (prevents duplicate API calls in GlobalHeader)
+      if (weatherData?.available) {
+        setWeather({
+          temp: weatherData.temperature,
+          conditions: weatherData.conditions,
+          description: weatherData.description
+        });
+      }
+
+      // Set air quality state for context consumers
+      if (airQualityData?.available) {
+        setAirQuality({
+          aqi: airQualityData.aqi,
+          category: airQualityData.category
+        });
+      }
 
       setCity(locationData.city);
       setState(locationData.state);
@@ -147,7 +194,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const refreshGPS = useCallback(async () => {
     setIsUpdating(true);
     setOverrideCoords(null);
-    
+
     // Clear old strategy
     localStorage.removeItem('vecto_persistent_strategy');
     localStorage.removeItem('vecto_strategy_snapshot_id');
@@ -158,6 +205,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (coords) {
         setCurrentCoords({ latitude: coords.latitude, longitude: coords.longitude });
         await enrichLocation(coords.latitude, coords.longitude, coords.accuracy);
+      } else {
+        // No fallback - GPS-first global app. User must enable location services.
+        console.warn('[LocationContext] Browser geolocation failed - no fallback');
+        setCurrentLocationString('Location unavailable - enable GPS');
       }
     } finally {
       setIsUpdating(false);
@@ -195,7 +246,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isUpdating,
         lastUpdated,
         refreshGPS,
-        overrideCoords
+        overrideCoords,
+        weather,
+        airQuality
       }}
     >
       {children}

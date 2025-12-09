@@ -5,8 +5,6 @@ import {
   Settings,
   RefreshCw,
   Car,
-  Droplet,
-  Thermometer,
   CloudRain,
   Cloud,
   Sun,
@@ -15,17 +13,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { LocationContext } from "@/contexts/location-context-clean";
 import { useQuery } from "@tanstack/react-query";
 
 // helpers (add these files from sections 2 and 3 below)
-import { classifyDayPart, buildTimeContext } from "@/lib/daypart";
-import {
-  buildBaselinePrompt,
-  type BaselineContext,
-} from "@/lib/prompt/baseline";
+import { classifyDayPart } from "@/lib/daypart";
 
 // Optional server endpoints this file calls:
 //   POST /api/context/snapshot      -> store the snapshot (db learning)
@@ -51,19 +44,11 @@ const GlobalHeaderComponent: React.FC = () => {
   const [timeContextLabel, setTimeContextLabel] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
-  const [weather, setWeather] = useState<{
-    temp: number;
-    conditions: string;
-    description?: string;
-  } | null>(null);
-  const [weatherLoading, setWeatherLoading] = useState(false);
-  const [airQuality, setAirQuality] = useState<{
-    aqi: number;
-    category: string;
-  } | null>(null);
-  const [aqLoading, setAqLoading] = useState(false);
-  const [snapshotReady, setSnapshotReady] = useState(false);
-  const [latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
+  // Weather and air quality from context (fetched once in LocationContext, no duplicate calls)
+  const weather = loc?.weather ?? null;
+  const airQuality = loc?.airQuality ?? null;
+  const [_snapshotReady, setSnapshotReady] = useState(false);
+  const [_latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
   const [holiday, setHoliday] = useState<string | null>(null);
   const [isHoliday, setIsHoliday] = useState(false);
 
@@ -280,7 +265,7 @@ const GlobalHeaderComponent: React.FC = () => {
   };
 
   // Reverse geocode and timezone fetch (server preferred; fallbacks included)
-  const reverseGeocode = async (lat: number, lng: number) => {
+  const _reverseGeocode = async (lat: number, lng: number) => {
     try {
       const res = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}`, {
         credentials: "include",
@@ -298,7 +283,7 @@ const GlobalHeaderComponent: React.FC = () => {
     return {};
   };
 
-  const getTimezone = async (lat: number, lng: number) => {
+  const _getTimezone = async (lat: number, lng: number) => {
     try {
       const res = await fetch(`/api/timezone?lat=${lat}&lng=${lng}`, {
         credentials: "include",
@@ -310,74 +295,9 @@ const GlobalHeaderComponent: React.FC = () => {
     return { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
   };
 
-  const getWeather = async (lat: number, lng: number) => {
-    setWeatherLoading(true);
-    try {
-      const res = await fetch(`/api/location/weather?lat=${lat}&lng=${lng}`, {
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.available) {
-          setWeather({
-            temp: data.temperature,
-            conditions: data.conditions,
-            description: data.description,
-          });
-          return data;
-        }
-      }
-    } catch {
-      // Weather is optional, don't fail the snapshot
-    } finally {
-      setWeatherLoading(false);
-    }
-    return null;
-  };
-
-  const getAirQuality = async (lat: number, lng: number) => {
-    setAqLoading(true);
-    try {
-      const res = await fetch(
-        `/api/location/airquality?lat=${lat}&lng=${lng}`,
-        {
-          credentials: "include",
-        },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.available) {
-          setAirQuality({
-            aqi: data.aqi,
-            category: data.category,
-          });
-          return {
-            aqi: data.aqi,
-            category: data.category,
-            dominantPollutant: data.dominantPollutant,
-            healthRecommendations: data.healthRecommendations,
-          };
-        }
-      }
-    } catch {
-      // Air quality is optional, don't fail the snapshot
-    } finally {
-      setAqLoading(false);
-    }
-    return null;
-  };
-
-  // NOTE: Snapshot creation is now handled by location-context-clean.tsx
-  // which fetches ALL data (location, weather, air quality) in parallel
-  // and saves a complete snapshot to the DB. This prevents duplicate API calls.
-
-  // Fetch weather and air quality for header display only (not for snapshot)
-  useEffect(() => {
-    if (coords?.latitude && coords?.longitude) {
-      getWeather(coords.latitude, coords.longitude);
-      getAirQuality(coords.latitude, coords.longitude);
-    }
-  }, [coords?.latitude, coords?.longitude]);
+  // NOTE: Weather and air quality are fetched ONCE in location-context-clean.tsx
+  // during enrichment and exposed via context. GlobalHeader reads from context only.
+  // This prevents duplicate API calls and billing.
 
   const handleRefreshLocation = useCallback(async () => {
     if (!refreshGPS) return;
@@ -409,7 +329,7 @@ const GlobalHeaderComponent: React.FC = () => {
         title: "Location updated",
         description: "Your current location has been refreshed.",
       });
-    } catch (err) {
+    } catch (_err) {
       toast({
         title: "Location update failed",
         description: "Unable to update your location. Please try again.",
@@ -482,12 +402,7 @@ const GlobalHeaderComponent: React.FC = () => {
                     </>
                   )}
                 </span>
-                {weatherLoading ? (
-                  <div
-                    className="h-5 w-14 rounded-full bg-white/10 animate-pulse"
-                    aria-hidden="true"
-                  />
-                ) : weather ? (
+                {weather ? (
                   <span
                     className="flex items-center gap-1 bg-white/15 rounded-full px-2 py-0.5 transition-opacity"
                     title={
@@ -509,12 +424,7 @@ const GlobalHeaderComponent: React.FC = () => {
                     </span>
                   </span>
                 ) : null}
-                {aqLoading ? (
-                  <div
-                    className="h-5 w-16 rounded-full bg-white/10 animate-pulse"
-                    aria-hidden="true"
-                  />
-                ) : airQuality ? (
+                {airQuality ? (
                   <span
                     className="flex items-center gap-1 bg-white/15 rounded-full px-2 py-0.5 transition-opacity"
                     title={`Air Quality: ${airQuality.category} (AQI ${airQuality.aqi})`}

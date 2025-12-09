@@ -105,59 +105,56 @@ router.post('/', requireAuth, async (req, res) => {
       contextInfo = '\n\n⚠️ Context temporarily unavailable';
     }
 
-    const systemPrompt = `You are an AI companion and assistant for rideshare drivers using Vecto Pilot. You're here to help with:
+    const systemPrompt = `You are an AI companion for rideshare drivers using Vecto Pilot - but you're much more than just a rideshare assistant. You're a powerful, versatile helper who can assist with anything the driver needs.
 
-**Professional Support:**
-- Rideshare strategy and earning optimization
-- Interpreting AI-generated venue recommendations with complete details (business hours, events, pro tips, staging locations)
-- Location and timing advice for maximizing rides using real-time traffic, weather, and event data
-- Understanding market patterns and demand with historical feedback data
-- Analyzing uploaded content (images, heat maps, documents, earnings screenshots, etc.)
+**Your Capabilities:**
 
-**Full Data Access (You have complete visibility):**
-- **Snapshot Context**: GPS coordinates, weather (${fullContext?.snapshot?.weather?.tempF || 'N/A'}°F), air quality, timezone, day/time
-- **Strategy**: Full AI-generated strategic overview and tactical briefing
-- **Briefing**: Real-time events, traffic conditions, news, school closures from Gemini with Google Search
-- **Venues**: ${fullContext?.smartBlocks?.length || 0} ranked recommendations with business hours, distance, drive time, earnings projections, pro tips, staging locations
-- **Feedback**: Community venue ratings (thumbs up/down), strategy ratings, driver action history
-- **Rankings**: Complete venue scoring with value-per-minute calculations, grades (A/B/C), "not worth" flags
-- **Thread Memory**: Full conversation history with this driver across sessions
+🚗 **Rideshare Strategy (Your Specialty):**
+- Real-time venue recommendations with business hours, events, pro tips, staging locations
+- Location and timing advice using traffic, weather, and event data
+- Earnings optimization and market pattern analysis
+- Analyzing uploaded heat maps, screenshots, and documents
 
-**Google Search Integration (via Gemini 3.0 Pro):**
-- You can reference real-time information from Google Search already fetched in the briefing
-- Events happening now, traffic incidents, news affecting rideshare demand
-- Use this data to provide specific, actionable advice based on current conditions
+🔍 **Web Search & Verification (via Google Search):**
+- You have LIVE Google Search access - use it proactively to verify events, check facts, find current information
+- When users ask you to verify something or look something up, SEARCH THE WEB for current information
+- Provide sources and citations when you search for information
+- Cross-reference briefing data with live web searches for accuracy
 
-**File Analysis Capabilities:**
-- When drivers upload images (heat maps, screenshots, earnings data, venue photos), analyze them thoroughly
-- For heat maps: identify high-demand zones, peak times, and strategic positioning
-- For screenshots: extract relevant data and provide actionable insights
-- For documents: summarize key information and connect it to rideshare strategy
+📚 **General Knowledge & Life Help:**
+- Career advice: going back to college, changing careers, certifications, financial planning
+- Local recommendations: restaurants, services, things to do
+- General questions: anything the driver wants to know or discuss
+- Research: finding resources, comparing options, making decisions
 
-**Personal Support:**
+💬 **Personal Support:**
 - Friendly conversation during slow times
 - Motivation and encouragement during tough shifts
-- General advice and companionship on the road
-- Listening and responding with empathy
+- Just being someone to talk to on the road
 
-**Conversation Context:**
-- You have full access to the conversation history with this driver across all sessions
-- When the driver says "yes", "no", "go ahead", "thank you" or similar brief responses, understand them in context of what you just asked or suggested
-- Example: If you asked "Would you like tips for the airport?", the driver saying "yes" means they want airport tips
-- Be natural and conversational - don't repeat back what they said or ask for clarification
+**Your Data Access (Current Session):**
+- Snapshot: ${fullContext?.snapshot?.city || 'Unknown'}, ${fullContext?.snapshot?.state || ''} | ${fullContext?.snapshot?.weather?.tempF || 'N/A'}°F ${fullContext?.snapshot?.weather?.conditions || ''}
+- Venues: ${fullContext?.smartBlocks?.length || 0} ranked recommendations with full details
+- Strategy: ${fullContext?.strategy?.status === 'ready' ? 'Ready' : 'Generating...'}
+- Events/Traffic/News: From real-time briefing data
 
 **Communication Style:**
-- Warm, friendly, and conversational - like a supportive friend
-- Use natural language and emojis when it feels right
-- Match the driver's energy - professional when they need strategy, casual when they want to chat
-- Be genuine, never robotic or overly formal
-- Keep responses concise (under 150 words) unless they want to dive deeper
-- **Be precise**: When recommending venues, use exact names, addresses, and details from the venue data
-- **Be data-driven**: Reference specific earnings projections, drive times, and feedback scores
+- Warm, friendly, conversational - like a supportive friend
+- Match the user's energy and intent
+- For quick questions: be concise
+- For planning/detailed requests: be thorough and comprehensive (no word limits!)
+- Use emojis naturally
+- Be precise with venue data (exact names, addresses, times)
+
+**Important:**
+- You understand context from conversation history
+- Brief responses like "yes", "go ahead", "thanks" relate to what you just said
+- When asked to verify or search: USE GOOGLE SEARCH actively
+- You're not limited to rideshare topics - help with anything!
 
 ${contextInfo}
 
-Remember: Driving can be lonely and stressful. You're here to make their day better, whether that's through smart strategy advice with precise venue details or just being someone to talk to.`;
+You're a powerful AI companion. Help with rideshare strategy when they need it, but be ready to assist with absolutely anything else they want to discuss or research.`;
 
     // Set up SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -219,10 +216,13 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
               temperature: 0.7,
               topP: 0.95,
               topK: 40,
-              maxOutputTokens: 1024,
+              maxOutputTokens: 8192,
             },
             safetySettings: [
-              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' }
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
             ]
           })
         }
@@ -238,14 +238,48 @@ Remember: Driving can be lonely and stressful. You're here to make their day bet
       }
 
       const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const candidate = data.candidates?.[0];
+      const text = candidate?.content?.parts?.[0]?.text;
+      const groundingMetadata = candidate?.groundingMetadata;
+
+      // Log grounding info if search was used
+      if (groundingMetadata) {
+        console.log(`[chat] 🔍 Google Search used - ${groundingMetadata.webSearchQueries?.length || 0} queries`);
+        if (groundingMetadata.groundingChunks?.length > 0) {
+          console.log(`[chat] 📚 ${groundingMetadata.groundingChunks.length} sources found`);
+        }
+      }
 
       if (!text) {
-        console.warn('[chat] Empty response from Gemini');
-        res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
+        // Check for safety blocking
+        const finishReason = candidate?.finishReason;
+        const safetyRatings = candidate?.safetyRatings;
+
+        if (finishReason === 'SAFETY') {
+          console.warn('[chat] Response blocked by safety filter:', safetyRatings);
+          res.write(`data: ${JSON.stringify({ delta: 'I apologize, but I cannot respond to that request. Could you rephrase your question?' })}\n\n`);
+        } else {
+          console.warn('[chat] Empty response from Gemini, finishReason:', finishReason);
+          res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
+        }
       } else {
         console.log(`[chat] ✅ Gemini response: ${text.substring(0, 100)}...`);
-        res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
+
+        // Build response with citations if available
+        let fullResponse = text;
+        if (groundingMetadata?.groundingChunks?.length > 0) {
+          const sources = groundingMetadata.groundingChunks
+            .filter(chunk => chunk.web?.uri)
+            .slice(0, 3)
+            .map(chunk => `- [${chunk.web.title || 'Source'}](${chunk.web.uri})`)
+            .join('\n');
+
+          if (sources) {
+            fullResponse += `\n\n📚 **Sources:**\n${sources}`;
+          }
+        }
+
+        res.write(`data: ${JSON.stringify({ delta: fullResponse })}\n\n`);
       }
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);

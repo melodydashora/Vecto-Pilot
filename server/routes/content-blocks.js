@@ -9,6 +9,7 @@ import {
   snapshots,
   rankings,
   ranking_candidates,
+  briefings,
 } from "../../shared/schema.js";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
@@ -48,6 +49,21 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       .where(eq(snapshots.snapshot_id, snapshotId))
       .limit(1);
 
+    // Fetch briefing from separate briefings table
+    const [briefingRow] = await db
+      .select()
+      .from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId))
+      .limit(1);
+
+    // Format briefing for frontend (useStrategy expects this shape)
+    const briefingData = briefingRow ? {
+      events: briefingRow.events || [],
+      news: briefingRow.news?.items || briefingRow.news || [],
+      traffic: briefingRow.traffic_conditions || {},
+      holidays: briefingRow.holidays || [],
+    } : null;
+
     // Calculate elapsed time
     const startedAt =
       strategy.strategy_timestamp ?? strategy.created_at ?? null;
@@ -69,7 +85,8 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         timeElapsedMs,
         waitFor: ["strategy"],
         strategy: {
-          holiday: snapshot?.holiday || null,
+          holiday: snapshot?.holiday || 'none',
+          briefing: briefingData,
         },
       });
     }
@@ -117,7 +134,8 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
           min: strategy.minstrategy || "",
           consolidated: strategy.consolidated_strategy || "",
           strategy_for_now: strategy.strategy_for_now || "",
-          holiday: snapshot?.holiday || null,
+          holiday: snapshot?.holiday || 'none',
+          briefing: briefingData,
         },
         blocks: [],
       });
@@ -133,6 +151,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         consolidated: strategy.consolidated_strategy || "",
         strategy_for_now: strategy.strategy_for_now || "",
         holiday: snapshot?.holiday || null,
+        briefing: briefingData,
       },
       blocks,
       ranking_id: ranking.ranking_id,

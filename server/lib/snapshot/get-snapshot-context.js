@@ -1,13 +1,13 @@
 // server/lib/snapshot/get-snapshot-context.js
-// Two variants: minimal context for minstrategy/holiday, full snapshot for consolidator/briefing
+// Two variants: minimal context for minstrategy, full snapshot for consolidator/briefing
 
 import { db } from '../../db/drizzle.js';
 import { snapshots, users } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
- * MINIMAL context: Only fields needed for quick checks (holiday, time context)
- * Used by: minstrategy, holiday-checker
+ * MINIMAL context: Only fields needed for quick checks (time context)
+ * Used by: minstrategy, consolidator
  */
 export async function getSnapshotContext(snapshotId) {
   const [snapshot] = await db

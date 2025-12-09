@@ -80,15 +80,17 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     : 'unknown time';
 
   // Build system/developer prompt - use driver's actual location
-  const location = snapshot?.formatted_address 
-    ? snapshot.formatted_address 
-    : snapshot?.city && snapshot?.state 
-      ? `${snapshot.city}, ${snapshot.state}` 
+  const location = snapshot?.formatted_address
+    ? snapshot.formatted_address
+    : snapshot?.city && snapshot?.state
+      ? `${snapshot.city}, ${snapshot.state}`
       : 'the local area';
-  
+
   const developer = [
-    `You are an expert rideshare strategist for the ${location} region.`,
-    "Your job: Analyze the strategy and recommend specific venues with EXACT COORDINATES and tactical tips.",
+    `You are an expert rideshare tactician for the ${location} region.`,
+    "Your job: Convert the IMMEDIATE action plan into specific venues with EXACT COORDINATES.",
+    "",
+    "🎯 MISSION: Where should this driver go RIGHT NOW (next 1-2 hours) to maximize earnings?",
     "",
     "CRITICAL REQUIREMENTS:",
     "1. EVERY venue MUST have TWO sets of coordinates:",
@@ -96,49 +98,48 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "   - Staging coords (staging_lat/staging_lng): Where to park/wait for this specific venue",
     "2. Provide 4-6 SPECIFIC venue names (not districts or areas)",
     "3. Include category + 2-3 tactical pro tips per venue (pickup zones, positioning, timing)",
-    "4. Google APIs will handle addresses/distances - you only provide coords + strategy",
+    "4. Focus on venues with ACTIVE demand RIGHT NOW or within the next hour",
     "",
-    "VENUE SELECTION:",
-    `- Use REAL, SPECIFIC venues near ${location} (use actual venue names from Maps)`,
-    "- For multi-location districts, pick ONE specific entrance/parking lot/building with exact coords",
-    "- Example: Instead of 'The District' → 'Marriott Hotel at The District' with specific entrance coords",
+    "VENUE SELECTION (RIGHT NOW FOCUS):",
+    `- ONLY recommend venues near ${location} with current or imminent demand`,
+    "- Prioritize: venues that are OPEN NOW or opening within 30 minutes",
+    "- Consider: rush hour patterns, lunch/dinner timing, event let-outs",
+    "- Use REAL, SPECIFIC venue names (actual business names from Maps)",
     "- Each venue = specific business, building, or landmark with GPS coordinates",
-    "- REQUIRED: Provide exact decimal coordinates in standard format",
-    "- Venues MUST be spread 2-3 minutes drive apart (different locations/districts)",
-    "- DO NOT recommend multiple venues in same building/complex",
+    "- Venues MUST be spread 2-3 minutes drive apart (different locations)",
     "",
     "STAGING LOCATIONS:",
-    "- EACH venue needs its own staging coords (nearby parking lot, safe waiting spot)",
-    "- PLUS one central staging point (best_staging_location) within 2 min drive of ALL venues",
-    "- Prioritize free parking lots, gas stations, safe pull-offs, hotel front drives",
+    "- EACH venue needs staging coords (nearby parking lot, safe waiting spot)",
+    "- PLUS one central staging point within 2 min drive of ALL venues",
+    "- Prioritize free parking lots, gas stations, hotel front drives",
     "",
     "STRATEGIC TIMING:",
-    "- If recommending a venue that might be closed now, provide strategic timing reason",
-    "- Examples: 'Opens in 30 min', 'Event starts at 7 PM', 'Late night demand picks up at midnight'",
-    "- Google APIs will check actual business hours - you provide the strategic WHY",
+    "- If a venue opens soon, include strategic_timing: 'Opens in 30 min - position early'",
+    "- If event ending: 'Concert ends 10 PM - arrive 9:45 for surge'",
+    "- Google APIs will verify hours - you explain the tactical WHY",
     "",
     "OUTPUT FORMAT (JSON only):",
     "{",
     '  "recommended_venues": [',
     '    {',
     '      "name": "Specific Venue Name",',
-    '      "lat": 00.0000,  // Venue entrance/main location (exact decimal coordinates)',
+    '      "lat": 00.0000,',
     '      "lng": -00.0000,',
-    '      "staging_lat": 00.0000,  // Where to park/stage for this venue',
+    '      "staging_lat": 00.0000,',
     '      "staging_lng": -00.0000,',
-    '      "staging_name": "Nearby parking lot/safe spot name",',
+    '      "staging_name": "Nearby parking lot name",',
     '      "category": "airport|entertainment|shopping|dining|sports_venue|transit_hub|hotel|nightlife|event_venue|other",',
-    '      "pro_tips": ["Pickup zone strategy", "Where to position", "Timing/demand insight"],',
-    '      "strategic_timing": "Opens in 30 min - position early"  // Strategic reason (if venue might be closed)',
+    '      "pro_tips": ["Pickup zone tip", "Positioning tip", "Timing tip"],',
+    '      "strategic_timing": "Why now (if relevant)"',
     '    }',
     '  ],',
     '  "best_staging_location": {',
-    '    "name": "Central Staging Location Name",',
+    '    "name": "Central Staging Spot",',
     '    "lat": 00.0000,',
     '    "lng": -00.0000,',
-    '    "reason": "Why this central position works for all venues"',
+    '    "reason": "Why this position works"',
     '  },',
-    '  "tactical_summary": "Brief 1-2 sentence action plan"',
+    '  "tactical_summary": "Go to X now because Y - expect Z rides in next hour"',
     "}"
   ].join("\n");
 
@@ -147,18 +148,19 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "CURRENT DATE/TIME:",
     `${dayName}, ${dateStr} at ${timeStr}`,
     "",
-    "STRATEGIC OVERVIEW:",
+    "🎯 IMMEDIATE ACTION PLAN (What to do RIGHT NOW):",
     strategy,
     "",
-    "DRIVER CURRENT LOCATION (GPS):",
+    "DRIVER CURRENT LOCATION:",
     `${snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown'}`,
-    `Coordinates: ${snapshot?.lat}, ${snapshot?.lng}`,
+    `GPS: ${snapshot?.lat}, ${snapshot?.lng}`,
     "",
-    "CRITICAL: Generate venues within 25 miles of the driver's CURRENT coordinates above.",
-    "Do NOT generate venues where the strategy suggests repositioning to - only near current location.",
-    "The strategy may suggest moving to another area, but your job is to show tactical options from where they are NOW.",
+    "YOUR TASK:",
+    "Convert the immediate action plan above into 4-6 SPECIFIC venues with exact coordinates.",
+    "Focus on venues with ACTIVE demand RIGHT NOW (not future events).",
+    "All venues must be within 15 miles of driver's current GPS coordinates.",
     "",
-    "What specific venues near the driver's current location should they target? Return JSON with coords + category + tips + strategic timing."
+    "Return JSON with venue coords, staging coords, category, pro tips, and tactical summary."
   ].join("\n");
 
   console.log(`[TRIAD 2/3 - GPT-5 Planner] Calling GPT-5 (using default temperature - GPT-5 doesn't support custom temperature)...`);

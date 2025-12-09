@@ -23,7 +23,7 @@ interface EventsComponentProps {
   isLoading?: boolean;
 }
 
-export default function EventsComponent({ events, isLoading }: EventsComponentProps) {
+export default function EventsComponent({ events, isLoading: _isLoading }: EventsComponentProps) {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     concerts: true,
     sports: true,
@@ -43,7 +43,7 @@ export default function EventsComponent({ events, isLoading }: EventsComponentPr
     }
   };
 
-  const getCategoryIcon = (subtype?: string) => {
+  const _getCategoryIcon = (subtype?: string) => {
     if (!subtype) return "📌";
     const sub = subtype.toLowerCase();
     if (sub.includes("concert") || sub.includes("music")) return "🎵";

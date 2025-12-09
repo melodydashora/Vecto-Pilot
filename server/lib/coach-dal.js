@@ -192,45 +192,40 @@ export class CoachDAL {
   }
 
   /**
-   * Get comprehensive briefing (both strategies JSONB and briefings table)
+   * Get comprehensive briefing from briefings table
+   * NOTE: Briefing data is stored in separate `briefings` table, NOT in strategies table
    * @param {string} snapshotId - Snapshot ID to scope reads
    * @returns {Promise<Object>} Complete briefing data
    */
   async getComprehensiveBriefing(snapshotId) {
     try {
-      // Get briefing from strategies table
-      const strategy = await this.getLatestStrategy(snapshotId);
-      
-      // Get briefing from briefings table (Perplexity + GPT-5)
+      // Get briefing from briefings table (the ONLY source for briefing data)
       const [briefingRecord] = await db
         .select()
         .from(briefings)
         .where(eq(briefings.snapshot_id, snapshotId))
         .limit(1);
 
+      if (!briefingRecord) {
+        return {
+          events: [],
+          traffic: [],
+          news: [],
+        };
+      }
+
       return {
-        // From strategies table
-        events: strategy?.briefing?.events || [],
-        traffic: strategy?.briefing?.traffic || [],
-        news: strategy?.briefing?.news || [],
-        holidays: strategy?.briefing?.holidays || [],
-        // NEW: From briefings table - Structured API data
-        weather_current: briefingRecord?.weather_current || null,
-        weather_forecast: briefingRecord?.weather_forecast || null,
-        traffic_conditions: briefingRecord?.traffic_conditions || null,
-        briefing_news: briefingRecord?.news || null,
-        briefing_events: briefingRecord?.events || null,
-        // Perplexity + GPT-5 research
-        global_travel: briefingRecord?.global_travel || null,
-        domestic_travel: briefingRecord?.domestic_travel || null,
-        local_traffic: briefingRecord?.local_traffic || null,
-        weather_impacts: briefingRecord?.weather_impacts || null,
-        events_nearby: briefingRecord?.events_nearby || null,
-        rideshare_intel: briefingRecord?.rideshare_intel || null,
-        tactical_traffic: briefingRecord?.tactical_traffic || null,
-        tactical_closures: briefingRecord?.tactical_closures || null,
-        tactical_enforcement: briefingRecord?.tactical_enforcement || null,
-        citations: briefingRecord?.citations || null,
+        // Events, news, traffic from briefings table
+        events: briefingRecord.events || [],
+        traffic: briefingRecord.traffic_conditions || {},
+        news: briefingRecord.news || { items: [] },
+        school_closures: briefingRecord.school_closures || [],
+        // Structured API data
+        weather_current: briefingRecord.weather_current || null,
+        weather_forecast: briefingRecord.weather_forecast || null,
+        traffic_conditions: briefingRecord.traffic_conditions || null,
+        briefing_news: briefingRecord.news || null,
+        briefing_events: briefingRecord.events || null,
       };
     } catch (error) {
       console.error('[CoachDAL] getComprehensiveBriefing error:', error);
@@ -322,15 +317,20 @@ export class CoachDAL {
   }
 
   /**
-   * Get briefing data (events, traffic, news, holidays) from strategy JSONB (legacy)
+   * Get briefing data (events, traffic, news, holidays) from briefings table
+   * NOTE: Briefing data is in separate `briefings` table, NOT in strategies table
    * @param {string} snapshotId - Snapshot ID to scope reads
    * @returns {Promise<Object>} Briefing data
    */
   async getBriefing(snapshotId) {
     try {
-      const strategy = await this.getLatestStrategy(snapshotId);
-      
-      if (!strategy || !strategy.briefing) {
+      const [briefingRecord] = await db
+        .select()
+        .from(briefings)
+        .where(eq(briefings.snapshot_id, snapshotId))
+        .limit(1);
+
+      if (!briefingRecord) {
         return {
           events: [],
           traffic: [],
@@ -339,12 +339,12 @@ export class CoachDAL {
         };
       }
 
-      const briefing = strategy.briefing;
       return {
-        events: briefing.events || [],
-        traffic: briefing.traffic || [],
-        news: briefing.news || [],
-        holidays: briefing.holidays || [],
+        events: briefingRecord.events || [],
+        traffic: briefingRecord.traffic_conditions || {},
+        news: briefingRecord.news || { items: [] },
+        holidays: briefingRecord.holidays || [],
+        school_closures: briefingRecord.school_closures || [],
       };
     } catch (error) {
       console.error('[CoachDAL] getBriefing error:', error);
@@ -634,28 +634,6 @@ export class CoachDAL {
         });
       }
 
-      // PERPLEXITY + GPT-5 RESEARCH
-      if (briefing.global_travel) {
-        prompt += `\n\n🌐 GLOBAL TRAVEL CONDITIONS (Perplexity)`;
-        prompt += `\n${briefing.global_travel.substring(0, 150)}...`;
-      }
-      if (briefing.local_traffic) {
-        prompt += `\n\n🛣️  LOCAL TRAFFIC & CONSTRUCTION (Perplexity)`;
-        prompt += `\n${briefing.local_traffic.substring(0, 150)}...`;
-      }
-
-      // Rideshare Intelligence
-      if (briefing.rideshare_intel) {
-        prompt += `\n\n💡 RIDESHARE INTELLIGENCE (Perplexity)`;
-        prompt += `\n${briefing.rideshare_intel.substring(0, 150)}...`;
-      }
-
-      // Tactical 30-min forecast
-      if (briefing.tactical_traffic || briefing.tactical_closures) {
-        prompt += `\n\n⚡ NEXT 30 MINUTES (GPT-5 Tactical)`;
-        if (briefing.tactical_traffic) prompt += `\n   Traffic: ${briefing.tactical_traffic.substring(0, 80)}...`;
-        if (briefing.tactical_closures) prompt += `\n   Closures: ${briefing.tactical_closures.substring(0, 80)}...`;
-      }
     }
 
     // ========== SMART BLOCKS (Location Recommendations) ==========

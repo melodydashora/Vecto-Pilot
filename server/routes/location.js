@@ -1009,7 +1009,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     const { detectHoliday } = await import('../lib/holiday-detector.js');
     
     let airportContext = null;
-    let holidayInfo = { holiday: null, is_holiday: false };
+    let holidayInfo = { holiday: 'none', is_holiday: false };
 
     // Run airport and holiday detection in parallel
     const [airportResult, holidayResult] = await Promise.allSettled([
@@ -1107,9 +1107,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       is_holiday: holidayInfo.is_holiday
     });
 
-    // BRIEFING: Disabled old Gemini briefing (now using Perplexity via strategy pipeline)
-    // New architecture: briefing runs via runBriefing provider → writes to 'briefings' table
-    let localNews = null;
+    // NOTE: Briefing data is now stored in separate 'briefings' table (generated via blocks-fast pipeline)
 
     // Transform SnapshotV1 to Postgres schema
     // Helper to safely parse dates, returning null for invalid dates
@@ -1166,13 +1164,10 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         category: snapshotV1.air.category
       } : null,
       airport_context: airportContext,
-      local_news: null,
-      news_briefing: localNews,
       holiday: holidayInfo.holiday,
       is_holiday: holidayInfo.is_holiday,
       device: snapshotV1.device || null,
       permissions: snapshotV1.permissions || null,
-      extras: snapshotV1.extras || null,
     };
 
     // SELF-CONTAINED VALIDATION: Verify snapshot has complete location data
@@ -1245,18 +1240,6 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       }
     }
 
-    // Also save to filesystem for backup/debugging
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const dataDir = path.join(process.cwd(), 'data', 'context-snapshots');
-    await fs.mkdir(dataDir, { recursive: true });
-
-    const filename = `snapshot_${snapshotV1.device_id}_${Date.now()}.json`;
-    await fs.writeFile(
-      path.join(dataDir, filename),
-      JSON.stringify(snapshotV1, null, 2)
-    );
-
     // Convert dow to day name
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = dayNames[snapshotV1.time_context?.dow] || 'unknown';
@@ -1284,72 +1267,23 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       state: snapshotV1.resolved?.state
     });
     
-    if (snapshotV1.resolved?.formattedAddress || snapshotV1.resolved?.city) {
-      console.log(`[location] 🚀 Triggering strategy pipeline (strategist → briefer → consolidator) for ${snapshotV1.snapshot_id}...`);
-      
-      const { runSimpleStrategyPipeline } = await import('../lib/strategy-generator-parallel.js');
-      
-      // Fire-and-forget with comprehensive error logging
-      runSimpleStrategyPipeline({
-        snapshotId: snapshotV1.snapshot_id,
-        userId: snapshotV1.user_id,
-        userAddress: snapshotV1.resolved?.formattedAddress,
-        city: snapshotV1.resolved?.city,
-        state: snapshotV1.resolved?.state,
-        lat: snapshotV1.coord.lat,
-        lng: snapshotV1.coord.lng,
-        snapshot: {
-          day_part_key: snapshotV1.time_context?.day_part_key,
-          dow: snapshotV1.time_context?.dow,
-          weather: snapshotV1.weather,
-          air: snapshotV1.air,
-          airport_context: airportContext // FAA information (delays, weather) within 30 miles
-        }
-      }).then(() => {
-        console.log(`[location] ✅ Strategy pipeline COMPLETED for ${snapshotV1.snapshot_id}`);
-      }).catch(err => {
-        console.error(`[location] ❌ Strategy pipeline FAILED for ${snapshotV1.snapshot_id}:`, err.message, err.stack);
-      });
-      
-      console.log(`[location] ✅ Strategy pipeline INITIATED for snapshot ${snapshotV1.snapshot_id}`);
-    } else {
-      console.warn(`[location] ⚠️  Skipping strategy generation - no address or city for snapshot ${snapshotV1.snapshot_id}`);
-    }
+    // NOTE: Strategy pipeline is triggered by blocks-fast POST endpoint (not here)
+    // This prevents race conditions between two parallel triggers
+    // blocks-fast ensures: 1) Briefing completes before consolidation
+    //                      2) Proper fail-fast if briefing fails
+    //                      3) Single pipeline execution path
+    console.log(`[location] 📍 Snapshot ready for strategy pipeline: ${snapshotV1.snapshot_id} (triggered via /api/blocks-fast)`);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       snapshot_id: snapshotV1.snapshot_id,
       h3_r8,
-      status: 'parallel_providers_initiated',
+      status: 'snapshot_created',
       req_id: cid
     });
   } catch (err) {
     console.error('[location] snapshot error', err);
     return httpError(res, 500, 'snapshot_failed', String(err?.message || err), cid);
-  }
-});
-
-// GET /api/location/snapshot/latest
-// Fetch latest context snapshot for a user
-router.get('/snapshot/latest', async (req, res) => {
-  try {
-    const userId = req.query.userId || 'default';
-
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const dataDir = path.join(process.cwd(), 'data', 'context-snapshots');
-    const filename = path.join(dataDir, `latest_${userId}.json`);
-
-    const data = await fs.readFile(filename, 'utf-8');
-    const snapshot = JSON.parse(data);
-
-    res.json(snapshot);
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      return res.status(404).json({ error: 'No snapshot found' });
-    }
-    console.error('[location] snapshot fetch error', err);
-    res.status(500).json({ error: 'snapshot-fetch-failed' });
   }
 });
 

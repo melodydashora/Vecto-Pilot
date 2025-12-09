@@ -40,7 +40,7 @@ Generate ONLY a concise 2-3 sentence tactical instruction for what the driver sh
         messages: [
           { role: 'user', content: prompt }
         ],
-        reasoning: { effort: 'medium' },
+        // GPT-5.1: Do NOT include temperature or reasoning_effort - just let it run fast
         max_completion_tokens: 500
       })
     });
@@ -259,14 +259,15 @@ export async function runConsolidator(snapshotId) {
     console.log(`[consolidator] 📍 Location: ${userAddress}`);
     console.log(`[consolidator] 🕐 Time: ${localTime} (${dayPart})`);
     
-    // Step 4: Build Tactical Dispatcher prompt with RAW briefing JSON
-    const prompt = `You are a TACTICAL DISPATCHER for rideshare drivers. Synthesize the intelligence below into a clear, actionable "Strategy for Now."
+    // Step 4: Build Daily Strategy prompt with RAW briefing JSON
+    // This is the DAILY STRATEGY (8-12 hours) that goes to the Briefing Tab
+    const prompt = `You are a STRATEGIC ADVISOR for rideshare drivers. Create a comprehensive "Daily Strategy" covering the next 8-12 hours.
 
 === DRIVER CONTEXT ===
 Location: ${userAddress}
 Coordinates: ${ctx.lat}, ${ctx.lng}
 City: ${cityDisplay}, ${ctx.state || ''}
-Time: ${localTime}
+Current Time: ${localTime}
 Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
 Day Part: ${dayPart}
 ${ctx.is_holiday ? `HOLIDAY: ${ctx.holiday}` : ''}
@@ -293,21 +294,21 @@ ${JSON.stringify(weatherData, null, 2)}
 ${JSON.stringify(closuresData, null, 2)}
 
 === YOUR TASK ===
-Synthesize ALL the above into a clear "Strategy for Now" for this driver.
+Create a DAILY STRATEGY for this driver covering the next 8-12 hours. Think like a shift planner, not just immediate tactics.
 
-CRITICAL: Reference SPECIFIC details from the data above (traffic incidents by name, event venues, closure streets).
+CRITICAL: Reference SPECIFIC details from the data above (traffic incidents by name, event venues, closure streets, weather impacts).
 
-Output 3-5 paragraphs:
-1. Current situation: "Right now in ${cityDisplay}..."
-2. Reference specific traffic incidents/conditions from CURRENT_TRAFFIC_DATA
-3. Call out events happening today from CURRENT_EVENTS_DATA
-4. Hazards or avoid-zones
-5. Clear RECOMMENDATION: "Your best move right now is..."
-6. Timing guidance
+Output 4-6 paragraphs covering:
+1. Today's overview: "Today in ${cityDisplay} (${dayOfWeek})..." - What makes today unique?
+2. Morning/Afternoon strategy: Where demand will be and when
+3. Events impact: Specific events from CURRENT_EVENTS_DATA and their timing/surge windows
+4. Traffic & hazards: Road closures, construction, areas to avoid
+5. Weather considerations: How conditions affect rider behavior
+6. Peak windows: "Your best earning windows today are..." with specific times and locations
 
-STYLE: Direct, conversational (like a dispatcher). Be specific about locations, streets, times. No bullet points. No generic advice.
+STYLE: Strategic and forward-looking. Think 8-12 hours ahead. Be specific about times, locations, and events. No bullet points.
 
-DO NOT: List venues, give vague advice, repeat minstrategy verbatim, output JSON.`;
+DO NOT: Focus only on "right now", list venues without context, repeat minstrategy verbatim, output JSON.`;
 
     console.log(`[consolidator] 📝 Prompt size: ${prompt.length} chars`);
     

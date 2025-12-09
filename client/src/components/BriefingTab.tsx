@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Newspaper, Cloud, CloudRain, Sun, Wind, Droplets,
-  AlertTriangle, Car, RefreshCw, Loader, Clock, ExternalLink,
+import {
+  Newspaper, Cloud, CloudRain, Sun,
+  AlertTriangle, Car, Loader, Clock, ExternalLink,
   ChevronDown, ChevronUp, BookOpen, Sparkles
 } from "lucide-react";
 import EventsComponent from "./EventsComponent";
@@ -18,13 +17,20 @@ interface SchoolClosure {
   impact: 'high' | 'medium' | 'low';
 }
 
+interface BriefingEvent {
+  event_date?: string;
+  event_type?: string;
+  subtype?: string;
+  [key: string]: unknown;
+}
+
 interface BriefingTabProps {
   snapshotId?: string;
-  weatherData?: any;
-  trafficData?: any;
-  newsData?: any;
-  eventsData?: any;
-  schoolClosuresData?: any;
+  weatherData?: unknown;
+  trafficData?: unknown;
+  newsData?: unknown;
+  eventsData?: { events?: BriefingEvent[]; reason?: string };
+  schoolClosuresData?: { school_closures?: SchoolClosure[]; reason?: string };
   consolidatedStrategy?: string;
 }
 
@@ -37,7 +43,7 @@ export default function BriefingTab({
   schoolClosuresData,
   consolidatedStrategy
 }: BriefingTabProps) {
-  const [expandedWeather, setExpandedWeather] = useState(true);
+  const [_expandedWeather, _setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedNews, setExpandedNews] = useState(true);
   const [expandedClosures, setExpandedClosures] = useState(true);
@@ -60,7 +66,7 @@ export default function BriefingTab({
   }
 
   // Utility functions
-  const celsiusToFahrenheit = (celsius: number) => Math.round((celsius * 9/5) + 32);
+  const _celsiusToFahrenheit = (celsius: number) => Math.round((celsius * 9/5) + 32);
 
   const getWeatherIcon = (conditionType?: string | null, isDaytime?: boolean | null) => {
     if (!conditionType) return <Cloud className="w-6 h-6 text-gray-500" />;
@@ -97,7 +103,8 @@ export default function BriefingTab({
     }
   };
 
-  const isClosureActive = (closure: SchoolClosure): boolean => {
+  // Show closures that are currently active OR start within next 30 days
+  const isClosureRelevant = (closure: SchoolClosure): boolean => {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -105,21 +112,19 @@ export default function BriefingTab({
       closureStart.setHours(0, 0, 0, 0);
       const reopeningDate = new Date(closure.reopeningDate);
       reopeningDate.setHours(0, 0, 0, 0);
-      return today >= closureStart && today <= reopeningDate;
+
+      // Show if: closure hasn't ended yet (reopeningDate >= today)
+      // This includes both active closures AND upcoming closures
+      return reopeningDate >= today;
     } catch {
       return true;
     }
   };
 
-  const isEventToday = (event: any): boolean => {
-    try {
-      // Always return true - show all events regardless of date
-      // The briefing service should already filter by date
-      return true;
-    } catch (e) {
-      console.warn('[BriefingTab] Date parse error for event:', event.event_date, e);
-      return true; // Show on error
-    }
+  const _isEventToday = (_event: BriefingEvent): boolean => {
+    // Always return true - show all events regardless of date
+    // The briefing service should already filter by date
+    return true;
   };
 
   if (!snapshotId) {
@@ -139,16 +144,28 @@ export default function BriefingTab({
   const weather = weatherData?.weather;
   const traffic = trafficData?.traffic;
   const news = newsData?.news;
-  const allEvents = (eventsData?.events || []).map((event: any) => ({
+  const allEvents = (eventsData?.events || []).map((event: BriefingEvent) => ({
     ...event,
     // Map event_type to subtype for EventsComponent compatibility
     subtype: event.event_type || event.subtype,
+    // Map location to venue for EventsComponent compatibility
+    venue: event.venue || event.location,
   }));
-  const eventsReason = eventsData?.reason || null;
+  const _eventsReason = eventsData?.reason || null;
   
   const allClosures = schoolClosuresData?.school_closures || [];
   const closuresReason = schoolClosuresData?.reason || null;
-  const schoolClosures = allClosures.filter(isClosureActive);
+  const schoolClosures = allClosures.filter(isClosureRelevant);
+
+  // Debug: Log closures data transformation
+  if (allClosures.length > 0 || schoolClosures.length > 0) {
+    console.log('[BriefingTab] School closures:', {
+      allClosuresCount: allClosures.length,
+      filteredCount: schoolClosures.length,
+      allClosures: allClosures.map(c => ({ name: c.schoolName, start: c.closureStart, end: c.reopeningDate })),
+      closuresReason
+    });
+  }
   
   // Show all events and news - backend already filters by relevance/date
   const eventsToday = allEvents;
@@ -168,6 +185,28 @@ export default function BriefingTab({
           )}
         </div>
       </div>
+
+      {/* Daily Strategy Overview - TOP PRIORITY */}
+      {consolidatedStrategy && (
+        <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-lg" data-testid="daily-strategy-card">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-purple-100">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                </div>
+                <span className="text-purple-900">Today's Strategy</span>
+              </CardTitle>
+              <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
+                ✅ Complete
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{consolidatedStrategy}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Weather Forecast Card - 6 Hour Only */}
       {weather?.forecast && weather.forecast.length > 0 && (
@@ -358,20 +397,6 @@ export default function BriefingTab({
         <EventsComponent events={eventsToday} isLoading={false} />
       )}
 
-      {/* Consolidated Daily Strategy - NEW */}
-      {consolidatedStrategy && (
-        <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200" data-testid="consolidated-strategy-card">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-600" />
-              Daily Strategy Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-700 leading-relaxed">{consolidatedStrategy}</p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* School Closures Section - LAST */}
       <Card data-testid="school-closures-card">

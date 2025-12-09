@@ -5,13 +5,13 @@
 /**
  * Detect holiday for a given date/location using Gemini 3.0 Pro
  * @param {Object} context - { created_at, city, state, country, timezone }
- * @returns {Promise<{ holiday: string|null, is_holiday: boolean }>}
+ * @returns {Promise<{ holiday: string, is_holiday: boolean }>} holiday is 'none' or holiday name
  */
 export async function detectHoliday(context) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.warn('[holiday-detector] ⚠️ GEMINI_API_KEY not set - skipping holiday detection');
-    return { holiday: null, is_holiday: false };
+    return { holiday: 'none', is_holiday: false };
   }
 
   // 1. Format date for the user's specific timezone
@@ -88,7 +88,7 @@ export async function detectHoliday(context) {
     if (!response.ok) {
       const errText = await response.text();
       console.error(`[holiday-detector] Gemini API Error ${response.status}: ${errText.substring(0, 200)}`);
-      return { holiday: null, is_holiday: false };
+      return { holiday: 'none', is_holiday: false };
     }
 
     const data = await response.json();
@@ -97,7 +97,7 @@ export async function detectHoliday(context) {
 
     if (!text) {
       console.warn('[holiday-detector] Empty response from Gemini');
-      return { holiday: null, is_holiday: false };
+      return { holiday: 'none', is_holiday: false };
     }
 
     // 4. Parse Strict JSON
@@ -105,9 +105,9 @@ export async function detectHoliday(context) {
       const parsed = JSON.parse(text);
 
       const isHoliday = parsed.is_holiday === true;
-      const holidayName = isHoliday ? parsed.name : null;
+      const holidayName = isHoliday ? parsed.name : 'none';
 
-      console.log(`[holiday-detector] 📅 ${formattedDate}: ${holidayName || 'None'} (Is Holiday: ${isHoliday})`);
+      console.log(`[holiday-detector] 📅 ${formattedDate}: ${holidayName} (Is Holiday: ${isHoliday})`);
 
       return {
         holiday: holidayName,
@@ -115,11 +115,11 @@ export async function detectHoliday(context) {
       };
     } catch (parseErr) {
       console.error('[holiday-detector] JSON Parse Failed:', parseErr.message, 'Raw:', text.substring(0, 100));
-      return { holiday: null, is_holiday: false };
+      return { holiday: 'none', is_holiday: false };
     }
 
   } catch (error) {
     console.error('[holiday-detector] Network/System Error:', error.message);
-    return { holiday: null, is_holiday: false };
+    return { holiday: 'none', is_holiday: false };
   }
 }

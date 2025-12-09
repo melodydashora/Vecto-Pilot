@@ -62,7 +62,7 @@ function buildProviders() {
       cooldownMs: Number(cfg('CIRCUIT_COOLDOWN_MS','60000')),
     });
     const gate = new Gate(Number(cfg('ANTHROPIC_MAX_CONCURRENCY','10')));
-    const model = cfg('ANTHROPIC_MODEL','claude-sonnet-4-5-20250929');
+    const model = cfg('ANTHROPIC_MODEL','claude-opus-4-5-20251101');
     P.push({
       key: 'anthropic', model, breaker, gate,
       call: async ({ system, user, perCallMs, signal }) => {
@@ -221,7 +221,7 @@ function buildProviders() {
 
 function desiredOrder(providers) {
   const primary = (cfg('PREFERRED_MODEL','google:gemini-2.5-pro')||'').split(':')[0];
-  const fallbacks = (cfg('FALLBACK_MODELS','openai:gpt-5,anthropic:claude-sonnet-4-5-20250929')||'')
+  const fallbacks = (cfg('FALLBACK_MODELS','openai:gpt-5,anthropic:claude-opus-4-5-20251101')||'')
     .split(',').map(s => s.trim().split(':')[0]).filter(Boolean);
   const map = Object.fromEntries(providers.map(p => [p.key, p]));
   const ordered = [primary, ...fallbacks].map(k => map[k]).filter(Boolean);

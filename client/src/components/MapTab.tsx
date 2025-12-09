@@ -27,11 +27,11 @@ interface MapTabProps {
 }
 
 const MapTab: React.FC<MapTabProps> = ({ 
-  driverLat, 
-  driverLng, 
-  venues, 
-  snapshotId,
-  isLoading = false 
+  driverLat,
+  driverLng,
+  venues,
+  snapshotId: _snapshotId,
+  isLoading = false
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);

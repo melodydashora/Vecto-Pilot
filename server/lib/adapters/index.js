@@ -4,7 +4,6 @@
 import { callOpenAI } from "./openai-adapter.js";
 import { callAnthropic } from "./anthropic-adapter.js";
 import { callGemini } from "./gemini-adapter.js";
-import { callPerplexity } from "./perplexity-adapter.js";
 
 /**
  * Call a model by role name (strategist, briefer, consolidator, venue_generator)
@@ -50,10 +49,5 @@ export async function callModel(role, { system, user }) {
     return callGemini({ model, system, user, maxTokens, temperature, topP, topK, useSearch });
   }
   
-  // Perplexity disabled - briefing system uses Gemini 3.0 Pro directly
-  if (model.startsWith("sonar-")) {
-    throw new Error(`Perplexity (sonar-pro) disabled for briefing pipeline. Use Gemini 3.0 Pro instead for role: ${role}`);
-  }
-
   throw new Error(`Unsupported model for role ${role}: ${model}`);
 }
