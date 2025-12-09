@@ -1,15 +1,14 @@
-import { memoryPut, memoryQuery } from "../eidolon/memory/pg.js";
+
+import { memoryPut, memoryQuery } from "./memory/pg.js";
 import { db } from "../db/drizzle.js";
 import { snapshots, strategies, actions } from "../../shared/schema.js";
 import { desc } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
-import { getThreadAwareContext } from "./thread-context.js";
 
-const ASSISTANT_TABLE = "assistant_memory";
 const EIDOLON_TABLE = "eidolon_memory";
-const CROSS_THREAD_TABLE = "cross_thread_memory"; // Assuming this table exists
-const AGENT_MEMORY_TABLE = "agent_memory"; // Assuming this table exists
+const CROSS_THREAD_TABLE = "cross_thread_memory";
+const AGENT_MEMORY_TABLE = "agent_memory";
 const BASE_DIR = process.env.BASE_DIR || process.cwd();
 
 // Enhanced context gathering with full repo access
@@ -27,12 +26,12 @@ export async function getEnhancedProjectContext(options = {}) {
     recentActions: [],
 
     // Memory context
-    userPreferences: {},
+    eidolonPreferences: {},
     sessionHistory: {},
     projectState: {},
     conversationHistory: [],
 
-    // Thread awareness (ENHANCED)
+    // Thread awareness
     threadContext: null,
 
     // Repository structure
@@ -52,6 +51,7 @@ export async function getEnhancedProjectContext(options = {}) {
       threadAwareness: true,
       semanticSearch: true,
       patternRecognition: true,
+      extendedThinking: true,
       
       // File System (IDE Integration)
       fullRepoAccess: true,
@@ -116,7 +116,7 @@ export async function getEnhancedProjectContext(options = {}) {
       temperature: s.temperature_f,
     }));
   } catch (err) {
-    console.warn('[Enhanced Context] Failed to load recent snapshots:', err.message);
+    console.warn('[Eidolon Enhanced Context] Failed to load recent snapshots:', err.message);
   }
 
   try {
@@ -128,7 +128,7 @@ export async function getEnhancedProjectContext(options = {}) {
       created: s.created_at,
     }));
   } catch (err) {
-    console.warn('[Enhanced Context] Failed to load recent strategies:', err.message);
+    console.warn('[Eidolon Enhanced Context] Failed to load recent strategies:', err.message);
   }
 
   try {
@@ -140,85 +140,62 @@ export async function getEnhancedProjectContext(options = {}) {
       created: a.created_at,
     }));
   } catch (err) {
-    console.warn('[Enhanced Context] Failed to load recent actions:', err.message);
+    console.warn('[Eidolon Enhanced Context] Failed to load recent actions:', err.message);
   }
 
   // Gather memory context
   try {
     const prefs = await memoryQuery({ 
-      table: ASSISTANT_TABLE, 
-      scope: "user_preferences", 
-      userId: null, // Use null for system-level data (UUID field)
+      table: EIDOLON_TABLE, 
+      scope: "eidolon_preferences", 
+      userId: null,
       limit: 50 
     });
-    context.userPreferences = Object.fromEntries(
+    context.eidolonPreferences = Object.fromEntries(
       prefs.map(p => [p.key, p.content])
     );
   } catch (err) {
-    console.warn('[Enhanced Context] Failed to load user preferences:', err.message);
+    console.warn('[Eidolon Enhanced Context] Failed to load preferences:', err.message);
   }
 
   try {
     const session = await memoryQuery({ 
       table: EIDOLON_TABLE, 
       scope: "session_state", 
-      userId: null, // Use null for system-level data (UUID field)
+      userId: null,
       limit: 20 
     });
     context.sessionHistory = Object.fromEntries(
       session.map(s => [s.key, s.content])
     );
   } catch (err) {
-    console.warn('[Enhanced Context] Failed to load session history:', err.message);
+    console.warn('[Eidolon Enhanced Context] Failed to load session history:', err.message);
   }
 
   try {
     const state = await memoryQuery({ 
       table: EIDOLON_TABLE, 
       scope: "project_state", 
-      userId: null, // Use null for system-level data (UUID field)
+      userId: null,
       limit: 20 
     });
     context.projectState = Object.fromEntries(
       state.map(s => [s.key, s.content])
     );
   } catch (err) {
-    console.warn('[Enhanced Context] Failed to load project state:', err.message);
+    console.warn('[Eidolon Enhanced Context] Failed to load project state:', err.message);
   }
 
   try {
     const convs = await memoryQuery({
-      table: ASSISTANT_TABLE,
+      table: EIDOLON_TABLE,
       scope: "conversations",
-      userId: null, // Use null for system-level data (UUID field)
+      userId: null,
       limit: 30,
     });
     context.conversationHistory = convs.map(c => c.content);
   } catch (err) {
-    console.warn('[Enhanced Context] Failed to load conversation history:', err.message);
-  }
-
-  // Thread awareness with cross-thread memory (ENHANCED)
-  if (includeThreadContext) {
-    try {
-      const threadAwareContext = await getThreadAwareContext(threadId);
-      context.threadContext = threadAwareContext;
-
-      // Add cross-thread agent memory
-      const crossThreadMemory = await memoryQuery({
-        table: CROSS_THREAD_TABLE,
-        scope: "cross_thread_context",
-        userId: null, // Use null for system-level data (UUID field)
-        limit: 50
-      });
-      context.threadContext.crossThreadMemory = crossThreadMemory.map(m => m.content);
-
-      // Agent memory already included in threadAwareContext
-      // (agent_memory has different schema, queried directly in getThreadAwareContext)
-
-    } catch (err) {
-      console.warn('[Enhanced Context] Thread context unavailable:', err.message);
-    }
+    console.warn('[Eidolon Enhanced Context] Failed to load conversation history:', err.message);
   }
 
   // Scan repository structure
@@ -230,12 +207,15 @@ export async function getEnhancedProjectContext(options = {}) {
     const configFilesToRead = [
       ".env.example",
       ".replit",
-      ".replit-assistant-override.json",
       "package.json",
       "tsconfig.json",
       "drizzle.config.ts",
       "config/assistant-policy.json",
+      "config/agent-policy.json",
+      "config/eidolon-policy.json",
       "server/config/assistant-policy.json",
+      "server/config/agent-policy.json",
+      "server/config/eidolon-policy.json",
     ];
 
     for (const file of configFilesToRead) {
@@ -277,7 +257,7 @@ export async function performInternetSearch(query, userId = null) {
       body: JSON.stringify({
         model: "claude-opus-4-5-20251101",
         max_tokens: 4096,
-        system: "You are a helpful research assistant. Provide accurate, up-to-date information with citations from web search results.",
+        system: "You are Eidolon, a research assistant with deep technical knowledge. Provide accurate, up-to-date information with citations from web search results.",
         tools: [
           {
             type: "web_search_20250305",
@@ -314,7 +294,8 @@ export async function performInternetSearch(query, userId = null) {
         result,
         timestamp: new Date().toISOString(),
         model: "claude-opus-4-5-20251101",
-        tool_used: "web_search"
+        tool_used: "web_search",
+        identity: "eidolon"
       },
       ttlDays: 30,
     });
@@ -324,7 +305,8 @@ export async function performInternetSearch(query, userId = null) {
       query,
       result,
       timestamp: new Date().toISOString(),
-      model: "claude-opus-4-5-20251101"
+      model: "claude-opus-4-5-20251101",
+      identity: "eidolon"
     };
   } catch (err) {
     return {
@@ -342,10 +324,12 @@ export async function analyzeWorkspaceDeep() {
     memoryStats: {},
     codebaseInsights: {},
     recentActivity: {},
+    identity: "eidolon"
   };
 
   // Database statistics
   try {
+    const { sql } = await import("drizzle-orm");
     const stats = await db.execute(sql`
       SELECT 
         (SELECT COUNT(*) FROM snapshots) as snapshot_count,
@@ -370,6 +354,7 @@ export async function analyzeWorkspaceDeep() {
 
   // Memory statistics
   try {
+    const { sql } = await import("drizzle-orm");
     const memCount = await db.execute(sql`
       SELECT 
         (SELECT COUNT(*) FROM assistant_memory) as assistant_entries,
@@ -411,7 +396,7 @@ export async function storeCrossThreadMemory(key, content, userId = null, ttlDay
   });
 }
 
-// Store agent-specific memory - agent_memory has different schema, insert directly
+// Store agent-specific memory
 export async function storeAgentMemory(title, content, metadata = {}, ttlDays = 730) {
   try {
     const { getSharedPool } = await import("../db/pool.js");
@@ -422,7 +407,7 @@ export async function storeAgentMemory(title, content, metadata = {}, ttlDays = 
       `INSERT INTO ${AGENT_MEMORY_TABLE} (session_id, entry_type, title, content, metadata, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
-        'system',
+        'eidolon',
         'context',
         title,
         content,
@@ -432,7 +417,7 @@ export async function storeAgentMemory(title, content, metadata = {}, ttlDays = 
     );
     return true;
   } catch (err) {
-    console.warn('[Enhanced Context] Failed to store agent memory:', err.message);
+    console.warn('[Eidolon Enhanced Context] Failed to store agent memory:', err.message);
     return false;
   }
 }
@@ -448,7 +433,7 @@ export async function getCrossThreadMemory(userId = null, limit = 50) {
   return memory.map(m => m.content);
 }
 
-// Get agent memory - agent_memory has different schema, query directly via pool
+// Get agent memory
 export async function getAgentMemory(userId = null, limit = 50) {
   try {
     const { getSharedPool } = await import("../db/pool.js");
@@ -458,6 +443,7 @@ export async function getAgentMemory(userId = null, limit = 50) {
     const result = await pool.query(
       `SELECT id, entry_type, title, content, metadata, created_at 
        FROM ${AGENT_MEMORY_TABLE} 
+       WHERE session_id = 'eidolon'
        ORDER BY created_at DESC 
        LIMIT $1`,
       [limit]
@@ -469,10 +455,11 @@ export async function getAgentMemory(userId = null, limit = 50) {
       title: r.title,
       content: r.content,
       metadata: r.metadata,
-      timestamp: r.created_at
+      timestamp: r.created_at,
+      identity: "eidolon"
     }));
   } catch (err) {
-    console.warn('[Enhanced Context] Failed to load agent memory:', err.message);
+    console.warn('[Eidolon Enhanced Context] Failed to load agent memory:', err.message);
     return [];
   }
 }
