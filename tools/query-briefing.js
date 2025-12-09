@@ -1,36 +1,36 @@
 
 import { db } from '../server/db/drizzle.js';
-import { snapshots } from '../shared/schema.js';
+import { briefings } from '../shared/schema.js';
 import { desc } from 'drizzle-orm';
 
-async function queryLastSnapshot() {
+async function queryLastBriefing() {
   try {
-    console.log('🔍 Querying last snapshot row...\n');
+    console.log('🔍 Querying last briefing row...\n');
     
     const result = await db
       .select()
-      .from(snapshots)
-      .orderBy(desc(snapshots.created_at))
+      .from(briefings)
+      .orderBy(desc(briefings.created_at))
       .limit(1);
 
     if (result.length === 0) {
-      console.log('❌ No snapshots found in database');
+      console.log('❌ No briefings found in database');
       process.exit(0);
     }
 
-    const snapshot = result[0];
+    const briefing = result[0];
     
-    console.log('✅ Last Snapshot Record:');
+    console.log('✅ Last Briefing Record:');
     console.log('========================\n');
     
     // Print full JSON
-    console.log(JSON.stringify(snapshot, null, 4));
+    console.log(JSON.stringify(briefing, null, 4));
     
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error querying snapshots:', error);
+    console.error('❌ Error querying briefings:', error);
     process.exit(1);
   }
 }
 
-queryLastSnapshot();
+queryLastBriefing();
