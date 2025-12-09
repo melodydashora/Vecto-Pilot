@@ -1,48 +1,36 @@
 
 import { db } from '../server/db/drizzle.js';
-import { briefings } from '../shared/schema.js';
+import { snapshots } from '../shared/schema.js';
 import { desc } from 'drizzle-orm';
 
-async function queryLastBriefing() {
+async function queryLastSnapshot() {
   try {
-    console.log('🔍 Querying last briefing row...\n');
+    console.log('🔍 Querying last snapshot row...\n');
     
     const result = await db
       .select()
-      .from(briefings)
-      .orderBy(desc(briefings.created_at))
+      .from(snapshots)
+      .orderBy(desc(snapshots.created_at))
       .limit(1);
 
     if (result.length === 0) {
-      console.log('❌ No briefings found in database');
+      console.log('❌ No snapshots found in database');
       process.exit(0);
     }
 
-    const briefing = result[0];
+    const snapshot = result[0];
     
-    console.log('✅ Last Briefing Record:');
+    console.log('✅ Last Snapshot Record:');
     console.log('========================\n');
     
-    // Print each field with its name and value
-    Object.keys(briefing).forEach(field => {
-      const value = briefing[field];
-      if (typeof value === 'object' && value !== null) {
-        console.log(`${field}:`);
-        console.log(JSON.stringify(value, null, 2));
-      } else {
-        console.log(`${field}: ${value}`);
-      }
-      console.log('---');
-    });
-    
-    console.log('\n📊 Field Names:');
-    console.log(Object.keys(briefing).join(', '));
+    // Print full JSON
+    console.log(JSON.stringify(snapshot, null, 4));
     
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error querying briefings:', error);
+    console.error('❌ Error querying snapshots:', error);
     process.exit(1);
   }
 }
 
-queryLastBriefing();
+queryLastSnapshot();
