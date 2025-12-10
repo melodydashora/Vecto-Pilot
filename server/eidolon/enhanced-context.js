@@ -252,6 +252,7 @@ export async function performInternetSearch(query, userId = null) {
       headers: {
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "web-fetch-2025-09-10",
         "content-type": "application/json"
       },
       body: JSON.stringify({
@@ -268,6 +269,11 @@ export async function performInternetSearch(query, userId = null) {
               country: "US",
               timezone: "America/Chicago"
             }
+          },
+          {
+            type: "web_fetch_20250910",
+            name: "web_fetch",
+            max_uses: 5
           }
         ],
         tool_choice: { type: "auto" },
