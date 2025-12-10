@@ -29,7 +29,8 @@
     "build:dev": "npm run build:client",
     "build:deploy": "npm run guard && npm run build:client",
     "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true",
-    "start:mono": "./start-mono.sh"
+    "start:mono": "./start-mono.sh",
+    "research:models": "node tools/research/update-model-md.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
