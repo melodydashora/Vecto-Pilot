@@ -7,6 +7,7 @@ import fs from "fs/promises";
 import path from "path";
 
 const EIDOLON_TABLE = "eidolon_memory";
+const ASSISTANT_TABLE = "assistant_memory";
 const CROSS_THREAD_TABLE = "cross_thread_memory";
 const AGENT_MEMORY_TABLE = "agent_memory";
 const BASE_DIR = process.env.BASE_DIR || process.cwd();
@@ -207,6 +208,7 @@ export async function getEnhancedProjectContext(options = {}) {
     const configFilesToRead = [
       ".env.example",
       ".replit",
+      ".replit-assistant-override.json",
       "package.json",
       "tsconfig.json",
       "drizzle.config.ts",
