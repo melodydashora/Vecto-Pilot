@@ -339,6 +339,27 @@ curl -H "x-api-key: $ANTHROPIC_API_KEY" \
 
 **Verify:** Check `groundingMetadata` in response
 
+### Bug: UI not showing strategy text (blocks appear but no strategy)
+
+**Cause:** API response missing `strategy` object
+
+**Symptom:** SmartBlocks (venues) display correctly but strategy text area is empty
+
+**Fix:** Ensure all success paths in `blocks-fast.js` include the strategy object:
+```javascript
+return res.json({
+  status: 'ok',
+  blocks: [...],
+  strategy: {
+    strategy_for_now: strategyRow?.strategy_for_now || '',
+    consolidated: strategyRow?.consolidated_strategy || '',
+    min: strategyRow?.minstrategy || ''
+  }
+});
+```
+
+**Lesson:** API endpoints must return consistent response shapes. When adding new data to responses, update ALL success paths, not just the main one.
+
 ---
 
 ## Testing Checklist

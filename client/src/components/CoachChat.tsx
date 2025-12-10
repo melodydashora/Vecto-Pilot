@@ -50,8 +50,8 @@ export default function CoachChat({
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
-  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [_isVoiceActive, setIsVoiceActive] = useState(false);
+  const [_voiceTranscript, setVoiceTranscript] = useState("");
   const [attachments, setAttachments] = useState<Array<{ name: string; type: string; data: string; }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
@@ -64,7 +64,7 @@ export default function CoachChat({
   };
 
   // Initialize voice chat with OpenAI Realtime API
-  async function startVoiceChat() {
+  async function _startVoiceChat() {
     try {
       setIsVoiceActive(true);
       console.log('[voice] Starting voice chat session...');

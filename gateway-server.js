@@ -5,9 +5,9 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { loadEnvironment } from './server/lib/load-env.js';
-import { validateOrExit } from './server/lib/validate-env.js';
-import { unifiedAI, UNIFIED_CAPABILITIES } from './server/lib/unified-ai-capabilities.js';
+import { loadEnvironment } from './server/config/load-env.js';
+import { validateOrExit } from './server/config/validate-env.js';
+import { unifiedAI, UNIFIED_CAPABILITIES } from './server/lib/ai/unified-ai-capabilities.js';
 
 // Load and validate environment
 loadEnvironment();

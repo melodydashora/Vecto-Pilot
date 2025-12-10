@@ -15,6 +15,16 @@ const rootDir = path.join(__dirname, '..', '..');
  * @param {Express} app - Express app
  */
 export async function configureMiddleware(app) {
+  // Bot blocker - FIRST, before any other processing
+  try {
+    const botBlockerPath = path.join(rootDir, 'server/middleware/bot-blocker.js');
+    const { apiOnlyBotBlocker } = await import(botBlockerPath);
+    app.use(apiOnlyBotBlocker);
+    console.log('[gateway] ✅ Bot blocker enabled');
+  } catch (e) {
+    console.warn('[gateway] Bot blocker not available:', e?.message);
+  }
+
   // Helmet security headers (CSP disabled for SPA compatibility)
   app.use(helmet({ contentSecurityPolicy: false }));
 

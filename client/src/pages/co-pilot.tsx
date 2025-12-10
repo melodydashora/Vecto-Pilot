@@ -30,12 +30,10 @@ import { useToast } from '@/hooks/use-toast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
-import { MarketIntelligenceBlocks as _MarketIntelligenceBlocks } from '@/components/MarketIntelligenceBlocks';
 import BarsTable from '@/components/BarsTable';
 import BriefingTab from '@/components/BriefingTab';
 import MapTab from '@/components/MapTab';
 import { DonationTab } from '@/components/DonationTab';
-import { ConsolidatedStrategyComp as _ConsolidatedStrategyComp } from '@/components/strategy/ConsolidatedStrategyComp';
 
 // Shared types and utilities
 import type { SmartBlock, BlocksResponse, StrategyData } from '@/types/co-pilot';
@@ -1549,7 +1547,6 @@ const CoPilot: React.FC = () => {
         {coords && (
           <div className="mb-6">
             <SmartBlocksStatus
-              strategyStatus={strategyData?.status}
               strategyReady={strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks'}
               isStrategyFetching={isStrategyFetching}
               hasBlocks={blocks.length > 0}

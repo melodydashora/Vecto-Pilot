@@ -205,36 +205,51 @@ users
 ```
 vecto-pilot/
 ├── client/                    # React Frontend
-│   ├── src/
-│   │   ├── pages/            # Route pages
-│   │   ├── components/       # React components
-│   │   ├── hooks/            # React hooks
-│   │   ├── contexts/         # React contexts
-│   │   └── App.tsx           # Root component
-│   └── index.html
+│   └── src/
+│       ├── pages/            # Route pages (co-pilot.tsx is main dashboard)
+│       ├── components/       # React components
+│       ├── hooks/            # Custom hooks (TTS, strategy polling)
+│       ├── contexts/         # React contexts (location, auth)
+│       ├── features/         # Feature modules
+│       └── App.tsx           # Root component
 │
 ├── server/                    # Node.js Backend
-│   ├── routes/               # API endpoints
-│   │   ├── blocks-fast.js    # Venue + strategy blocks
-│   │   ├── snapshot.js       # Snapshot creation
-│   │   ├── location.js       # Geolocation + weather
-│   │   └── chat.js           # AI coach
+│   ├── api/                  # API routes (domain-organized)
+│   │   ├── auth/             # Authentication
+│   │   ├── briefing/         # Events, traffic, news
+│   │   ├── chat/             # AI Coach, voice
+│   │   ├── health/           # Health checks, diagnostics
+│   │   ├── location/         # GPS, geocoding
+│   │   ├── strategy/         # Strategy generation (blocks-fast.js)
+│   │   ├── venue/            # Venue intelligence
+│   │   └── utils/            # Shared utilities
 │   │
 │   ├── lib/                  # Business logic
-│   │   ├── providers/        # AI providers (minstrategy, briefing, etc.)
-│   │   ├── adapters/         # Model adapters (anthropic, openai, gemini)
-│   │   ├── enhanced-smart-blocks.js
-│   │   └── coach-dal.js
+│   │   ├── ai/               # AI adapters and providers
+│   │   │   ├── adapters/     # Model adapters (anthropic, openai, gemini)
+│   │   │   └── providers/    # AI providers (minstrategy, briefing, etc.)
+│   │   ├── strategy/         # Strategy pipeline
+│   │   ├── venue/            # Venue intelligence
+│   │   ├── location/         # Location services
+│   │   └── infrastructure/   # Logging, job queue
 │   │
-│   └── db/                   # Database connection
+│   ├── config/               # Configuration
+│   ├── db/                   # Database connection
+│   ├── middleware/           # Request middleware
+│   ├── bootstrap/            # Server startup
+│   └── jobs/                 # Background workers
 │
 ├── shared/                    # Shared code
 │   └── schema.js             # Drizzle ORM schema
 │
+├── docs/                      # Documentation
+│   └── architecture/         # API reference, database schema, AI pipeline
+│
 ├── gateway-server.js          # Main entry point
-├── .eslintrc.cjs             # ESLint configuration
 └── package.json
 ```
+
+**Every folder has a README.md** - start exploring from any folder's README.
 
 ---
 
@@ -295,14 +310,19 @@ npm run db:push    # Push schema to database
 
 ## Related Documentation
 
-- `MODEL.md` - AI model configurations and API parameters
-- `ISSUES.md` - Active bugs and resolved issues
-- `LESSONS_LEARNED.md` - Pitfalls and best practices for Replit agents
-- `ARCHITECTURE.md` - Detailed system architecture
-- `SYSTEM_MAP.md` - Complete data flow diagrams
-- `LEXICON.md` - Terminology reference
+| Document | Purpose |
+|----------|---------|
+| [CLAUDE.md](CLAUDE.md) | AI assistant instructions (start here) |
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/architecture/api-reference.md](docs/architecture/api-reference.md) | Complete API documentation |
+| [docs/architecture/database-schema.md](docs/architecture/database-schema.md) | PostgreSQL tables |
+| [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) | TRIAD AI pipeline |
+| [docs/architecture/constraints.md](docs/architecture/constraints.md) | Critical rules |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Detailed system architecture |
+| [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Pitfalls and best practices |
+| [REORGANIZATION_PLAN.md](REORGANIZATION_PLAN.md) | Codebase organization status |
 
 ---
 
-**Last Updated**: December 9, 2025
+**Last Updated**: December 10, 2025
 **Status**: Production Ready

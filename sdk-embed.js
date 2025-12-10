@@ -1,23 +1,24 @@
 import express from "express";
-import healthRoutes from "./server/routes/health.js";
-import blocksFastRoutes from "./server/routes/blocks-fast.js";
-import locationRoutes from "./server/routes/location.js";
-import actionsRoutes from "./server/routes/actions.js";
-import researchRoutes from "./server/routes/research.js";
-import feedbackRoutes from "./server/routes/feedback.js";
-import diagnosticsRoutes from "./server/routes/diagnostics.js";
-import venueEventsRoutes from "./server/routes/venue-events.js";
-import snapshotRoutes from "./server/routes/snapshot.js";
-import jobMetricsRoutes from "./server/routes/job-metrics.js";
-import mlHealthRoutes from "./server/routes/ml-health.js";
-import chatRoutes from "./server/routes/chat.js";
-import chatContextRoutes from "./server/routes/chat-context.js";
-import closedVenueReasoningRoutes from "./server/routes/closed-venue-reasoning.js";
-import strategyRoutes from "./server/routes/strategy.js";
-import diagnosticsStrategyRoutes from "./server/routes/diagnostics-strategy.js";
-import contentBlocksRoutes from "./server/routes/content-blocks.js";
+// Routes organized by domain in server/api/
+import healthRoutes from "./server/api/health/health.js";
+import blocksFastRoutes from "./server/api/strategy/blocks-fast.js";
+import locationRoutes from "./server/api/location/location.js";
+import actionsRoutes from "./server/api/feedback/actions.js";
+import researchRoutes from "./server/api/research/research.js";
+import feedbackRoutes from "./server/api/feedback/feedback.js";
+import diagnosticsRoutes from "./server/api/health/diagnostics.js";
+import venueEventsRoutes from "./server/api/venue/venue-events.js";
+import snapshotRoutes from "./server/api/location/snapshot.js";
+import jobMetricsRoutes from "./server/api/health/job-metrics.js";
+import mlHealthRoutes from "./server/api/health/ml-health.js";
+import chatRoutes from "./server/api/chat/chat.js";
+import chatContextRoutes from "./server/api/chat/chat-context.js";
+import closedVenueReasoningRoutes from "./server/api/venue/closed-venue-reasoning.js";
+import strategyRoutes from "./server/api/strategy/strategy.js";
+import diagnosticsStrategyRoutes from "./server/api/health/diagnostics-strategy.js";
+import contentBlocksRoutes from "./server/api/strategy/content-blocks.js";
 // Legacy processor retired — do not import
-// Fast path is mounted via the gateway (server/routes/blocks.js -> blocks-fast)
+// Fast path is mounted via the gateway (server/api/strategy/blocks-fast.js)
 // Logging and security handled by gateway middleware - not duplicated here
 import { 
   getEnhancedProjectContext,
@@ -94,7 +95,7 @@ export default function createSdkRouter(opts = {}) {
     });
   });
   
-  // Strategy routes handled by server/routes/strategy.js (mounted above at line 105)
+  // Strategy routes handled by server/api/strategy/strategy.js
   // Removed stub routes that were blocking real strategy data
 
   r.get('/ranking', (req, res) => {

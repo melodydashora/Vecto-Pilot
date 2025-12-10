@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 
 interface SmartBlocksStatusProps {
-  strategyStatus?: 'pending' | 'ok' | 'failed' | 'complete';
   strategyReady: boolean;
   isStrategyFetching: boolean;
   hasBlocks: boolean;
@@ -23,7 +22,6 @@ interface SmartBlocksStatusProps {
 }
 
 export function SmartBlocksStatus({
-  strategyStatus: _strategyStatus,
   strategyReady,
   isStrategyFetching,
   hasBlocks,
@@ -34,17 +32,6 @@ export function SmartBlocksStatus({
   enrichmentProgress = 0,
   enrichmentPhase = 'idle'
 }: SmartBlocksStatusProps) {
-  // Determine pipeline stage
-  const getPipelineStage = () => {
-    if (hasBlocks) return 'complete';
-    if (blocksError) return 'error';
-    if (isBlocksLoading) return 'generating_blocks';
-    if (isStrategyFetching || !strategyReady) return 'generating_strategy';
-    return 'idle';
-  };
-
-  const _stage = getPipelineStage();
-
   // ALWAYS show progress bars - don't hide them
   const showStrategyProgress = enrichmentPhase === 'strategy' || (enrichmentPhase === 'blocks' && enrichmentProgress < 30);
   const showBlocksProgress = enrichmentPhase === 'blocks';

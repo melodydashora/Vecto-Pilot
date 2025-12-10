@@ -47,8 +47,6 @@ const GlobalHeaderComponent: React.FC = () => {
   // Weather and air quality from context (fetched once in LocationContext, no duplicate calls)
   const weather = loc?.weather ?? null;
   const airQuality = loc?.airQuality ?? null;
-  const [_snapshotReady, setSnapshotReady] = useState(false);
-  const [_latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
   const [holiday, setHoliday] = useState<string | null>(null);
   const [isHoliday, setIsHoliday] = useState(false);
 
@@ -155,18 +153,13 @@ const GlobalHeaderComponent: React.FC = () => {
   useEffect(() => {
     const handleSnapshotSaved = (e: Event) => {
       const customEvent = e as CustomEvent;
-      const snapshotId = customEvent.detail?.snapshotId;
       const holidayName = customEvent.detail?.holiday;
       const holidayFlag = customEvent.detail?.is_holiday;
-      if (snapshotId) {
-        setSnapshotReady(true);
-        setLatestSnapshotId(snapshotId);
-      }
-      // Update holiday state if provided
-      if (holidayName) {
+      // Update holiday state if provided (exclude 'none' as it means no holiday)
+      if (holidayName && holidayName !== 'none') {
         setHoliday(holidayName);
         setIsHoliday(true);
-      } else if (holidayFlag === false) {
+      } else if (holidayFlag === false || holidayName === 'none') {
         setHoliday(null);
         setIsHoliday(false);
       }
@@ -262,37 +255,6 @@ const GlobalHeaderComponent: React.FC = () => {
     if (aqi <= 300)
       return { emoji: "🟣", color: "text-purple-300", label: "Very Unhealthy" };
     return { emoji: "🟤", color: "text-red-500", label: "Hazardous" };
-  };
-
-  // Reverse geocode and timezone fetch (server preferred; fallbacks included)
-  const _reverseGeocode = async (lat: number, lng: number) => {
-    try {
-      const res = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}`, {
-        credentials: "include",
-      });
-      if (res.ok)
-        return (await res.json()) as {
-          city?: string;
-          state?: string;
-          country?: string;
-          formattedAddress?: string; // Full street address
-        };
-    } catch (err) {
-      console.error("[GlobalHeader] Reverse geocode failed:", err);
-    }
-    return {};
-  };
-
-  const _getTimezone = async (lat: number, lng: number) => {
-    try {
-      const res = await fetch(`/api/timezone?lat=${lat}&lng=${lng}`, {
-        credentials: "include",
-      });
-      if (res.ok) return (await res.json()) as { timeZone?: string };
-    } catch (err) {
-      console.error("[GlobalHeader] Timezone fetch failed:", err);
-    }
-    return { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
   };
 
   // NOTE: Weather and air quality are fetched ONCE in location-context-clean.tsx

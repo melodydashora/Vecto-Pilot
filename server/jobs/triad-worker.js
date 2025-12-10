@@ -28,10 +28,10 @@ let shuttingDown = false;
  * - Generate enhanced smart blocks on success
  */
 export async function startConsolidationListener() {
-  const { getListenClient } = await import('../lib/db-client.js');
-  const { consolidateStrategy } = await import('../lib/strategy-generator-parallel.js');
-  const { generateEnhancedSmartBlocks } = await import('../lib/enhanced-smart-blocks.js');
-  const { hasRenderableBriefing } = await import('../lib/strategy-utils.js');
+  const { getListenClient } = await import('../db/db-client.js');
+  const { consolidateStrategy } = await import('../lib/strategy/strategy-generator-parallel.js');
+  const { generateEnhancedSmartBlocks } = await import('../lib/venue/enhanced-smart-blocks.js');
+  const { hasRenderableBriefing } = await import('../lib/strategy/strategy-utils.js');
 
   try {
     pgClient = await getListenClient();

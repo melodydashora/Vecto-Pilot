@@ -13,8 +13,11 @@ interface GreetingBannerProps {
 export function GreetingBanner({ holiday }: GreetingBannerProps) {
   const greeting = getGreeting();
 
-  // Holiday banner (if holiday detected)
-  if (holiday) {
+  // Holiday banner (if holiday detected and not 'none')
+  // When holiday is 'none' or falsy, show the default driver greeting
+  const hasHoliday = holiday && holiday !== 'none';
+
+  if (hasHoliday) {
     return (
       <Card
         className="mb-6 border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 shadow-lg"

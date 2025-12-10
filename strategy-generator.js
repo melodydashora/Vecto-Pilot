@@ -3,7 +3,7 @@
 // Runs the consolidation listener only (LISTEN mode, no hot polling)
 
 // Load environment contract (if not already loaded by parent process)
-import { loadEnvironment } from './server/lib/load-env.js';
+import { loadEnvironment } from './server/config/load-env.js';
 if (!process.env._ENV_LOADED) {
   loadEnvironment();
   process.env._ENV_LOADED = '1';
