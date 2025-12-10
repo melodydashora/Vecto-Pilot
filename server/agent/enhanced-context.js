@@ -235,7 +235,11 @@ export async function getEnhancedProjectContext(options = {}) {
       "tsconfig.json",
       "drizzle.config.ts",
       "config/assistant-policy.json",
+      "config/agent-policy.json",
+      "config/eidolon-policy.json",
       "server/config/assistant-policy.json",
+      "server/config/agent-policy.json",
+      "server/config/eidolon-policy.json",
     ];
 
     for (const file of configFilesToRead) {
