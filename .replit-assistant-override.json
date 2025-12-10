@@ -1,0 +1,42 @@
+
+{
+  "version": "1.0",
+  "assistant": {
+    "model": "claude-opus-4-5-20251101",
+    "capabilities": {
+      "web_search": true,
+      "web_fetch": true,
+      "code_execution": true,
+      "extended_thinking": true
+    },
+    "tools": [
+      {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 5,
+        "user_location": {
+          "type": "approximate",
+          "country": "US",
+          "timezone": "America/Chicago"
+        }
+      },
+      {
+        "type": "web_fetch_20250910",
+        "name": "web_fetch",
+        "max_uses": 5
+      },
+      {
+        "type": "code_execution_20250825",
+        "name": "code_execution"
+      }
+    ],
+    "beta_headers": [
+      "interleaved-thinking-2025-05-14",
+      "code-execution-2025-08-25",
+      "fine-grained-tool-streaming-2025-05-14",
+      "web-fetch-2025-09-10"
+    ],
+    "max_tokens": 64000,
+    "temperature": 1.0
+  }
+}
