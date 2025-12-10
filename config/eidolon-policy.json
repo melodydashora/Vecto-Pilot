@@ -29,8 +29,9 @@
         }
       },
       {
-        "type": "web_fetch_20250305",
-        "name": "web_fetch"
+        "type": "web_fetch_20250910",
+        "name": "web_fetch",
+        "max_uses": 5
       },
       {
         "type": "code_execution_20250825",
@@ -61,7 +62,8 @@
     "anthropic-beta": [
       "interleaved-thinking-2025-05-14",
       "code-execution-2025-08-25",
-      "fine-grained-tool-streaming-2025-05-14"
+      "fine-grained-tool-streaming-2025-05-14",
+      "web-fetch-2025-09-10"
     ]
   },
   "allow_ops": [
