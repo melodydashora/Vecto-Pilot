@@ -23,7 +23,14 @@
       "Bash(do if [ ! -f \"$dir/README.md\" ])",
       "Bash(then echo \"MISSING: $dir\" else echo \"EXISTS:  $dir\" fi done)",
       "Bash(do if [ ! -f $dir/README.md ])",
-      "Bash(then echo 'MISSING: $dir')"
+      "Bash(then echo 'MISSING: $dir')",
+      "Bash([ '$(ls -A $dir 2>/dev/null)' ])",
+      "Bash(then echo 'MISSING README: $dir')",
+      "Bash(xargs:*)",
+      "Bash(then echo \"$dir\")",
+      "Bash(find:*)",
+      "Bash(while read -r dir)",
+      "Bash(do [ ! -f \"$dir/README.md\" ])"
     ],
     "deny": [],
     "ask": []

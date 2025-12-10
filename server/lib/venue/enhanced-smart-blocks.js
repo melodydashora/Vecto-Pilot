@@ -30,6 +30,7 @@ import { generateTacticalPlan } from '../strategy/tactical-planner.js';
 import { hasRenderableBriefing } from '../strategy/strategy-utils.js';
 import { enrichVenues } from './venue-enrichment.js';
 import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
+import { venuesLog } from '../../logger/workflow.js';
 
 /**
  * Generate enhanced smart blocks using GPT-5 venue planner
@@ -47,7 +48,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
   const correlationId = randomUUID();
   const rankingId = randomUUID();
 
-  console.log(`[ENHANCED-BLOCKS] Starting venue planner for snapshot ${snapshotId}`);
+  const location = snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`;
+  venuesLog.start(`${location} (${snapshotId.slice(0, 8)})`);
 
   // Guard: Check if immediate strategy exists and is not empty
   if (!immediateStrategy || typeof immediateStrategy !== 'string' || !immediateStrategy.trim()) {
@@ -59,10 +61,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     briefing = { events: [], news: [], traffic: {}, holidays: [] };
   }
 
-  console.log(`[ENHANCED-BLOCKS] ✅ Input validation passed`);
-  console.log(`[ENHANCED-BLOCKS] Immediate strategy: "${immediateStrategy.slice(0, 100)}..."`);
-  console.log(`[ENHANCED-BLOCKS] Briefing fields: ${Object.keys(briefing).filter(k => briefing[k]).join(', ')}`);
-  console.log(`[ENHANCED-BLOCKS] Location: ${snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`}`);
+  venuesLog.phase(1, `Input ready: strategy=${immediateStrategy.length}chars, briefing=${Object.keys(briefing).filter(k => briefing[k]).length} fields`);
   
   try {
     // Step 1: Call GPT-5 Venue Planner with IMMEDIATE strategy (where to go NOW)
@@ -76,8 +75,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     if (!venuesPlan || !venuesPlan.recommended_venues || venuesPlan.recommended_venues.length === 0) {
       throw new Error('GPT-5 planner returned no venues');
     }
-    
-    console.log(`[ENHANCED-BLOCKS] ✅ GPT-5 planner returned ${venuesPlan.recommended_venues.length} venues in ${plannerMs}ms`);
+
+    venuesLog.done(1, `GPT-5 planner returned ${venuesPlan.recommended_venues.length} venues`, plannerMs);
     
     // Step 2: Enrich venues with Google APIs (Places, Routes, Geocoding)
     const enrichmentStart = Date.now();
@@ -86,21 +85,19 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       lng: snapshot.lng
     };
     
-    console.log(`[ENHANCED-BLOCKS] 📍 Driver location (original): ${driverLocation.lat.toFixed(4)}, ${driverLocation.lng.toFixed(4)}`);
-    console.log(`[ENHANCED-BLOCKS] 📍 Driver address: ${snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`}`);
-    
+    venuesLog.phase(2, `Driver at ${driverLocation.lat.toFixed(4)},${driverLocation.lng.toFixed(4)} - calling Google Routes API`);
+
     const enrichedVenues = await enrichVenues(
       venuesPlan.recommended_venues,
       driverLocation,
       snapshot
     );
     const enrichmentMs = Date.now() - enrichmentStart;
-    
-    console.log(`[ENHANCED-BLOCKS] ✅ Enriched ${enrichedVenues.length} venues with Google APIs in ${enrichmentMs}ms`);
-    console.log(`[ENHANCED-BLOCKS] Distance data stored: ${enrichedVenues.map(v => `${v.name}=${v.distanceMiles}mi`).join(', ')}`);
+
+    venuesLog.done(2, `Routes API: ${enrichedVenues.map(v => `${v.name.slice(0,20)}=${v.distanceMiles}mi`).join(', ')}`, enrichmentMs);
     
     // Step 2.5: Verify venue events using Gemini 2.5 Pro
-    console.log(`[ENHANCED-BLOCKS] 🔍 Verifying events for venues with events...`);
+    venuesLog.phase(3, `Places API: Fetching hours + verifying events for ${enrichedVenues.length} venues`);
     const verificationStart = Date.now();
     const eventVerificationMap = await verifyVenueEventsBatch(
       enrichedVenues.map(v => ({
@@ -110,9 +107,9 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       }))
     );
     const verificationMs = Date.now() - verificationStart;
-    
+
     const verifiedEvents = extractVerifiedEvents(enrichedVenues, eventVerificationMap);
-    console.log(`[ENHANCED-BLOCKS] ✅ Event verification complete in ${verificationMs}ms - ${verifiedEvents.length} high-confidence events extracted`);
+    venuesLog.done(3, `${verifiedEvents.length} verified events extracted`, verificationMs);
     
     // Store verified events for strategy injection
     const verifiedEventsJson = JSON.stringify(verifiedEvents);
@@ -135,8 +132,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       extras: verifiedEventsJson // Store verified events for strategy injection
     });
     
-    console.log(`[ENHANCED-BLOCKS] ✅ Ranking record created: ${rankingId}`);
-    
+    venuesLog.phase(4, `Storing ${enrichedVenues.length} candidates to DB`);
+
     // Step 4: Insert ranking candidates with enriched Google data
     const candidates = enrichedVenues.map((enriched, index) => {
       // Calculate value metrics
@@ -144,8 +141,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       const driveMinutes = enriched.driveTimeMinutes || 0;
       const estimatedEarnings = distanceMiles * 1.50; // $1.50/mile estimate
       const valuePerMin = driveMinutes > 0 ? estimatedEarnings / driveMinutes : 0;
-      
-      console.log(`[ENHANCED-BLOCKS] 💾 Storing candidate: "${enriched.name}" | distance=${distanceMiles}mi | time=${driveMinutes}min | source=${enriched.distanceSource}`);
+
+      console.log(`🏢 [VENUE "${enriched.name}"] ${distanceMiles}mi, ${driveMinutes}min, isOpen=${enriched.isOpen}, hours=${enriched.businessHours || 'unknown'}`);
       
       // Grade venues: A = $1+/min, B = $0.50-$1/min, C = <$0.50/min
       let valueGrade = 'C';
@@ -207,26 +204,20 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     });
     
     await db.insert(ranking_candidates).values(candidates);
-    
+
     const totalMs = Date.now() - startTime;
-    console.log(`[ENHANCED-BLOCKS] ✅ Inserted ${candidates.length} venue candidates in ${totalMs}ms`);
-    console.log(`[ENHANCED-BLOCKS] Venues:`, candidates.map(c => ({
-      rank: c.rank,
-      name: c.name,
-      category: c.features.category,
-      tips: c.pro_tips?.length || 0
-    })));
-    
+    venuesLog.done(4, `Stored ${candidates.length} candidates`, totalMs);
+    venuesLog.complete(`${candidates.length} venues for ${location}`, totalMs);
+
     // Update ranking with total time
     await db.update(rankings).set({
       total_ms: totalMs
     }).where(eq(rankings.ranking_id, rankingId));
-    
+
     return { ok: true, rankingId, venues: candidates.length };
-    
+
   } catch (err) {
-    console.error(`[ENHANCED-BLOCKS] ❌ Failed:`, err.message);
-    console.error(err.stack);
+    venuesLog.error(0, `Failed for ${snapshotId}`, err);
     throw err;
   }
 }

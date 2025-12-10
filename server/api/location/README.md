@@ -38,19 +38,44 @@ GET  /api/snapshot/:id            - Get snapshot by ID
 GET  /api/snapshot/latest         - Get latest snapshot for user
 ```
 
-## Data Flow
+## Data Flow (Updated Dec 2025)
 
-1. Client sends GPS coords
-2. Server geocodes via Google Geocoding API
-3. Fetches weather from Google Weather API
-4. Creates snapshot linking all data
-5. Returns enriched location data
+```
+GPS coords → /api/location/resolve
+                    ↓
+        ┌───────────────────────────────────┐
+        │ 1. Check users table (device_id)  │
+        │    ├─ MATCH + <100m? → REUSE      │
+        │    └─ NO MATCH → check cache/API  │
+        │                                   │
+        │ 2. Check coords_cache (~11m)      │
+        │    ├─ HIT → use cached address    │
+        │    └─ MISS → call Google APIs     │
+        │                                   │
+        │ 3. Update users table             │
+        └───────────────────────────────────┘
+                    ↓
+        Return: city, state, formattedAddress, timeZone, user_id
+```
 
-## Caching
+**Snapshot Creation:**
+1. Client calls `/api/location/snapshot` with resolved data
+2. Server can also pull from users table if client data missing (fallback)
+3. Enriches with airport proximity, holiday detection
+4. Stores complete context in snapshots table
 
-- `coords_cache` table - 4-decimal precision (~11m)
-- Weather cached per request cycle
-- Prevents duplicate API calls
+## Caching (Three-Tier)
+
+| Tier | Table | Precision | Use Case |
+|------|-------|-----------|----------|
+| 1 | `users` | ~100m (haversine) | Same device, hasn't moved much |
+| 2 | `coords_cache` | ~11m (4 decimal) | Different device, same location |
+| 3 | Google API | Exact | Cache miss, new location |
+
+**Benefits:**
+- Users table lookup = fastest (device-specific, no API call)
+- Coords cache = fast (shared across devices)
+- Google API = slowest (only when needed)
 
 ## Connections
 
@@ -69,7 +94,8 @@ import { snapshots, users, coords_cache } from '../../../shared/schema.js';
 
 // Location lib
 import { geocode, reverseGeocode } from '../../lib/location/geo.js';
-import { getSnapshotContext } from '../../lib/location/snapshot/get-snapshot-context.js';
+import { haversineDistanceMeters } from '../../lib/location/geo.js';  // For 100m threshold check
+import { getSnapshotContext } from '../../lib/location/get-snapshot-context.js';
 
 // Validation
 import { snapshotMinimalSchema } from '../../validation/schemas.js';

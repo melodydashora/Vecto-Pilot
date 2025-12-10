@@ -55,6 +55,7 @@ Each folder now contains a README.md explaining its purpose, files, and connecti
 | `server/bootstrap/` | [README](server/bootstrap/README.md) | Server startup |
 | `server/jobs/` | [README](server/jobs/README.md) | Background workers |
 | `server/db/` | [README](server/db/README.md) | Database connection |
+| `server/logger/` | [README](server/logger/README.md) | Workflow-aware logging |
 | `server/agent/` | [README](server/agent/README.md) | AI agent infrastructure |
 
 ### Shared & Support
@@ -87,8 +88,9 @@ Each folder now contains a README.md explaining its purpose, files, and connecti
 6. [Database Schema Mapping](#database-schema-mapping)
 7. [AI Pipeline Architecture](#ai-pipeline-architecture)
 8. [Authentication System](#authentication-system)
-9. [Architectural Constraints](#architectural-constraints)
-10. [Deprecated Features](#deprecated-features)
+9. [Logging & Observability](#logging--observability)
+10. [Architectural Constraints](#architectural-constraints)
+11. [Deprecated Features](#deprecated-features)
 
 ---
 
@@ -140,8 +142,14 @@ Each folder now contains a README.md explaining its purpose, files, and connecti
 - `server/api/location/location.js` - `/api/location/resolve` (coordinates → address)
 
 **Database Tables:**
-- `users` - GPS coordinates, resolved address, timezone
-- `snapshots` - Point-in-time location context
+- `users` - **Source of truth for resolved location identity** (device_id, city, state, formatted_address, timezone)
+- `coords_cache` - API response cache for geocoded coordinates (~11m precision)
+- `snapshots` - Point-in-time location context (inherits from users table + adds time-varying data)
+
+**Location Resolution Priority (NEW - Dec 2025):**
+1. **Users Table** (fastest) - If same device_id + coords within 100m, reuse resolved address (no API call)
+2. **Coords Cache** - If 4-decimal precision match, reuse cached geocode result
+3. **Google Geocode API** - Only called when no cache hit
 
 **External APIs:**
 - **Google Geocoding API** - Reverse geocoding (lat/lng → address)
@@ -175,12 +183,35 @@ Each folder now contains a README.md explaining its purpose, files, and connecti
   - Usage: Air quality index and pollutants
   - File: `server/api/location/location.js`
 
-**Data Flow:**
+**Data Flow (Updated Dec 2025):**
 ```
-Browser GPS → LocationContext → /api/location/resolve →
-Google Geocoding API → users table → JWT token generation →
-localStorage → subsequent API calls with Authorization header
+GPS coords → /api/location/resolve
+                    ↓
+        ┌───────────────────────────────────┐
+        │ 1. Check users table (device_id)  │
+        │    ├─ MATCH + nearby? → REUSE     │
+        │    └─ NO MATCH → check cache/API  │
+        │                                   │
+        │ 2. Users table is updated         │
+        └───────────────────────────────────┘
+                    ↓
+        Client: isLocationResolved = true
+                    ↓
+        ┌───────────────────────────────────┐
+        │ Downstream queries now enabled:   │
+        │ - /api/venues/nearby (Bar Tab)    │
+        │ - /api/location/snapshot          │
+        │ - /api/blocks-fast (Strategy)     │
+        └───────────────────────────────────┘
+                    ↓
+        Snapshot pulls from users table
+        (city, state, formatted_address)
 ```
+
+**Race Condition Prevention:**
+- Client context exposes `isLocationResolved` flag
+- Downstream queries (venues, strategy) wait for this flag
+- Users table = authoritative source for resolved location identity
 
 ---
 
@@ -1036,6 +1067,54 @@ All requests scoped to authenticated user_id (user data isolation)
 - ✅ Database queries filtered by authenticated user_id
 - ✅ All sensitive POST/PATCH/DELETE routes require authentication
 - ✅ 404 (not 401) returned for unauthorized access (prevents enumeration)
+
+---
+
+## 📊 LOGGING & OBSERVABILITY
+
+### Workflow-Aware Logging
+
+Pipeline operations use structured workflow logging (`server/logger/workflow.js`) that shows clear phase progression:
+
+```
+🎯 [TRIAD 1/4 - Strategist] Starting for abc12345
+✅ [TRIAD 1/4 - Strategist] Saved (706 chars)
+🎯 [TRIAD 3/4 - Daily+NOW Strategy] Starting for abc12345
+✅ [TRIAD 3/4 - Daily+NOW Strategy] Saved strategy (2637 chars) (32150ms)
+
+🏢 [VENUES START] ========== Dallas, TX (abc12345) ==========
+🏢 [VENUES 1/4 - Tactical Planner] Input ready: strategy=394chars
+🏢 [VENUE "The Star in Frisco"] 5.2mi, 12min, isOpen=true
+🏢 [VENUE "Stonebriar Centre"] 6.8mi, 15min, isOpen=null
+✅ [VENUES 4/4 - DB Store] Stored 5 candidates (78761ms)
+🏁 [VENUES COMPLETE] 5 venues for Dallas, TX in 78761ms
+```
+
+### Workflow Phase Reference
+
+| Component | Phases | Labels |
+|-----------|--------|--------|
+| TRIAD | 4 | Strategist, Briefer, Daily+NOW Strategy, SmartBlocks |
+| VENUES | 4 | Tactical Planner, Routes API, Places API, DB Store |
+| BRIEFING | 3 | Traffic, Events Discovery, Event Validation |
+| LOCATION | 3 | GPS Received, Geocode/Cache, Weather+Air |
+| SNAPSHOT | 2 | Create Record, Enrich (Airport/Holiday) |
+
+### Logging Conventions
+
+1. **Venue-Specific Logs** - Always include venue name for traceability:
+   ```javascript
+   console.log(`🏢 [VENUE "${venueName}"] Route: 5.2mi, 12min`);
+   ```
+
+2. **No Model Names** - Use role names (Strategist, Briefer, Consolidator) not model names (Claude, Gemini, GPT-5.1)
+
+3. **Files:**
+   - `server/logger/workflow.js` - Workflow-aware logging utility
+   - `server/logger/logger.js` - Module logger with correlation IDs
+   - `server/logger/ndjson.js` - Structured event logging
+
+See [server/logger/README.md](server/logger/README.md) for full documentation.
 
 ---
 

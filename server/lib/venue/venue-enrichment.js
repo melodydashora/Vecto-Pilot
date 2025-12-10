@@ -27,24 +27,23 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
   }
 
   const timezone = snapshot?.timezone || "UTC"; // Fallback to UTC for global app
-  console.log(
-    `[Venue Enrichment] Enriching ${venues.length} venues (timezone: ${timezone})...`,
-  );
+  console.log(`🏢 [VENUE ENRICHMENT START] ${venues.length} venues (tz: ${timezone})`);
 
   // Parallelize all enrichments for speed
   const enriched = await Promise.all(
     venues.map(async (venue, index) => {
+      const venueName = venue.name.length > 35 ? venue.name.slice(0, 32) + '...' : venue.name;
       try {
         // 1. Reverse geocode coords → address
         const address = await reverseGeocode(venue.lat, venue.lng);
 
         // 2. Calculate distance + drive time with traffic (original driver coords → LLM-provided venue coords)
-        console.log(`[Venue Enrichment] 📍 Distance calc: from (${driverLocation.lat.toFixed(4)}, ${driverLocation.lng.toFixed(4)}) → "${venue.name}" (${venue.lat.toFixed(4)}, ${venue.lng.toFixed(4)})`);
+        console.log(`🏢 [VENUE "${venueName}"] Calculating route from driver...`);
         const route = await getRouteWithTraffic(driverLocation, {
           lat: venue.lat,
           lng: venue.lng,
         });
-        console.log(`[Venue Enrichment] ✅ Distance: ${(route.distanceMeters * 0.000621371).toFixed(1)} mi, Drive time: ${Math.ceil(route.durationSeconds / 60)} min`);
+        console.log(`🏢 [VENUE "${venueName}"] Route: ${(route.distanceMeters * 0.000621371).toFixed(1)}mi, ${Math.ceil(route.durationSeconds / 60)}min`);
 
         // 3. Get place details from Google Places API (New) with timezone
         const placeDetails = await getPlaceDetails(
@@ -103,15 +102,11 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           distanceSource: "google_routes_api", // For ML training
         };
 
-        console.log(
-          `[Venue Enrichment] ✅ "${venue.name}": placeId=${enrichedVenue.placeId ? "YES" : "NO"}, coords=${enrichedVenue.lat},${enrichedVenue.lng}, status=${enrichedVenue.businessStatus}`,
-        );
+        const openStatus = enrichedVenue.isOpen === true ? 'OPEN' : enrichedVenue.isOpen === false ? 'CLOSED' : 'UNKNOWN';
+        console.log(`🏢 [VENUE "${venueName}"] ✅ placeId=${enrichedVenue.placeId ? "YES" : "NO"}, status=${openStatus}, hours=${enrichedVenue.businessHours || 'none'}`);
         return enrichedVenue;
       } catch (error) {
-        console.error(
-          `[Venue Enrichment] Failed to enrich venue "${venue.name}":`,
-          error.message,
-        );
+        console.error(`🏢 [VENUE "${venueName}"] ❌ Enrichment failed: ${error.message}`);
 
         // CRITICAL: Always preserve GPT-5 coords even if enrichment fails
         return {

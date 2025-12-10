@@ -32,7 +32,7 @@ components/
 | `GlobalHeader.tsx` | 488 | App.tsx |
 | `CoachChat.tsx` | 535 | co-pilot.tsx |
 | `BriefingTab.tsx` | 466 | co-pilot.tsx |
-| `BarsTable.tsx` | 153 | co-pilot.tsx |
+| `BarsTable.tsx` | 400 | co-pilot.tsx |
 | `MapTab.tsx` | 237 | co-pilot.tsx |
 | `DonationTab.tsx` | 396 | co-pilot.tsx |
 | `InstructionsTab.tsx` | 428 | DonationTab.tsx |
@@ -52,6 +52,24 @@ components/
 - **State from:** `../contexts/location-context-clean.tsx`
 - **Data from:** `../hooks/useBriefingQueries.ts`, API calls
 - **Rendered by:** `../pages/co-pilot.tsx`
+
+## Key Implementation Details
+
+### BarsTable.tsx - Real-time Open/Closed Status
+
+The `BarsTable` component calculates venue open/closed status in **real-time** using `calculateIsOpenNow()`:
+
+```typescript
+// Calculates if venue is open based on hours string and user's current time
+const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
+```
+
+**Why real-time calculation?** The server-side `isOpen` value is calculated once during venue enrichment and cached. If a user views a strategy generated hours ago, the cached value would be stale. Client-side calculation ensures accuracy.
+
+**Supports:**
+- Standard hours: `9:00 AM - 5:00 PM`
+- Overnight hours: `5:00 PM - 2:00 AM` (handles midnight crossover)
+- Falls back to server-cached `bar.isOpen` if parsing fails
 
 ## See Also
 

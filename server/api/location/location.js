@@ -14,6 +14,7 @@ function makeCoordsKey(lat, lng) {
 }
 import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
 import { validateSnapshotV1 } from '../../util/validate-snapshot.js';
+import { haversineDistanceMeters } from '../../lib/location/geo.js';
 import { validateLocationFreshness } from '../../lib/location/validation-gates.js';
 import { uuidOrNull } from '../../util/uuid.js';
 import { makeCircuit } from '../../util/circuit.js';
@@ -355,10 +356,25 @@ router.get('/resolve', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    const deviceId = req.query.device_id;
+
+    // Dev fallback: Generate deterministic device_id from coords if not provided
+    // Uses 6 decimal precision (~0.1m) to ensure unique user per exact address
+    // This ensures user records are created even in dev/testing without a real device
+    let deviceId = req.query.device_id;
+    const isProduction = process.env.NODE_ENV === 'production' && !process.env.REPLIT_DEPLOYMENT;
+
+    if (!deviceId && !isProduction) {
+      deviceId = `dev-admin-${lat.toFixed(6)}_${lng.toFixed(6)}`;
+      console.log(`[Location API] 🔧 DEV MODE: Generated fallback device_id: ${deviceId}`);
+    } else if (deviceId) {
+      console.log(`[Location API] 📱 Using client device_id: ${deviceId.substring(0, 20)}...`);
+    } else {
+      console.log(`[Location API] ⚠️ No device_id provided (production mode)`);
+    }
+
     const accuracy = req.query.accuracy ? Number(req.query.accuracy) : null;
     const sessionId = req.query.session_id || null;
-    const coordSource = req.query.coord_source || 'gps';
+    const coordSource = req.query.coord_source || (deviceId?.startsWith('dev-') ? 'dev-coords' : 'gps');
 
     if (!isFinite(lat) || !isFinite(lng)) {
       console.error('[Location API] INVALID COORDINATES - lat/lng required for precise location resolution', {
@@ -376,13 +392,76 @@ router.get('/resolve', async (req, res) => {
 
     if (!GOOGLE_MAPS_API_KEY) {
       console.warn('[location] No Google Maps API key configured');
-      return res.json({ 
-        city: undefined, 
-        state: undefined, 
+      return res.json({
+        city: undefined,
+        state: undefined,
         country: undefined,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         formattedAddress: `${lat.toFixed(4)}, ${lng.toFixed(4)}`
       });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // USERS TABLE: Check if same device has resolved location nearby (~100m)
+    // This is the FIRST check - reuse resolved addresses when device hasn't moved
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (deviceId) {
+      try {
+        const existingUser = await db.query.users.findFirst({
+          where: eq(users.device_id, deviceId),
+        });
+
+        if (existingUser?.city && existingUser?.formatted_address) {
+          // Check if coords are within ~100m (reuse threshold)
+          const existingLat = existingUser.new_lat || existingUser.lat;
+          const existingLng = existingUser.new_lng || existingUser.lng;
+
+          if (existingLat && existingLng) {
+            const distance = haversineDistanceMeters(lat, lng, existingLat, existingLng);
+
+            if (distance < 100) {
+              console.log(`📍 [LOCATION] ✅ USERS TABLE HIT: Reusing resolved address for device ${deviceId.slice(0, 8)} (${distance.toFixed(0)}m away)`);
+
+              // Update coords but reuse resolved address data
+              const now = new Date();
+              const tz = existingUser.timezone || 'America/Chicago';
+              const hour = new Date(now.toLocaleString('en-US', { timeZone: tz })).getHours();
+              const dow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
+              const dayPartKey = getDayPartKey(hour);
+
+              // Update the user's current coords (but keep resolved address)
+              db.update(users)
+                .set({
+                  new_lat: lat,
+                  new_lng: lng,
+                  accuracy_m: accuracy,
+                  local_iso: now,
+                  dow,
+                  hour,
+                  day_part_key: dayPartKey,
+                  updated_at: now,
+                })
+                .where(eq(users.device_id, deviceId))
+                .catch((err) => console.warn('[LOCATION] Users table coord update failed:', err.message));
+
+              // Return cached user data immediately (no geocode API call!)
+              return res.json({
+                city: existingUser.city,
+                state: existingUser.state,
+                country: existingUser.country,
+                timeZone: existingUser.timezone,
+                formattedAddress: existingUser.formatted_address,
+                user_id: existingUser.user_id,
+                source: 'users_table'
+              });
+            } else {
+              console.log(`📍 [LOCATION] Users table: Device ${deviceId.slice(0, 8)} moved ${distance.toFixed(0)}m - will re-geocode`);
+            }
+          }
+        }
+      } catch (userLookupErr) {
+        console.warn(`[LOCATION] Users table lookup failed (continuing):`, userLookupErr.message);
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -544,8 +623,9 @@ router.get('/resolve', async (req, res) => {
     };
     
     console.log(`[Location API] ✅ Complete resolution:`, resolvedData);
-    
+
     // Save to users table if device_id provided
+    console.log(`[Location API] 🔑 device_id check:`, { deviceId: deviceId || '(missing)', hasDeviceId: !!deviceId });
     if (deviceId) {
       try {
         const now = new Date();
@@ -1034,22 +1114,56 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         snapshot_id 
       });
     } else {
+      // ═══════════════════════════════════════════════════════════════════════════
+      // USERS TABLE FALLBACK: If client has device_id but missing resolved data,
+      // try to pull from users table (source of truth for location identity)
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (snapshotV1.device_id && (!snapshotV1.resolved?.city || !snapshotV1.resolved?.formattedAddress)) {
+        try {
+          const existingUser = await db.query.users.findFirst({
+            where: eq(users.device_id, snapshotV1.device_id),
+          });
+
+          if (existingUser?.city && existingUser?.formatted_address) {
+            console.log(`📍 [SNAPSHOT] ✅ Pulling location from users table for device ${snapshotV1.device_id.slice(0, 8)}`);
+            snapshotV1.resolved = {
+              ...snapshotV1.resolved,
+              city: existingUser.city,
+              state: existingUser.state,
+              country: existingUser.country,
+              formattedAddress: existingUser.formatted_address,
+              timezone: existingUser.timezone
+            };
+            // Update coords from users table if available
+            if (existingUser.new_lat && existingUser.new_lng) {
+              snapshotV1.coord = {
+                ...snapshotV1.coord,
+                lat: existingUser.new_lat,
+                lng: existingUser.new_lng
+              };
+            }
+          }
+        } catch (userLookupErr) {
+          console.warn('[SNAPSHOT] Users table lookup failed:', userLookupErr.message);
+        }
+      }
+
       // Full SnapshotV1 validation
       const v = validateSnapshotV1(snapshotV1);
 
       if (!v.ok) {
-        console.warn('[snapshot] INCOMPLETE_SNAPSHOT_V1 - possible web crawler or incomplete client', { 
+        console.warn('[snapshot] INCOMPLETE_SNAPSHOT_V1 - possible web crawler or incomplete client', {
           fields_missing: v.errors,
           hasUserAgent: !!req.get("user-agent"),
           userAgent: req.get("user-agent"),
           snapshot_id: snapshotV1?.snapshot_id,
           req_id: reqId
         });
-        return httpError(res, 400, 'refresh_required', 'Please refresh location permission and retry.', reqId, { 
+        return httpError(res, 400, 'refresh_required', 'Please refresh location permission and retry.', reqId, {
           fields_missing: v.errors
         });
       }
-      
+
       // CRITICAL: If client sent resolved location data, ensure it's properly structured
       // This handles the full SnapshotV1 path where client sends complete location context
       if (snapshotV1.resolved && !snapshotV1.resolved.formattedAddress && snapshotV1.coord) {

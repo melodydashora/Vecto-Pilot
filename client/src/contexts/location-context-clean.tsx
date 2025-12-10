@@ -39,6 +39,9 @@ interface LocationContextType {
   // Weather and air quality - fetched once during enrichment, shared via context
   weather: { temp: number; conditions: string; description?: string } | null;
   airQuality: { aqi: number; category: string } | null;
+  // Location resolution gate - true when city/formattedAddress are available
+  // Use this to gate downstream queries (Bar Tab, Strategy) to prevent race conditions
+  isLocationResolved: boolean;
 }
 
 export const LocationContext = createContext<LocationContextType | null>(null);
@@ -64,6 +67,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Weather and air quality state - fetched once during enrichment, exposed via context
   const [weather, setWeather] = useState<{ temp: number; conditions: string; description?: string } | null>(null);
   const [airQuality, setAirQuality] = useState<{ aqi: number; category: string } | null>(null);
+  // Location resolution gate - prevents race conditions by gating downstream queries
+  const [isLocationResolved, setIsLocationResolved] = useState(false);
   const generationCounterRef = useRef(0);
   const isInitialMountRef = useRef(true);
   const lastEnrichmentCoordsRef = useRef<string | null>(null);
@@ -121,6 +126,12 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setTimeZone(locationData.timeZone);
       setCurrentLocationString(`${locationData.city}, ${locationData.state}`);
       setLastUpdated(new Date().toISOString());
+
+      // Mark location as resolved - gates downstream queries (Bar Tab, Strategy)
+      if (locationData.city && locationData.formattedAddress) {
+        setIsLocationResolved(true);
+        console.log('✅ [LocationContext] Location resolved - downstream queries enabled');
+      }
 
       // Store JWT token if returned
       if (locationData.user_id) {
@@ -194,6 +205,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const refreshGPS = useCallback(async () => {
     setIsUpdating(true);
     setOverrideCoords(null);
+    setIsLocationResolved(false); // Reset - gates queries until new location resolves
 
     // Clear old strategy
     localStorage.removeItem('vecto_persistent_strategy');
@@ -248,7 +260,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         refreshGPS,
         overrideCoords,
         weather,
-        airQuality
+        airQuality,
+        isLocationResolved
       }}
     >
       {children}

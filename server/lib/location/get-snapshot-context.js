@@ -1,8 +1,8 @@
-// server/lib/snapshot/get-snapshot-context.js
+// server/lib/location/get-snapshot-context.js
 // Two variants: minimal context for minstrategy, full snapshot for consolidator/briefing
 
-import { db } from '../../../db/drizzle.js';
-import { snapshots, users } from '../../../../shared/schema.js';
+import { db } from '../../db/drizzle.js';
+import { snapshots, users } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**

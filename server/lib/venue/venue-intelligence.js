@@ -154,7 +154,7 @@ SORT ORDER:
 Return ONLY valid JSON, no markdown.`;
 
   try {
-    console.log(`[VenueIntelligence] 🎯 Calling GPT-5.1 for venue discovery in ${city}, ${state}`);
+    console.log(`🍸 [BAR TAB] Discovering premium venues in ${city || 'Unknown'}, ${state || '??'}`);
     const response = await openai.chat.completions.create({
       model: 'gpt-5.1',
       messages: [
@@ -163,12 +163,13 @@ Return ONLY valid JSON, no markdown.`;
           content: prompt
         }
       ],
-      temperature: 0.1,
-      max_tokens: 8000,
+      // GPT-5.1: No temperature support, use reasoning_effort + max_completion_tokens
+      reasoning_effort: 'low',  // Fast discovery, accuracy less critical
+      max_completion_tokens: 8000,
       response_format: { type: 'json_object' }
     });
     const text = response.choices[0]?.message?.content || '';
-    console.log(`[VenueIntelligence] ✅ GPT-5.1 venue discovery returned ${text.length} chars`);
+    console.log(`🍸 [BAR TAB] ✅ Returned ${text.length} chars for ${city || 'Unknown'}`);
     
     // Parse JSON response - handle both raw JSON and markdown-wrapped JSON
     let venueData;
@@ -234,9 +235,9 @@ Return ONLY valid JSON, no markdown.`;
 
     return venueData;
   } catch (error) {
-    console.error('[VenueIntelligence] Error discovering venues:', error.message);
+    console.error(`🍸 [BAR TAB] ❌ Discovery failed: ${error.message}`);
     // FALLBACK: Return premium bar test data for Frisco area
-    console.warn('[VenueIntelligence] 📍 Using fallback premium bar data for', city, state);
+    console.warn(`🍸 [BAR TAB] ⚠️ Using fallback data for ${city || 'Unknown'}, ${state || '??'}`);
     return {
       query_time: new Date().toLocaleTimeString(),
       location: `${city}, ${state}`,

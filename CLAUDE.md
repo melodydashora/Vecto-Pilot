@@ -95,6 +95,22 @@ const result = await callModel('strategist', { system, user });
 - Coordinates from Google APIs or DB, never from AI
 - `location-context-clean.tsx` is the single weather source
 
+### Venue Open/Closed Status
+
+**Server-side** (`venue-enrichment.js`): `isOpen` is calculated once during enrichment and stored in `ranking_candidates.features.isOpen`.
+
+**Client-side** (`BarsTable.tsx`): Real-time recalculation using `calculateIsOpenNow(todayHours)` to avoid stale cached values.
+
+```javascript
+// Server: blocks-fast.js - Access from features, NOT business_hours
+isOpen: c.features?.isOpen,  // ✓ Correct
+
+// Client: BarsTable.tsx - Real-time calculation
+const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
+```
+
+**Why client-side recalculation?** Server `isOpen` becomes stale if user views strategy hours after generation. Client calculates based on current time for accuracy.
+
 ## Environment Variables
 
 ### Required
@@ -144,6 +160,156 @@ node server/scripts/holiday-override.js test    # Test detection
 ```
 
 Config: `server/config/holiday-override.json`
+
+## Complete Folder Map
+
+### Server Structure
+```
+server/
+├── api/                    # API routes (domain-organized)
+│   ├── auth/               # Authentication endpoints
+│   ├── briefing/           # Events, traffic, news, weather
+│   ├── chat/               # AI Coach text/voice chat, TTS
+│   ├── feedback/           # User feedback, actions logging
+│   ├── health/             # Health checks, diagnostics
+│   ├── location/           # GPS resolution, snapshots
+│   ├── research/           # Vector search, research
+│   ├── strategy/           # Strategy generation, blocks, SSE events
+│   ├── venue/              # Venue intelligence, events
+│   └── utils/              # HTTP helpers, timing
+│
+├── lib/                    # Business logic
+│   ├── ai/                 # AI layer
+│   │   ├── adapters/       # Model adapters (anthropic, openai, gemini)
+│   │   └── providers/      # AI providers (minstrategy, briefing, etc.)
+│   ├── briefing/           # Briefing service
+│   ├── external/           # Third-party APIs (Perplexity, FAA)
+│   ├── infrastructure/     # Job queue
+│   ├── location/           # Geo, holiday detection, snapshot context
+│   ├── strategy/           # Strategy pipeline, providers, validation
+│   └── venue/              # Venue intelligence, enrichment, places
+│
+├── config/                 # Configuration files
+├── db/                     # Database connection, pool, migrations
+├── jobs/                   # Background workers (triad-worker)
+├── logger/                 # Logging utilities (ndjson, module logger)
+├── middleware/             # Express middleware (auth, validation)
+├── util/                   # Utilities (circuit breaker, UUID, ETA)
+├── bootstrap/              # Server startup, route mounting
+├── agent/                  # Workspace agent (file ops, shell, SQL)
+├── eidolon/                # Enhanced SDK (memory, tools, policy)
+├── assistant/              # Assistant proxy layer
+├── gateway/                # Gateway proxy
+├── scripts/                # Server-side scripts
+├── types/                  # TypeScript types
+└── validation/             # Schema validation
+```
+
+### Client Structure
+```
+client/src/
+├── pages/                  # Route pages (co-pilot.tsx is main)
+├── components/             # UI components
+│   ├── co-pilot/           # Co-pilot specific (tabs, greeting)
+│   ├── strategy/           # Strategy display components
+│   └── _future/            # Staged components
+├── contexts/               # React contexts (location)
+├── hooks/                  # Custom hooks (TTS, polling, queries)
+├── features/               # Feature modules
+│   └── strategy/           # Strategy feature
+├── lib/                    # Core utilities (daypart, queryClient)
+├── types/                  # TypeScript types
+├── utils/                  # Feature helpers
+└── _future/                # Staged future features
+    ├── engine/             # Reflection engine (Phase 17)
+    └── user-settings/      # User profile types
+```
+
+### Root Structure
+```
+/
+├── gateway-server.js       # Main Express server entry
+├── strategy-generator.js   # Background strategy worker
+├── sdk-embed.js            # SDK router factory
+├── shared/schema.js        # Drizzle ORM database schema
+├── docs/architecture/      # API reference, database, AI pipeline
+├── tests/                  # Test suites (e2e, unit)
+└── tools/                  # Development utilities
+```
+
+## Key Import Patterns
+
+```javascript
+// AI adapters (always use this, never call APIs directly)
+import { callModel } from '../../lib/ai/adapters/index.js';
+
+// Database
+import { db } from '../../db/drizzle.js';
+import { snapshots, strategies } from '../../../shared/schema.js';
+
+// Logging - workflow-aware
+import { triadLog, venuesLog, briefingLog } from '../../logger/workflow.js';
+
+// Snapshot context
+import { getSnapshotContext } from '../../lib/location/get-snapshot-context.js';
+
+// Strategy providers
+import { providers } from '../../lib/strategy/providers.js';
+```
+
+## Logging Conventions
+
+### Use Workflow Logger for Pipeline Operations
+
+```javascript
+import { triadLog, venuesLog } from '../../logger/workflow.js';
+
+// TRIAD pipeline (strategy generation)
+triadLog.phase(1, `Starting for ${snapshotId.slice(0, 8)}`);
+triadLog.done(1, `Saved (706 chars)`);
+
+// VENUES pipeline (venue enrichment)
+venuesLog.start(`Dallas, TX (${snapshotId.slice(0, 8)})`);
+venuesLog.phase(2, `Routes API: calculating distances`);
+venuesLog.done(2, `5 venues enriched`, 348);
+venuesLog.complete(`5 venues for Dallas, TX`, 78761);
+```
+
+### Venue-Specific Logs (Critical for Debugging)
+
+Always include the **venue name** so you can trace which venue is being processed:
+
+```javascript
+// GOOD - Can trace "The Mitchell" through the pipeline
+console.log(`🏢 [VENUE "The Mitchell"] Calculating route from driver...`);
+console.log(`🏢 [VENUE "The Mitchell"] Route: 5.2mi, 12min`);
+console.log(`🏢 [VENUE "The Mitchell"] ✅ placeId=YES, status=OPEN, hours=5:00 PM - 2:00 AM`);
+
+// BAD - Generic, can't trace which venue has the issue
+console.log(`[Venue Enrichment] ✅ Distance: 5.2 mi`);
+```
+
+### No Model Names in Logs
+
+Use **role names** (Strategist, Briefer, Consolidator) not model names (Claude, Gemini, GPT-5.1):
+
+```javascript
+// GOOD - Role-based
+triadLog.phase(1, `Starting for ${snapshotId}`);  // Shows: [TRIAD 1/4 - Strategist]
+
+// BAD - Model-specific (confusing, changes when models swap)
+console.log(`[minstrategy] Starting Claude Opus for snapshot`);
+```
+
+### Workflow Phases Reference
+
+| Component | Phases | Labels |
+|-----------|--------|--------|
+| TRIAD | 4 | Strategist, Briefer, Daily+NOW Strategy, SmartBlocks |
+| VENUES | 4 | Tactical Planner, Routes API, Places API, DB Store |
+| BRIEFING | 3 | Traffic, Events Discovery, Event Validation |
+
+See `server/logger/README.md` for full documentation.
 
 ## Related Files
 

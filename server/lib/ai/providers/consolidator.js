@@ -7,8 +7,9 @@
 import { db } from '../../../db/drizzle.js';
 import { strategies, briefings } from '../../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { getFullSnapshot } from '../../location/snapshot/get-snapshot-context.js';
+import { getFullSnapshot } from '../../location/get-snapshot-context.js';
 import { callAnthropic } from '../adapters/anthropic-adapter.js';
+import { triadLog } from '../../../logger/workflow.js';
 
 // Claude Opus fallback configuration
 const FALLBACK_MODEL = 'claude-opus-4-5-20251101';
@@ -198,7 +199,7 @@ function parseJsonField(field) {
  */
 export async function runConsolidator(snapshotId) {
   const startTime = Date.now();
-  console.log(`[consolidator] 🚀 Starting Gemini Tactical Dispatcher for snapshot ${snapshotId}`);
+  triadLog.phase(3, `Starting for ${snapshotId.slice(0, 8)}`);
   
   try {
     // Step 1: Fetch strategy row to get minstrategy
@@ -378,11 +379,10 @@ DO NOT: Focus only on "right now", list venues without context, repeat minstrate
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    console.log(`[consolidator] ✅ SAVED consolidated_strategy + strategy_for_now for ${snapshotId}`);
-    console.log(`[consolidator] ⏱️ Total time: ${totalDuration}ms`);
-    
-    return { 
-      ok: true, 
+    triadLog.done(3, `Saved strategy (${consolidatedStrategy.length} chars)`, totalDuration);
+
+    return {
+      ok: true,
       strategy: consolidatedStrategy,
       metrics: {
         strategyLength: consolidatedStrategy.length,
@@ -392,7 +392,7 @@ DO NOT: Focus only on "right now", list venues without context, repeat minstrate
     };
   } catch (error) {
     const totalDuration = Date.now() - startTime;
-    console.error(`[consolidator] ❌ Error for ${snapshotId} after ${totalDuration}ms:`, error.message);
+    triadLog.error(3, `Failed for ${snapshotId.slice(0, 8)} after ${totalDuration}ms`, error);
     
     // Write error to DB
     await db.update(strategies).set({

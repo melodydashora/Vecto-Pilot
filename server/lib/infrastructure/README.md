@@ -2,68 +2,51 @@
 
 ## Purpose
 
-Cross-cutting infrastructure concerns: logging and background job queue.
+Background job queue infrastructure for fire-and-forget tasks.
 
 ## Files
 
 | File | Purpose | Key Export |
 |------|---------|------------|
-| `job-queue.js` | Background job queue | `enqueue()`, `processQueue()` |
-| `logger.js` | Structured logging | `log()`, `logError()` |
+| `job-queue.js` | Background job queue with retry | `jobQueue.enqueue()` |
 
 ## Usage
 
-### Job Queue
 ```javascript
-import { enqueue, processQueue } from './job-queue.js';
+import { jobQueue } from '../../lib/infrastructure/job-queue.js';
 
-// Add job to queue
-await enqueue({
-  type: 'strategy_generation',
-  payload: { snapshotId: '...' }
-});
+// Enqueue a fire-and-forget job
+await jobQueue.enqueue('strategy-gen-123', async () => {
+  await generateStrategy(snapshotId);
+}, { maxRetries: 3, context: { snapshotId } });
 
-// Process pending jobs (called by worker)
-await processQueue();
+// Get queue metrics
+const metrics = jobQueue.getMetrics();
+// { total: 10, succeeded: 8, failed: 1, retrying: 1 }
+
+// Get job status
+const job = jobQueue.getJob('strategy-gen-123');
+// { status: 'succeeded', attempts: 1, ... }
 ```
 
-### Logging
-```javascript
-import { log, logError } from './logger.js';
+## Features
 
-log('strategy', 'Starting generation', { snapshotId });
-// Output: [strategy] Starting generation { snapshotId: '...' }
-
-logError('strategy', 'Generation failed', error);
-// Output: [strategy] ERROR: Generation failed { message: '...', stack: '...' }
-```
+- Fire-and-forget execution (non-blocking)
+- Automatic retry with exponential backoff
+- Job status tracking
+- Metrics for monitoring
 
 ## Connections
 
-- **Imports from:** `../../db/` (for persistent queue)
-- **Exported to:** All modules (logging), `../../jobs/` (queue processing)
-
-## Log Format
-
-```
-[module] message { context }
-```
-
-All logs include:
-- Module prefix in brackets
-- Human-readable message
-- JSON context object
+- **Used by:** `server/api/location/location.js`, `server/api/health/job-metrics.js`
+- **For logging:** Use `server/logger/` instead
 
 ## Import Paths
 
 ```javascript
 // From server/api/*/
-import { enqueue } from '../../lib/infrastructure/job-queue.js';
-import { log, logError } from '../../lib/infrastructure/logger.js';
-
-// From server/lib/*/
-import { log, logError } from '../infrastructure/logger.js';
+import { jobQueue } from '../../lib/infrastructure/job-queue.js';
 
 // From server/jobs/
-import { processQueue } from '../lib/infrastructure/job-queue.js';
+import { jobQueue } from '../lib/infrastructure/job-queue.js';
 ```

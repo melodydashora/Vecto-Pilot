@@ -4,12 +4,19 @@
 
 Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked venue recommendations shown in the app.
 
+**Two Separate Venue Systems:**
+
+| System | Purpose | Log Prefix | UI Location |
+|--------|---------|------------|-------------|
+| **VENUES Pipeline** | Strategy-driven recommendations | `🏢 [VENUES]` | Main strategy tab |
+| **Bar Tab Discovery** | Premium bars sidebar | `🍸 [BAR TAB]` | Bar Tab sidebar |
+
 ## Files
 
 | File | Purpose | Key Export |
 |------|---------|------------|
-| `enhanced-smart-blocks.js` | Main orchestrator | `generateEnhancedSmartBlocks(snapshotId)` |
-| `venue-intelligence.js` | Venue discovery | `searchNearbyVenues()`, `getVenueDetails()` |
+| `enhanced-smart-blocks.js` | VENUES pipeline orchestrator | `generateEnhancedSmartBlocks(snapshotId)` |
+| `venue-intelligence.js` | Bar Tab discovery (GPT-5.1) | `discoverNearbyVenues()` |
 | `venue-enrichment.js` | Google Places/Routes data | `enrichVenue()`, `getBatchDriveTimes()` |
 | `venue-address-resolver.js` | Batch geocoding | `resolveAddresses()` |
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
@@ -47,11 +54,42 @@ const blocks = await generateEnhancedSmartBlocks(snapshotId);
 // Returns: { ok: boolean, blocks: [...], ranking_id: string }
 ```
 
+## Bar Tab Discovery (venue-intelligence.js)
+
+Separate from main VENUES pipeline. Discovers premium bars for the Bar Tab sidebar.
+
+```javascript
+import { discoverNearbyVenues } from './venue-intelligence.js';
+
+const venues = await discoverNearbyVenues(lat, lng, city, state, {
+  radius_miles: 10,
+  limit: 8
+});
+```
+
+**Model Configuration (GPT-5.1):**
+```javascript
+// CORRECT - GPT-5.1 parameters
+{
+  model: 'gpt-5.1',
+  reasoning_effort: 'low',      // Fast discovery
+  max_completion_tokens: 8000,  // NOT max_tokens!
+  response_format: { type: 'json_object' }
+}
+
+// WRONG - causes 400 error
+{
+  temperature: 0.1,     // Not supported by GPT-5.1
+  max_tokens: 8000      // Use max_completion_tokens instead
+}
+```
+
 ## External APIs Used
 
 | API | Purpose | File |
 |-----|---------|------|
-| Google Places (searchNearby) | Find venues near location | `venue-intelligence.js` |
+| OpenAI GPT-5.1 | Bar Tab discovery | `venue-intelligence.js` |
+| Google Places (searchNearby) | Find venues near location | `venue-enrichment.js` |
 | Google Places (getDetails) | Business hours, ratings | `venue-enrichment.js` |
 | Google Routes API | Drive time, distance | `venue-enrichment.js` |
 | Google Geocoding API | Address resolution | `venue-address-resolver.js` |
