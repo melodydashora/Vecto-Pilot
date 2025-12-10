@@ -4,8 +4,9 @@
 import { db } from '../../../db/drizzle.js';
 import { strategies } from '../../../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
-import { getSnapshotContext } from '../../location/snapshot/get-snapshot-context.js';
+import { getSnapshotContext } from '../../location/get-snapshot-context.js';
 import { callModel } from '../adapters/index.js';
+import { triadLog } from '../../../logger/workflow.js';
 
 /**
  * Run minimal strategy generation using Claude
@@ -13,7 +14,7 @@ import { callModel } from '../adapters/index.js';
  * @param {string} snapshotId - UUID of snapshot
  */
 export async function runMinStrategy(snapshotId) {
-  console.log(`[minstrategy] Starting for snapshot ${snapshotId}`);
+  triadLog.phase(1, `Starting for ${snapshotId.slice(0, 8)}`);
   
   try {
     const ctx = await getSnapshotContext(snapshotId);
@@ -81,15 +82,9 @@ Provide a brief strategic assessment of positioning opportunities for the next h
           updated_at = NOW()
         WHERE snapshot_id = ${snapshotId}
       `);
-      console.log(`[minstrategy] ✅ Saved minstrategy (status=partial, waiting for consolidator)`);
+      triadLog.done(1, `Saved (${text?.length || 0} chars)`);
     } catch (dbError) {
-      console.error(`[minstrategy] ❌ Database UPDATE failed for ${snapshotId}:`, {
-        error: dbError.message,
-        code: dbError.code,
-        detail: dbError.detail,
-        hint: dbError.hint,
-        stack: dbError.stack
-      });
+      triadLog.error(1, `DB write failed for ${snapshotId.slice(0, 8)}`, dbError);
       // Mark as write_failed for debugging
       try {
         await db.execute(sql`
@@ -104,10 +99,8 @@ Provide a brief strategic assessment of positioning opportunities for the next h
       }
       throw dbError;
     }
-
-    console.log(`[minstrategy] ✅ Complete for ${snapshotId} (${text?.length || 0} chars)`);
   } catch (error) {
-    console.error(`[minstrategy] ❌ Error for ${snapshotId}:`, error.message, error.stack);
+    triadLog.error(1, `Failed for ${snapshotId.slice(0, 8)}`, error);
     throw error;
   }
 }

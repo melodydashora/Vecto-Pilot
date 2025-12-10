@@ -148,10 +148,10 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Multi-provider AI model routing system with hedging, circuit breakers, and fallback chains.
 
 **Codebase Files:**
-- `server/lib/llm-router-v2.js` - Enhanced router with strict budget control
-- `server/lib/llm-router.js` - Original router implementation
-- `server/lib/model-retry.js` - Retry logic
-- `server/lib/transient-retry.js` - Transient failure handling
+- `server/lib/ai/llm-router-v2.js` - Enhanced router with strict budget control
+- `server/lib/ai/llm-router.js` - Original router implementation
+- `server/lib/ai/model-retry.js` - Retry logic
+- `server/lib/ai/transient-retry.js` - Transient failure handling
 
 **Supported Providers:**
 - Anthropic (Claude)
@@ -193,7 +193,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Centralized model configuration registry.
 
 **Codebase Files:**
-- `server/lib/models-dictionary.js` - JavaScript implementation
+- `server/lib/ai/models-dictionary.js` - JavaScript implementation
 - `models-dictionary.json` - JSON configuration
 - `agent-ai-config.js` - Gateway AI configuration
 
@@ -216,9 +216,9 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Venue enrichment service providing business details, hours, and coordinates.
 
 **Codebase Files:**
-- `server/lib/places-cache.js` - Caching layer
-- `server/lib/places-hours.js` - Business hours calculation
-- `server/lib/venue-enrichment.js` - Main enrichment logic
+- `server/lib/venue/places-cache.js` - Caching layer
+- `server/lib/venue/places-hours.js` - Business hours calculation
+- `server/lib/venue/venue-enrichment.js` - Main enrichment logic
 
 **Environment Variables:**
 - `GOOGLE_PLACES_API_KEY` - API key
@@ -233,8 +233,8 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Real-time distance and drive time calculation service.
 
 **Codebase Files:**
-- `server/lib/routes-api.js` - API client
-- `server/lib/driveTime.js` - Legacy implementation
+- `server/lib/location/routes-api.js` - API client
+- `server/lib/location/driveTime.js` - Legacy implementation
 
 **Features:**
 - Traffic-aware routing
@@ -284,9 +284,9 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** AI-powered research engine for event discovery.
 
 **Codebase Files:**
-- `server/lib/perplexity-research.js` - Research orchestrator
-- `server/lib/perplexity-event-prompt.js` - Prompt templates
-- `server/lib/adapters/perplexity-adapter.js` - API adapter
+- `server/lib/external/perplexity-research.js` - Research orchestrator
+- `server/lib/external/perplexity-event-prompt.js` - Prompt templates
+- `server/lib/ai/adapters/perplexity-adapter.js` - API adapter
 
 **Environment Variables:**
 - `PERPLEXITY_API_KEY` - API key
@@ -355,8 +355,8 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 **Codebase Files:**
 - `strategy-generator.js` - Worker entry point
-- `server/lib/strategy-generator.js` - Pipeline logic
-- `server/lib/triad-orchestrator.js` - Three-stage coordinator
+- `server/lib/strategy/strategy-generator.js` - Pipeline logic
+- `server/lib/strategy/triad-orchestrator.js` - Three-stage coordinator
 
 **Process Management:**
 - Spawned by Gateway in mono mode
@@ -389,9 +389,9 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** AI-generated venue recommendations with event context.
 
 **Codebase Files:**
-- `server/lib/enhanced-smart-blocks.js` - Generation engine
-- `server/api/blocks-fast.js` - HTTP endpoint
-- `client/src/components/SmartBlocks.tsx` - UI component
+- `server/lib/strategy/enhanced-smart-blocks.js` - Generation engine
+- `server/api/strategy/blocks-fast.js` - HTTP endpoint
+- `client/src/components/SmartBlocksStatus.tsx` - UI component
 
 **Database Tables:**
 - `rankings` - Recommendation sets
@@ -412,9 +412,9 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 3. **Gemini Validator** - Enrichment and validation
 
 **Codebase Files:**
-- `server/lib/providers/minstrategy.js` - Claude strategist
-- `server/lib/planner-gpt5.js` - GPT-5 planner
-- `server/lib/validator-gemini.js` - Gemini validator
+- `server/lib/ai/providers/minstrategy.js` - Claude strategist
+- `server/lib/strategy/planner-gpt5.js` - GPT-5 planner
+- `server/lib/strategy/validator-gemini.js` - Gemini validator
 
 **Documentation:**
 - `ARCHITECTURE.md` - Pipeline architecture (sections 1-9)
@@ -425,9 +425,9 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Perplexity-powered event discovery and verification.
 
 **Codebase Files:**
-- `server/lib/perplexity-research.js` - Research orchestrator
-- `server/lib/venue-event-research.js` - Venue-specific research
-- `server/lib/venue-event-verifier.js` - Verification logic
+- `server/lib/external/perplexity-research.js` - Research orchestrator
+- `server/lib/venue/venue-event-research.js` - Venue-specific research
+- `server/lib/venue/venue-event-verifier.js` - Verification logic
 
 **Database Tables:**
 - `venue_events` - Discovered events
@@ -516,6 +516,6 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 ---
 
-**Version:** 1.0.0  
-**Last Updated:** December 2, 2025  
+**Version:** 1.1.0
+**Last Updated:** December 10, 2025
 **Maintainer:** Vecto Pilot Development Team

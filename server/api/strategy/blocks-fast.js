@@ -209,7 +209,7 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
       proTips: c.pro_tips,
       closed_venue_reasoning: c.closed_reasoning,
       stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
-      isOpen: c.business_hours?.isOpen,
+      isOpen: c.features?.isOpen,
       eventBadge: c.venue_events?.badge,
       eventSummary: c.venue_events?.summary,
     };

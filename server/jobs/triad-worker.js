@@ -5,6 +5,7 @@
 import { db } from '../db/drizzle.js';
 import { strategies, snapshots, briefings } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
+import { refreshEventsInBriefing } from '../lib/briefing/briefing-service.js';
 
 // Optional: environment flags (kept for consistency, not used for polling anymore)
 const LOCK_TTL_MS = Number(process.env.LOCK_TTL_MS || 9000);
@@ -113,15 +114,42 @@ export async function startConsolidationListener() {
         // Run consolidation if needed
         if (needsConsolidation) {
           console.log(`[consolidation-listener] 🔄 Running consolidation for ${snapshotId}...`);
-          
+
           // Build briefing object from briefing table row
-          const briefingData = briefingRow ? {
+          let briefingData = briefingRow ? {
             events: briefingRow.events || [],
             news: briefingRow.news || { items: [] },
             traffic_conditions: briefingRow.traffic_conditions || null,
             weather_current: briefingRow.weather_current || null,
             school_closures: briefingRow.school_closures || []
           } : {};
+
+          // Check if events are empty/missing - fetch fresh events if so
+          const eventsEmpty = !briefingData.events ||
+            (Array.isArray(briefingData.events) && briefingData.events.length === 0) ||
+            (briefingData.events?.items && briefingData.events.items.length === 0);
+
+          if (eventsEmpty && briefingRow) {
+            console.log(`[consolidation-listener] 📅 Events empty - fetching fresh events for ${snapshotId}...`);
+            try {
+              // Fetch snapshot for refreshEventsInBriefing
+              const [snapshotForEvents] = await db.select()
+                .from(snapshots)
+                .where(eq(snapshots.snapshot_id, snapshotId))
+                .limit(1);
+
+              if (snapshotForEvents) {
+                const refreshedBriefing = await refreshEventsInBriefing(
+                  { ...briefingRow, snapshot_id: snapshotId },
+                  snapshotForEvents
+                );
+                briefingData.events = refreshedBriefing.events || [];
+                console.log(`[consolidation-listener] ✅ Fresh events fetched: ${Array.isArray(briefingData.events) ? briefingData.events.length : 0} events`);
+              }
+            } catch (eventsErr) {
+              console.warn(`[consolidation-listener] ⚠️ Could not refresh events: ${eventsErr.message}`);
+            }
+          }
 
           const result = await consolidateStrategy({
             snapshotId,

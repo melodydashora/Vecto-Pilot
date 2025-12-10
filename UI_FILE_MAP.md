@@ -1,6 +1,6 @@
 # UI_FILE_MAP.md - Component, API, and Event Mapping
 
-**Last Updated:** 2025-12-09 UTC
+**Last Updated:** 2025-12-10 UTC
 
 This document provides a complete mapping of UI components to their source files, API calls, events, and identifies orphaned/redundant files.
 
@@ -310,10 +310,10 @@ These files are imported but may be duplicates or unused code paths:
 
 | File | Issue | Action |
 |------|-------|--------|
-| `server/lib/llm-router-v2.js` | Deprecated per ARCHITECTURE.md | Review for removal |
-| `server/lib/strategy-generator.js` | Parallel version exists | Review if still needed |
-| `server/routes/vector-search.js` | No imports found | Review for removal |
-| `server/routes/research.js` | Limited usage | Review for removal |
+| `server/lib/ai/llm-router-v2.js` | Deprecated per ARCHITECTURE.md | Review for removal |
+| `server/lib/strategy/strategy-generator.js` | Parallel version exists | Review if still needed |
+| `server/api/research/vector-search.js` | No imports found | Review for removal |
+| `server/api/research/research.js` | Limited usage | Review for removal |
 
 ---
 
@@ -338,16 +338,16 @@ These files are imported but may be duplicates or unused code paths:
 
 | Route Pattern | Backend File |
 |---------------|--------------|
-| `/api/location/*` | `server/routes/location.js` |
-| `/api/blocks-fast` | `server/routes/blocks-fast.js` |
-| `/api/strategy/*` | `server/routes/strategy.js` |
-| `/api/briefing/*` | `server/routes/briefing.js` |
-| `/api/chat` | `server/routes/chat.js` |
-| `/api/realtime/*` | `server/routes/realtime.js` |
-| `/api/feedback/*` | `server/routes/feedback.js` |
-| `/api/actions` | `server/routes/actions.js` |
-| `/api/auth/*` | `server/routes/auth.js` |
-| `/api/tts` | `server/routes/tts.js` |
+| `/api/location/*` | `server/api/location/location.js` |
+| `/api/blocks-fast` | `server/api/strategy/blocks-fast.js` |
+| `/api/strategy/*` | `server/api/strategy/strategy.js` |
+| `/api/briefing/*` | `server/api/briefing/briefing.js` |
+| `/api/chat` | `server/api/chat/chat.js` |
+| `/api/realtime/*` | `server/api/chat/realtime.js` |
+| `/api/feedback/*` | `server/api/feedback/feedback.js` |
+| `/api/actions` | `server/api/feedback/actions.js` |
+| `/api/auth/*` | `server/api/auth/auth.js` |
+| `/api/tts` | `server/api/chat/tts.js` |
 
 ---
 

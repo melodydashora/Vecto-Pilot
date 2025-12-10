@@ -1,6 +1,6 @@
-// server/strategy-events.js
+// server/api/strategy/strategy-events.js
 import express from 'express';
-import { getListenClient } from './db/db-client.js';
+import { getListenClient } from '../../db/db-client.js';
 
 const router = express.Router();
 

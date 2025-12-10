@@ -6,6 +6,8 @@ This folder contains code that is **not yet active** but is planned for future f
 
 ```
 _future/
+├── engine/              # Learning and reflection systems
+│   └── reflectionEngine.ts  # User pattern learning (Phase 17)
 ├── user-settings/       # Sign-up/sign-in and profile settings
 │   ├── vehicleTiers.ts  # Vehicle tier selection for driver profiles
 │   ├── driver.ts        # Driver profile types (vehicle, preferences)
@@ -46,3 +48,21 @@ When implementing a feature:
 3. Connect to GlobalHeader.tsx Settings gear button
 4. Store user preferences in `users` table
 5. Import types from this folder into active components
+
+### Reflection Engine (engine/)
+**Status:** Phase 17 - Waiting for core features to stabilize
+**Files:**
+- `reflectionEngine.ts` - User interaction learning and pattern analysis
+
+**Features:**
+- Records user interactions with smart blocks
+- Tracks idle times and trip durations by zone
+- Identifies problematic zones (low ratings)
+- Finds high-performing recommendations
+- Generates personalized suggestions
+
+**To activate:**
+1. Integrate with co-pilot.tsx to record interactions
+2. Add optional rating prompts after trips
+3. Display suggestions in UI
+4. Consider privacy implications

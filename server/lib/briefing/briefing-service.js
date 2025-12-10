@@ -318,29 +318,43 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     return [];
   }
 
-  const date = snapshot?.date || new Date().toISOString().split('T')[0];
   const city = snapshot?.city || 'Frisco';
   const state = snapshot?.state || 'TX';
   const lat = snapshot?.lat || 33.1285;
   const lng = snapshot?.lng || -96.8756;
-  const hour = snapshot?.hour || 22;
+  const hour = snapshot?.hour ?? new Date().getHours();
   const timezone = snapshot?.timezone || 'America/Chicago';
+
+  // Use local_iso if available, otherwise compute local date from timezone
+  let date;
+  if (snapshot?.local_iso) {
+    date = new Date(snapshot.local_iso).toISOString().split('T')[0];
+  } else {
+    // Compute today's date in the user's timezone
+    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone }); // en-CA gives YYYY-MM-DD format
+  }
   const currentTime = `${String(hour).padStart(2, '0')}:00`;
+
+  console.log(`[BriefingService] 📅 Events date computed:`, { date, localIso: snapshot?.local_iso, timezone, hour });
   
   console.log(`[BriefingService] 🎯 Fetching events: city=${city}, state=${state}, lat=${lat}, lng=${lng}, date=${date}, time=${currentTime}`);
 
-  const prompt = `TASK: Find ALL major events happening in ${city}, ${state} TODAY (${date}) and nearby cities that affect rideshare demand. Use Google Search tool now.
+  // Determine time context for search (today vs tonight)
+  const timeContext = hour >= 17 ? 'tonight' : 'today';
+  const dayOfWeek = new Date().toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
 
-LOCATION: ${city}, ${state} (${lat}, ${lng}) - 50 mile radius (include nearby cities within this radius)
-DATE: ${date} (TODAY) - Current time: ${currentTime} (${timezone})
+  const prompt = `TASK: Find ALL major events happening in ${city}, ${state} ${timeContext.toUpperCase()} (${date}) and nearby cities within 50 miles that affect rideshare demand. Use Google Search tool now.
+
+LOCATION: ${city}, ${state} (${lat}, ${lng}) - 50 mile radius (include all nearby cities in this metro area)
+DATE: ${date} (${dayOfWeek}) - Current time: ${currentTime} (${timezone})
 TIMEZONE: ${timezone}
 
-SEARCH QUERIES (execute all - include nearby cities):
-1. "major events today in ${city} ${state} and nearby cities"
-2. "concerts games tonight ${city} area"
-3. "sports matches games ${city} metro today"
-4. "bars venues events ${city} surrounding cities tonight"
-5. "festivals watch parties ${city} region today"
+SEARCH QUERIES (execute ALL of these):
+1. "events ${timeContext} ${city} ${state} ${date}"
+2. "concerts shows ${timeContext} near ${city} ${state}"
+3. "sports games ${timeContext} ${city} metro area ${date}"
+4. "live music venues ${city} ${state} ${timeContext}"
+5. "things to do ${timeContext} near ${city} ${state}"
 
 EVENT TYPES TO FIND:
 - Concerts, live music, festivals
@@ -392,20 +406,31 @@ RETURN FORMAT (ONLY this JSON, no markdown):
   }
 
   try {
+    console.log(`[BriefingService] 📥 Raw Gemini events output (first 500 chars):`, result.output?.substring(0, 500));
+
     const parsed = safeJsonParse(result.output);
-    const events = Array.isArray(parsed) ? parsed : [parsed];
+    const events = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
     const validEvents = events.filter(e => e.title && e.venue && e.address);
 
     if (validEvents.length === 0) {
-      console.log('[BriefingService] ℹ️ No events found for this location/time (Gemini returned empty)');
+      console.log('[BriefingService] ℹ️ No valid events found. Raw parsed:', JSON.stringify(parsed)?.substring(0, 300));
+      console.log('[BriefingService] ℹ️ Events before filter:', events.length, 'After filter:', validEvents.length);
+      if (events.length > 0 && events[0]) {
+        console.log('[BriefingService] ℹ️ First event missing fields:', {
+          hasTitle: !!events[0].title,
+          hasVenue: !!events[0].venue,
+          hasAddress: !!events[0].address,
+          keys: Object.keys(events[0])
+        });
+      }
       return { items: [], reason: 'No events found for this location and time' };
     }
 
-    console.log('[BriefingService] ✅ Found', validEvents.length, 'valid events');
+    console.log('[BriefingService] ✅ Found', validEvents.length, 'valid events:', validEvents.map(e => e.title).join(', '));
     return { items: validEvents, reason: null };
   } catch (err) {
     const errorMsg = `Failed to parse Gemini events response: ${err.message}`;
-    console.error(`[BriefingService] ❌ ${errorMsg}`);
+    console.error(`[BriefingService] ❌ ${errorMsg}. Raw output:`, result.output?.substring(0, 300));
     throw new Error(errorMsg);
   }
 }
@@ -1104,13 +1129,35 @@ function isTrafficStale() {
 }
 
 /**
+ * Check if events are empty/missing - triggers immediate fetch
+ * Events are critical for rideshare demand, so empty = fetch now
+ * @param {object} briefing - Briefing row from database
+ * @returns {boolean} True if events array is empty or missing
+ */
+function areEventsEmpty(briefing) {
+  if (!briefing?.events) return true;
+
+  // Handle array format
+  if (Array.isArray(briefing.events)) {
+    return briefing.events.length === 0;
+  }
+
+  // Handle {items: [], reason: string} format
+  if (briefing.events?.items && Array.isArray(briefing.events.items)) {
+    return briefing.events.items.length === 0;
+  }
+
+  return true;
+}
+
+/**
  * Refresh events data in existing briefing (when events are stale)
  * Keeps other cached data while updating events
  * @param {object} briefing - Current briefing object
  * @param {object} snapshot - Snapshot with location data
  * @returns {Promise<object>} Briefing with updated events
  */
-async function refreshEventsInBriefing(briefing, snapshot) {
+export async function refreshEventsInBriefing(briefing, snapshot) {
   try {
     console.log(`[BriefingService] 🎭 Refreshing events data (stale >4h)...`);
 
@@ -1242,8 +1289,13 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
     console.log(`[BriefingService] ✓ Cache hit (24h): daily briefing for ${snapshotId}, refreshing traffic...`);
     briefing = await refreshTrafficInBriefing(briefing, snapshot);
 
+    // CRITICAL: If events are EMPTY, fetch immediately (events are never "none" in a metro area)
+    if (areEventsEmpty(briefing)) {
+      console.log(`[BriefingService] 🎭 Events EMPTY - fetching immediately (events always exist in metro areas)...`);
+      briefing = await refreshEventsInBriefing(briefing, snapshot);
+    }
     // Also check if events specifically are stale (4h vs 24h for other daily data)
-    if (isEventsStale(briefing)) {
+    else if (isEventsStale(briefing)) {
       console.log(`[BriefingService] 🎭 Events stale within same day, refreshing events...`);
       briefing = await refreshEventsInBriefing(briefing, snapshot);
     }
@@ -1263,6 +1315,17 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
       }
     }
   }
-  
+
+  // FINAL SAFETY NET: If events are STILL empty after all paths, fetch now
+  // This ensures we never return a briefing without attempting to get events
+  if (briefing && areEventsEmpty(briefing)) {
+    console.log(`[BriefingService] 🎭 SAFETY NET: Events still empty after briefing flow - fetching now...`);
+    try {
+      briefing = await refreshEventsInBriefing(briefing, snapshot);
+    } catch (eventsErr) {
+      console.warn(`[BriefingService] ⚠️ Safety net events fetch failed: ${eventsErr.message}`);
+    }
+  }
+
   return briefing;
 }

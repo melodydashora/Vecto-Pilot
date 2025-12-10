@@ -189,6 +189,27 @@ const { data } = useQuery({
 });
 ```
 
+### Location Race Condition (Issue Dec 2025)
+
+**Problem:** Bar Tab venues showing "Unknown" city because query fires before location resolved
+
+**Root Cause:**
+- GPS coords available immediately from browser
+- `locationContext.city` populated AFTER `/api/location/resolve` completes
+- Query `enabled` checked only `coords.latitude/longitude`, not city
+- `coords` type is `{latitude, longitude}` only - city/state are SEPARATE context properties
+
+**Fix (Two-part):**
+1. **Client:** Use `isLocationResolved` flag to gate downstream queries
+   ```typescript
+   enabled: !!(coords?.latitude && coords?.longitude && locationContext?.isLocationResolved)
+   ```
+2. **Server:** Add users table lookup BEFORE coords_cache to reuse resolved addresses
+   - If same device_id + coords within 100m → return cached city/state (no API call)
+   - Users table = source of truth for resolved location identity
+
+**Key Insight:** Don't access `coords.city` - it doesn't exist. Use `locationContext.city` instead.
+
 ---
 
 ## Backend Patterns
@@ -359,6 +380,30 @@ return res.json({
 ```
 
 **Lesson:** API endpoints must return consistent response shapes. When adding new data to responses, update ALL success paths, not just the main one.
+
+### Bug: Venues showing "Open Now" when closed (or vice versa)
+
+**Cause:** Stale `isOpen` value from server-side calculation
+
+**Symptoms:**
+- Venue shows "Open Now" but hours are "5:00 PM - 2:00 AM" and it's 10 AM
+- Open/closed status doesn't match displayed business hours
+
+**Root Cause:** The server calculates `isOpen` once during venue enrichment (`venue-enrichment.js`). If user views the strategy hours later, the cached value is stale.
+
+**Fix (implemented):**
+1. **Server** (`blocks-fast.js`): Access `isOpen` from correct path:
+   ```javascript
+   isOpen: c.features?.isOpen,  // ✓ Correct - features JSONB column
+   // NOT: c.business_hours?.isOpen  // ✗ Wrong - business_hours is a string
+   ```
+
+2. **Client** (`BarsTable.tsx`): Real-time recalculation:
+   ```typescript
+   const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
+   ```
+
+**Lesson:** Time-sensitive status values should be calculated client-side using the user's current time, not cached from server-side generation. The `businessHours` string provides the data; the client calculates the current state.
 
 ---
 

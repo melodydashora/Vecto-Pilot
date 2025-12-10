@@ -15,9 +15,8 @@ strategy/
 ├── strategy-triggers.js           # Trigger condition detection
 ├── planner-gpt5.js                # Venue planner (GPT-5.1)
 ├── tactical-planner.js            # Tactical guidance generation
-└── strategies/
-    ├── index.js                   # Provider registry
-    └── assert-safe.js             # Safety assertions, cache warming
+├── providers.js                   # Strategy provider registry
+└── assert-safe.js                 # Async validation, cache warming
 ```
 
 ## Files
@@ -31,8 +30,8 @@ strategy/
 | `strategy-triggers.js` | Trigger detection | `detectTriggers()` |
 | `planner-gpt5.js` | Venue planning | `planVenues(snapshotId)` |
 | `tactical-planner.js` | Tactical guidance | `generateTacticalPlan()` |
-| `strategies/index.js` | Registry | Provider registration |
-| `strategies/assert-safe.js` | Safety | `assertSafe()`, cache warming |
+| `providers.js` | Registry | `providers`, `getStrategyProvider()` |
+| `assert-safe.js` | Async validation | `safeAssertStrategies()`, `maybeWarmCaches()` |
 
 ## Pipeline Flow
 

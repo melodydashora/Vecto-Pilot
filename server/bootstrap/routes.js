@@ -137,7 +137,7 @@ export async function mountRoutes(app, server) {
 export async function mountSSE(app) {
   try {
     console.log('[gateway] Loading SSE strategy events...');
-    const ssePath = path.join(rootDir, 'server/strategy-events.js');
+    const ssePath = path.join(rootDir, 'server/api/strategy/strategy-events.js');
     const strategyEvents = (await import(ssePath)).default;
     app.use('/', strategyEvents);
     console.log('[gateway] ✅ SSE strategy events endpoint mounted');

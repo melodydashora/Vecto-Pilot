@@ -1,8 +1,8 @@
-// server/lib/strategies/index.js
+// server/lib/strategy/providers.js
 // Centralized strategy provider registry
 // Prevents ReferenceError from undefined strategy functions
 
-import { generateStrategyForSnapshot } from '../strategy-generator.js';
+import { generateStrategyForSnapshot } from './strategy-generator.js';
 
 // Provider map - all strategy generators registered here
 export const providers = {

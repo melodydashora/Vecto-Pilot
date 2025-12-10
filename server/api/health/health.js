@@ -3,7 +3,7 @@ import { Router } from "express";
 import { routerDiagnosticsV2 } from "../../lib/ai/llm-router-v2.js";
 import { getPoolStats, getSharedPool } from "../../db/pool.js";
 import { getAgentState } from "../../db/connection-manager.js";
-import { providers } from "../../lib/strategy/strategies/index.js";
+import { providers } from "../../lib/strategy/providers.js";
 import { ndjson } from "../../logger/ndjson.js";
 
 const router = Router();

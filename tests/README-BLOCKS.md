@@ -233,8 +233,8 @@ const blockSchema = {
 };
 ```
 
-2. **Update SmartBlock component** (`client/src/components/SmartBlock.tsx`)
-3. **Update content-blocks API** (`server/routes/content-blocks.js`)
+2. **Update SmartBlock component** (`client/src/components/SmartBlocksStatus.tsx`)
+3. **Update content-blocks API** (`server/api/strategy/content-blocks.js`)
 4. **Run tests** to verify
 
 ## Troubleshooting
@@ -253,6 +253,6 @@ const blockSchema = {
 
 ## Related Files
 - `tests/blocksApi.test.js` - Test suite
-- `client/src/components/SmartBlock.tsx` - Frontend renderer
-- `server/routes/content-blocks.js` - Backend API
+- `client/src/components/SmartBlocksStatus.tsx` - Frontend renderer
+- `server/api/strategy/content-blocks.js` - Backend API
 - `jest.config.js` - Jest configuration

@@ -21,7 +21,7 @@ The main context provider that handles:
 ### Usage
 
 ```tsx
-import { LocationProvider, useLocationContext } from './contexts/location-context-clean';
+import { LocationProvider, useLocation } from './contexts/location-context-clean';
 
 // Wrap app
 <LocationProvider>
@@ -31,15 +31,26 @@ import { LocationProvider, useLocationContext } from './contexts/location-contex
 // Use in components
 function MyComponent() {
   const {
-    latitude,
-    longitude,
-    city,
-    state,
-    weather,
-    air,
+    currentCoords,      // { latitude, longitude } - GPS only, NO city/state!
+    city,               // Separate property - resolved from API
+    state,              // Separate property - resolved from API
+    timeZone,           // Resolved timezone
+    weather,            // { temp, conditions, description }
+    airQuality,         // { aqi, category }
+    isLocationResolved, // NEW: Gate flag for downstream queries
     refreshGPS
-  } = useLocationContext();
+  } = useLocation();
 }
+```
+
+**⚠️ IMPORTANT**: `currentCoords` only has `latitude` and `longitude`. City/state are SEPARATE properties!
+
+```tsx
+// ❌ WRONG - city does NOT exist on coords
+const city = locationContext.currentCoords?.city;  // undefined!
+
+// ✅ CORRECT - city is a separate property
+const city = locationContext.city;
 ```
 
 ### Data Flow
@@ -58,6 +69,27 @@ From CLAUDE.md:
 - **No fallbacks**: GPS-first app, no IP-based fallback
 - **Single weather source**: Weather fetched here only, not in GlobalHeader
 - **Deduplication**: Uses `lastEnrichmentCoordsRef` to prevent duplicate API calls
+- **isLocationResolved gate**: Downstream queries (Bar Tab, Strategy) must wait for this flag
+
+### isLocationResolved Flag (Dec 2025)
+
+Prevents race conditions where queries fire before city/state are resolved:
+
+```tsx
+// Gate downstream queries on isLocationResolved
+const { data: venuesData } = useQuery({
+  queryKey: ['/api/venues/nearby', ...],
+  enabled: !!(coords?.latitude && coords?.longitude &&
+              locationContext?.isLocationResolved),  // Wait for resolve!
+});
+```
+
+**When set to `true`:**
+- After successful `/api/location/resolve` returns city + formattedAddress
+- Signals that location identity is fully resolved
+
+**When reset to `false`:**
+- On `refreshGPS()` call (user requested new location)
 
 ### Events
 

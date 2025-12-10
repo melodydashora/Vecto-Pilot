@@ -75,10 +75,8 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
 
   const startTime = Date.now();
   const driverAddress = snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown';
-  
-  console.log(`[TRIAD 2/3 - GPT-5 Planner] ========== INPUT DATA ==========`);
-  console.log(`[TRIAD 2/3 - GPT-5 Planner] Strategy: "${strategy.slice(0, 150)}..."`);
-  console.log(`[TRIAD 2/3 - GPT-5 Planner] Driver Address: ${driverAddress}`);
+
+  console.log(`🏢 [VENUES 1/4 - Tactical Planner] Input: "${strategy.slice(0, 80)}..." at ${driverAddress}`);
 
   // Get day name from dow
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -187,7 +185,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "Return JSON with venue coords, staging coords, category, pro tips, and tactical summary."
   ].join("\n");
 
-  console.log(`[TRIAD 2/3 - GPT-5 Planner] Calling GPT-5 (using default temperature - GPT-5 doesn't support custom temperature)...`);
+  console.log(`🏢 [VENUES 1/4 - Tactical Planner] Calling AI for venue recommendations...`);
 
   // Call GPT-5 with temperature instead of reasoning_effort
   const abortCtrl = new AbortController();
@@ -207,36 +205,30 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     });
 
     const duration = Date.now() - startTime;
-    console.log(`✅ [GPT-5 Tactical Planner] Generated plan in ${duration}ms`);
 
     // Parse JSON response
     const parsed = safeJsonParse(rawResponse.output);
-    
+
     if (!parsed) {
-      console.error('[GPT-5 Tactical Planner] Failed to parse JSON response');
-      throw new Error('Invalid JSON response from GPT-5');
+      console.error('🏢 [VENUES 1/4 - Tactical Planner] ❌ Failed to parse JSON response');
+      throw new Error('Invalid JSON response from AI');
     }
 
     // Validate response against schema
     const validation = GPT5ResponseSchema.safeParse(parsed);
-    
+
     if (!validation.success) {
-      console.error('[GPT-5 Tactical Planner] ❌ Validation failed:', validation.error.format());
-      console.error('[GPT-5 Tactical Planner] Raw response:', JSON.stringify(parsed, null, 2));
-      throw new Error(`GPT-5 response validation failed: ${validation.error.message}`);
+      console.error('🏢 [VENUES 1/4 - Tactical Planner] ❌ Validation failed:', validation.error.format());
+      throw new Error(`AI response validation failed: ${validation.error.message}`);
     }
 
     const validated = validation.data;
-    console.log(`[TRIAD 2/3 - GPT-5 Planner] ========== OUTPUT DATA ==========`);
-    console.log(`[TRIAD 2/3 - GPT-5 Planner] ✅ Validation passed: ${validated.recommended_venues.length} venues`);
-    console.log(`[TRIAD 2/3 - GPT-5 Planner] Tactical Summary: "${validated.tactical_summary}"`);
-    console.log(`[TRIAD 2/3 - GPT-5 Planner] Venues:`, validated.recommended_venues.map(v => ({
-      name: v.name,
-      category: v.category,
-      lat: v.lat,
-      lng: v.lng,
-      tips_count: v.pro_tips.length
-    })));
+
+    // Log each venue individually for clear tracing
+    console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ ${validated.recommended_venues.length} venues in ${duration}ms:`);
+    validated.recommended_venues.forEach((v, i) => {
+      console.log(`   ${i+1}. "${v.name}" (${v.category}) at ${v.lat.toFixed(4)},${v.lng.toFixed(4)}`);
+    });
 
     // Add rank to each venue and prepare final response
     const normalized = {
@@ -254,14 +246,10 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
       }
     };
 
-    console.log(`✅ [GPT-5 Tactical Planner] Returning ${normalized.recommended_venues.length} venue recommendations`);
-    if (normalized.best_staging_location) {
-      console.log(`📍 [GPT-5 Tactical Planner] Best staging: ${normalized.best_staging_location.name} at ${normalized.best_staging_location.lat}, ${normalized.best_staging_location.lng}`);
-    }
     return normalized;
 
   } catch (error) {
-    console.error('[GPT-5 Tactical Planner] Error:', error.message);
+    console.error('🏢 [VENUES 1/4 - Tactical Planner] ❌ Error:', error.message);
     throw error;
   } finally {
     clearTimeout(timeout);

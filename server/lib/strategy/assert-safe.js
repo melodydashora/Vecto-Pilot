@@ -1,8 +1,8 @@
-// server/lib/strategies/assert-safe.js
+// server/lib/strategy/assert-safe.js
 // Async, yielding version of assertStrategies for post-listen validation
 // Prevents event loop starvation during boot
 
-import { providers } from './index.js';
+import { providers } from './providers.js';
 
 /**
  * Safely assert strategy providers in batches with yielding

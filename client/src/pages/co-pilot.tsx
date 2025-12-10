@@ -429,7 +429,52 @@ const CoPilot: React.FC = () => {
     retryDelay: (attemptIndex) => Math.min(3000 * 2 ** attemptIndex, 10000), // Exponential backoff: 3s, 6s, 10s max
   });
 
-  // Venues tab now uses blocksData from main query - no separate fetch needed
+  // Independent venues query - loads when location AND city/state are resolved
+  // BUG FIX: city/state come from locationContext, not coords object
+  const { data: venuesData, isLoading: venuesLoading } = useQuery({
+    queryKey: ['/api/venues/nearby', coords?.latitude, coords?.longitude, locationContext?.city, locationContext?.state],
+    queryFn: async () => {
+      if (!coords?.latitude || !coords?.longitude) throw new Error('No coordinates');
+
+      const params = new URLSearchParams({
+        lat: coords.latitude.toString(),
+        lng: coords.longitude.toString(),
+        city: locationContext?.city || 'Unknown',
+        state: locationContext?.state || '',
+        radius: '10'
+      });
+
+      const response = await fetch(`/api/venues/nearby?${params}`, {
+        headers: getAuthHeader()
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch venues');
+      }
+
+      const result = await response.json();
+      return result.data;
+    },
+    // Wait for location to be fully resolved before fetching venues (prevents "Unknown" location)
+    enabled: !!(coords?.latitude && coords?.longitude && locationContext?.isLocationResolved),
+    staleTime: 5 * 60 * 1000, // 5 minutes - venues don't change that often
+    refetchInterval: false, // Don't auto-refetch, user can pull to refresh
+  });
+
+  // Map venue data to BarsTable block format
+  const venueBlocks = venuesData?.venues?.map((v: any) => ({
+    name: v.name,
+    address: v.address,
+    category: v.type === 'bar' ? 'bar' : v.type === 'bar_restaurant' ? 'bar_restaurant' : 'restaurant',
+    coordinates: { lat: v.lat, lng: v.lng },
+    placeId: v.place_id || null,
+    estimated_distance_miles: v.distance_miles || null,
+    driveTimeMinutes: v.drive_minutes || null,
+    value_per_min: v.expense_rank ? v.expense_rank * 0.25 : 0.5, // Convert expense rank to value
+    value_grade: v.expense_rank >= 4 ? 'A' : v.expense_rank >= 3 ? 'B' : 'C',
+    isOpen: v.is_open,
+    businessHours: v.hours_today || null,
+  })) || [];
 
   // Enrichment progress tracking (using extracted hook)
   const hasBlocks = (blocksData?.blocks?.length ?? 0) > 0;
@@ -1615,18 +1660,20 @@ const CoPilot: React.FC = () => {
           </div>
         )}
 
-        {/* Venues Tab Content - Bars & High-Volume Venues */}
+        {/* Venues Tab Content - Late Night Hotspots (Independent of Strategy) */}
         {activeTab === 'venues' && (
           <div data-testid="venue-intelligence-section">
             {/* Venues Header with Location Context */}
-            <div className="mb-6 flex items-center gap-3 flex-wrap justify-between">
+            <div className="mb-4 flex items-center gap-3 flex-wrap justify-between">
               <div className="flex items-center gap-2">
                 <Wine className="w-5 h-5 text-purple-600" />
-                <h2 className="text-lg font-semibold text-gray-800">Bars & High-Volume Venues</h2>
-                <Badge variant="outline" className="border-green-500 text-green-600">
-                  <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
-                  Live
-                </Badge>
+                <h2 className="text-lg font-semibold text-gray-800">Late Night Hotspots</h2>
+                {venuesData && !venuesLoading && (
+                  <Badge variant="outline" className="border-green-500 text-green-600">
+                    <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                    {venueBlocks.length} venues
+                  </Badge>
+                )}
               </div>
               {coords && (
                 <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -1636,29 +1683,8 @@ const CoPilot: React.FC = () => {
               )}
             </div>
 
-            {/* Location Context Card from Coordinates */}
-            {coords && (
-              <Card className="mb-4 border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-purple-100">
-                      <MapPin className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800">
-                        {coords.city}{coords.state ? `, ${coords.state}` : ''}
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Showing bars and restaurants sorted by expense level ($$$$→$) with last-call alerts
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Venues Loading State - Uses same blocks as Strategy tab */}
-            {isLoading && (
+            {/* Venues Loading State - Independent fetch, only needs location */}
+            {venuesLoading && (
               <Card className="p-6 border-purple-100 bg-purple-50/50 mb-6">
                 <div className="flex items-center gap-3">
                   <Loader className="w-5 h-5 text-purple-600 animate-spin flex-shrink-0" />
@@ -1670,8 +1696,8 @@ const CoPilot: React.FC = () => {
               </Card>
             )}
 
-            {/* Use blocksData from main query - already has all venues including bars */}
-            {!isLoading && <BarsTable blocks={blocksData?.blocks} />}
+            {/* Independent venues - loads immediately with location, no strategy wait */}
+            {!venuesLoading && <BarsTable blocks={venueBlocks} />}
           </div>
         )}
 
