@@ -99,7 +99,10 @@ export async function getEnhancedProjectContext(options = {}) {
       healthScore: 1.0,
       lastCheck: new Date().toISOString(),
       activeRecoveries: 0
-    }
+    },
+    
+    // System identity
+    identity: "assistant"
   };
 
   // Gather database context
