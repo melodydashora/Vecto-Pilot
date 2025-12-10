@@ -146,56 +146,96 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
 
-      // Create snapshot
-      const snapshotId = crypto.randomUUID();
-      const now = new Date();
-      const hour = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getHours();
-      const dow = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getDay();
+      // ═══════════════════════════════════════════════════════════════════════════
+      // SNAPSHOT: Server creates snapshot during resolve, returns snapshot_id
+      // We just need to enrich it with weather/air and dispatch the event
+      // ═══════════════════════════════════════════════════════════════════════════
+      const snapshotId = locationData.snapshot_id;
 
-      const snapshot = {
-        snapshot_id: snapshotId,
-        user_id: locationData.user_id,
-        device_id: deviceId,
-        session_id: crypto.randomUUID(),
-        created_at: now.toISOString(),
-        coord: { lat, lng, source: 'gps' },
-        resolved: {
-          city: locationData.city,
-          state: locationData.state,
-          country: locationData.country,
-          timezone: locationData.timeZone,
-          formattedAddress: locationData.formattedAddress
-        },
-        time_context: {
-          local_iso: now.toISOString(),
-          dow,
-          hour,
-          is_weekend: dow === 0 || dow === 6,
-          day_part_key: hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
-        },
-        weather: weatherData?.available ? {
-          tempF: weatherData.temperature,
-          conditions: weatherData.conditions,
-          description: weatherData.description
-        } : undefined,
-        air: airQualityData?.available ? {
-          aqi: airQualityData.aqi,
-          category: airQualityData.category
-        } : undefined,
-        device: { platform: 'web' },
-        permissions: { geolocation: 'granted' }
-      };
+      if (snapshotId) {
+        console.log(`📸 [LocationContext] Using server-created snapshot: ${snapshotId.slice(0, 8)}...`);
 
-      const snapshotRes = await fetch('/api/location/snapshot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(snapshot)
-      });
+        // Enrich snapshot with weather/air if available
+        if (weatherData?.available || airQualityData?.available) {
+          try {
+            await fetch(`/api/location/snapshot/${snapshotId}/enrich`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                weather: weatherData?.available ? {
+                  tempF: weatherData.temperature,
+                  conditions: weatherData.conditions,
+                  description: weatherData.description
+                } : undefined,
+                air: airQualityData?.available ? {
+                  aqi: airQualityData.aqi,
+                  category: airQualityData.category
+                } : undefined
+              })
+            });
+            console.log(`📸 [LocationContext] Snapshot enriched with weather/air`);
+          } catch (enrichErr) {
+            console.warn('[LocationContext] Failed to enrich snapshot:', enrichErr);
+          }
+        }
 
-      if (snapshotRes.ok) {
+        // Dispatch event - snapshot is ready
         window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
           detail: { snapshotId, holiday: null, is_holiday: false }
         }));
+      } else {
+        // Fallback: Server didn't return snapshot_id, create one client-side (legacy path)
+        console.warn('⚠️ [LocationContext] No snapshot_id from server - using legacy client creation');
+        const fallbackSnapshotId = crypto.randomUUID();
+        const now = new Date();
+        const hour = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getHours();
+        const dow = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getDay();
+
+        const snapshot = {
+          snapshot_id: fallbackSnapshotId,
+          user_id: locationData.user_id,
+          device_id: deviceId,
+          session_id: crypto.randomUUID(),
+          created_at: now.toISOString(),
+          coord: { lat, lng, source: 'gps' },
+          resolved: {
+            city: locationData.city,
+            state: locationData.state,
+            country: locationData.country,
+            timezone: locationData.timeZone,
+            formattedAddress: locationData.formattedAddress
+          },
+          time_context: {
+            local_iso: now.toISOString(),
+            dow,
+            hour,
+            is_weekend: dow === 0 || dow === 6,
+            day_part_key: hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+          },
+          weather: weatherData?.available ? {
+            tempF: weatherData.temperature,
+            conditions: weatherData.conditions,
+            description: weatherData.description
+          } : undefined,
+          air: airQualityData?.available ? {
+            aqi: airQualityData.aqi,
+            category: airQualityData.category
+          } : undefined,
+          device: { platform: 'web' },
+          permissions: { geolocation: 'granted' }
+        };
+
+        const snapshotRes = await fetch('/api/location/snapshot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(snapshot)
+        });
+
+        if (snapshotRes.ok) {
+          window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
+            detail: { snapshotId: fallbackSnapshotId, holiday: null, is_holiday: false }
+          }));
+        }
       }
     } catch (error) {
       console.error('[LocationContext] Enrichment failed:', error);

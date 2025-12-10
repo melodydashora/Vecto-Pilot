@@ -429,22 +429,87 @@ router.get('/resolve', async (req, res) => {
               const dow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
               const dayPartKey = getDayPartKey(hour);
 
-              // Update the user's current coords (but keep resolved address)
-              db.update(users)
-                .set({
-                  new_lat: lat,
-                  new_lng: lng,
-                  accuracy_m: accuracy,
+              // ═══════════════════════════════════════════════════════════════════════
+              // CREATE SNAPSHOT: Even when reusing location, create NEW snapshot
+              // User is requesting fresh data (new session)
+              // ═══════════════════════════════════════════════════════════════════════
+              const snapshotId = crypto.randomUUID();
+              console.log(`📸 [SNAPSHOT] Creating snapshot for cached location: ${snapshotId.slice(0, 8)}...`);
+
+              try {
+                // Calculate date in user's timezone
+                const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+                  timeZone: tz,
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit'
+                });
+                const localDate = dateFormatter.format(now);
+
+                // Create snapshot pulling location identity from users table
+                const snapshotRecord = {
+                  snapshot_id: snapshotId,
+                  created_at: now,
+                  date: localDate,
+                  user_id: existingUser.user_id,
+                  device_id: deviceId,
+                  session_id: sessionId || crypto.randomUUID(),
+                  // Location identity (from users table - cached, reused)
+                  lat,
+                  lng,
+                  city: existingUser.city,
+                  state: existingUser.state,
+                  country: existingUser.country,
+                  formatted_address: existingUser.formatted_address,
+                  timezone: tz,
+                  // Time context (calculated fresh for THIS request)
                   local_iso: now,
                   dow,
                   hour,
                   day_part_key: dayPartKey,
-                  updated_at: now,
-                })
-                .where(eq(users.device_id, deviceId))
-                .catch((err) => console.warn('[LOCATION] Users table coord update failed:', err.message));
+                  // H3 geohash
+                  h3_r8: latLngToCell(lat, lng, 8),
+                  // Weather/air will be enriched separately
+                  weather: null,
+                  air: null,
+                  device: { platform: 'web' },
+                  permissions: { geolocation: 'granted' }
+                };
 
-              // Return cached user data immediately (no geocode API call!)
+                await db.insert(snapshots).values(snapshotRecord);
+                console.log(`📸 [SNAPSHOT] ✅ Snapshot created: ${snapshotId.slice(0, 8)} for ${existingUser.city}, ${existingUser.state}`);
+
+                // Update users table: coords + current_snapshot_id
+                await db.update(users)
+                  .set({
+                    new_lat: lat,
+                    new_lng: lng,
+                    accuracy_m: accuracy,
+                    local_iso: now,
+                    dow,
+                    hour,
+                    day_part_key: dayPartKey,
+                    current_snapshot_id: snapshotId,
+                    updated_at: now,
+                  })
+                  .where(eq(users.device_id, deviceId));
+                console.log(`📸 [SNAPSHOT] ✅ Users table updated with current_snapshot_id`);
+
+              } catch (snapshotErr) {
+                console.error(`📸 [SNAPSHOT] ❌ Failed to create snapshot:`, snapshotErr.message);
+                // Update coords anyway (non-blocking)
+                db.update(users)
+                  .set({
+                    new_lat: lat,
+                    new_lng: lng,
+                    accuracy_m: accuracy,
+                    updated_at: now,
+                  })
+                  .where(eq(users.device_id, deviceId))
+                  .catch(() => {});
+              }
+
+              // Return cached user data + new snapshot_id
               return res.json({
                 city: existingUser.city,
                 state: existingUser.state,
@@ -452,6 +517,7 @@ router.get('/resolve', async (req, res) => {
                 timeZone: existingUser.timezone,
                 formattedAddress: existingUser.formatted_address,
                 user_id: existingUser.user_id,
+                snapshot_id: snapshotId,
                 source: 'users_table'
               });
             } else {
@@ -755,11 +821,78 @@ router.get('/resolve', async (req, res) => {
         // Update response with user_id for client-side tracking
         resolvedData.user_id = userId;
         console.log(`[location] ✅ Users table persisted successfully: device=${deviceId}, user_id=${userId}, accuracy=${accuracy}m, address="${formattedAddress}"`);
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // CREATE SNAPSHOT: Server generates snapshot_id, pulls from users table
+        // Each resolve request = new snapshot (user requesting fresh data)
+        // ═══════════════════════════════════════════════════════════════════════════
+        const snapshotId = crypto.randomUUID();
+        console.log(`📸 [SNAPSHOT] Creating server-side snapshot: ${snapshotId.slice(0, 8)}...`);
+
+        try {
+          // Calculate date in user's timezone
+          const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: timeZone || 'America/Chicago',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          });
+          const localDate = dateFormatter.format(now);
+
+          // Create snapshot with location identity from users table
+          const snapshotRecord = {
+            snapshot_id: snapshotId,
+            created_at: now,
+            date: localDate,
+            user_id: userId,
+            device_id: deviceId,
+            session_id: sessionId || crypto.randomUUID(),
+            // Location identity (from users table - source of truth)
+            lat,
+            lng,
+            city,
+            state,
+            country,
+            formatted_address: formattedAddress,
+            timezone: timeZone,
+            // Time context (calculated fresh)
+            local_iso: now,
+            dow,
+            hour,
+            day_part_key: dayPartKey,
+            // H3 geohash for density analysis
+            h3_r8: latLngToCell(lat, lng, 8),
+            // Weather/air will be enriched by client or separate call
+            weather: null,
+            air: null,
+            // Device info
+            device: { platform: 'web' },
+            permissions: { geolocation: 'granted' }
+          };
+
+          await db.insert(snapshots).values(snapshotRecord);
+          console.log(`📸 [SNAPSHOT] ✅ Snapshot created: ${snapshotId.slice(0, 8)} for ${city}, ${state}`);
+
+          // Update users.current_snapshot_id to link user to this session
+          await db.update(users)
+            .set({ current_snapshot_id: snapshotId })
+            .where(eq(users.device_id, deviceId));
+          console.log(`📸 [SNAPSHOT] ✅ Users table updated with current_snapshot_id`);
+
+          // Add snapshot_id to response
+          resolvedData.snapshot_id = snapshotId;
+
+        } catch (snapshotErr) {
+          console.error(`📸 [SNAPSHOT] ❌ Failed to create snapshot:`, snapshotErr.message);
+          // Don't fail the whole request - location is resolved, snapshot is optional
+          // Client can still create snapshot via POST /api/location/snapshot
+        }
+
       } catch (err) {
         console.warn('[location] Failed to save user location:', err.message);
       }
     }
-    
+
     // Always explicitly set JSON content-type to prevent HTML leaks
     res.setHeader('Content-Type', 'application/json');
     res.json(resolvedData);
@@ -1375,26 +1508,55 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       permissions: snapshotV1.permissions || null,
     };
 
-    // SELF-CONTAINED VALIDATION: Verify snapshot has complete location data
-    // DB = source of truth - validate that this snapshot record has what AI models need
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SELF-CONTAINED VALIDATION: Verify snapshot has complete location identity
+    // Users table = source of truth. Snapshot must have ALL resolved fields.
+    // ═══════════════════════════════════════════════════════════════════════════
+    const validationErrors = [];
+
+    // GPS coordinates (required)
     if (!dbSnapshot.lat || !dbSnapshot.lng) {
-      console.error('[Snapshot] ❌ VALIDATION FAILED: Missing GPS coordinates in snapshot');
-      return httpError(res, 400, 'missing_coordinates', 
-        'GPS coordinates required - please enable location and retry', cid);
+      validationErrors.push('lat/lng');
     }
-    
-    if (!dbSnapshot.city && !dbSnapshot.formatted_address) {
-      console.error('[Snapshot] ❌ VALIDATION FAILED: Missing resolved location in snapshot');
-      return httpError(res, 400, 'missing_address', 
-        'Location could not be resolved - please retry', cid);
+
+    // Resolved location identity (from users table)
+    if (!dbSnapshot.city) validationErrors.push('city');
+    if (!dbSnapshot.state) validationErrors.push('state');
+    if (!dbSnapshot.formatted_address) validationErrors.push('formatted_address');
+    if (!dbSnapshot.timezone) validationErrors.push('timezone');
+
+    // Time context (required for AI models)
+    if (dbSnapshot.hour === undefined || dbSnapshot.hour === null) validationErrors.push('hour');
+    if (dbSnapshot.dow === undefined || dbSnapshot.dow === null) validationErrors.push('dow');
+    if (!dbSnapshot.day_part_key) validationErrors.push('day_part_key');
+
+    if (validationErrors.length > 0) {
+      console.error('[Snapshot] ❌ VALIDATION FAILED: Missing fields:', validationErrors);
+      console.error('[Snapshot] Received data:', {
+        lat: dbSnapshot.lat,
+        lng: dbSnapshot.lng,
+        city: dbSnapshot.city,
+        state: dbSnapshot.state,
+        formatted_address: dbSnapshot.formatted_address,
+        timezone: dbSnapshot.timezone,
+        hour: dbSnapshot.hour,
+        dow: dbSnapshot.dow,
+        day_part_key: dbSnapshot.day_part_key
+      });
+      return httpError(res, 400, 'incomplete_snapshot',
+        `Location not fully resolved. Missing: ${validationErrors.join(', ')}. Call /api/location/resolve first.`, cid);
     }
-    
+
     console.log('[Snapshot] ✅ Self-contained validation passed:', {
       lat: dbSnapshot.lat,
       lng: dbSnapshot.lng,
       city: dbSnapshot.city,
+      state: dbSnapshot.state,
+      formatted_address: dbSnapshot.formatted_address?.substring(0, 30) + '...',
       timezone: dbSnapshot.timezone,
-      hour: dbSnapshot.hour
+      hour: dbSnapshot.hour,
+      dow: dbSnapshot.dow,
+      day_part_key: dbSnapshot.day_part_key
     });
 
     // Save to Replit PostgreSQL using Drizzle ORM
@@ -1620,6 +1782,53 @@ router.get('/users/me', async (req, res) => {
     res.status(500).json({
       ok: false,
       error: 'fetch_failed',
+      message: String(err?.message || err)
+    });
+  }
+});
+
+// PATCH /api/location/snapshot/:snapshotId/enrich
+// Enrich an existing snapshot with weather/air data
+router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
+  try {
+    const { snapshotId } = req.params;
+    const { weather, air } = req.body;
+
+    if (!snapshotId) {
+      return res.status(400).json({ error: 'snapshot_id_required' });
+    }
+
+    // Verify snapshot exists
+    const [existing] = await db
+      .select({ snapshot_id: snapshots.snapshot_id })
+      .from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'snapshot_not_found' });
+    }
+
+    // Build update payload (only include provided fields)
+    const updatePayload = {};
+    if (weather !== undefined) updatePayload.weather = weather;
+    if (air !== undefined) updatePayload.air = air;
+
+    if (Object.keys(updatePayload).length === 0) {
+      return res.status(400).json({ error: 'no_fields_to_update' });
+    }
+
+    await db.update(snapshots)
+      .set(updatePayload)
+      .where(eq(snapshots.snapshot_id, snapshotId));
+
+    console.log(`📸 [SNAPSHOT] ✅ Enriched ${snapshotId.slice(0, 8)} with:`, Object.keys(updatePayload).join(', '));
+
+    res.json({ ok: true, enriched: Object.keys(updatePayload) });
+  } catch (err) {
+    console.error('[location] snapshot enrich error:', err);
+    res.status(500).json({
+      error: 'enrich_failed',
       message: String(err?.message || err)
     });
   }
