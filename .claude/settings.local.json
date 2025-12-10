@@ -1,7 +1,29 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch"
+      "WebFetch",
+      "Bash(npm run typecheck:*)",
+      "Bash(grep:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"\"\"=== {} ===\"\"\"\" && head -20 {}')",
+      "Bash(git log:*)",
+      "Bash(wc:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"\"\"=== {} ===\"\"\"\" && head -5 {}')",
+      "Bash(tree:*)",
+      "Bash(xargs ls:*)",
+      "Bash(sort:*)",
+      "Bash(ls:*)",
+      "Bash(for dir in /home/runner/workspace/server/*/)",
+      "Bash(do)",
+      "Bash(if [ ! -f \"$dirREADME.md\" ])",
+      "Bash(then)",
+      "Bash(echo:*)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(while read dir)",
+      "Bash(do if [ ! -f \"$dir/README.md\" ])",
+      "Bash(then echo \"MISSING: $dir\" else echo \"EXISTS:  $dir\" fi done)",
+      "Bash(do if [ ! -f $dir/README.md ])",
+      "Bash(then echo 'MISSING: $dir')"
     ],
     "deny": [],
     "ask": []

@@ -47,12 +47,12 @@ export function configureHealthEndpoints(app, distDir, mode) {
 }
 
 /**
- * Mount the health router from server/routes/health.js
+ * Mount the health router from server/api/health/health.js
  * @param {Express} app - Express app
  */
 export async function mountHealthRouter(app) {
   try {
-    const healthPath = path.join(rootDir, 'server/routes/health.js');
+    const healthPath = path.join(rootDir, 'server/api/health/health.js');
     const { default: healthRouter } = await import(healthPath);
     app.use('/api/health', healthRouter);
     console.log('[gateway] ✅ Health API router mounted at /api/health');

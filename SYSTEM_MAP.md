@@ -1,7 +1,7 @@
 
 # VECTO PILOT™ - COMPLETE SYSTEM MAP
 
-**Last Updated:** 2025-12-07 UTC
+**Last Updated:** 2025-12-09 UTC
 
 This document provides a complete visual mapping of the Vecto Pilot system, showing how every component connects from UI to database and back.
 
@@ -186,8 +186,9 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
    │  └─ strategies.minstrategy ✓
    ├─ runBriefing (Gemini 3.0 Pro)
    │  └─ briefings.{news, events, traffic, closures} ✓
-   └─ runHolidayCheck (Perplexity Sonar Pro)
-      └─ strategies.holiday ✓
+   └─ Holiday Detection (at snapshot creation)
+      └─ snapshots.holiday, snapshots.is_holiday ✓
+      └─ Supports override via server/config/holiday-override.json
    ↓
 3. runConsolidator (GPT-5.1)
    └─ strategies.consolidated_strategy ✓

@@ -134,7 +134,7 @@ const isCloudRun = false; // Already checked above
 // Skip expensive checks in Cloud Run/Autoscale (need fast startup for health checks)
 if (!isCloudRun) {
   // Validate required STRATEGY_* environment variables (fail-fast on missing config)
-  const { validateStrategyEnv } = await import('../server/lib/validate-strategy-env.js');
+  const { validateStrategyEnv } = await import('../server/config/validate-strategy-env.js');
   validateStrategyEnv();
   
   // Kill any existing process on port 5000 to prevent conflicts

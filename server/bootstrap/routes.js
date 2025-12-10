@@ -41,24 +41,48 @@ export async function mountRoutes(app, server) {
   };
 
   // Define routes in mount order (specific routes first, catch-all last)
+  // Routes organized by domain in server/api/
   const routes = [
-    // Diagnostic routes
-    { path: '/api/diagnostics', module: './server/routes/diagnostics.js', desc: 'Diagnostics' },
-    { path: '/api/diagnostic', module: './server/routes/diagnostic-identity.js', desc: 'Diagnostic Identity' },
+    // Health & Diagnostics (server/api/health/)
+    { path: '/api/diagnostics', module: './server/api/health/diagnostics.js', desc: 'Diagnostics' },
+    { path: '/api/diagnostic', module: './server/api/health/diagnostic-identity.js', desc: 'Diagnostic Identity' },
+    { path: '/api/health', module: './server/api/health/health.js', desc: 'Health Check' },
+    { path: '/api/ml-health', module: './server/api/health/ml-health.js', desc: 'ML Health' },
+    { path: '/api/job-metrics', module: './server/api/health/job-metrics.js', desc: 'Job Metrics' },
 
-    // Core API routes
-    { path: '/api/chat', module: './server/routes/chat.js', desc: 'AI Strategy Coach' },
-    { path: '/api/tts', module: './server/routes/tts.js', desc: 'TTS endpoint' },
-    { path: '/api/realtime', module: './server/routes/realtime.js', desc: 'OpenAI Realtime voice' },
-    { path: '/api/venues', module: './server/routes/venue-intelligence.js', desc: 'Venue Intelligence' },
-    { path: '/api/briefing', module: './server/routes/briefing.js', desc: 'Briefing' },
-    { path: '/api/auth', module: './server/routes/auth.js', desc: 'Auth' },
-    { path: '/api/location', module: './server/routes/location.js', desc: 'Location' },
-    { path: '/api/blocks-fast', module: './server/routes/blocks-fast.js', desc: 'Blocks Fast' },
-    { path: '/api/blocks', module: './server/routes/content-blocks.js', desc: 'Content Blocks' },
+    // Chat & Voice (server/api/chat/)
+    { path: '/api/chat', module: './server/api/chat/chat.js', desc: 'AI Strategy Coach' },
+    { path: '/api/tts', module: './server/api/chat/tts.js', desc: 'TTS endpoint' },
+    { path: '/api/realtime', module: './server/api/chat/realtime.js', desc: 'OpenAI Realtime voice' },
 
-    // SSE/Events routes
-    { path: '/events', module: './server/routes/events.js', desc: 'Events SSE' },
+    // Venue Intelligence (server/api/venue/)
+    { path: '/api/venues', module: './server/api/venue/venue-intelligence.js', desc: 'Venue Intelligence' },
+
+    // Briefing (server/api/briefing/)
+    { path: '/api/briefing', module: './server/api/briefing/briefing.js', desc: 'Briefing' },
+
+    // Auth (server/api/auth/)
+    { path: '/api/auth', module: './server/api/auth/auth.js', desc: 'Auth' },
+
+    // Location (server/api/location/)
+    { path: '/api/location', module: './server/api/location/location.js', desc: 'Location' },
+    { path: '/api/snapshot', module: './server/api/location/snapshot.js', desc: 'Snapshot' },
+
+    // Strategy (server/api/strategy/)
+    { path: '/api/blocks-fast', module: './server/api/strategy/blocks-fast.js', desc: 'Blocks Fast' },
+    { path: '/api/blocks', module: './server/api/strategy/content-blocks.js', desc: 'Content Blocks' },
+    { path: '/api/strategy', module: './server/api/strategy/strategy.js', desc: 'Strategy' },
+
+    // Feedback (server/api/feedback/)
+    { path: '/api/feedback', module: './server/api/feedback/feedback.js', desc: 'Feedback' },
+    { path: '/api/actions', module: './server/api/feedback/actions.js', desc: 'Actions' },
+
+    // Research (server/api/research/)
+    { path: '/api/research', module: './server/api/research/research.js', desc: 'Research' },
+    { path: '/api/vector-search', module: './server/api/research/vector-search.js', desc: 'Vector Search' },
+
+    // SSE/Events (server/api/briefing/)
+    { path: '/events', module: './server/api/briefing/events.js', desc: 'Events SSE' },
   ];
 
   // Mount each route
@@ -130,7 +154,7 @@ export async function mountSSE(app) {
  */
 export async function mountUnifiedCapabilities(app) {
   try {
-    const unifiedPath = path.join(rootDir, 'server/routes/unified-capabilities.js');
+    const unifiedPath = path.join(rootDir, 'server/api/health/unified-capabilities.js');
     const { default: unifiedCapabilitiesRoutes } = await import(unifiedPath);
     unifiedCapabilitiesRoutes(app);
     console.log('[gateway] ✅ Unified capabilities routes mounted');

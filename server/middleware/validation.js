@@ -7,11 +7,17 @@ export const schemas = {
   uuid: z.string().uuid(),
   
   action: z.object({
-    action_type: z.enum(['view', 'dwell', 'block_clicked', 'dismiss', 'navigate']).optional(),
+    // Support both 'action' (used by client) and 'action_type' for flexibility
+    action: z.enum(['view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate']).optional(),
+    action_type: z.enum(['view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate']).optional(),
     snapshot_id: z.string().uuid().optional(),
     ranking_id: z.string().uuid().optional(),
+    block_id: z.string().optional(),
     venue_id: z.string().optional(),
     dwell_ms: z.number().int().min(0).max(3600000).nullable().optional(),
+    from_rank: z.number().int().optional(),
+    user_id: z.string().optional(),
+    raw: z.any().optional(),
     metadata: z.record(z.any()).optional()
   }).strict(false),
   
@@ -46,15 +52,19 @@ export function validate(schema) {
     } catch (err) {
       if (err instanceof z.ZodError) {
         // Always return 400 for validation errors - don't pass to next()
-        console.warn('[validation] ZodError for action:', err.errors?.map(e => `${e.path?.join('.')}=${e.message}`).join(', '));
+        const errors = err.errors || err.issues || [];
+        const errorSummary = errors.length > 0
+          ? errors.map(e => `${e.path?.join('.') || 'root'}=${e.message}`).join(', ')
+          : err.message || 'Unknown validation error';
+        console.warn(`[validation] ZodError: ${errorSummary}`);
         return res.status(400).json({
           ok: false,
           error: 'VALIDATION_ERROR',
           message: 'Invalid request data',
-          details: err.errors?.map(e => ({
+          details: errors.map(e => ({
             field: e.path?.join('.') || 'unknown',
             message: e.message
-          })) || []
+          }))
         });
       }
       // For non-ZodErrors, pass to error handler

@@ -1,0 +1,86 @@
+# AI Module (`server/lib/ai/`)
+
+## Purpose
+
+Centralized AI model management: adapters for different providers (Anthropic, OpenAI, Google), strategy providers, and supporting utilities.
+
+## Structure
+
+```
+ai/
+├── adapters/           # Model API adapters (call these, not providers directly)
+│   └── index.js        # Main dispatcher: callModel(role, {system, user})
+├── providers/          # Strategy generation providers
+│   ├── minstrategy.js  # Strategic overview (Claude Opus)
+│   ├── briefing.js     # Events, traffic, news (Gemini + Search)
+│   └── consolidator.js # Final strategy consolidation
+├── coach-dal.js        # Data access layer for AI Coach chat
+├── llm-router-v2.js    # LLM status/routing (used by health endpoint)
+├── models-dictionary.js # Model metadata registry
+└── unified-ai-capabilities.js # AI capability manager
+```
+
+## Key Pattern: Use Adapters, Not Direct API Calls
+
+**Always use `callModel()` from adapters/index.js** - never call AI APIs directly:
+
+```javascript
+import { callModel } from './adapters/index.js';
+
+// Role-based dispatch - adapter handles model selection, params, fallbacks
+const result = await callModel('strategist', { system, user });
+// Returns: { ok: boolean, output: string, citations?: array }
+```
+
+## Files
+
+| File | Purpose | Key Export |
+|------|---------|------------|
+| `adapters/index.js` | Model dispatcher with fallback | `callModel(role, {system, user})` |
+| `providers/minstrategy.js` | Strategic overview generation | `runMinStrategy(snapshotId)` |
+| `providers/briefing.js` | Events/traffic/news research | `runBriefing(snapshotId)` |
+| `providers/consolidator.js` | Strategy consolidation | `consolidateStrategy()` |
+| `coach-dal.js` | Chat data access layer | `CoachDAL` class |
+| `llm-router-v2.js` | LLM status for health checks | `getLLMStatus()` |
+| `models-dictionary.js` | Model metadata registry | `MODELS` dictionary |
+| `unified-ai-capabilities.js` | AI capability manager | `unifiedCapabilities` |
+
+## Connections
+
+- **Imports from:** `../location/`, `../../db/`, `shared/schema.js`
+- **Exported to:** `../strategy/`, `../briefing/`, `../../routes/chat.js`
+
+## Model-Role Mapping
+
+Configured via environment variables:
+
+| Role | Env Variable | Default Model |
+|------|--------------|---------------|
+| `strategist` | `STRATEGY_STRATEGIST` | Claude Opus 4.5 |
+| `briefer` | `STRATEGY_BRIEFER` | Gemini 3.0 Pro |
+| `consolidator` | `STRATEGY_CONSOLIDATOR` | GPT-5.1 |
+| `event_validator` | `STRATEGY_EVENT_VALIDATOR` | Claude Opus 4.5 (with web search) |
+
+## Fallback System
+
+When primary model fails, certain roles automatically fall back to Claude Opus:
+- Roles with fallback: `consolidator`, `briefer`
+- Fallback model: `claude-opus-4-5-20251101`
+- Logs: `[model-dispatch] 🔄 Trying Claude Opus fallback...`
+
+## Import Paths
+
+```javascript
+// From server/api/*/
+import { callModel } from '../../lib/ai/adapters/index.js';
+import { getLLMStatus } from '../../lib/ai/llm-router-v2.js';
+import { CoachDAL } from '../../lib/ai/coach-dal.js';
+
+// From server/lib/*/
+import { callModel } from '../ai/adapters/index.js';
+import { runMinStrategy } from '../ai/providers/minstrategy.js';
+import { runBriefing } from '../ai/providers/briefing.js';
+
+// From server/jobs/
+import { consolidateStrategy } from '../lib/ai/providers/consolidator.js';
+```

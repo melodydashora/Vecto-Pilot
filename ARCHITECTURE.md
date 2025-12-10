@@ -2,21 +2,93 @@
 
 ---
 
-**Last Updated:** 2025-12-09 UTC (API Endpoints Verification & Frontend Cleanup)
+**Last Updated:** 2025-12-10 UTC (Phase 3 reorganization complete)
+
+---
+
+## 📚 DETAILED DOCUMENTATION
+
+For focused documentation, see these files in `docs/architecture/`:
+
+| Document | Purpose |
+|----------|---------|
+| [API Reference](docs/architecture/api-reference.md) | Complete API endpoint documentation |
+| [Database Schema](docs/architecture/database-schema.md) | PostgreSQL tables and relationships |
+| [AI Pipeline](docs/architecture/ai-pipeline.md) | TRIAD architecture and model configuration |
+| [Constraints](docs/architecture/constraints.md) | Critical rules and limitations |
+
+---
+
+## 📁 FOLDER DOCUMENTATION
+
+Each folder now contains a README.md explaining its purpose, files, and connections. Start here:
+
+### Server - Business Logic
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `server/lib/` | [README](server/lib/README.md) | Core business logic (overview) |
+| `server/lib/ai/` | [README](server/lib/ai/README.md) | AI adapters and providers |
+| `server/lib/strategy/` | [README](server/lib/strategy/README.md) | Strategy pipeline |
+| `server/lib/venue/` | [README](server/lib/venue/README.md) | Venue intelligence |
+| `server/lib/location/` | [README](server/lib/location/README.md) | Location services |
+| `server/lib/briefing/` | [README](server/lib/briefing/README.md) | Briefing service |
+
+### Server - API Routes (Domain-organized)
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `server/api/` | [README](server/api/README.md) | API endpoints (overview) |
+| `server/api/auth/` | [README](server/api/auth/README.md) | Authentication |
+| `server/api/briefing/` | [README](server/api/briefing/README.md) | Events, traffic, news |
+| `server/api/chat/` | [README](server/api/chat/README.md) | AI Coach, voice |
+| `server/api/feedback/` | [README](server/api/feedback/README.md) | User feedback |
+| `server/api/health/` | [README](server/api/health/README.md) | Health checks, diagnostics |
+| `server/api/location/` | [README](server/api/location/README.md) | GPS, geocoding |
+| `server/api/research/` | [README](server/api/research/README.md) | Vector search |
+| `server/api/strategy/` | [README](server/api/strategy/README.md) | Strategy generation |
+| `server/api/venue/` | [README](server/api/venue/README.md) | Venue intelligence |
+
+### Server - Infrastructure
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `server/middleware/` | [README](server/middleware/README.md) | Request middleware |
+| `server/config/` | [README](server/config/README.md) | Configuration |
+| `server/bootstrap/` | [README](server/bootstrap/README.md) | Server startup |
+| `server/jobs/` | [README](server/jobs/README.md) | Background workers |
+| `server/db/` | [README](server/db/README.md) | Database connection |
+| `server/agent/` | [README](server/agent/README.md) | AI agent infrastructure |
+
+### Shared & Support
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `shared/` | [README](shared/README.md) | Shared code (schema) |
+| `docs/` | [README](docs/README.md) | Documentation |
+| `tests/` | [README](tests/README.md) | Test suites |
+| `scripts/` | [README](scripts/README.md) | Build scripts |
+
+### Client
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `client/src/` | [README](client/src/README.md) | Frontend overview |
+| `client/src/components/` | [README](client/src/components/README.md) | UI components |
+| `client/src/contexts/` | [README](client/src/contexts/README.md) | React contexts |
+| `client/src/hooks/` | [README](client/src/hooks/README.md) | Custom hooks |
+| `client/src/pages/` | [README](client/src/pages/README.md) | Page components |
+| `client/src/features/` | [README](client/src/features/README.md) | Feature modules |
 
 ---
 
 ## 📋 TABLE OF CONTENTS
 
-1. [System Architecture Overview](#system-architecture-overview)
-2. [Complete System Mapping](#complete-system-mapping)
-3. [UI to Backend Flow](#ui-to-backend-flow)
-4. [Working API Endpoints](#working-api-endpoints-verified-dec-9-2025)
-5. [Database Schema Mapping](#database-schema-mapping)
-6. [AI Pipeline Architecture](#ai-pipeline-architecture)
-7. [Authentication System](#authentication-system)
-8. [Architectural Constraints](#architectural-constraints)
-9. [Deprecated Features](#deprecated-features)
+1. [Folder Documentation](#-folder-documentation)
+2. [System Architecture Overview](#system-architecture-overview)
+3. [Complete System Mapping](#complete-system-mapping)
+4. [UI to Backend Flow](#ui-to-backend-flow)
+5. [Working API Endpoints](#working-api-endpoints-verified-dec-9-2025)
+6. [Database Schema Mapping](#database-schema-mapping)
+7. [AI Pipeline Architecture](#ai-pipeline-architecture)
+8. [Authentication System](#authentication-system)
+9. [Architectural Constraints](#architectural-constraints)
+10. [Deprecated Features](#deprecated-features)
 
 ---
 
@@ -65,7 +137,7 @@
 - `client/src/hooks/use-mobile-detect.ts` - Device detection for responsive UI
 
 **Backend Routes:**
-- `server/routes/location.js` - `/api/location/resolve` (coordinates → address)
+- `server/api/location/location.js` - `/api/location/resolve` (coordinates → address)
 
 **Database Tables:**
 - `users` - GPS coordinates, resolved address, timezone
@@ -75,33 +147,33 @@
 - **Google Geocoding API** - Reverse geocoding (lat/lng → address)
   - Endpoint: `https://maps.googleapis.com/maps/api/geocode/json`
   - Usage: Address resolution from coordinates
-  - File: `server/lib/geocoding.js`
+  - File: `server/lib/location/geo.js`
 
 - **Google Timezone API** - Timezone resolution
   - Endpoint: `https://maps.googleapis.com/maps/api/timezone/json`
   - Usage: IANA timezone from coordinates
-  - File: `server/routes/location.js`
+  - File: `server/api/location/location.js`
 
 - **Google Places API (New)** - Business details and verification
   - Endpoint: `https://places.googleapis.com/v1/places:searchNearby`
   - Usage: Business hours, place_id, status verification
-  - File: `server/lib/venue-enrichment.js`
+  - File: `server/lib/venue/venue-enrichment.js`
 
 - **Google Routes API (New)** - Traffic-aware routing
   - Endpoint: `https://routes.googleapis.com/directions/v2:computeRoutes`
   - Usage: Real-time distance, drive time with traffic
-  - File: `server/lib/routes-api.js`
+  - File: `server/lib/external/routes-api.js`
 
 - **Google Weather API** - Current conditions + forecast
   - Endpoint: `https://weather.googleapis.com/v1/currentConditions:lookup`
   - Endpoint: `https://weather.googleapis.com/v1/forecast/hours:lookup`
   - Usage: Temperature, conditions, 6-hour forecast
-  - File: `server/lib/briefing-service.js`
+  - File: `server/lib/briefing/briefing-service.js`
 
 - **Google Air Quality API** - AQI data
   - Endpoint: `https://airquality.googleapis.com/v1/currentConditions:lookup`
   - Usage: Air quality index and pollutants
-  - File: `server/routes/location.js`
+  - File: `server/api/location/location.js`
 
 **Data Flow:**
 ```
@@ -119,20 +191,22 @@ localStorage → subsequent API calls with Authorization header
 - `client/src/components/StrategyHistoryPanel.tsx` - Strategy history
 
 **Backend Orchestration:**
-- `server/lib/strategy-generator-parallel.js` - Main pipeline orchestrator
+- `server/lib/strategy/strategy-generator-parallel.js` - Main pipeline orchestrator
 
 **Provider Functions:**
-- `server/lib/providers/minstrategy.js` - Strategic overview (Claude Sonnet 4.5)
-- `server/lib/providers/briefing.js` - Events, traffic, news (Gemini 3.0 Pro)
-- `server/lib/providers/consolidator.js` - Final strategy (GPT-5.1)
+- `server/lib/ai/providers/minstrategy.js` - Strategic overview (Claude Opus 4.5)
+- `server/lib/ai/providers/briefing.js` - Events, traffic, news (Gemini 3.0 Pro)
+- `server/lib/ai/providers/consolidator.js` - Final strategy (GPT-5.1)
 
 **Snapshot Enrichment:**
-- `server/lib/holiday-detector.js` - Holiday detection at snapshot creation (Gemini 3.0 Pro + Google Search)
+- `server/lib/location/holiday-detector.js` - Holiday detection at snapshot creation (Gemini 3.0 Pro + Google Search)
+- `server/config/holiday-override.json` - Manual holiday override configuration
+- `server/scripts/holiday-override.js` - CLI script for managing holiday overrides
 
 **Backend Routes:**
-- `server/routes/snapshot.js` - POST `/api/snapshot` (trigger waterfall)
-- `server/routes/strategy.js` - GET `/api/strategy/:snapshotId`
-- `server/routes/blocks-fast.js` - POST `/api/blocks-fast` (full pipeline)
+- `server/api/location/snapshot.js` - POST `/api/snapshot` (trigger waterfall)
+- `server/api/strategy/strategy.js` - GET `/api/strategy/:snapshotId`
+- `server/api/strategy/blocks-fast.js` - POST `/api/blocks-fast` (full pipeline)
 
 **Database Tables:**
 - `snapshots` - Location, time, weather, air quality
@@ -148,7 +222,7 @@ localStorage → subsequent API calls with Authorization header
 
 **Data Flow:**
 ```
-Snapshot Creation (includes holiday detection via Gemini) →
+Snapshot Creation (includes holiday detection via Gemini + override check) →
 POST /api/blocks-fast →
 2 Parallel Providers (minstrategy, briefing) →
 strategies table (minstrategy, briefing columns) →
@@ -157,6 +231,13 @@ strategies table (consolidated_strategy column) →
 SSE notification (strategy_ready event) →
 UI polls /api/strategy/:snapshotId → Display strategy
 ```
+
+**Holiday Override System:**
+The holiday detector supports manual overrides via `server/config/holiday-override.json`:
+- Overrides apply during configured date ranges (e.g., "Happy Holidays" from Dec 1 to Jan 2)
+- By default, actual holidays (Christmas, New Year's) supersede overrides
+- When no override and no actual holiday, falls back to driver greeting ("Good morning, driver!")
+- Manage via CLI: `node server/scripts/holiday-override.js [list|add|remove|enable|disable|test]`
 
 ---
 
@@ -168,15 +249,15 @@ UI polls /api/strategy/:snapshotId → Display strategy
 - `client/src/pages/co-pilot.tsx` - Venues tab
 
 **Backend Logic:**
-- `server/lib/tactical-planner.js` - GPT-5.1 venue generation
-- `server/lib/enhanced-smart-blocks.js` - Venue enrichment orchestrator
-- `server/lib/venue-enrichment.js` - Google Places/Routes integration
-- `server/lib/venue-event-verifier.js` - Event verification (Gemini 2.5 Pro)
-- `server/lib/venue-address-resolver.js` - Batch address resolution
+- `server/lib/strategy/tactical-planner.js` - GPT-5.1 venue generation
+- `server/lib/venue/enhanced-smart-blocks.js` - Venue enrichment orchestrator
+- `server/lib/venue/venue-enrichment.js` - Google Places/Routes integration
+- `server/lib/venue/venue-event-verifier.js` - Event verification (Gemini 2.5 Pro)
+- `server/lib/venue/venue-address-resolver.js` - Batch address resolution
 
 **Backend Routes:**
-- `server/routes/blocks-fast.js` - GET `/api/blocks` (fetch venues)
-- `server/routes/blocks-fast.js` - POST `/api/blocks-fast` (generate venues)
+- `server/api/strategy/blocks-fast.js` - GET `/api/blocks` (fetch venues)
+- `server/api/strategy/blocks-fast.js` - POST `/api/blocks-fast` (generate venues)
 
 **Database Tables:**
 - `rankings` - Ranking session metadata (model_name, timing, path_taken)
@@ -219,7 +300,7 @@ GET /api/blocks → UI displays venue cards
 - `client/src/pages/co-pilot.tsx` - Briefing tab queries
 
 **Backend Routes:**
-- `server/routes/briefing.js` - Component-level endpoints:
+- `server/api/briefing/briefing.js` - Component-level endpoints:
   - GET `/api/briefing/weather/:snapshotId`
   - GET `/api/briefing/traffic/:snapshotId`
   - GET `/api/briefing/news/:snapshotId`
@@ -227,7 +308,7 @@ GET /api/blocks → UI displays venue cards
   - GET `/api/briefing/closures/:snapshotId`
 
 **Backend Service:**
-- `server/lib/briefing-service.js` - Comprehensive briefing generation
+- `server/lib/briefing/briefing-service.js` - Comprehensive briefing generation
 
 **Database Tables:**
 - `briefings` - All briefing data (news, weather, traffic, events, school_closures)
@@ -255,11 +336,11 @@ BriefingTab displays real-time data
 - `client/src/components/CoachChat.tsx` - Chat interface with file upload support
 
 **Backend Routes:**
-- `server/routes/chat.js` - POST `/api/chat` (text chat with SSE streaming)
-- `server/routes/realtime.js` - WebSocket `/api/realtime` (voice chat)
+- `server/api/chat/chat.js` - POST `/api/chat` (text chat with SSE streaming)
+- `server/api/chat/realtime.js` - WebSocket `/api/realtime` (voice chat)
 
 **Backend DAL:**
-- `server/lib/coach-dal.js` - Full schema read access for AI context
+- `server/lib/ai/coach-dal.js` - Full schema read access for AI context
 
 **Database Access (Read-Only - ALL Tables):**
 - `snapshots` - Location, GPS coordinates, weather (tempF, conditions), air quality (AQI), timezone, day/time context, airport proximity
@@ -322,8 +403,8 @@ SSE Stream → CoachChat UI displays response
 - `server/middleware/auth.js` - JWT verification (`requireAuth`)
 
 **Backend Routes:**
-- `server/routes/auth.js` - POST `/api/auth/token` (JWT generation)
-- `server/routes/location.js` - `/api/location/resolve` (returns user_id)
+- `server/api/auth/auth.js` - POST `/api/auth/token` (JWT generation)
+- `server/api/location/location.js` - `/api/location/resolve` (returns user_id)
 
 **Database Security:**
 - `migrations/003_rls_security.sql` - Row-Level Security policies
@@ -348,32 +429,32 @@ Database queries filtered by user_id (RLS policies)
 
 | Endpoint | Method | Backend Handler | Purpose |
 |---|---|---|---|
-| `/api/blocks-fast` | POST | `server/routes/blocks-fast.js` | Full TRIAD pipeline (strategy + venues) |
-| `/api/blocks/strategy/:id` | GET | `server/routes/content-blocks.js` | Fetch strategy content blocks |
-| `/api/chat` | POST | `server/routes/chat.js` | AI Coach chat with SSE streaming |
-| `/api/realtime/token` | GET | `server/routes/realtime.js` | OpenAI Realtime API token for voice |
-| `/api/feedback/venue` | POST | `server/routes/feedback.js` | Venue thumbs up/down feedback |
-| `/api/feedback/strategy` | POST | `server/routes/feedback.js` | Strategy thumbs up/down feedback |
-| `/api/feedback/app` | POST | `server/routes/feedback.js` | General app feedback |
-| `/api/location/resolve` | POST | `server/routes/location.js` | Resolve GPS → address + user_id |
-| `/api/location/weather` | GET | `server/routes/location.js` | Current weather for location |
-| `/api/location/airquality` | GET | `server/routes/location.js` | Air quality index for location |
-| `/api/location/snapshot` | POST | `server/routes/location.js` | Create location snapshot |
-| `/api/geocode/reverse` | GET | `server/routes/location.js` | Reverse geocode coordinates |
-| `/api/timezone` | GET | `server/routes/location.js` | Get timezone for coordinates |
-| `/api/users/me` | GET | `server/routes/location.js` | Get current user data |
-| `/api/snapshot/:id` | GET | `server/routes/snapshot.js` | Fetch snapshot by ID |
-| `/api/briefing/weather/:snapshotId` | GET | `server/routes/briefing.js` | Weather briefing data |
-| `/api/briefing/traffic/:snapshotId` | GET | `server/routes/briefing.js` | Traffic conditions data |
-| `/api/briefing/events/:snapshotId` | GET | `server/routes/briefing.js` | Local events data |
-| `/api/briefing/rideshare-news/:snapshotId` | GET | `server/routes/briefing.js` | Rideshare-relevant news |
-| `/api/briefing/school-closures/:snapshotId` | GET | `server/routes/briefing.js` | School/college closures |
-| `/api/diagnostic/identity` | GET | `server/routes/diagnostic-identity.js` | System identity check |
-| `/api/tts` | POST | `server/routes/tts.js` | Text-to-speech generation |
-| `/api/closed-venue-reasoning` | POST | `server/routes/closed-venue-reasoning.js` | AI reasoning for closed venues |
-| `/api/auth/token` | POST | `server/routes/auth.js` | Generate JWT from user_id |
-| `/api/actions` | POST | `server/routes/actions.js` | Log user actions (view, select, navigate) |
-| `/api/strategy/:snapshotId` | GET | `server/routes/strategy.js` | Fetch strategy for snapshot |
+| `/api/blocks-fast` | POST | `server/api/strategy/blocks-fast.js` | Full TRIAD pipeline (strategy + venues) |
+| `/api/blocks/strategy/:id` | GET | `server/api/strategy/content-blocks.js` | Fetch strategy content blocks |
+| `/api/chat` | POST | `server/api/chat/chat.js` | AI Coach chat with SSE streaming |
+| `/api/realtime/token` | GET | `server/api/chat/realtime.js` | OpenAI Realtime API token for voice |
+| `/api/feedback/venue` | POST | `server/api/feedback/feedback.js` | Venue thumbs up/down feedback |
+| `/api/feedback/strategy` | POST | `server/api/feedback/feedback.js` | Strategy thumbs up/down feedback |
+| `/api/feedback/app` | POST | `server/api/feedback/feedback.js` | General app feedback |
+| `/api/location/resolve` | POST | `server/api/location/location.js` | Resolve GPS → address + user_id |
+| `/api/location/weather` | GET | `server/api/location/location.js` | Current weather for location |
+| `/api/location/airquality` | GET | `server/api/location/location.js` | Air quality index for location |
+| `/api/location/snapshot` | POST | `server/api/location/location.js` | Create location snapshot |
+| `/api/geocode/reverse` | GET | `server/api/location/location.js` | Reverse geocode coordinates |
+| `/api/timezone` | GET | `server/api/location/location.js` | Get timezone for coordinates |
+| `/api/users/me` | GET | `server/api/location/location.js` | Get current user data |
+| `/api/snapshot/:id` | GET | `server/api/location/snapshot.js` | Fetch snapshot by ID |
+| `/api/briefing/weather/:snapshotId` | GET | `server/api/briefing/briefing.js` | Weather briefing data |
+| `/api/briefing/traffic/:snapshotId` | GET | `server/api/briefing/briefing.js` | Traffic conditions data |
+| `/api/briefing/events/:snapshotId` | GET | `server/api/briefing/briefing.js` | Local events data |
+| `/api/briefing/rideshare-news/:snapshotId` | GET | `server/api/briefing/briefing.js` | Rideshare-relevant news |
+| `/api/briefing/school-closures/:snapshotId` | GET | `server/api/briefing/briefing.js` | School/college closures |
+| `/api/diagnostic/identity` | GET | `server/api/health/diagnostic-identity.js` | System identity check |
+| `/api/tts` | POST | `server/api/chat/tts.js` | Text-to-speech generation |
+| `/api/closed-venue-reasoning` | POST | `server/api/venue/closed-venue-reasoning.js` | AI reasoning for closed venues |
+| `/api/auth/token` | POST | `server/api/auth/auth.js` | Generate JWT from user_id |
+| `/api/actions` | POST | `server/api/feedback/actions.js` | Log user actions (view, select, navigate) |
+| `/api/strategy/:snapshotId` | GET | `server/api/strategy/strategy.js` | Fetch strategy for snapshot |
 
 ### Removed Endpoints (Frontend Hooks Deleted Dec 9, 2025)
 
@@ -397,7 +478,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Purpose:** Authoritative source for user GPS coordinates and resolved location  
 **Files:**
 - Schema: `shared/schema.js`
-- Insert/Update: `server/routes/location.js`
+- Insert/Update: `server/api/location/location.js`
 - Query: `server/lib/coach-dal.js`
 
 **Key Columns:**
@@ -415,7 +496,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Purpose:** Self-contained context snapshot (location, time, weather, air quality)  
 **Files:**
 - Schema: `shared/schema.js`
-- Insert: `server/routes/snapshot.js`
+- Insert: `server/api/location/snapshot.js`
 - Query: `server/lib/snapshot/get-snapshot-context.js`
 
 **Key Columns:**
@@ -430,8 +511,8 @@ The following endpoints were never implemented in the backend. Frontend code tha
 - `weather` - JSONB (tempF, conditions, description)
 - `air` - JSONB (aqi, category, dominantPollutant)
 - `airport_context` - JSONB (nearby airport delays)
-- `holiday` - Holiday name (if applicable)
-- `is_holiday` - Boolean flag
+- `holiday` - Holiday name or 'none' (supports manual override via holiday-override.json)
+- `is_holiday` - Boolean flag (true if actual holiday OR override active)
 
 ---
 
@@ -440,7 +521,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Files:**
 - Schema: `shared/schema.js`
 - Insert/Update: `server/lib/providers/minstrategy.js`, `consolidator.js`
-- Query: `server/routes/strategy.js`
+- Query: `server/api/strategy/strategy.js`
 
 **Key Columns:**
 - `snapshot_id` (PK, FK) - Links to snapshots
@@ -458,7 +539,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Files:**
 - Schema: `shared/schema.js`
 - Insert/Update: `server/lib/briefing-service.js`
-- Query: `server/routes/briefing.js`
+- Query: `server/api/briefing/briefing.js`
 
 **Key Columns:**
 - `snapshot_id` (PK, FK) - Links to snapshots
@@ -476,7 +557,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Files:**
 - Schema: `shared/schema.js`
 - Insert: `server/lib/enhanced-smart-blocks.js`
-- Query: `server/routes/blocks-fast.js`
+- Query: `server/api/strategy/blocks-fast.js`
 
 **Key Columns:**
 - `ranking_id` (PK) - UUID
@@ -493,7 +574,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Files:**
 - Schema: `shared/schema.js`
 - Insert: `server/lib/enhanced-smart-blocks.js`
-- Query: `server/routes/blocks-fast.js`
+- Query: `server/api/strategy/blocks-fast.js`
 
 **Key Columns:**
 - `id` (PK) - UUID
@@ -519,7 +600,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Purpose:** Track user actions for ML feedback loop  
 **Files:**
 - Schema: `shared/schema.js`
-- Insert: `server/routes/actions.js`
+- Insert: `server/api/feedback/actions.js`
 - Query: `server/lib/coach-dal.js`
 
 **Key Columns:**
@@ -562,7 +643,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Purpose:** User feedback on venue recommendations  
 **Files:**
 - Schema: `shared/schema.js`
-- Insert: `server/routes/feedback.js`
+- Insert: `server/api/feedback/feedback.js`
 - Query: `server/lib/coach-dal.js`
 
 **Key Columns:**
@@ -579,7 +660,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Purpose:** User feedback on strategic guidance  
 **Files:**
 - Schema: `shared/schema.js`
-- Insert: `server/routes/feedback.js`
+- Insert: `server/api/feedback/feedback.js`
 - Query: `server/lib/coach-dal.js`
 
 **Key Columns:**
@@ -666,7 +747,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Purpose:** Log airport delays and closures for context  
 **Files:**
 - Schema: `shared/schema.js`
-- Insert: `server/routes/location.js`
+- Insert: `server/api/location/location.js`
 
 **Key Columns:**
 - `id` (PK) - UUID
@@ -695,7 +776,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 ---
 
 #### `agent_memory` - Agent Session State
-**Purpose:** Internal agent state and session context  
+**Purpose:** Internal agent state and session context
 **Files:**
 - Schema: `shared/schema.js`
 - Query: `server/agent/context-awareness.js`
@@ -708,6 +789,102 @@ The following endpoints were never implemented in the backend. Frontend code tha
 - `status` - 'active' | 'archived'
 - `metadata` - JSONB
 - `expires_at` - Expiration timestamp
+
+---
+
+#### `assistant_memory` - Thread-Aware Context
+**Purpose:** Enhanced memory for AI assistant thread awareness
+**Files:**
+- Schema: `shared/schema.js`
+- Query: `server/assistant/enhanced-context.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `scope` - Memory scope identifier
+- `key` - Unique key within scope
+- `user_id` - FK to users
+- `content` - Memory content
+- `expires_at` - Expiration timestamp
+
+---
+
+#### `eidolon_memory` - Eidolon Agent Memory
+**Purpose:** Memory storage for Eidolon agent system
+**Files:**
+- Schema: `shared/schema.js`
+- Query: `server/eidolon/enhanced-context.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `scope`, `key` - Memory identifiers
+- `user_id` - FK to users
+- `content` - Memory content
+- `expires_at` - Expiration timestamp
+
+---
+
+#### `cross_thread_memory` - Cross-Session Memory
+**Purpose:** Persistent memory shared across conversation threads
+**Files:**
+- Schema: `shared/schema.js`
+- Query: `server/agent/thread-context.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `scope`, `key` - Memory identifiers
+- `user_id` - FK to users
+- `content` - Memory content
+- `expires_at` - Expiration timestamp
+
+---
+
+#### `traffic_zones` - Real-Time Traffic Intelligence
+**Purpose:** Traffic density and congestion data for driver guidance
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/lib/briefing-service.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `lat`, `lng` - Zone center coordinates
+- `city`, `state` - Location
+- `traffic_density` - 1-10 scale
+- `density_level` - 'low' | 'medium' | 'high'
+- `congestion_areas` - JSONB (hotspots)
+- `high_demand_zones` - JSONB (demand areas)
+- `driver_advice` - Tactical guidance
+- `expires_at` - Data expiration (~15 min)
+
+---
+
+#### `app_feedback` - General App Feedback
+**Purpose:** User feedback on overall app experience
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/api/feedback/feedback.js`
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `snapshot_id` - FK to snapshots
+- `sentiment` - 'up' | 'down'
+- `comment` - Optional text feedback
+- `created_at` - Timestamp
+
+---
+
+#### `agent_changes` - Agent Modification Log
+**Purpose:** Track changes made by AI agents for audit/debugging
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: Various agent files
+
+**Key Columns:**
+- `id` (PK) - UUID
+- `change_type` - Type of modification
+- `description` - Change description
+- `file_path` - Affected file
+- `details` - JSONB metadata
+- `created_at` - Timestamp
 
 ---
 
@@ -754,7 +931,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 **Purpose:** Global lookup table for geocoding/timezone data to eliminate duplicate API calls  
 **Files:**
 - Schema: `shared/schema.js`
-- Insert/Query: `server/routes/location.js`
+- Insert/Query: `server/api/location/location.js`
 
 **Key Columns:**
 - `id` (PK) - UUID
@@ -791,7 +968,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 
 ### Model Dictionary & Role Assignment
 
-**File:** `server/lib/models-dictionary.js`
+**File:** `server/lib/ai/models-dictionary.js`
 
 **Model Roles:**
 
@@ -840,7 +1017,7 @@ All requests scoped to authenticated user_id (user data isolation)
 
 **Files:**
 - `client/src/contexts/location-context-clean.tsx` - Token generation with async callback
-- `server/routes/auth.js` - `/api/auth/token` endpoint
+- `server/api/auth/auth.js` - `/api/auth/token` endpoint
 - `gateway-server.js` - Auth route registration (lines 265-272)
 - `client/src/components/CoachChat.tsx` - Authorization header on /api/chat
 - `client/src/pages/co-pilot.tsx` - Authorization header on /api/briefing/snapshot
@@ -868,14 +1045,14 @@ All requests scoped to authenticated user_id (user data isolation)
 Triad is authoritative. No hedging, no silent swaps, no router fallbacks. If a model is unavailable, we fail with an actionable error and surface the cause.
 
 **Files:**
-- `server/lib/strategy-generator-parallel.js` - Single orchestration path
+- `server/lib/strategy/strategy-generator-parallel.js` - Single orchestration path
 - ~~`server/lib/llm-router-v2.js`~~ - Deprecated multi-model router
 
 ### 2. **Model IDs Are Pinned and Verified Monthly**
 Missing or changed IDs are treated as deployment blockers. Messages responses must echo the requested model; mismatches throw.
 
 **Files:**
-- `server/lib/models-dictionary.js` - Centralized model configuration
+- `server/lib/ai/models-dictionary.js` - Centralized model configuration
 - `MODEL.md` - Model verification documentation
 - `tools/research/model-discovery.mjs` - Monthly verification script
 
@@ -884,38 +1061,36 @@ No LLM call without a complete location snapshot (GPS, timezone, daypart, weathe
 
 **Files:**
 - `server/lib/snapshot/get-snapshot-context.js` - Snapshot validation
-- `server/routes/snapshot.js` - Self-contained snapshot creation
+- `server/api/location/snapshot.js` - Self-contained snapshot creation
 
 ### 4. **Accuracy Over Expense for Closure-Sensitive Recs**
 When the venue's open/closed status materially affects driver income, we must either validate status or choose a de-risked alternative. **"Unknown" is never presented as "open".**
 
 **Files:**
-- `server/lib/venue-enrichment.js` - Business hours validation
-- `server/lib/weather-traffic-validator.js` - Condition validation
-- `server/lib/places-hours.js` - Hours calculation
+- `server/lib/venue/venue-enrichment.js` - Business hours validation
+- `server/lib/location/weather-traffic-validator.js` - Condition validation
 
 ### 5. **Deterministic Logging for ML**
 For every block served: input snapshot hash, model ID, token budget, confidence, and downstream outcome (accept/skip/abort) are recorded for counterfactual learning.
 
 **Files:**
-- `server/routes/actions.js` - User action logging
+- `server/api/feedback/actions.js` - User action logging
 - `server/middleware/learning-capture.js` - ML instrumentation
-- `server/routes/feedback.js` - Feedback capture
+- `server/api/feedback/feedback.js` - Feedback capture
 
 ### 6. **Coordinates and Business Hours Come From Google or DB, Never Models**
 Truth sources are Google Places/Routes and our persisted cache. Generative models must not originate or "correct" lat/lng or hours. If Google is unavailable, we use last verified DB copy; otherwise we fail-closed.
 
 **Files:**
-- `server/lib/places-cache.js` - Google Places caching
-- `server/lib/routes-api.js` - Google Routes integration
-- `server/lib/venue-enrichment.js` - Enrichment orchestrator
+- `server/lib/external/routes-api.js` - Google Routes integration
+- `server/lib/venue/venue-enrichment.js` - Enrichment orchestrator
 
 ### 7. **Deterministic Merge by Key, Never by Index**
 All enrich/validate merges use stable keys (place_id preferred; name fallback) and numeric coercion. Defaulting earnings/distance to 0 is forbidden. Fallback order: server potential → computed epm → fail-closed when neither is available.
 
 **Files:**
-- `server/lib/enhanced-smart-blocks.js` - Key-based venue merging
-- `server/lib/venue-address-resolver.js` - Batch address resolution
+- `server/lib/venue/enhanced-smart-blocks.js` - Key-based venue merging
+- `server/lib/venue/venue-address-resolver.js` - Batch address resolution
 
 ---
 
@@ -1022,8 +1197,8 @@ All enrich/validate merges use stable keys (place_id preferred; name fallback) a
 - ~~Duplicate `safeJsonParse()` in multiple files~~
 
 **Replaced With:**
-- `server/lib/geo.js` - Single source for geospatial utilities
-- `server/routes/utils/http-helpers.js` - Single source for HTTP utilities
+- `server/lib/location/geo.js` - Single source for geospatial utilities
+- `server/api/utils/http-helpers.js` - Single source for HTTP utilities
 
 **Reason:** Code duplication increased maintenance burden and created inconsistent behavior across files.
 
@@ -1727,7 +1902,7 @@ distance = 2 * R * asin(sqrt(sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δln
 - Workflow analysis showed correct coordinates in API responses but 0,0 in DB
 
 **Root Cause:**
-Database mapping in `server/routes/blocks.js` (lines 697-711) was missing lat/lng field extraction:
+Database mapping in `server/api/strategy/blocks-fast.js` (lines 697-711) was missing lat/lng field extraction:
 
 ```javascript
 // BEFORE (missing lat/lng):
@@ -1768,7 +1943,7 @@ SELECT place_id, name, lat, lng FROM ranking_candidates WHERE ranking_id = '...'
 ```
 
 **Files Changed:**
-- `server/routes/blocks.js` - Added lat/lng to venue mapping (lines 705-706)
+- `server/api/strategy/blocks-fast.js` - Added lat/lng to venue mapping (lines 705-706)
 - `server/lib/persist-ranking.js` - Simplified coordinate extraction
 
 **Architectural Insight:**
@@ -1838,8 +2013,8 @@ No mechanism existed for drivers to quickly signal which venues were successful 
 
 **Files Changed**  
 - `shared/schema.js` - Added venue_feedback & strategy_feedback tables
-- `server/routes/feedback.js` - New endpoints with rate limiting & sanitization
-- `server/routes/blocks.js` - Added feedback enrichment query (non-blocking)
+- `server/api/feedback/feedback.js` - New endpoints with rate limiting & sanitization
+- `server/api/strategy/blocks-fast.js` - Added feedback enrichment query (non-blocking)
 - `client/src/components/FeedbackModal.tsx` - Reusable feedback modal component
 - `client/src/pages/co-pilot.tsx` - Thumbs up/down buttons + modals
 
@@ -1982,7 +2157,7 @@ Reduces code duplication, improves maintainability, and creates consistent behav
    - `haversineDistanceMeters(lat1, lon1, lat2, lon2)` - Distance in meters
    - **Removed duplicates from:** `venue-event-verifier.js`, `google-places-staging.js`, `blocks-fast.js`
 
-2. **Created `server/routes/utils/http-helpers.js`** - Shared HTTP utilities
+2. **Created `server/api/utils/http-helpers.js`** - Shared HTTP utilities
    - `httpError(res, status, code, message)` - Consistent error responses
    - `isPlusCode(address)` - Detect Google Plus Codes
    - `safeJsonParse(text)` - Safe JSON parsing with markdown extraction
@@ -1990,10 +2165,10 @@ Reduces code duplication, improves maintainability, and creates consistent behav
 
 **Files Changed:**
 - ✅ `server/lib/geo.js` - NEW: Shared geospatial utilities
-- ✅ `server/routes/utils/http-helpers.js` - NEW: Shared HTTP utilities
+- ✅ `server/api/utils/http-helpers.js` - NEW: Shared HTTP utilities
 - ✅ `server/lib/venue-event-verifier.js` - Import from shared geo.js
 - ✅ `server/lib/google-places-staging.js` - Import from shared geo.js
-- ✅ `server/routes/blocks-fast.js` - Import from shared utilities
+- ✅ `server/api/strategy/blocks-fast.js` - Import from shared utilities
 - ✅ `server/lib/venue-address-resolver.js` - Import from shared http-helpers.js
 - ✅ `server/lib/tactical-planner.js` - Import from shared http-helpers.js
 - ✅ `server/lib/fast-tactical-reranker.js` - Import from shared http-helpers.js

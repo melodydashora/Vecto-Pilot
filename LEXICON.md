@@ -124,10 +124,10 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 - Tactical planning
 
 **Codebase Files:**
-- `server/routes/chat.js` - Chat interface endpoint
-- `server/lib/coach-dal.js` - Data access layer
+- `server/api/chat/chat.js` - Chat interface endpoint
+- `server/lib/ai/providers/coach-dal.js` - Data access layer
 - `client/src/components/CoachChat.tsx` - UI component
-- `server/routes/chat-context.js` - Context builder
+- `server/api/chat/chat-context.js` - Context builder
 - `server/lib/strategy-generator.js` - Pipeline orchestrator
 - `server/lib/triad-orchestrator.js` - Three-stage coordinator
 - `strategy-generator.js` - Background worker process
@@ -172,15 +172,15 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Provider-specific API clients with unified interface.
 
 **Codebase Files:**
-- `server/lib/adapters/anthropic-adapter.js` - Claude adapter
-- `server/lib/adapters/openai-adapter.js` - GPT-5 adapter
-- `server/lib/adapters/gemini-adapter.js` - Gemini adapter
-- `server/lib/adapters/perplexity-adapter.js` - Perplexity research adapter
+- `server/lib/ai/adapters/anthropic-adapter.js` - Claude adapter
+- `server/lib/ai/adapters/openai-adapter.js` - GPT-5 adapter
+- `server/lib/ai/adapters/gemini-adapter.js` - Gemini adapter
+- `server/lib/ai/adapters/perplexity-adapter.js` - Perplexity research adapter
 
 **Specialized Adapters:**
-- `server/lib/adapters/anthropic-sonnet45.js` - Claude Sonnet 4.5
-- `server/lib/adapters/openai-gpt5.js` - GPT-5 specific
-- `server/lib/adapters/gemini-2.5-pro.js` - Gemini 2.5 Pro
+- `server/lib/ai/adapters/anthropic-sonnet45.js` - Claude Sonnet 4.5
+- `server/lib/ai/adapters/openai-gpt5.js` - GPT-5 specific
+- `server/lib/ai/adapters/gemini-2.5-pro.js` - Gemini 2.5 Pro
 
 **Adapter Interface:**
 ```javascript
@@ -247,9 +247,8 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Address resolution and reverse geocoding service.
 
 **Codebase Files:**
-- `server/lib/geocoding.js` - Main implementation
-- `server/routes/geocode-proxy.js` - HTTP proxy endpoint
-- `client/src/services/geocodeService.ts` - Client-side service
+- `server/lib/location/geocoding.js` - Main implementation
+- `server/api/location/geocode-proxy.js` - HTTP proxy endpoint
 
 **API Endpoints:**
 - `/api/geocode/reverse` - Coordinates → address
@@ -261,8 +260,8 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Environmental data providers (OpenWeatherMap, Google Air Quality).
 
 **Codebase Files:**
-- `server/routes/location.js` - Location/weather/air quality resolver
-- `client/src/services/locationService.ts` - Client-side service
+- `server/api/location/location.js` - Location/weather/air quality resolver
+- `client/src/contexts/location-context-clean.tsx` - Client-side location context
 
 **API Endpoints:**
 - `/api/location/resolve` - Unified location/weather/air quality
@@ -273,8 +272,8 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Airport delay and disruption data service.
 
 **Codebase Files:**
-- `server/lib/faa-asws.js` - API client
-- `server/routes/venue-events.js` - Event integration
+- `server/lib/external/faa-asws.js` - API client
+- `server/api/venue/venue-events.js` - Event integration
 
 **Database Tables:**
 - `travel_disruptions` - Airport status cache
@@ -299,11 +298,11 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Event-aware venue recommendation system.
 
 **Codebase Files:**
-- `server/lib/venue-intelligence.js` - Intelligence engine
-- `server/lib/venue-discovery.js` - Venue discovery
-- `server/lib/venue-event-research.js` - Event research
-- `server/lib/venue-event-verifier.js` - Event validation
-- `server/routes/venue-intelligence.js` - HTTP endpoints
+- `server/lib/venue/venue-intelligence.js` - Intelligence engine
+- `server/lib/venue/venue-discovery.js` - Venue discovery
+- `server/lib/venue/venue-event-research.js` - Event research
+- `server/lib/venue/venue-event-verifier.js` - Event validation
+- `server/api/venue/venue-intelligence.js` - HTTP endpoints
 
 **API Endpoints:**
 - `/api/venues/intelligence` - Smart recommendations
@@ -319,7 +318,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **Codebase Files:**
 - `gateway-server.js` - Main entry point
 - `server/middleware/*` - Request middleware
-- `server/routes/health.js` - Health endpoints
+- `server/api/health/health.js` - Health endpoints
 
 **Port:** 5000 (default)
 
@@ -339,15 +338,15 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 **Codebase Files:**
 - `sdk-embed.js` - Express router factory
-- `server/routes/*` - API route handlers
+- `server/api/*` - API route handlers (domain-organized)
 
 **API Prefix:** `/api` (default)
 
-**Key Routes:**
-- `/api/blocks-fast` - Smart blocks generation
-- `/api/briefing` - News briefing
-- `/api/auth` - Authentication
-- `/api/location` - Location resolution
+**Key Routes (by domain):**
+- `/api/strategy/blocks-fast` - Smart blocks generation
+- `/api/briefing/*` - Events, traffic, news
+- `/api/auth/*` - Authentication
+- `/api/location/*` - Location resolution
 
 ---
 
@@ -391,7 +390,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 **Codebase Files:**
 - `server/lib/enhanced-smart-blocks.js` - Generation engine
-- `server/routes/blocks-fast.js` - HTTP endpoint
+- `server/api/blocks-fast.js` - HTTP endpoint
 - `client/src/components/SmartBlocks.tsx` - UI component
 
 **Database Tables:**
