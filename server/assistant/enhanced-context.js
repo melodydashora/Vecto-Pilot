@@ -255,7 +255,7 @@ export async function performInternetSearch(query, userId = null) {
       headers: {
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
-        "anthropic-beta": "web-fetch-2025-09-10",
+        "anthropic-beta": "web-search-20250305,web-fetch-2025-09-10",
         "content-type": "application/json"
       },
       body: JSON.stringify({
