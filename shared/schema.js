@@ -1,13 +1,17 @@
 import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-// Users table: stores user location data ONLY (GPS coords + what they resolve to)
-// Authority on: where the user is right now (lat/lng + precise address from geocoding)
-// Snapshots table: everything else (weather, time context, enrichments)
+// Users table: Source of truth for WHO + WHERE + CURRENT SESSION
+// Authority on:
+//   - Location identity (city, state, formatted_address, timezone) - cached, reusable
+//   - Current snapshot (current_snapshot_id) - links to active session
+// Snapshots table: Time-varying data (weather, air, hour, dow, strategy)
 export const users = pgTable("users", {
   user_id: uuid("user_id").primaryKey().defaultRandom(),
   device_id: text("device_id").notNull(),
   session_id: uuid("session_id"),
+  // Current active snapshot - links user to their latest data request
+  current_snapshot_id: uuid("current_snapshot_id"),
   // Coordinates (lat/lng pair) - the core GPS data
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
@@ -17,12 +21,12 @@ export const users = pgTable("users", {
   new_lat: doublePrecision("new_lat"),
   new_lng: doublePrecision("new_lng"),
   new_accuracy_m: doublePrecision("new_accuracy_m"),
-  // Resolved from coords (what the GPS coordinates resolve to via geocoding)
+  // Resolved location identity (cached from geocoding - reusable if coords similar)
   formatted_address: text("formatted_address"), // Full street address
   city: text("city"),
   state: text("state"),
   country: text("country"),
-  timezone: text("timezone"), // Needed for location-based time calculations
+  timezone: text("timezone"), // IANA timezone for time calculations
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
