@@ -29,6 +29,7 @@ function getPriceDisplay(priceLevel) {
 function calculateOpenStatus(place, timezone) {
   const hours = place.currentOpeningHours || place.regularOpeningHours;
   if (!hours) {
+    console.log(`🍸 [BAR TAB] No hours data for "${place.displayName?.text}" - Google didn't return opening hours`);
     return { is_open: null, hours_today: null, closing_soon: false, minutes_until_close: null };
   }
 
@@ -44,7 +45,8 @@ function calculateOpenStatus(place, timezone) {
   const todayName = formatter.format(now);
 
   // Find today in weekdayDescriptions
-  const todayHours = hours.weekdayDescriptions?.find(d =>
+  const weekdayDescs = hours.weekdayDescriptions || [];
+  const todayHours = weekdayDescs.find(d =>
     d.toLowerCase().startsWith(todayName.toLowerCase())
   );
 
@@ -53,6 +55,11 @@ function calculateOpenStatus(place, timezone) {
   if (todayHours) {
     const match = todayHours.match(/:\s*(.+)$/);
     hours_today = match ? match[1].trim() : todayHours;
+  }
+
+  // Debug log for hours parsing
+  if (!hours_today && weekdayDescs.length > 0) {
+    console.log(`🍸 [BAR TAB] "${place.displayName?.text}" - Could not find ${todayName} in weekdayDescriptions:`, weekdayDescs);
   }
 
   // Calculate minutes until close (simplified - would need nextCloseTime for accuracy)
@@ -245,8 +252,13 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
       const type = place.primaryType === 'night_club' ? 'nightclub' :
                    place.primaryType === 'wine_bar' ? 'wine_bar' : 'bar';
 
+      const venueName = place.displayName?.text || 'Unknown Venue';
+
+      // Debug: Log hours for each venue
+      console.log(`🍸 [BAR TAB] "${venueName}" - is_open=${openStatus.is_open}, hours_today="${openStatus.hours_today || 'none'}"`);
+
       return {
-        name: place.displayName?.text || 'Unknown Venue',
+        name: venueName,
         type,
         address: place.formattedAddress || '',
         phone: place.nationalPhoneNumber || null,

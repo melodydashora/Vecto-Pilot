@@ -659,7 +659,7 @@ router.post('/test-consolidate/:snapshotId', requireAuth, async (req, res) => {
       snapshotId,
       consolidationComplete: row?.consolidated_strategy != null,
       status: row?.status,
-      hasStrategy: row?.minstrategy != null,
+      hasStrategyForNow: row?.strategy_for_now != null,
       hasBriefing: !!briefingRow
     });
   } catch (err) {

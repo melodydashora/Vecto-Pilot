@@ -1,21 +1,29 @@
 // server/lib/location/get-snapshot-context.js
-// Two variants: minimal context for minstrategy, full snapshot for consolidator/briefing
+// Two variants: minimal context for strategy prompts, full snapshot for AI providers
 
 import { db } from '../../db/drizzle.js';
 import { snapshots, users } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
- * Strategy context: Fields needed for minstrategy prompt
- * Includes: location, time, weather, airport - everything the strategist needs
- * Used by: minstrategy
+ * Strategy context: Fields needed for AI strategy prompts
+ * Includes: location, time, weather, airport - everything the AI needs
+ * Used by: briefing.js, consolidator.js
+ * @param {string} snapshotId - UUID of snapshot
+ * @param {Object} options - Optional parameters
+ * @param {Object} options.snapshot - Pre-fetched snapshot row to avoid redundant DB reads
  */
-export async function getSnapshotContext(snapshotId) {
-  const [snapshot] = await db
-    .select()
-    .from(snapshots)
-    .where(eq(snapshots.snapshot_id, snapshotId))
-    .limit(1);
+export async function getSnapshotContext(snapshotId, options = {}) {
+  // Use pre-fetched snapshot if provided, otherwise fetch from DB
+  let snapshot = options.snapshot;
+  if (!snapshot) {
+    const [row] = await db
+      .select()
+      .from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId))
+      .limit(1);
+    snapshot = row;
+  }
 
   if (!snapshot) {
     throw new Error(`Snapshot ${snapshotId} not found`);
@@ -36,10 +44,12 @@ export async function getSnapshotContext(snapshotId) {
     formatted_address: snapshot.formatted_address,
     city: snapshot.city,
     state: snapshot.state,
+    country: snapshot.country,
     lat: snapshot.lat,
     lng: snapshot.lng,
     timezone: snapshot.timezone,
-    // Time
+    // Time (read from stored snapshot - NOT computed)
+    date: snapshot.date,
     dow,
     day_of_week,
     is_weekend,
@@ -52,6 +62,7 @@ export async function getSnapshotContext(snapshotId) {
     is_holiday: snapshot.is_holiday,
     // Conditions (needed for strategist prompt)
     weather: snapshot.weather,
+    air: snapshot.air,
     airport_context: snapshot.airport_context
   };
 
@@ -60,12 +71,17 @@ export async function getSnapshotContext(snapshotId) {
     formatted_address: ctx.formatted_address,
     city: ctx.city,
     state: ctx.state,
+    country: ctx.country,
     lat: ctx.lat,
     lng: ctx.lng,
+    timezone: ctx.timezone,
+    date: ctx.date,
     hour: ctx.hour,
+    dow: ctx.dow,
     day_part_key: ctx.day_part_key,
     is_holiday: ctx.is_holiday,
     weather: ctx.weather ? { tempF: ctx.weather.tempF, conditions: ctx.weather.conditions } : null,
+    air: ctx.air ? { aqi: ctx.air.aqi, category: ctx.air.category } : null,
     airport: ctx.airport_context?.airport_code || null
   });
 
@@ -109,8 +125,9 @@ export async function getFullSnapshot(snapshotId) {
     lng: snapshot.lng,
     accuracy_m: snapshot.accuracy_m,
     timezone: snapshot.timezone,
-    
-    // Date/time
+
+    // Date/time (read from stored snapshot - NOT computed)
+    date: snapshot.date,
     dow,
     day_of_week,
     is_weekend,
@@ -119,11 +136,11 @@ export async function getFullSnapshot(snapshotId) {
     local_iso: snapshot.local_iso,
     iso_timestamp: snapshot.created_at?.toISOString(),
     created_at: snapshot.created_at,
-    
+
     // Holiday
     holiday: snapshot.holiday,
     is_holiday: snapshot.is_holiday,
-    
+
     // Enriched data
     weather: snapshot.weather,
     air: snapshot.air,
@@ -135,11 +152,16 @@ export async function getFullSnapshot(snapshotId) {
     snapshot_id: ctx.snapshot_id,
     city: ctx.city,
     state: ctx.state,
+    country: ctx.country,
     lat: ctx.lat,
     lng: ctx.lng,
     timezone: ctx.timezone,
+    date: ctx.date,
+    hour: ctx.hour,
+    dow: ctx.dow,
+    day_part_key: ctx.day_part_key,
     weather: ctx.weather ? { tempF: ctx.weather.tempF, conditions: ctx.weather.conditions } : null,
-    air: ctx.air ? { aqi: ctx.air.aqi } : null,
+    air: ctx.air ? { aqi: ctx.air.aqi, category: ctx.air.category } : null,
     airport_context: ctx.airport_context ? { code: ctx.airport_context.airport_code } : null
   });
   

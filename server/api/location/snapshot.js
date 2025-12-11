@@ -3,7 +3,7 @@ import express, { Router } from 'express';
 import crypto from "node:crypto";
 import { db } from "../../db/drizzle.js";
 import { sql, eq } from "drizzle-orm";
-import { snapshots, strategies, users } from "../../../shared/schema.js";
+import { snapshots, strategies, users, coords_cache } from "../../../shared/schema.js";
 import { generateStrategyForSnapshot } from "../../lib/strategy/strategy-generator.js";
 import { validateIncomingSnapshot } from "../../util/validate-snapshot.js";
 import { uuidOrNull } from "../../util/uuid.js";
@@ -18,6 +18,31 @@ function uuid() {
   return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex");
 }
 
+// Helper: Generate cache key from coordinates (4 decimal places = ~11m precision)
+function makeCoordsKey(lat, lng) {
+  const lat4d = lat.toFixed(4);
+  const lng4d = lng.toFixed(4);
+  return `${lat4d}_${lng4d}`;
+}
+
+// Helper: Validate all required snapshot fields are present before INSERT
+// These fields are NOT NULL in the database schema
+function validateSnapshotFields(record) {
+  const required = [
+    'lat', 'lng', 'city', 'state', 'country',
+    'formatted_address', 'timezone', 'local_iso',
+    'dow', 'hour', 'day_part_key'
+  ];
+  const missing = required.filter(f => record[f] === null || record[f] === undefined);
+  if (missing.length > 0) {
+    const error = new Error(`SNAPSHOT_VALIDATION_FAILED: Missing required fields: ${missing.join(', ')}`);
+    error.missingFields = missing;
+    error.code = 'SNAPSHOT_INCOMPLETE';
+    throw error;
+  }
+  return true;
+}
+
 function requireStr(v, name) {
   if (typeof v !== "string" || !v.trim()) throw new Error(`missing:${name}`);
   return v.trim();
@@ -26,24 +51,84 @@ function requireStr(v, name) {
 router.post("/", async (req, res) => {
   const reqId = crypto.randomUUID();
   res.setHeader('x-req-id', reqId);
-  
+
   const started = Date.now();
 
   try {
     const snap = req.body || {};
-    
+
     // SECURITY FIX: Use authenticated user_id from JWT, NOT from request body
     const user_id = req.auth?.userId || uuid();
-    
-    // Direct extraction
+
+    // Direct extraction from request body
     const snapshot_id = snap.snapshot_id || uuid();
     const lat = snap.coord?.lat;
     const lng = snap.coord?.lng;
-    const city = snap.resolved?.city;
-    const state = snap.resolved?.state;
-    const country = snap.resolved?.country;
-    const formatted_address = snap.resolved?.formattedAddress;
-    const timezone = snap.resolved?.timezone;
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LOCATION RESOLUTION: Get resolved address from users table (source of truth)
+    // Users table is populated from coords_cache when location.js resolves coords
+    // NEVER send raw coords to strategists - they can't reverse geocode
+    // ═══════════════════════════════════════════════════════════════════════════
+    let city = snap.resolved?.city;
+    let state = snap.resolved?.state;
+    let country = snap.resolved?.country;
+    let formatted_address = snap.resolved?.formattedAddress;
+    let timezone = snap.resolved?.timezone;
+    let coordKey = null;
+
+    // If resolved data missing from request, look up users table
+    if (!city || !formatted_address) {
+      console.log(`[snapshot] 🔍 Resolved data missing from request, looking up users table for user_id=${user_id}`);
+      try {
+        const [userRow] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1);
+        if (userRow) {
+          // Use resolved data from users table (which comes from coords_cache)
+          city = city || userRow.city;
+          state = state || userRow.state;
+          country = country || userRow.country;
+          formatted_address = formatted_address || userRow.formatted_address;
+          timezone = timezone || userRow.timezone;
+          coordKey = userRow.coord_key;
+          console.log(`[snapshot] ✅ Got resolved data from users table:`, {
+            city, state, country, formatted_address, timezone, coordKey
+          });
+        } else {
+          console.warn(`[snapshot] ⚠️ User not found in users table: ${user_id}`);
+        }
+      } catch (userLookupErr) {
+        console.warn(`[snapshot] ⚠️ Users table lookup failed:`, userLookupErr.message);
+      }
+    }
+
+    // If STILL missing resolved data, try coords_cache as last resort
+    if ((!city || !formatted_address) && typeof lat === 'number' && typeof lng === 'number') {
+      coordKey = coordKey || makeCoordsKey(lat, lng);
+      console.log(`[snapshot] 🔍 Still missing resolved data, checking coords_cache for ${coordKey}`);
+      try {
+        const [cacheRow] = await db.select().from(coords_cache).where(eq(coords_cache.coord_key, coordKey)).limit(1);
+        if (cacheRow) {
+          city = city || cacheRow.city;
+          state = state || cacheRow.state;
+          country = country || cacheRow.country;
+          formatted_address = formatted_address || cacheRow.formatted_address;
+          timezone = timezone || cacheRow.timezone;
+          console.log(`[snapshot] ✅ Got resolved data from coords_cache:`, {
+            city, state, country, formatted_address, timezone
+          });
+        } else {
+          console.error(`[snapshot] ❌ CRITICAL: coords_cache miss for ${coordKey} - location not resolved!`);
+        }
+      } catch (cacheLookupErr) {
+        console.warn(`[snapshot] ⚠️ Coords cache lookup failed:`, cacheLookupErr.message);
+      }
+    }
+
+    // Calculate coord_key if not already set
+    if (!coordKey && typeof lat === 'number' && typeof lng === 'number') {
+      coordKey = makeCoordsKey(lat, lng);
+    }
+
     const hour = snap.time_context?.hour;
     const dow = snap.time_context?.dow;
     const day_part_key = snap.time_context?.day_part_key;
@@ -63,7 +148,7 @@ router.post("/", async (req, res) => {
     });
     const parts = formatter.formatToParts(createdAtDate);
     const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
-    
+
     const dbSnapshot = {
       snapshot_id,
       created_at: createdAtDate,
@@ -71,10 +156,12 @@ router.post("/", async (req, res) => {
       user_id,
       device_id: snap.device_id || uuid(),
       session_id: snap.session_id || uuid(),
-      // Precise location coordinates (GPS)
+      // Location coordinates
       lat: typeof lat === 'number' ? lat : null,
       lng: typeof lng === 'number' ? lng : null,
-      // Resolved address
+      // FK to coords_cache for location identity
+      coord_key: coordKey,
+      // LEGACY: Resolved address (kept for backward compat)
       city: city || null,
       state: state || null,
       country: country || null,
@@ -103,9 +190,12 @@ router.post("/", async (req, res) => {
       dow: dbSnapshot.dow
     });
 
+    // Validate all required fields are present before INSERT (schema has NOT NULL constraints)
+    validateSnapshotFields(dbSnapshot);
+
     // Insert to DB
     await db.insert(snapshots).values(dbSnapshot);
-    console.log('[snapshot] ✅ SAVED TO DB:', { snapshot_id, lat, lng, city, timezone });
+    console.log('[snapshot] ✅ SAVED TO DB:', { snapshot_id, lat, lng, city, state, formatted_address, timezone, coord_key: coordKey });
 
     // REMOVED: Placeholder strategy creation - strategy-generator-parallel.js creates the SINGLE strategy row
     // This prevents race conditions and ensures model_name attribution is preserved
@@ -139,10 +229,11 @@ router.post("/", async (req, res) => {
     }
 
     // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
+    // CRITICAL: Pass full snapshot to avoid redundant DB fetch - LLMs need formatted_address
     queueMicrotask(() => {
       try {
-        console.log(`[triad] enqueue`, { snapshot_id });
-        generateStrategyForSnapshot(snapshot_id).catch(err => {
+        console.log(`[triad] enqueue`, { snapshot_id, formatted_address });
+        generateStrategyForSnapshot(snapshot_id, { snapshot: dbSnapshot }).catch(err => {
           console.warn(`[triad] enqueue.failed`, { snapshot_id, err: String(err) });
         });
       } catch (e) {

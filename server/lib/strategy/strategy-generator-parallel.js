@@ -196,120 +196,83 @@ async function saveStrategy(row) {
 }
 
 /**
- * NEW ARCHITECTURE: Run minstrategy + briefing providers in parallel
- * Each provider writes to its own model-agnostic column
- * Then triggers consolidation
+ * NEW ARCHITECTURE: Briefing + Immediate Strategy (NO minstrategy)
+ * 1. Run briefing provider (Gemini) to get events, traffic, news
+ * 2. Run immediate strategy (GPT-5.1) with snapshot + briefing
+ *
+ * Daily consolidated_strategy is user-request only (not part of this pipeline)
  */
-export async function runSimpleStrategyPipeline({ snapshotId, userId, userAddress, city, state, lat, lng, snapshot }) {
+export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }) {
   try {
-    // Build dynamic model name from environment variables (full 3-step chain)
-    const strategist = process.env.STRATEGY_STRATEGIST || 'unknown';
-    const briefer = process.env.STRATEGY_BRIEFER || 'unknown';
-    const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'unknown';
-    const fullModelChain = `${strategist}→${briefer}→${consolidator}`;
-    
+    // Build model name for audit trail
+    const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3-pro';
+    const immediateModel = 'gpt-5.1';
+    const modelChain = `${briefer}→${immediateModel}`;
+
     // GLOBAL DEDUPLICATION: Check if strategy already running for this snapshot
     const [existingStrategy] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    
+
     if (existingStrategy && existingStrategy.status === 'running') {
       const elapsedMs = Date.now() - new Date(existingStrategy.updated_at).getTime();
       if (elapsedMs < 30000) { // Less than 30 seconds old
-        console.log(`[strategy-pipeline] 🛑 Strategy already running for ${snapshotId} (${elapsedMs}ms old), aborting duplicate run`);
+        console.log(`[strategy-pipeline] 🛑 Strategy already running for ${snapshotId.slice(0, 8)} (${elapsedMs}ms old), skipping`);
         return { ok: true, status: 'deduplicated', reason: 'strategy_already_running' };
       }
     }
 
-    // Create initial strategy row with model_name - ensures exactly ONE row per snapshot
-    // Using onConflictDoNothing to handle race conditions (first writer wins)
+    // Create initial strategy row - ensures exactly ONE row per snapshot
     const [insertedStrategy] = await db.insert(strategies).values({
       snapshot_id: snapshotId,
       user_id: userId,
       status: 'pending',
-      model_name: fullModelChain,
+      model_name: modelChain,
       created_at: new Date(),
       updated_at: new Date()
     }).onConflictDoNothing().returning();
-    
+
     // If row already existed, another process is handling it
     if (!insertedStrategy) {
-      console.log(`[strategy-pipeline] 🛑 Another process already handling strategy for ${snapshotId}, aborting`);
+      console.log(`[strategy-pipeline] 🛑 Another process already handling strategy for ${snapshotId.slice(0, 8)}, skipping`);
       return { ok: true, status: 'deduplicated', reason: 'race_condition_detected' };
     }
-    
-    // Set status to running to mark this process as active
+
+    // Set status to running
     await db.update(strategies).set({
       status: 'running',
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
-    
-    // Import providers
-    const { runMinStrategy } = await import('./providers/minstrategy.js');
+
+    console.log(`[strategy-pipeline] 🚀 Starting for ${snapshotId.slice(0, 8)}`);
+    console.log(`[strategy-pipeline] 📍 Location: ${snapshot.formatted_address}`);
+
+    // Step 1: Run briefing provider (events, traffic, news)
     const { runBriefing } = await import('./providers/briefing.js');
-    
-    // Run minstrategy and briefing providers in parallel
-    // Briefing uses Gemini 3.0 Pro with Google Search for events, traffic, news
-    const [minResult, briefingResult] = await Promise.allSettled([
-      runMinStrategy(snapshotId),
-      runBriefing(snapshotId)
-    ]);
-    
-    // Log briefing result
-    if (briefingResult.status === 'rejected') {
-      console.warn(`[strategy-pipeline] Briefing generation failed (non-blocking):`, briefingResult.reason?.message);
-    } else {
-      console.log(`[strategy-pipeline] ✅ Briefing generated successfully for ${snapshotId}`);
+
+    try {
+      await runBriefing(snapshotId, { snapshot });
+      console.log(`[strategy-pipeline] ✅ Briefing generated`);
+    } catch (briefingErr) {
+      console.warn(`[strategy-pipeline] ⚠️ Briefing failed (non-blocking):`, briefingErr.message);
+      // Continue - immediate strategy can still work with snapshot weather data
     }
-    
-    // Check results - briefing failure is non-blocking
-    const minFailed = minResult?.status === 'rejected';
-    
-    if (minFailed) {
-      console.error(`[strategy-pipeline] Minstrategy failed:`, minResult.reason?.message || minResult.reason);
+
+    // Step 2: Run immediate strategy (GPT-5.1 with snapshot + briefing)
+    const { runImmediateStrategy } = await import('../ai/providers/consolidator.js');
+
+    try {
+      await runImmediateStrategy(snapshotId, { snapshot });
+      console.log(`[strategy-pipeline] ✅ Immediate strategy generated`);
+    } catch (immediateErr) {
+      console.error(`[strategy-pipeline] ❌ Immediate strategy failed:`, immediateErr.message);
+      throw immediateErr;
     }
-    
-    // Strategist is required
-    if (minFailed) {
-      throw new Error('Strategist provider failed');
-    }
-    
-    // Fetch updated strategy row to get strategist output
-    const [strategyRow] = await db.select().from(strategies)
-      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    
-    // Check if we have strategist output for consolidation
-    const hasMin = !!strategyRow.minstrategy && strategyRow.minstrategy.length > 0;
-    
-    // Run consolidation if strategist output exists
-    if (hasMin) {
-      const { runConsolidator } = await import('./providers/consolidator.js');
-      
-      try {
-        await runConsolidator(snapshotId);
-      } catch (consolidatorErr) {
-        console.error(`[strategy-pipeline] Consolidator failed:`, consolidatorErr.message);
-        
-        // Use strategist output as fallback if consolidator fails
-        await db.update(strategies).set({
-          consolidated_strategy: strategyRow.minstrategy,
-          status: 'ok_partial',
-          error_message: `Fallback: ${consolidatorErr.message}`,
-          updated_at: new Date()
-        }).where(eq(strategies.snapshot_id, snapshotId));
-      }
-    } else {
-      await db.update(strategies).set({
-        status: 'running',
-        error_message: 'Waiting for strategist',
-        updated_at: new Date()
-      }).where(eq(strategies.snapshot_id, snapshotId));
-    }
-    
+
     return { ok: true };
   } catch (err) {
-    console.error(`[strategy-pipeline] Failed:`, err.message);
+    console.error(`[strategy-pipeline] ❌ Failed:`, err.message);
     await db.update(strategies).set({
-      error_message: `[simple-strategy] ${err.message?.slice(0, 800)}`,
+      error_message: err.message?.slice(0, 800),
       status: 'failed',
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));

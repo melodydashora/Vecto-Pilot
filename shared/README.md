@@ -9,6 +9,9 @@ Code shared between client and server.
 | File | Purpose |
 |------|---------|
 | `schema.js` | Drizzle ORM schema (PostgreSQL tables) |
+| `config.js` | Shared configuration utilities |
+| `identity.ts` | Identity utilities |
+| `ports.js` | Port configuration |
 
 ## Types
 

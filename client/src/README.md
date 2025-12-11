@@ -10,14 +10,15 @@ React frontend for Vecto Pilot. TypeScript, TailwindCSS, Radix UI components.
 src/
 ├── App.tsx              # App root with routing
 ├── main.tsx             # Entry point
-├── components/          # UI components
+├── components/          # UI components (includes ui/ with shadcn primitives)
 ├── pages/               # Page components
 ├── contexts/            # React contexts (location)
 ├── hooks/               # Custom React hooks
 ├── lib/                 # Utilities
 ├── types/               # TypeScript types
-├── _future/             # Staging for future features
-└── ui/                  # shadcn/ui primitives (46 components)
+├── features/            # Feature modules
+├── utils/               # Utility helpers
+└── _future/             # Staging for future features
 ```
 
 ## Key Components
@@ -28,6 +29,7 @@ src/
 | `components/GlobalHeader.tsx` | Weather, location, time |
 | `components/CoachChat.tsx` | AI chat + voice |
 | `components/BriefingTab.tsx` | Events, traffic, news |
+| `components/BarTab.tsx` | Premium bars sidebar |
 | `contexts/location-context-clean.tsx` | GPS, weather, snapshots |
 
 ## Data Flow
@@ -44,10 +46,9 @@ co-pilot.tsx (main dashboard)
     └── Smart Blocks (venue recommendations)
 ```
 
-## Entry Points
+## Entry Point
 
-- `main.tsx` - Production entry (used)
-- `main-simple.tsx` - Orphaned, can be deleted
+- `main.tsx` - Production entry
 
 ## Build
 

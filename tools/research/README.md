@@ -11,6 +11,7 @@ AI model discovery and documentation generation tools.
 | `model-discovery.mjs` | Discover available models from AI providers |
 | `claude-model-search.mjs` | Search Anthropic's model catalog |
 | `generate-model-md.mjs` | Generate MODEL.md from research data |
+| `update-model-md.mjs` | Update MODEL.md with latest model info |
 
 ## Output Files
 

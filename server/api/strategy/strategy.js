@@ -6,8 +6,8 @@ import { db } from '../../db/drizzle.js';
 import { strategies, briefings, snapshots } from '../../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { ensureStrategyRow } from '../../lib/strategy/strategy-utils.js';
-import { runMinStrategy } from '../../lib/ai/providers/minstrategy.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
+import { runConsolidator } from '../../lib/ai/providers/consolidator.js';
 import { safeElapsedMs } from '../utils/safeElapsedMs.js';
 import crypto from 'crypto';
 import { validateBody } from '../../middleware/validate.js';
@@ -28,9 +28,9 @@ router.get('/:snapshotId', async (req, res) => {
       return res.status(404).json({ error: 'not_found', snapshot_id: snapshotId });
     }
     
-    console.log(`[strategy] ✅ Strategy found: status=${row.status}, has_consolidated=${!!row.consolidated_strategy}`);
+    console.log(`[strategy] ✅ Strategy found: status=${row.status}, has_strategy_for_now=${!!row.strategy_for_now}`);
 
-    const hasMin = !!(row.minstrategy && row.minstrategy.trim().length);
+    const hasStrategyForNow = !!(row.strategy_for_now && row.strategy_for_now.trim().length);
     const hasConsolidated = !!(row.consolidated_strategy && row.consolidated_strategy.trim().length);
 
     // Check briefing from separate briefings table (not from strategies)
@@ -39,17 +39,16 @@ router.get('/:snapshotId', async (req, res) => {
     const hasBriefing = !!briefingRow;
 
     const waitFor = [];
-    if (!hasMin) waitFor.push('minstrategy');
+    if (!hasStrategyForNow) waitFor.push('strategy_for_now');
     if (!hasBriefing) waitFor.push('briefing');
-    if (!hasConsolidated) waitFor.push('consolidated');
 
     const startedAt = row.strategy_timestamp ?? row.created_at ?? null;
     const timeElapsedMs = safeElapsedMs(startedAt, Date.now());
 
     res.json({
-      status: hasConsolidated ? 'ok' : 'pending',
+      status: hasStrategyForNow ? 'ok' : 'pending',
       snapshot_id: snapshotId,
-      min: hasMin ? row.minstrategy : '',
+      strategy_for_now: hasStrategyForNow ? row.strategy_for_now : '',
       briefing: briefingRow ? {
         events: briefingRow.events || [],
         news: briefingRow.news || { items: [] },
@@ -239,7 +238,7 @@ router.get('/history', async (req, res) => {
       created_at: strategies.created_at,
       updated_at: strategies.updated_at,
       has_consolidated: strategies.consolidated_strategy,
-      has_minstrategy: strategies.minstrategy,
+      has_strategy_for_now: strategies.strategy_for_now,
       error_message: strategies.error_message
     })
       .from(strategies)
@@ -261,6 +260,100 @@ router.get('/history', async (req, res) => {
     res.json({ ok: true, attempts: mappedAttempts });
   } catch (error) {
     console.error(`[strategy] GET history error:`, error);
+    res.status(500).json({ error: 'internal_error', message: error.message });
+  }
+});
+
+/**
+ * POST /api/strategy/daily/:snapshotId
+ * On-demand daily strategy generation (8-12 hour planning)
+ *
+ * Called when user clicks "Generate Daily Strategy" button in BriefingTab.
+ * Uses: snapshot + briefing → Gemini 3 Pro → consolidated_strategy
+ *
+ * Prerequisites:
+ *   - snapshot must exist (location/time context)
+ *   - briefing must exist (from blocks-fast pipeline)
+ *
+ * Returns:
+ *   - 200: { ok: true, consolidated_strategy: "..." }
+ *   - 202: { ok: false, reason: "already_generating" } if in progress
+ *   - 400: { error: "missing_prerequisites" } if briefing missing
+ */
+router.post('/daily/:snapshotId', async (req, res) => {
+  const { snapshotId } = req.params;
+
+  try {
+    console.log(`[strategy] POST /api/strategy/daily/${snapshotId} - Generating daily strategy on-demand...`);
+
+    // Check if strategy row exists
+    const [strategyRow] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+
+    if (!strategyRow) {
+      return res.status(404).json({
+        error: 'snapshot_not_found',
+        message: 'No strategy row found. Run /api/blocks-fast first.'
+      });
+    }
+
+    // Check if already has daily strategy
+    if (strategyRow.consolidated_strategy && strategyRow.consolidated_strategy.trim().length > 0) {
+      console.log(`[strategy] ✅ Daily strategy already exists for ${snapshotId}`);
+      return res.json({
+        ok: true,
+        cached: true,
+        consolidated_strategy: strategyRow.consolidated_strategy
+      });
+    }
+
+    // Check prerequisites - need briefing data for daily strategy
+    const [briefingRow] = await db.select().from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+
+    if (!briefingRow) {
+      return res.status(400).json({
+        error: 'missing_prerequisites',
+        message: 'Briefing data not available. Strategy pipeline may still be running.'
+      });
+    }
+
+    // Fetch snapshot for consolidator
+    const [snapshot] = await db.select().from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+
+    if (!snapshot) {
+      return res.status(404).json({
+        error: 'snapshot_not_found',
+        message: 'Snapshot not found.'
+      });
+    }
+
+    // Generate daily strategy using Gemini with snapshot + briefing
+    console.log(`[strategy] 🔄 Calling runConsolidator for daily strategy...`);
+    const result = await runConsolidator(snapshotId, { snapshot });
+
+    if (!result.ok) {
+      return res.status(500).json({
+        error: 'generation_failed',
+        message: result.error || 'Failed to generate daily strategy'
+      });
+    }
+
+    // Fetch the updated strategy
+    const [updatedRow] = await db.select().from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+
+    console.log(`[strategy] ✅ Daily strategy generated: ${updatedRow?.consolidated_strategy?.length || 0} chars`);
+
+    res.json({
+      ok: true,
+      cached: false,
+      consolidated_strategy: updatedRow?.consolidated_strategy || '',
+      metrics: result.metrics
+    });
+  } catch (error) {
+    console.error(`[strategy] POST /daily error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });

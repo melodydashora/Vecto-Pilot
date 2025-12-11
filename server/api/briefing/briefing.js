@@ -256,6 +256,8 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
     const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
     const newsData = briefing?.news || { items: [], filtered: [] };
 
+    console.log(`[BriefingRoute] 📰 News endpoint - briefing exists: ${!!briefing}, news: ${JSON.stringify(newsData).substring(0, 200)}`);
+
     res.json({
       success: true,
       news: newsData,
@@ -312,6 +314,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
 router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
+
+    console.log(`[BriefingRoute] 🏫 School closures endpoint - briefing exists: ${!!briefing}, closures: ${JSON.stringify(briefing?.school_closures).substring(0, 200)}`);
 
     // Handle both array format and {items: [], reason: string} format
     let closures = [];

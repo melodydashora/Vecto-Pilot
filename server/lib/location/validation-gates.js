@@ -20,13 +20,18 @@ export function validateLocationFreshness(snapshot, requestTime = new Date()) {
     return { valid: false, error: 'LOCATION_MISSING: No snapshot provided' };
   }
 
-  const required = ['lat', 'lng', 'formatted_address', 'created_at'];
-  const missing = required.filter(field => !snapshot[field]);
-  
+  // All fields that are NOT NULL in snapshots table schema
+  const required = [
+    'lat', 'lng', 'formatted_address', 'created_at',
+    'city', 'state', 'country', 'timezone',
+    'local_iso', 'dow', 'hour', 'day_part_key'
+  ];
+  const missing = required.filter(field => snapshot[field] === null || snapshot[field] === undefined);
+
   if (missing.length > 0) {
-    return { 
-      valid: false, 
-      error: `LOCATION_INCOMPLETE: Missing required fields: ${missing.join(', ')}` 
+    return {
+      valid: false,
+      error: `LOCATION_INCOMPLETE: Missing required fields: ${missing.join(', ')}`
     };
   }
 

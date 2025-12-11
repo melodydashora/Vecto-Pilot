@@ -3,16 +3,16 @@
 
 import { Router } from 'express';
 import { db } from '../../db/drizzle.js';
-import { strategies, snapshots } from '../../../shared/schema.js';
+import { strategies, snapshots, briefings } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { ensureStrategyRow } from '../../lib/strategy/strategy-utils.js';
-import { runMinStrategy } from '../../lib/ai/providers/minstrategy.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
+import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 
 export const router = Router();
 
-/** POST /api/diagnostics/test-claude/:snapshotId */
-router.post('/test-claude/:snapshotId', async (req, res) => {
+/** POST /api/diagnostics/test-immediate/:snapshotId - Test GPT-5.1 immediate strategy */
+router.post('/test-immediate/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
 
   try {
@@ -23,19 +23,24 @@ router.post('/test-claude/:snapshotId', async (req, res) => {
     }
 
     await ensureStrategyRow(snapshotId);
-    await runMinStrategy(snapshotId);
+
+    // Run briefing first (required for immediate strategy)
+    await runBriefing(snapshotId, { snapshot });
+
+    // Run immediate strategy
+    await runImmediateStrategy(snapshotId, { snapshot });
 
     const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
     res.json({
       ok: true,
       snapshot_id: snapshotId,
-      has_minstrategy: !!(row.minstrategy && row.minstrategy.trim().length),
-      minstrategy_length: row.minstrategy?.length || 0,
-      minstrategy: row.minstrategy
+      has_strategy_for_now: !!(row.strategy_for_now && row.strategy_for_now.trim().length),
+      strategy_for_now_length: row.strategy_for_now?.length || 0,
+      strategy_for_now: row.strategy_for_now
     });
   } catch (error) {
-    console.error(`[diagnostics] test-claude error:`, error);
+    console.error(`[diagnostics] test-immediate error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -52,16 +57,17 @@ router.post('/test-briefing/:snapshotId', async (req, res) => {
     }
 
     await ensureStrategyRow(snapshotId);
-    await runBriefing(snapshotId);
+    await runBriefing(snapshotId, { snapshot });
 
-    const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    const briefing = row.briefing || { events: [], holidays: [], traffic: [], news: [] };
+    // Fetch briefing from briefings table (not strategies)
+    const [briefingRow] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    const briefingData = briefingRow || { events: [], traffic_conditions: {}, news: {} };
 
     res.json({
       ok: true,
       snapshot_id: snapshotId,
-      has_briefing: JSON.stringify(briefing) !== '{}',
-      briefing
+      has_briefing: !!briefingRow,
+      briefing: briefingData
     });
   } catch (error) {
     console.error(`[diagnostics] test-briefing error:`, error);
@@ -80,21 +86,26 @@ router.get('/strategy-status/:snapshotId', async (req, res) => {
       return res.status(404).json({ error: 'not_found', snapshot_id: snapshotId });
     }
 
-    const hasMin = !!(row.minstrategy && row.minstrategy.trim().length);
-    const briefing = row.briefing || {};
-    const hasBriefing = JSON.stringify(briefing) !== '{}';
+    // Fetch briefing from briefings table
+    const [briefingRow] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+
+    // Fetch snapshot for location context
+    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+
+    const hasStrategyForNow = !!(row.strategy_for_now && row.strategy_for_now.trim().length);
+    const hasBriefing = !!briefingRow;
     const hasConsolidated = !!(row.consolidated_strategy && row.consolidated_strategy.trim().length);
 
     res.json({
       snapshot_id: snapshotId,
-      has_min: hasMin,
+      has_strategy_for_now: hasStrategyForNow,
       has_briefing: hasBriefing,
       has_consolidated: hasConsolidated,
-      user_resolved_address: row.user_resolved_address,
-      user_resolved_city: row.user_resolved_city,
-      user_resolved_state: row.user_resolved_state,
+      formatted_address: snapshot?.formatted_address || null,
+      city: snapshot?.city || null,
+      state: snapshot?.state || null,
       status: row.status,
-      briefing
+      briefing: briefingRow || null
     });
   } catch (error) {
     console.error(`[diagnostics] strategy-status error:`, error);

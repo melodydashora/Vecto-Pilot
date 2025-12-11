@@ -1,9 +1,9 @@
 import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { sql, relations } from "drizzle-orm";
 
 // Users table: Source of truth for WHO + WHERE + CURRENT SESSION
 // Authority on:
-//   - Location identity (city, state, formatted_address, timezone) - cached, reusable
+//   - Location identity (city, state, formatted_address, timezone) - via coord_key FK to coords_cache
 //   - Current snapshot (current_snapshot_id) - links to active session
 // Snapshots table: Time-varying data (weather, air, hour, dow, strategy)
 export const users = pgTable("users", {
@@ -21,7 +21,9 @@ export const users = pgTable("users", {
   new_lat: doublePrecision("new_lat"),
   new_lng: doublePrecision("new_lng"),
   new_accuracy_m: doublePrecision("new_accuracy_m"),
-  // Resolved location identity (cached from geocoding - reusable if coords similar)
+  // FK to coords_cache - resolves location identity (city, state, country, formatted_address, timezone)
+  coord_key: text("coord_key"), // Format: "lat4d_lng4d" e.g., "33.1284_-96.8688" - nullable during migration
+  // LEGACY: Resolved location identity (kept for backward compat, will be removed in Phase 7)
   formatted_address: text("formatted_address"), // Full street address
   city: text("city"),
   state: text("state"),
@@ -40,19 +42,22 @@ export const snapshots = pgTable("snapshots", {
   user_id: uuid("user_id"),
   device_id: text("device_id").notNull(),
   session_id: uuid("session_id").notNull(),
-  // Location data (stored at snapshot creation - authoritative source)
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
-  city: text("city"),
-  state: text("state"),
-  country: text("country"),
-  formatted_address: text("formatted_address"),
-  timezone: text("timezone"),
+  // Location coordinates (stored at snapshot creation)
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  // FK to coords_cache - resolves location identity (city, state, country, formatted_address, timezone)
+  coord_key: text("coord_key"), // Format: "lat4d_lng4d" e.g., "33.1284_-96.8688" - nullable during migration
+  // LEGACY: Location identity (kept for backward compat, will be removed in Phase 7)
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  country: text("country").notNull(),
+  formatted_address: text("formatted_address").notNull(),
+  timezone: text("timezone").notNull(),
   // Time context (authoritative for this snapshot)
-  local_iso: timestamp("local_iso", { withTimezone: false }),
-  dow: integer("dow"), // 0=Sunday, 1=Monday, etc.
-  hour: integer("hour"),
-  day_part_key: text("day_part_key"), // 'morning', 'afternoon', 'evening', etc.
+  local_iso: timestamp("local_iso", { withTimezone: false }).notNull(),
+  dow: integer("dow").notNull(), // 0=Sunday, 1=Monday, etc.
+  hour: integer("hour").notNull(),
+  day_part_key: text("day_part_key").notNull(), // 'morning', 'afternoon', 'evening', etc.
   // H3 geohash for density analysis
   h3_r8: text("h3_r8"),
   // API-enriched contextual data only
@@ -87,75 +92,32 @@ export const strategies = pgTable("strategies", {
   next_retry_at: timestamp("next_retry_at", { withTimezone: true }),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  // Model version tracking for A/B testing and rollback capability (Issue #34)
-  model_name: text("model_name"), // e.g., 'claude-sonnet-4-5-20250929'
-  model_params: jsonb("model_params"), // { temperature, max_tokens, etc. }
-  prompt_version: text("prompt_version"), // Track prompt template iterations
-  strategy_for_now: text('strategy_for_now'), // Unlimited text length
-  // Location context where strategy was created (from snapshot)
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
-  city: text("city"),
-  state: text("state"),
-  user_address: text("user_address"),
+  // Model version tracking for A/B testing and rollback capability
+  model_name: text("model_name"), // e.g., 'gemini-3-pro→gpt-5.1'
   user_id: uuid("user_id"),
-  // Multi-model orchestration outputs (parallel Claude + Gemini → GPT-5 consolidation)
-  events: jsonb("events").default([]), // Gemini events feed
-  news: jsonb("news").default([]), // Gemini news feed
-  traffic: jsonb("traffic").default([]), // Gemini traffic feed
+
   // Time windowing (freshness-first spec compliance)
-  valid_window_start: timestamp("valid_window_start", { withTimezone: true }), // When strategy becomes valid
-  valid_window_end: timestamp("valid_window_end", { withTimezone: true }), // When strategy expires (≤ 60 min from start)
-  strategy_timestamp: timestamp("strategy_timestamp", { withTimezone: true }), // Generation timestamp
-  // User-resolved location (copied from snapshot at creation time)
-  user_resolved_address: text("user_resolved_address"),
-  user_resolved_city: text("user_resolved_city"),
-  user_resolved_state: text("user_resolved_state"),
-  // Time context (copied from snapshot - eliminates need to re-read snapshot in consolidator)
-  timezone: text("timezone"),
-  local_iso: timestamp("local_iso", { withTimezone: true }),
-  dow: integer("dow"), // 0=Sunday, 6=Saturday
-  hour: integer("hour"),
-  day_part_key: text("day_part_key"),
-  is_holiday: boolean("is_holiday").default(false),
-  // Model-agnostic provider outputs (generic columns for parallel multi-model pipeline)
-  minstrategy: text("minstrategy"), // Strategic overview from strategist provider (Claude)
-  consolidated_strategy: text("consolidated_strategy"), // Actionable summary for Co-Pilot from consolidator (GPT-5)
-  // DEPRECATED: Holiday is now stored in snapshots table (populated at snapshot creation)
-  holiday: text("holiday"), // Legacy column - use snapshots.holiday instead
-  // DEPRECATED COLUMNS (Perplexity now writes to briefings table instead)
-  briefing_news: jsonb("briefing_news"), 
-  briefing_events: jsonb("briefing_events"),
-  briefing_traffic: jsonb("briefing_traffic")
+  valid_window_start: timestamp("valid_window_start", { withTimezone: true }),
+  valid_window_end: timestamp("valid_window_end", { withTimezone: true }),
+  strategy_timestamp: timestamp("strategy_timestamp", { withTimezone: true }),
+
+  // Strategy outputs
+  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour strategy (GPT-5.1)
+  consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (user-request only)
 });
 
 // Briefing data from Gemini 3.0 Pro with Google Search
 // Contains ONLY briefing data (events, traffic, news, weather, closures)
-// Minstrategy + context is stored in strategies table to avoid race condition
+// All location/time context comes from snapshot via snapshot_id FK
 export const briefings = pgTable("briefings", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
-
-  // === LEGACY COLUMNS (unused - minstrategy writes to strategies table) ===
-  minstrategy: text("minstrategy"), // UNUSED - kept for migration compatibility
-  formatted_address: text("formatted_address"), // UNUSED
-  city: text("city"), // UNUSED
-  state: text("state"), // UNUSED
-  lat: doublePrecision("lat"), // UNUSED
-  lng: doublePrecision("lng"), // UNUSED
-  timezone: text("timezone"), // UNUSED
-  local_iso: timestamp("local_iso", { withTimezone: true }), // UNUSED
-  dow: integer("dow"), // UNUSED
-  hour: integer("hour"), // UNUSED
-  day_part_key: text("day_part_key"), // UNUSED
-  is_holiday: boolean("is_holiday").default(false), // UNUSED
-  holiday: text("holiday"), // UNUSED
 
   // === BRIEFING DATA (from Gemini + Google Search) ===
   news: jsonb("news"), // Rideshare-relevant news from Gemini filtering
   weather_current: jsonb("weather_current"), // Current conditions from Google Weather API
   weather_forecast: jsonb("weather_forecast"), // Hourly forecast (next 3-6 hours) from Google Weather API
-  traffic_conditions: jsonb("traffic_conditions"), // Traffic data from Google Routes API
+  traffic_conditions: jsonb("traffic_conditions"), // Traffic data from Gemini
   events: jsonb("events"), // Local events affecting rideshare drivers
   school_closures: jsonb("school_closures"), // School district & college closures/reopenings
 
@@ -619,6 +581,7 @@ export const connection_audit = pgTable("connection_audit", {
 // Coords cache: Global lookup table for geocode/timezone data by coordinate hash
 // Stores full 6-decimal precision coords, matches on 4-decimal key (~11m tolerance)
 // Prevents duplicate geocode/timezone API calls for same location
+// All resolved fields are NOT NULL - incomplete resolutions are not cached
 export const coords_cache = pgTable("coords_cache", {
   id: uuid("id").primaryKey().defaultRandom(),
   // Cache key: 4 decimal places (~11m precision) for matching
@@ -626,13 +589,13 @@ export const coords_cache = pgTable("coords_cache", {
   // Full precision storage: 6 decimals (~11cm precision)
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
-  // Resolved location data (from Google Geocoding API)
+  // Resolved location data (from Google Geocoding API) - all required
   formatted_address: text("formatted_address").notNull(),
-  city: text("city"),
-  state: text("state"),
-  country: text("country"),
-  // Timezone (from Google Timezone API)
-  timezone: text("timezone"),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  country: text("country").notNull(),
+  // Timezone (from Google Timezone API) - required
+  timezone: text("timezone").notNull(),
   // Optional: closest airport for airport context
   closest_airport: text("closest_airport"),
   closest_airport_code: text("closest_airport_code"),
@@ -642,6 +605,32 @@ export const coords_cache = pgTable("coords_cache", {
 }, (table) => ({
   idxCoordKey: sql`create unique index if not exists idx_coords_cache_coord_key on ${table} (coord_key)`,
   idxCityState: sql`create index if not exists idx_coords_cache_city_state on ${table} (city, state)`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRIZZLE RELATIONS: Enable eager loading via `with: { coords: true }`
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Users → coords_cache relation (for location identity lookup)
+export const usersRelations = relations(users, ({ one }) => ({
+  coords: one(coords_cache, {
+    fields: [users.coord_key],
+    references: [coords_cache.coord_key],
+  }),
+}));
+
+// Snapshots → coords_cache relation (for location identity lookup)
+export const snapshotsRelations = relations(snapshots, ({ one }) => ({
+  coords: one(coords_cache, {
+    fields: [snapshots.coord_key],
+    references: [coords_cache.coord_key],
+  }),
+}));
+
+// coords_cache → users/snapshots reverse relations (for density analysis)
+export const coordsCacheRelations = relations(coords_cache, ({ many }) => ({
+  users: many(users),
+  snapshots: many(snapshots),
 }));
 
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files

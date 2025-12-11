@@ -36,19 +36,27 @@ export async function callAnthropic({ model, system, user, maxTokens, temperatur
 /**
  * Call Anthropic with web search tool enabled
  * Uses the built-in web_search tool for grounded responses
- * @param {Object} params - { model, system, user, maxTokens, temperature }
+ * @param {Object} params - { model, system, user, maxTokens, temperature, jsonMode }
  * @returns {Promise<{ok: boolean, output: string, citations?: array}>}
  */
-export async function callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature }) {
+export async function callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature, jsonMode = true }) {
   try {
-    console.log(`[model/anthropic-web] calling ${model} with web_search tool, max_tokens=${maxTokens}`);
+    console.log(`[model/anthropic-web] calling ${model} with web_search tool, max_tokens=${maxTokens}, jsonMode=${jsonMode}`);
+
+    // Build messages - use assistant prefill to force JSON when jsonMode is enabled
+    const messages = [{ role: "user", content: user }];
+
+    // Assistant prefill forces Claude to continue with JSON array format
+    if (jsonMode) {
+      messages.push({ role: "assistant", content: "[" });
+    }
 
     const res = await client.messages.create({
       model,
       max_tokens: maxTokens,
       temperature,
       system,
-      messages: [{ role: "user", content: user }],
+      messages,
       tools: [
         {
           type: "web_search_20250305",
@@ -73,6 +81,11 @@ export async function callAnthropicWithWebSearch({ model, system, user, maxToken
     }
 
     output = output.trim();
+
+    // If we used assistant prefill, prepend the opening bracket
+    if (jsonMode) {
+      output = "[" + output;
+    }
 
     console.log("[model/anthropic-web] resp:", {
       model,

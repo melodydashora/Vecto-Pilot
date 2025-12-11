@@ -19,6 +19,7 @@ export type Briefing = {
   events?: BriefingItem[];
   traffic?: BriefingItem[];
   holidays?: BriefingItem[];
+  school_closures?: BriefingItem[];
 };
 
 export type StrategyData = {

@@ -426,16 +426,16 @@ const GlobalHeaderComponent: React.FC = () => {
               </span>
             </div>
             <div className="flex items-center gap-3">
-              {/* Location Resolution Indicator - shows "complete" as soon as coords + city are available */}
+              {/* Location Resolution Indicator - shows when coords + city are available */}
               {!isLocationResolved ? (
                 <div className="flex items-center gap-1.5 text-xs text-white/70">
                   <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
-                  <span>resolving location info...</span>
+                  <span>getting location...</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>complete</span>
+                  <span>location ready</span>
                 </div>
               )}
 

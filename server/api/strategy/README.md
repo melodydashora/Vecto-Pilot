@@ -9,7 +9,7 @@ Strategy generation pipeline - the core endpoint for venue recommendations.
 | File | Route | Purpose |
 |------|-------|---------|
 | `blocks-fast.js` | `/api/blocks-fast` | Main strategy + venue generation |
-| `strategy.js` | `/api/strategy/*` | Strategy fetching, retry |
+| `strategy.js` | `/api/strategy/*` | Strategy fetching, retry, daily strategy |
 | `content-blocks.js` | `/api/blocks/*` | Block status polling |
 | `strategy-events.js` | `/events/*` | SSE real-time strategy updates |
 
@@ -24,14 +24,14 @@ GET  /api/blocks-fast             - Get blocks for snapshot
 ### Strategy Access
 ```
 GET  /api/strategy/:snapshotId    - Get strategy for snapshot
-POST /api/strategy/retry          - Retry failed strategy
-GET  /api/strategy/status/:id     - Check generation status
+POST /api/strategy/:id/retry      - Retry failed strategy
+POST /api/strategy/daily/:id      - Generate 8-12hr daily strategy (on-demand)
+GET  /api/strategy/history        - Get strategy history for user
 ```
 
 ### Block Polling
 ```
-GET  /api/blocks/strategy/:id     - Poll for strategy completion
-GET  /api/blocks/venues/:id       - Poll for venue completion
+GET  /api/blocks/strategy/:id     - Poll for strategy + blocks completion
 ```
 
 ### Real-time Events (SSE)
@@ -45,20 +45,21 @@ GET  /events/blocks               - SSE stream for blocks_ready notifications
 ```
 POST /api/blocks-fast
     ↓
-Phase 1 (Parallel):
-  - Strategist (Claude Opus 4.5) → minstrategy
-  - Briefer (Gemini 3.0 Pro) → events, traffic, news
-  - Holiday Checker → holiday detection
+Phase 1: Briefing
+  - Briefer (Gemini 3.0 Pro) → events, traffic, news, weather
     ↓
-Phase 2 (Parallel):
-  - Daily Consolidator (Gemini) → 8-12hr strategy
-  - Immediate Consolidator (GPT-5.1) → 1hr strategy
+Phase 2: Immediate Strategy
+  - GPT-5.1 → strategy_for_now (1hr tactical)
     ↓
-Phase 3: Venue Planner (GPT-5.1) → Smart Blocks
-    ↓
-Phase 4: Event Validator (Claude) → verification
+Phase 3: Venue Generation
+  - Venue Planner (GPT-5.1) → Smart Blocks
+  - Google APIs → distances, business hours
     ↓
 Return venue recommendations
+
+POST /api/strategy/daily/:snapshotId (On-Demand)
+    ↓
+Daily Consolidator (Gemini) → consolidated_strategy (8-12hr)
 ```
 
 ## Response Format
@@ -83,8 +84,7 @@ Return venue recommendations
   "ranking_id": "uuid",
   "strategy": {
     "strategy_for_now": "Immediate 1-hour tactical advice",
-    "consolidated": "8-12 hour strategic overview",
-    "min": "Raw minstrategy from Claude"
+    "consolidated": "8-12 hour strategic overview (if requested)"
   },
   "audit": [...]
 }
@@ -97,10 +97,10 @@ Return venue recommendations
   "status": "ok|pending|pending_blocks|missing|error",
   "snapshot_id": "uuid",
   "timeElapsedMs": 12345,
+  "phase": "starting|resolving|analyzing|immediate|venues|enriching|complete",
   "strategy": {
     "strategy_for_now": "...",
     "consolidated": "...",
-    "min": "...",
     "holiday": "none|christmas|...",
     "briefing": { "events": [], "news": [], "traffic": {} }
   },
@@ -115,8 +115,7 @@ Return venue recommendations
 
 - **Uses:** `../../db/drizzle.js` for database access
 - **Uses:** `../../../shared/schema.js` for database schema
-- **Uses:** `../../lib/strategy/` for pipeline
-- **Uses:** `../../lib/ai/adapters/` for model calls
+- **Uses:** `../../lib/ai/providers/` for AI calls
 - **Uses:** `../../lib/venue/` for enrichment
 - **Called by:** Client on location change
 
@@ -125,22 +124,21 @@ Return venue recommendations
 ```javascript
 // Database
 import { db } from '../../db/drizzle.js';
-import { strategies, snapshots, rankings, ranking_candidates } from '../../../shared/schema.js';
+import { strategies, snapshots, rankings, ranking_candidates, briefings } from '../../../shared/schema.js';
 
-// Strategy lib
-import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
-import { ensureStrategyRow } from '../../lib/strategy/strategy-utils.js';
+// AI providers
+import { runBriefing } from '../../lib/ai/providers/briefing.js';
+import { runImmediateStrategy, runConsolidator } from '../../lib/ai/providers/consolidator.js';
+
+// Strategy utils
+import { ensureStrategyRow, updatePhase } from '../../lib/strategy/strategy-utils.js';
 
 // Venue lib
 import { generateEnhancedSmartBlocks } from '../../lib/venue/enhanced-smart-blocks.js';
 
 // Middleware
 import { requireAuth } from '../../middleware/auth.js';
-import { expensiveLimiter } from '../../middleware/rate-limit.js';
-import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
-
-// Logging
-import { ndjson } from '../../logger/ndjson.js';
+import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 ```
 
 ## Key Implementation Notes
@@ -160,3 +158,10 @@ isOpen: c.features?.isOpen,  // ✓ Correct
 ### Stale isOpen Values
 
 The server-side `isOpen` is calculated once during venue enrichment. For real-time accuracy, the client (`BarsTable.tsx`) recalculates based on current time. See `client/src/components/README.md` for details.
+
+### Strategy Types
+
+| Field | Purpose | Generated |
+|-------|---------|-----------|
+| `strategy_for_now` | 1-hour tactical "GO NOW" advice | Automatically (blocks-fast) |
+| `consolidated_strategy` | 8-12 hour daily planning | On-demand (POST /api/strategy/daily) |

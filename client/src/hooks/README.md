@@ -11,6 +11,7 @@ Custom React hooks for data fetching and UI state.
 | `useBriefingQueries.ts` | Fetches weather, traffic, news, events |
 | `useEnrichmentProgress.ts` | Tracks briefing enrichment progress |
 | `useStrategyPolling.ts` | Strategy data fetching with SSE and caching |
+| `useStrategy.ts` | Strategy hook for strategy state management |
 | `useTTS.ts` | Text-to-speech with OpenAI |
 | `use-toast.ts` | Toast notifications |
 | `use-mobile.tsx` | Mobile device detection |

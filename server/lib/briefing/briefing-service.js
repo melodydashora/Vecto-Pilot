@@ -1,9 +1,10 @@
 
 import { db } from '../../db/drizzle.js';
 import { briefings, snapshots } from '../../../shared/schema.js';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
+// Event validation disabled - Gemini handles event discovery, Claude is fallback only
+// import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
 import Anthropic from "@anthropic-ai/sdk";
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -98,10 +99,11 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             tools: [{ google_search: {} }],
             safetySettings: [
-              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
             ],
             generationConfig: {
               thinkingConfig: {
@@ -191,52 +193,95 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
   }
 }
 
-const inFlightBriefings = new Map();
+const inFlightBriefings = new Map(); // In-memory dedup for concurrent calls within same process
 
 /**
  * Safely parse JSON from Gemini responses
  * Handles unescaped newlines, markdown blocks, and other formatting issues
  */
 function safeJsonParse(jsonString) {
-  try {
-    // Remove markdown code blocks if present
-    let cleaned = jsonString.trim();
+  if (!jsonString || typeof jsonString !== 'string') {
+    throw new Error('JSON parse failed: input is empty or not a string');
+  }
+
+  // Helper to clean markdown and normalize the string
+  function cleanMarkdown(str) {
+    let cleaned = str.trim();
+    // Remove markdown code blocks (```json ... ``` or ``` ... ```)
     if (cleaned.startsWith('```json')) {
       cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
     } else if (cleaned.startsWith('```')) {
       cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
     }
-    
-    // Try direct parse first
+    // Also handle inline code blocks that might appear mid-string
+    cleaned = cleaned.replace(/```json/g, '').replace(/```/g, '').trim();
+    return cleaned;
+  }
+
+  // Helper to fix common JSON issues from LLMs
+  function fixCommonJsonIssues(str) {
+    let fixed = str;
+
+    // Convert single-quoted strings to double-quoted
+    // This regex matches single-quoted property names and values
+    fixed = fixed.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
+
+    // Fix unquoted property names (e.g., {title: "foo"} -> {"title": "foo"})
+    fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+
+    // Remove trailing commas before } or ]
+    fixed = fixed.replace(/,\s*([}\]])/g, '$1');
+
+    // Fix escaped newlines within strings
+    fixed = fixed.replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
+
+    // Replace actual newlines inside strings with escaped newlines
+    // This is tricky - we need to be careful not to break JSON structure
+    // Only replace newlines that appear between quotes
+    fixed = fixed.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => `"${p1}\\n${p2}"`);
+
+    // Fix tabs
+    fixed = fixed.replace(/\t/g, '\\t');
+
+    return fixed;
+  }
+
+  const cleaned = cleanMarkdown(jsonString);
+
+  // Attempt 1: Direct parse
+  try {
     return JSON.parse(cleaned);
-  } catch (e1) {
+  } catch (_e1) {
+    // Continue to next attempt
+  }
+
+  // Attempt 2: Parse with common fixes applied
+  try {
+    const fixed = fixCommonJsonIssues(cleaned);
+    return JSON.parse(fixed);
+  } catch (_e2) {
+    // Continue to next attempt
+  }
+
+  // Attempt 3: Extract JSON array or object and try again
+  const jsonMatch = jsonString.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+  if (jsonMatch) {
     try {
-      // Second attempt: normalize whitespace and escape issues
-      // This handles cases where Gemini returns JSON with actual newlines in strings
-      const normalized = jsonString
-        .replace(/\r\n/g, '\\n')  // Windows newlines to escaped newlines
-        .replace(/(?<!\\)\n/g, '\\n')  // Unix newlines to escaped newlines (negative lookbehind for already escaped)
-        .replace(/\t/g, '\\t');  // Tabs to escaped tabs
-      
-      return JSON.parse(normalized);
-    } catch (e2) {
-      // Last resort: try to extract JSON structure manually
-      const jsonMatch = jsonString.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const extracted = jsonMatch[0]
-            .replace(/\r\n/g, '\\n')
-            .replace(/(?<!\\)\n/g, '\\n')
-            .replace(/\t/g, '\\t');
-          return JSON.parse(extracted);
-        } catch (e3) {
-          console.error('[BriefingService] Failed to parse even extracted JSON:', e3.message);
-          throw new Error(`JSON parse failed: ${e1.message}`);
-        }
+      return JSON.parse(jsonMatch[0]);
+    } catch (_e3) {
+      // Try with fixes
+      try {
+        const fixedExtracted = fixCommonJsonIssues(jsonMatch[0]);
+        return JSON.parse(fixedExtracted);
+      } catch (e4) {
+        console.error('[BriefingService] Failed to parse extracted JSON:', e4.message);
+        console.error('[BriefingService] Problematic JSON (first 500 chars):', jsonMatch[0].substring(0, 500));
       }
-      throw new Error(`JSON parse failed: ${e1.message}`);
     }
   }
+
+  // If all else fails, throw with the original error
+  throw new Error(`JSON parse failed: Expected double-quoted property name - raw response may contain malformed JSON`);
 }
 
 const LocalEventSchema = z.object({
@@ -831,30 +876,95 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
 }
 
 export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
+  // Dedup 1: Check if already in flight in this process (concurrent calls)
   if (inFlightBriefings.has(snapshotId)) {
     console.log(`[BriefingService] ⏳ Briefing already in flight for ${snapshotId}, waiting...`);
     return inFlightBriefings.get(snapshotId);
   }
 
+  // Dedup 2: Check database state - if briefing exists with ALL populated fields, skip regeneration
+  // NULL fields = generation in progress or needs refresh
+  // Populated fields = data ready, don't regenerate
+  const existing = await getBriefingBySnapshotId(snapshotId);
+  if (existing) {
+    const hasTraffic = existing.traffic_conditions !== null;
+    const hasEvents = existing.events !== null && (Array.isArray(existing.events) ? existing.events.length > 0 : existing.events?.items?.length > 0 || existing.events?.reason);
+    const hasNews = existing.news !== null;
+    const hasClosures = existing.school_closures !== null;
+
+    // ALL fields must be populated for dedup to apply
+    if (hasTraffic && hasEvents && hasNews && hasClosures) {
+      // Check freshness - only skip if data is < 60 seconds old
+      const ageMs = Date.now() - new Date(existing.updated_at).getTime();
+      if (ageMs < 60000) {
+        console.log(`[BriefingService] ⚡ DEDUP: Briefing for ${snapshotId} exists with ALL data (${Math.round(ageMs/1000)}s old), skipping regeneration`);
+        return { success: true, briefing: existing, deduplicated: true };
+      }
+    } else if (hasTraffic || hasEvents) {
+      // Partial data exists - log which fields are missing and continue to regenerate
+      console.log(`[BriefingService] ⚠️ Partial briefing exists for ${snapshotId}: traffic=${hasTraffic}, events=${hasEvents}, news=${hasNews}, closures=${hasClosures} - will regenerate`);
+    }
+  }
+
+  // Create placeholder row with NULL fields to signal "generation in progress"
+  // This prevents other callers from starting duplicate generation
+  if (!existing) {
+    try {
+      await db.insert(briefings).values({
+        snapshot_id: snapshotId,
+        news: null,
+        weather_current: null,
+        weather_forecast: null,
+        traffic_conditions: null,
+        events: null,
+        school_closures: null,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+      console.log(`[BriefingService] 📝 Created placeholder briefing row for ${snapshotId}`);
+    } catch (insertErr) {
+      // Row might already exist from concurrent call - that's OK
+      if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('unique')) {
+        console.warn(`[BriefingService] ⚠️ Placeholder insert warning: ${insertErr.message}`);
+      }
+    }
+  } else {
+    // Clear fields to signal "refreshing in progress"
+    await db.update(briefings)
+      .set({
+        traffic_conditions: null,
+        events: null,
+        updated_at: new Date()
+      })
+      .where(eq(briefings.snapshot_id, snapshotId));
+    console.log(`[BriefingService] 🔄 Cleared traffic/events fields for refresh: ${snapshotId}`);
+  }
+
   const briefingPromise = generateBriefingInternal({ snapshotId, snapshot });
   inFlightBriefings.set(snapshotId, briefingPromise);
-  briefingPromise.finally(() => inFlightBriefings.delete(snapshotId));
+
+  briefingPromise.finally(() => {
+    inFlightBriefings.delete(snapshotId);
+  });
 
   return briefingPromise;
 }
 
 async function generateBriefingInternal({ snapshotId, snapshot }) {
-  try {
-    const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
-    if (snapshotResult.length > 0) {
-      snapshot = snapshotResult[0];
-    } else {
-      console.warn(`[BriefingService] ⚠️ Snapshot ${snapshotId} not found in DB`);
-      return { success: false, error: 'Snapshot not found' };
+  // Use pre-fetched snapshot if provided, otherwise fetch from DB
+  if (!snapshot) {
+    try {
+      const snapshotResult = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+      if (snapshotResult.length > 0) {
+        snapshot = snapshotResult[0];
+      } else {
+        console.warn(`[BriefingService] ⚠️ Snapshot ${snapshotId} not found in DB`);
+        return { success: false, error: 'Snapshot not found' };
+      }
+    } catch (err) {
+      console.warn('[BriefingService] Could not fetch snapshot:', err.message);
+      return { success: false, error: err.message };
     }
-  } catch (err) {
-    console.warn('[BriefingService] Could not fetch snapshot:', err.message);
-    return { success: false, error: err.message };
   }
 
   console.log(`[BriefingService] 📸 Snapshot:`, {
@@ -863,6 +973,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     lng: snapshot.lng,
     city: snapshot.city,
     state: snapshot.state,
+    formatted_address: snapshot.formatted_address,  // CRITICAL: Must be present for strategists
     timezone: snapshot.timezone,
     date: snapshot.date,
     dow: snapshot.dow,
@@ -875,14 +986,16 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   const { city, state } = snapshot;
 
   // SPLIT CACHE STRATEGY:
-  // - Daily data (events, news, closures): Cache by CITY+STATE (city-level data)
-  // - Traffic: ALWAYS refresh on every snapshot
+  // - ALWAYS refresh (every call): traffic, events
+  // - Cached by city+state+day: news, school_closures
 
   // Step 1: Check for existing briefing by city+state (daily cache is city-level)
   // Events, news, concerts, closures are the same for all users in the same city
   // JOIN briefings with snapshots to get city/state (briefings table no longer stores location)
   let cachedDailyData = null;
   try {
+    // Exclude current snapshotId - we want cached data from OTHER snapshots in same city
+    // Also exclude placeholder rows (NULL news) by checking in the result
     const existingBriefings = await db.select({
       briefing: briefings,
       city: snapshots.city,
@@ -890,27 +1003,42 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     })
       .from(briefings)
       .innerJoin(snapshots, eq(briefings.snapshot_id, snapshots.snapshot_id))
-      .where(and(eq(snapshots.city, city), eq(snapshots.state, state)))
-      .orderBy(desc(briefings.updated_at))  // DESC = newest first (fixes stale cache bug)
+      .where(and(
+        eq(snapshots.city, city),
+        eq(snapshots.state, state),
+        sql`${briefings.snapshot_id} != ${snapshotId}`,  // Exclude current snapshot
+        sql`${briefings.news} IS NOT NULL`,  // Exclude placeholder rows
+        sql`${briefings.school_closures} IS NOT NULL`  // Require school_closures too
+      ))
+      .orderBy(desc(briefings.updated_at))  // DESC = newest first
       .limit(1);
 
     if (existingBriefings.length > 0) {
       const existing = existingBriefings[0].briefing; // Access briefing from join result
       const userTimezone = snapshot.timezone || 'America/Chicago';
 
-      if (!isDailyBriefingStale(existing, userTimezone)) {
+      // Check if cached data actually has content (not just empty arrays)
+      const newsItems = existing.news?.items || [];
+      const closureItems = existing.school_closures?.items || existing.school_closures || [];
+      const hasActualNewsContent = Array.isArray(newsItems) && newsItems.length > 0;
+      const hasActualClosuresContent = Array.isArray(closureItems) && closureItems.length > 0;
+
+      // Only use cache if it has ACTUAL content AND is same day
+      if (!isDailyBriefingStale(existing, userTimezone) && (hasActualNewsContent || hasActualClosuresContent)) {
         const ageMinutes = Math.round((Date.now() - new Date(existing.updated_at).getTime()) / 60000);
-        console.log(`[BriefingService] ⚡ CACHE HIT: Reusing daily data for ${city}, ${state} (same day, ${ageMinutes}min old)`);
+        console.log(`[BriefingService] ⚡ CACHE HIT: Reusing cached data for ${city}, ${state} (same day, ${ageMinutes}min old, news=${newsItems.length}, closures=${closureItems.length})`);
+        // Only cache news and school_closures - events/traffic refresh every call
         cachedDailyData = {
-          events: existing.events,
           news: existing.news,
           school_closures: existing.school_closures
         };
+      } else if (!isDailyBriefingStale(existing, userTimezone)) {
+        console.log(`[BriefingService] 🆕 CACHE SKIP: Cached briefing for ${city}, ${state} has no content (news=${newsItems.length}, closures=${closureItems.length}) - will fetch fresh`);
       } else {
-        console.log(`[BriefingService] 📅 NEW DAY: Refreshing all daily data for ${city}, ${state}`);
+        console.log(`[BriefingService] 📅 NEW DAY: Refreshing all cached data for ${city}, ${state}`);
       }
     } else {
-      console.log(`[BriefingService] 🆕 CACHE MISS: No existing briefing for ${city}, ${state}`);
+      console.log(`[BriefingService] 🆕 CACHE MISS: No cached briefing for ${city}, ${state}`);
     }
   } catch (cacheErr) {
     console.warn(`[BriefingService] Cache lookup failed:`, cacheErr.message);
@@ -936,31 +1064,39 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     weatherResult = { current: null, forecast: [] };
   }
 
-  // Step 3: ALWAYS fetch fresh traffic (every snapshot)
-  // Note: fetchTrafficConditions now returns fallback data instead of throwing
+  // Step 3: ALWAYS fetch fresh traffic AND events (every snapshot)
   console.log(`[BriefingService] 🚗 Fetching FRESH traffic for snapshot ${snapshotId}`);
-  const trafficResult = await fetchTrafficConditions({ snapshot });
+  console.log(`[BriefingService] 📅 Fetching FRESH events for snapshot ${snapshotId}`);
 
-  // Step 4: Get daily data (from cache or fresh)
-  let eventsResult, newsResult, schoolClosures;
+  let trafficResult, eventsResult;
+  try {
+    [trafficResult, eventsResult] = await Promise.all([
+      fetchTrafficConditions({ snapshot }),
+      snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events'))
+    ]);
+  } catch (freshErr) {
+    console.error(`[BriefingService] ❌ FAIL-FAST: Traffic/Events fetch failed:`, freshErr.message);
+    throw freshErr;
+  }
+
+  // Step 4: Get cached data (news, closures) or fetch fresh if cache miss
+  let newsResult, schoolClosures;
 
   if (cachedDailyData) {
-    // CACHE HIT: Use cached daily data
-    console.log(`[BriefingService] ✅ Using CACHED daily data (events, news, closures)`);
-    eventsResult = { items: cachedDailyData.events?.items || cachedDailyData.events || [] };
+    // CACHE HIT: Use cached news and closures only
+    console.log(`[BriefingService] ✅ Using CACHED data (news, closures)`);
     newsResult = { items: cachedDailyData.news?.items || [] };
     schoolClosures = cachedDailyData.school_closures?.items || cachedDailyData.school_closures || [];
   } else {
-    // CACHE MISS: Fetch all daily data from Gemini
-    console.log(`[BriefingService] 🔄 Fetching FRESH daily data (events, news, closures) from Gemini`);
+    // CACHE MISS: Fetch news and closures from Gemini
+    console.log(`[BriefingService] 🔄 Fetching FRESH cached data (news, closures) from Gemini`);
     try {
-      [eventsResult, newsResult, schoolClosures] = await Promise.all([
-        snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
+      [newsResult, schoolClosures] = await Promise.all([
         fetchRideshareNews({ snapshot }),
         fetchSchoolClosures({ snapshot })
       ]);
     } catch (dailyErr) {
-      console.error(`[BriefingService] ❌ FAIL-FAST: Daily data fetch failed:`, dailyErr.message);
+      console.error(`[BriefingService] ❌ FAIL-FAST: News/Closures fetch failed:`, dailyErr.message);
       throw dailyErr;
     }
   }
@@ -968,33 +1104,9 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   let eventsItems = eventsResult?.items || [];
   const newsItems = newsResult?.items || [];
 
-  // Step 5: Validate events with Claude Opus 4.5 + web search (if env var configured)
-  if (eventsItems.length > 0 && process.env.STRATEGY_EVENT_VALIDATOR) {
-    console.log(`[BriefingService] 🔍 Validating ${eventsItems.length} events with Claude Opus...`);
-    try {
-      const validationContext = {
-        date: snapshot.date || new Date().toISOString().split('T')[0],
-        city: snapshot.city,
-        state: snapshot.state,
-        timezone: snapshot.timezone || 'America/Chicago'
-      };
-
-      const validatedEvents = await validateEventSchedules(eventsItems, validationContext);
-
-      // Filter out events that failed validation (verified === false)
-      const verifiedEvents = filterVerifiedEvents(validatedEvents);
-
-      const removedCount = eventsItems.length - verifiedEvents.length;
-      if (removedCount > 0) {
-        console.log(`[BriefingService] ⚠️ Removed ${removedCount} invalid events after validation`);
-      }
-
-      eventsItems = verifiedEvents;
-    } catch (validationErr) {
-      console.warn(`[BriefingService] ⚠️ Event validation failed (continuing with unvalidated): ${validationErr.message}`);
-      // Continue with unvalidated events rather than failing
-    }
-  }
+  // NOTE: Event validation with Claude Opus disabled - Gemini handles event discovery
+  // Claude Opus is used as a FALLBACK model when Gemini API fails (see callClaudeOpusFallback)
+  // The EventValidator was causing events to be filtered out incorrectly
 
   console.log(`[BriefingService] ✅ Briefing data ready: events=${eventsItems.length}, news=${newsItems.length}, traffic=${!!trafficResult}, closures=${schoolClosures?.length || 0}`);
   console.log(`[BriefingService] 📊 Data sources: daily=${cachedDailyData ? 'CACHED' : 'FRESH'}, traffic=FRESH`);
@@ -1122,10 +1234,11 @@ function isEventsStale(briefing) {
 
 /**
  * Traffic always needs refresh (no caching)
- * @returns {boolean} Always true - traffic data should always be fresh
+ * Traffic conditions change rapidly and any incidents need immediate visibility
+ * @returns {boolean} Always true - traffic must be fresh on every call
  */
 function isTrafficStale() {
-  return true; // Traffic always needs refresh
+  return true; // Traffic always needs refresh - no caching
 }
 
 /**
@@ -1162,25 +1275,9 @@ export async function refreshEventsInBriefing(briefing, snapshot) {
     console.log(`[BriefingService] 🎭 Refreshing events data (stale >4h)...`);
 
     const eventsResult = await fetchEventsForBriefing({ snapshot });
-    let eventsItems = eventsResult?.items || [];
+    const eventsItems = eventsResult?.items || [];
 
-    // Validate events with Claude Opus 4.5 + web search (if env var configured)
-    if (eventsItems.length > 0 && process.env.STRATEGY_EVENT_VALIDATOR) {
-      console.log(`[BriefingService] 🔍 Validating ${eventsItems.length} refreshed events with Claude Opus...`);
-      try {
-        const validationContext = {
-          date: snapshot.date || new Date().toISOString().split('T')[0],
-          city: snapshot.city,
-          state: snapshot.state,
-          timezone: snapshot.timezone || 'America/Chicago'
-        };
-
-        const validatedEvents = await validateEventSchedules(eventsItems, validationContext);
-        eventsItems = filterVerifiedEvents(validatedEvents);
-      } catch (validationErr) {
-        console.warn(`[BriefingService] ⚠️ Event validation failed during refresh: ${validationErr.message}`);
-      }
-    }
+    // NOTE: Event validation disabled - Gemini handles event discovery directly
 
     // Update only the events data
     briefing.events = eventsItems.length > 0 ? eventsItems : { items: [], reason: eventsResult?.reason || 'No events found' };
@@ -1209,38 +1306,36 @@ export async function refreshEventsInBriefing(briefing, snapshot) {
 
 /**
  * Refresh traffic data in existing briefing (always fetches fresh)
- * Keeps cached daily briefing (news, events, closures) while updating traffic
+ * Traffic changes rapidly - fetch on every call
  * @param {object} briefing - Current briefing object
  * @param {object} snapshot - Snapshot with location data
  * @returns {Promise<object>} Briefing with updated traffic_conditions
  */
 async function refreshTrafficInBriefing(briefing, snapshot) {
   try {
-    console.log(`[BriefingService] 🚗 Refreshing traffic data (app open or manual refresh)...`);
-    
-    if (isTrafficStale()) {
-      const trafficResult = await fetchTrafficConditions({ snapshot });
-      if (trafficResult) {
-        // Update only the traffic data, keep daily briefing components cached
-        briefing.traffic_conditions = trafficResult;
-        briefing.updated_at = new Date();
-        
-        // Update database with fresh traffic
-        try {
-          await db.update(briefings)
-            .set({ 
-              traffic_conditions: trafficResult,
-              updated_at: new Date()
-            })
-            .where(eq(briefings.snapshot_id, briefing.snapshot_id));
-          
-          console.log(`[BriefingService] ✅ Traffic refreshed in briefing for ${briefing.snapshot_id}`);
-        } catch (dbErr) {
-          console.warn('[BriefingService] ⚠️ Could not update traffic in DB:', dbErr.message);
-        }
+    console.log(`[BriefingService] 🚗 Fetching fresh traffic data...`);
+
+    const trafficResult = await fetchTrafficConditions({ snapshot });
+    if (trafficResult) {
+      // Update only the traffic data, keep daily briefing components cached
+      briefing.traffic_conditions = trafficResult;
+      briefing.updated_at = new Date();
+
+      // Update database with fresh traffic
+      try {
+        await db.update(briefings)
+          .set({
+            traffic_conditions: trafficResult,
+            updated_at: new Date()
+          })
+          .where(eq(briefings.snapshot_id, briefing.snapshot_id));
+
+        console.log(`[BriefingService] ✅ Traffic refreshed for ${briefing.snapshot_id}`);
+      } catch (dbErr) {
+        console.warn('[BriefingService] ⚠️ Could not update traffic in DB:', dbErr.message);
       }
     }
-    
+
     return briefing;
   } catch (err) {
     console.warn('[BriefingService] ⚠️ Traffic refresh failed, keeping existing:', err.message);
@@ -1262,9 +1357,36 @@ async function refreshTrafficInBriefing(briefing, snapshot) {
  */
 export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) {
   const { forceRefresh = false } = options;
-  
+
   let briefing = await getBriefingBySnapshotId(snapshotId);
-  
+
+  // Check if briefing exists but has NULL fields (generation in progress or incomplete)
+  // NULL in ANY of the four core fields = placeholder row or incomplete generation
+  const isPlaceholder = briefing && (
+    briefing.traffic_conditions === null ||
+    briefing.events === null ||
+    briefing.news === null ||
+    briefing.school_closures === null
+  );
+  if (isPlaceholder) {
+    // Log which fields are missing for debugging
+    const missingFields = [];
+    if (briefing.traffic_conditions === null) missingFields.push('traffic');
+    if (briefing.events === null) missingFields.push('events');
+    if (briefing.news === null) missingFields.push('news');
+    if (briefing.school_closures === null) missingFields.push('closures');
+
+    // Check if it's a recent placeholder (< 2 minutes old) - generation likely in progress
+    const placeholderAgeMs = Date.now() - new Date(briefing.updated_at).getTime();
+    if (placeholderAgeMs < 120000) {
+      console.log(`[BriefingService] ⏳ Briefing incomplete (${Math.round(placeholderAgeMs/1000)}s old), missing: [${missingFields.join(', ')}] - returning null`);
+      return null; // Let frontend poll again
+    } else {
+      console.log(`[BriefingService] ⚠️ Stale incomplete briefing (${Math.round(placeholderAgeMs/1000)}s old), missing: [${missingFields.join(', ')}] - will regenerate`);
+      briefing = null; // Force regeneration
+    }
+  }
+
   // Check if we need to regenerate: no briefing, or forced refresh
   const needsFullRegeneration = !briefing || forceRefresh;
   
@@ -1285,8 +1407,8 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
       }
     }
   } else if (!isDailyBriefingStale(briefing)) {
-    // Daily briefing is still fresh (within 24h), but refresh traffic
-    console.log(`[BriefingService] ✓ Cache hit (24h): daily briefing for ${snapshotId}, refreshing traffic...`);
+    // Daily briefing is still fresh (within 24h), check if traffic needs refresh (>5min old)
+    console.log(`[BriefingService] ✓ Cache hit (24h): daily briefing for ${snapshotId}`);
     briefing = await refreshTrafficInBriefing(briefing, snapshot);
 
     // CRITICAL: If events are EMPTY, fetch immediately (events are never "none" in a metro area)

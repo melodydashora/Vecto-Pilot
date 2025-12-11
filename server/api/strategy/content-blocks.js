@@ -54,7 +54,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
 
   try {
     console.log(
-      `[content-blocks] Fetching strategy for snapshot ${snapshotId}`,
+      `[strategy-status] Fetching for snapshot ${snapshotId.slice(0, 8)}`,
     );
 
     // Fetch strategy and snapshot data
@@ -91,6 +91,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       news: briefingRow.news?.items || briefingRow.news || [],
       traffic: briefingRow.traffic_conditions || {},
       holidays: briefingRow.holidays || [],
+      school_closures: briefingRow.school_closures || [],
     } : null;
 
     // Calculate elapsed time
@@ -100,13 +101,13 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       ? Date.now() - new Date(startedAt).getTime()
       : 0;
 
-    // Check if consolidated strategy is ready
-    const hasConsolidated = !!(
-      strategy.consolidated_strategy &&
-      strategy.consolidated_strategy.trim().length
+    // Check if immediate strategy is ready (strategy_for_now)
+    // NOTE: consolidated_strategy is for the daily briefing tab (user-request only)
+    const hasStrategyForNow = !!(
+      strategy.strategy_for_now && strategy.strategy_for_now.trim().length
     );
 
-    if (!hasConsolidated) {
+    if (!hasStrategyForNow) {
       // Strategy pending - return pending status with phase info
       return res.json({
         status: "pending",
@@ -115,6 +116,8 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         phase: strategy.phase || 'starting',
         waitFor: ["strategy"],
         strategy: {
+          consolidated: strategy.consolidated_strategy || "",
+          strategy_for_now: "",
           holiday: snapshot?.holiday || 'none',
           briefing: briefingData,
         },
@@ -149,6 +152,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         closed_venue_reasoning: c.closed_reasoning,
         stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
         businessHours: c.business_hours,
+        isOpen: c.features?.isOpen,
         eventBadge: c.venue_events?.badge,
         eventSummary: c.venue_events?.summary,
         ranking_id: ranking.ranking_id,
@@ -162,7 +166,6 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         phase: strategy.phase || 'venues',
         waitFor: ["blocks"],
         strategy: {
-          min: strategy.minstrategy || "",
           consolidated: strategy.consolidated_strategy || "",
           strategy_for_now: strategy.strategy_for_now || "",
           holiday: snapshot?.holiday || 'none',
@@ -179,7 +182,6 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       timeElapsedMs,
       phase: 'complete',
       strategy: {
-        min: strategy.minstrategy || "",
         consolidated: strategy.consolidated_strategy || "",
         strategy_for_now: strategy.strategy_for_now || "",
         holiday: snapshot?.holiday || null,
