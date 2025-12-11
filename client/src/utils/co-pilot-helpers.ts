@@ -1,8 +1,6 @@
 // client/src/utils/co-pilot-helpers.ts
 // Utility functions for Co-Pilot page
 
-import type { SmartBlock } from '@/types/co-pilot';
-
 /**
  * Get auth headers with JWT token from localStorage
  */
@@ -12,13 +10,6 @@ export function getAuthHeader(): Record<string, string> {
     console.warn('[co-pilot] No auth token found in localStorage');
   }
   return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
-
-/**
- * Generate a unique block ID from block data
- */
-export function getBlockId(block: SmartBlock): string {
-  return `${block.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${block.coordinates.lat}_${block.coordinates.lng}`;
 }
 
 /**
@@ -58,14 +49,16 @@ export async function logAction(
 
 /**
  * Subscribe to SSE strategy_ready events
+ * Uses Postgres LISTEN/NOTIFY via /events/strategy endpoint
  */
 export function subscribeStrategyReady(callback: (snapshotId: string) => void): () => void {
-  const eventSource = new EventSource('/api/events');
+  const eventSource = new EventSource('/events/strategy');
 
   eventSource.addEventListener('strategy_ready', (event) => {
     try {
       const data = JSON.parse(event.data);
       if (data.snapshot_id) {
+        console.log('[SSE] Received strategy_ready for:', data.snapshot_id);
         callback(data.snapshot_id);
       }
     } catch (e) {
@@ -74,24 +67,119 @@ export function subscribeStrategyReady(callback: (snapshotId: string) => void): 
   });
 
   eventSource.onerror = () => {
-    console.warn('[SSE] Connection error, will reconnect automatically');
+    console.warn('[SSE] Strategy connection error, will reconnect automatically');
   };
 
   return () => eventSource.close();
 }
 
 /**
- * Open Google Maps navigation to coordinates
+ * Subscribe to SSE blocks_ready events
+ * Uses Postgres LISTEN/NOTIFY via /events/blocks endpoint
  */
-export function openGoogleMaps(lat: number, lng: number): void {
-  window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+export function subscribeBlocksReady(callback: (data: { snapshot_id: string; ranking_id?: string }) => void): () => void {
+  const eventSource = new EventSource('/events/blocks');
+
+  eventSource.addEventListener('blocks_ready', (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.snapshot_id) {
+        console.log('[SSE] Received blocks_ready for:', data.snapshot_id);
+        callback(data);
+      }
+    } catch (e) {
+      console.warn('[SSE] Failed to parse blocks_ready event:', e);
+    }
+  });
+
+  eventSource.onerror = () => {
+    console.warn('[SSE] Blocks connection error, will reconnect automatically');
+  };
+
+  return () => eventSource.close();
 }
 
 /**
- * Open Apple Maps navigation to coordinates
+ * Open Google Maps navigation with smart destination resolution
+ * Prefers placeId for accuracy, falls back to coordinates, then address
  */
-export function openAppleMaps(lat: number, lng: number): void {
-  window.open(`https://maps.apple.com/?daddr=${lat},${lng}`, '_blank');
+export function openGoogleMaps(options: {
+  lat?: number;
+  lng?: number;
+  placeId?: string;
+  name?: string;
+  address?: string;
+}): void {
+  const { lat, lng, placeId, name, address } = options;
+
+  // Best: Use place_id for most accurate navigation
+  if (placeId && name) {
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}&query_place_id=${placeId}`, '_blank');
+    return;
+  }
+
+  // Good: Use coordinates for directions
+  if (lat && lng) {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+    return;
+  }
+
+  // Fallback: Search by address or name
+  const searchQuery = address || name;
+  if (searchQuery) {
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`, '_blank');
+  }
+}
+
+/**
+ * Open Apple Maps navigation with smart destination resolution
+ */
+export function openAppleMaps(options: {
+  lat?: number;
+  lng?: number;
+  name?: string;
+  address?: string;
+}): void {
+  const { lat, lng, name, address } = options;
+
+  // Best: Use coordinates
+  if (lat && lng) {
+    const query = name ? `&q=${encodeURIComponent(name)}` : '';
+    window.open(`https://maps.apple.com/?daddr=${lat},${lng}${query}`, '_blank');
+    return;
+  }
+
+  // Fallback: Search by address or name
+  const searchQuery = address || name;
+  if (searchQuery) {
+    window.open(`https://maps.apple.com/?q=${encodeURIComponent(searchQuery)}`, '_blank');
+  }
+}
+
+/**
+ * Detect if user is on iOS/macOS for Apple Maps preference
+ */
+export function isApplePlatform(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod|Mac/.test(navigator.userAgent);
+}
+
+/**
+ * Open navigation using the best available map app
+ * Uses Apple Maps on iOS/macOS, Google Maps elsewhere
+ */
+export function openNavigation(options: {
+  lat?: number;
+  lng?: number;
+  placeId?: string;
+  name?: string;
+  address?: string;
+}): void {
+  if (isApplePlatform()) {
+    openAppleMaps(options);
+  } else {
+    openGoogleMaps(options);
+  }
 }
 
 /**
@@ -108,34 +196,3 @@ export function getGreeting(): { text: string; icon: string; period: 'morning' |
   }
 }
 
-/**
- * Transform raw API block data to SmartBlock format
- */
-export function transformBlockData(v: any): SmartBlock {
-  return {
-    name: v.name,
-    address: v.address,
-    category: v.category,
-    placeId: v.placeId,
-    coordinates: {
-      lat: v.coordinates?.lat ?? v.lat,
-      lng: v.coordinates?.lng ?? v.lng
-    },
-    estimated_distance_miles: Number(v.estimated_distance_miles ?? v.distance ?? 0),
-    driveTimeMinutes: Number(v.driveTimeMinutes ?? v.drive_time ?? 0),
-    distanceSource: v.distanceSource ?? "routes_api",
-    estimatedEarningsPerRide: v.estimated_earnings ?? v.estimatedEarningsPerRide ?? null,
-    value_per_min: v.value_per_min ?? null,
-    value_grade: v.value_grade ?? null,
-    not_worth: !!v.not_worth,
-    surge: v.surge ?? null,
-    estimatedWaitTime: v.estimatedWaitTime,
-    demandLevel: v.demandLevel,
-    businessHours: v.businessHours,
-    isOpen: v.isOpen,
-    businessStatus: v.businessStatus,
-    closed_venue_reasoning: v.closed_venue_reasoning,
-    stagingArea: v.stagingArea,
-    proTips: v.proTips || v.pro_tips || []
-  };
-}

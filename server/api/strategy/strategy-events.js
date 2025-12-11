@@ -1,6 +1,7 @@
 // server/api/strategy/strategy-events.js
 import express from 'express';
 import { getListenClient } from '../../db/db-client.js';
+import { sseLog, OP } from '../../logger/workflow.js';
 
 const router = express.Router();
 
@@ -16,25 +17,32 @@ router.get('/events/strategy', async (req, res) => {
 
   try {
     const dbClient = await getListenClient();
-    
+
+    // Subscribe to strategy_ready channel
+    await dbClient.query('LISTEN strategy_ready');
+    sseLog.phase(1, `Subscribed: strategy_ready`, OP.SSE);
+
     const onNotify = (msg) => {
       if (msg.channel !== 'strategy_ready') return;
-      console.log('[SSE] Broadcasting strategy_ready:', msg.payload);
+      sseLog.done(1, `Broadcasting strategy_ready`, OP.SSE);
       res.write(`event: strategy_ready\n`);
-      res.write(`data: ${msg.payload}\n\n`); // Forward JSON payload as-is
+      res.write(`data: ${msg.payload}\n\n`);
     };
 
     dbClient.on('notification', onNotify);
-    
-    req.on('close', () => {
-      console.log('[SSE] Client disconnected from strategy events');
-      // Remove listener only if dbClient still exists
-      if (dbClient) {
-        dbClient.off('notification', onNotify);
+
+    req.on('close', async () => {
+      dbClient.off('notification', onNotify);
+      if (dbClient && !dbClient._ending && !dbClient._ended) {
+        try {
+          await dbClient.query('UNLISTEN strategy_ready');
+        } catch (_e) {
+          // Connection may already be closed
+        }
       }
     });
   } catch (err) {
-    console.error('[SSE] Failed to setup strategy listener:', err);
+    sseLog.error(1, `Strategy listener failed`, err, OP.SSE);
     res.write(`event: error\ndata: ${JSON.stringify({ error: 'Failed to connect to database' })}\n\n`);
   }
 });
@@ -54,32 +62,29 @@ router.get('/events/blocks', async (req, res) => {
     
     // Subscribe to blocks_ready channel
     await dbClient.query('LISTEN blocks_ready');
-    console.log('[SSE] Subscribed to blocks_ready channel');
-    
+    sseLog.phase(1, `Subscribed: blocks_ready`, OP.SSE);
+
     const onNotify = (msg) => {
       if (msg.channel !== 'blocks_ready') return;
-      console.log('[SSE] Broadcasting blocks_ready:', msg.payload);
+      sseLog.done(1, `Broadcasting blocks_ready`, OP.SSE);
       res.write(`event: blocks_ready\n`);
-      res.write(`data: ${msg.payload}\n\n`); // Forward JSON payload with ranking_id and snapshot_id
+      res.write(`data: ${msg.payload}\n\n`);
     };
 
     dbClient.on('notification', onNotify);
-    
+
     req.on('close', async () => {
-      console.log('[SSE] Client disconnected from blocks events');
       dbClient.off('notification', onNotify);
-      // Only UNLISTEN if connection is still alive
       if (dbClient && !dbClient._ending && !dbClient._ended) {
-        try { 
-          await dbClient.query('UNLISTEN blocks_ready'); 
-          console.log('[SSE] Unsubscribed from blocks_ready');
-        } catch (e) {
-          console.warn('[SSE] Failed to UNLISTEN (connection may be closed):', e.message);
+        try {
+          await dbClient.query('UNLISTEN blocks_ready');
+        } catch (_e) {
+          // Connection may already be closed
         }
       }
     });
   } catch (err) {
-    console.error('[SSE] Failed to setup blocks listener:', err);
+    sseLog.error(1, `Blocks listener failed`, err, OP.SSE);
     res.write(`event: error\ndata: ${JSON.stringify({ error: 'Failed to connect to database' })}\n\n`);
   }
 });

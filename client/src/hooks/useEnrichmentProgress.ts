@@ -21,12 +21,12 @@ interface EnrichmentProgressState {
 }
 
 // Map backend pipeline phase to progress percentage for BOTTOM progress bar
-// Full process from strategy to venues loaded
+// Full process from strategy to venues loaded - evenly distributed across 7 phases
 const PHASE_PROGRESS: Record<PipelinePhase, number> = {
-  starting: 5,
-  resolving: 15,
-  analyzing: 30,
-  consolidator: 50,
+  starting: 10,      // ~14% per phase
+  resolving: 25,
+  analyzing: 40,
+  immediate: 55,     // AI processing - past 50%!
   venues: 70,
   enriching: 85,
   complete: 100
@@ -38,19 +38,19 @@ const PHASE_TO_FRONTEND: Record<PipelinePhase, EnrichmentPhase> = {
   starting: 'strategy',
   resolving: 'strategy',
   analyzing: 'strategy',
-  consolidator: 'strategy',
+  immediate: 'strategy',  // AI processing is still part of strategy generation
   venues: 'blocks',
   enriching: 'blocks',
   complete: 'idle'
 };
 
-// Strategy card progress (only first 4 phases, tops out at 100% when consolidator done)
+// Strategy card progress (tops out at 100% when immediate phase completes)
 const STRATEGY_CARD_PROGRESS: Record<PipelinePhase, number> = {
-  starting: 5,
-  resolving: 25,
-  analyzing: 50,
-  consolidator: 100,
-  venues: 100,
+  starting: 10,
+  resolving: 30,
+  analyzing: 55,
+  immediate: 80,   // AI processing - getting close
+  venues: 100,     // Strategy done, now on venues
   enriching: 100,
   complete: 100
 };

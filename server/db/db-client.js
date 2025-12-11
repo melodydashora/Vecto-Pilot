@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { dbLog, OP } from '../logger/workflow.js';
 
 let pgClient = null;
 let reconnectTimer = null;
@@ -56,7 +57,7 @@ async function reconnectWithBackoff(connectionString, maxRetries = 5) {
         }
       }, 240000); // 4 minutes
       
-      console.log('[db-client] ✅ LISTEN client reconnected');
+      dbLog.done(1, `LISTEN client reconnected`, OP.DB);
       isReconnecting = false;
       return pgClient;
     } catch (err) {
@@ -98,7 +99,7 @@ export async function getListenClient() {
   }
 
   if (isReconnecting) {
-    console.log('[db-client] ⏳ Waiting for ongoing reconnection...');
+    dbLog.info(`Waiting for ongoing reconnection...`, OP.DB);
     let waitCount = 0;
     while (isReconnecting && waitCount < 30) {
       await sleep(1000);
@@ -114,7 +115,7 @@ export async function getListenClient() {
   // No external databases (Neon, Vercel, Railway) are used
   const connectionString = process.env.DATABASE_URL;
   
-  console.log(`[db-client] ✅ LISTEN client connecting to Replit managed PostgreSQL via DATABASE_URL`);
+  dbLog.phase(1, `LISTEN client connecting to Replit PostgreSQL`, OP.DB);
   
   if (!connectionString) {
     throw new Error('[db-client] No DATABASE_URL found');
@@ -139,7 +140,7 @@ export async function getListenClient() {
       }
     }, 240000);
     
-    console.log('[db-client] ✅ LISTEN client connected');
+    dbLog.done(1, `LISTEN client connected`, OP.DB);
     return pgClient;
   } catch (err) {
     if (pgClient) {
@@ -159,6 +160,6 @@ export async function closeListenClient() {
     pgClient.removeAllListeners();
     await pgClient.end();
     pgClient = null;
-    console.log('[db-client] LISTEN client closed');
+    dbLog.info(`LISTEN client closed`, OP.DB);
   }
 }

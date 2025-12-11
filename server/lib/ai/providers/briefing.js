@@ -5,6 +5,7 @@ import { db } from '../../../db/drizzle.js';
 import { snapshots } from '../../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { generateAndStoreBriefing } from '../../briefing/briefing-service.js';
+import { briefingLog, OP } from '../../../logger/workflow.js';
 
 /**
  * Generate comprehensive briefing using Gemini 3.0 Pro
@@ -43,13 +44,13 @@ export async function runBriefing(snapshotId, options = {}) {
     });
     
     if (!result.success) {
-      console.warn(`[briefing] ⚠️ Briefing generation returned success=false:`, result.error);
+      briefingLog.warn(2, `Generation returned success=false: ${result.error}`);
       throw new Error(result.error || 'Briefing generation failed');
     }
-    
-    console.log(`[briefing] ✅ Briefing generated for ${snapshotId}`);
+
+    briefingLog.done(2, `[briefing.js] Briefing stored for ${snapshotId.slice(0, 8)}`, OP.DB);
   } catch (error) {
-    console.error(`[briefing] ❌ Error for ${snapshotId}:`, error.message);
+    briefingLog.error(2, `Briefing failed for ${snapshotId.slice(0, 8)}`, error);
     throw error;
   }
 }

@@ -8,6 +8,8 @@ import {
   MapPin,
   Sparkles
 } from 'lucide-react';
+import { useVenueLoadingMessages } from '@/hooks/useVenueLoadingMessages';
+import type { PipelinePhase } from '@/types/co-pilot';
 
 interface SmartBlocksStatusProps {
   strategyReady: boolean;
@@ -19,6 +21,7 @@ interface SmartBlocksStatusProps {
   snapshotId?: string | null;
   enrichmentProgress?: number;
   enrichmentPhase?: 'idle' | 'strategy' | 'blocks';
+  pipelinePhase?: PipelinePhase;
 }
 
 export function SmartBlocksStatus({
@@ -30,11 +33,15 @@ export function SmartBlocksStatus({
   timeElapsedMs,
   snapshotId,
   enrichmentProgress = 0,
-  enrichmentPhase = 'idle'
+  enrichmentPhase = 'idle',
+  pipelinePhase
 }: SmartBlocksStatusProps) {
   // ALWAYS show progress bars - don't hide them
   const showStrategyProgress = enrichmentPhase === 'strategy' || (enrichmentPhase === 'blocks' && enrichmentProgress < 30);
   const showBlocksProgress = enrichmentPhase === 'blocks';
+
+  // Get cycling venue loading messages
+  const venueMessages = useVenueLoadingMessages(pipelinePhase);
 
   return (
     <Card className="border-2 border-purple-400 bg-gradient-to-br from-purple-50 to-indigo-50 shadow-lg" data-testid="smart-blocks-status">
@@ -107,15 +114,22 @@ export function SmartBlocksStatus({
               <Clock className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
             )}
             <div className="flex-1">
-              <p className="text-sm font-medium text-gray-800">
-                Smart Blocks (Venue Recommendations)
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-800">
+                  Smart Blocks (Venue Recommendations)
+                </p>
+                {showBlocksProgress && !hasBlocks && (
+                  <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                    {venueMessages.badge}
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-gray-600">
-                {hasBlocks 
-                  ? '✓ Recommendations ready' 
-                  : blocksError 
+                {hasBlocks
+                  ? '✓ Recommendations ready'
+                  : blocksError
                     ? `Error: ${blocksError.message}`
-                    : isBlocksLoading 
+                    : isBlocksLoading
                       ? 'Enrichment beginning...'
                       : !strategyReady
                         ? 'Waiting for strategy to complete...'
@@ -125,16 +139,35 @@ export function SmartBlocksStatus({
               {showBlocksProgress && !hasBlocks && (
                 <div className="mt-2">
                   <div className="w-full bg-blue-300 rounded-full h-3 overflow-hidden shadow-md">
-                    <div 
-                      className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full transition-all duration-200 shadow-lg animate-pulse"
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full transition-all duration-200 shadow-lg"
                       style={{
                         width: `${Math.max(8, Math.min(100, (enrichmentProgress - 30) * (100 / 70)))}%`,
                       }}
                     />
                   </div>
-                  <p className="text-xs text-blue-700 mt-1 font-semibold">
-                    💫 {enrichmentProgress.toFixed(0)}% - Generating venue recommendations (2-3 mins)
+                  {/* Cycling detailed message */}
+                  <p className="text-xs text-blue-700 mt-1 font-semibold transition-opacity duration-300">
+                    {venueMessages.icon} {venueMessages.text}
                   </p>
+                  {/* Progress percentage and dots indicator */}
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-blue-600 font-mono">
+                      {enrichmentProgress.toFixed(0)}%
+                    </span>
+                    <div className="flex gap-1">
+                      {Array.from({ length: venueMessages.messageCount }).map((_, i) => (
+                        <span
+                          key={i}
+                          className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                            i === venueMessages.currentIndex
+                              ? 'bg-blue-600 scale-125'
+                              : 'bg-blue-300'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

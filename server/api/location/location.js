@@ -5,6 +5,7 @@ import { latLngToCell } from 'h3-js';
 import { db } from '../../db/drizzle.js';
 import { snapshots, strategies, users, coords_cache } from '../../../shared/schema.js';
 import { sql, eq } from 'drizzle-orm';
+import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
 
 // Helper: Generate cache key from coordinates (4 decimal places = ~11m precision)
 function makeCoordsKey(lat, lng) {
@@ -383,11 +384,6 @@ router.get('/resolve', async (req, res) => {
 
     if (!deviceId && !isProduction) {
       deviceId = `dev-admin-${lat.toFixed(6)}_${lng.toFixed(6)}`;
-      console.log(`[Location API] 🔧 DEV MODE: Generated fallback device_id: ${deviceId}`);
-    } else if (deviceId) {
-      console.log(`[Location API] 📱 Using client device_id: ${deviceId.substring(0, 20)}...`);
-    } else {
-      console.log(`[Location API] ⚠️ No device_id provided (production mode)`);
     }
 
     const accuracy = req.query.accuracy ? Number(req.query.accuracy) : null;
@@ -405,8 +401,8 @@ router.get('/resolve', async (req, res) => {
       });
       return res.status(400).json({ error: 'lat/lng required for precise location resolution', ok: false });
     }
-    
-    console.log('[Location API] VALID COORDINATES received', { lat, lng, accuracy, deviceId });
+
+    locationLog.phase(1, `Resolving ${lat.toFixed(4)}, ${lng.toFixed(4)}`, OP.API);
 
     if (!GOOGLE_MAPS_API_KEY) {
       console.warn('[location] No Google Maps API key configured');
@@ -438,7 +434,7 @@ router.get('/resolve', async (req, res) => {
             const distance = haversineDistanceMeters(lat, lng, existingLat, existingLng);
 
             if (distance < 100) {
-              console.log(`📍 [LOCATION] ✅ USERS TABLE HIT: Reusing resolved address for device ${deviceId.slice(0, 8)} (${distance.toFixed(0)}m away)`);
+              locationLog.done(1, `Users cache hit (${distance.toFixed(0)}m away)`, OP.CACHE);
 
               // Update coords but reuse resolved address data
               const now = new Date();
@@ -452,7 +448,7 @@ router.get('/resolve', async (req, res) => {
               // User is requesting fresh data (new session)
               // ═══════════════════════════════════════════════════════════════════════
               const snapshotId = crypto.randomUUID();
-              console.log(`📸 [SNAPSHOT] Creating snapshot for cached location: ${snapshotId.slice(0, 8)}...`);
+              snapshotLog.phase(1, `Creating for ${existingUser.city}, ${existingUser.state}`, OP.DB);
 
               try {
                 // Calculate date in user's timezone
@@ -501,7 +497,7 @@ router.get('/resolve', async (req, res) => {
                 validateSnapshotFields(snapshotRecord);
 
                 await db.insert(snapshots).values(snapshotRecord);
-                console.log(`📸 [SNAPSHOT] ✅ Snapshot created: ${snapshotId.slice(0, 8)} for ${existingUser.city}, ${existingUser.state}`);
+                snapshotLog.done(1, `${snapshotId.slice(0, 8)}`, OP.DB);
 
                 // Update users table: coords + current_snapshot_id + location fields (ensure they stay populated)
                 await db.update(users)
@@ -524,10 +520,9 @@ router.get('/resolve', async (req, res) => {
                     coord_key: existingUser.coord_key,
                   })
                   .where(eq(users.device_id, deviceId));
-                console.log(`📸 [SNAPSHOT] ✅ Users table updated with current_snapshot_id and location fields`);
 
               } catch (snapshotErr) {
-                console.error(`📸 [SNAPSHOT] ❌ Failed to create snapshot:`, snapshotErr.message);
+                snapshotLog.error(1, `Failed to create`, snapshotErr, OP.DB);
                 // Update coords anyway (non-blocking)
                 db.update(users)
                   .set({
@@ -552,7 +547,7 @@ router.get('/resolve', async (req, res) => {
                 source: 'users_table'
               });
             } else {
-              console.log(`📍 [LOCATION] Users table: Device ${deviceId.slice(0, 8)} moved ${distance.toFixed(0)}m - will re-geocode`);
+              locationLog.phase(1, `Device moved ${distance.toFixed(0)}m - re-geocoding`, OP.API);
             }
           }
         }
@@ -578,7 +573,7 @@ router.get('/resolve', async (req, res) => {
     
     if (cacheHit) {
       // CACHE HIT: Use cached geocode/timezone data, skip API calls
-      console.log(`[Location API] 🎯 CACHE HIT for ${coordKey} (hit #${cacheHit.hit_count + 1})`);
+      locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state}`, OP.CACHE);
       city = cacheHit.city;
       state = cacheHit.state;
       country = cacheHit.country;
@@ -599,14 +594,10 @@ router.get('/resolve', async (req, res) => {
       db.update(coords_cache)
         .set({ hit_count: sql`${coords_cache.hit_count} + 1` })
         .where(eq(coords_cache.coord_key, coordKey))
-        .catch(() => {}); // Silent - don't block on counter update
-        
-      console.log(`[Location API] 📍 Using cached location:`, {
-        lat, lng, city, state, formattedAddress, timeZone, source: 'cache'
-      });
+        .catch(() => {});
     } else {
       // CACHE MISS: Call APIs in parallel, then store in cache
-      console.log(`[Location API] 🔍 CACHE MISS for ${coordKey} - calling geocode/timezone APIs`);
+      locationLog.phase(2, `Calling Google Geocode + Timezone APIs`, OP.API);
       
       const [geocodeData, timezoneData] = await Promise.all([
         googleMapsCircuit(async (signal) => {
@@ -651,35 +642,17 @@ router.get('/resolve', async (req, res) => {
           }
         }
         
-        console.log(`[Location API] 🗺️ Geocode resolved:`, {
-          lat,
-          lng,
-          city,
-          state,
-          country,
-          formattedAddress,
-          quality: formattedAddress ? 'precise' : 'failed'
-        });
+        locationLog.done(2, `Geocode: ${city}, ${state}`, OP.API);
       } else {
-        console.error(`[Location API] ❌ Geocode failed:`, {
-          status: geocodeData.status,
-          error_message: geocodeData.error_message,
-          results_count: geocodeData.results?.length
-        });
+        locationLog.error(2, `Geocode failed: ${geocodeData.status}`, null, OP.API);
       }
 
       // Extract timezone from API response
       if (timezoneData && timezoneData.status === 'OK' && timezoneData.timeZoneId) {
         timeZone = timezoneData.timeZoneId;
-        console.log(`[Location API] 🕐 Timezone resolved: ${timeZone}`);
       } else {
-        console.error('[location] Timezone API failed:', {
-          status: timezoneData.status,
-          errorMessage: timezoneData.errorMessage,
-          timeZoneId: timezoneData.timeZoneId
-        });
         timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        console.log(`[location] Using fallback timezone: ${timeZone}`);
+        locationLog.warn(2, `Timezone API failed - using fallback: ${timeZone}`, OP.API);
       }
       
       // ═══════════════════════════════════════════════════════════════════════════
@@ -703,20 +676,12 @@ router.get('/resolve', async (req, res) => {
             country,
             timezone: timeZone,
             hit_count: 0,
-          }).onConflictDoNothing(); // In case of race condition, don't fail
+          }).onConflictDoNothing();
 
-          console.log(`[Location API] 💾 Stored in coords_cache: ${coordKey} → city="${city}", state="${state}", country="${country}", address="${formattedAddress}", tz="${timeZone}"`);
+          locationLog.done(3, `Cached: ${city}, ${state}`, OP.DB);
         } catch (cacheWriteErr) {
-          console.warn(`[Location API] ⚠️ Cache write failed (non-fatal):`, cacheWriteErr.message);
+          locationLog.warn(3, `Cache write failed: ${cacheWriteErr.message}`, OP.DB);
         }
-      } else {
-        console.warn(`[Location API] ⚠️ Skipping cache store - missing fields: ${missingCacheFields.join(', ')}`, {
-          city: city || '(missing)',
-          state: state || '(missing)',
-          country: country || '(missing)',
-          formatted_address: formattedAddress || '(missing)',
-          timezone: timeZone || '(missing)'
-        });
       }
     } // End of cache miss block
 
@@ -729,8 +694,6 @@ router.get('/resolve', async (req, res) => {
       formattedAddress: formattedAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
       user_id: userId,
     };
-    
-    console.log(`[Location API] ✅ Complete resolution:`, resolvedData);
 
     // ═══════════════════════════════════════════════════════════════════════════
     // COORDS CACHE VALIDATION: Ensure consistency between cache and resolved values
@@ -764,7 +727,6 @@ router.get('/resolve', async (req, res) => {
     }
 
     // Save to users table if device_id provided
-    console.log(`[Location API] 🔑 device_id check:`, { deviceId: deviceId || '(missing)', hasDeviceId: !!deviceId });
     if (deviceId) {
       try {
         const now = new Date();
@@ -779,7 +741,6 @@ router.get('/resolve', async (req, res) => {
         
         if (existingUser) {
           userId = existingUser.user_id;
-          console.log('[location] 🔄 Updating existing user record:', { userId, deviceId });
           
           try {
             // CRITICAL FIX: Validate formatted_address is not null before database write
@@ -820,26 +781,15 @@ router.get('/resolve', async (req, res) => {
             
             // CRITICAL: Verify at least 1 row was updated (write committed)
             if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
-              console.error('[location] ❌ UPDATE failed - no rows affected (transaction may have failed)');
+              locationLog.error(1, `Users UPDATE failed - no rows affected`, null, OP.DB);
               return res.status(502).json({
                 ok: false,
                 error: 'location_persistence_failed',
                 message: 'Database write did not commit - no rows updated'
               });
             }
-            
-            console.log(`[location] ✅ Users table UPDATE committed with verification: user_id=${userId}, formatted_address="${formattedAddress}"`, {
-              rowsAffected: Array.isArray(updateResult) ? updateResult.length : 1,
-              device_id: deviceId,
-              timestamp: now.toISOString()
-            });
           } catch (updateErr) {
-            // CRITICAL FIX Issue #2: Fail loudly if write fails - don't silently continue
-            console.error('[location] ❌ CRITICAL: Users table UPDATE failed - cannot proceed with snapshot:', {
-              error: updateErr.message,
-              deviceId,
-              userId
-            });
+            locationLog.error(1, `Users UPDATE failed`, updateErr, OP.DB);
             return res.status(502).json({
               ok: false,
               error: 'location_persistence_failed',
@@ -871,19 +821,10 @@ router.get('/resolve', async (req, res) => {
             updated_at: now,
           };
           
-          console.log('[location] 🆕 Creating new user record:', { userId, deviceId });
-          
           try {
-            // CRITICAL FIX Issue #2: Add error handling to verify write committed
             await db.insert(users).values(newUser);
-            console.log(`[location] ✅ Users table INSERT committed: user_id=${userId}, formatted_address="${formattedAddress}"`);
           } catch (insertErr) {
-            // CRITICAL FIX Issue #2: Fail loudly if write fails
-            console.error('[location] ❌ CRITICAL: Users table INSERT failed - cannot proceed:', {
-              error: insertErr.message,
-              deviceId,
-              userId
-            });
+            locationLog.error(1, `Users INSERT failed`, insertErr, OP.DB);
             return res.status(502).json({
               ok: false,
               error: 'location_persistence_failed',
@@ -892,17 +833,17 @@ router.get('/resolve', async (req, res) => {
             });
           }
         }
-        
+
         // Update response with user_id for client-side tracking
         resolvedData.user_id = userId;
-        console.log(`[location] ✅ Users table persisted successfully: device=${deviceId}, user_id=${userId}, accuracy=${accuracy}m, address="${formattedAddress}"`);
+        locationLog.done(1, `Users table: ${city}, ${state}`, OP.DB);
 
         // ═══════════════════════════════════════════════════════════════════════════
         // CREATE SNAPSHOT: Server generates snapshot_id, pulls from users table
         // Each resolve request = new snapshot (user requesting fresh data)
         // ═══════════════════════════════════════════════════════════════════════════
         const snapshotId = crypto.randomUUID();
-        console.log(`📸 [SNAPSHOT] Creating server-side snapshot: ${snapshotId.slice(0, 8)}...`);
+        snapshotLog.phase(1, `Creating for ${city}, ${state}`, OP.DB);
 
         try {
           // Calculate date in user's timezone
@@ -952,19 +893,18 @@ router.get('/resolve', async (req, res) => {
           validateSnapshotFields(snapshotRecord);
 
           await db.insert(snapshots).values(snapshotRecord);
-          console.log(`📸 [SNAPSHOT] ✅ Snapshot created: ${snapshotId.slice(0, 8)} for ${city}, ${state}`);
+          snapshotLog.done(1, `${snapshotId.slice(0, 8)}`, OP.DB);
 
           // Update users.current_snapshot_id to link user to this session
           await db.update(users)
             .set({ current_snapshot_id: snapshotId })
             .where(eq(users.device_id, deviceId));
-          console.log(`📸 [SNAPSHOT] ✅ Users table updated with current_snapshot_id`);
 
           // Add snapshot_id to response
           resolvedData.snapshot_id = snapshotId;
 
         } catch (snapshotErr) {
-          console.error(`📸 [SNAPSHOT] ❌ Failed to create snapshot:`, snapshotErr.message);
+          snapshotLog.error(1, `Failed to create`, snapshotErr, OP.DB);
           // Don't fail the whole request - location is resolved, snapshot is optional
           // Client can still create snapshot via POST /api/location/snapshot
         }
@@ -1019,8 +959,6 @@ router.get('/weather', async (req, res) => {
 
     if (currentRes.ok) {
       const currentData = await currentRes.json();
-      // Log raw response to debug structure
-      console.log('[Location API] Raw weather response:', JSON.stringify(currentData).substring(0, 500));
       
       // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
       const tempC = currentData.temperature?.degrees ?? currentData.temperature;
@@ -1062,14 +1000,8 @@ router.get('/weather', async (req, res) => {
       });
     }
 
-    console.log(`[Location API] 🌤️ Weather fetched:`, {
-      lat,
-      lng,
-      temp: current?.temperature,
-      conditions: current?.conditions,
-      humidity: current?.humidity
-    });
-    
+    locationLog.done(1, `Weather: ${current?.tempF}°F ${current?.conditions || ''}`, OP.API);
+
     res.json({
       ...current,
       forecast
@@ -1153,15 +1085,9 @@ router.get('/airquality', async (req, res) => {
       dateTime: data.dateTime,
       regionCode: data.regionCode,
     };
-    
-    console.log(`[Location API] 🌫️ Air Quality fetched:`, {
-      lat,
-      lng,
-      aqi: aqData.aqi,
-      category: aqData.category,
-      dominantPollutant: aqData.dominantPollutant
-    });
-    
+
+    locationLog.done(1, `Air Quality: AQI ${aqData.aqi} (${aqData.category})`, OP.API);
+
     res.json(aqData);
   } catch (err) {
     console.error('[location] air quality error', err);
@@ -1946,7 +1872,7 @@ router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
       .set(updatePayload)
       .where(eq(snapshots.snapshot_id, snapshotId));
 
-    console.log(`📸 [SNAPSHOT] ✅ Enriched ${snapshotId.slice(0, 8)} with:`, Object.keys(updatePayload).join(', '));
+    snapshotLog.done(2, `Enriched ${snapshotId.slice(0, 8)}: ${Object.keys(updatePayload).join(', ')}`, OP.DB);
 
     res.json({ ok: true, enriched: Object.keys(updatePayload) });
   } catch (err) {

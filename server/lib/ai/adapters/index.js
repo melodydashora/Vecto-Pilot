@@ -4,6 +4,7 @@
 import { callOpenAI } from "./openai-adapter.js";
 import { callAnthropic, callAnthropicWithWebSearch } from "./anthropic-adapter.js";
 import { callGemini } from "./gemini-adapter.js";
+import { OP } from "../../../logger/workflow.js";
 
 // Roles that support Claude Opus fallback when primary model fails
 const FALLBACK_ENABLED_ROLES = ['consolidator', 'briefer'];
@@ -28,7 +29,7 @@ export async function callModel(role, { system, user }) {
     throw new Error(`No model configured for role: ${role} (expected env var: ${key})`);
   }
 
-  console.log(`[model-dispatch] role=${role} model=${model}`);
+  console.log(`🤖 [AI] ${role} → ${model.split('-').slice(0, 2).join('-')}  ← ${OP.AI}`);
 
   // Common parameters
   const maxTokens = Number(process.env[`${key}_MAX_TOKENS`] || 1024);
@@ -68,8 +69,7 @@ export async function callModel(role, { system, user }) {
 
   // If primary failed and this role has fallback enabled, try Claude Opus
   if (!result.ok && FALLBACK_ENABLED_ROLES.includes(role.toLowerCase())) {
-    console.warn(`[model-dispatch] ⚠️ Primary model (${model}) failed for ${role}: ${result.error}`);
-    console.log(`[model-dispatch] 🔄 Trying Claude Opus fallback...`);
+    console.log(`🤖 [AI] ${role} failed → trying Claude Opus fallback  ← ${OP.FALLBACK}`);
 
     const fallbackResult = await callAnthropic({
       model: FALLBACK_MODEL,
@@ -80,11 +80,10 @@ export async function callModel(role, { system, user }) {
     });
 
     if (fallbackResult.ok) {
-      console.log(`[model-dispatch] ✅ Claude Opus fallback succeeded for ${role}`);
+      console.log(`🤖 [AI] ✅ ${role} fallback succeeded  ← ${OP.FALLBACK}`);
       return { ...fallbackResult, usedFallback: true, primaryModel: model, primaryError: result.error };
     } else {
-      console.error(`[model-dispatch] ❌ Fallback also failed for ${role}: ${fallbackResult.error}`);
-      // Return original error with fallback error info
+      console.log(`🤖 [AI] ❌ ${role} fallback also failed  ← ${OP.FALLBACK}`);
       return { ...result, fallbackAttempted: true, fallbackError: fallbackResult.error };
     }
   }

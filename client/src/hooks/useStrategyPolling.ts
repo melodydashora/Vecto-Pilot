@@ -85,9 +85,10 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
       return { ...data, _snapshotId: snapshotId } as StrategyData;
     },
     enabled: !!snapshotId && snapshotId !== 'live-snapshot',
+    // Reduced polling - SSE is primary mechanism, this is just a safety fallback
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === 'pending' ? 3000 : false;
+      return status === 'pending' ? 15000 : false;
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,

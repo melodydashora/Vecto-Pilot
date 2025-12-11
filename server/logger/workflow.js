@@ -1,8 +1,18 @@
 /**
  * Workflow-Aware Logging Utility
  *
- * Provides structured logging that clearly shows the pipeline workflow.
- * Each log line includes: [COMPONENT] [PHASE n/m] message
+ * VISUAL LOG DESIGN:
+ * Each log line shows [SECTION ICON] message [OPERATION ICON]
+ * - LEFT icon = Which workflow section (TRIAD, VENUES, BRIEFING)
+ * - RIGHT icon = What operation type (AI call, API call, DB, etc.)
+ *
+ * Example output:
+ *   🎯 [TRIAD 1/4] Calling strategist                    ← 🤖
+ *   🎯 [TRIAD 1/4] ✅ Strategist complete (2341ms)       ← 🤖
+ *   🏢 [VENUES 2/4] Calculating routes                   ← 🌐
+ *   🏢 [VENUES 3/4] Fetching place details               ← 🌐
+ *   📰 [BRIEFING 1/3] Fetching traffic                   ← 🌐
+ *   💾 [DB] Saved strategy                               ← 💾
  *
  * WORKFLOW STAGES:
  *
@@ -16,29 +26,57 @@
  *    [SNAPSHOT 2/2] Enrichment (airport, holiday)
  *
  * 3. STRATEGY PIPELINE (TRIAD)
- *    [TRIAD 1/4 - MinStrategy] Claude Opus strategic analysis
- *    [TRIAD 2/4 - Briefing] Gemini events/traffic/news
+ *    [TRIAD 1/4 - Strategist] Claude Opus strategic analysis
+ *    [TRIAD 2/4 - Briefer] Gemini events/traffic/news
  *    [TRIAD 3/4 - Consolidator] GPT-5.1 tactical synthesis
  *    [TRIAD 4/4 - SmartBlocks] Venue planning + enrichment
  *
  * 4. SMARTBLOCKS (Venue Pipeline)
- *    [VENUES 1/4] GPT-5 tactical planner
+ *    [VENUES 1/4] Tactical planner
  *    [VENUES 2/4] Google Routes API (distances)
  *    [VENUES 3/4] Google Places API (hours/status)
- *    [VENUES 4/4] Event verification
+ *    [VENUES 4/4] DB store
  *
  * 5. BRIEFING (Events/News)
  *    [BRIEFING 1/3] Traffic analysis
- *    [BRIEFING 2/3] Events discovery (Gemini)
- *    [BRIEFING 3/3] Event validation (Claude)
+ *    [BRIEFING 2/3] Events discovery
+ *    [BRIEFING 3/3] Event validation
  */
 
 /**
+ * OPERATION TYPE ICONS (right side - shows what kind of call)
+ * Used to quickly identify the nature of each operation in logs
+ */
+export const OP = {
+  AI: '🤖',      // AI model call (Claude, GPT, Gemini)
+  API: '🌐',     // External API call (Google, weather, etc.)
+  DB: '💾',      // Database operation
+  SSE: '📡',     // Server-sent event
+  CACHE: '⚡',   // Cache hit/operation
+  RETRY: '🔄',   // Retry operation
+  FALLBACK: '🔀', // Fallback to alternate
+};
+
+/**
  * Workflow components with their phases
+ *
+ * SECTION ICON REFERENCE (left side - shows workflow section):
+ *   📍 LOCATION  - GPS, geocoding, header resolution
+ *   👤 USER      - User table, auth, device tracking
+ *   📸 SNAPSHOT  - Snapshot creation and enrichment
+ *   🎯 TRIAD     - Main strategy pipeline orchestration
+ *   📰 BRIEFING  - Events, traffic, news gathering
+ *   🏢 VENUES    - Venue discovery, enrichment, validation
+ *   🍺 BARS      - Bar-specific operations (subset of venues)
+ *   🌤️ WEATHER   - Weather API calls
+ *   🔑 AUTH      - Authentication/authorization
  */
 const WORKFLOWS = {
   // Location resolution for header/user context
   LOCATION: { phases: 3, emoji: '📍' },
+
+  // User/device tracking
+  USER: { phases: 2, emoji: '👤' },
 
   // Snapshot creation
   SNAPSHOT: { phases: 2, emoji: '📸' },
@@ -49,20 +87,35 @@ const WORKFLOWS = {
   // SmartBlocks venue pipeline
   VENUES: { phases: 4, emoji: '🏢' },
 
+  // Bar-specific operations
+  BARS: { phases: 2, emoji: '🍺' },
+
   // Briefing service
   BRIEFING: { phases: 3, emoji: '📰' },
 
   // Weather fetching
   WEATHER: { phases: 1, emoji: '🌤️' },
 
-  // AI model calls
+  // AI model calls (generic - prefer using section + OP.AI)
   AI: { phases: 1, emoji: '🤖' },
 
-  // Database operations
+  // Database operations (generic - prefer using section + OP.DB)
   DB: { phases: 1, emoji: '💾' },
 
   // Auth operations
   AUTH: { phases: 1, emoji: '🔑' },
+
+  // Server-sent events (generic - prefer using section + OP.SSE)
+  SSE: { phases: 1, emoji: '📡' },
+
+  // Pipeline phase updates
+  PHASE: { phases: 1, emoji: '🔄' },
+
+  // Google Places API
+  PLACES: { phases: 1, emoji: '📍' },
+
+  // Google Routes API
+  ROUTES: { phases: 1, emoji: '🚗' },
 };
 
 /**
@@ -79,15 +132,20 @@ const PHASE_LABELS = {
   'LOCATION:2': 'Geocode/Cache',
   'LOCATION:3': 'Weather+Air',
 
+  // USER phases
+  'USER:1': 'Lookup/Create',
+  'USER:2': 'Token Issue',
+
   // SNAPSHOT phases
   'SNAPSHOT:1': 'Create Record',
   'SNAPSHOT:2': 'Enrich (Airport/Holiday)',
 
   // TRIAD phases (use ROLE names, not model names)
-  'TRIAD:1': 'Strategist',
-  'TRIAD:2': 'Briefer',
-  'TRIAD:3': 'Daily+NOW Strategy',
-  'TRIAD:4': 'SmartBlocks',
+  // Strategy TRIAD = phases 1-3, Venue TRIAD = phase 4
+  'TRIAD:1': 'Strategy|Strategist',
+  'TRIAD:2': 'Strategy|Briefer',
+  'TRIAD:3': 'Strategy|NOW',
+  'TRIAD:4': 'Venue|SmartBlocks',
 
   // VENUES phases
   'VENUES:1': 'Tactical Planner',
@@ -95,10 +153,14 @@ const PHASE_LABELS = {
   'VENUES:3': 'Places API',
   'VENUES:4': 'DB Store',
 
-  // BRIEFING phases
-  'BRIEFING:1': 'Traffic',
-  'BRIEFING:2': 'Events Discovery',
-  'BRIEFING:3': 'Event Validation',
+  // BARS phases
+  'BARS:1': 'Query',
+  'BARS:2': 'Enrich',
+
+  // BRIEFING phases (Briefing TRIAD)
+  'BRIEFING:1': 'Briefing|Traffic',
+  'BRIEFING:2': 'Briefing|Events',
+  'BRIEFING:3': 'Briefing|Validation',
 };
 
 /**
@@ -111,64 +173,86 @@ export function createWorkflowLogger(component) {
 
   return {
     /**
-     * Log a phase start/progress
+     * Log a phase start/progress with optional operation type
      * @param {number} phase - Current phase (1-indexed)
      * @param {string} message - Log message
-     * @param {Object} data - Optional data to log
+     * @param {Object|string} dataOrOp - Optional data object or operation type icon (OP.AI, OP.API, etc.)
      */
-    phase: (phase, message, data = null) => {
+    phase: (phase, message, dataOrOp = null) => {
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
       const prefix = `[${component} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+
+      // Check if dataOrOp is an operation icon (string starting with emoji)
+      const isOpIcon = typeof dataOrOp === 'string' && Object.values(OP).includes(dataOrOp);
+      const opSuffix = isOpIcon ? `  ← ${dataOrOp}` : '';
+      const data = isOpIcon ? null : dataOrOp;
 
       if (data) {
         console.log(`${config.emoji} ${prefix} ${message}`, typeof data === 'object' ? JSON.stringify(data, null, 0).slice(0, 200) : data);
       } else {
-        console.log(`${config.emoji} ${prefix} ${message}`);
+        console.log(`${config.emoji} ${prefix} ${message}${opSuffix}`);
       }
     },
 
     /**
-     * Log phase completion with timing
+     * Log phase completion with timing and optional operation type
      * @param {number} phase - Current phase (1-indexed)
      * @param {string} message - Success message
-     * @param {number} durationMs - Optional duration in ms
+     * @param {number|string} durationOrOp - Duration in ms OR operation type icon
+     * @param {string} op - Optional operation type icon if duration is provided
      */
-    done: (phase, message, durationMs = null) => {
+    done: (phase, message, durationOrOp = null, op = null) => {
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
-      const timeStr = durationMs ? ` (${durationMs}ms)` : '';
       const prefix = `[${component} ${phaseStr}${label ? ` - ${label}` : ''}]`;
 
-      console.log(`✅ ${prefix} ${message}${timeStr}`);
+      // Handle flexible arguments
+      let durationMs = null;
+      let opIcon = null;
+      if (typeof durationOrOp === 'number') {
+        durationMs = durationOrOp;
+        opIcon = op;
+      } else if (typeof durationOrOp === 'string' && Object.values(OP).includes(durationOrOp)) {
+        opIcon = durationOrOp;
+      }
+
+      const timeStr = durationMs ? ` (${durationMs}ms)` : '';
+      const opSuffix = opIcon ? `  ← ${opIcon}` : '';
+
+      console.log(`${config.emoji} ${prefix} ✅ ${message}${timeStr}${opSuffix}`);
     },
 
     /**
-     * Log an error in a phase
+     * Log an error in a phase with optional operation type
      * @param {number} phase - Current phase (1-indexed)
      * @param {string} message - Error message
      * @param {Error|string} err - Error object or message
+     * @param {string} op - Optional operation type icon
      */
-    error: (phase, message, err = null) => {
+    error: (phase, message, err = null, op = null) => {
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
       const prefix = `[${component} ${phaseStr}${label ? ` - ${label}` : ''}]`;
       const errMsg = err?.message || err || '';
+      const opSuffix = op ? `  ← ${op}` : '';
 
-      console.error(`❌ ${prefix} ${message}${errMsg ? `: ${errMsg}` : ''}`);
+      console.error(`${config.emoji} ${prefix} ❌ ${message}${errMsg ? `: ${errMsg}` : ''}${opSuffix}`);
     },
 
     /**
-     * Log a warning in a phase
+     * Log a warning in a phase with optional operation type
      * @param {number} phase - Current phase (1-indexed)
      * @param {string} message - Warning message
+     * @param {string} op - Optional operation type icon
      */
-    warn: (phase, message) => {
+    warn: (phase, message, op = null) => {
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
       const prefix = `[${component} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const opSuffix = op ? `  ← ${op}` : '';
 
-      console.warn(`⚠️ ${prefix} ${message}`);
+      console.warn(`${config.emoji} ${prefix} ⚠️ ${message}${opSuffix}`);
     },
 
     /**
@@ -176,7 +260,9 @@ export function createWorkflowLogger(component) {
      * @param {string} context - Context info (e.g., snapshot_id, city)
      */
     start: (context) => {
-      console.log(`${config.emoji} [${component} START] ========== ${context} ==========`);
+      console.log(`\n${config.emoji} ═══════════════════════════════════════════════════════`);
+      console.log(`${config.emoji} [${component}] START: ${context}`);
+      console.log(`${config.emoji} ═══════════════════════════════════════════════════════`);
     },
 
     /**
@@ -185,34 +271,89 @@ export function createWorkflowLogger(component) {
      * @param {number} totalMs - Total duration
      */
     complete: (summary, totalMs = null) => {
-      const timeStr = totalMs ? ` in ${totalMs}ms` : '';
-      console.log(`🏁 [${component} COMPLETE] ${summary}${timeStr}`);
+      const timeStr = totalMs ? ` (${totalMs}ms)` : '';
+      console.log(`${config.emoji} ───────────────────────────────────────────────────────`);
+      console.log(`${config.emoji} [${component}] ✅ COMPLETE: ${summary}${timeStr}`);
+      console.log(`${config.emoji} ───────────────────────────────────────────────────────\n`);
     },
 
     /**
-     * Simple info log (no phase)
+     * Simple info log (no phase) with optional operation type
      * @param {string} message - Log message
-     * @param {Object} data - Optional data
+     * @param {Object|string} dataOrOp - Optional data or operation type icon
      */
-    info: (message, data = null) => {
+    info: (message, dataOrOp = null) => {
+      const isOpIcon = typeof dataOrOp === 'string' && Object.values(OP).includes(dataOrOp);
+      const opSuffix = isOpIcon ? `  ← ${dataOrOp}` : '';
+      const data = isOpIcon ? null : dataOrOp;
+
       if (data) {
         console.log(`${config.emoji} [${component}] ${message}`, data);
       } else {
-        console.log(`${config.emoji} [${component}] ${message}`);
+        console.log(`${config.emoji} [${component}] ${message}${opSuffix}`);
       }
+    },
+
+    /**
+     * Log an API call (convenience method)
+     * @param {number} phase - Current phase
+     * @param {string} apiName - API being called (e.g., "Google Routes", "Places API")
+     * @param {string} context - Additional context
+     */
+    api: (phase, apiName, context = '') => {
+      const label = PHASE_LABELS[`${component}:${phase}`] || '';
+      const phaseStr = `${phase}/${config.phases}`;
+      const prefix = `[${component} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const contextStr = context ? `: ${context}` : '';
+      console.log(`${config.emoji} ${prefix} ${apiName}${contextStr}  ← ${OP.API}`);
+    },
+
+    /**
+     * Log an AI model call (convenience method)
+     * @param {number} phase - Current phase
+     * @param {string} role - Model role (e.g., "Strategist", "Briefer")
+     * @param {string} context - Additional context
+     */
+    ai: (phase, role, context = '') => {
+      const label = PHASE_LABELS[`${component}:${phase}`] || '';
+      const phaseStr = `${phase}/${config.phases}`;
+      const prefix = `[${component} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const contextStr = context ? `: ${context}` : '';
+      console.log(`${config.emoji} ${prefix} Calling ${role}${contextStr}  ← ${OP.AI}`);
+    },
+
+    /**
+     * Log a database operation (convenience method)
+     * @param {number} phase - Current phase
+     * @param {string} operation - DB operation (e.g., "Saving", "Querying")
+     * @param {string} context - Additional context
+     */
+    db: (phase, operation, context = '') => {
+      const label = PHASE_LABELS[`${component}:${phase}`] || '';
+      const phaseStr = `${phase}/${config.phases}`;
+      const prefix = `[${component} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const contextStr = context ? `: ${context}` : '';
+      console.log(`${config.emoji} ${prefix} ${operation}${contextStr}  ← ${OP.DB}`);
     },
   };
 }
 
 // Pre-configured loggers for common workflows
 export const locationLog = createWorkflowLogger('LOCATION');
+export const userLog = createWorkflowLogger('USER');
 export const snapshotLog = createWorkflowLogger('SNAPSHOT');
 export const triadLog = createWorkflowLogger('TRIAD');
 export const venuesLog = createWorkflowLogger('VENUES');
+export const barsLog = createWorkflowLogger('BARS');
 export const briefingLog = createWorkflowLogger('BRIEFING');
 export const weatherLog = createWorkflowLogger('WEATHER');
 export const aiLog = createWorkflowLogger('AI');
 export const dbLog = createWorkflowLogger('DB');
+export const authLog = createWorkflowLogger('AUTH');
+export const sseLog = createWorkflowLogger('SSE');
+export const phaseLog = createWorkflowLogger('PHASE');
+export const placesLog = createWorkflowLogger('PLACES');
+export const routesLog = createWorkflowLogger('ROUTES');
 
 /**
  * Log AI model call with standardized format
@@ -221,7 +362,7 @@ export const dbLog = createWorkflowLogger('DB');
  * @param {string} purpose - What this call is for
  */
 export function logAICall(role, model, purpose) {
-  console.log(`🤖 [AI - ${role}] Calling ${model} for: ${purpose}`);
+  console.log(`🤖 [AI] Calling ${role} (${model}): ${purpose}  ← ${OP.AI}`);
 }
 
 /**
@@ -232,7 +373,7 @@ export function logAICall(role, model, purpose) {
  * @param {number} durationMs - Call duration
  */
 export function logAIResponse(role, model, responseLen, durationMs) {
-  console.log(`✅ [AI - ${role}] ${model} responded: ${responseLen} chars in ${durationMs}ms`);
+  console.log(`🤖 [AI] ✅ ${role} responded: ${responseLen} chars (${durationMs}ms)  ← ${OP.AI}`);
 }
 
 /**
@@ -240,8 +381,51 @@ export function logAIResponse(role, model, responseLen, durationMs) {
  * @param {string} venueName - Venue name
  * @param {string} operation - What operation (distance, hours, etc.)
  * @param {string} result - Result summary
+ * @param {string} op - Optional operation type icon
  */
-export function logVenue(venueName, operation, result) {
+export function logVenue(venueName, operation, result, op = null) {
   const shortName = venueName.length > 30 ? venueName.slice(0, 27) + '...' : venueName;
-  console.log(`🏢 [VENUE "${shortName}"] ${operation}: ${result}`);
+  const opSuffix = op ? `  ← ${op}` : '';
+  console.log(`🏢 [VENUE "${shortName}"] ${operation}: ${result}${opSuffix}`);
+}
+
+/**
+ * Log an external API call (Google, etc.)
+ * @param {string} apiName - API name (e.g., "Google Routes", "Places API")
+ * @param {string} context - What this call is for
+ */
+export function logAPICall(apiName, context) {
+  console.log(`🌐 [API] ${apiName}: ${context}  ← ${OP.API}`);
+}
+
+/**
+ * Log an external API response
+ * @param {string} apiName - API name
+ * @param {string} result - Result summary
+ * @param {number} durationMs - Call duration
+ */
+export function logAPIResponse(apiName, result, durationMs = null) {
+  const timeStr = durationMs ? ` (${durationMs}ms)` : '';
+  console.log(`🌐 [API] ✅ ${apiName}: ${result}${timeStr}  ← ${OP.API}`);
+}
+
+/**
+ * Log a database operation
+ * @param {string} operation - Operation type (SELECT, INSERT, UPDATE, etc.)
+ * @param {string} table - Table name
+ * @param {string} context - Additional context
+ */
+export function logDB(operation, table, context = '') {
+  const contextStr = context ? `: ${context}` : '';
+  console.log(`💾 [DB] ${operation} ${table}${contextStr}  ← ${OP.DB}`);
+}
+
+/**
+ * Log a cache operation
+ * @param {string} type - "HIT" or "MISS"
+ * @param {string} key - Cache key or description
+ */
+export function logCache(type, key) {
+  const icon = type === 'HIT' ? '⚡' : '🔍';
+  console.log(`${icon} [CACHE] ${type}: ${key}  ← ${OP.CACHE}`);
 }
