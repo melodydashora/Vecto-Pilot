@@ -8,7 +8,8 @@ async function parseToMarkdown() {
   try {
     // Load the JSON
     const jsonPath = 'tools/research/flagship-models-2025-12-11.json';
-    const data = JSON.parse(await fs.readFile(jsonPath, 'utf-8'));
+    const fileContent = await fs.readFile(jsonPath, 'utf-8');
+    const data = JSON.parse(fileContent);
 
     const timestamp = new Date(data.generated_at).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -109,11 +110,12 @@ async function parseToMarkdown() {
 
     console.log('\n✅ MODEL.md generated successfully!');
     console.log(`📄 Location: MODEL.md`);
-    console.log(`📊 Providers: ${data.providers.length}`);
-    console.log(`📚 Total citations: ${data.total_citations}`);
+    console.log(`📊 Providers: ${data.providers?.length || 0}`);
+    console.log(`📚 Total citations: ${data.total_citations || 0}`);
 
   } catch (error) {
     console.error('❌ Error:', error.message);
+    console.error('Stack:', error.stack);
     process.exit(1);
   }
 }
