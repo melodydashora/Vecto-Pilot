@@ -9,55 +9,10 @@ interface BusinessHours {
   weekdayTexts?: string[];
 }
 
-/**
- * Calculate if venue is currently open based on business hours string
- * Recalculates in real-time to avoid stale cached values
- * @param hoursStr - Hours string like "5:00 PM - 2:00 AM" or "Mon-Fri: 9AM-5PM"
- * @returns true if open, false if closed, null if can't determine
- */
-function calculateIsOpenNow(hoursStr: string | undefined): boolean | null {
-  if (!hoursStr) return null;
-
-  // Parse time range from string (e.g., "5:00 PM - 2:00 AM")
-  const timeMatch = hoursStr.match(
-    /(\d{1,2}):?(\d{2})?\s*(AM|PM)\s*[-–]\s*(\d{1,2}):?(\d{2})?\s*(AM|PM)/i
-  );
-  if (!timeMatch) return null;
-
-  const [, openHour, openMinStr, openPeriod, closeHour, closeMinStr, closePeriod] = timeMatch;
-  const openMin = parseInt(openMinStr || "0");
-  const closeMin = parseInt(closeMinStr || "0");
-
-  // Convert to 24-hour format
-  let openHour24 = parseInt(openHour);
-  if (openPeriod.toUpperCase() === "PM" && openHour24 !== 12) openHour24 += 12;
-  if (openPeriod.toUpperCase() === "AM" && openHour24 === 12) openHour24 = 0;
-
-  let closeHour24 = parseInt(closeHour);
-  if (closePeriod.toUpperCase() === "PM" && closeHour24 !== 12) closeHour24 += 12;
-  if (closePeriod.toUpperCase() === "AM" && closeHour24 === 12) closeHour24 = 0;
-
-  const openTimeMinutes = openHour24 * 60 + openMin;
-  let closeTimeMinutes = closeHour24 * 60 + closeMin;
-
-  // Get current time
-  const now = new Date();
-  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
-
-  // Handle overnight hours (e.g., 5:00 PM - 2:00 AM)
-  if (closeTimeMinutes < openTimeMinutes) {
-    // Overnight venue - closes after midnight
-    closeTimeMinutes += 24 * 60;
-    if (currentTimeMinutes < openTimeMinutes) {
-      // We're in the early AM hours (after midnight, before venue opens)
-      // Check if we're still within the extended closing time
-      return currentTimeMinutes + 24 * 60 < closeTimeMinutes;
-    }
-  }
-
-  // Normal hours check
-  return currentTimeMinutes >= openTimeMinutes && currentTimeMinutes < closeTimeMinutes;
-}
+// NOTE: isOpen is calculated server-side using the correct venue timezone
+// Client-side recalculation was removed because browser timezone != venue timezone
+// This caused late-night venues to show as closed in production
+// Server calculates isOpen in venue-enrichment.js using Intl.DateTimeFormat with snapshot timezone
 
 interface Block {
   name: string;
@@ -283,8 +238,8 @@ export default function BarsTable({ blocks }: BarsTableProps) {
           const categoryColor = getCategoryColor(bar.name, bar.category);
           const distance = bar.estimated_distance_miles;
           const driveTime = bar.driveTimeMinutes;
-          // Calculate isOpen in real-time based on hours string (not stale cached value)
-          const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
+          // Trust server's isOpen - calculated with correct venue timezone
+          const isOpen = bar.isOpen;
 
           return (
             <Card
