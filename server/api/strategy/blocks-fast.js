@@ -33,7 +33,7 @@ import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
 import { snapshots, rankings, ranking_candidates, strategies, triad_jobs, briefings } from '../../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
-import { isStrategyReady, ensureStrategyRow } from '../../lib/strategy/strategy-utils.js';
+import { isStrategyReady, ensureStrategyRow, updatePhase } from '../../lib/strategy/strategy-utils.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { runMinStrategy } from '../../lib/ai/providers/minstrategy.js';
@@ -121,6 +121,9 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
   console.log(`[blocks-fast] 🔨 Generating SmartBlocks for ${snapshotId}`);
 
   try {
+    // Phase: enriching (venue enrichment and ranking)
+    await updatePhase(snapshotId, 'enriching');
+
     await generateEnhancedSmartBlocks({
       snapshotId,
       immediateStrategy: strategyRow.strategy_for_now,
@@ -139,6 +142,8 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
 
     if (newRanking) {
       console.log(`[blocks-fast] ✅ SmartBlocks generated successfully for ${snapshotId}`);
+      // Mark phase complete (updatePhase is imported at file level)
+      await updatePhase(snapshotId, 'complete');
       return { ranking: newRanking, generated: true, error: null };
     } else {
       console.error(`[blocks-fast] ⚠️ SmartBlocks generated but no ranking found`);
@@ -451,8 +456,13 @@ router.post('/', async (req, res) => {
         // Ensure strategy row exists with snapshot location data
         await ensureStrategyRow(snapshotId);
 
-        // Run providers in parallel (allSettled allows briefing to fail gracefully)
+        // Phase 1: Resolving location and examining conditions
+        await updatePhase(snapshotId, 'resolving');
+
+        // Phase 2: Run providers in parallel (allSettled allows briefing to fail gracefully)
+        // Both Claude (minstrategy) and Gemini (briefing) run at the same time
         // Note: Holiday is already in snapshot table from holiday-detector.js
+        await updatePhase(snapshotId, 'analyzing');
         const results = await Promise.allSettled([
           runMinStrategy(snapshotId),
           runBriefing(snapshotId)
@@ -490,6 +500,8 @@ router.post('/', async (req, res) => {
           snapshot_air: snapshot.air ? 'present' : 'missing'
         });
 
+        // Phase 2: Consolidation
+        await updatePhase(snapshotId, 'consolidator');
         try {
           // runConsolidator fetches minstrategy, briefing, snapshot from DB
           // Gemini 3 Pro → consolidated_strategy (daily strategy for Briefing Tab)
@@ -499,6 +511,9 @@ router.post('/', async (req, res) => {
           console.error(`[blocks-fast POST] ❌ runConsolidator threw error:`, consolidateErr.message);
           throw consolidateErr;
         }
+
+        // Phase 3: Venue Discovery
+        await updatePhase(snapshotId, 'venues');
 
         // Generate smart blocks using shared helper
         const [consolidatedRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);

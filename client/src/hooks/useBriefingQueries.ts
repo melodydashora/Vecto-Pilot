@@ -1,15 +1,29 @@
 // client/src/hooks/useBriefingQueries.ts
 // Consolidated briefing data queries for Co-Pilot
+// IMPORTANT: Queries wait until briefing data is ready (phase >= consolidator)
 
 import { useQuery } from '@tanstack/react-query';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
+import type { PipelinePhase } from '@/types/co-pilot';
 
 interface BriefingQueriesOptions {
   snapshotId: string | null;
+  pipelinePhase?: PipelinePhase;
 }
 
-export function useBriefingQueries({ snapshotId }: BriefingQueriesOptions) {
-  const isEnabled = !!snapshotId && snapshotId !== 'live-snapshot';
+// Phases where briefing data is definitely in the database
+const BRIEFING_READY_PHASES: PipelinePhase[] = ['consolidator', 'venues', 'enriching', 'complete'];
+
+export function useBriefingQueries({ snapshotId, pipelinePhase }: BriefingQueriesOptions) {
+  // Only enable queries when:
+  // 1. We have a valid snapshotId
+  // 2. Pipeline has reached at least 'consolidator' phase (briefing data is saved)
+  const briefingReady = pipelinePhase && BRIEFING_READY_PHASES.includes(pipelinePhase);
+  const isEnabled = !!snapshotId && snapshotId !== 'live-snapshot' && briefingReady;
+
+  if (!briefingReady && snapshotId) {
+    console.log(`[BriefingQuery] Waiting for briefing data (phase: ${pipelinePhase || 'unknown'})`);
+  }
 
   const weatherQuery = useQuery({
     queryKey: ['/api/briefing/weather', snapshotId],

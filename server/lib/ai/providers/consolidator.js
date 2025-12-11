@@ -1,13 +1,13 @@
 // server/lib/providers/consolidator.js
 // Consolidator provider - Gemini 3 Pro Preview as "Tactical Dispatcher"
-// NEW ARCHITECTURE: Synthesizes minstrategy + snapshot + Type A briefing JSON
-// No deep research - just consolidation of existing data into actionable strategy
+// OPTIMIZED: Reads from two tables (no snapshot re-read needed):
+//   - strategies: minstrategy + location/time context (written by minstrategy provider)
+//   - briefings: events, traffic, news, weather, closures (written by briefing provider)
 // Includes Claude Opus 4.5 fallback when Gemini fails
 
 import { db } from '../../../db/drizzle.js';
 import { strategies, briefings } from '../../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { getFullSnapshot } from '../../location/get-snapshot-context.js';
 import { callAnthropic } from '../adapters/anthropic-adapter.js';
 import { triadLog } from '../../../logger/workflow.js';
 
@@ -200,24 +200,33 @@ function parseJsonField(field) {
 export async function runConsolidator(snapshotId) {
   const startTime = Date.now();
   triadLog.phase(3, `Starting for ${snapshotId.slice(0, 8)}`);
-  
+
   try {
-    // Step 1: Fetch strategy row to get minstrategy
-    const [strategyRow] = await db.select().from(strategies)
-      .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    
+    // TWO PARALLEL QUERIES - avoids race condition from minstrategy/briefing parallel writes
+    // 1. strategies: minstrategy + location/time context (written by minstrategy provider)
+    // 2. briefings: events, traffic, news, weather, closures (written by briefing provider)
+    const [[strategyRow], [briefingRow]] = await Promise.all([
+      db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1),
+      db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1)
+    ]);
+
     if (!strategyRow) {
       throw new Error(`Strategy row not found for snapshot ${snapshotId}`);
     }
-    
-    // IDEMPOTENCE: If already consolidated with status=ok, skip
-    if (strategyRow.consolidated_strategy && strategyRow.status === 'ok') {
+
+    if (!briefingRow) {
+      throw new Error(`Briefing row not found for snapshot ${snapshotId}`);
+    }
+
+    // Check if already consolidated
+    if (strategyRow?.consolidated_strategy && strategyRow?.status === 'ok') {
       console.log(`[consolidator] ⏭️ Already consolidated (status=ok) - skipping for ${snapshotId}`);
       return { ok: true, skipped: true, reason: 'already_consolidated' };
     }
-    
+
+    // Get minstrategy from STRATEGIES table (written by minstrategy provider)
     const minstrategy = strategyRow.minstrategy;
-    
+
     // PREREQUISITE VALIDATION: Only minstrategy required
     if (!minstrategy || minstrategy.trim().length === 0) {
       console.warn(`[consolidator] ⚠️ Missing minstrategy for ${snapshotId}`);
@@ -228,62 +237,62 @@ export async function runConsolidator(snapshotId) {
       }).where(eq(strategies.snapshot_id, snapshotId));
       throw new Error('Missing minstrategy (strategist output is empty)');
     }
-    
+
     console.log(`[consolidator] ✅ Minstrategy ready (${minstrategy.length} chars)`);
-    
-    // Step 2: Fetch briefing row from DB (raw JSON, not summarized)
-    const [briefingRow] = await db.select().from(briefings)
-      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-    
-    // Parse raw briefing JSON fields
-    const trafficData = parseJsonField(briefingRow?.traffic_conditions);
-    const eventsData = parseJsonField(briefingRow?.events);
-    const newsData = parseJsonField(briefingRow?.news);
-    const weatherData = parseJsonField(briefingRow?.weather_current);
-    const closuresData = parseJsonField(briefingRow?.school_closures);
-    
+
+    // Parse raw briefing JSON fields from BRIEFINGS table (written by briefing provider)
+    const trafficData = parseJsonField(briefingRow.traffic_conditions);
+    const eventsData = parseJsonField(briefingRow.events);
+    const newsData = parseJsonField(briefingRow.news);
+    const weatherData = parseJsonField(briefingRow.weather_current);
+    const closuresData = parseJsonField(briefingRow.school_closures);
+
     console.log(`[consolidator] 📊 Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}, closures=${!!closuresData}`);
-    
-    // Step 3: Fetch full snapshot for context
-    const ctx = await getFullSnapshot(snapshotId);
-    const userAddress = ctx.formatted_address;
-    const cityDisplay = ctx.city || 'your area';
-    
-    // Format time context
-    const dayOfWeek = ctx.day_of_week;
-    const isWeekend = ctx.is_weekend;
-    const localTime = ctx.local_iso ? new Date(ctx.local_iso).toLocaleString('en-US', { 
-      timeZone: ctx.timezone || 'America/Chicago',
+
+    // Get location/time context from STRATEGIES table (written by minstrategy provider)
+    const userAddress = strategyRow.user_resolved_address || 'Unknown location';
+    const cityDisplay = strategyRow.user_resolved_city || 'your area';
+    const stateDisplay = strategyRow.user_resolved_state || '';
+    const lat = strategyRow.lat;
+    const lng = strategyRow.lng;
+
+    // Format time context from strategies table
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dow = strategyRow.dow;
+    const dayOfWeek = dow != null ? dayNames[dow] : 'Unknown';
+    const isWeekend = dow === 0 || dow === 6;
+    const localTime = strategyRow.local_iso ? new Date(strategyRow.local_iso).toLocaleString('en-US', {
+      timeZone: strategyRow.timezone || 'America/Chicago',
       weekday: 'long',
-      year: 'numeric', 
-      month: 'long', 
+      year: 'numeric',
+      month: 'long',
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
       hour12: true
     }) : 'Unknown time';
-    const dayPart = ctx.day_part_key || 'unknown';
-    
-    console.log(`[consolidator] 📍 Location: ${userAddress}`);
+    const dayPart = strategyRow.day_part_key || 'unknown';
+    const isHoliday = strategyRow.is_holiday || false;
+    const holiday = strategyRow.holiday || null;
+
+    console.log(`[consolidator] 📍 Location: ${userAddress} (from strategies table)`);
     console.log(`[consolidator] 🕐 Time: ${localTime} (${dayPart})`);
     
     // Step 4: Build Daily Strategy prompt with RAW briefing JSON
     // This is the DAILY STRATEGY (8-12 hours) that goes to the Briefing Tab
+    // NOTE: No full snapshot needed - all context comes from strategies + briefings tables
     const prompt = `You are a STRATEGIC ADVISOR for rideshare drivers. Create a comprehensive "Daily Strategy" covering the next 8-12 hours.
 
 === DRIVER CONTEXT ===
 Location: ${userAddress}
-Coordinates: ${ctx.lat}, ${ctx.lng}
-City: ${cityDisplay}, ${ctx.state || ''}
+Coordinates: ${lat}, ${lng}
+City: ${cityDisplay}, ${stateDisplay}
 Current Time: ${localTime}
 Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
 Day Part: ${dayPart}
-${ctx.is_holiday ? `HOLIDAY: ${ctx.holiday}` : ''}
+${isHoliday ? `HOLIDAY: ${holiday}` : ''}
 
-=== FULL SNAPSHOT DATA ===
-${JSON.stringify(ctx, null, 2)}
-
-=== STRATEGIC ASSESSMENT (from Claude Sonnet) ===
+=== STRATEGIC ASSESSMENT (from Claude) ===
 ${minstrategy}
 
 === CURRENT_TRAFFIC_DATA ===

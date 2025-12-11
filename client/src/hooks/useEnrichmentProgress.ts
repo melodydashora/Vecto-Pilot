@@ -1,8 +1,9 @@
 // client/src/hooks/useEnrichmentProgress.ts
 // Progress tracking for strategy/blocks generation pipeline
+// Uses real backend pipeline phases instead of time estimates
 
-import { useState, useEffect } from 'react';
-import type { EnrichmentPhase, CoordData, StrategyData } from '@/types/co-pilot';
+import { useState, useEffect, useMemo } from 'react';
+import type { EnrichmentPhase, CoordData, StrategyData, PipelinePhase } from '@/types/co-pilot';
 
 interface UseEnrichmentProgressOptions {
   coords: CoordData | null | undefined;
@@ -12,10 +13,47 @@ interface UseEnrichmentProgressOptions {
 }
 
 interface EnrichmentProgressState {
-  progress: number;
+  progress: number;           // Bottom bar progress (0-100 full process)
+  strategyProgress: number;   // Strategy card progress (0-100, done at consolidator)
   phase: EnrichmentPhase;
+  pipelinePhase: PipelinePhase;
   startTime: number | null;
 }
+
+// Map backend pipeline phase to progress percentage for BOTTOM progress bar
+// Full process from strategy to venues loaded
+const PHASE_PROGRESS: Record<PipelinePhase, number> = {
+  starting: 5,
+  resolving: 15,
+  analyzing: 30,
+  consolidator: 50,
+  venues: 70,
+  enriching: 85,
+  complete: 100
+};
+
+// Map backend phase to frontend phase category
+// 'strategy' = strategy card visible, 'blocks' = venues loading, 'idle' = done
+const PHASE_TO_FRONTEND: Record<PipelinePhase, EnrichmentPhase> = {
+  starting: 'strategy',
+  resolving: 'strategy',
+  analyzing: 'strategy',
+  consolidator: 'strategy',
+  venues: 'blocks',
+  enriching: 'blocks',
+  complete: 'idle'
+};
+
+// Strategy card progress (only first 4 phases, tops out at 100% when consolidator done)
+const STRATEGY_CARD_PROGRESS: Record<PipelinePhase, number> = {
+  starting: 5,
+  resolving: 25,
+  analyzing: 50,
+  consolidator: 100,
+  venues: 100,
+  enriching: 100,
+  complete: 100
+};
 
 export function useEnrichmentProgress({
   coords,
@@ -24,77 +62,94 @@ export function useEnrichmentProgress({
   hasBlocks
 }: UseEnrichmentProgressOptions): EnrichmentProgressState {
   const [startTime, setStartTime] = useState<number | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState<EnrichmentPhase>('idle');
+  const [animatedProgress, setAnimatedProgress] = useState(0);
+  const [animatedStrategyProgress, setAnimatedStrategyProgress] = useState(0);
 
-  // Start enrichment timer when coords arrive
+  // Get backend phase directly from API response
+  const backendPhase = strategyData?.phase as PipelinePhase || 'starting';
+  const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
+
+  // Target progress for bottom bar (full process)
+  const targetProgress = useMemo(() => {
+    if (hasBlocks) return 100;
+    if (!coords) return 0;
+    if (!snapshotMatches) return 5;
+    return PHASE_PROGRESS[backendPhase] || 5;
+  }, [hasBlocks, coords, snapshotMatches, backendPhase]);
+
+  // Target progress for strategy card (only first 4 phases)
+  const targetStrategyProgress = useMemo(() => {
+    if (!coords) return 0;
+    if (!snapshotMatches) return 5;
+    return STRATEGY_CARD_PROGRESS[backendPhase] || 5;
+  }, [coords, snapshotMatches, backendPhase]);
+
+  // Determine frontend phase category
+  const phase = useMemo((): EnrichmentPhase => {
+    if (hasBlocks) return 'idle';
+    if (!coords) return 'idle';
+    return PHASE_TO_FRONTEND[backendPhase] || 'strategy';
+  }, [hasBlocks, coords, backendPhase]);
+
+  // Start timer when coords arrive
   useEffect(() => {
-    if (coords && phase === 'idle') {
+    if (coords && !startTime) {
       console.log('[enrichment] Started - coords received');
       setStartTime(Date.now());
-      setProgress(5);
-      setPhase('strategy');
     }
-  }, [coords, phase]);
+  }, [coords, startTime]);
 
-  // Update phase when strategy becomes ready
+  // Animate bottom bar progress smoothly toward target
   useEffect(() => {
-    const strategyReady = strategyData?.status === 'ok' ||
-                          strategyData?.status === 'complete' ||
-                          strategyData?.status === 'pending_blocks';
-    const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
-
-    if (strategyReady && snapshotMatches && phase === 'strategy') {
-      console.log('[enrichment] Strategy ready - moving to blocks phase');
-      setPhase('blocks');
-      setProgress(30);
-    }
-  }, [strategyData, lastSnapshotId, phase]);
-
-  // Stop enrichment when blocks are loaded
-  useEffect(() => {
-    if (hasBlocks) {
-      setPhase('idle');
-      setProgress(100);
-    }
-  }, [hasBlocks]);
-
-  // Update progress bar every 500ms for smooth animation
-  useEffect(() => {
-    if (!startTime || phase === 'idle') return;
+    if (animatedProgress >= targetProgress) return;
 
     const interval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-
-      if (phase === 'strategy') {
-        // Phase 1: Strategy generation (0-30% over ~15 seconds)
-        const strategyExpected = 15000;
-        const strategyProgress = Math.min(30, (elapsed / strategyExpected) * 30);
-        setProgress(strategyProgress);
-      } else if (phase === 'blocks') {
-        // Phase 2: Blocks generation (30-100% over ~75 seconds)
-        const blocksExpected = 75000;
-        const blocksMax = 120000;
-        const strategyTime = 15000;
-        const blocksElapsed = Math.max(0, elapsed - strategyTime);
-
-        let newProgress;
-        if (blocksElapsed < blocksExpected) {
-          newProgress = 30 + (blocksElapsed / blocksExpected) * 65;
-        } else if (blocksElapsed < blocksMax) {
-          const remainingTime = blocksElapsed - blocksExpected;
-          const remainingProgress = (remainingTime / (blocksMax - blocksExpected)) * 5;
-          newProgress = 95 + remainingProgress;
-        } else {
-          newProgress = 100;
-        }
-
-        setProgress(Math.min(100, newProgress));
-      }
-    }, 500);
+      setAnimatedProgress(prev => {
+        const diff = targetProgress - prev;
+        const step = Math.max(1, diff * 0.15);
+        return Math.min(targetProgress, prev + step);
+      });
+    }, 100);
 
     return () => clearInterval(interval);
-  }, [startTime, phase]);
+  }, [targetProgress, animatedProgress]);
 
-  return { progress, phase, startTime };
+  // Animate strategy card progress smoothly toward target
+  useEffect(() => {
+    if (animatedStrategyProgress >= targetStrategyProgress) return;
+
+    const interval = setInterval(() => {
+      setAnimatedStrategyProgress(prev => {
+        const diff = targetStrategyProgress - prev;
+        const step = Math.max(1, diff * 0.15);
+        return Math.min(targetStrategyProgress, prev + step);
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [targetStrategyProgress, animatedStrategyProgress]);
+
+  // Reset when snapshot changes
+  useEffect(() => {
+    if (!snapshotMatches && coords) {
+      setAnimatedProgress(5);
+      setAnimatedStrategyProgress(5);
+      setStartTime(Date.now());
+    }
+  }, [snapshotMatches, coords]);
+
+  // Log phase changes for debugging
+  useEffect(() => {
+    if (coords) {
+      console.log(`[enrichment] Phase: ${backendPhase} | Bottom: ${Math.round(animatedProgress)}% | Strategy: ${Math.round(animatedStrategyProgress)}%`);
+    }
+  }, [backendPhase, animatedProgress, animatedStrategyProgress, coords]);
+
+  return {
+    progress: Math.round(animatedProgress),
+    strategyProgress: Math.round(animatedStrategyProgress),
+    phase,
+    pipelinePhase: backendPhase,
+    startTime
+  };
 }

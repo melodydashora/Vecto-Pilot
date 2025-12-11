@@ -77,6 +77,7 @@ export const strategies = pgTable("strategies", {
   correlation_id: uuid("correlation_id"),
   strategy: text("strategy"),
   status: text("status").notNull().default("pending"), // pending|ok|failed
+  phase: text("phase").default("starting"), // starting|resolving|analyzing|consolidator|venues|enriching|complete
   trigger_reason: text("trigger_reason"), // 'initial' | 'retry' | 'refresh' - why strategy was generated
   error_code: integer("error_code"),
   error_message: text("error_message"),
@@ -110,6 +111,13 @@ export const strategies = pgTable("strategies", {
   user_resolved_address: text("user_resolved_address"),
   user_resolved_city: text("user_resolved_city"),
   user_resolved_state: text("user_resolved_state"),
+  // Time context (copied from snapshot - eliminates need to re-read snapshot in consolidator)
+  timezone: text("timezone"),
+  local_iso: timestamp("local_iso", { withTimezone: true }),
+  dow: integer("dow"), // 0=Sunday, 6=Saturday
+  hour: integer("hour"),
+  day_part_key: text("day_part_key"),
+  is_holiday: boolean("is_holiday").default(false),
   // Model-agnostic provider outputs (generic columns for parallel multi-model pipeline)
   minstrategy: text("minstrategy"), // Strategic overview from strategist provider (Claude)
   consolidated_strategy: text("consolidated_strategy"), // Actionable summary for Co-Pilot from consolidator (GPT-5)
@@ -122,17 +130,35 @@ export const strategies = pgTable("strategies", {
 });
 
 // Briefing data from Gemini 3.0 Pro with Google Search
+// Contains ONLY briefing data (events, traffic, news, weather, closures)
+// Minstrategy + context is stored in strategies table to avoid race condition
 export const briefings = pgTable("briefings", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
-  // Location data available via snapshot_id JOIN to snapshots table
-  // Structured briefing data from Gemini + Google Search
+
+  // === LEGACY COLUMNS (unused - minstrategy writes to strategies table) ===
+  minstrategy: text("minstrategy"), // UNUSED - kept for migration compatibility
+  formatted_address: text("formatted_address"), // UNUSED
+  city: text("city"), // UNUSED
+  state: text("state"), // UNUSED
+  lat: doublePrecision("lat"), // UNUSED
+  lng: doublePrecision("lng"), // UNUSED
+  timezone: text("timezone"), // UNUSED
+  local_iso: timestamp("local_iso", { withTimezone: true }), // UNUSED
+  dow: integer("dow"), // UNUSED
+  hour: integer("hour"), // UNUSED
+  day_part_key: text("day_part_key"), // UNUSED
+  is_holiday: boolean("is_holiday").default(false), // UNUSED
+  holiday: text("holiday"), // UNUSED
+
+  // === BRIEFING DATA (from Gemini + Google Search) ===
   news: jsonb("news"), // Rideshare-relevant news from Gemini filtering
   weather_current: jsonb("weather_current"), // Current conditions from Google Weather API
   weather_forecast: jsonb("weather_forecast"), // Hourly forecast (next 3-6 hours) from Google Weather API
   traffic_conditions: jsonb("traffic_conditions"), // Traffic data from Google Routes API
   events: jsonb("events"), // Local events affecting rideshare drivers
-  school_closures: jsonb("school_closures"), // School district & college closures/reopenings (array of {schoolName, closureStart, reopeningDate, type, impact})
+  school_closures: jsonb("school_closures"), // School district & college closures/reopenings
+
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -399,17 +425,18 @@ export const llm_venue_suggestions = pgTable("llm_venue_suggestions", {
 
 export const agent_memory = pgTable("agent_memory", {
   id: uuid("id").primaryKey().defaultRandom(),
-  session_id: text("session_id").notNull(),
-  entry_type: text("entry_type").notNull(),
-  title: text("title").notNull(),
+  scope: text("scope").notNull(),
+  key: text("key").notNull(),
+  user_id: uuid("user_id"),
   content: text("content").notNull(),
-  status: text("status").default('active'),
-  metadata: jsonb("metadata"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   expires_at: timestamp("expires_at", { withTimezone: true }),
 }, (table) => ({
-  idxSession: sql`create index if not exists idx_agent_memory_session on ${table} (session_id)`,
-  idxType: sql`create index if not exists idx_agent_memory_type on ${table} (entry_type)`,
+  uniqueScopeKey: sql`unique(scope, key, user_id)`,
+  idxScope: sql`create index if not exists idx_agent_memory_scope on ${table} (scope)`,
+  idxUser: sql`create index if not exists idx_agent_memory_user on ${table} (user_id)`,
+  idxExpires: sql`create index if not exists idx_agent_memory_expires on ${table} (expires_at)`,
 }));
 
 // Enhanced memory tables for thread-aware context tracking

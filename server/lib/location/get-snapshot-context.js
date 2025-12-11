@@ -6,8 +6,9 @@ import { snapshots, users } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
- * MINIMAL context: Only fields needed for quick checks (time context)
- * Used by: minstrategy, consolidator
+ * Strategy context: Fields needed for minstrategy prompt
+ * Includes: location, time, weather, airport - everything the strategist needs
+ * Used by: minstrategy
  */
 export async function getSnapshotContext(snapshotId) {
   const [snapshot] = await db
@@ -28,13 +29,17 @@ export async function getSnapshotContext(snapshotId) {
   if (!snapshot?.formatted_address) {
     throw new Error(`[getSnapshotContext] CRITICAL: Missing formatted_address from snapshot ${snapshotId}`);
   }
-  
+
   const ctx = {
     snapshot_id: snapshot.snapshot_id,
+    // Location
     formatted_address: snapshot.formatted_address,
     city: snapshot.city,
     state: snapshot.state,
+    lat: snapshot.lat,
+    lng: snapshot.lng,
     timezone: snapshot.timezone,
+    // Time
     dow,
     day_of_week,
     is_weekend,
@@ -42,19 +47,28 @@ export async function getSnapshotContext(snapshotId) {
     day_part_key: snapshot.day_part_key,
     local_iso: snapshot.local_iso,
     created_at: snapshot.created_at,
+    // Holiday
     holiday: snapshot.holiday,
-    is_holiday: snapshot.is_holiday
+    is_holiday: snapshot.is_holiday,
+    // Conditions (needed for strategist prompt)
+    weather: snapshot.weather,
+    airport_context: snapshot.airport_context
   };
-  
-  console.log('[getSnapshotContext] ✅ Retrieved minimal snapshot context:', {
+
+  console.log('[getSnapshotContext] ✅ Retrieved snapshot context:', {
     snapshot_id: ctx.snapshot_id,
+    formatted_address: ctx.formatted_address,
     city: ctx.city,
     state: ctx.state,
+    lat: ctx.lat,
+    lng: ctx.lng,
     hour: ctx.hour,
     day_part_key: ctx.day_part_key,
-    is_holiday: ctx.is_holiday
+    is_holiday: ctx.is_holiday,
+    weather: ctx.weather ? { tempF: ctx.weather.tempF, conditions: ctx.weather.conditions } : null,
+    airport: ctx.airport_context?.airport_code || null
   });
-  
+
   return ctx;
 }
 
