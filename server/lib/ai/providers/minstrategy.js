@@ -1,5 +1,7 @@
 // server/lib/providers/minstrategy.js
 // Strategist provider - model-agnostic (uses callModel adapter)
+// Writes minstrategy + context to STRATEGIES table only
+// Consolidator reads minstrategy from strategies, briefing data from briefings
 
 import { db } from '../../../db/drizzle.js';
 import { strategies } from '../../../../shared/schema.js';
@@ -67,22 +69,35 @@ Provide a brief strategic assessment of positioning opportunities for the next h
     
     const text = result.output;
     
-    // Write to model-agnostic field
-    // NOTE: Using status='partial' to avoid premature NOTIFY - consolidator will set 'ok' when done
+    // Write minstrategy + context to STRATEGIES table only
+    // Consolidator reads minstrategy from here, briefing data from briefings table
+    // This avoids race condition since minstrategy and briefing write to DIFFERENT tables
     try {
       await db.execute(sql`
         UPDATE strategies
         SET
           minstrategy = ${text},
           status = 'partial',
+          -- Location context (for consolidator)
           user_resolved_address = ${ctx.formatted_address},
           user_resolved_city = ${ctx.city},
           user_resolved_state = ${ctx.state},
+          lat = ${ctx.lat},
+          lng = ${ctx.lng},
+          -- Time context (for consolidator)
+          timezone = ${ctx.timezone},
+          local_iso = ${ctx.local_iso ? new Date(ctx.local_iso) : null},
+          dow = ${ctx.dow},
+          hour = ${ctx.hour},
+          day_part_key = ${ctx.day_part_key},
+          is_holiday = ${ctx.is_holiday || false},
+          holiday = ${ctx.holiday || null},
           strategy_timestamp = NOW(),
           updated_at = NOW()
         WHERE snapshot_id = ${snapshotId}
       `);
-      triadLog.done(1, `Saved (${text?.length || 0} chars)`);
+
+      triadLog.done(1, `Saved to strategies (${text?.length || 0} chars)`);
     } catch (dbError) {
       triadLog.error(1, `DB write failed for ${snapshotId.slice(0, 8)}`, dbError);
       // Mark as write_failed for debugging

@@ -107,11 +107,12 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
     );
 
     if (!hasConsolidated) {
-      // Strategy pending - return pending status with timeElapsedMs
+      // Strategy pending - return pending status with phase info
       return res.json({
         status: "pending",
         snapshot_id: snapshotId,
         timeElapsedMs,
+        phase: strategy.phase || 'starting',
         waitFor: ["strategy"],
         strategy: {
           holiday: snapshot?.holiday || 'none',
@@ -158,6 +159,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         status: "pending_blocks",
         snapshot_id: snapshotId,
         timeElapsedMs,
+        phase: strategy.phase || 'venues',
         waitFor: ["blocks"],
         strategy: {
           min: strategy.minstrategy || "",
@@ -175,6 +177,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       status: "ok",
       snapshot_id: snapshotId,
       timeElapsedMs,
+      phase: 'complete',
       strategy: {
         min: strategy.minstrategy || "",
         consolidated: strategy.consolidated_strategy || "",

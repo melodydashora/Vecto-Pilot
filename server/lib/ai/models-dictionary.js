@@ -214,7 +214,7 @@ replit_agent: {
   strategist: {
     provider: 'anthropic',
     model_id: 'claude-opus-4-5-20251101',
-    model_name: 'Claude Sonnet 4.5 (Strategist)',
+    model_name: 'Claude OPUS 4.5 (Strategist)',
     context_window: 200000,
     max_output_tokens: 4000,
     api_endpoint: 'https://api.anthropic.com/v1/messages',

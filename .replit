@@ -33,22 +33,6 @@ externalPort = 5000
 localPort = 9323
 externalPort = 3003
 
-[[ports]]
-localPort = 38339
-externalPort = 3002
-
-[[ports]]
-localPort = 41475
-externalPort = 4200
-
-[[ports]]
-localPort = 44085
-externalPort = 3000
-
-[[ports]]
-localPort = 46149
-externalPort = 3001
-
 # Workflows
 [workflows]
 runButton = "Run App"
@@ -64,6 +48,21 @@ args = "set -a && . mono-mode.env && set +a && npm run start:replit"
 
 [agent]
 integrations = ["perplexity_v0:1.0.0"]
+expertMode = true
+
+[assistant]
+# System prompt for Replit IDE Assistant
+system_prompt = """
+You are Replit Assistant Enhanced. You have FULL shell execution capabilities.
+RUN bash commands directly - do NOT just suggest them.
+You have web_search and web_fetch tools via Anthropic API.
+If asked who you are, respond: 'I am Replit Assistant Enhanced with web search, web fetch, and full shell capabilities.'
+DO NOT say you cannot run shell commands or search the web - you CAN and SHOULD do both.
+"""
+model = "claude-opus-4-5-20251101"
+web_search = true
+web_fetch = true
+shell_exec = true
 
 [userenv]
 

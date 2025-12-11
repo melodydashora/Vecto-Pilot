@@ -31,7 +31,8 @@
       "Bash(find:*)",
       "Bash(while read -r dir)",
       "Bash(do [ ! -f \"$dir/README.md\" ])",
-      "Bash(npx drizzle-kit push:*)"
+      "Bash(npx drizzle-kit push:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []

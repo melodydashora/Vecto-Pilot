@@ -236,6 +236,9 @@ const CoPilot: React.FC = () => {
   });
 
   // ===== BRIEFING TAB QUERIES (using extracted hook) =====
+  // Note: pipelinePhase is used to delay queries until briefing data is ready
+  // Get phase directly from strategyData since useEnrichmentProgress is called later
+  const currentPipelinePhase = (strategyData?.phase as import('@/types/co-pilot').PipelinePhase) || 'starting';
   const {
     weatherData,
     trafficData,
@@ -243,7 +246,7 @@ const CoPilot: React.FC = () => {
     eventsData,
     schoolClosuresData,
     isLoading: _briefingLoading
-  } = useBriefingQueries({ snapshotId: lastSnapshotId });
+  } = useBriefingQueries({ snapshotId: lastSnapshotId, pipelinePhase: currentPipelinePhase });
 
   // NOTE: Enrichment progress state is tracked via useEnrichmentProgress hook
   // (called after blocksData query below)
@@ -478,7 +481,7 @@ const CoPilot: React.FC = () => {
 
   // Enrichment progress tracking (using extracted hook)
   const hasBlocks = (blocksData?.blocks?.length ?? 0) > 0;
-  const { progress: enrichmentProgress, phase: enrichmentPhase } = useEnrichmentProgress({
+  const { progress: enrichmentProgress, strategyProgress, phase: enrichmentPhase, pipelinePhase } = useEnrichmentProgress({
     coords: coords ? { latitude: coords.latitude, longitude: coords.longitude } : null,
     strategyData: strategyData as StrategyData | null,
     lastSnapshotId,
@@ -1001,42 +1004,38 @@ const CoPilot: React.FC = () => {
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-semibold text-blue-900">⏳ Generating your strategy...</p>
                       <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                        {enrichmentPhase === 'strategy' ? 'Analyzing' : enrichmentPhase === 'blocks' ? 'Finding Venues' : 'Starting'}
+                        {pipelinePhase === 'starting' && 'Starting'}
+                        {pipelinePhase === 'resolving' && 'Resolving'}
+                        {pipelinePhase === 'analyzing' && 'Analyzing'}
+                        {pipelinePhase === 'consolidator' && 'Consolidating'}
                       </Badge>
                     </div>
                     <p className="text-xs text-blue-700 mb-3">
-                      {enrichmentPhase === 'strategy' 
-                        ? '📊 Analyzing location, traffic, weather, and demand patterns...' 
-                        : enrichmentPhase === 'blocks'
-                        ? '🏢 Identifying high-earning venues and staging areas...'
-                        : 'Getting location...'}
+                      {pipelinePhase === 'starting' && '🚀 Starting...'}
+                      {pipelinePhase === 'resolving' && '📍 Examining location and resolving area...'}
+                      {pipelinePhase === 'analyzing' && '🔍 Researching traffic, local events, and rideshare news...'}
+                      {pipelinePhase === 'consolidator' && '🔄 Consolidating strategy...'}
                     </p>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs text-blue-700">
                         <span>Progress</span>
-                        <span className="font-mono">{Math.round(enrichmentProgress)}%</span>
+                        <span className="font-mono">{strategyProgress}%</span>
                       </div>
                       <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
-                        <div 
+                        <div
                           className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
-                          style={{ 
-                            width: `${Math.min(enrichmentProgress, 100)}%`
+                          style={{
+                            width: `${Math.min(strategyProgress, 100)}%`
                           }}
                         />
                       </div>
                       <div className="space-y-1 mt-2">
                         <p className="text-xs text-blue-600 italic">
-                          {enrichmentPhase === 'strategy' && '📍 Step 1 of 2: Strategy Analysis'}
-                          {enrichmentPhase === 'blocks' && '🎯 Step 2 of 2: Venue Discovery'}
-                          {enrichmentPhase === 'idle' && '⏳ Initializing...'}
+                          {pipelinePhase === 'starting' && '⏳ Step 1/4: Starting'}
+                          {pipelinePhase === 'resolving' && '📍 Step 2/4: Examining Location'}
+                          {pipelinePhase === 'analyzing' && '🔍 Step 3/4: Researching Area'}
+                          {pipelinePhase === 'consolidator' && '🔄 Step 4/4: Building Strategy'}
                         </p>
-                        {enrichmentPhase === 'blocks' && (
-                          <p className="text-xs text-blue-600">
-                            {enrichmentProgress < 50 && 'Fetching venue data...'}
-                            {enrichmentProgress >= 50 && enrichmentProgress < 80 && 'Calculating distance & drive time...'}
-                            {enrichmentProgress >= 80 && 'Finalizing recommendations...'}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -1091,13 +1090,41 @@ const CoPilot: React.FC = () => {
                 <div className="flex items-center gap-3 mb-4">
                   <RefreshCw className="w-6 h-6 text-blue-600 animate-spin flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="text-gray-800 font-semibold">AI is analyzing your area...</p>
-                    <p className="text-gray-600 text-sm mb-3">Finding optimal venues with real-time data · This may take up to 3 minutes</p>
+                    <p className="text-gray-800 font-semibold">
+                      {pipelinePhase === 'starting' && 'Starting...'}
+                      {pipelinePhase === 'resolving' && 'Examining location...'}
+                      {pipelinePhase === 'analyzing' && 'Analyzing area...'}
+                      {pipelinePhase === 'consolidator' && 'Building strategy...'}
+                      {pipelinePhase === 'venues' && 'Looking for best venues...'}
+                      {pipelinePhase === 'enriching' && 'Enriching venue data...'}
+                      {pipelinePhase === 'complete' && 'Loading venues and map...'}
+                    </p>
+                    <p className="text-gray-600 text-sm mb-3">
+                      {pipelinePhase === 'starting' && 'Initializing AI pipeline...'}
+                      {pipelinePhase === 'resolving' && 'Resolving your location and examining the area...'}
+                      {pipelinePhase === 'analyzing' && 'Examining late night venues and evaluating conditions...'}
+                      {pipelinePhase === 'consolidator' && 'Strategy complete! Consolidating insights...'}
+                      {pipelinePhase === 'venues' && 'Finding optimal venues near you...'}
+                      {pipelinePhase === 'enriching' && 'Calculating distances, drive times, and rankings...'}
+                      {pipelinePhase === 'complete' && 'Almost done! Loading venue cards and map...'}
+                    </p>
+                    <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                      <span>
+                        {pipelinePhase === 'starting' && 'Step 1/6: Starting'}
+                        {pipelinePhase === 'resolving' && 'Step 2/6: Location'}
+                        {pipelinePhase === 'analyzing' && 'Step 3/6: Research'}
+                        {pipelinePhase === 'consolidator' && 'Step 4/6: Strategy'}
+                        {pipelinePhase === 'venues' && 'Step 5/6: Venues'}
+                        {pipelinePhase === 'enriching' && 'Step 6/6: Enrichment'}
+                        {pipelinePhase === 'complete' && 'Complete!'}
+                      </span>
+                      <span className="font-mono">{enrichmentProgress}%</span>
+                    </div>
                     <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 rounded-full"
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 rounded-full transition-all duration-500 ease-out"
                         style={{
-                          animation: 'progressBar 180s linear forwards',
+                          width: `${enrichmentProgress}%`
                         }}
                       />
                     </div>

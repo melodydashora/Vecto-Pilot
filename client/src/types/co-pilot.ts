@@ -86,10 +86,16 @@ export interface FeedbackModalState {
 
 export type TabType = 'strategy' | 'venues' | 'briefing' | 'map' | 'donation';
 
+// Backend pipeline phases (from strategies.phase column)
+// Full pipeline: starting → resolving → analyzing → consolidator → venues → enriching → complete
+export type PipelinePhase = 'starting' | 'resolving' | 'analyzing' | 'consolidator' | 'venues' | 'enriching' | 'complete';
+
+// Legacy frontend phases (kept for backwards compatibility)
 export type EnrichmentPhase = 'idle' | 'strategy' | 'blocks';
 
 export interface StrategyData {
   status?: string;
+  phase?: PipelinePhase;
   strategy?: {
     consolidated?: string;
     strategy_for_now?: string;

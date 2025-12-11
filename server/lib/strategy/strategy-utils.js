@@ -219,3 +219,22 @@ export function normalizeBriefingShape(briefing) {
     traffic: Array.isArray(briefing?.traffic) ? briefing.traffic : []
   };
 }
+
+/**
+ * Update pipeline phase for a snapshot's strategy
+ * Phases: starting → strategist → briefer → consolidator → venues → complete
+ *
+ * @param {string} snapshotId - UUID of snapshot
+ * @param {string} phase - Phase name (strategist|briefer|consolidator|venues|complete)
+ * @returns {Promise<void>}
+ */
+export async function updatePhase(snapshotId, phase) {
+  try {
+    await db.update(strategies)
+      .set({ phase })
+      .where(eq(strategies.snapshot_id, snapshotId));
+    console.log(`[phase] ${snapshotId.slice(0, 8)} → ${phase}`);
+  } catch (error) {
+    console.warn(`[updatePhase] Failed to update phase: ${error.message}`);
+  }
+}
