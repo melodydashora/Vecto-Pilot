@@ -99,14 +99,19 @@ export async function getRouteWithTraffic(origin, destination, options = {}) {
 
 /**
  * Calculate multiple routes in batch (Compute Route Matrix)
- * @param {Array} origins - [{lat, lng}, ...]
- * @param {Array} destinations - [{lat, lng}, ...]
+ * OPTIMIZATION: 1 API call for N destinations instead of N calls
+ *
+ * @param {Array} origins - [{lat, lng}, ...] (typically just 1 - driver location)
+ * @param {Array} destinations - [{lat, lng}, ...] (venue locations)
  * @param {Object} options - {departureTime, trafficModel, travelMode}
  * @returns {Promise<Array>} Array of {originIndex, destinationIndex, distanceMeters, durationSeconds}
  */
 export async function getRouteMatrix(origins, destinations, options = {}) {
+  // Default to 30 seconds in the future (Routes API requires future timestamp)
+  const futureTime = new Date(Date.now() + 30000).toISOString();
+
   const {
-    departureTime = new Date().toISOString(),
+    departureTime = futureTime,
     trafficModel = 'TRAFFIC_AWARE',
     travelMode = 'DRIVE'
   } = options;
@@ -143,7 +148,7 @@ export async function getRouteMatrix(origins, destinations, options = {}) {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
-        'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,distanceMeters,status'
+        'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,distanceMeters,status,condition'
       },
       body: JSON.stringify(requestBody)
     });
@@ -154,15 +159,45 @@ export async function getRouteMatrix(origins, destinations, options = {}) {
       throw new Error(`Route Matrix API failed: ${response.status}`);
     }
 
-    const data = await response.json();
+    // Route Matrix API can return either:
+    // 1. JSON array (pretty-printed) - single parseable JSON
+    // 2. NDJSON (newline-delimited) - each line is a JSON object
+    const text = await response.text();
 
-    return data.map(item => ({
-      originIndex: item.originIndex,
-      destinationIndex: item.destinationIndex,
+    let items = [];
+
+    // First, try parsing as a complete JSON array
+    try {
+      const parsed = JSON.parse(text);
+      items = Array.isArray(parsed) ? parsed : [parsed];
+    } catch (_jsonErr) {
+      // Fallback: Try NDJSON format (one JSON object per line)
+      const lines = text.trim().split('\n').filter(line => line.trim());
+      for (const line of lines) {
+        try {
+          const item = JSON.parse(line);
+          items.push(item);
+        } catch (_lineErr) {
+          // Skip unparseable lines (could be partial JSON from pretty-printing)
+        }
+      }
+    }
+
+    if (items.length === 0) {
+      console.error('[Route Matrix API] Could not parse response:', text.substring(0, 500));
+      throw new Error('Route Matrix API returned no valid results');
+    }
+
+    // Normalize the results
+    const results = items.map(item => ({
+      originIndex: item.originIndex || 0,
+      destinationIndex: item.destinationIndex || 0,
       distanceMeters: item.distanceMeters || 0,
       durationSeconds: parseInt(item.duration?.replace('s', '') || '0'),
-      status: item.status
+      status: item.status?.code || item.condition || 'OK'
     }));
+
+    return results;
   } catch (error) {
     console.error('[Route Matrix API] Request failed:', error.message);
     throw error;

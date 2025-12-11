@@ -340,6 +340,39 @@ router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership
   }
 });
 
+router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+  try {
+    // FETCH-ONCE: Just read cached airport data from DB
+    const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
+
+    // Default fallback structure
+    const defaultAirport = {
+      airports: [],
+      busyPeriods: [],
+      recommendations: null,
+      isFallback: true
+    };
+
+    res.json({
+      success: true,
+      airport_conditions: briefing?.airport_conditions || defaultAirport,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error fetching airport conditions:', error);
+    res.json({
+      success: true,
+      airport_conditions: {
+        airports: [],
+        busyPeriods: [],
+        recommendations: null,
+        isFallback: true
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 router.post('/confirm-event-details', requireAuth, async (req, res) => {
   try {
     const { events } = req.body;

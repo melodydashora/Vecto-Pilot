@@ -75,12 +75,14 @@ export async function isStrategyReady(snapshotId) {
       return { ready: false };
     }
 
-    // Ready when consolidated_strategy exists (GPT-5 consolidated output)
-    const ready = Boolean(strategyRow.consolidated_strategy);
-    
+    // Ready when strategy_for_now exists (immediate 1-hour tactical strategy)
+    // NOTE: consolidated_strategy is the "daily" strategy generated on-demand
+    // The pipeline generates strategy_for_now first, then blocks
+    const ready = Boolean(strategyRow.strategy_for_now);
+
     return {
       ready,
-      strategy: strategyRow.consolidated_strategy,
+      strategy: strategyRow.strategy_for_now,
       status: strategyRow.status
     };
   } catch (error) {

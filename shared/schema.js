@@ -106,20 +106,21 @@ export const strategies = pgTable("strategies", {
   consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (user-request only)
 });
 
-// Briefing data from Gemini 3.0 Pro with Google Search
-// Contains ONLY briefing data (events, traffic, news, weather, closures)
+// Briefing data from Perplexity Sonar Pro + Gemini 3.0 Pro with Google Search
+// Contains ONLY briefing data (events, traffic, news, weather, closures, airport)
 // All location/time context comes from snapshot via snapshot_id FK
 export const briefings = pgTable("briefings", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
 
-  // === BRIEFING DATA (from Gemini + Google Search) ===
-  news: jsonb("news"), // Rideshare-relevant news from Gemini filtering
+  // === BRIEFING DATA (from Perplexity + Gemini + Google APIs) ===
+  news: jsonb("news"), // Rideshare-relevant news
   weather_current: jsonb("weather_current"), // Current conditions from Google Weather API
   weather_forecast: jsonb("weather_forecast"), // Hourly forecast (next 3-6 hours) from Google Weather API
-  traffic_conditions: jsonb("traffic_conditions"), // Traffic data from Gemini
-  events: jsonb("events"), // Local events affecting rideshare drivers
+  traffic_conditions: jsonb("traffic_conditions"), // Traffic: incidents, construction, closures, demand zones
+  events: jsonb("events"), // Local events: concerts, sports, festivals, nightlife, comedy
   school_closures: jsonb("school_closures"), // School district & college closures/reopenings
+  airport_conditions: jsonb("airport_conditions"), // Airport: delays, arrivals, busy periods, recommendations
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

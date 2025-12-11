@@ -48,7 +48,8 @@
       "Bash([ -f \"$base.ts\" ])",
       "Bash([ -d \"$base\" ])",
       "Bash(else)",
-      "Bash(npm run lint:*)"
+      "Bash(npm run lint:*)",
+      "Bash(node --check:*)"
     ],
     "deny": [],
     "ask": []

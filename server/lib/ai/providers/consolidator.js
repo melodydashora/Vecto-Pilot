@@ -72,12 +72,21 @@ ${JSON.stringify(briefing.traffic, null, 2)}
 ${JSON.stringify(briefing.events, null, 2)}
 
 === YOUR TASK ===
-Generate a concise 2-3 sentence tactical instruction for what the driver should do RIGHT NOW.
-Be specific: name locations, reference events/traffic from the data above.
-Focus on the NEXT 1 HOUR only.
+Generate a tactical instruction for what the driver should do RIGHT NOW (next 1-2 hours).
+Be specific: name exact locations, venues, and reference events/traffic from the data above.
 
-Format: Start with "HEAD TO..." or "POSITION AT..." or "STAY NEAR..." - be directive and actionable.`;
+FORMAT REQUIREMENTS:
+- Start with "POSITION AT **[Location Name]**" or "HEAD TO **[Location Name]**"
+- Use **bold** for all venue names, road names, and key locations
+- Write 1 focused paragraph (4-6 sentences max)
+- Include specific timing windows if relevant (e.g., "by 4:30 PM", "until 6 PM")
+- Mention specific events by name if they're happening soon
+- Note any traffic hazards to avoid
 
+Be directive and actionable. Focus on the NEXT 1-2 HOURS only.`;
+
+    // GPT-5.2 with reasoning_effort for faster, smarter tactical strategy
+    // Using "low" reasoning for speed - this is a quick 1-hour tactical decision
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -85,17 +94,18 @@ Format: Start with "HEAD TO..." or "POSITION AT..." or "STAY NEAR..." - be direc
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-5.1',
+        model: 'gpt-5.2',
         messages: [
           { role: 'user', content: prompt }
         ],
-        max_completion_tokens: 500
+        reasoning_effort: 'low',  // Fast reasoning for tactical decisions
+        max_completion_tokens: 1000
       })
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      aiLog.warn(1, `Immediate strategy failed (${response.status}): ${errText.substring(0, 100)}`, OP.AI);
+      aiLog.warn(1, `[GPT-5.2] Immediate strategy failed (${response.status}): ${errText.substring(0, 100)}`, OP.AI);
       return { strategy: '' };
     }
 
@@ -103,11 +113,11 @@ Format: Start with "HEAD TO..." or "POSITION AT..." or "STAY NEAR..." - be direc
     const strategy = data.choices?.[0]?.message?.content || '';
 
     if (strategy) {
-      aiLog.done(1, `Immediate strategy (${strategy.length} chars)`, OP.AI);
+      aiLog.done(1, `[GPT-5.2] Immediate strategy (${strategy.length} chars)`, OP.AI);
       return { strategy };
     }
 
-    aiLog.warn(1, `Empty immediate strategy response`, OP.AI);
+    aiLog.warn(1, `[GPT-5.2] Empty immediate strategy response`, OP.AI);
     return { strategy: '' };
   } catch (error) {
     aiLog.warn(1, `Immediate strategy call failed: ${error.message}`, OP.AI);

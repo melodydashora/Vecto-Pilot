@@ -149,6 +149,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
         businessHours: c.business_hours,
         isOpen: c.features?.isOpen,
+        streetViewUrl: c.features?.streetViewUrl,
         eventBadge: c.venue_events?.badge,
         eventSummary: c.venue_events?.summary,
         ranking_id: ranking.ranking_id,
