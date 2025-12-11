@@ -185,8 +185,11 @@ export default function BarsTable({ blocks }: BarsTableProps) {
     return isBevenue && isNotCommon;
   });
 
-  // Filter out closed venues - only show open or unknown status
-  const openBars = bars.filter((bar) => bar.isOpen !== false);
+  // Filter out closed venues AND venues with unknown hours
+  // Only show venues that are explicitly open (isOpen === true)
+  const openBars = bars.filter((bar) => {
+    return bar.isOpen === true;
+  });
 
   if (openBars.length === 0) {
     return null;

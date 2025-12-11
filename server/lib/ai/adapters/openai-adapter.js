@@ -22,20 +22,28 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
     const isGPT5Family = model.startsWith("gpt-5");
     const isO1Family = model.startsWith("o1-");
     const useCompletionTokens = isGPT5Family || isO1Family;
-    
+
     if (useCompletionTokens) {
       body.max_completion_tokens = maxTokens;
     } else {
       body.max_tokens = maxTokens;
     }
 
-    // GPT-5.1 does NOT support temperature - use reasoning_effort only
-    // o1 models also use reasoning_effort, not temperature
+    // GPT-5 family model behavior:
+    // - GPT-5.1: reasoning_effort only, NO temperature support
+    // - GPT-5.2: reasoning_effort + temperature both supported
+    // - o1 models: reasoning_effort only, NO temperature support
     const isGPT51 = model.includes('gpt-5.1');
+    const isGPT52 = model.includes('gpt-5.2');
+
+    // Add reasoning_effort for models that support it
     if (reasoningEffort && (isGPT5Family || isO1Family)) {
       body.reasoning_effort = reasoningEffort;
-      // CRITICAL: Don't set temperature for GPT-5.1 or o1 models (API will reject it)
-    } else if (!isGPT51 && temperature !== undefined) {
+    }
+
+    // GPT-5.2 supports temperature alongside reasoning_effort
+    // GPT-5.1 and o1 do NOT support temperature
+    if (temperature !== undefined && !isGPT51 && !isO1Family) {
       body.temperature = temperature;
     }
 

@@ -128,16 +128,38 @@ export function useBriefingQueries({ snapshotId, pipelinePhase }: BriefingQuerie
     ...fetchOnceConfig,
   });
 
+  const airportQuery = useQuery({
+    queryKey: ['/api/briefing/airport', snapshotId],
+    queryFn: async () => {
+      console.log('[BriefingQuery] ✈️ Fetching airport conditions (once) for', snapshotId?.slice(0, 8));
+      if (!snapshotId) return { airport_conditions: null };
+      const response = await fetch(`/api/briefing/airport/${snapshotId}`, {
+        headers: getAuthHeader()
+      });
+      if (!response.ok) {
+        console.error('[BriefingQuery] Airport failed:', response.status);
+        return { airport_conditions: null };
+      }
+      const data = await response.json();
+      console.log('[BriefingQuery] ✅ Airport conditions received:', data?.airport_conditions?.airports?.length || 0, 'airports');
+      return data;
+    },
+    enabled: isEnabled,
+    ...fetchOnceConfig,
+  });
+
   return {
     weatherData: weatherQuery.data,
     trafficData: trafficQuery.data,
     newsData: newsQuery.data,
     eventsData: eventsQuery.data,
     schoolClosuresData: schoolClosuresQuery.data,
+    airportData: airportQuery.data,
     isLoading: {
       weather: weatherQuery.isLoading,
       traffic: trafficQuery.isLoading,
       events: eventsQuery.isLoading,
+      airport: airportQuery.isLoading,
     }
   };
 }

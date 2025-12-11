@@ -3,11 +3,11 @@
 // ENHANCED SMART BLOCKS - Venue Generation Engine
 // ============================================================================
 //
-// PURPOSE: Generates venue recommendations using GPT-5.1 + Google APIs
+// PURPOSE: Generates venue recommendations using GPT-5.2 + Google APIs
 //
 // PIPELINE:
 //   1. Input: immediateStrategy (strategy_for_now) + briefing + snapshot
-//   2. GPT-5.1 Tactical Planner → 4-6 venue recommendations with coords
+//   2. GPT-5.2 Tactical Planner → 4-6 venue recommendations with coords
 //   3. Google Routes API → accurate distances and drive times
 //   4. Google Places API → business hours, addresses, open/closed status
 //   5. Gemini 2.5 Pro → event verification (optional)
@@ -64,7 +64,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
   venuesLog.phase(1, `Input ready: strategy=${immediateStrategy.length}chars, briefing=${Object.keys(briefing).filter(k => briefing[k]).length} fields`);
   
   try {
-    // Step 1: Call GPT-5 Venue Planner with IMMEDIATE strategy (where to go NOW)
+    // Step 1: Call GPT-5.2 Venue Planner with IMMEDIATE strategy (where to go NOW)
     const plannerStart = Date.now();
     const venuesPlan = await generateTacticalPlan({
       strategy: immediateStrategy,  // Uses "where to go NOW" strategy
@@ -73,10 +73,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     const plannerMs = Date.now() - plannerStart;
     
     if (!venuesPlan || !venuesPlan.recommended_venues || venuesPlan.recommended_venues.length === 0) {
-      throw new Error('GPT-5 planner returned no venues');
+      throw new Error('GPT-5.2 planner returned no venues');
     }
 
-    venuesLog.done(1, `GPT-5 planner returned ${venuesPlan.recommended_venues.length} venues`, plannerMs);
+    venuesLog.done(1, `GPT-5.2 planner returned ${venuesPlan.recommended_venues.length} venues`, plannerMs);
     
     // Step 2: Enrich venues with Google APIs (Places, Routes, Geocoding)
     const enrichmentStart = Date.now();
@@ -115,7 +115,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     const verifiedEventsJson = JSON.stringify(verifiedEvents);
     
     // Step 3: Create ranking record (use env var for model name)
-    const venuePlannerModel = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.1';
+    const venuePlannerModel = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.2';
     await db.insert(rankings).values({
       ranking_id: rankingId,
       snapshot_id: snapshotId,
@@ -191,7 +191,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
           pro_tips: enriched.pro_tips,
           strategic_timing: enriched.strategic_timing,
           isOpen: enriched.isOpen,
-          address: enriched.address
+          address: enriched.address,
+          streetViewUrl: enriched.streetViewUrl
         },
         h3_r8: null,
         estimated_distance_miles: distanceMiles,

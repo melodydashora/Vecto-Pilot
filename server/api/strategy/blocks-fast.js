@@ -217,6 +217,7 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
       closed_venue_reasoning: c.closed_reasoning,
       stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
       isOpen: c.features?.isOpen,
+      streetViewUrl: c.features?.streetViewUrl,
       eventBadge: c.venue_events?.badge,
       eventSummary: c.venue_events?.summary,
     };
@@ -267,6 +268,7 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
 // ISSUE #24 FIX: Rate limited to prevent quota exhaustion
 router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   const snapshotId = req.query.snapshotId || req.query.snapshot_id;
+  venuesLog.info(`[blocks-fast] GET request for ${snapshotId?.slice(0, 8) || 'unknown'}`);
 
   if (!snapshotId) {
     return res.status(400).json({ error: 'snapshot_required' });
@@ -275,6 +277,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   try {
     // GATE 1: Strategy must be ready before blocks
     const { ready, strategy, status } = await isStrategyReady(snapshotId);
+    venuesLog.info(`[blocks-fast] Strategy check: ready=${ready}, status=${status}`);
 
     if (!ready) {
       return res.status(202).json({
@@ -290,7 +293,8 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
     const briefing = strategyRow ? {
-      consolidated_strategy: strategyRow.consolidated_strategy || null
+      consolidated_strategy: strategyRow.consolidated_strategy || null,
+      strategy_for_now: strategyRow.strategy_for_now || null
     } : null;
 
     // Fetch snapshot for holiday status check

@@ -8,10 +8,12 @@ This document lists all enabled Google Cloud APIs available via `GOOGLE_CLOUD_AP
 |-----|-------|------|
 | **Geocoding API** | GPS → Address resolution | `server/api/location/location.js` |
 | **Routes API** | Drive time/distance calculations | `server/lib/venue/venue-enrichment.js` |
+| **Route Matrix API** | Batch distance calculations (1 call for N venues) | `server/lib/external/routes-api.js` |
 | **Places API (New)** | Venue hours, status, details | `server/lib/venue/venue-enrichment.js` |
 | **Weather API** | Current conditions | `server/api/location/location.js` |
 | **Air Quality API** | AQI data | `server/api/location/location.js` |
 | **Time Zone API** | Venue timezone detection | `server/lib/venue/venue-enrichment.js` |
+| **Street View Static API** | Venue preview images | `server/lib/external/streetview-api.js` |
 
 ---
 
@@ -184,24 +186,26 @@ const response = await fetch(
 
 ## Recommended Enhancements
 
-### Phase 1: Quick Wins
-1. **Distance Matrix API** - Replace individual Routes API calls with batch requests
-   - Current: N API calls for N venues
-   - Improved: 1 API call for N venues
-   - Benefit: Faster enrichment, lower costs
+### Phase 1: Quick Wins ✅ IMPLEMENTED
+1. **Route Matrix API** - ✅ DONE - Batch distance calculations
+   - Before: N API calls for N venues
+   - After: 1 API call for N venues
+   - Benefit: ~5x faster enrichment, lower costs
+   - File: `server/lib/external/routes-api.js`
 
-2. **Address Validation API** - Validate driver home address
-   - Catch typos in user-entered addresses
-   - Improve geocoding accuracy
+2. **Street View Static API** - ✅ DONE - Venue preview images
+   - Shows drivers what staging areas look like
+   - Helps identify parking spots
+   - File: `server/lib/external/streetview-api.js`
 
 ### Phase 2: Enhanced Intelligence
 3. **Route Optimization API** - Smart multi-venue routing
    - "Visit these 5 venues in optimal order"
    - Factor in closing times, event schedules
 
-4. **Street View Static API** - Venue preview images
-   - Show drivers what staging areas look like
-   - Help identify parking spots
+4. **Address Validation API** - Validate driver home address
+   - Catch typos in user-entered addresses
+   - Improve geocoding accuracy
 
 ### Phase 3: Advanced Features
 5. **Vertex AI API** - Demand prediction ML

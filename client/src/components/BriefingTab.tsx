@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import {
   Newspaper, Cloud, CloudRain, Sun,
   AlertTriangle, Car, Loader, Clock, ExternalLink,
-  ChevronDown, ChevronUp, BookOpen, Sparkles, FileText, Zap
+  ChevronDown, ChevronUp, BookOpen, Sparkles, FileText, Zap,
+  Plane, PlaneLanding, PlaneTakeoff
 } from "lucide-react";
 import { getAuthHeader } from "@/utils/co-pilot-helpers";
 import EventsComponent from "./EventsComponent";
@@ -26,6 +27,38 @@ interface BriefingEvent {
   [key: string]: unknown;
 }
 
+interface AirportDelay {
+  status: string;
+  avgMinutes: number;
+}
+
+interface Airport {
+  code: string;
+  name: string;
+  overallStatus: 'normal' | 'delays' | 'severe_delays';
+  avgDelayMinutes?: number;
+  arrivalDelays?: AirportDelay;
+  departureDelays?: AirportDelay;
+  weather?: string;
+  groundStops?: boolean;
+  tipsForDrivers?: string;
+}
+
+interface BusyPeriod {
+  time: string;
+  airport: string;
+  reason: string;
+}
+
+interface AirportConditions {
+  airports?: Airport[];
+  busyPeriods?: BusyPeriod[];
+  recommendations?: string;
+  fetchedAt?: string;
+  isFallback?: boolean;
+  provider?: string;
+}
+
 interface BriefingTabProps {
   snapshotId?: string;
   weatherData?: unknown;
@@ -33,22 +66,25 @@ interface BriefingTabProps {
   newsData?: unknown;
   eventsData?: { events?: BriefingEvent[]; reason?: string };
   schoolClosuresData?: { school_closures?: SchoolClosure[]; reason?: string };
+  airportData?: { airport_conditions?: AirportConditions };
   consolidatedStrategy?: string;
 }
 
-export default function BriefingTab({ 
-  snapshotId, 
-  weatherData, 
-  trafficData, 
-  newsData, 
-  eventsData, 
+export default function BriefingTab({
+  snapshotId,
+  weatherData,
+  trafficData,
+  newsData,
+  eventsData,
   schoolClosuresData,
+  airportData,
   consolidatedStrategy
 }: BriefingTabProps) {
   const [_expandedWeather, _setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedNews, setExpandedNews] = useState(true);
   const [expandedClosures, setExpandedClosures] = useState(true);
+  const [expandedAirport, setExpandedAirport] = useState(true);
 
   // Daily strategy - on-demand generation
   const [showDailyStrategy, setShowDailyStrategy] = useState(false);
@@ -95,13 +131,14 @@ export default function BriefingTab({
   }, [snapshotId, isGeneratingDaily]);
 
   // Log data received for debugging
-  console.log('[BriefingTab] Received data:', { 
-    snapshotId, 
+  console.log('[BriefingTab] Received data:', {
+    snapshotId,
     hasWeather: !!weatherData,
     hasTraffic: !!trafficData,
     hasNews: !!newsData,
     hasEvents: !!eventsData,
-    hasClosures: !!schoolClosuresData
+    hasClosures: !!schoolClosuresData,
+    hasAirport: !!airportData
   });
   if (eventsData) {
     console.log('[BriefingTab] Events data:', { 
@@ -138,6 +175,22 @@ export default function BriefingTab({
       case 'high': return 'text-red-600';
       case 'medium': return 'text-yellow-600';
       default: return 'text-green-600';
+    }
+  };
+
+  const getAirportStatusColor = (status: string) => {
+    switch (status) {
+      case 'severe_delays': return 'bg-red-100 text-red-700 border-red-300';
+      case 'delays': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+      default: return 'bg-green-100 text-green-700 border-green-300';
+    }
+  };
+
+  const getAirportStatusLabel = (status: string) => {
+    switch (status) {
+      case 'severe_delays': return 'Severe Delays';
+      case 'delays': return 'Delays';
+      default: return 'On Time';
     }
   };
 
@@ -217,6 +270,12 @@ export default function BriefingTab({
   const eventsToday = allEvents;
   const newsItems = (news?.filtered || news?.items || []);
   const newsReason = news?.reason || null;
+
+  // Extract airport data
+  const airportConditions = airportData?.airport_conditions;
+  const airports = airportConditions?.airports || [];
+  const busyPeriods = airportConditions?.busyPeriods || [];
+  const airportRecommendations = airportConditions?.recommendations;
 
   return (
     <div className="space-y-6" data-testid="briefing-container">
@@ -448,9 +507,163 @@ export default function BriefingTab({
         )}
       </Card>
 
+      {/* Airport / Flight Delays Card */}
+      <Card className="bg-gradient-to-r from-sky-50 to-cyan-50 border-sky-200" data-testid="airport-card">
+        <CardHeader
+          className="pb-2 cursor-pointer hover:bg-sky-100/50 transition-colors"
+          onClick={() => setExpandedAirport(!expandedAirport)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              {!airportData ? (
+                <Loader className="w-5 h-5 animate-spin text-sky-600" />
+              ) : (
+                <>
+                  <Plane className="w-5 h-5 text-sky-600" />
+                  Airport Conditions
+                  {airports.length > 0 && (
+                    <Badge variant="outline" className="bg-sky-100 text-sky-700 border-sky-300 ml-2">
+                      {airports.length} {airports.length === 1 ? 'airport' : 'airports'}
+                    </Badge>
+                  )}
+                </>
+              )}
+            </CardTitle>
+            {expandedAirport ? (
+              <ChevronUp className="w-5 h-5 text-sky-600" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-sky-600" />
+            )}
+          </div>
+        </CardHeader>
+        {expandedAirport && (
+          <CardContent>
+            {!airportData ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="w-5 h-5 animate-spin text-sky-600 mr-2" />
+                <span className="text-gray-600">Loading airport data...</span>
+              </div>
+            ) : airports.length > 0 ? (
+              <div className="space-y-4">
+                {/* AI Recommendations */}
+                {airportRecommendations && (
+                  <div className="p-3 bg-gradient-to-r from-sky-100 to-cyan-100 rounded-lg border border-sky-200">
+                    <div className="flex items-start gap-2">
+                      <Sparkles className="w-4 h-4 text-sky-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-sky-800 font-medium">{airportRecommendations}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Airport Cards */}
+                {airports.map((airport, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 bg-white/60 rounded-lg border border-sky-100 hover:border-sky-300 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-lg bg-sky-100">
+                          <Plane className="w-5 h-5 text-sky-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{airport.code}</h4>
+                          <p className="text-xs text-gray-500">{airport.name}</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className={getAirportStatusColor(airport.overallStatus)}>
+                        {getAirportStatusLabel(airport.overallStatus)}
+                      </Badge>
+                    </div>
+
+                    {/* Delay Info */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      {/* Arrivals */}
+                      <div className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-100">
+                        <PlaneLanding className="w-4 h-4 text-green-600" />
+                        <div>
+                          <p className="text-xs text-gray-500">Arrivals</p>
+                          <p className="text-sm font-medium text-gray-700">
+                            {airport.arrivalDelays?.status === 'none' ? 'On Time' :
+                              airport.arrivalDelays?.avgMinutes ? `~${airport.arrivalDelays.avgMinutes} min delay` :
+                                airport.arrivalDelays?.status || 'Normal'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Departures */}
+                      <div className="flex items-center gap-2 p-2 bg-blue-50 rounded border border-blue-100">
+                        <PlaneTakeoff className="w-4 h-4 text-blue-600" />
+                        <div>
+                          <p className="text-xs text-gray-500">Departures</p>
+                          <p className="text-sm font-medium text-gray-700">
+                            {airport.departureDelays?.status === 'none' ? 'On Time' :
+                              airport.departureDelays?.avgMinutes ? `~${airport.departureDelays.avgMinutes} min delay` :
+                                airport.departureDelays?.status || 'Normal'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Ground Stops Warning */}
+                    {airport.groundStops && (
+                      <div className="flex items-center gap-2 p-2 bg-red-50 rounded border border-red-200 mb-3">
+                        <AlertTriangle className="w-4 h-4 text-red-600" />
+                        <span className="text-sm font-medium text-red-700">Ground Stop in Effect</span>
+                      </div>
+                    )}
+
+                    {/* Weather */}
+                    {airport.weather && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                        <Cloud className="w-4 h-4 text-gray-400" />
+                        <span>{airport.weather}</span>
+                      </div>
+                    )}
+
+                    {/* Tips for Drivers */}
+                    {airport.tipsForDrivers && (
+                      <div className="p-2 bg-amber-50 rounded border border-amber-200">
+                        <p className="text-sm text-amber-800">
+                          <span className="font-medium">Tip:</span> {airport.tipsForDrivers}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Busy Periods */}
+                {busyPeriods.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-sky-600" />
+                      Busy Pickup Periods
+                    </p>
+                    {busyPeriods.map((period, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-2 bg-white/50 rounded border border-sky-100">
+                        <Badge variant="outline" className="bg-sky-100 text-sky-700 border-sky-300 font-mono text-xs">
+                          {period.time}
+                        </Badge>
+                        <span className="text-sm text-gray-600">
+                          <span className="font-medium">{period.airport}</span> - {period.reason}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">
+                {airportConditions?.isFallback ? 'Airport data temporarily unavailable' : 'No airports within 40 miles'}
+              </p>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
       {/* Rideshare News Card */}
       <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200" data-testid="rideshare-news-card">
-        <CardHeader 
+        <CardHeader
           className="pb-2 cursor-pointer hover:bg-purple-100/50 transition-colors"
           onClick={() => setExpandedNews(!expandedNews)}
         >

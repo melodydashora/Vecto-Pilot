@@ -7,6 +7,14 @@ import { z } from 'zod';
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
 import Anthropic from "@anthropic-ai/sdk";
 import { briefingLog, OP } from '../../logger/workflow.js';
+// Perplexity Sonar Pro for parallel web searches (primary provider)
+import {
+  searchEventsParallel as perplexitySearchEvents,
+  searchRideshareNews as perplexitySearchNews,
+  searchTrafficConditions as perplexitySearchTraffic,
+  searchAirportConditions as perplexitySearchAirport,
+  searchBriefingDataParallel as perplexitySearchAll
+} from '../external/perplexity-api.js';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -343,12 +351,143 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
   return mapped;
 }
 
-async function fetchEventsWithGemini3ProPreview({ snapshot }) {
-  if (!process.env.GEMINI_API_KEY) {
-    briefingLog.error(2, `GEMINI_API_KEY not set`, null, OP.AI);
-    return [];
+/**
+ * PARALLEL EVENT CATEGORIES - Each category is searched independently for better coverage
+ * This replaces the single monolithic search with 5 focused parallel searches
+ */
+const EVENT_CATEGORIES = [
+  {
+    name: 'concerts_music',
+    searchTerms: (city, state, date) => `concerts live music shows ${city} ${state} ${date}`,
+    eventTypes: ['concert', 'live_music', 'festival']
+  },
+  {
+    name: 'sports',
+    searchTerms: (city, state, date) => `sports games ${city} ${state} ${date} NBA NFL NHL MLB MLS college`,
+    eventTypes: ['sports', 'game']
+  },
+  {
+    name: 'comedy_theater',
+    searchTerms: (city, state, date) => `comedy shows theater performances ${city} ${state} ${date}`,
+    eventTypes: ['comedy', 'performance']
+  },
+  {
+    name: 'nightlife',
+    searchTerms: (city, state, date) => `nightclub events bar events ${city} ${state} tonight ${date}`,
+    eventTypes: ['nightlife', 'club']
+  },
+  {
+    name: 'community',
+    searchTerms: (city, state, date) => `festivals parades community events ${city} ${state} ${date}`,
+    eventTypes: ['festival', 'parade', 'community']
+  }
+];
+
+/**
+ * Fetch events for a single category - used in parallel
+ * Uses lower thinking level for speed since these are focused searches
+ */
+async function fetchEventCategory({ category, city, state, lat, lng, date, timezone }) {
+  const prompt = `Find ${category.name.replace('_', ' ')} events in ${city}, ${state} TODAY (${date}).
+
+SEARCH: "${category.searchTerms(city, state, date)}"
+
+Return JSON array (max 3 events):
+[{"title":"Event","venue":"Venue","address":"Address","event_time":"7 PM","subtype":"${category.eventTypes[0]}","impact":"high"}]
+
+Return [] if none found.`;
+
+  try {
+    // Use callGeminiForEvents with LOW thinking for speed (parallel searches)
+    const result = await callGeminiForEvents({ prompt, maxTokens: 4096 });
+
+    if (!result.ok) {
+      return { category: category.name, items: [], error: result.error };
+    }
+
+    const parsed = safeJsonParse(result.output);
+    const items = Array.isArray(parsed) ? parsed : [];
+    return { category: category.name, items: items.filter(e => e.title && e.venue) };
+  } catch (err) {
+    return { category: category.name, items: [], error: err.message };
+  }
+}
+
+/**
+ * Specialized Gemini call for event searches - uses LOW thinking for speed
+ */
+async function callGeminiForEvents({ prompt, maxTokens = 4096 }) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return { ok: false, error: 'GEMINI_API_KEY not configured' };
   }
 
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          tools: [{ google_search: {} }],
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
+          ],
+          generationConfig: {
+            thinkingConfig: {
+              thinkingLevel: "LOW"  // LOW for speed in parallel searches
+            },
+            temperature: 0.1,
+            maxOutputTokens: maxTokens,
+            responseMimeType: "application/json"
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const err = await response.text();
+      return { ok: false, error: `Gemini API ${response.status}: ${err.substring(0, 100)}` };
+    }
+
+    const data = await response.json();
+    const candidate = data.candidates?.[0];
+
+    if (!candidate) {
+      return { ok: false, error: 'No candidates in response' };
+    }
+
+    if (candidate.finishReason === 'MAX_TOKENS') {
+      // Still try to extract what we got
+      const parts = candidate.content?.parts || [];
+      for (const part of parts) {
+        if (part.text && !part.thought) {
+          return { ok: true, output: part.text, truncated: true };
+        }
+      }
+      return { ok: false, error: `Empty response from Gemini (finishReason: MAX_TOKENS, parts: ${parts.length})` };
+    }
+
+    // Extract text content (skip thinking parts)
+    const parts = candidate.content?.parts || [];
+    for (const part of parts) {
+      if (part.text && !part.thought) {
+        return { ok: true, output: part.text };
+      }
+    }
+
+    return { ok: false, error: `Empty response from Gemini (finishReason: ${candidate.finishReason}, parts: ${parts.length})` };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const city = snapshot?.city || 'Frisco';
   const state = snapshot?.state || 'TX';
   const lat = snapshot?.lat || 33.1285;
@@ -363,88 +502,121 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   } else {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
-  const currentTime = `${String(hour).padStart(2, '0')}:00`;
 
-  briefingLog.ai(2, 'Briefer', `events for ${city}, ${state} (${date})`);
+  // TRY PERPLEXITY FIRST (if configured) - faster and has citations
+  if (process.env.PERPLEXITY_API_KEY) {
+    briefingLog.ai(2, 'Perplexity', `events for ${city}, ${state} (${date}) - 5 parallel searches`);
 
-  // Determine time context for search (today vs tonight)
+    try {
+      // Pass formatted address for 25-mile radius search context
+      const formattedAddress = snapshot?.formatted_address;
+      const perplexityResult = await perplexitySearchEvents({ city, state, date, lat, lng, formattedAddress });
+
+      if (perplexityResult.items && perplexityResult.items.length > 0) {
+        briefingLog.done(2, `Perplexity: ${perplexityResult.items.length} events, ${perplexityResult.citations?.length || 0} citations`, OP.AI);
+        return {
+          items: perplexityResult.items,
+          citations: perplexityResult.citations,
+          reason: null,
+          provider: 'perplexity'
+        };
+      }
+
+      // Perplexity returned no results - fall through to Gemini
+      briefingLog.warn(2, `Perplexity returned 0 events - falling back to Gemini`, OP.FALLBACK);
+    } catch (perplexityErr) {
+      briefingLog.warn(2, `Perplexity failed: ${perplexityErr.message} - falling back to Gemini`, OP.FALLBACK);
+    }
+  }
+
+  // FALLBACK TO GEMINI - parallel category searches
+  if (!process.env.GEMINI_API_KEY) {
+    briefingLog.error(2, `Neither PERPLEXITY_API_KEY nor GEMINI_API_KEY set`, null, OP.AI);
+    return { items: [], reason: 'No API keys configured for event search' };
+  }
+
+  briefingLog.ai(2, 'Gemini', `events for ${city}, ${state} (${date}) - 5 parallel searches (fallback)`);
+
+  // PARALLEL CATEGORY SEARCHES - 5 simultaneous searches for better coverage
+  // Each category runs independently, results are merged and deduplicated
+  const startTime = Date.now();
+
+  const categoryPromises = EVENT_CATEGORIES.map(category =>
+    fetchEventCategory({ category, city, state, lat, lng, date, timezone })
+  );
+
+  const categoryResults = await Promise.all(categoryPromises);
+
+  // Merge results from all categories
+  const allEvents = [];
+  const seenTitles = new Set();
+  let totalFound = 0;
+
+  for (const result of categoryResults) {
+    totalFound += result.items.length;
+    for (const event of result.items) {
+      // Deduplicate by title (case-insensitive)
+      const titleKey = event.title?.toLowerCase().trim();
+      if (titleKey && !seenTitles.has(titleKey)) {
+        seenTitles.add(titleKey);
+        allEvents.push(event);
+      }
+    }
+    if (result.error) {
+      briefingLog.warn(2, `Category ${result.category} failed: ${result.error}`, OP.AI);
+    }
+  }
+
+  const elapsedMs = Date.now() - startTime;
+  briefingLog.done(2, `Gemini: ${allEvents.length} unique events (${totalFound} total from 5 searches) in ${elapsedMs}ms`, OP.AI);
+
+  if (allEvents.length === 0) {
+    return { items: [], reason: 'No events found across all categories', provider: 'gemini' };
+  }
+
+  return { items: allEvents, reason: null, provider: 'gemini' };
+}
+
+// Legacy single-search function (kept for fallback reference)
+async function _fetchEventsWithGemini3ProPreviewLegacy({ snapshot }) {
+  if (!process.env.GEMINI_API_KEY) {
+    briefingLog.error(2, `GEMINI_API_KEY not set`, null, OP.AI);
+    return [];
+  }
+
+  const city = snapshot?.city || 'Frisco';
+  const state = snapshot?.state || 'TX';
+  const lat = snapshot?.lat || 33.1285;
+  const lng = snapshot?.lng || -96.8756;
+  const hour = snapshot?.hour ?? new Date().getHours();
+  const timezone = snapshot?.timezone || 'America/Chicago';
+
+  let date;
+  if (snapshot?.local_iso) {
+    date = new Date(snapshot.local_iso).toISOString().split('T')[0];
+  } else {
+    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  }
+
   const timeContext = hour >= 17 ? 'tonight' : 'today';
   const dayOfWeek = new Date().toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
 
-  const prompt = `TASK: Find ALL major events happening in ${city}, ${state} ${timeContext.toUpperCase()} (${date}) and nearby cities within 50 miles that affect rideshare demand. Use Google Search tool now.
-
-LOCATION: ${city}, ${state} (${lat}, ${lng}) - 50 mile radius (include all nearby cities in this metro area)
-DATE: ${date} (${dayOfWeek}) - Current time: ${currentTime} (${timezone})
-TIMEZONE: ${timezone}
-
-SEARCH QUERIES (execute ALL of these):
-1. "events ${timeContext} ${city} ${state} ${date}"
-2. "concerts shows ${timeContext} near ${city} ${state}"
-3. "sports games ${timeContext} ${city} metro area ${date}"
-4. "live music venues ${city} ${state} ${timeContext}"
-5. "things to do ${timeContext} near ${city} ${state}"
-
-EVENT TYPES TO FIND:
-- Concerts, live music, festivals
-- Sports games, matches, watch parties
-- Comedy shows, theaters, performances
-- Major venue events (bars, clubs, restaurants with events)
-- Parades, street fairs, community events
-- Anything with major expected crowd/rideshare demand TODAY
-
-CRITICAL REQUIREMENTS FOR EACH EVENT:
-✓ Event title (exact name)
-✓ Venue name (specific location)
-✓ Full street address (street, city, state, zip)
-✓ Event start time (HH:MM AM/PM local time)
-✓ Event end time (HH:MM AM/PM local time) - REQUIRED
-✓ Estimated distance in miles from (${lat}, ${lng})
-✓ Staging/parking area recommendations for rideshare drivers
-✓ Impact level on rideshare demand (high/medium/low)
-
-RETURN FORMAT (ONLY this JSON, no markdown):
-[
-  {
-    "title": "Event Name",
-    "venue": "Venue Name",
-    "address": "123 Main St, City, ST 12345",
-    "event_date": "${date}",
-    "event_time": "7:00 PM",
-    "event_end_time": "11:00 PM",
-    "type": "demand_event",
-    "subtype": "concert",
-    "estimated_distance_miles": 5.2,
-    "impact": "high",
-    "staging_area": "North parking lot",
-    "recommended_driver_action": "reposition_now"
-  }
-]`;
+  const prompt = `Find events in ${city}, ${state} ${timeContext} (${date}, ${dayOfWeek}).
+Return JSON array of events with title, venue, address, event_time, event_end_time, subtype, impact.`;
 
   const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
 
-  // Handle empty response gracefully - Gemini sometimes returns OK with no content
   if (!result.ok) {
-    // Use includes() to catch dynamic error messages like "Empty response from Gemini (finishReason: STOP, parts: 0)"
     if (result.error?.includes('Empty response')) {
-      briefingLog.warn(2, `Gemini empty response for ${city}, ${state}`, OP.AI);
-      return { items: [], reason: 'Gemini returned empty response - may be overloaded' };
+      return { items: [], reason: 'Gemini returned empty response' };
     }
-    briefingLog.error(2, `Gemini events failed: ${result.error}`, null, OP.AI);
     throw new Error(`Gemini events API failed: ${result.error}`);
   }
 
   try {
     const parsed = safeJsonParse(result.output);
     const events = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
-    const validEvents = events.filter(e => e.title && e.venue && e.address);
-
-    if (validEvents.length === 0) {
-      briefingLog.info(`No events found for ${city}, ${state}`);
-      return { items: [], reason: 'No events found for this location and time' };
-    }
-
-    briefingLog.done(2, `${validEvents.length} events for ${city}, ${state}`, OP.AI);
-    return { items: validEvents, reason: null };
+    return { items: events.filter(e => e.title && e.venue), reason: null };
   } catch (err) {
     briefingLog.error(2, `Parse Gemini events failed`, err, OP.AI);
     throw new Error(`Failed to parse Gemini events response: ${err.message}`);
@@ -726,7 +898,15 @@ Return ONLY valid JSON array:
 export async function fetchTrafficConditions({ snapshot }) {
   const city = snapshot?.city || 'Unknown';
   const state = snapshot?.state || 'Unknown';
-  const date = snapshot?.date;
+  const timezone = snapshot?.timezone || 'America/Chicago';
+
+  // Get current date in user's timezone
+  let date;
+  if (snapshot?.local_iso) {
+    date = new Date(snapshot.local_iso).toISOString().split('T')[0];
+  } else {
+    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  }
 
   // Default fallback traffic data
   const fallbackTraffic = {
@@ -741,12 +921,32 @@ export async function fetchTrafficConditions({ snapshot }) {
     isFallback: true
   };
 
+  // TRY PERPLEXITY FIRST (if configured) - faster with 25-mile radius
+  if (process.env.PERPLEXITY_API_KEY) {
+    try {
+      // Pass formatted address for 25-mile radius search context
+      const formattedAddress = snapshot?.formatted_address;
+      const perplexityResult = await perplexitySearchTraffic({ city, state, date, formattedAddress });
+
+      if (perplexityResult.traffic && !perplexityResult.traffic.isFallback) {
+        perplexityResult.traffic.provider = 'perplexity';
+        return perplexityResult.traffic;
+      }
+
+      // Perplexity returned fallback - try Gemini
+      briefingLog.warn(1, `Perplexity traffic fallback - trying Gemini`, OP.FALLBACK);
+    } catch (perplexityErr) {
+      briefingLog.warn(1, `Perplexity traffic failed: ${perplexityErr.message} - trying Gemini`, OP.FALLBACK);
+    }
+  }
+
+  // FALLBACK TO GEMINI
   if (!process.env.GEMINI_API_KEY) {
-    briefingLog.warn(1, `GEMINI_API_KEY not set - using fallback traffic`, OP.AI);
+    briefingLog.warn(1, `Neither PERPLEXITY_API_KEY nor GEMINI_API_KEY set - using fallback traffic`, OP.AI);
     return fallbackTraffic;
   }
 
-  briefingLog.ai(1, 'Briefer', `traffic for ${city}, ${state}`);
+  briefingLog.ai(1, 'Gemini', `traffic for ${city}, ${state} (fallback)`);
 
   const prompt = `Search for current traffic conditions in ${city}, ${state} as of today ${date}. Return traffic data as JSON ONLY with ALL these fields:
 
@@ -766,13 +966,13 @@ CRITICAL: Include highDemandZones and repositioning.`;
 
   // Graceful fallback if Gemini fails (don't crash waterfall)
   if (!result.ok) {
-    briefingLog.warn(1, `Traffic failed - using fallback`, OP.FALLBACK);
+    briefingLog.warn(1, `Gemini traffic failed - using fallback`, OP.FALLBACK);
     return fallbackTraffic;
   }
 
   try {
     const parsed = safeJsonParse(result.output);
-    briefingLog.done(1, `Traffic: ${parsed.congestionLevel || 'unknown'} congestion`, OP.AI);
+    briefingLog.done(1, `Gemini traffic: ${parsed.congestionLevel || 'unknown'} congestion`, OP.AI);
 
     return {
       summary: parsed.summary,
@@ -782,24 +982,110 @@ CRITICAL: Include highDemandZones and repositioning.`;
       repositioning: parsed.repositioning || null,
       surgePricing: parsed.surgePricing || false,
       safetyAlert: parsed.safetyAlert || null,
-      fetchedAt: new Date().toISOString()
+      fetchedAt: new Date().toISOString(),
+      provider: 'gemini'
     };
   } catch (parseErr) {
-    briefingLog.warn(1, `Traffic parse failed - using fallback`, OP.FALLBACK);
+    briefingLog.warn(1, `Gemini traffic parse failed - using fallback`, OP.FALLBACK);
     return fallbackTraffic;
   }
 }
 
-async function fetchRideshareNews({ snapshot }) {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY not configured - cannot fetch news');
+/**
+ * Fetch airport conditions using Perplexity
+ * Includes flight delays, arrivals, departures, and airport recommendations for drivers
+ * @param {Object} params - Parameters object
+ * @param {Object} params.snapshot - Snapshot with location data
+ * @returns {Promise<Object>} Airport conditions data
+ */
+async function fetchAirportConditions({ snapshot }) {
+  const city = snapshot?.city || 'Unknown';
+  const state = snapshot?.state || 'Unknown';
+  const timezone = snapshot?.timezone || 'America/Chicago';
+
+  // Get current date in user's timezone
+  let date;
+  if (snapshot?.local_iso) {
+    date = new Date(snapshot.local_iso).toISOString().split('T')[0];
+  } else {
+    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
+  // Default fallback airport data
+  const fallbackAirport = {
+    airports: [],
+    busyPeriods: [],
+    recommendations: null,
+    fetchedAt: new Date().toISOString(),
+    isFallback: true
+  };
+
+  // TRY PERPLEXITY (if configured)
+  if (process.env.PERPLEXITY_API_KEY) {
+    try {
+      const formattedAddress = snapshot?.formatted_address;
+      const airportContext = snapshot?.airport_context;
+      const result = await perplexitySearchAirport({ city, state, date, formattedAddress, airportContext });
+
+      if (result.airport && !result.airport.isFallback) {
+        result.airport.provider = 'perplexity';
+        return result.airport;
+      }
+
+      // Perplexity returned fallback
+      briefingLog.warn(2, `Perplexity airport fallback`, OP.FALLBACK);
+    } catch (perplexityErr) {
+      briefingLog.warn(2, `Perplexity airport failed: ${perplexityErr.message}`, OP.FALLBACK);
+    }
+  } else {
+    briefingLog.warn(2, `PERPLEXITY_API_KEY not set - skipping airport search`, OP.AI);
+  }
+
+  return fallbackAirport;
+}
+
+async function fetchRideshareNews({ snapshot }) {
   const city = snapshot?.city || 'Frisco';
   const state = snapshot?.state || 'TX';
-  const date = snapshot?.date || new Date().toISOString().split('T')[0];
+  const timezone = snapshot?.timezone || 'America/Chicago';
 
-  briefingLog.ai(2, 'Briefer', `news for ${city}, ${state}`);
+  // Get current date in user's timezone
+  let date;
+  if (snapshot?.local_iso) {
+    date = new Date(snapshot.local_iso).toISOString().split('T')[0];
+  } else {
+    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+  }
+
+  // TRY PERPLEXITY FIRST (if configured) - faster and has citations
+  if (process.env.PERPLEXITY_API_KEY) {
+    try {
+      const perplexityResult = await perplexitySearchNews({ city, state, date });
+
+      if (perplexityResult.items && perplexityResult.items.length > 0) {
+        briefingLog.done(2, `Perplexity: ${perplexityResult.items.length} news items, ${perplexityResult.citations?.length || 0} citations`, OP.AI);
+        return {
+          items: perplexityResult.items,
+          citations: perplexityResult.citations,
+          reason: null,
+          provider: 'perplexity'
+        };
+      }
+
+      // Perplexity returned no results - fall through to Gemini
+      briefingLog.warn(2, `Perplexity returned 0 news items - falling back to Gemini`, OP.FALLBACK);
+    } catch (perplexityErr) {
+      briefingLog.warn(2, `Perplexity news failed: ${perplexityErr.message} - falling back to Gemini`, OP.FALLBACK);
+    }
+  }
+
+  // FALLBACK TO GEMINI
+  if (!process.env.GEMINI_API_KEY) {
+    briefingLog.warn(2, `Neither PERPLEXITY_API_KEY nor GEMINI_API_KEY set`, OP.AI);
+    return { items: [], reason: 'No API keys configured for news search' };
+  }
+
+  briefingLog.ai(2, 'Gemini', `news for ${city}, ${state} (fallback)`);
 
   const prompt = `You MUST search for and find rideshare-relevant news. Search the web NOW.
 
@@ -827,9 +1113,10 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
 
   const result = await callGeminiWithSearch({ prompt, maxTokens: 2048 });
 
-  // FAIL-FAST: If Gemini API fails, throw and fail entire flow
+  // Graceful degradation - return empty instead of throwing
   if (!result.ok) {
-    throw new Error(`Gemini news API failed: ${result.error}`);
+    briefingLog.warn(2, `Gemini news failed: ${result.error}`, OP.FALLBACK);
+    return { items: [], reason: `News fetch failed: ${result.error}`, provider: 'gemini' };
   }
 
   try {
@@ -838,14 +1125,14 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
 
     if (newsArray.length === 0 || !newsArray[0]?.title) {
       briefingLog.info(`No news found for ${city}, ${state}`);
-      return { items: [], reason: 'No rideshare news found for this location' };
+      return { items: [], reason: 'No rideshare news found for this location', provider: 'gemini' };
     }
 
-    briefingLog.done(2, `${newsArray.length} news items`, OP.AI);
-    return { items: newsArray, reason: null };
+    briefingLog.done(2, `Gemini: ${newsArray.length} news items`, OP.AI);
+    return { items: newsArray, reason: null, provider: 'gemini' };
   } catch (parseErr) {
-    briefingLog.error(2, `News parse failed`, parseErr, OP.AI);
-    throw new Error(`Failed to parse Gemini news response: ${parseErr.message}`);
+    briefingLog.error(2, `Gemini news parse failed`, parseErr, OP.AI);
+    return { items: [], reason: `Parse error: ${parseErr.message}`, provider: 'gemini' };
   }
 }
 
@@ -891,6 +1178,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
         traffic_conditions: null,
         events: null,
         school_closures: null,
+        airport_conditions: null,
         created_at: new Date(),
         updated_at: new Date()
       });
@@ -906,6 +1194,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
       .set({
         traffic_conditions: null,
         events: null,
+        airport_conditions: null,
         updated_at: new Date()
       })
       .where(eq(briefings.snapshot_id, snapshotId));
@@ -1011,17 +1300,18 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     weatherResult = { current: null, forecast: [] };
   }
 
-  // Step 3: ALWAYS fetch fresh traffic AND events (every snapshot)
-  briefingLog.phase(1, `Fetching traffic + events`, OP.AI);
+  // Step 3: ALWAYS fetch fresh traffic, events, AND airport conditions (every snapshot)
+  briefingLog.phase(1, `Fetching traffic + events + airport`, OP.AI);
 
-  let trafficResult, eventsResult;
+  let trafficResult, eventsResult, airportResult;
   try {
-    [trafficResult, eventsResult] = await Promise.all([
+    [trafficResult, eventsResult, airportResult] = await Promise.all([
       fetchTrafficConditions({ snapshot }),
-      snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events'))
+      snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
+      fetchAirportConditions({ snapshot })
     ]);
   } catch (freshErr) {
-    console.error(`[BriefingService] ❌ FAIL-FAST: Traffic/Events fetch failed:`, freshErr.message);
+    console.error(`[BriefingService] ❌ FAIL-FAST: Traffic/Events/Airport fetch failed:`, freshErr.message);
     throw freshErr;
   }
 
@@ -1049,7 +1339,8 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   let eventsItems = eventsResult?.items || [];
   const newsItems = newsResult?.items || [];
 
-  briefingLog.done(2, `events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'ok'}`, OP.AI);
+  const airportCount = airportResult?.airports?.length || 0;
+  briefingLog.done(2, `events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'ok'}, airports=${airportCount}`, OP.AI);
 
   const weatherCurrent = weatherResult?.current || null;
 
@@ -1065,6 +1356,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     traffic_conditions: trafficResult,
     events: eventsItems.length > 0 ? eventsItems : { items: [], reason: eventsResult?.reason || 'No events found' },
     school_closures: schoolClosures.length > 0 ? schoolClosures : { items: [], reason: 'No school closures found' },
+    airport_conditions: airportResult || { airports: [], busyPeriods: [], recommendations: null, isFallback: true },
     created_at: new Date(),
     updated_at: new Date()
   };
@@ -1081,6 +1373,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
           traffic_conditions: briefingData.traffic_conditions,
           events: briefingData.events,
           school_closures: briefingData.school_closures,
+          airport_conditions: briefingData.airport_conditions,
           updated_at: new Date()
         })
         .where(eq(briefings.snapshot_id, snapshotId));

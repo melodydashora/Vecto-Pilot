@@ -8,12 +8,21 @@
  * Architecture: Separate AI reasoning (GPT-5) from factual lookups (Google)
  */
 
-import { getRouteWithTraffic } from "../external/routes-api.js";
+import { getRouteWithTraffic, getRouteMatrix } from "../external/routes-api.js";
+import { getStreetViewUrl, checkStreetViewAvailability } from "../external/streetview-api.js";
 import { venuesLog, OP } from "../../logger/workflow.js";
+import { db } from "../../db/drizzle.js";
+import { places_cache } from "../../../shared/schema.js";
+import { eq } from "drizzle-orm";
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
 const GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
+
+// In-memory cache for places (lasts duration of request batch)
+// Key: rounded coords "lat_lng" → value: place details
+const placesMemoryCache = new Map();
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 /**
  * Enrich GPT-5 venue recommendations with Google API data
@@ -30,7 +39,36 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
   const timezone = snapshot?.timezone || "UTC"; // Fallback to UTC for global app
   venuesLog.start(`${venues.length} venues (tz: ${timezone})`);
 
-  // Parallelize all enrichments for speed
+  // OPTIMIZATION: Batch all route calculations in ONE API call using Route Matrix
+  // Before: N venues = N API calls (sequential or parallel but still N calls)
+  // After: N venues = 1 API call (single batch request)
+  const startRouteTime = Date.now();
+  let routeResults = new Map();
+
+  try {
+    venuesLog.phase(2, `[venue-enrichment] Batch routes for ${venues.length} venues`, OP.API);
+
+    const destinations = venues.map(v => ({ lat: v.lat, lng: v.lng }));
+    const matrixResults = await getRouteMatrix([driverLocation], destinations);
+
+    // Map results by destination index for quick lookup
+    matrixResults.forEach(result => {
+      routeResults.set(result.destinationIndex, {
+        distanceMeters: result.distanceMeters,
+        durationSeconds: result.durationSeconds,
+        trafficDelaySeconds: 0 // Matrix API doesn't return traffic delay separately
+      });
+    });
+
+    const routeDuration = Date.now() - startRouteTime;
+    const distances = matrixResults.map(r => `${(r.distanceMeters * 0.000621371).toFixed(1)}mi`).join(', ');
+    venuesLog.done(2, `[venue-enrichment] Batch routes complete: ${distances} (${routeDuration}ms)`, OP.API);
+  } catch (routeError) {
+    venuesLog.warn(2, `[venue-enrichment] Batch routes failed, falling back to individual calls: ${routeError.message}`, OP.API);
+    // routeResults stays empty, will fall back to individual calls below
+  }
+
+  // Parallelize remaining enrichments (geocoding + places)
   const enriched = await Promise.all(
     venues.map(async (venue, index) => {
       const venueName = venue.name.length > 35 ? venue.name.slice(0, 32) + '...' : venue.name;
@@ -38,13 +76,17 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         // 1. Reverse geocode coords → address
         const address = await reverseGeocode(venue.lat, venue.lng);
 
-        // 2. Calculate distance + drive time with traffic (original driver coords → LLM-provided venue coords)
-        venuesLog.api(2, 'Google Routes', `"${venueName}"`);
-        const route = await getRouteWithTraffic(driverLocation, {
-          lat: venue.lat,
-          lng: venue.lng,
-        });
-        venuesLog.done(2, `"${venueName}" → ${(route.distanceMeters * 0.000621371).toFixed(1)}mi, ${Math.ceil(route.durationSeconds / 60)}min`, OP.API);
+        // 2. Get route from batch results OR fallback to individual call
+        let route = routeResults.get(index);
+        if (!route) {
+          // Fallback: individual API call if batch failed
+          venuesLog.api(2, 'Google Routes (fallback)', `"${venueName}"`);
+          route = await getRouteWithTraffic(driverLocation, {
+            lat: venue.lat,
+            lng: venue.lng,
+          });
+          venuesLog.done(2, `"${venueName}" → ${(route.distanceMeters * 0.000621371).toFixed(1)}mi, ${Math.ceil(route.durationSeconds / 60)}min`, OP.API);
+        }
 
         // 3. Get place details from Google Places API (New) with timezone
         const placeDetails = await getPlaceDetails(
@@ -79,6 +121,12 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           return null; // Filter this venue out
         }
 
+        // 4. Generate Street View URL (no API call - just URL construction)
+        const streetViewUrl = getStreetViewUrl(
+          { lat: venue.lat, lng: venue.lng },
+          { width: 400, height: 300 }
+        );
+
         const enrichedVenue = {
           ...venue,
           rank: index + 1,
@@ -91,8 +139,9 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           distanceMeters: route.distanceMeters,
           distanceMiles: (route.distanceMeters * 0.000621371).toFixed(1),
           driveTimeMinutes: Math.ceil(route.durationSeconds / 60),
-          trafficDelayMinutes: Math.ceil(route.trafficDelaySeconds / 60),
-          distanceSource: "google_routes_api", // For ML training
+          trafficDelayMinutes: Math.ceil((route.trafficDelaySeconds || 0) / 60),
+          distanceSource: "google_route_matrix", // Updated source
+          streetViewUrl: streetViewUrl, // Street View preview image
         };
 
         const openStatus = enrichedVenue.isOpen === true ? 'OPEN' : enrichedVenue.isOpen === false ? 'CLOSED' : 'UNKNOWN';
@@ -355,7 +404,15 @@ function calculateIsOpen(weekdayTexts, timezone = "UTC") {
 }
 
 /**
- * Get place details from Google Places API (New) with retry logic
+ * Generate cache key from coordinates (rounded to ~10m precision)
+ */
+function getCoordsKey(lat, lng) {
+  // Round to 4 decimal places (~11m precision) for cache hits on nearby coords
+  return `${lat.toFixed(4)}_${lng.toFixed(4)}`;
+}
+
+/**
+ * Get place details from Google Places API (New) with caching and retry logic
  * @param {number} lat
  * @param {number} lng
  * @param {string} name - Venue name for verification
@@ -363,10 +420,47 @@ function calculateIsOpen(weekdayTexts, timezone = "UTC") {
  * @returns {Promise<Object>} {place_id, business_status, ...}
  */
 async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
+  const coordsKey = getCoordsKey(lat, lng);
+
+  // 1. Check in-memory cache first (fastest)
+  const memCached = placesMemoryCache.get(coordsKey);
+  if (memCached && (Date.now() - memCached.cachedAt) < CACHE_TTL_MS) {
+    venuesLog.info(`Places CACHE HIT (memory): "${name}"`, OP.CACHE);
+    // Recalculate isOpen with current timezone (hours data is cached, not the open status)
+    const isOpen = calculateIsOpen(memCached.allHours, timezone);
+    return { ...memCached, isOpen };
+  }
+
+  // 2. Check database cache (second fastest)
+  try {
+    const [dbCached] = await db.select().from(places_cache).where(eq(places_cache.place_id, coordsKey)).limit(1);
+    if (dbCached && dbCached.formatted_hours) {
+      const cachedAge = Date.now() - new Date(dbCached.cached_at).getTime();
+      if (cachedAge < CACHE_TTL_MS) {
+        const cached = dbCached.formatted_hours;
+        venuesLog.info(`Places CACHE HIT (db): "${name}"`, OP.CACHE);
+        // Update memory cache
+        placesMemoryCache.set(coordsKey, { ...cached, cachedAt: Date.now() });
+        // Update access count
+        db.update(places_cache)
+          .set({ access_count: (dbCached.access_count || 0) + 1 })
+          .where(eq(places_cache.place_id, coordsKey))
+          .catch(() => {}); // Fire and forget
+        // Recalculate isOpen with current timezone
+        const isOpen = calculateIsOpen(cached.allHours, timezone);
+        return { ...cached, isOpen };
+      }
+    }
+  } catch (cacheErr) {
+    // Cache miss or error - proceed with API call
+    venuesLog.warn(3, `Places cache check failed: ${cacheErr.message}`, OP.CACHE);
+  }
+
+  // 3. No cache hit - call Google Places API
   // CRITICAL: Add retry logic for transient Google API failures (5xx, 429)
   const maxRetries = 3;
   const baseDelay = 1000; // 1 second base delay
-  
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       // Use Places API (New) - Search Nearby with PRECISE location
@@ -449,7 +543,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
         // Condense weekly hours into readable format
         const condensedHours = condenseWeeklyHours(weekdayTexts);
 
-        return {
+        const result = {
           place_id: place.id,
           google_name: googleName, // Return Google's name for validation
           business_status: place.businessStatus || "OPERATIONAL",
@@ -458,6 +552,30 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
           businessHours: condensedHours || null,
           allHours: weekdayTexts,
         };
+
+        // 4. Save to cache (both memory and DB) - fire and forget
+        const cacheData = { ...result, cachedAt: Date.now() };
+        placesMemoryCache.set(coordsKey, cacheData);
+
+        // Save to DB cache (async, don't await)
+        db.insert(places_cache)
+          .values({
+            place_id: coordsKey,
+            formatted_hours: result,
+            cached_at: new Date(),
+            access_count: 1
+          })
+          .onConflictDoUpdate({
+            target: places_cache.place_id,
+            set: {
+              formatted_hours: result,
+              cached_at: new Date(),
+              access_count: 1
+            }
+          })
+          .catch(err => venuesLog.warn(3, `Places cache write failed: ${err.message}`, OP.CACHE));
+
+        return result;
       }
 
       venuesLog.warn(3, `Places API: No results for "${name}" at ${lat.toFixed(4)},${lng.toFixed(4)}`, OP.API);

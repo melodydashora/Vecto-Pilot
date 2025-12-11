@@ -44,6 +44,7 @@ export interface SmartBlock {
     lng?: number;
   };
   proTips?: string[];
+  streetViewUrl?: string;
   up_count?: number;
   down_count?: number;
 }
@@ -59,6 +60,7 @@ export interface BlocksResponse {
   error?: string;
   tactical_summary?: string;
   best_staging_location?: string;
+  isBlocksGenerating?: boolean;
   timing?: {
     scoring_ms?: number;
     planner_ms?: number;

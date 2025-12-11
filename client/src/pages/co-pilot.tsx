@@ -295,6 +295,7 @@ const CoPilot: React.FC = () => {
     newsData,
     eventsData,
     schoolClosuresData,
+    airportData,
     isLoading: _briefingLoading
   } = useBriefingQueries({ snapshotId: lastSnapshotId, pipelinePhase: currentPipelinePhase });
 
@@ -374,24 +375,38 @@ const CoPilot: React.FC = () => {
 
           // Transform response to match existing interface
           const data = await response.json();
-          // Debug: Blocks API response (removed verbose logs)
+          // Debug: Full API response for troubleshooting
+          console.log('[blocks-query] 📦 Raw API response:', {
+            status: response.status,
+            ok: data.ok,
+            reason: data.reason,
+            dataStatus: data.status,
+            blocksCount: data.blocks?.length,
+            hasRankingId: !!data.ranking_id,
+            hasBriefing: !!data.briefing,
+            keys: Object.keys(data)
+          });
+
+          // Track if blocks are still being generated (202 response)
+          const isGenerating = data.status === 'pending_blocks' || data.reason === 'blocks_generating' || data.reason === 'briefing_pending';
 
           const transformed = {
             now: data.generatedAt || new Date().toISOString(),
             timezone: 'America/Chicago',
-            strategy: data.strategy_for_now,
+            strategy: data.strategy_for_now || data.briefing?.strategy_for_now || data.strategy?.strategy_for_now,
             path_taken: data.path_taken,
             refined: data.refined,
             timing: data.timing,
+            isBlocksGenerating: isGenerating,
             blocks: data.blocks?.map((v: any) => {
               return {
                 name: v.name,
                 address: v.address,
                 category: v.category,
                 placeId: v.placeId,
-                coordinates: { 
-                  lat: v.coordinates?.lat ?? v.lat, 
-                  lng: v.coordinates?.lng ?? v.lng 
+                coordinates: {
+                  lat: v.coordinates?.lat ?? v.lat,
+                  lng: v.coordinates?.lng ?? v.lng
                 },
                 estimated_distance_miles: Number(v.estimated_distance_miles ?? v.distance ?? 0),
                 driveTimeMinutes: Number(v.driveTimeMinutes ?? v.drive_time ?? 0),
@@ -409,7 +424,8 @@ const CoPilot: React.FC = () => {
                 businessStatus: v.businessStatus,
                 closed_venue_reasoning: v.closed_venue_reasoning,
                 stagingArea: v.stagingArea,
-                proTips: v.proTips || v.pro_tips || []
+                proTips: v.proTips || v.pro_tips || [],
+                streetViewUrl: v.streetViewUrl
               };
             }) || [],
             ranking_id: data.ranking_id || data.correlationId,  // Use actual ranking_id from DB
@@ -421,8 +437,12 @@ const CoPilot: React.FC = () => {
             }
           };
 
-          // Blocks ready - log the result
-          console.log('[blocks-query] ✅ Blocks fetched successfully:', { count: transformed.blocks?.length, blocks: transformed.blocks?.slice(0, 2) });
+          // Log the result
+          if (isGenerating) {
+            console.log('[blocks-query] 🔄 Blocks generating:', { status: data.status, reason: data.reason });
+          } else {
+            console.log('[blocks-query] ✅ Blocks fetched successfully:', { count: transformed.blocks?.length, blocks: transformed.blocks?.slice(0, 2) });
+          }
           return transformed;
         }
       } catch (err: any) {
@@ -986,7 +1006,14 @@ const CoPilot: React.FC = () => {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-orange-900 mb-2">🎯 Where to Go NOW</p>
-                    <p className="text-sm text-gray-800 leading-relaxed">{immediateStrategy}</p>
+                    <p
+                      className="text-sm text-gray-800 leading-relaxed"
+                      dangerouslySetInnerHTML={{
+                        __html: immediateStrategy
+                          .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-orange-800 font-semibold">$1</strong>')
+                          .replace(/\n/g, '<br />')
+                      }}
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -1637,7 +1664,7 @@ const CoPilot: React.FC = () => {
               strategyReady={strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks'}
               isStrategyFetching={isStrategyFetching}
               hasBlocks={blocks.length > 0}
-              isBlocksLoading={isLoading}
+              isBlocksLoading={isLoading || !!blocksData?.isBlocksGenerating}
               blocksError={error as Error | null}
               timeElapsedMs={strategyData?.timeElapsedMs}
               snapshotId={lastSnapshotId}
@@ -1653,13 +1680,14 @@ const CoPilot: React.FC = () => {
         {/* Briefing Tab Content - Data persists across tab switches */}
         {activeTab === 'briefing' && (
           <div data-testid="briefing-section" className="mb-24">
-            <BriefingTab 
+            <BriefingTab
               snapshotId={lastSnapshotId || undefined}
               weatherData={weatherData}
               trafficData={trafficData}
               newsData={newsData}
               eventsData={eventsData}
               schoolClosuresData={schoolClosuresData}
+              airportData={airportData}
               consolidatedStrategy={persistentStrategy}
             />
           </div>

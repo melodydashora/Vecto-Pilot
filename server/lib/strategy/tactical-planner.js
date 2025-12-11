@@ -1,6 +1,6 @@
 // server/lib/strategy/tactical-planner.js
 // ============================================================================
-// GPT-5.1 TACTICAL VENUE PLANNER
+// GPT-5.2 TACTICAL VENUE PLANNER (with reasoning_effort control)
 // ============================================================================
 //
 // PURPOSE: Converts strategic overview into specific venue recommendations
@@ -19,7 +19,7 @@
 //   - Best central staging location
 //   - Tactical summary
 //
-// MODEL: GPT-5.1 via STRATEGY_CONSOLIDATOR env var
+// MODEL: GPT-5.2 via STRATEGY_CONSOLIDATOR env var (with reasoning_effort: medium)
 // TIMEOUT: PLANNER_DEADLINE_MS (default 180s)
 //
 // CALLED BY: enhanced-smart-blocks.js
@@ -239,7 +239,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
       best_staging_location: validated.best_staging_location || null,
       tactical_summary: validated.tactical_summary,
       metadata: {
-        model: process.env.OPENAI_MODEL || "gpt-5.1",
+        model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.2",
         duration_ms: duration,
         venues_recommended: validated.recommended_venues.length,
         validation_passed: true
