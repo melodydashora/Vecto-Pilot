@@ -42,6 +42,10 @@ interface LocationContextType {
   // Location resolution gate - true when city/formattedAddress are available
   // Use this to gate downstream queries (Bar Tab, Strategy) to prevent race conditions
   isLocationResolved: boolean;
+  // Last snapshot ID created - fallback for co-pilot if event is missed
+  lastSnapshotId: string | null;
+  isLoading: boolean;
+  setOverrideCoords: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
 }
 
 export const LocationContext = createContext<LocationContextType | null>(null);
@@ -69,6 +73,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [airQuality, setAirQuality] = useState<{ aqi: number; category: string } | null>(null);
   // Location resolution gate - prevents race conditions by gating downstream queries
   const [isLocationResolved, setIsLocationResolved] = useState(false);
+  // Expose snapshot ID directly so co-pilot can access it as fallback if event is missed
+  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
   const generationCounterRef = useRef(0);
   const isInitialMountRef = useRef(true);
   const lastEnrichmentCoordsRef = useRef<string | null>(null);
@@ -179,6 +185,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
         }
 
+        // Set snapshot ID in state (fallback for co-pilot if event is missed)
+        setLastSnapshotId(snapshotId);
+
         // Dispatch event - snapshot is ready
         window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
           detail: { snapshotId, holiday: null, is_holiday: false }
@@ -232,6 +241,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         });
 
         if (snapshotRes.ok) {
+          // Set snapshot ID in state (fallback for co-pilot if event is missed)
+          setLastSnapshotId(fallbackSnapshotId);
+
           window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
             detail: { snapshotId: fallbackSnapshotId, holiday: null, is_holiday: false }
           }));
@@ -301,7 +313,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         overrideCoords,
         weather,
         airQuality,
-        isLocationResolved
+        isLocationResolved,
+        lastSnapshotId,
+        isLoading: isUpdating,
+        setOverrideCoords
       }}
     >
       {children}

@@ -11,12 +11,13 @@
 //   GET /api/blocks-fast?snapshotId=X - Get blocks (generates if missing)
 //
 // PIPELINE (POST):
-//   1. MinStrategy (Claude Sonnet 4.5) → minstrategy text
-//   2. Briefing (Gemini 3.0 Pro) → events, traffic, news
-//   3. Consolidator (Gemini 3.0 Pro) → consolidated_strategy
-//   4. Immediate Strategy (GPT-5.1) → strategy_for_now
-//   5. Venue Planner (GPT-5.1) → venue recommendations
-//   6. Google APIs → distances, business hours, enrichment
+//   1. Briefing (Gemini 3.0 Pro) → events, traffic, news
+//   2. Immediate Strategy (GPT-5.1) → strategy_for_now (for Strategy Tab)
+//   3. Venue Planner (GPT-5.1) → venue recommendations
+//   4. Google APIs → distances, business hours, enrichment
+//
+// NOTE: Daily strategy (consolidated_strategy) is NOT generated automatically.
+//       It's on-demand via POST /api/strategy/daily/:snapshotId when user requests it.
 //
 // RACE CONDITION PREVENTION:
 //   Uses `generationLocks` Map to prevent duplicate GPT-5 calls when
@@ -36,9 +37,8 @@ import { eq, sql } from 'drizzle-orm';
 import { isStrategyReady, ensureStrategyRow, updatePhase } from '../../lib/strategy/strategy-utils.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
-import { runMinStrategy } from '../../lib/ai/providers/minstrategy.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
-import { runConsolidator } from '../../lib/ai/providers/consolidator.js';
+import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 import { generateEnhancedSmartBlocks } from '../../lib/venue/enhanced-smart-blocks.js';
 import { resolveVenueAddressesBatch } from '../../lib/venue/venue-address-resolver.js';
 import { isPlusCode } from '../utils/http-helpers.js';
@@ -288,7 +288,6 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
     const briefing = strategyRow ? {
-      minstrategy: strategyRow.minstrategy || null,
       consolidated_strategy: strategyRow.consolidated_strategy || null
     } : null;
 
@@ -392,11 +391,27 @@ router.post('/', async (req, res) => {
 
     console.log('[blocks-fast POST] ✅ UUID validated, fetching snapshot...');
 
-    // CRITICAL: Fetch snapshot FIRST to get location data
+    // CRITICAL: Fetch FULL snapshot row to get location data
+    // LLMs cannot reverse geocode - we must provide formatted_address
     const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
+
+    // CRITICAL: Validate formatted_address exists - LLMs cannot reverse geocode
+    if (!snapshot.formatted_address) {
+      console.error(`[blocks-fast POST] ❌ CRITICAL: Missing formatted_address in snapshot ${snapshotId}`);
+      return sendOnce(400, {
+        error: 'snapshot_incomplete',
+        message: 'Snapshot missing formatted_address - location not resolved'
+      });
+    }
+
+    console.log('[blocks-fast POST] 📍 Snapshot has resolved address:', {
+      formatted_address: snapshot.formatted_address,
+      city: snapshot.city,
+      state: snapshot.state
+    });
 
     // DEDUPLICATION CHECK: If strategy already running, don't re-trigger it
     const [existingStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
@@ -430,8 +445,7 @@ router.post('/', async (req, res) => {
           ranking_id: ranking.ranking_id,
           strategy: {
             strategy_for_now: existingStrategy.strategy_for_now || '',
-            consolidated: existingStrategy.consolidated_strategy || '',
-            min: existingStrategy.minstrategy || ''
+            consolidated: existingStrategy.consolidated_strategy || ''
           }
         });
       }
@@ -459,57 +473,31 @@ router.post('/', async (req, res) => {
         // Phase 1: Resolving location and examining conditions
         await updatePhase(snapshotId, 'resolving');
 
-        // Phase 2: Run providers in parallel (allSettled allows briefing to fail gracefully)
-        // Both Claude (minstrategy) and Gemini (briefing) run at the same time
+        // Phase 2: Run briefing provider (Gemini with Google Search)
         // Note: Holiday is already in snapshot table from holiday-detector.js
         await updatePhase(snapshotId, 'analyzing');
-        const results = await Promise.allSettled([
-          runMinStrategy(snapshotId),
-          runBriefing(snapshotId)
-        ]);
 
-        // Check if MinStrategy (Critical) failed
-        if (results[0].status === 'rejected') {
-          throw new Error(`Critical Strategy Error: ${results[0].reason}`);
-        }
-
-        // FAIL-FAST: Briefing is REQUIRED (no fallbacks - find root cause if it fails)
-        if (results[1].status === 'rejected') {
-          throw new Error(`Briefing Error: ${results[1].reason}`);
-        }
-
-        // Fetch provider outputs
-        const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-        const [briefingRow] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-
-        // FAIL-FAST: Both minstrategy AND briefing must be present
-        if (!strategy?.minstrategy) {
-          throw new Error('MinStrategy output is missing');
-        }
-        if (!briefingRow) {
-          throw new Error('Briefing row not saved to database');
-        }
-
-        console.log(`[blocks-fast POST] 🔄 Calling runConsolidator for snapshot ${snapshotId}`);
-        console.log(`[blocks-fast POST] 📊 Consolidator inputs:`, {
-          minstrategy_length: strategy.minstrategy?.length || 0,
-          briefing_present: !!briefingRow,
-          briefing_fields: briefingRow ? Object.keys(briefingRow) : 'none',
-          snapshot_location: snapshot.formatted_address,
-          snapshot_weather: snapshot.weather ? 'present' : 'missing',
-          snapshot_air: snapshot.air ? 'present' : 'missing'
-        });
-
-        // Phase 2: Consolidation
-        await updatePhase(snapshotId, 'consolidator');
         try {
-          // runConsolidator fetches minstrategy, briefing, snapshot from DB
-          // Gemini 3 Pro → consolidated_strategy (daily strategy for Briefing Tab)
-          // GPT-5.1 (minimal reasoning) → strategy_for_now (immediate for Strategy Tab)
-          await runConsolidator(snapshotId);
-        } catch (consolidateErr) {
-          console.error(`[blocks-fast POST] ❌ runConsolidator threw error:`, consolidateErr.message);
-          throw consolidateErr;
+          await runBriefing(snapshotId, { snapshot });
+          console.log(`[blocks-fast POST] ✅ Briefing generated`);
+        } catch (briefingErr) {
+          console.warn(`[blocks-fast POST] ⚠️ Briefing failed (non-blocking):`, briefingErr.message);
+          // Continue - immediate strategy can still work with snapshot weather data
+        }
+
+        // Phase 3: Immediate Strategy (GPT-5.1 with snapshot + briefing)
+        await updatePhase(snapshotId, 'immediate');
+
+        console.log(`[blocks-fast POST] 🔄 Calling runImmediateStrategy`);
+        console.log(`[blocks-fast POST] 📊 Inputs: snapshot=${snapshot.formatted_address}`);
+
+        try {
+          // GPT-5.1 → strategy_for_now (immediate 1hr strategy for Strategy Tab)
+          // Uses snapshot data + briefing (traffic, events) directly
+          await runImmediateStrategy(snapshotId, { snapshot });
+        } catch (immediateErr) {
+          console.error(`[blocks-fast POST] ❌ runImmediateStrategy failed:`, immediateErr.message);
+          throw immediateErr;
         }
 
         // Phase 3: Venue Discovery
@@ -517,6 +505,7 @@ router.post('/', async (req, res) => {
 
         // Generate smart blocks using shared helper
         const [consolidatedRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+        const [briefingRowForBlocks] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
 
         console.log(`[blocks-fast POST] 📝 After consolidation, strategy status:`, {
           snapshot_id: snapshotId,
@@ -529,7 +518,7 @@ router.post('/', async (req, res) => {
         // Use shared helper for block generation
         const { ranking, error: blocksError } = await ensureSmartBlocksExist(snapshotId, {
           strategyRow: consolidatedRow,
-          briefingRow,
+          briefingRow: briefingRowForBlocks,
           snapshot
         });
 
@@ -566,8 +555,7 @@ router.post('/', async (req, res) => {
             ranking_id: ranking.ranking_id,
             strategy: {
               strategy_for_now: strategyRow?.strategy_for_now || '',
-              consolidated: strategyRow?.consolidated_strategy || '',
-              min: strategyRow?.minstrategy || ''
+              consolidated: strategyRow?.consolidated_strategy || ''
             },
             message: 'Smart blocks generated successfully'
           });
@@ -585,8 +573,7 @@ router.post('/', async (req, res) => {
             blocks: [],
             strategy: {
               strategy_for_now: strategyRow?.strategy_for_now || '',
-              consolidated: strategyRow?.consolidated_strategy || '',
-              min: strategyRow?.minstrategy || ''
+              consolidated: strategyRow?.consolidated_strategy || ''
             },
             message: 'Smart blocks generated (details pending)'
           });

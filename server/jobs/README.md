@@ -2,13 +2,13 @@
 
 ## Purpose
 
-Background workers for async processing. Currently contains the strategy consolidation listener.
+Background workers for async processing. Currently contains the SmartBlocks generation listener.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `triad-worker.js` | LISTEN-only consolidation worker |
+| `triad-worker.js` | LISTEN-only SmartBlocks worker |
 
 ## triad-worker.js
 
@@ -21,18 +21,20 @@ Event-driven worker that listens for PostgreSQL NOTIFY events on the `strategy_r
        ↓
 2. triad-worker.js receives notification
        ↓
-3. Verify minstrategy + briefing are present
+3. Verify strategy_for_now + briefing are present
        ↓
-4. Call consolidateStrategy() → write consolidated_strategy
+4. Call generateEnhancedSmartBlocks() → write rankings
        ↓
-5. Call generateEnhancedSmartBlocks() → write rankings
+5. Send NOTIFY 'blocks_ready' for SSE listeners
 ```
+
+**NOTE**: Strategy generation (briefing + immediate strategy) now runs synchronously in `blocks-fast.js`. This worker only handles SmartBlocks generation.
 
 ### Key Features
 
 - **No polling**: Event-driven via Postgres LISTEN/NOTIFY
 - **Graceful shutdown**: Handles SIGINT/SIGTERM
-- **Idempotent**: Checks if consolidation already done
+- **Idempotent**: Checks if blocks already generated
 
 ### Usage
 
@@ -55,16 +57,19 @@ node server/jobs/triad-worker.js
 ### Logging
 
 ```
-[triad-worker] Listening for strategy_ready events...
-[triad-worker] Received strategy_ready for snapshot abc123
-[triad-worker] Consolidation complete for abc123
+[consolidation-listener] Listening on channel: strategy_ready
+[consolidation-listener] Notification: strategy_ready -> abc12345
+[consolidation-listener] Status for abc12345: { hasStrategyForNow: true, hasBriefing: true }
+[consolidation-listener] Generating enhanced smart blocks for abc12345...
+[consolidation-listener] Enhanced smart blocks generated for abc12345
+[consolidation-listener] NOTIFY blocks_ready sent for abc12345
 ```
 
 ## Connections
 
-- **Imports from:** `../lib/ai/providers/consolidator.js`, `../lib/venue/enhanced-smart-blocks.js`
+- **Imports from:** `../lib/venue/enhanced-smart-blocks.js`, `../db/drizzle.js`
 - **Spawned by:** `../bootstrap/workers.js`
-- **Triggered by:** Postgres NOTIFY from `../routes/blocks-fast.js`
+- **Triggered by:** Postgres NOTIFY from `../api/strategy/blocks-fast.js`
 
 ## Worker Modes
 
@@ -78,8 +83,7 @@ node server/jobs/triad-worker.js
 
 ```javascript
 // From server/jobs/
-import { consolidateStrategy } from '../lib/ai/providers/consolidator.js';
 import { generateEnhancedSmartBlocks } from '../lib/venue/enhanced-smart-blocks.js';
 import { db } from '../db/drizzle.js';
-import { strategies } from '../../shared/schema.js';
+import { strategies, snapshots, briefings } from '../../shared/schema.js';
 ```

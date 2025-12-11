@@ -90,7 +90,7 @@ console.log(`🏢 [VENUE "The Mitchell"] 5.2mi, 12min, isOpen=true`);
 
 | Component | Phases | Description |
 |-----------|--------|-------------|
-| TRIAD | 4 | 1=Strategist, 2=Briefer, 3=Daily+NOW Strategy, 4=SmartBlocks |
+| TRIAD | 3 | 1=Briefer, 2=Immediate Strategy, 3=SmartBlocks |
 | VENUES | 4 | 1=Tactical Planner, 2=Routes API, 3=Places API, 4=DB Store |
 | BRIEFING | 3 | 1=Traffic, 2=Events Discovery, 3=Event Validation |
 | LOCATION | 3 | 1=GPS Received, 2=Geocode/Cache, 3=Weather+Air |
@@ -111,13 +111,14 @@ console.log(`[Venue Enrichment] ✅ Distance: 5.2 mi, Drive time: 12 min`);
 
 ### Key Convention: NO MODEL NAMES
 
-Use **role names** (Strategist, Briefer, Consolidator) not model names (Claude, Gemini, GPT-5):
+Use **role names** (Briefer, Consolidator, Immediate) not model names (Claude, Gemini, GPT-5):
 ```javascript
 // GOOD
-triadLog.phase(1, `Starting for ${snapshotId}`);  // [TRIAD 1/4 - Strategist]
+triadLog.phase(1, `Starting for ${snapshotId}`);  // [TRIAD 1/4 - Briefer]
+console.log(`[immediate-strategy] GPT-5.1 returned: ...`);
 
 // BAD
-console.log(`[minstrategy] Starting Claude Opus for snapshot`);
+console.log(`[gpt5] Starting strategy for snapshot`);
 ```
 
 ## Connections

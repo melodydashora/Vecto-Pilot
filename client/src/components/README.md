@@ -33,6 +33,7 @@ components/
 | `CoachChat.tsx` | 535 | co-pilot.tsx |
 | `BriefingTab.tsx` | 466 | co-pilot.tsx |
 | `BarsTable.tsx` | 400 | co-pilot.tsx |
+| `BarTab.tsx` | 400 | co-pilot.tsx |
 | `MapTab.tsx` | 237 | co-pilot.tsx |
 | `DonationTab.tsx` | 396 | co-pilot.tsx |
 | `InstructionsTab.tsx` | 428 | DonationTab.tsx |

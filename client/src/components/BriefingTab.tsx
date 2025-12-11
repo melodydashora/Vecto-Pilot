@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Newspaper, Cloud, CloudRain, Sun,
   AlertTriangle, Car, Loader, Clock, ExternalLink,
-  ChevronDown, ChevronUp, BookOpen, Sparkles
+  ChevronDown, ChevronUp, BookOpen, Sparkles, FileText, Zap
 } from "lucide-react";
+import { getAuthHeader } from "@/utils/co-pilot-helpers";
 import EventsComponent from "./EventsComponent";
 
 interface SchoolClosure {
@@ -47,6 +49,50 @@ export default function BriefingTab({
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedNews, setExpandedNews] = useState(true);
   const [expandedClosures, setExpandedClosures] = useState(true);
+
+  // Daily strategy - on-demand generation
+  const [showDailyStrategy, setShowDailyStrategy] = useState(false);
+  const [dailyStrategy, setDailyStrategy] = useState<string | null>(consolidatedStrategy || null);
+  const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);
+  const [dailyError, setDailyError] = useState<string | null>(null);
+
+  // Generate daily strategy on-demand
+  const generateDailyStrategy = useCallback(async () => {
+    if (!snapshotId || isGeneratingDaily) return;
+
+    setIsGeneratingDaily(true);
+    setDailyError(null);
+
+    try {
+      console.log('[BriefingTab] Generating daily strategy for snapshot:', snapshotId);
+      const response = await fetch(`/api/strategy/daily/${snapshotId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to generate daily strategy');
+      }
+
+      if (data.ok && data.consolidated_strategy) {
+        console.log('[BriefingTab] Daily strategy generated:', data.consolidated_strategy.length, 'chars');
+        setDailyStrategy(data.consolidated_strategy);
+        setShowDailyStrategy(true);
+      } else {
+        throw new Error('No strategy returned');
+      }
+    } catch (err) {
+      console.error('[BriefingTab] Failed to generate daily strategy:', err);
+      setDailyError(err instanceof Error ? err.message : 'Failed to generate strategy');
+    } finally {
+      setIsGeneratingDaily(false);
+    }
+  }, [snapshotId, isGeneratingDaily]);
 
   // Log data received for debugging
   console.log('[BriefingTab] Received data:', { 
@@ -186,8 +232,94 @@ export default function BriefingTab({
         </div>
       </div>
 
-      {/* Daily Strategy Overview - TOP PRIORITY */}
-      {consolidatedStrategy && (
+      {/* Daily Strategy Overview - ON-DEMAND generation */}
+      {/* State 1: No strategy yet, show generate button */}
+      {!dailyStrategy && !isGeneratingDaily && !showDailyStrategy && (
+        <Card
+          className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 border-dashed cursor-pointer hover:border-solid hover:shadow-lg transition-all group"
+          data-testid="daily-strategy-generate-button"
+          onClick={generateDailyStrategy}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg group-hover:scale-105 transition-transform">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-purple-900 text-lg">Daily Strategy Report</h3>
+                  <p className="text-sm text-purple-600">Generate AI-powered 8-12 hour strategic briefing</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white border-purple-300 text-purple-700 hover:bg-purple-100 hover:border-purple-400 gap-2"
+              >
+                <Zap className="w-4 h-4" />
+                Generate Report
+              </Button>
+            </div>
+            {dailyError && (
+              <p className="text-red-600 text-sm mt-3">{dailyError}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* State 2: Generating strategy */}
+      {isGeneratingDaily && (
+        <Card
+          className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300"
+          data-testid="daily-strategy-loading"
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg">
+                <Loader className="w-6 h-6 text-white animate-spin" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-purple-900 text-lg">Generating Daily Strategy...</h3>
+                <p className="text-sm text-purple-600">AI is analyzing conditions for your 8-12 hour plan</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* State 3: Strategy exists but collapsed - show reveal button */}
+      {dailyStrategy && !showDailyStrategy && !isGeneratingDaily && (
+        <Card
+          className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 border-dashed cursor-pointer hover:border-solid hover:shadow-lg transition-all group"
+          data-testid="daily-strategy-button"
+          onClick={() => setShowDailyStrategy(true)}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg group-hover:scale-105 transition-transform">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-purple-900 text-lg">Daily Strategy Report</h3>
+                  <p className="text-sm text-purple-600">AI-generated 8-12 hour strategic briefing</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white border-purple-300 text-purple-700 hover:bg-purple-100 hover:border-purple-400 gap-2"
+              >
+                <Zap className="w-4 h-4" />
+                View Report
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* State 4: Strategy exists and expanded - show full content */}
+      {dailyStrategy && showDailyStrategy && (
         <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-lg" data-testid="daily-strategy-card">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -197,13 +329,23 @@ export default function BriefingTab({
                 </div>
                 <span className="text-purple-900">Today's Strategy</span>
               </CardTitle>
-              <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
-                ✅ Complete
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
+                  ✅ Complete
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDailyStrategy(false)}
+                  className="text-purple-600 hover:text-purple-800 hover:bg-purple-100 text-xs h-7 px-2"
+                >
+                  Collapse
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{consolidatedStrategy}</p>
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{dailyStrategy}</p>
           </CardContent>
         </Card>
       )}

@@ -77,17 +77,17 @@ Response
 ```
 POST /api/blocks-fast
     ↓
-lib/ai/providers/minstrategy.js (Claude Opus 4.5)
-    ↓ (parallel)
-lib/briefing/briefing-service.js (Gemini 3.0 Pro)
-    ↓
-lib/ai/providers/consolidator.js (Gemini → consolidated)
+lib/ai/providers/briefing.js (Gemini 3.0 Pro → briefings table)
     ↓
 lib/ai/providers/consolidator.js (GPT-5.1 → strategy_for_now)
     ↓
 lib/venue/enhanced-smart-blocks.js (GPT-5.1 → venues)
     ↓
 Response with strategy + blocks
+
+POST /api/strategy/daily (on-demand)
+    ↓
+lib/ai/providers/consolidator.js (Gemini → consolidated_strategy)
 ```
 
 ## Key Conventions

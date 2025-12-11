@@ -1,9 +1,15 @@
-// server/lib/providers/consolidator.js
-// Consolidator provider - Gemini 3 Pro Preview as "Tactical Dispatcher"
-// OPTIMIZED: Reads from two tables (no snapshot re-read needed):
-//   - strategies: minstrategy + location/time context (written by minstrategy provider)
-//   - briefings: events, traffic, news, weather, closures (written by briefing provider)
-// Includes Claude Opus 4.5 fallback when Gemini fails
+// server/lib/ai/providers/consolidator.js
+// Strategy generation provider
+//
+// TWO FUNCTIONS:
+//   1. runImmediateStrategy() - GPT-5.1 generates "strategy_for_now" (1-hour tactical)
+//      - Called by blocks-fast.js during initial pipeline
+//      - Uses snapshot + briefing data directly (no minstrategy)
+//
+//   2. runConsolidator() - Gemini 3 Pro generates "consolidated_strategy" (8-12hr daily)
+//      - Called on-demand via POST /api/strategy/daily/:snapshotId
+//      - Uses snapshot + briefing data directly (no minstrategy)
+//      - Includes Claude Opus 4.5 fallback when Gemini fails
 
 import { db } from '../../../db/drizzle.js';
 import { strategies, briefings } from '../../../../shared/schema.js';
@@ -17,25 +23,60 @@ const FALLBACK_MAX_TOKENS = 8000;
 const FALLBACK_TEMPERATURE = 0.3;
 
 /**
- * Call GPT-5.1 to generate immediate strategy from consolidated output
+ * Call GPT-5.1 to generate immediate strategy from snapshot + briefing data
+ * NO minstrategy required - GPT-5.1 has all the context it needs
+ * @param {Object} snapshot - Full snapshot row from DB
+ * @param {Object} briefing - Briefing data { traffic, events, weather }
  */
-async function callGPT5ForImmediateStrategy({ consolidatedStrategy, userAddress, cityDisplay, timestamp }) {
+async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    console.warn('[consolidator] ⚠️ OPENAI_API_KEY not configured, skipping immediate strategy');
+    console.warn('[immediate-strategy] ⚠️ OPENAI_API_KEY not configured');
     return { strategy: '' };
   }
 
+  // Format time from snapshot
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayOfWeek = snapshot.dow != null ? dayNames[snapshot.dow] : 'Unknown';
+  const isWeekend = snapshot.dow === 0 || snapshot.dow === 6;
+  const localTime = snapshot.local_iso ? new Date(snapshot.local_iso).toLocaleString('en-US', {
+    timeZone: snapshot.timezone || 'America/Chicago',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  }) : 'Unknown time';
+
   try {
-    const prompt = `You are a tactical rideshare coach. Based on the consolidated daily strategy below, generate a focused "Strategy for RIGHT NOW" (next 1 hour).
+    const prompt = `You are a TACTICAL RIDESHARE COACH. Generate a focused "GO NOW" strategy for the next 1 hour.
 
-CONSOLIDATED DAILY STRATEGY:
-${consolidatedStrategy}
+=== DRIVER SNAPSHOT ===
+Location: ${snapshot.formatted_address}
+City: ${snapshot.city}, ${snapshot.state}
+Coordinates: ${snapshot.lat}, ${snapshot.lng}
+Current Time: ${localTime}
+Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
+Day Part: ${snapshot.day_part_key}
+${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
-LOCATION: ${userAddress} (${cityDisplay})
-TIME: ${timestamp}
+=== WEATHER ===
+${JSON.stringify(snapshot.weather, null, 2)}
 
-Generate ONLY a concise 2-3 sentence tactical instruction for what the driver should do RIGHT NOW to maximize earnings in the next hour. Be specific to the location and time. Reference details from the consolidated strategy above.`;
+=== CURRENT TRAFFIC ===
+${JSON.stringify(briefing.traffic, null, 2)}
+
+=== CURRENT EVENTS ===
+${JSON.stringify(briefing.events, null, 2)}
+
+=== YOUR TASK ===
+Generate a concise 2-3 sentence tactical instruction for what the driver should do RIGHT NOW.
+Be specific: name locations, reference events/traffic from the data above.
+Focus on the NEXT 1 HOUR only.
+
+Format: Start with "HEAD TO..." or "POSITION AT..." or "STAY NEAR..." - be directive and actionable.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -48,29 +89,28 @@ Generate ONLY a concise 2-3 sentence tactical instruction for what the driver sh
         messages: [
           { role: 'user', content: prompt }
         ],
-        // GPT-5.1: Do NOT include temperature or reasoning_effort - just let it run fast
         max_completion_tokens: 500
       })
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.warn(`[consolidator] ⚠️ GPT-5.1 failed (${response.status}): ${errText.substring(0, 100)}`);
+      console.warn(`[immediate-strategy] ⚠️ GPT-5.1 failed (${response.status}): ${errText.substring(0, 100)}`);
       return { strategy: '' };
     }
 
     const data = await response.json();
     const strategy = data.choices?.[0]?.message?.content || '';
-    
+
     if (strategy) {
-      console.log(`[consolidator] ✅ GPT-5.1 returned immediate strategy: ${strategy.substring(0, 100)}...`);
+      console.log(`[immediate-strategy] ✅ GPT-5.1 returned: ${strategy.substring(0, 100)}...`);
       return { strategy };
     }
-    
-    console.warn('[consolidator] ⚠️ GPT-5.1 returned empty response');
+
+    console.warn('[immediate-strategy] ⚠️ GPT-5.1 returned empty response');
     return { strategy: '' };
   } catch (error) {
-    console.warn(`[consolidator] ⚠️ GPT-5.1 call failed:`, error.message);
+    console.warn(`[immediate-strategy] ⚠️ GPT-5.1 call failed:`, error.message);
     return { strategy: '' };
   }
 }
@@ -106,10 +146,11 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             tools: [{ google_search: {} }],
             safetySettings: [
-              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
             ],
             generationConfig: {
               thinkingConfig: {
@@ -192,19 +233,31 @@ function parseJsonField(field) {
 
 /**
  * Run consolidation using Gemini 3 Pro Preview as "Tactical Dispatcher"
- * Synthesizes minstrategy + snapshot + Type A briefing data
+ * Generates 8-12 hour daily strategy from snapshot + briefing data
  * Writes to strategies.consolidated_strategy
- * 
+ *
  * @param {string} snapshotId - UUID of snapshot
+ * @param {Object} options - Optional parameters
+ * @param {Object} options.snapshot - Pre-fetched snapshot row to avoid redundant DB reads
  */
-export async function runConsolidator(snapshotId) {
+export async function runConsolidator(snapshotId, options = {}) {
   const startTime = Date.now();
   triadLog.phase(3, `Starting for ${snapshotId.slice(0, 8)}`);
 
   try {
-    // TWO PARALLEL QUERIES - avoids race condition from minstrategy/briefing parallel writes
-    // 1. strategies: minstrategy + location/time context (written by minstrategy provider)
-    // 2. briefings: events, traffic, news, weather, closures (written by briefing provider)
+    // Use pre-fetched snapshot if provided, otherwise fetch from DB
+    let snapshot = options.snapshot;
+    if (!snapshot) {
+      const { snapshots } = await import('../../../../shared/schema.js');
+      const [row] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+      snapshot = row;
+    }
+
+    if (!snapshot) {
+      throw new Error(`Snapshot not found: ${snapshotId}`);
+    }
+
+    // Fetch strategy row and briefing
     const [[strategyRow], [briefingRow]] = await Promise.all([
       db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1),
       db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1)
@@ -220,49 +273,33 @@ export async function runConsolidator(snapshotId) {
 
     // Check if already consolidated
     if (strategyRow?.consolidated_strategy && strategyRow?.status === 'ok') {
-      console.log(`[consolidator] ⏭️ Already consolidated (status=ok) - skipping for ${snapshotId}`);
+      console.log(`[consolidator] ⏭️ Already consolidated - skipping`);
       return { ok: true, skipped: true, reason: 'already_consolidated' };
     }
 
-    // Get minstrategy from STRATEGIES table (written by minstrategy provider)
-    const minstrategy = strategyRow.minstrategy;
-
-    // PREREQUISITE VALIDATION: Only minstrategy required
-    if (!minstrategy || minstrategy.trim().length === 0) {
-      console.warn(`[consolidator] ⚠️ Missing minstrategy for ${snapshotId}`);
-      await db.update(strategies).set({
-        status: 'missing_prereq',
-        error_message: 'Minstrategy output is missing or empty',
-        updated_at: new Date()
-      }).where(eq(strategies.snapshot_id, snapshotId));
-      throw new Error('Missing minstrategy (strategist output is empty)');
-    }
-
-    console.log(`[consolidator] ✅ Minstrategy ready (${minstrategy.length} chars)`);
-
-    // Parse raw briefing JSON fields from BRIEFINGS table (written by briefing provider)
+    // Parse briefing JSON fields
     const trafficData = parseJsonField(briefingRow.traffic_conditions);
     const eventsData = parseJsonField(briefingRow.events);
     const newsData = parseJsonField(briefingRow.news);
     const weatherData = parseJsonField(briefingRow.weather_current);
     const closuresData = parseJsonField(briefingRow.school_closures);
 
-    console.log(`[consolidator] 📊 Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}, closures=${!!closuresData}`);
+    console.log(`[consolidator] 📊 Briefing: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}`);
 
-    // Get location/time context from STRATEGIES table (written by minstrategy provider)
-    const userAddress = strategyRow.user_resolved_address || 'Unknown location';
-    const cityDisplay = strategyRow.user_resolved_city || 'your area';
-    const stateDisplay = strategyRow.user_resolved_state || '';
-    const lat = strategyRow.lat;
-    const lng = strategyRow.lng;
+    // Get location/time context from SNAPSHOT (not strategies table)
+    const userAddress = snapshot.formatted_address || 'Unknown location';
+    const cityDisplay = snapshot.city || 'your area';
+    const stateDisplay = snapshot.state || '';
+    const lat = snapshot.lat;
+    const lng = snapshot.lng;
 
-    // Format time context from strategies table
+    // Format time context from snapshot
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dow = strategyRow.dow;
+    const dow = snapshot.dow;
     const dayOfWeek = dow != null ? dayNames[dow] : 'Unknown';
     const isWeekend = dow === 0 || dow === 6;
-    const localTime = strategyRow.local_iso ? new Date(strategyRow.local_iso).toLocaleString('en-US', {
-      timeZone: strategyRow.timezone || 'America/Chicago',
+    const localTime = snapshot.local_iso ? new Date(snapshot.local_iso).toLocaleString('en-US', {
+      timeZone: snapshot.timezone || 'America/Chicago',
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -271,16 +308,16 @@ export async function runConsolidator(snapshotId) {
       minute: '2-digit',
       hour12: true
     }) : 'Unknown time';
-    const dayPart = strategyRow.day_part_key || 'unknown';
-    const isHoliday = strategyRow.is_holiday || false;
-    const holiday = strategyRow.holiday || null;
+    const dayPart = snapshot.day_part_key || 'unknown';
+    const isHoliday = snapshot.is_holiday || false;
+    const holiday = snapshot.holiday || null;
 
-    console.log(`[consolidator] 📍 Location: ${userAddress} (from strategies table)`);
+    console.log(`[consolidator] 📍 Location: ${userAddress}`);
     console.log(`[consolidator] 🕐 Time: ${localTime} (${dayPart})`);
-    
+
     // Step 4: Build Daily Strategy prompt with RAW briefing JSON
     // This is the DAILY STRATEGY (8-12 hours) that goes to the Briefing Tab
-    // NOTE: No full snapshot needed - all context comes from strategies + briefings tables
+    // NOTE: All context comes from snapshot + briefings tables (no minstrategy)
     const prompt = `You are a STRATEGIC ADVISOR for rideshare drivers. Create a comprehensive "Daily Strategy" covering the next 8-12 hours.
 
 === DRIVER CONTEXT ===
@@ -291,9 +328,6 @@ Current Time: ${localTime}
 Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
 Day Part: ${dayPart}
 ${isHoliday ? `HOLIDAY: ${holiday}` : ''}
-
-=== STRATEGIC ASSESSMENT (from Claude) ===
-${minstrategy}
 
 === CURRENT_TRAFFIC_DATA ===
 ${JSON.stringify(trafficData, null, 2)}
@@ -325,7 +359,7 @@ Output 4-6 paragraphs covering:
 
 STYLE: Strategic and forward-looking. Think 8-12 hours ahead. Be specific about times, locations, and events. No bullet points.
 
-DO NOT: Focus only on "right now", list venues without context, repeat minstrategy verbatim, output JSON.`;
+DO NOT: Focus only on "right now", list venues without context, output JSON.`;
 
     console.log(`[consolidator] 📝 Prompt size: ${prompt.length} chars`);
     
@@ -359,32 +393,20 @@ DO NOT: Focus only on "right now", list venues without context, repeat minstrate
     }
 
     const consolidatedStrategy = result.output;
-    
+
     if (!consolidatedStrategy || consolidatedStrategy.length === 0) {
       throw new Error('Consolidator returned empty output');
     }
-    
+
     console.log(`[consolidator] ✅ Got strategy: ${consolidatedStrategy.length} chars`);
     console.log(`[consolidator] 📖 Preview: ${consolidatedStrategy.substring(0, 150)}...`);
-    
-    // Step 6a: Call GPT-5.1 for immediate strategy from consolidated output + location
-    console.log(`[consolidator] 🔄 Calling GPT-5.1 for immediate strategy...`);
-    const immediateStrategyResult = await callGPT5ForImmediateStrategy({
-      consolidatedStrategy,
-      userAddress,
-      cityDisplay,
-      timestamp: localTime
-    });
-    
-    const strategyForNow = immediateStrategyResult?.strategy || '';
-    
-    // Step 6b: Write to strategies table
+
+    // Step 6: Write ONLY consolidated_strategy to strategies table
+    // NOTE: strategy_for_now is handled separately by runImmediateStrategy
     const totalDuration = Date.now() - startTime;
-    
+
     await db.update(strategies).set({
       consolidated_strategy: consolidatedStrategy,
-      strategy_for_now: strategyForNow,
-      status: 'ok',
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
@@ -411,6 +433,95 @@ DO NOT: Focus only on "right now", list venues without context, repeat minstrate
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
     
+    throw error;
+  }
+}
+
+/**
+ * Run IMMEDIATE strategy only (no daily strategy)
+ * Called by blocks-fast.js for fast initial load
+ * Uses snapshot row + briefing data directly - NO minstrategy required
+ *
+ * @param {string} snapshotId - UUID of snapshot
+ * @param {Object} options - Optional parameters
+ * @param {Object} options.snapshot - Pre-fetched snapshot row to avoid redundant DB reads
+ */
+export async function runImmediateStrategy(snapshotId, options = {}) {
+  const startTime = Date.now();
+  console.log(`[immediate-strategy] 🚀 Starting for ${snapshotId.slice(0, 8)}`);
+
+  try {
+    // Use pre-fetched snapshot if provided, otherwise fetch from DB
+    let snapshot = options.snapshot;
+    if (!snapshot) {
+      const { snapshots } = await import('../../../../shared/schema.js');
+      const [row] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+      snapshot = row;
+    }
+
+    if (!snapshot) {
+      throw new Error(`Snapshot not found: ${snapshotId}`);
+    }
+
+    // Fetch briefing data
+    const [briefingRow] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+
+    if (!briefingRow) {
+      throw new Error(`Briefing not found for snapshot ${snapshotId}`);
+    }
+
+    // Check if immediate strategy already exists
+    const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+    if (strategyRow?.strategy_for_now && strategyRow?.status === 'ok') {
+      console.log(`[immediate-strategy] ⏭️ Already exists - skipping`);
+      return { ok: true, skipped: true, reason: 'already_exists' };
+    }
+
+    // Parse briefing data
+    const briefing = {
+      traffic: parseJsonField(briefingRow.traffic_conditions),
+      events: parseJsonField(briefingRow.events),
+      weather: parseJsonField(briefingRow.weather_current)
+    };
+
+    console.log(`[immediate-strategy] 📍 ${snapshot.formatted_address}`);
+    console.log(`[immediate-strategy] 📊 Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}`);
+
+    // Call GPT-5.1 with snapshot + briefing (NO minstrategy)
+    const result = await callGPT5ForImmediateStrategy({ snapshot, briefing });
+
+    if (!result.strategy) {
+      throw new Error('GPT-5.1 returned empty strategy');
+    }
+
+    // Write to strategies table
+    const totalDuration = Date.now() - startTime;
+
+    await db.update(strategies).set({
+      strategy_for_now: result.strategy,
+      status: 'ok',
+      updated_at: new Date()
+    }).where(eq(strategies.snapshot_id, snapshotId));
+
+    console.log(`[immediate-strategy] ✅ Saved (${result.strategy.length} chars) in ${totalDuration}ms`);
+
+    return {
+      ok: true,
+      strategy: result.strategy,
+      durationMs: totalDuration
+    };
+  } catch (error) {
+    const totalDuration = Date.now() - startTime;
+    console.error(`[immediate-strategy] ❌ Failed after ${totalDuration}ms:`, error.message);
+
+    // Write error to DB
+    await db.update(strategies).set({
+      status: 'error',
+      error_code: 'immediate_failed',
+      error_message: error.message.slice(0, 500),
+      updated_at: new Date()
+    }).where(eq(strategies.snapshot_id, snapshotId));
+
     throw error;
   }
 }

@@ -118,8 +118,8 @@ router.post('/', requireAuth, async (req, res) => {
 🔍 **Web Search & Verification (via Google Search):**
 - You have LIVE Google Search access - use it proactively to verify events, check facts, find current information
 - When users ask you to verify something or look something up, SEARCH THE WEB for current information
-- Provide sources and citations when you search for information
 - Cross-reference briefing data with live web searches for accuracy
+- Do NOT list sources or citations at the end of your responses - just provide the information naturally
 
 📚 **General Knowledge & Life Help:**
 - Career advice: going back to college, changing careers, certifications, financial planning
@@ -191,18 +191,18 @@ You're a powerful AI companion. Help with rideshare strategy when they need it, 
     }
 
     try {
-      console.log(`[chat] Calling Gemini 3.0 Pro...`);
-      
+      console.log(`[chat] Calling Gemini 3.0 Pro with streaming...`);
+
       // Create abort controller with 90 second timeout (web search needs more time)
       const abortController = new AbortController();
       const timeoutId = setTimeout(() => abortController.abort(), 90000);
-      
-      // FIX: API key already in URL as query parameter, no header needed
+
+      // Use streamGenerateContent for real-time streaming
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:streamGenerateContent?alt=sse&key=${process.env.GEMINI_API_KEY}`,
         {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json'
           },
           signal: abortController.signal,
@@ -222,12 +222,13 @@ You're a powerful AI companion. Help with rideshare strategy when they need it, 
               { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
               { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
               { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+              { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
             ]
           })
         }
       );
-      
+
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -237,49 +238,55 @@ You're a powerful AI companion. Help with rideshare strategy when they need it, 
         return res.end();
       }
 
-      const data = await response.json();
-      const candidate = data.candidates?.[0];
-      const text = candidate?.content?.parts?.[0]?.text;
-      const groundingMetadata = candidate?.groundingMetadata;
+      // Stream the response chunks to client
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let totalText = '';
 
-      // Log grounding info if search was used
-      if (groundingMetadata) {
-        console.log(`[chat] 🔍 Google Search used - ${groundingMetadata.webSearchQueries?.length || 0} queries`);
-        if (groundingMetadata.groundingChunks?.length > 0) {
-          console.log(`[chat] 📚 ${groundingMetadata.groundingChunks.length} sources found`);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE messages from buffer
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === '[DONE]') continue;
+
+            try {
+              const data = JSON.parse(jsonStr);
+              const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+              if (text) {
+                totalText += text;
+                // Stream each chunk to the client immediately
+                res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
+              }
+
+              // Check for safety blocking
+              const finishReason = data.candidates?.[0]?.finishReason;
+              if (finishReason === 'SAFETY') {
+                console.warn('[chat] Response blocked by safety filter');
+                res.write(`data: ${JSON.stringify({ delta: '\n\nI apologize, but I cannot continue with that response.' })}\n\n`);
+              }
+            } catch (parseErr) {
+              // Skip unparseable chunks (partial JSON, etc.)
+            }
+          }
         }
       }
 
-      if (!text) {
-        // Check for safety blocking
-        const finishReason = candidate?.finishReason;
-        const safetyRatings = candidate?.safetyRatings;
-
-        if (finishReason === 'SAFETY') {
-          console.warn('[chat] Response blocked by safety filter:', safetyRatings);
-          res.write(`data: ${JSON.stringify({ delta: 'I apologize, but I cannot respond to that request. Could you rephrase your question?' })}\n\n`);
-        } else {
-          console.warn('[chat] Empty response from Gemini, finishReason:', finishReason);
-          res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
-        }
+      if (totalText) {
+        console.log(`[chat] ✅ Gemini streamed response: ${totalText.substring(0, 100)}...`);
       } else {
-        console.log(`[chat] ✅ Gemini response: ${text.substring(0, 100)}...`);
-
-        // Build response with citations if available
-        let fullResponse = text;
-        if (groundingMetadata?.groundingChunks?.length > 0) {
-          const sources = groundingMetadata.groundingChunks
-            .filter(chunk => chunk.web?.uri)
-            .slice(0, 3)
-            .map(chunk => `- [${chunk.web.title || 'Source'}](${chunk.web.uri})`)
-            .join('\n');
-
-          if (sources) {
-            fullResponse += `\n\n📚 **Sources:**\n${sources}`;
-          }
-        }
-
-        res.write(`data: ${JSON.stringify({ delta: fullResponse })}\n\n`);
+        console.warn('[chat] Empty streaming response from Gemini');
+        res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
       }
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);

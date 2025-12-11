@@ -14,6 +14,7 @@ AI agent infrastructure for enhanced context and WebSocket communication.
 | `context-awareness.js` | Contextual data gathering |
 | `config-manager.js` | Agent configuration |
 | `agent-override-llm.js` | LLM override for agent |
+| `thread-context.js` | Thread context management |
 | `index.ts` | TypeScript entry point |
 
 ## Mounting

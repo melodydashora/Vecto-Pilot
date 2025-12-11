@@ -78,6 +78,7 @@ This document captures historical issues, pitfalls, and best practices discovere
     responseMimeType: "application/json"  // For structured outputs
   },
   tools: [{ google_search: {} }]  // For real-time data
+  // NOTE: Do NOT include safetySettings - see below
 }
 ```
 
@@ -87,6 +88,26 @@ This document captures historical issues, pitfalls, and best practices discovere
   thinking_budget: 8000,    // DEPRECATED - doesn't work
   thinking_level: "high",   // WRONG - must be nested in thinkingConfig
 }
+```
+
+**CRITICAL: Include ALL safetySettings categories with BLOCK_NONE**
+
+When using Gemini, you MUST include ALL 5 safety categories with `BLOCK_NONE` to prevent failures on sensitive content (e.g., traffic incidents with injuries):
+
+```javascript
+// CORRECT - ALL categories with BLOCK_NONE
+safetySettings: [
+  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
+]
+
+// WRONG - missing categories will still block content
+safetySettings: [
+  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+]
 ```
 
 ### Claude Sonnet 4.5 (Anthropic)
@@ -668,7 +689,58 @@ Validation gates check:
 - **Fix:** Set `refetchInterval: false`
 - **Status:** RESOLVED
 
+### Issue: Events Filtered Out by EventValidator (Dec 11, 2025)
+- **Cause:** Claude EventValidator returned prose instead of JSON, causing all events to be marked as "Parse error" and filtered out
+- **Fix:** Disabled EventValidator entirely - Gemini handles event discovery, Claude is fallback only
+- **Status:** RESOLVED
+
+### Issue: Duplicate Briefing API Calls (Dec 11, 2025)
+- **Cause:** Both `snapshot.js` and `strategy-generator-parallel.js` called `generateAndStoreBriefing`, causing double Gemini API calls for traffic/events
+- **Fix:** Database-driven deduplication using NULL fields as triggers:
+  - INSERT placeholder row with NULL fields = "generation in progress"
+  - Check for populated fields < 60s old = skip regeneration
+  - `getOrGenerateBriefing` returns null if placeholder < 2 min old
+- **Status:** RESOLVED
+
+### Issue: News/School Closures Not Populating (Dec 11, 2025)
+- **Cause:** Cache lookup query was finding our own placeholder row (with NULL news) instead of cached data from other snapshots
+- **Fix:** Updated cache query to exclude current snapshotId AND exclude rows with NULL news
+- **Status:** RESOLVED
+
+### Issue: Snapshot Missing formatted_address (Dec 11, 2025)
+- **Cause:** `snapshot.js` relied on request body for resolved data, not looking up users table
+- **Fix:** If resolved data missing from request, lookup users table → coords_cache as fallback
+- **Status:** RESOLVED
+
+### Issue: LLMs Receiving Raw Coords Instead of Addresses (Dec 11, 2025)
+- **Cause:** Strategy pipeline was not passing full snapshot row to providers - they had to fetch from DB
+- **Fix:** Pass full snapshot row through entire chain:
+  - `snapshot.js` → `generateStrategyForSnapshot(id, { snapshot })`
+  - `generateMultiStrategy({ snapshot })`
+  - `runMinStrategy(id, { snapshot })`
+  - `runBriefing(id, { snapshot })`
+- **Key Rule:** **LLMs cannot reverse geocode** - always provide `formatted_address`
+- **Status:** RESOLVED
+
 ---
 
-**Last Updated**: December 9, 2025
+## Location Data Flow (Critical)
+
+```
+coords_cache.formatted_address  ← Google API resolution
+       ↓
+users.formatted_address         ← Populated from coords_cache
+       ↓
+snapshots.formatted_address     ← Populated from users (or coords_cache fallback)
+       ↓
+strategy pipeline               ← Full snapshot row passed through
+       ↓
+LLM prompt                      ← "LOCATION: 1753 Saddle Tree Rd, Frisco, TX"
+```
+
+**NEVER send raw coordinates to LLMs** - they cannot determine addresses.
+
+---
+
+**Last Updated**: December 11, 2025
 **Maintained By**: Development Team

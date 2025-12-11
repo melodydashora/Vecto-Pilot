@@ -108,6 +108,38 @@ const CoPilot: React.FC = () => {
 
   // getAuthHeader is now imported from @/utils/co-pilot-helpers
 
+  // Fallback: If location context has a snapshot ID and we don't, use it
+  // This handles the case where the event was dispatched before co-pilot mounted
+  useEffect(() => {
+    const contextSnapshotId = locationContext?.lastSnapshotId;
+    if (contextSnapshotId && !lastSnapshotId) {
+      console.log("🔄 Co-Pilot: Using snapshot from context (event may have been missed):", contextSnapshotId);
+      setLastSnapshotId(contextSnapshotId);
+
+      // Trigger waterfall for this snapshot
+      (async () => {
+        try {
+          console.log("🚀 Triggering POST /api/blocks-fast waterfall (from context fallback)...");
+          const response = await fetch('/api/blocks-fast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+            body: JSON.stringify({ snapshotId: contextSnapshotId })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error("❌ Waterfall failed:", error);
+          } else {
+            const result = await response.json();
+            console.log("✅ Waterfall complete:", result);
+          }
+        } catch (err) {
+          console.error("❌ Waterfall error:", err);
+        }
+      })();
+    }
+  }, [locationContext?.lastSnapshotId, lastSnapshotId]);
+
   // Listen for snapshot-saved event to trigger waterfall and load all tabs
   useEffect(() => {
     const handleSnapshotSaved = async (e: any) => {

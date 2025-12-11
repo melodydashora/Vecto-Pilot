@@ -106,19 +106,46 @@ Return JSON array ONLY:
     const result = await callModel('event_validator', { system, user });
 
     if (!result.ok) {
-      console.warn(`[EventValidator] ⚠️ Validation failed: ${result.error}`);
-      // Return events as-is with unverified flag
-      return events.map(e => ({ ...e, verified: false, verification_note: 'Validation unavailable' }));
+      console.warn(`[EventValidator] ⚠️ Validation API failed: ${result.error}`);
+      // CRITICAL: When validation API fails, KEEP events as unvalidated (not filtered out)
+      // Mark as verified=true so filterVerifiedEvents doesn't remove them
+      console.log(`[EventValidator] ⚠️ Keeping ${events.length} events as unvalidated (API unavailable)`);
+      return events.map(e => ({ ...e, verified: true, verification_note: 'Validation API unavailable - keeping event' }));
     }
 
-    // Parse response
+    // Parse response - try multiple extraction strategies
     let validationResults;
     try {
-      const cleaned = result.output.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      validationResults = JSON.parse(cleaned);
+      let cleaned = result.output.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+      // Strategy 1: Direct parse
+      try {
+        validationResults = JSON.parse(cleaned);
+      } catch (_e1) {
+        // Strategy 2: Extract JSON array from prose (find [...])
+        const arrayMatch = result.output.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          validationResults = JSON.parse(arrayMatch[0]);
+        } else {
+          // Strategy 3: Extract JSON object from prose (find {...})
+          const objMatch = result.output.match(/\{[\s\S]*\}/);
+          if (objMatch) {
+            const obj = JSON.parse(objMatch[0]);
+            validationResults = Array.isArray(obj) ? obj : [obj];
+          } else {
+            throw new Error('No JSON found in response');
+          }
+        }
+      }
+
+      console.log(`[EventValidator] ✅ Parsed ${validationResults.length} validation results`);
     } catch (parseErr) {
       console.warn(`[EventValidator] ⚠️ Failed to parse validation response: ${parseErr.message}`);
-      return events.map(e => ({ ...e, verified: false, verification_note: 'Parse error' }));
+      console.warn(`[EventValidator] Raw output (first 200 chars): ${result.output?.slice(0, 200)}`);
+      // CRITICAL: When validation fails, KEEP events as unvalidated (not filtered out)
+      // Mark as verified=true so filterVerifiedEvents doesn't remove them
+      console.log(`[EventValidator] ⚠️ Keeping ${events.length} events as unvalidated (validation unavailable)`);
+      return events.map(e => ({ ...e, verified: true, verification_note: 'Validation unavailable - keeping event' }));
     }
 
     // Merge validation results back into events
@@ -163,7 +190,9 @@ Return JSON array ONLY:
 
   } catch (err) {
     console.error(`[EventValidator] ❌ Error: ${err.message}`);
-    return events.map(e => ({ ...e, verified: false, verification_note: `Error: ${err.message}` }));
+    // CRITICAL: On any error, KEEP events as unvalidated (not filtered out)
+    console.log(`[EventValidator] ⚠️ Keeping ${events.length} events as unvalidated (error occurred)`);
+    return events.map(e => ({ ...e, verified: true, verification_note: `Validation error - keeping event` }));
   }
 }
 

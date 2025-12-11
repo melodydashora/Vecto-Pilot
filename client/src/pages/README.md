@@ -9,6 +9,7 @@ Page-level components that represent full screens/routes.
 | File | Purpose |
 |------|---------|
 | `co-pilot.tsx` | Main dashboard (1700+ LOC) |
+| `SafeScaffold.tsx` | Safe scaffold wrapper component |
 
 ## co-pilot.tsx
 

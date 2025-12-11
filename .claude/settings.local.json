@@ -33,7 +33,10 @@
       "Bash(do [ ! -f \"$dir/README.md\" ])",
       "Bash(npx drizzle-kit push:*)",
       "Bash(pkill:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(psql:*)",
+      "Bash(node -e \"\nconst { execSync } = require(''child_process'');\nexecSync(''npx drizzle-kit push --accept-all-data-loss-statements'', { \n  stdio: ''inherit'',\n  env: { ...process.env }\n});\n\")",
+      "Bash(printf:*)"
     ],
     "deny": [],
     "ask": []

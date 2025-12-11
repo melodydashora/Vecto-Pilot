@@ -34,6 +34,24 @@ function getDayPartKey(hour) {
   return 'evening';
 }
 
+// Helper: Validate all required snapshot fields are present before INSERT
+// These fields are NOT NULL in the database schema
+function validateSnapshotFields(record) {
+  const required = [
+    'lat', 'lng', 'city', 'state', 'country',
+    'formatted_address', 'timezone', 'local_iso',
+    'dow', 'hour', 'day_part_key'
+  ];
+  const missing = required.filter(f => record[f] === null || record[f] === undefined);
+  if (missing.length > 0) {
+    const error = new Error(`SNAPSHOT_VALIDATION_FAILED: Missing required fields: ${missing.join(', ')}`);
+    error.missingFields = missing;
+    error.code = 'SNAPSHOT_INCOMPLETE';
+    throw error;
+  }
+  return true;
+}
+
 // Circuit breakers for external APIs (fail-fast, no fallbacks)
 const googleMapsCircuit = makeCircuit({ 
   name: 'google-maps', 
@@ -454,9 +472,12 @@ router.get('/resolve', async (req, res) => {
                   user_id: existingUser.user_id,
                   device_id: deviceId,
                   session_id: sessionId || crypto.randomUUID(),
-                  // Location identity (from users table - cached, reused)
+                  // Location coordinates
                   lat,
                   lng,
+                  // FK to coords_cache for location identity (from users table)
+                  coord_key: existingUser.coord_key,
+                  // LEGACY: Location identity (from users table - cached, reused)
                   city: existingUser.city,
                   state: existingUser.state,
                   country: existingUser.country,
@@ -475,6 +496,9 @@ router.get('/resolve', async (req, res) => {
                   device: { platform: 'web' },
                   permissions: { geolocation: 'granted' }
                 };
+
+                // Validate all required fields are present before INSERT (schema has NOT NULL constraints)
+                validateSnapshotFields(snapshotRecord);
 
                 await db.insert(snapshots).values(snapshotRecord);
                 console.log(`📸 [SNAPSHOT] ✅ Snapshot created: ${snapshotId.slice(0, 8)} for ${existingUser.city}, ${existingUser.state}`);
@@ -653,9 +677,14 @@ router.get('/resolve', async (req, res) => {
       
       // ═══════════════════════════════════════════════════════════════════════════
       // STORE IN CACHE: Save resolved data for future lookups (6-decimal precision)
-      // Only store if we have BOTH formattedAddress AND timezone (complete data)
+      // All 5 fields must be present: city, state, country, formatted_address, timezone
       // ═══════════════════════════════════════════════════════════════════════════
-      if (formattedAddress && timeZone) {
+      const cacheFields = { city, state, country, formatted_address: formattedAddress, timezone: timeZone };
+      const missingCacheFields = Object.entries(cacheFields)
+        .filter(([_, v]) => !v)
+        .map(([k]) => k);
+
+      if (missingCacheFields.length === 0) {
         try {
           await db.insert(coords_cache).values({
             coord_key: coordKey,
@@ -668,13 +697,19 @@ router.get('/resolve', async (req, res) => {
             timezone: timeZone,
             hit_count: 0,
           }).onConflictDoNothing(); // In case of race condition, don't fail
-          
-          console.log(`[Location API] 💾 Stored in coords_cache: ${coordKey} → "${formattedAddress}" (tz: ${timeZone})`);
+
+          console.log(`[Location API] 💾 Stored in coords_cache: ${coordKey} → city="${city}", state="${state}", country="${country}", address="${formattedAddress}", tz="${timeZone}"`);
         } catch (cacheWriteErr) {
           console.warn(`[Location API] ⚠️ Cache write failed (non-fatal):`, cacheWriteErr.message);
         }
       } else {
-        console.log(`[Location API] ⚠️ Skipping cache store - incomplete data (address: ${!!formattedAddress}, timezone: ${!!timeZone})`);
+        console.warn(`[Location API] ⚠️ Skipping cache store - missing fields: ${missingCacheFields.join(', ')}`, {
+          city: city || '(missing)',
+          state: state || '(missing)',
+          country: country || '(missing)',
+          formatted_address: formattedAddress || '(missing)',
+          timezone: timeZone || '(missing)'
+        });
       }
     } // End of cache miss block
 
@@ -689,6 +724,37 @@ router.get('/resolve', async (req, res) => {
     };
     
     console.log(`[Location API] ✅ Complete resolution:`, resolvedData);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // COORDS CACHE VALIDATION: Ensure consistency between cache and resolved values
+    // If cache has data, prefer cached values for consistency across requests
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (cacheHit) {
+      const fieldsToValidate = ['city', 'state', 'country', 'formatted_address', 'timezone'];
+      for (const field of fieldsToValidate) {
+        const cacheValue = field === 'formatted_address' ? cacheHit.formatted_address :
+                          field === 'timezone' ? cacheHit.timezone : cacheHit[field];
+        const localValue = field === 'formatted_address' ? formattedAddress :
+                          field === 'timezone' ? timeZone :
+                          field === 'city' ? city :
+                          field === 'state' ? state : country;
+        if (cacheValue && localValue !== cacheValue) {
+          console.warn(`[location] CONSISTENCY: ${field} mismatch - cache="${cacheValue}" vs resolved="${localValue}" - using cache value`);
+          // Use cache value for consistency
+          if (field === 'formatted_address') formattedAddress = cacheValue;
+          else if (field === 'timezone') timeZone = cacheValue;
+          else if (field === 'city') city = cacheValue;
+          else if (field === 'state') state = cacheValue;
+          else if (field === 'country') country = cacheValue;
+        }
+      }
+      // Update resolvedData with cache-validated values
+      resolvedData.city = city;
+      resolvedData.state = state;
+      resolvedData.country = country;
+      resolvedData.timeZone = timeZone;
+      resolvedData.formattedAddress = formattedAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    }
 
     // Save to users table if device_id provided
     console.log(`[Location API] 🔑 device_id check:`, { deviceId: deviceId || '(missing)', hasDeviceId: !!deviceId });
@@ -730,6 +796,7 @@ router.get('/resolve', async (req, res) => {
                 new_lng: lng,
                 accuracy_m: accuracy,
                 session_id: sessionId,
+                coord_key: coordKey, // FK to coords_cache for location identity
                 formatted_address: formattedAddress,
                 city,
                 state,
@@ -783,6 +850,7 @@ router.get('/resolve', async (req, res) => {
             accuracy_m: accuracy,
             session_id: sessionId,
             coord_source: coordSource,
+            coord_key: coordKey, // FK to coords_cache for location identity
             formatted_address: formattedAddress,
             city,
             state,
@@ -847,9 +915,12 @@ router.get('/resolve', async (req, res) => {
             user_id: userId,
             device_id: deviceId,
             session_id: sessionId || crypto.randomUUID(),
-            // Location identity (from users table - source of truth)
+            // Location coordinates
             lat,
             lng,
+            // FK to coords_cache for location identity
+            coord_key: coordKey,
+            // LEGACY: Location identity (kept for backward compat)
             city,
             state,
             country,
@@ -869,6 +940,9 @@ router.get('/resolve', async (req, res) => {
             device: { platform: 'web' },
             permissions: { geolocation: 'granted' }
           };
+
+          // Validate all required fields are present before INSERT (schema has NOT NULL constraints)
+          validateSnapshotFields(snapshotRecord);
 
           await db.insert(snapshots).values(snapshotRecord);
           console.log(`📸 [SNAPSHOT] ✅ Snapshot created: ${snapshotId.slice(0, 8)} for ${city}, ${state}`);
@@ -1469,6 +1543,11 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     const parts = formatter.formatToParts(createdAtDate);
     const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
 
+    // Calculate coord_key from coordinates for coords_cache lookup
+    const snapLat = snapshotV1.coord?.lat;
+    const snapLng = snapshotV1.coord?.lng;
+    const snapCoordKey = (snapLat && snapLng) ? makeCoordsKey(snapLat, snapLng) : null;
+
     const dbSnapshot = {
       snapshot_id: snapshotV1.snapshot_id,
       created_at: createdAtDate,
@@ -1476,10 +1555,12 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       user_id: (snapshotV1.user_id && snapshotV1.user_id.trim() !== '') ? snapshotV1.user_id : null,
       device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
-      // SELF-CONTAINED: Store all location data directly in snapshots (no FK dependency on users table)
-      // DB = source of truth - all context needed by AI models must be in this record
-      lat: snapshotV1.coord?.lat ?? null,
-      lng: snapshotV1.coord?.lng ?? null,
+      // Location coordinates
+      lat: snapLat ?? null,
+      lng: snapLng ?? null,
+      // FK to coords_cache for location identity
+      coord_key: snapCoordKey,
+      // LEGACY: Location data (kept for backward compat)
       city: snapshotV1.resolved?.city ?? null,
       state: snapshotV1.resolved?.state ?? null,
       country: snapshotV1.resolved?.country ?? null,
@@ -1571,6 +1652,9 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     console.log('  → airport_context:', dbSnapshot.airport_context);
     
     try {
+      // Validate all required fields are present before INSERT (schema has NOT NULL constraints)
+      validateSnapshotFields(dbSnapshot);
+
       await db.insert(snapshots).values(dbSnapshot);
       console.log('[Snapshot DB] ✅ Snapshot successfully written to database');
     } catch (dbError) {

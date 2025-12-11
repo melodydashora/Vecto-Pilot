@@ -149,18 +149,15 @@ export class CoachDAL {
    */
   async getLatestStrategy(snapshotId) {
     try {
+      // Fetch strategy and snapshot together (location/time context now in snapshot)
       const [strat] = await db
         .select({
           snapshot_id: strategies.snapshot_id,
           user_id: strategies.user_id,
           consolidated_strategy: strategies.consolidated_strategy,
-          minstrategy: strategies.minstrategy,
-          holiday: strategies.holiday,
+          strategy_for_now: strategies.strategy_for_now,
           strategy_timestamp: strategies.strategy_timestamp,
           created_at: strategies.created_at,
-          user_resolved_address: strategies.user_resolved_address,
-          user_resolved_city: strategies.user_resolved_city,
-          user_resolved_state: strategies.user_resolved_state,
           model_name: strategies.model_name,
           status: strategies.status,
         })
@@ -171,17 +168,29 @@ export class CoachDAL {
 
       if (!strat) return null;
 
+      // Fetch snapshot for location/holiday context
+      const [snapshot] = await db
+        .select({
+          formatted_address: snapshots.formatted_address,
+          city: snapshots.city,
+          state: snapshots.state,
+          holiday: snapshots.holiday,
+        })
+        .from(snapshots)
+        .where(eq(snapshots.snapshot_id, snapshotId))
+        .limit(1);
+
       return {
         snapshot_id: strat.snapshot_id,
         user_id: strat.user_id,
-        strategy_text: strat.consolidated_strategy || strat.minstrategy || null,
-        minstrategy: strat.minstrategy,
+        strategy_text: strat.consolidated_strategy || strat.strategy_for_now || null,
+        strategy_for_now: strat.strategy_for_now,
         consolidated_strategy: strat.consolidated_strategy,
         strategy_timestamp: strat.strategy_timestamp?.toISOString() || strat.created_at?.toISOString() || null,
-        holiday: strat.holiday,
-        user_address: strat.user_resolved_address,
-        user_city: strat.user_resolved_city,
-        user_state: strat.user_resolved_state,
+        holiday: snapshot?.holiday || null,
+        user_address: snapshot?.formatted_address || null,
+        user_city: snapshot?.city || null,
+        user_state: snapshot?.state || null,
         model_name: strat.model_name,
         status: strat.status,
       };
@@ -576,9 +585,10 @@ export class CoachDAL {
     // ========== STRATEGY & CONSOLIDATION ==========
     if (strategy) {
       if (strategy.consolidated_strategy) {
-        prompt += `\n\n=== AI-GENERATED STRATEGY (Ready) ===\n${strategy.consolidated_strategy}`;
-      } else if (strategy.minstrategy) {
-        prompt += `\n\n=== INITIAL STRATEGY (Consolidation in progress) ===\n${strategy.minstrategy}`;
+        prompt += `\n\n=== AI-GENERATED DAILY STRATEGY (8-12hr) ===\n${strategy.consolidated_strategy}`;
+      }
+      if (strategy.strategy_for_now) {
+        prompt += `\n\n=== IMMEDIATE STRATEGY (Next 1hr) ===\n${strategy.strategy_for_now}`;
       }
     } else if (status === 'pending_strategy') {
       prompt += `\n\n⏳ AI strategy is generating...`;
