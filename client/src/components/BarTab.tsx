@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Navigation, MapPin, Phone, Wine, Loader, AlertCircle } from "lucide-react";
+import { openNavigation } from "@/utils/co-pilot-helpers";
 
 interface BarTabProps {
   latitude: number | null;
@@ -82,15 +83,15 @@ function getExpenseTier(level: string): { display: string; color: string } {
   }
 }
 
-// Open Google Maps navigation
-function openNavigation(venue: Venue) {
-  if (venue.place_id) {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.name)}&query_place_id=${venue.place_id}`, "_blank");
-  } else if (venue.lat && venue.lng) {
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${venue.lat},${venue.lng}`, "_blank");
-  } else {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.address || venue.name)}`, "_blank");
-  }
+// Open navigation (uses Apple Maps on iOS/macOS, Google Maps elsewhere)
+function handleNavigation(venue: Venue) {
+  openNavigation({
+    lat: venue.lat,
+    lng: venue.lng,
+    placeId: venue.place_id,
+    name: venue.name,
+    address: venue.address
+  });
 }
 
 // Call venue phone number
@@ -394,7 +395,7 @@ export default function BarTab({
                       </div>
 
                       <button
-                        onClick={() => openNavigation(venue)}
+                        onClick={() => handleNavigation(venue)}
                         className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
                       >
                         <Navigation className="w-3 h-3" />

@@ -4,6 +4,7 @@
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
+import { triadLog, OP } from '../../logger/workflow.js';
 
 /**
  * CRITICAL: Create strategy row with snapshot location data
@@ -29,10 +30,10 @@ export async function ensureStrategyRow(snapshotId) {
       .limit(1);
     
     if (!snapshot) {
-      console.warn(`[ensureStrategyRow] Snapshot ${snapshotId} not found`);
+      triadLog.warn(1, `Snapshot ${snapshotId.slice(0, 8)} not found`);
       return;
     }
-    
+
     // Create strategy row with location data from snapshot
     await db.insert(strategies).values({
       snapshot_id: snapshotId,
@@ -44,10 +45,10 @@ export async function ensureStrategyRow(snapshotId) {
       user_address: snapshot.formatted_address,
       status: 'pending'
     }).onConflictDoNothing();
-    
-    console.log(`[ensureStrategyRow] ✅ Created strategy row for ${snapshotId} (${snapshot.city}, ${snapshot.state})`);
+
+    triadLog.done(1, `Strategy row created: ${snapshot.city}, ${snapshot.state}`, OP.DB);
   } catch (error) {
-    console.error(`[ensureStrategyRow] Error:`, error.message);
+    triadLog.error(1, `ensureStrategyRow failed`, error, OP.DB);
   }
 }
 
@@ -233,8 +234,11 @@ export async function updatePhase(snapshotId, phase) {
     await db.update(strategies)
       .set({ phase })
       .where(eq(strategies.snapshot_id, snapshotId));
-    console.log(`[phase] ${snapshotId.slice(0, 8)} → ${phase}`);
+    // Map phase to TRIAD type for clearer logging
+    const triadType = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'Strategy' :
+                      ['venues', 'enriching'].includes(phase) ? 'Venue' : 'Pipeline';
+    triadLog.info(`[strategy-utils] ${triadType}|${snapshotId.slice(0, 8)} → ${phase}`, OP.DB);
   } catch (error) {
-    console.warn(`[updatePhase] Failed to update phase: ${error.message}`);
+    triadLog.error(1, `Phase update failed`, error, OP.DB);
   }
 }

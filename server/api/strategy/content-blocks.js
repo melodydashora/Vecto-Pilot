@@ -53,10 +53,6 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
   const { snapshotId } = req.params;
 
   try {
-    console.log(
-      `[strategy-status] Fetching for snapshot ${snapshotId.slice(0, 8)}`,
-    );
-
     // Fetch strategy and snapshot data
     const [strategy] = await db
       .select()

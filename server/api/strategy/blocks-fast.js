@@ -42,6 +42,8 @@ import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 import { generateEnhancedSmartBlocks } from '../../lib/venue/enhanced-smart-blocks.js';
 import { resolveVenueAddressesBatch } from '../../lib/venue/venue-address-resolver.js';
 import { isPlusCode } from '../utils/http-helpers.js';
+import { strategyEmitter, blocksEmitter } from '../briefing/events.js';
+import { sseLog, venuesLog, triadLog, dbLog, briefingLog } from '../../logger/workflow.js';
 
 const router = Router();
 
@@ -75,7 +77,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
 
   // Check if generation is already in progress for this snapshot (race condition prevention)
   if (generationLocks.has(snapshotId)) {
-    console.log(`[blocks-fast] ⏳ Generation already in progress for ${snapshotId}, waiting...`);
+    venuesLog.info(`Generation already in progress for ${snapshotId.slice(0, 8)}, waiting...`);
     try {
       await generationLocks.get(snapshotId);
       // After waiting, check for the ranking again
@@ -118,7 +120,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
   generationLocks.set(snapshotId, lockPromise);
 
   // Generate SmartBlocks
-  console.log(`[blocks-fast] 🔨 Generating SmartBlocks for ${snapshotId}`);
+  venuesLog.info(`[blocks-fast] Generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
 
   try {
     // Phase: enriching (venue enrichment and ranking)
@@ -141,19 +143,19 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     resolveLock();
 
     if (newRanking) {
-      console.log(`[blocks-fast] ✅ SmartBlocks generated successfully for ${snapshotId}`);
+      venuesLog.done(4, `SmartBlocks generated for ${snapshotId.slice(0, 8)}`);
       // Mark phase complete (updatePhase is imported at file level)
       await updatePhase(snapshotId, 'complete');
       return { ranking: newRanking, generated: true, error: null };
     } else {
-      console.error(`[blocks-fast] ⚠️ SmartBlocks generated but no ranking found`);
+      venuesLog.warn(4, `SmartBlocks generated but no ranking found`);
       return { ranking: null, generated: true, error: 'ranking_not_created' };
     }
   } catch (err) {
     // Release lock on error
     generationLocks.delete(snapshotId);
     rejectLock(err);
-    console.error(`[blocks-fast] ❌ SmartBlocks generation failed:`, err.message);
+    venuesLog.error(4, `SmartBlocks generation failed`, err);
     return { ranking: null, generated: false, error: err.message };
   }
 }
@@ -344,14 +346,13 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
 
     return res.json({ blocks, ranking_id: ranking.ranking_id, briefing, audit });
   } catch (error) {
-    console.error('[blocks-fast GET] ❌ Error:', error.message);
-    console.error('[blocks-fast GET] Stack:', error.stack);
+    triadLog.error(4, 'GET request failed', error);
     return res.status(500).json({ error: 'internal_error', blocks: [] });
   }
 });
 
 router.post('/', async (req, res) => {
-  console.log('[blocks-fast POST] 🚀 REQUEST RECEIVED:', { body: JSON.stringify(req.body).substring(0, 200) });
+  triadLog.start(`POST request for ${req.body?.snapshotId?.slice(0, 8) || 'unknown'}`);
 
   const wallClockStart = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
@@ -361,14 +362,14 @@ router.post('/', async (req, res) => {
   const logAudit = (step, data) => {
     const entry = { step, ...data, ts: Date.now() - wallClockStart };
     audit.push(entry);
-    console.log(`[audit:${correlationId}] ${step}:`, JSON.stringify(data));
+    dbLog.info(`[audit:${correlationId.slice(0, 8)}] ${step}`);
   };
 
   let responded = false;
   const sendOnce = (code, body) => {
     if (!responded) {
       responded = true;
-      console.log('[blocks-fast POST] SENDING RESPONSE:', code, body.error || 'ok');
+      triadLog.info(`Response: ${code} ${body.error || 'ok'}`);
       res.status(code).json({ ...body, audit });
     }
   };
@@ -376,20 +377,17 @@ router.post('/', async (req, res) => {
   try {
     // Manual validation to avoid HTML error pages from validateBody middleware
     const { userId = 'demo', snapshotId } = req.body;
-    console.log('[blocks-fast POST] 📝 EXTRACTED snapshotId:', snapshotId);
 
     if (!snapshotId) {
-      console.log('[blocks-fast POST] ❌ MISSING snapshotId');
+      triadLog.warn(1, 'Missing snapshotId in request');
       return sendOnce(400, { error: 'snapshot_required', message: 'snapshot_id is required' });
     }
 
     // Validate UUID format
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
-      console.log('[blocks-fast POST] ❌ INVALID UUID:', snapshotId);
+      triadLog.warn(1, `Invalid UUID: ${snapshotId}`);
       return sendOnce(400, { error: 'invalid_uuid', message: 'snapshotId must be a valid UUID' });
     }
-
-    console.log('[blocks-fast POST] ✅ UUID validated, fetching snapshot...');
 
     // CRITICAL: Fetch FULL snapshot row to get location data
     // LLMs cannot reverse geocode - we must provide formatted_address
@@ -400,23 +398,19 @@ router.post('/', async (req, res) => {
 
     // CRITICAL: Validate formatted_address exists - LLMs cannot reverse geocode
     if (!snapshot.formatted_address) {
-      console.error(`[blocks-fast POST] ❌ CRITICAL: Missing formatted_address in snapshot ${snapshotId}`);
+      triadLog.error(1, `Missing formatted_address in snapshot ${snapshotId.slice(0, 8)}`);
       return sendOnce(400, {
         error: 'snapshot_incomplete',
         message: 'Snapshot missing formatted_address - location not resolved'
       });
     }
 
-    console.log('[blocks-fast POST] 📍 Snapshot has resolved address:', {
-      formatted_address: snapshot.formatted_address,
-      city: snapshot.city,
-      state: snapshot.state
-    });
+    triadLog.phase(1, `Snapshot resolved: ${snapshot.city}, ${snapshot.state}`);
 
     // DEDUPLICATION CHECK: If strategy already running, don't re-trigger it
     const [existingStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
     if (existingStrategy && ['pending', 'running'].includes(existingStrategy.status)) {
-      console.log(`[blocks-fast POST] ⏭️ Strategy already ${existingStrategy.status} for ${snapshotId}, skipping re-trigger`);
+      triadLog.info(`Strategy already ${existingStrategy.status} for ${snapshotId.slice(0, 8)}, skipping`);
       return sendOnce(202, {
         ok: false,
         reason: 'strategy_already_running',
@@ -430,7 +424,7 @@ router.post('/', async (req, res) => {
     if (existingStrategy && ['complete', 'ok', 'pending_blocks'].includes(existingStrategy.status)) {
       const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
-        console.log(`[blocks-fast POST] ✅ Strategy ready and blocks already exist for ${snapshotId}`);
+        triadLog.done(4, `Blocks already exist for ${snapshotId.slice(0, 8)}`);
         // Blocks already exist - return with strategy included
         const candidates = await db.select().from(ranking_candidates)
           .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
@@ -450,7 +444,7 @@ router.post('/', async (req, res) => {
         });
       }
       // Strategy is ready but blocks don't exist yet - generate them
-      console.log(`[blocks-fast POST] 🔨 Strategy status=${existingStrategy.status}, generating SmartBlocks now for ${snapshotId}`);
+      venuesLog.info(`Strategy status=${existingStrategy.status}, generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
     }
 
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
@@ -479,41 +473,38 @@ router.post('/', async (req, res) => {
 
         try {
           await runBriefing(snapshotId, { snapshot });
-          console.log(`[blocks-fast POST] ✅ Briefing generated`);
+          // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {
-          console.warn(`[blocks-fast POST] ⚠️ Briefing failed (non-blocking):`, briefingErr.message);
+          briefingLog.warn(2, `Briefing failed (non-blocking): ${briefingErr.message}`);
           // Continue - immediate strategy can still work with snapshot weather data
         }
 
         // Phase 3: Immediate Strategy (GPT-5.1 with snapshot + briefing)
         await updatePhase(snapshotId, 'immediate');
 
-        console.log(`[blocks-fast POST] 🔄 Calling runImmediateStrategy`);
-        console.log(`[blocks-fast POST] 📊 Inputs: snapshot=${snapshot.formatted_address}`);
+        triadLog.phase(3, `[blocks-fast] Calling runImmediateStrategy for ${snapshot.city}, ${snapshot.state}`);
 
         try {
           // GPT-5.1 → strategy_for_now (immediate 1hr strategy for Strategy Tab)
           // Uses snapshot data + briefing (traffic, events) directly
           await runImmediateStrategy(snapshotId, { snapshot });
+
+          // Emit SSE event for strategy ready
+          strategyEmitter.emit('ready', { snapshot_id: snapshotId, status: 'strategy_ready' });
+          sseLog.info(`[blocks-fast] strategy_ready emitted for ${snapshotId.slice(0, 8)}`);
         } catch (immediateErr) {
-          console.error(`[blocks-fast POST] ❌ runImmediateStrategy failed:`, immediateErr.message);
+          triadLog.error(3, `runImmediateStrategy failed`, immediateErr);
           throw immediateErr;
         }
 
-        // Phase 3: Venue Discovery
+        // Phase 4: Venue Discovery
         await updatePhase(snapshotId, 'venues');
 
         // Generate smart blocks using shared helper
         const [consolidatedRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
         const [briefingRowForBlocks] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
 
-        console.log(`[blocks-fast POST] 📝 After consolidation, strategy status:`, {
-          snapshot_id: snapshotId,
-          status: consolidatedRow?.status,
-          strategy_for_now_length: consolidatedRow?.strategy_for_now?.length || 0,
-          strategy_for_now_preview: consolidatedRow?.strategy_for_now?.substring(0, 100) || '(empty)',
-          error_message: consolidatedRow?.error_message || 'none'
-        });
+        triadLog.phase(4, `[blocks-fast] Strategy ready (${consolidatedRow?.strategy_for_now?.length || 0} chars), generating venues`);
 
         // Use shared helper for block generation
         const { ranking, error: blocksError } = await ensureSmartBlocksExist(snapshotId, {
@@ -523,7 +514,7 @@ router.post('/', async (req, res) => {
         });
 
         if (blocksError) {
-          console.error(`[blocks-fast POST] ❌ SmartBlocks generation failed:`, blocksError);
+          venuesLog.error(4, `SmartBlocks generation failed: ${blocksError}`);
           return sendOnce(500, {
             error: 'blocks_generation_failed',
             message: blocksError
@@ -547,7 +538,12 @@ router.post('/', async (req, res) => {
             .where(eq(strategies.snapshot_id, snapshotId))
             .limit(1);
 
-          console.log(`[blocks-fast POST] ✅ Returning ${blocks.length} generated blocks`);
+          triadLog.done(4, `Returning ${blocks.length} blocks for ${snapshotId.slice(0, 8)}`);
+
+          // Emit SSE event for blocks ready
+          blocksEmitter.emit('ready', { snapshot_id: snapshotId, status: 'blocks_ready', count: blocks.length });
+          sseLog.info(`blocks_ready emitted for ${snapshotId.slice(0, 8)} (${blocks.length} blocks)`);
+
           return sendOnce(200, {
             status: 'ok',
             snapshot_id: snapshotId,
@@ -560,7 +556,7 @@ router.post('/', async (req, res) => {
             message: 'Smart blocks generated successfully'
           });
         } else {
-          console.error(`[blocks-fast POST] ⚠️  No ranking found for snapshot after generation`);
+          venuesLog.warn(4, `No ranking found for ${snapshotId.slice(0, 8)} after generation`);
 
           // Still include strategy even if no ranking
           const [strategyRow] = await db.select().from(strategies)
@@ -580,7 +576,7 @@ router.post('/', async (req, res) => {
         }
       } else {
         // Job already exists - use shared helper to ensure blocks exist
-        console.log(`[blocks-fast POST] Job already exists for ${snapshotId}, checking if blocks need generation...`);
+        triadLog.info(`Job already exists for ${snapshotId.slice(0, 8)}, checking if blocks need generation`);
 
         const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
@@ -592,7 +588,7 @@ router.post('/', async (req, res) => {
           });
 
           if (error) {
-            console.error(`[blocks-fast POST] SmartBlocks generation failed:`, error);
+            venuesLog.error(4, `SmartBlocks generation failed: ${error}`);
             return sendOnce(500, {
               error: 'blocks_generation_failed',
               message: error
@@ -600,7 +596,7 @@ router.post('/', async (req, res) => {
           }
 
           if (ranking) {
-            console.log(`[blocks-fast POST] ✅ SmartBlocks generated for existing job`);
+            venuesLog.done(4, `SmartBlocks generated for existing job ${snapshotId.slice(0, 8)}`);
           }
         }
 
@@ -612,15 +608,14 @@ router.post('/', async (req, res) => {
         });
       }
     } catch (jobErr) {
-      console.error(`[blocks-fast POST] Waterfall error:`, jobErr.message);
-      console.error(`[blocks-fast POST] Stack:`, jobErr.stack);
+      triadLog.error(4, `Waterfall error`, jobErr);
       return sendOnce(500, {
         error: 'waterfall_failed',
         message: jobErr.message
       });
     }
   } catch (error) {
-    console.error('[blocks-fast POST] Unexpected error:', error);
+    triadLog.error(4, `Unexpected error`, error);
     return sendOnce(500, { error: 'internal_error' });
   }
 });

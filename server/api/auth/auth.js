@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import { authLog, OP } from '../../logger/workflow.js';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.post('/token', async (req, res) => {
     const signature = crypto.createHmac('sha256', secret).update(user_id).digest('hex');
     const token = `${user_id}.${signature}`;
 
-    console.log('[auth] Generated token for user:', user_id.substring(0, 20));
+    authLog.done(1, `Generated token for user: ${user_id.substring(0, 20)}`);
     
     res.json({ 
       token,
@@ -25,7 +26,7 @@ router.post('/token', async (req, res) => {
       expires_in: 86400 // 24 hours
     });
   } catch (err) {
-    console.error('[auth] Token generation failed:', err.message);
+    authLog.error(1, `Token generation failed`, err);
     res.status(500).json({ error: 'Token generation failed', detail: err.message });
   }
 });

@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Navigation, MapPin, DollarSign } from "lucide-react";
+import { openNavigation } from "@/utils/co-pilot-helpers";
 
 interface BusinessHours {
   isOpen?: boolean;
@@ -127,28 +128,15 @@ function getCategoryColor(name: string, category?: string): string {
   return "bg-blue-500"; // Default
 }
 
-// Open Google Maps navigation
-function openNavigation(block: Block) {
-  const { coordinates, placeId, address, name } = block;
-
-  // Prefer place_id for most accurate navigation
-  if (placeId) {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}&query_place_id=${placeId}`, "_blank");
-    return;
-  }
-
-  // Fallback to coordinates
-  if (coordinates?.lat && coordinates?.lng) {
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${coordinates.lat},${coordinates.lng}`, "_blank");
-    return;
-  }
-
-  // Last resort: search by address/name
-  if (address) {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, "_blank");
-  } else {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}`, "_blank");
-  }
+// Open navigation (uses Apple Maps on iOS/macOS, Google Maps elsewhere)
+function handleNavigation(block: Block) {
+  openNavigation({
+    lat: block.coordinates?.lat,
+    lng: block.coordinates?.lng,
+    placeId: block.placeId,
+    name: block.name,
+    address: block.address
+  });
 }
 
 export default function BarsTable({ blocks }: BarsTableProps) {
@@ -197,12 +185,15 @@ export default function BarsTable({ blocks }: BarsTableProps) {
     return isBevenue && isNotCommon;
   });
 
-  if (bars.length === 0) {
+  // Filter out closed venues - only show open or unknown status
+  const openBars = bars.filter((bar) => bar.isOpen !== false);
+
+  if (openBars.length === 0) {
     return null;
   }
 
   // Sort by price tier ($$$$$ first), then by distance
-  const sortedBars = [...bars].sort((a, b) => {
+  const sortedBars = [...openBars].sort((a, b) => {
     const tierA = getPriceTier(a);
     const tierB = getPriceTier(b);
 
@@ -318,7 +309,7 @@ export default function BarsTable({ blocks }: BarsTableProps) {
 
                       {/* Navigate Button */}
                       <button
-                        onClick={() => openNavigation(bar)}
+                        onClick={() => handleNavigation(bar)}
                         className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
                       >
                         <Navigation className="w-3 h-3" />

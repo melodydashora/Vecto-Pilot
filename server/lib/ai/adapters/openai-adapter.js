@@ -2,6 +2,8 @@
 // Generic OpenAI adapter - returns { ok, output } shape
 
 import OpenAI from "openai";
+import { aiLog, OP } from "../../../logger/workflow.js";
+
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function callOpenAI({ model, system, user, maxTokens, temperature, reasoningEffort }) {
@@ -37,24 +39,20 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
       body.temperature = temperature;
     }
 
-    const tokenParam = useCompletionTokens ? 'max_completion_tokens' : 'max_tokens';
-    console.log(`[model/openai] calling ${model} with ${tokenParam}=${maxTokens} (gpt-5-family=${isGPT5Family}, o1-family=${isO1Family})`);
+    const shortModel = model.split('-').slice(0, 2).join('-');
+    aiLog.phase(1, `${shortModel} request (${maxTokens} tokens)`, OP.AI);
 
     const res = await client.chat.completions.create(body);
 
     const output = res?.choices?.[0]?.message?.content?.trim() || "";
 
-    console.log("[model/openai] resp:", {
-      model,
-      choices: !!res?.choices,
-      len: output?.length ?? 0
-    });
+    aiLog.done(1, `${shortModel} response (${output?.length ?? 0} chars)`, OP.AI);
 
     return output
       ? { ok: true, output }
       : { ok: false, output: "", error: "Empty response from OpenAI" };
   } catch (err) {
-    console.error("[model/openai] error:", err?.message || err);
+    aiLog.error(1, `OpenAI error`, err, OP.AI);
     return { ok: false, output: "", error: err?.message || String(err) };
   }
 }

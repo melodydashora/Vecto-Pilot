@@ -36,7 +36,19 @@
       "Bash(curl:*)",
       "Bash(psql:*)",
       "Bash(node -e \"\nconst { execSync } = require(''child_process'');\nexecSync(''npx drizzle-kit push --accept-all-data-loss-statements'', { \n  stdio: ''inherit'',\n  env: { ...process.env }\n});\n\")",
-      "Bash(printf:*)"
+      "Bash(printf:*)",
+      "Bash(while read path)",
+      "Bash(do file_path=\"/home/runner/workspace/client/src/$path#@/\" if [ -f \"$file_path\" ])",
+      "Bash([ -f \"$file_path.tsx\" ])",
+      "Bash([ -f \"$file_path.ts\" ])",
+      "Bash(then echo \"✓ $path\" else echo \"✗ MISSING: $path\" fi done)",
+      "Bash(for:*)",
+      "Bash(base=\"/home/runner/workspace/client/src/$path\")",
+      "Bash(if [ -f \"$base.tsx\" ])",
+      "Bash([ -f \"$base.ts\" ])",
+      "Bash([ -d \"$base\" ])",
+      "Bash(else)",
+      "Bash(npm run lint:*)"
     ],
     "deny": [],
     "ask": []

@@ -6,6 +6,7 @@ import { z } from 'zod';
 // Event validation disabled - Gemini handles event discovery, Claude is fallback only
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
 import Anthropic from "@anthropic-ai/sdk";
+import { briefingLog, OP } from '../../logger/workflow.js';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -14,8 +15,7 @@ const FALLBACK_MODEL = 'claude-opus-4-5-20251101';
 const FALLBACK_MAX_TOKENS = 8192;
 const FALLBACK_TEMPERATURE = 0.2;
 
-console.log('[BriefingService] 🔑 GEMINI_API_KEY available at startup:', !!process.env.GEMINI_API_KEY);
-console.log('[BriefingService] 🔑 ANTHROPIC_API_KEY available for fallback:', !!process.env.ANTHROPIC_API_KEY);
+// Startup logging moved to first use to avoid noise
 
 /**
  * Claude Opus fallback when Gemini fails
@@ -27,7 +27,7 @@ async function callClaudeOpusFallback({ prompt, maxTokens = FALLBACK_MAX_TOKENS 
   }
 
   try {
-    console.log(`[BriefingService] 🔄 Calling Claude Opus fallback...`);
+    briefingLog.phase(2, `Claude fallback for events`, OP.FALLBACK);
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const res = await client.messages.create({
@@ -60,11 +60,11 @@ async function callClaudeOpusFallback({ prompt, maxTokens = FALLBACK_MAX_TOKENS 
 
     // Clean markdown if present
     const cleanOutput = output.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    console.log(`[BriefingService] ✅ Claude Opus fallback succeeded (${cleanOutput.length} chars)`);
+    briefingLog.done(2, `Claude fallback: ${cleanOutput.length} chars`, OP.FALLBACK);
     return { ok: true, output: cleanOutput, usedFallback: true };
 
   } catch (err) {
-    console.error('[BriefingService] ❌ Claude fallback error:', err.message);
+    briefingLog.error(2, `Claude fallback failed`, err, OP.FALLBACK);
     return { ok: false, error: `Claude fallback failed: ${err.message}` };
   }
 }
@@ -74,9 +74,9 @@ async function callClaudeOpusFallback({ prompt, maxTokens = FALLBACK_MAX_TOKENS 
  * Handles authentication, safety settings, JSON parsing, and 503/429 backoff
  */
 async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.1, responseMimeType = "application/json" }) {
-  const apiKey = process.env.GEMINI_API_KEY; 
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.error('[BriefingService] ❌ GEMINI_API_KEY not configured');
+    briefingLog.error(2, `GEMINI_API_KEY not configured`, null, OP.AI);
     return { ok: false, error: 'GEMINI_API_KEY not configured' };
   }
 
@@ -87,7 +87,7 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
       if (attempt > 1) {
-        console.log(`[BriefingService] ⏳ Retry attempt ${attempt-1}/${MAX_RETRIES} due to overload...`);
+        briefingLog.phase(2, `Gemini retry ${attempt-1}/${MAX_RETRIES}`, OP.RETRY);
       }
 
       const response = await fetch(
@@ -119,14 +119,11 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
 
       // Handle Overloaded (503) or Rate Limited (429)
       if (response.status === 503 || response.status === 429) {
-        const errText = await response.text();
-        console.warn(`[BriefingService] ⚠️ Gemini Busy (Status ${response.status}): ${errText.substring(0, 100)}`);
-        
         if (attempt <= MAX_RETRIES) {
-          // Wait before retrying (Exponential Backoff)
-          const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1); 
+          const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+          briefingLog.warn(2, `Gemini ${response.status} - retry in ${delay}ms`, OP.RETRY);
           await new Promise(resolve => setTimeout(resolve, delay));
-          continue; // Retry loop
+          continue;
         }
         return { ok: false, error: `Gemini Overloaded after ${MAX_RETRIES} retries` };
       }
@@ -138,16 +135,14 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
 
       const data = await response.json();
 
-      // Debug: Log full response structure when there's an issue
       const candidate = data.candidates?.[0];
       if (!candidate) {
-        console.error('[BriefingService] ❌ No candidates in Gemini response:', JSON.stringify(data, null, 2).substring(0, 500));
+        briefingLog.error(2, `No candidates in Gemini response`, null, OP.AI);
         return { ok: false, error: `No candidates in response: ${data.error?.message || 'unknown'}` };
       }
 
-      // Check for safety blocking
       if (candidate.finishReason === 'SAFETY') {
-        console.error('[BriefingService] ❌ Response blocked by safety filter:', candidate.safetyRatings);
+        briefingLog.warn(2, `Gemini response blocked by safety filter`, OP.AI);
         return { ok: false, error: `Response blocked by safety filter` };
       }
 
@@ -167,15 +162,7 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
       }
 
       if (!text) {
-        // Log comprehensive debug info for root cause analysis
-        console.error('[BriefingService] ❌ EMPTY RESPONSE DEBUG:');
-        console.error('[BriefingService]   Parts count:', parts.length);
-        console.error('[BriefingService]   Parts keys:', JSON.stringify(parts.map(p => Object.keys(p))));
-        console.error('[BriefingService]   finishReason:', candidate.finishReason);
-        console.error('[BriefingService]   Content exists:', !!candidate.content);
-        console.error('[BriefingService]   Raw parts:', JSON.stringify(parts).substring(0, 500));
-        // Log full candidate for debugging (truncated)
-        console.error('[BriefingService]   Full candidate:', JSON.stringify(candidate).substring(0, 1000));
+        briefingLog.error(2, `Empty Gemini response (finishReason: ${candidate.finishReason}, parts: ${parts.length})`, null, OP.AI);
         return { ok: false, error: `Empty response from Gemini (finishReason: ${candidate.finishReason || 'unknown'}, parts: ${parts.length})` };
       }
 
@@ -183,11 +170,12 @@ async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.
       return { ok: true, output: cleanText };
 
     } catch (error) {
-      console.error(`[BriefingService] Network error (Attempt ${attempt}):`, error.message);
       if (attempt <= MAX_RETRIES) {
+        briefingLog.warn(2, `Gemini network error - retry ${attempt}/${MAX_RETRIES}`, OP.RETRY);
         await new Promise(resolve => setTimeout(resolve, BASE_DELAY_MS));
         continue;
       }
+      briefingLog.error(2, `Gemini network error`, error, OP.AI);
       return { ok: false, error: error.message };
     }
   }
@@ -356,10 +344,8 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
 }
 
 async function fetchEventsWithGemini3ProPreview({ snapshot }) {
-  console.log(`[fetchEventsWithGemini3ProPreview] CALLED - GEMINI_API_KEY exists: ${!!process.env.GEMINI_API_KEY}`);
-
   if (!process.env.GEMINI_API_KEY) {
-    console.error('[BriefingService] ❌ GEMINI_API_KEY is NOT set - cannot fetch events');
+    briefingLog.error(2, `GEMINI_API_KEY not set`, null, OP.AI);
     return [];
   }
 
@@ -375,14 +361,11 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   if (snapshot?.local_iso) {
     date = new Date(snapshot.local_iso).toISOString().split('T')[0];
   } else {
-    // Compute today's date in the user's timezone
-    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone }); // en-CA gives YYYY-MM-DD format
+    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
   const currentTime = `${String(hour).padStart(2, '0')}:00`;
 
-  console.log(`[BriefingService] 📅 Events date computed:`, { date, localIso: snapshot?.local_iso, timezone, hour });
-  
-  console.log(`[BriefingService] 🎯 Fetching events: city=${city}, state=${state}, lat=${lat}, lng=${lng}, date=${date}, time=${currentTime}`);
+  briefingLog.ai(2, 'Briefer', `events for ${city}, ${state} (${date})`);
 
   // Determine time context for search (today vs tonight)
   const timeContext = hour >= 17 ? 'tonight' : 'today';
@@ -441,42 +424,30 @@ RETURN FORMAT (ONLY this JSON, no markdown):
 
   // Handle empty response gracefully - Gemini sometimes returns OK with no content
   if (!result.ok) {
-    if (result.error === 'Empty response' || result.error === 'Empty response from Gemini') {
-      console.warn(`[BriefingService] ⚠️ Gemini returned empty events response for ${city}, ${state}`);
+    // Use includes() to catch dynamic error messages like "Empty response from Gemini (finishReason: STOP, parts: 0)"
+    if (result.error?.includes('Empty response')) {
+      briefingLog.warn(2, `Gemini empty response for ${city}, ${state}`, OP.AI);
       return { items: [], reason: 'Gemini returned empty response - may be overloaded' };
     }
-    const errorMsg = `Gemini events API failed: ${result.error}`;
-    console.error(`[BriefingService] ❌ ${errorMsg}`);
-    throw new Error(errorMsg);
+    briefingLog.error(2, `Gemini events failed: ${result.error}`, null, OP.AI);
+    throw new Error(`Gemini events API failed: ${result.error}`);
   }
 
   try {
-    console.log(`[BriefingService] 📥 Raw Gemini events output (first 500 chars):`, result.output?.substring(0, 500));
-
     const parsed = safeJsonParse(result.output);
     const events = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
     const validEvents = events.filter(e => e.title && e.venue && e.address);
 
     if (validEvents.length === 0) {
-      console.log('[BriefingService] ℹ️ No valid events found. Raw parsed:', JSON.stringify(parsed)?.substring(0, 300));
-      console.log('[BriefingService] ℹ️ Events before filter:', events.length, 'After filter:', validEvents.length);
-      if (events.length > 0 && events[0]) {
-        console.log('[BriefingService] ℹ️ First event missing fields:', {
-          hasTitle: !!events[0].title,
-          hasVenue: !!events[0].venue,
-          hasAddress: !!events[0].address,
-          keys: Object.keys(events[0])
-        });
-      }
+      briefingLog.info(`No events found for ${city}, ${state}`);
       return { items: [], reason: 'No events found for this location and time' };
     }
 
-    console.log('[BriefingService] ✅ Found', validEvents.length, 'valid events:', validEvents.map(e => e.title).join(', '));
+    briefingLog.done(2, `${validEvents.length} events for ${city}, ${state}`, OP.AI);
     return { items: validEvents, reason: null };
   } catch (err) {
-    const errorMsg = `Failed to parse Gemini events response: ${err.message}`;
-    console.error(`[BriefingService] ❌ ${errorMsg}. Raw output:`, result.output?.substring(0, 300));
-    throw new Error(errorMsg);
+    briefingLog.error(2, `Parse Gemini events failed`, err, OP.AI);
+    throw new Error(`Failed to parse Gemini events response: ${err.message}`);
   }
 }
 
@@ -502,7 +473,7 @@ export async function confirmTBDEventDetails(events) {
   const tbdEvents = events.filter(e => e.location?.includes('TBD') || e.event_time?.includes('TBD') || e.location === 'TBD');
   if (tbdEvents.length === 0) return events;
 
-  console.log(`[BriefingService] Found ${tbdEvents.length} events with TBD details, confirming...`);
+  briefingLog.phase(2, `Confirming ${tbdEvents.length} TBD events`, OP.AI);
 
   const eventDetails = tbdEvents.map(e => `- Title: "${e.title}"\n  Location: "${e.location || 'TBD'}"\n  Time: "${e.event_time || 'TBD'}"`).join('\n\n');
   const prompt = `Review these events with incomplete data and provide confirmed details. For each event, return JSON:
@@ -521,7 +492,7 @@ Return JSON array with one object per event.`;
   const result = await callGeminiWithSearch({ prompt, temperature: 0.2, maxTokens: 2048 });
 
   if (!result.ok) {
-    console.error('[BriefingService] Gemini confirmation error:', result.error);
+    briefingLog.warn(2, `TBD confirmation failed: ${result.error}`, OP.AI);
     return events;
   }
 
@@ -540,7 +511,7 @@ Return JSON array with one object per event.`;
       return event;
     });
   } catch (e) {
-    console.error('[BriefingService] Gemini response parse error:', e.message);
+    briefingLog.warn(2, `TBD parse failed: ${e.message}`, OP.AI);
     return events;
   }
 }
@@ -567,16 +538,16 @@ export async function fetchWeatherForecast({ snapshot }) {
   const result = await callGeminiWithSearch({ prompt, maxTokens: 1000 });
 
   if (!result.ok) {
-    console.warn(`[fetchWeatherForecast] Gemini error: ${result.error}`);
+    briefingLog.warn(1, `Weather forecast failed: ${result.error}`, OP.AI);
     return { current: null, forecast: [] };
   }
 
   try {
     const weatherData = safeJsonParse(result.output);
-    console.log('[fetchWeatherForecast] ✅ Got forecast:', { current: !!weatherData.current, forecast_hours: weatherData.forecast?.length || 0 });
+    briefingLog.done(1, `Weather forecast: ${weatherData.forecast?.length || 0} hours`, OP.AI);
     return weatherData;
   } catch (parseErr) {
-    console.error('[fetchWeatherForecast] Parse error:', parseErr.message);
+    briefingLog.warn(1, `Weather parse failed: ${parseErr.message}`, OP.AI);
     return { current: null, forecast: [] };
   }
 }
@@ -618,7 +589,7 @@ function formatWindSpeed(windSpeedMs, country) {
 
 export async function fetchWeatherConditions({ snapshot }) {
   if (!GOOGLE_MAPS_API_KEY) {
-    console.warn('[BriefingService] GOOGLE_MAPS_API_KEY not set, skipping weather fetch');
+    briefingLog.warn(1, `GOOGLE_MAPS_API_KEY not set - skipping weather`, OP.API);
     return { current: null, forecast: [], error: 'GOOGLE_MAPS_API_KEY not configured' };
   }
 
@@ -704,7 +675,7 @@ export async function fetchWeatherConditions({ snapshot }) {
 
     return { current, forecast, fetchedAt: new Date().toISOString() };
   } catch (error) {
-    console.error('[BriefingService] Weather fetch error:', error);
+    briefingLog.error(1, `Weather API error`, error, OP.API);
     return { current: null, forecast: [], error: error.message };
   }
 }
@@ -735,17 +706,19 @@ Return ONLY valid JSON array:
   const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
 
   if (!result.ok) {
-    console.warn(`[BriefingService] School closures error: ${result.error}`);
+    briefingLog.warn(2, `School closures failed: ${result.error}`, OP.AI);
     return [];
   }
 
   try {
     const closures = safeJsonParse(result.output);
     const closuresArray = Array.isArray(closures) ? closures : [];
-    console.log(`[BriefingService] ✅ Found ${closuresArray.length} school closures for ${city}, ${state}`);
+    if (closuresArray.length > 0) {
+      briefingLog.done(2, `${closuresArray.length} school closures found`, OP.AI);
+    }
     return closuresArray;
   } catch (parseErr) {
-    console.error('[BriefingService] School closures JSON parse error:', parseErr.message);
+    briefingLog.warn(2, `School closures parse failed: ${parseErr.message}`, OP.AI);
     return [];
   }
 }
@@ -769,11 +742,11 @@ export async function fetchTrafficConditions({ snapshot }) {
   };
 
   if (!process.env.GEMINI_API_KEY) {
-    console.warn('[BriefingService] ⚠️ GEMINI_API_KEY not configured - using fallback traffic');
+    briefingLog.warn(1, `GEMINI_API_KEY not set - using fallback traffic`, OP.AI);
     return fallbackTraffic;
   }
 
-  console.log(`[BriefingService] 🚗 Analyzing traffic for ${city}, ${state}...`);
+  briefingLog.ai(1, 'Briefer', `traffic for ${city}, ${state}`);
 
   const prompt = `Search for current traffic conditions in ${city}, ${state} as of today ${date}. Return traffic data as JSON ONLY with ALL these fields:
 
@@ -793,13 +766,13 @@ CRITICAL: Include highDemandZones and repositioning.`;
 
   // Graceful fallback if Gemini fails (don't crash waterfall)
   if (!result.ok) {
-    console.warn(`[BriefingService] ⚠️ Gemini traffic API failed: ${result.error} - using fallback`);
+    briefingLog.warn(1, `Traffic failed - using fallback`, OP.FALLBACK);
     return fallbackTraffic;
   }
 
   try {
     const parsed = safeJsonParse(result.output);
-    console.log(`[BriefingService] ✅ Traffic analysis complete: ${parsed.summary?.substring(0, 80)}`);
+    briefingLog.done(1, `Traffic: ${parsed.congestionLevel || 'unknown'} congestion`, OP.AI);
 
     return {
       summary: parsed.summary,
@@ -812,7 +785,7 @@ CRITICAL: Include highDemandZones and repositioning.`;
       fetchedAt: new Date().toISOString()
     };
   } catch (parseErr) {
-    console.warn(`[BriefingService] ⚠️ Failed to parse traffic response: ${parseErr.message} - using fallback`);
+    briefingLog.warn(1, `Traffic parse failed - using fallback`, OP.FALLBACK);
     return fallbackTraffic;
   }
 }
@@ -825,8 +798,8 @@ async function fetchRideshareNews({ snapshot }) {
   const city = snapshot?.city || 'Frisco';
   const state = snapshot?.state || 'TX';
   const date = snapshot?.date || new Date().toISOString().split('T')[0];
-  
-  console.log(`[BriefingService] 📰 Fetching news: city=${city}, state=${state}, date=${date}`);
+
+  briefingLog.ai(2, 'Briefer', `news for ${city}, ${state}`);
 
   const prompt = `You MUST search for and find rideshare-relevant news. Search the web NOW.
 
@@ -864,13 +837,14 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
     const newsArray = Array.isArray(parsed) ? parsed : [];
 
     if (newsArray.length === 0 || !newsArray[0]?.title) {
-      console.log('[BriefingService] ℹ️ Gemini returned no news for this location/time');
+      briefingLog.info(`No news found for ${city}, ${state}`);
       return { items: [], reason: 'No rideshare news found for this location' };
     }
-    
-    console.log(`[BriefingService] ✅ Gemini search returned ${newsArray.length} news items`);
+
+    briefingLog.done(2, `${newsArray.length} news items`, OP.AI);
     return { items: newsArray, reason: null };
   } catch (parseErr) {
+    briefingLog.error(2, `News parse failed`, parseErr, OP.AI);
     throw new Error(`Failed to parse Gemini news response: ${parseErr.message}`);
   }
 }
@@ -878,7 +852,7 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
 export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   // Dedup 1: Check if already in flight in this process (concurrent calls)
   if (inFlightBriefings.has(snapshotId)) {
-    console.log(`[BriefingService] ⏳ Briefing already in flight for ${snapshotId}, waiting...`);
+    briefingLog.info(`Already in flight for ${snapshotId.slice(0, 8)} - waiting`, OP.CACHE);
     return inFlightBriefings.get(snapshotId);
   }
 
@@ -897,12 +871,11 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
       // Check freshness - only skip if data is < 60 seconds old
       const ageMs = Date.now() - new Date(existing.updated_at).getTime();
       if (ageMs < 60000) {
-        console.log(`[BriefingService] ⚡ DEDUP: Briefing for ${snapshotId} exists with ALL data (${Math.round(ageMs/1000)}s old), skipping regeneration`);
+        briefingLog.info(`Cache hit (${Math.round(ageMs/1000)}s old) - skipping`, OP.CACHE);
         return { success: true, briefing: existing, deduplicated: true };
       }
     } else if (hasTraffic || hasEvents) {
-      // Partial data exists - log which fields are missing and continue to regenerate
-      console.log(`[BriefingService] ⚠️ Partial briefing exists for ${snapshotId}: traffic=${hasTraffic}, events=${hasEvents}, news=${hasNews}, closures=${hasClosures} - will regenerate`);
+      briefingLog.info(`Partial data - regenerating`, OP.CACHE);
     }
   }
 
@@ -921,7 +894,6 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
         created_at: new Date(),
         updated_at: new Date()
       });
-      console.log(`[BriefingService] 📝 Created placeholder briefing row for ${snapshotId}`);
     } catch (insertErr) {
       // Row might already exist from concurrent call - that's OK
       if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('unique')) {
@@ -937,7 +909,6 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
         updated_at: new Date()
       })
       .where(eq(briefings.snapshot_id, snapshotId));
-    console.log(`[BriefingService] 🔄 Cleared traffic/events fields for refresh: ${snapshotId}`);
   }
 
   const briefingPromise = generateBriefingInternal({ snapshotId, snapshot });
@@ -967,21 +938,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     }
   }
 
-  console.log(`[BriefingService] 📸 Snapshot:`, {
-    snapshot_id: snapshot.snapshot_id,
-    lat: snapshot.lat,
-    lng: snapshot.lng,
-    city: snapshot.city,
-    state: snapshot.state,
-    formatted_address: snapshot.formatted_address,  // CRITICAL: Must be present for strategists
-    timezone: snapshot.timezone,
-    date: snapshot.date,
-    dow: snapshot.dow,
-    hour: snapshot.hour,
-    day_part_key: snapshot.day_part_key,
-    weather: snapshot.weather,
-    air: snapshot.air
-  });
+  briefingLog.start(`${snapshot.city}, ${snapshot.state} (${snapshotId.slice(0, 8)})`);
 
   const { city, state } = snapshot;
 
@@ -1025,20 +982,12 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
       // Only use cache if it has ACTUAL content AND is same day
       if (!isDailyBriefingStale(existing, userTimezone) && (hasActualNewsContent || hasActualClosuresContent)) {
-        const ageMinutes = Math.round((Date.now() - new Date(existing.updated_at).getTime()) / 60000);
-        console.log(`[BriefingService] ⚡ CACHE HIT: Reusing cached data for ${city}, ${state} (same day, ${ageMinutes}min old, news=${newsItems.length}, closures=${closureItems.length})`);
-        // Only cache news and school_closures - events/traffic refresh every call
+        briefingLog.info(`Cache hit: news=${newsItems.length}, closures=${closureItems.length}`, OP.CACHE);
         cachedDailyData = {
           news: existing.news,
           school_closures: existing.school_closures
         };
-      } else if (!isDailyBriefingStale(existing, userTimezone)) {
-        console.log(`[BriefingService] 🆕 CACHE SKIP: Cached briefing for ${city}, ${state} has no content (news=${newsItems.length}, closures=${closureItems.length}) - will fetch fresh`);
-      } else {
-        console.log(`[BriefingService] 📅 NEW DAY: Refreshing all cached data for ${city}, ${state}`);
       }
-    } else {
-      console.log(`[BriefingService] 🆕 CACHE MISS: No cached briefing for ${city}, ${state}`);
     }
   } catch (cacheErr) {
     console.warn(`[BriefingService] Cache lookup failed:`, cacheErr.message);
@@ -1054,19 +1003,16 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   }
 
   if (existingWeather && (existingWeather.tempF !== undefined || existingWeather.temperature !== undefined)) {
-    console.log(`[BriefingService] ⚡ Reusing weather from snapshot - tempF=${existingWeather.tempF}`);
     weatherResult = {
       current: existingWeather,
       forecast: existingWeather.forecast || []
     };
   } else {
-    console.log(`[BriefingService] ☁️ Snapshot has no weather data, skipping fetch`);
     weatherResult = { current: null, forecast: [] };
   }
 
   // Step 3: ALWAYS fetch fresh traffic AND events (every snapshot)
-  console.log(`[BriefingService] 🚗 Fetching FRESH traffic for snapshot ${snapshotId}`);
-  console.log(`[BriefingService] 📅 Fetching FRESH events for snapshot ${snapshotId}`);
+  briefingLog.phase(1, `Fetching traffic + events`, OP.AI);
 
   let trafficResult, eventsResult;
   try {
@@ -1084,12 +1030,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
   if (cachedDailyData) {
     // CACHE HIT: Use cached news and closures only
-    console.log(`[BriefingService] ✅ Using CACHED data (news, closures)`);
     newsResult = { items: cachedDailyData.news?.items || [] };
     schoolClosures = cachedDailyData.school_closures?.items || cachedDailyData.school_closures || [];
   } else {
     // CACHE MISS: Fetch news and closures from Gemini
-    console.log(`[BriefingService] 🔄 Fetching FRESH cached data (news, closures) from Gemini`);
+    briefingLog.phase(2, `Fetching news + closures`, OP.AI);
     try {
       [newsResult, schoolClosures] = await Promise.all([
         fetchRideshareNews({ snapshot }),
@@ -1104,12 +1049,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   let eventsItems = eventsResult?.items || [];
   const newsItems = newsResult?.items || [];
 
-  // NOTE: Event validation with Claude Opus disabled - Gemini handles event discovery
-  // Claude Opus is used as a FALLBACK model when Gemini API fails (see callClaudeOpusFallback)
-  // The EventValidator was causing events to be filtered out incorrectly
-
-  console.log(`[BriefingService] ✅ Briefing data ready: events=${eventsItems.length}, news=${newsItems.length}, traffic=${!!trafficResult}, closures=${schoolClosures?.length || 0}`);
-  console.log(`[BriefingService] 📊 Data sources: daily=${cachedDailyData ? 'CACHED' : 'FRESH'}, traffic=FRESH`);
+  briefingLog.done(2, `events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'ok'}`, OP.AI);
 
   const weatherCurrent = weatherResult?.current || null;
 
@@ -1144,11 +1084,10 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
           updated_at: new Date()
         })
         .where(eq(briefings.snapshot_id, snapshotId));
-      console.log(`[BriefingService] ✅ Updated briefing for ${snapshotId}`);
     } else {
       await db.insert(briefings).values(briefingData);
-      console.log(`[BriefingService] ✅ Created briefing for ${snapshotId}`);
     }
+    briefingLog.complete(`${city}, ${state}`, OP.DB);
 
     return {
       success: true,
@@ -1192,16 +1131,7 @@ function isDailyBriefingStale(briefing, timezone = 'America/Chicago') {
   const todayDate = now.toLocaleDateString('en-US', { timeZone: timezone });
 
   // Stale if it's a different calendar day
-  const isStale = briefingDate !== todayDate;
-
-  if (isStale) {
-    console.log(`[BriefingService] 📅 NEW DAY - Daily briefing stale: cached=${briefingDate}, today=${todayDate} (${timezone})`);
-  } else {
-    const ageMinutes = Math.round((now - updatedAt) / (1000 * 60));
-    console.log(`[BriefingService] ✓ Same day briefing: ${briefingDate} (${ageMinutes} min old)`);
-  }
-
-  return isStale;
+  return briefingDate !== todayDate;
 }
 
 /**
@@ -1223,13 +1153,7 @@ function isEventsStale(briefing) {
 
   // Events stale after 4 hours (vs 24h for news/closures)
   const EVENTS_CACHE_HOURS = 4;
-  const isStale = ageHours > EVENTS_CACHE_HOURS;
-
-  if (isStale) {
-    console.log(`[BriefingService] 🎭 Events stale: ${ageHours.toFixed(1)}h old (>${EVENTS_CACHE_HOURS}h threshold)`);
-  }
-
-  return isStale;
+  return ageHours > EVENTS_CACHE_HOURS;
 }
 
 /**
@@ -1272,7 +1196,7 @@ function areEventsEmpty(briefing) {
  */
 export async function refreshEventsInBriefing(briefing, snapshot) {
   try {
-    console.log(`[BriefingService] 🎭 Refreshing events data (stale >4h)...`);
+    briefingLog.phase(2, `Refreshing stale events`, OP.AI);
 
     const eventsResult = await fetchEventsForBriefing({ snapshot });
     const eventsItems = eventsResult?.items || [];
@@ -1291,37 +1215,32 @@ export async function refreshEventsInBriefing(briefing, snapshot) {
           updated_at: new Date()
         })
         .where(eq(briefings.snapshot_id, briefing.snapshot_id));
-
-      console.log(`[BriefingService] ✅ Events refreshed: ${eventsItems.length} events for ${briefing.snapshot_id}`);
+      briefingLog.done(2, `Events refreshed: ${eventsItems.length}`, OP.DB);
     } catch (dbErr) {
-      console.warn('[BriefingService] ⚠️ Could not update events in DB:', dbErr.message);
+      briefingLog.warn(2, `Events DB update failed: ${dbErr.message}`, OP.DB);
     }
 
     return briefing;
   } catch (err) {
-    console.warn('[BriefingService] ⚠️ Events refresh failed, keeping existing:', err.message);
+    briefingLog.warn(2, `Events refresh failed: ${err.message}`, OP.AI);
     return briefing;
   }
 }
 
 /**
- * Refresh traffic data in existing briefing (always fetches fresh)
- * Traffic changes rapidly - fetch on every call
+ * Refresh traffic data in existing briefing
+ * NOTE: With fetch-once pattern on client, this is only called during manual refresh
  * @param {object} briefing - Current briefing object
  * @param {object} snapshot - Snapshot with location data
  * @returns {Promise<object>} Briefing with updated traffic_conditions
  */
 async function refreshTrafficInBriefing(briefing, snapshot) {
   try {
-    console.log(`[BriefingService] 🚗 Fetching fresh traffic data...`);
-
     const trafficResult = await fetchTrafficConditions({ snapshot });
     if (trafficResult) {
-      // Update only the traffic data, keep daily briefing components cached
       briefing.traffic_conditions = trafficResult;
       briefing.updated_at = new Date();
 
-      // Update database with fresh traffic
       try {
         await db.update(briefings)
           .set({
@@ -1329,16 +1248,13 @@ async function refreshTrafficInBriefing(briefing, snapshot) {
             updated_at: new Date()
           })
           .where(eq(briefings.snapshot_id, briefing.snapshot_id));
-
-        console.log(`[BriefingService] ✅ Traffic refreshed for ${briefing.snapshot_id}`);
       } catch (dbErr) {
-        console.warn('[BriefingService] ⚠️ Could not update traffic in DB:', dbErr.message);
+        briefingLog.warn(1, `Traffic DB update failed`, OP.DB);
       }
     }
-
     return briefing;
   } catch (err) {
-    console.warn('[BriefingService] ⚠️ Traffic refresh failed, keeping existing:', err.message);
+    briefingLog.warn(1, `Traffic refresh failed: ${err.message}`, OP.AI);
     return briefing;
   }
 }
@@ -1379,10 +1295,10 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
     // Check if it's a recent placeholder (< 2 minutes old) - generation likely in progress
     const placeholderAgeMs = Date.now() - new Date(briefing.updated_at).getTime();
     if (placeholderAgeMs < 120000) {
-      console.log(`[BriefingService] ⏳ Briefing incomplete (${Math.round(placeholderAgeMs/1000)}s old), missing: [${missingFields.join(', ')}] - returning null`);
+      briefingLog.info(`In progress (${Math.round(placeholderAgeMs/1000)}s) - polling`);
       return null; // Let frontend poll again
     } else {
-      console.log(`[BriefingService] ⚠️ Stale incomplete briefing (${Math.round(placeholderAgeMs/1000)}s old), missing: [${missingFields.join(', ')}] - will regenerate`);
+      briefingLog.info(`Stale placeholder - regenerating`);
       briefing = null; // Force regeneration
     }
   }
@@ -1391,61 +1307,42 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
   const needsFullRegeneration = !briefing || forceRefresh;
   
   if (needsFullRegeneration) {
-    const reason = !briefing ? 'missing' : 'forced';
-    console.log(`[BriefingService] Regenerating full briefing (${reason}): ${snapshotId}`);
     try {
       const result = await generateAndStoreBriefing({ snapshotId, snapshot });
       if (result.success) {
         briefing = result.briefing;
-        console.log(`[BriefingService] ✅ Fresh briefing generated for ${snapshotId}`);
       }
     } catch (genErr) {
-      console.error('[BriefingService] Generation error:', genErr.message);
-      // If regeneration fails but we have stale data, return stale data as fallback
-      if (briefing) {
-        console.warn('[BriefingService] ⚠️ Returning stale briefing due to generation error');
-      }
+      briefingLog.error(1, `Generation failed`, genErr);
     }
   } else if (!isDailyBriefingStale(briefing)) {
-    // Daily briefing is still fresh (within 24h), check if traffic needs refresh (>5min old)
-    console.log(`[BriefingService] ✓ Cache hit (24h): daily briefing for ${snapshotId}`);
+    // Daily briefing is still fresh (within 24h)
     briefing = await refreshTrafficInBriefing(briefing, snapshot);
 
-    // CRITICAL: If events are EMPTY, fetch immediately (events are never "none" in a metro area)
+    // CRITICAL: If events are EMPTY, fetch immediately
     if (areEventsEmpty(briefing)) {
-      console.log(`[BriefingService] 🎭 Events EMPTY - fetching immediately (events always exist in metro areas)...`);
       briefing = await refreshEventsInBriefing(briefing, snapshot);
-    }
-    // Also check if events specifically are stale (4h vs 24h for other daily data)
-    else if (isEventsStale(briefing)) {
-      console.log(`[BriefingService] 🎭 Events stale within same day, refreshing events...`);
+    } else if (isEventsStale(briefing)) {
       briefing = await refreshEventsInBriefing(briefing, snapshot);
     }
   } else {
     // Daily briefing is older than 24h, regenerate everything
-    console.log(`[BriefingService] Daily briefing stale (>24h): ${snapshotId}, regenerating...`);
     try {
       const result = await generateAndStoreBriefing({ snapshotId, snapshot });
       if (result.success) {
         briefing = result.briefing;
-        console.log(`[BriefingService] ✅ Fresh daily briefing generated for ${snapshotId}`);
       }
     } catch (genErr) {
-      console.error('[BriefingService] Generation error:', genErr.message);
-      if (briefing) {
-        console.warn('[BriefingService] ⚠️ Returning stale briefing due to generation error');
-      }
+      briefingLog.error(1, `Regeneration failed`, genErr);
     }
   }
 
   // FINAL SAFETY NET: If events are STILL empty after all paths, fetch now
-  // This ensures we never return a briefing without attempting to get events
   if (briefing && areEventsEmpty(briefing)) {
-    console.log(`[BriefingService] 🎭 SAFETY NET: Events still empty after briefing flow - fetching now...`);
     try {
       briefing = await refreshEventsInBriefing(briefing, snapshot);
     } catch (eventsErr) {
-      console.warn(`[BriefingService] ⚠️ Safety net events fetch failed: ${eventsErr.message}`);
+      briefingLog.warn(2, `Safety net events failed: ${eventsErr.message}`, OP.AI);
     }
   }
 

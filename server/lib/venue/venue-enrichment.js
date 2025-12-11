@@ -9,6 +9,7 @@
  */
 
 import { getRouteWithTraffic } from "../external/routes-api.js";
+import { venuesLog, OP } from "../../logger/workflow.js";
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
@@ -27,7 +28,7 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
   }
 
   const timezone = snapshot?.timezone || "UTC"; // Fallback to UTC for global app
-  console.log(`🏢 [VENUE ENRICHMENT START] ${venues.length} venues (tz: ${timezone})`);
+  venuesLog.start(`${venues.length} venues (tz: ${timezone})`);
 
   // Parallelize all enrichments for speed
   const enriched = await Promise.all(
@@ -38,12 +39,12 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         const address = await reverseGeocode(venue.lat, venue.lng);
 
         // 2. Calculate distance + drive time with traffic (original driver coords → LLM-provided venue coords)
-        console.log(`🏢 [VENUE "${venueName}"] Calculating route from driver...`);
+        venuesLog.api(2, 'Google Routes', `"${venueName}"`);
         const route = await getRouteWithTraffic(driverLocation, {
           lat: venue.lat,
           lng: venue.lng,
         });
-        console.log(`🏢 [VENUE "${venueName}"] Route: ${(route.distanceMeters * 0.000621371).toFixed(1)}mi, ${Math.ceil(route.durationSeconds / 60)}min`);
+        venuesLog.done(2, `"${venueName}" → ${(route.distanceMeters * 0.000621371).toFixed(1)}mi, ${Math.ceil(route.durationSeconds / 60)}min`, OP.API);
 
         // 3. Get place details from Google Places API (New) with timezone
         const placeDetails = await getPlaceDetails(
@@ -64,13 +65,7 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           );
 
           if (similarity < 0.4) {
-            console.log(
-              `📍 [NEARBY VENUE] GPT-5 said "${venue.name}" but Google found "${placeDetails.google_name}" (similarity: ${(similarity * 100).toFixed(0)}%) - Accepting place_id (same area, shared event context)`,
-            );
-          } else {
-            console.log(
-              `✅ [NAME MATCH] "${venue.name}" ≈ "${placeDetails.google_name}" (similarity: ${(similarity * 100).toFixed(0)}%)`,
-            );
+            venuesLog.warn(3, `"${venue.name}" → Google found "${placeDetails.google_name}" (${(similarity * 100).toFixed(0)}% match) - accepting nearby venue`, OP.API);
           }
         }
 
@@ -80,9 +75,7 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
 
         // CRITICAL FIX: Filter out permanently closed venues before recommending to drivers
         if (placeDetails?.business_status === 'CLOSED_PERMANENTLY') {
-          console.warn(
-            `[Venue Enrichment] 🚫 FILTERING OUT: "${venue.name}" - permanently closed (Google status: CLOSED_PERMANENTLY)`,
-          );
+          venuesLog.warn(3, `FILTERED: "${venueName}" - permanently closed`, OP.API);
           return null; // Filter this venue out
         }
 
@@ -103,10 +96,10 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         };
 
         const openStatus = enrichedVenue.isOpen === true ? 'OPEN' : enrichedVenue.isOpen === false ? 'CLOSED' : 'UNKNOWN';
-        console.log(`🏢 [VENUE "${venueName}"] ✅ placeId=${enrichedVenue.placeId ? "YES" : "NO"}, status=${openStatus}, hours=${enrichedVenue.businessHours || 'none'}`);
+        venuesLog.done(3, `"${venueName}" → ${openStatus}, ${enrichedVenue.businessHours || 'no hours'}`, OP.API);
         return enrichedVenue;
       } catch (error) {
-        console.error(`🏢 [VENUE "${venueName}"] ❌ Enrichment failed: ${error.message}`);
+        venuesLog.error(3, `"${venueName}" enrichment failed`, error, OP.API);
 
         // CRITICAL: Always preserve GPT-5 coords even if enrichment fails
         return {
@@ -130,12 +123,10 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
   const permanentlyClosedCount = enriched.length - filtered.length;
 
   if (permanentlyClosedCount > 0) {
-    console.warn(
-      `[Venue Enrichment] ⚠️ Filtered out ${permanentlyClosedCount} permanently closed venue(s), ${filtered.length} venues remain`,
-    );
+    venuesLog.warn(3, `Filtered out ${permanentlyClosedCount} permanently closed venue(s), ${filtered.length} remain`);
   }
 
-  console.log(`[Venue Enrichment] ✅ Enriched ${filtered.length} venues (${permanentlyClosedCount} permanently closed filtered)`);
+  venuesLog.done(3, `Enriched ${filtered.length} venues (${permanentlyClosedCount} permanently closed filtered)`);
   return filtered;
 }
 
@@ -425,10 +416,6 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
 
       // Parse response
       const data = await response.json();
-      console.log(
-        `[Places API (New)] Raw response for "${name}":`,
-        JSON.stringify(data).substring(0, 500),
-      );
 
       if (data.places && data.places.length > 0) {
         const place = data.places[0];
@@ -446,19 +433,10 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
               )
             : null;
 
-        console.log(
-          `🔍 [GOOGLE PLACES] Lookup for "${name}" at ${lat.toFixed(6)},${lng.toFixed(6)}:`,
-          {
-            found_name: googleName,
-            found_coords:
-              googleLat && googleLng
-                ? `${googleLat.toFixed(6)},${googleLng.toFixed(6)}`
-                : "unknown",
-            distance_meters: distance ? distance.toFixed(1) : "unknown",
-            place_id: place.id,
-            address: place.formattedAddress,
-          },
-        );
+        // Only log if name mismatch or significant distance
+        if (distance && distance > 50) {
+          venuesLog.info(`Places API: "${name}" → "${googleName}" (${distance.toFixed(0)}m away)`, OP.API);
+        }
 
         // Extract business hours
         const hours = place.currentOpeningHours || place.regularOpeningHours;
@@ -467,16 +445,6 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
         // CRITICAL: Calculate isOpen ourselves using snapshot timezone (don't trust Google's openNow)
         const isOpen = calculateIsOpen(weekdayTexts, timezone);
 
-        // DEBUG: Log raw hours and calculated status
-        if (weekdayTexts.length > 0) {
-          console.log(
-            `[Places API] "${name}" - Calculated isOpen: ${isOpen} (timezone: ${timezone})`,
-          );
-          console.log(`[Places API] Raw hours:`, weekdayTexts);
-          console.log(
-            `[Places API] Google's openNow was: ${hours?.openNow} (we calculate our own)`,
-          );
-        }
 
         // Condense weekly hours into readable format
         const condensedHours = condenseWeeklyHours(weekdayTexts);
@@ -492,30 +460,20 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
         };
       }
 
-      console.warn(
-        `⚠️ [GOOGLE PLACES] No results found for "${name}" at ${lat},${lng}`,
-      );
+      venuesLog.warn(3, `Places API: No results for "${name}" at ${lat.toFixed(4)},${lng.toFixed(4)}`, OP.API);
 
       return null;
     } catch (error) {
       // Network errors: retry
       if (attempt < maxRetries - 1) {
         const delay = baseDelay * Math.pow(2, attempt);
-        console.warn(
-          `[Places API] Network error: ${error.message} - Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`,
-        );
+        venuesLog.warn(3, `Places API: ${error.message} - retry ${attempt + 1}/${maxRetries} in ${delay}ms`, OP.RETRY);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue; // Retry
       }
-      
+
       // Final attempt failed
-      console.error(
-        `[Places API] CRITICAL ERROR for "${name}" at ${lat},${lng}:`,
-        {
-          message: error.message,
-          stack: error.stack?.substring(0, 200),
-        },
-      );
+      venuesLog.error(3, `Places API failed for "${name}"`, error, OP.API);
       return null;
     }
   }

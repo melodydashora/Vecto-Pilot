@@ -22,8 +22,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   MessageSquare,
-  Wine,
-  Loader
+  Wine
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/use-toast';
@@ -38,11 +37,12 @@ import { DonationTab } from '@/components/DonationTab';
 
 // Shared types and utilities
 import type { SmartBlock, BlocksResponse, StrategyData } from '@/types/co-pilot';
-import { getAuthHeader, subscribeStrategyReady, logAction as logActionHelper } from '@/utils/co-pilot-helpers';
+import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady, logAction as logActionHelper } from '@/utils/co-pilot-helpers';
 import { BottomTabNavigation } from '@/components/co-pilot/BottomTabNavigation';
 import { GreetingBanner } from '@/components/co-pilot/GreetingBanner';
 import { useBriefingQueries } from '@/hooks/useBriefingQueries';
 import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
+import { useStrategyLoadingMessages } from '@/hooks/useStrategyLoadingMessages';
 
 // Types are now imported from @/types/co-pilot
 
@@ -213,7 +213,23 @@ const CoPilot: React.FC = () => {
     });
 
     return unsubscribe;
-  }, [lastSnapshotId]);
+  }, [lastSnapshotId, queryClient]);
+
+  // Subscribe to SSE blocks_ready events
+  useEffect(() => {
+    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
+
+    console.log('[SSE] Subscribing to blocks_ready events for snapshot:', lastSnapshotId);
+    const unsubscribe = subscribeBlocksReady((data) => {
+      if (data.snapshot_id === lastSnapshotId) {
+        console.log('[SSE] Blocks ready for current snapshot, fetching data');
+        // Refetch the blocks query
+        queryClient.invalidateQueries({ queryKey: ['/api/blocks-fast', lastSnapshotId] });
+      }
+    });
+
+    return unsubscribe;
+  }, [lastSnapshotId, queryClient]);
 
   // Fetch snapshot data early for Coach context (backup while strategy generates)
   const { data: snapshotData } = useQuery({
@@ -258,10 +274,11 @@ const CoPilot: React.FC = () => {
       return { ...data, _snapshotId: lastSnapshotId };
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    // Poll every 3 seconds if strategy is pending (fallback when SSE fails)
+    // Reduced polling - SSE is primary mechanism, this is just a safety fallback
+    // Poll every 15 seconds only if pending (SSE should trigger most updates)
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === 'pending' ? 3000 : false;
+      return status === 'pending' ? 15000 : false;
     },
     // Cache for 5 minutes to avoid refetching
     staleTime: 5 * 60 * 1000,
@@ -439,15 +456,16 @@ const CoPilot: React.FC = () => {
 
       return shouldEnable;
     })(),
-    // SIMPLIFIED POLLING: Poll every 5s until blocks arrive, then stop
+    // Reduced polling - SSE is primary mechanism, this is just a safety fallback
+    // Poll every 15s until blocks arrive, then stop
     refetchInterval: (query) => {
       const blocks = query.state.data?.blocks;
       const hasBlocks = blocks && blocks.length > 0;
-      // Stop polling once we have blocks (no log to reduce spam)
+      // Stop polling once we have blocks
       if (hasBlocks) {
         return false;
       }
-      return 5000; // Poll every 5 seconds
+      return 15000; // Poll every 15 seconds (SSE handles immediate updates)
     },
     retry: (failureCount, error: any) => {
       // Stop retrying if we got a timeout (504)
@@ -476,6 +494,9 @@ const CoPilot: React.FC = () => {
     lastSnapshotId,
     hasBlocks
   });
+
+  // Cycling loading messages for strategy generation
+  const loadingMessages = useStrategyLoadingMessages(pipelinePhase);
 
   useEffect(() => {
     if (error) {
@@ -993,17 +1014,12 @@ const CoPilot: React.FC = () => {
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-semibold text-blue-900">⏳ Generating your strategy...</p>
                       <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                        {pipelinePhase === 'starting' && 'Starting'}
-                        {pipelinePhase === 'resolving' && 'Resolving'}
-                        {pipelinePhase === 'analyzing' && 'Analyzing'}
-                        {pipelinePhase === 'consolidator' && 'Consolidating'}
+                        {loadingMessages.badge}
                       </Badge>
                     </div>
-                    <p className="text-xs text-blue-700 mb-3">
-                      {pipelinePhase === 'starting' && '🚀 Starting...'}
-                      {pipelinePhase === 'resolving' && '📍 Examining location and resolving area...'}
-                      {pipelinePhase === 'analyzing' && '🔍 Researching traffic, local events, and rideshare news...'}
-                      {pipelinePhase === 'consolidator' && '🔄 Consolidating strategy...'}
+                    {/* Cycling detailed message */}
+                    <p className="text-xs text-blue-700 mb-3 transition-opacity duration-300">
+                      {loadingMessages.icon} {loadingMessages.text}
                     </p>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs text-blue-700">
@@ -1020,11 +1036,21 @@ const CoPilot: React.FC = () => {
                       </div>
                       <div className="space-y-1 mt-2">
                         <p className="text-xs text-blue-600 italic">
-                          {pipelinePhase === 'starting' && '⏳ Step 1/4: Starting'}
-                          {pipelinePhase === 'resolving' && '📍 Step 2/4: Examining Location'}
-                          {pipelinePhase === 'analyzing' && '🔍 Step 3/4: Researching Area'}
-                          {pipelinePhase === 'consolidator' && '🔄 Step 4/4: Building Strategy'}
+                          {loadingMessages.step}
                         </p>
+                        {/* Sub-message dots indicator */}
+                        <div className="flex gap-1 justify-center mt-1">
+                          {Array.from({ length: loadingMessages.messageCount }).map((_, i) => (
+                            <span
+                              key={i}
+                              className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                                i === loadingMessages.currentIndex
+                                  ? 'bg-blue-600 scale-125'
+                                  : 'bg-blue-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1083,7 +1109,7 @@ const CoPilot: React.FC = () => {
                       {pipelinePhase === 'starting' && 'Starting...'}
                       {pipelinePhase === 'resolving' && 'Examining location...'}
                       {pipelinePhase === 'analyzing' && 'Analyzing area...'}
-                      {pipelinePhase === 'consolidator' && 'Building strategy...'}
+                      {pipelinePhase === 'immediate' && 'Building strategy...'}
                       {pipelinePhase === 'venues' && 'Looking for best venues...'}
                       {pipelinePhase === 'enriching' && 'Enriching venue data...'}
                       {pipelinePhase === 'complete' && 'Loading venues and map...'}
@@ -1092,20 +1118,20 @@ const CoPilot: React.FC = () => {
                       {pipelinePhase === 'starting' && 'Initializing AI pipeline...'}
                       {pipelinePhase === 'resolving' && 'Resolving your location and examining the area...'}
                       {pipelinePhase === 'analyzing' && 'Examining late night venues and evaluating conditions...'}
-                      {pipelinePhase === 'consolidator' && 'Strategy complete! Consolidating insights...'}
+                      {pipelinePhase === 'immediate' && 'AI processing your area intel...'}
                       {pipelinePhase === 'venues' && 'Finding optimal venues near you...'}
                       {pipelinePhase === 'enriching' && 'Calculating distances, drive times, and rankings...'}
                       {pipelinePhase === 'complete' && 'Almost done! Loading venue cards and map...'}
                     </p>
                     <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
                       <span>
-                        {pipelinePhase === 'starting' && 'Step 1/6: Starting'}
-                        {pipelinePhase === 'resolving' && 'Step 2/6: Location'}
-                        {pipelinePhase === 'analyzing' && 'Step 3/6: Research'}
-                        {pipelinePhase === 'consolidator' && 'Step 4/6: Strategy'}
-                        {pipelinePhase === 'venues' && 'Step 5/6: Venues'}
-                        {pipelinePhase === 'enriching' && 'Step 6/6: Enrichment'}
-                        {pipelinePhase === 'complete' && 'Complete!'}
+                        {pipelinePhase === 'starting' && 'Step 1/7: Starting'}
+                        {pipelinePhase === 'resolving' && 'Step 2/7: Location'}
+                        {pipelinePhase === 'analyzing' && 'Step 3/7: Research'}
+                        {pipelinePhase === 'immediate' && 'Step 4/7: AI Processing'}
+                        {pipelinePhase === 'venues' && 'Step 5/7: Venues'}
+                        {pipelinePhase === 'enriching' && 'Step 6/7: Enrichment'}
+                        {pipelinePhase === 'complete' && 'Step 7/7: Complete!'}
                       </span>
                       <span className="font-mono">{enrichmentProgress}%</span>
                     </div>
@@ -1617,6 +1643,7 @@ const CoPilot: React.FC = () => {
               snapshotId={lastSnapshotId}
               enrichmentProgress={enrichmentProgress}
               enrichmentPhase={enrichmentPhase}
+              pipelinePhase={pipelinePhase}
             />
           </div>
         )}

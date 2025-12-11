@@ -234,7 +234,9 @@ router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 
 router.get('/traffic/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
+    // FETCH-ONCE: Just read cached data from DB - no refresh, no regeneration
+    // Traffic is generated once during pipeline and stays until new snapshot
+    const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
     res.json({
       success: true,
@@ -253,10 +255,9 @@ router.get('/traffic/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 
 router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
+    // FETCH-ONCE: Just read cached data from DB
+    const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
     const newsData = briefing?.news || { items: [], filtered: [] };
-
-    console.log(`[BriefingRoute] 📰 News endpoint - briefing exists: ${!!briefing}, news: ${JSON.stringify(newsData).substring(0, 200)}`);
 
     res.json({
       success: true,
@@ -275,8 +276,9 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
 
 router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
-    
+    // FETCH-ONCE: Just read cached data from DB
+    const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
+
     // Handle both array format and {items: [], reason: string} format
     let allEvents = [];
     let reason = null;
@@ -286,13 +288,6 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       allEvents = briefing.events.items;
       reason = briefing.events.reason || null;
     }
-
-    console.log(`[BriefingRoute] 📍 Events endpoint - returning:`, {
-      hasEvents: !!briefing?.events,
-      eventsLength: allEvents.length,
-      reason,
-      firstEvent: allEvents[0] ? { title: allEvents[0].title, venue: allEvents[0].venue } : null
-    });
 
     res.json({
       success: true,
@@ -313,9 +308,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
 
 router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    const briefing = await getOrGenerateBriefing(req.snapshot.snapshot_id, req.snapshot);
-
-    console.log(`[BriefingRoute] 🏫 School closures endpoint - briefing exists: ${!!briefing}, closures: ${JSON.stringify(briefing?.school_closures).substring(0, 200)}`);
+    // FETCH-ONCE: Just read cached data from DB
+    const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
     // Handle both array format and {items: [], reason: string} format
     let closures = [];

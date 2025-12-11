@@ -1,6 +1,9 @@
 // client/src/hooks/useBriefingQueries.ts
 // Consolidated briefing data queries for Co-Pilot
-// IMPORTANT: Queries wait until briefing data is ready (phase >= consolidator)
+//
+// FETCH-ONCE PATTERN: Like location-context, briefing data is fetched exactly ONCE
+// per snapshot when the pipeline reaches 'immediate' phase (briefing data saved), then cached forever.
+// New location = new snapshotId = new fetch. No polling, no refetching.
 
 import { useQuery } from '@tanstack/react-query';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
@@ -11,24 +14,30 @@ interface BriefingQueriesOptions {
   pipelinePhase?: PipelinePhase;
 }
 
-// Phases where briefing data is definitely in the database
-const BRIEFING_READY_PHASES: PipelinePhase[] = ['consolidator', 'venues', 'enriching', 'complete'];
+// Phases where briefing data is definitely in the database (after 'analyzing' completes)
+const BRIEFING_READY_PHASES: PipelinePhase[] = ['immediate', 'venues', 'enriching', 'complete'];
 
 export function useBriefingQueries({ snapshotId, pipelinePhase }: BriefingQueriesOptions) {
   // Only enable queries when:
   // 1. We have a valid snapshotId
-  // 2. Pipeline has reached at least 'consolidator' phase (briefing data is saved)
+  // 2. Pipeline has reached at least 'immediate' phase (briefing data is saved)
   const briefingReady = pipelinePhase && BRIEFING_READY_PHASES.includes(pipelinePhase);
   const isEnabled = !!snapshotId && snapshotId !== 'live-snapshot' && briefingReady;
 
-  if (!briefingReady && snapshotId) {
-    console.log(`[BriefingQuery] Waiting for briefing data (phase: ${pipelinePhase || 'unknown'})`);
-  }
+  // FETCH-ONCE config: staleTime=Infinity means data never goes stale
+  // refetchOnMount/WindowFocus=false prevents re-fetching on component remount
+  // Data is cached by snapshotId - new snapshot = new fetch
+  const fetchOnceConfig = {
+    staleTime: Infinity,
+    refetchOnMount: false as const,
+    refetchOnWindowFocus: false as const,
+    refetchOnReconnect: false as const,
+  };
 
   const weatherQuery = useQuery({
     queryKey: ['/api/briefing/weather', snapshotId],
     queryFn: async () => {
-      console.log('[BriefingQuery] Fetching weather for', snapshotId);
+      console.log('[BriefingQuery] ☀️ Fetching weather (once) for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { weather: null };
       const response = await fetch(`/api/briefing/weather/${snapshotId}`, {
         headers: getAuthHeader()
@@ -38,17 +47,17 @@ export function useBriefingQueries({ snapshotId, pipelinePhase }: BriefingQuerie
         return { weather: null };
       }
       const data = await response.json();
-      console.log('[BriefingQuery] Weather received:', data);
+      console.log('[BriefingQuery] ✅ Weather received');
       return data;
     },
     enabled: isEnabled,
-    staleTime: 5 * 60 * 1000,
+    ...fetchOnceConfig,
   });
 
   const trafficQuery = useQuery({
     queryKey: ['/api/briefing/traffic', snapshotId],
     queryFn: async () => {
-      console.log('[BriefingQuery] Fetching traffic for', snapshotId);
+      console.log('[BriefingQuery] 🚗 Fetching traffic (once) for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { traffic: null };
       const response = await fetch(`/api/briefing/traffic/${snapshotId}`, {
         headers: getAuthHeader()
@@ -58,34 +67,34 @@ export function useBriefingQueries({ snapshotId, pipelinePhase }: BriefingQuerie
         return { traffic: null };
       }
       const data = await response.json();
-      console.log('[BriefingQuery] Traffic received:', data);
+      console.log('[BriefingQuery] ✅ Traffic received');
       return data;
     },
     enabled: isEnabled,
-    staleTime: 5 * 60 * 1000,
+    ...fetchOnceConfig,
   });
 
   const newsQuery = useQuery({
     queryKey: ['/api/briefing/rideshare-news', snapshotId],
     queryFn: async () => {
-      console.log('[BriefingQuery] Fetching news for', snapshotId);
+      console.log('[BriefingQuery] 📰 Fetching news (once) for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { news: null };
       const response = await fetch(`/api/briefing/rideshare-news/${snapshotId}`, {
         headers: getAuthHeader()
       });
       if (!response.ok) return { news: null };
       const data = await response.json();
-      console.log('[BriefingQuery] News received:', data);
+      console.log('[BriefingQuery] ✅ News received');
       return data;
     },
     enabled: isEnabled,
-    staleTime: 45000,
+    ...fetchOnceConfig,
   });
 
   const eventsQuery = useQuery({
     queryKey: ['/api/briefing/events', snapshotId],
     queryFn: async () => {
-      console.log('[BriefingQuery] Fetching events for', snapshotId);
+      console.log('[BriefingQuery] 🎭 Fetching events (once) for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { events: [] };
       const response = await fetch(`/api/briefing/events/${snapshotId}`, {
         headers: getAuthHeader()
@@ -95,28 +104,28 @@ export function useBriefingQueries({ snapshotId, pipelinePhase }: BriefingQuerie
         return { events: [] };
       }
       const data = await response.json();
-      console.log('[BriefingQuery] Events received:', data);
+      console.log('[BriefingQuery] ✅ Events received');
       return data;
     },
     enabled: isEnabled,
-    staleTime: 5 * 60 * 1000,
+    ...fetchOnceConfig,
   });
 
   const schoolClosuresQuery = useQuery({
     queryKey: ['/api/briefing/school-closures', snapshotId],
     queryFn: async () => {
-      console.log('[BriefingQuery] Fetching school closures for', snapshotId);
+      console.log('[BriefingQuery] 🏫 Fetching school closures (once) for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { school_closures: [] };
       const response = await fetch(`/api/briefing/school-closures/${snapshotId}`, {
         headers: getAuthHeader()
       });
       if (!response.ok) return { school_closures: [] };
       const data = await response.json();
-      console.log('[BriefingQuery] School closures received:', data);
+      console.log('[BriefingQuery] ✅ School closures received');
       return data;
     },
     enabled: isEnabled,
-    staleTime: 45000,
+    ...fetchOnceConfig,
   });
 
   return {

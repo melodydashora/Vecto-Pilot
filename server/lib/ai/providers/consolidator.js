@@ -15,7 +15,7 @@ import { db } from '../../../db/drizzle.js';
 import { strategies, briefings } from '../../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { callAnthropic } from '../adapters/anthropic-adapter.js';
-import { triadLog } from '../../../logger/workflow.js';
+import { triadLog, aiLog, dbLog, OP } from '../../../logger/workflow.js';
 
 // Claude Opus fallback configuration
 const FALLBACK_MODEL = 'claude-opus-4-5-20251101';
@@ -31,7 +31,7 @@ const FALLBACK_TEMPERATURE = 0.3;
 async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    console.warn('[immediate-strategy] ⚠️ OPENAI_API_KEY not configured');
+    aiLog.warn(1, `OPENAI_API_KEY not configured for immediate strategy`);
     return { strategy: '' };
   }
 
@@ -95,7 +95,7 @@ Format: Start with "HEAD TO..." or "POSITION AT..." or "STAY NEAR..." - be direc
 
     if (!response.ok) {
       const errText = await response.text();
-      console.warn(`[immediate-strategy] ⚠️ GPT-5.1 failed (${response.status}): ${errText.substring(0, 100)}`);
+      aiLog.warn(1, `Immediate strategy failed (${response.status}): ${errText.substring(0, 100)}`, OP.AI);
       return { strategy: '' };
     }
 
@@ -103,14 +103,14 @@ Format: Start with "HEAD TO..." or "POSITION AT..." or "STAY NEAR..." - be direc
     const strategy = data.choices?.[0]?.message?.content || '';
 
     if (strategy) {
-      console.log(`[immediate-strategy] ✅ GPT-5.1 returned: ${strategy.substring(0, 100)}...`);
+      aiLog.done(1, `Immediate strategy (${strategy.length} chars)`, OP.AI);
       return { strategy };
     }
 
-    console.warn('[immediate-strategy] ⚠️ GPT-5.1 returned empty response');
+    aiLog.warn(1, `Empty immediate strategy response`, OP.AI);
     return { strategy: '' };
   } catch (error) {
-    console.warn(`[immediate-strategy] ⚠️ GPT-5.1 call failed:`, error.message);
+    aiLog.warn(1, `Immediate strategy call failed: ${error.message}`, OP.AI);
     return { strategy: '' };
   }
 }
@@ -122,7 +122,7 @@ Format: Start with "HEAD TO..." or "POSITION AT..." or "STAY NEAR..." - be direc
 async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 0.2 }) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.error('[consolidator] ❌ GEMINI_API_KEY not configured');
+    aiLog.error(1, `GEMINI_API_KEY not configured for consolidator`);
     return { ok: false, error: 'GEMINI_API_KEY not configured' };
   }
 
@@ -134,7 +134,7 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
       if (attempt > 1) {
-        console.log(`[consolidator] ⏳ Retry attempt ${attempt-1}/${MAX_RETRIES} due to overload...`);
+        aiLog.info(`Consolidator retry attempt ${attempt-1}/${MAX_RETRIES} due to overload...`);
       }
 
       const response = await fetch(
@@ -166,12 +166,12 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
       // Handle Overloaded (503) or Rate Limited (429)
       if (response.status === 503 || response.status === 429) {
         const errText = await response.text();
-        console.warn(`[consolidator] ⚠️ Gemini Busy (Status ${response.status}): ${errText.substring(0, 100)}`);
-        
+        aiLog.warn(1, `Gemini consolidator busy (${response.status}): ${errText.substring(0, 100)}`);
+
         if (attempt <= MAX_RETRIES) {
           // Wait before retrying (Exponential Backoff)
           const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
-          console.log(`[consolidator] ⏸️ Waiting ${delay}ms before retry...`);
+          aiLog.info(`Waiting ${delay}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue; // Retry loop
         }
@@ -180,12 +180,12 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error(`[consolidator] Gemini API Error ${response.status}: ${errText.substring(0, 500)}`);
-        
+        aiLog.error(1, `Gemini consolidator API error ${response.status}: ${errText.substring(0, 500)}`);
+
         if (response.status === 400 && errText.includes('API key expired')) {
           return { ok: false, error: 'GEMINI_API_KEY expired - update in Secrets' };
         }
-        
+
         return { ok: false, error: `API error ${response.status}` };
       }
 
@@ -193,24 +193,24 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!text) {
-        console.warn('[consolidator] Empty response from Gemini');
+        aiLog.warn(1, `Gemini consolidator returned empty response`);
         return { ok: false, error: 'Empty response' };
       }
 
       const elapsed = Date.now() - callStart;
-      console.log(`[consolidator] ✅ Gemini returned ${text.length} chars in ${elapsed}ms`);
+      aiLog.info(`Gemini consolidator: ${text.length} chars in ${elapsed}ms`);
       return { ok: true, output: text.trim(), durationMs: elapsed };
 
     } catch (error) {
-      console.error(`[consolidator] Network error (Attempt ${attempt}):`, error.message);
+      aiLog.error(1, `Consolidator network error (attempt ${attempt}): ${error.message}`);
       if (attempt <= MAX_RETRIES) {
         const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
-        console.log(`[consolidator] ⏸️ Waiting ${delay}ms before retry...`);
+        aiLog.info(`Waiting ${delay}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
       const elapsed = Date.now() - callStart;
-      console.error(`[consolidator] Failed after ${elapsed}ms and ${MAX_RETRIES} retries:`, error.message);
+      aiLog.error(1, `Consolidator failed after ${elapsed}ms and ${MAX_RETRIES} retries: ${error.message}`);
       return { ok: false, error: error.message };
     }
   }
@@ -273,7 +273,7 @@ export async function runConsolidator(snapshotId, options = {}) {
 
     // Check if already consolidated
     if (strategyRow?.consolidated_strategy && strategyRow?.status === 'ok') {
-      console.log(`[consolidator] ⏭️ Already consolidated - skipping`);
+      triadLog.info(`Already consolidated - skipping`);
       return { ok: true, skipped: true, reason: 'already_consolidated' };
     }
 
@@ -284,7 +284,7 @@ export async function runConsolidator(snapshotId, options = {}) {
     const weatherData = parseJsonField(briefingRow.weather_current);
     const closuresData = parseJsonField(briefingRow.school_closures);
 
-    console.log(`[consolidator] 📊 Briefing: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}`);
+    triadLog.phase(3, `Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}`);
 
     // Get location/time context from SNAPSHOT (not strategies table)
     const userAddress = snapshot.formatted_address || 'Unknown location';
@@ -312,8 +312,8 @@ export async function runConsolidator(snapshotId, options = {}) {
     const isHoliday = snapshot.is_holiday || false;
     const holiday = snapshot.holiday || null;
 
-    console.log(`[consolidator] 📍 Location: ${userAddress}`);
-    console.log(`[consolidator] 🕐 Time: ${localTime} (${dayPart})`);
+    triadLog.phase(3, `Location: ${userAddress}`);
+    triadLog.phase(3, `Time: ${localTime} (${dayPart})`);
 
     // Step 4: Build Daily Strategy prompt with RAW briefing JSON
     // This is the DAILY STRATEGY (8-12 hours) that goes to the Briefing Tab
@@ -361,7 +361,7 @@ STYLE: Strategic and forward-looking. Think 8-12 hours ahead. Be specific about 
 
 DO NOT: Focus only on "right now", list venues without context, output JSON.`;
 
-    console.log(`[consolidator] 📝 Prompt size: ${prompt.length} chars`);
+    aiLog.info(`Consolidator prompt size: ${prompt.length} chars`);
     
     // Step 5: Call Gemini (with Claude Opus fallback)
     let result = await callGeminiConsolidator({
@@ -372,8 +372,8 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
 
     // If Gemini failed, try Claude Opus fallback
     if (!result.ok) {
-      console.warn(`[consolidator] ⚠️ Gemini failed: ${result.error}`);
-      console.log(`[consolidator] 🔄 Trying Claude Opus fallback...`);
+      aiLog.warn(1, `Gemini consolidator failed: ${result.error}`);
+      aiLog.info(`Trying Claude Opus fallback...`);
 
       const fallbackResult = await callAnthropic({
         model: FALLBACK_MODEL,
@@ -384,10 +384,10 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
       });
 
       if (fallbackResult.ok) {
-        console.log(`[consolidator] ✅ Claude Opus fallback succeeded`);
+        aiLog.info(`Claude Opus fallback succeeded`);
         result = { ok: true, output: fallbackResult.output, usedFallback: true };
       } else {
-        console.error(`[consolidator] ❌ Fallback also failed: ${fallbackResult.error}`);
+        aiLog.error(1, `Fallback also failed: ${fallbackResult.error}`);
         throw new Error(result.error || 'Gemini consolidator failed (fallback also failed)');
       }
     }
@@ -398,8 +398,8 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
       throw new Error('Consolidator returned empty output');
     }
 
-    console.log(`[consolidator] ✅ Got strategy: ${consolidatedStrategy.length} chars`);
-    console.log(`[consolidator] 📖 Preview: ${consolidatedStrategy.substring(0, 150)}...`);
+    triadLog.phase(3, `Got strategy: ${consolidatedStrategy.length} chars`);
+    triadLog.info(`Preview: ${consolidatedStrategy.substring(0, 150)}...`);
 
     // Step 6: Write ONLY consolidated_strategy to strategies table
     // NOTE: strategy_for_now is handled separately by runImmediateStrategy
@@ -448,7 +448,7 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
  */
 export async function runImmediateStrategy(snapshotId, options = {}) {
   const startTime = Date.now();
-  console.log(`[immediate-strategy] 🚀 Starting for ${snapshotId.slice(0, 8)}`);
+  triadLog.phase(3, `[consolidator] Starting immediate strategy for ${snapshotId.slice(0, 8)}`);
 
   try {
     // Use pre-fetched snapshot if provided, otherwise fetch from DB
@@ -473,7 +473,7 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     // Check if immediate strategy already exists
     const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
     if (strategyRow?.strategy_for_now && strategyRow?.status === 'ok') {
-      console.log(`[immediate-strategy] ⏭️ Already exists - skipping`);
+      triadLog.info(`Immediate strategy already exists - skipping`);
       return { ok: true, skipped: true, reason: 'already_exists' };
     }
 
@@ -484,8 +484,8 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       weather: parseJsonField(briefingRow.weather_current)
     };
 
-    console.log(`[immediate-strategy] 📍 ${snapshot.formatted_address}`);
-    console.log(`[immediate-strategy] 📊 Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}`);
+    triadLog.phase(3, `[consolidator] ${snapshot.formatted_address}`);
+    triadLog.phase(3, `[consolidator] Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}`);
 
     // Call GPT-5.1 with snapshot + briefing (NO minstrategy)
     const result = await callGPT5ForImmediateStrategy({ snapshot, briefing });
@@ -503,7 +503,7 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    console.log(`[immediate-strategy] ✅ Saved (${result.strategy.length} chars) in ${totalDuration}ms`);
+    triadLog.done(3, `[consolidator] Immediate strategy saved (${result.strategy.length} chars)`, totalDuration);
 
     return {
       ok: true,
@@ -512,7 +512,7 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     };
   } catch (error) {
     const totalDuration = Date.now() - startTime;
-    console.error(`[immediate-strategy] ❌ Failed after ${totalDuration}ms:`, error.message);
+    triadLog.error(3, `Immediate strategy failed after ${totalDuration}ms`, error);
 
     // Write error to DB
     await db.update(strategies).set({

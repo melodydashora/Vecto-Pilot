@@ -6,6 +6,7 @@
 import { db } from '../../db/drizzle.js';
 import { nearby_venues } from '../../../shared/schema.js';
 import { callModel } from '../ai/adapters/index.js';
+import { barsLog, placesLog, venuesLog, aiLog } from '../../logger/workflow.js';
 
 // API Keys
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -29,7 +30,7 @@ function getPriceDisplay(priceLevel) {
 function calculateOpenStatus(place, timezone) {
   const hours = place.currentOpeningHours || place.regularOpeningHours;
   if (!hours) {
-    console.log(`🍸 [BAR TAB] No hours data for "${place.displayName?.text}" - Google didn't return opening hours`);
+    barsLog.info(`No hours data for "${place.displayName?.text}" - Google didn't return opening hours`);
     return { is_open: null, hours_today: null, closing_soon: false, minutes_until_close: null };
   }
 
@@ -59,7 +60,7 @@ function calculateOpenStatus(place, timezone) {
 
   // Debug log for hours parsing
   if (!hours_today && weekdayDescs.length > 0) {
-    console.log(`🍸 [BAR TAB] "${place.displayName?.text}" - Could not find ${todayName} in weekdayDescriptions:`, weekdayDescs);
+    barsLog.info(`"${place.displayName?.text}" - Could not find ${todayName} in weekdayDescriptions`);
   }
 
   // Calculate minutes until close (simplified - would need nextCloseTime for accuracy)
@@ -150,7 +151,7 @@ Return ONLY a JSON array of the numbers to KEEP. Example: [1, 3, 5, 7]
 If none qualify, return: []`;
 
   try {
-    console.log(`🍸 [BAR TAB] Filtering ${venues.length} venues with Haiku...`);
+    barsLog.phase(1, `Filtering ${venues.length} venues with Haiku...`);
     const result = await callModel('haiku', {
       system: 'You are a venue filter. Return ONLY a JSON array of numbers. No explanation.',
       user: prompt,
@@ -159,14 +160,14 @@ If none qualify, return: []`;
     });
 
     if (!result.ok) {
-      console.warn(`🍸 [BAR TAB] Haiku filter failed: ${result.error}`);
+      aiLog.warn(1, `Haiku venue filter failed: ${result.error}`);
       return venues; // Return unfiltered on error
     }
 
     // Parse the response - extract JSON array
     const match = result.output.match(/\[[\d,\s]*\]/);
     if (!match) {
-      console.warn(`🍸 [BAR TAB] Could not parse Haiku response: ${result.output}`);
+      aiLog.warn(1, `Could not parse Haiku filter response: ${result.output}`);
       return venues;
     }
 
@@ -175,10 +176,10 @@ If none qualify, return: []`;
       .map(i => venues[i - 1]) // Convert 1-indexed to 0-indexed
       .filter(Boolean);
 
-    console.log(`🍸 [BAR TAB] Haiku kept ${filtered.length}/${venues.length} venues`);
+    barsLog.done(1, `Haiku kept ${filtered.length}/${venues.length} venues`);
     return filtered;
   } catch (error) {
-    console.warn(`🍸 [BAR TAB] LLM filter error: ${error.message}`);
+    aiLog.warn(1, `LLM venue filter error: ${error.message}`);
     return venues; // Return unfiltered on error
   }
 }
@@ -196,7 +197,7 @@ If none qualify, return: []`;
  */
 export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 25, timezone = null }) {
   if (!GOOGLE_MAPS_API_KEY) {
-    console.warn('[BAR TAB] ❌ GOOGLE_MAPS_API_KEY not set');
+    barsLog.warn(1, `GOOGLE_MAPS_API_KEY not set`);
     return {
       query_time: new Date().toLocaleTimeString(),
       location: `${city}, ${state}`,
@@ -208,7 +209,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
 
   // Cap radius at 50km (Google Places limit)
   const radiusMeters = Math.min(radiusMiles * 1609.34, 50000);
-  console.log(`🍸 [BAR TAB] Searching Google Places API: ${city}, ${state} (${Math.round(radiusMeters/1609.34)} mile radius)`);
+  barsLog.start(`${city}, ${state} (${Math.round(radiusMeters/1609.34)} mile radius)`);
 
   try {
     // Call Google Places API (New) - searchNearby
@@ -236,14 +237,14 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`🍸 [BAR TAB] ❌ Google Places API error: ${response.status} - ${errText}`);
+      placesLog.error(1, `Google Places API error ${response.status}: ${errText}`);
       throw new Error(`Google Places API error: ${response.status}`);
     }
 
     const data = await response.json();
     const places = data.places || [];
 
-    console.log(`🍸 [BAR TAB] ✅ Google returned ${places.length} venues`);
+    barsLog.phase(1, `Google Places returned ${places.length} venues`);
 
     // Transform Google Places data to our venue format
     let venues = places.map(place => {
@@ -255,7 +256,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
       const venueName = place.displayName?.text || 'Unknown Venue';
 
       // Debug: Log hours for each venue
-      console.log(`🍸 [BAR TAB] "${venueName}" - is_open=${openStatus.is_open}, hours_today="${openStatus.hours_today || 'none'}"`);
+      barsLog.info(`"${venueName}" - is_open=${openStatus.is_open}, hours_today="${openStatus.hours_today || 'none'}"`);
 
       return {
         name: venueName,
@@ -280,11 +281,11 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
 
     // Step 1: Quick filter - remove obvious fast food/chains
     venues = venues.filter(v => !isExcludedVenue(v.name));
-    console.log(`🍸 [BAR TAB] After quick filter: ${venues.length} venues`);
+    barsLog.phase(1, `After quick filter: ${venues.length} venues`);
 
     // Step 2: Only keep upscale venues ($$ and above)
     venues = venues.filter(v => v.expense_rank >= 2);
-    console.log(`🍸 [BAR TAB] After upscale filter ($$+): ${venues.length} venues`);
+    barsLog.phase(1, `After upscale filter ($$+): ${venues.length} venues`);
 
     // Step 3: LLM filter for remaining ambiguous venues (if any remain)
     if (venues.length > 0) {
@@ -335,7 +336,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
     // Extract last-call venues
     const lastCallVenues = openVenues.filter(v => v.is_open && v.closing_soon);
 
-    console.log(`🍸 [BAR TAB] Returning ${openVenues.length} open venues, ${lastCallVenues.length} closing soon`);
+    barsLog.complete(`${openVenues.length} open venues, ${lastCallVenues.length} closing soon`);
 
     return {
       query_time: new Date().toLocaleTimeString(),
@@ -347,7 +348,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
     };
 
   } catch (error) {
-    console.error(`🍸 [BAR TAB] ❌ Discovery failed: ${error.message}`);
+    barsLog.error(2, `Discovery failed`, error);
     // Return empty result on error - don't use stale fallback data
     return {
       query_time: new Date().toLocaleTimeString(),
@@ -392,7 +393,7 @@ Return ONLY valid JSON:
 }`;
 
   try {
-    console.log('[VenueIntelligence] 🚗 Calling Gemini 3 Pro Preview with google tool for traffic...');
+    aiLog.info(`Calling Gemini for traffic intelligence...`);
     const result = await callGemini({
       model: 'gemini-3-pro-preview', // Always use 3-pro-preview with google tool
       system: 'You are a traffic intelligence system. Return ONLY valid JSON with no preamble.',
@@ -406,7 +407,7 @@ Return ONLY valid JSON:
     }
 
     const trafficData = JSON.parse(result.output);
-    console.log('[VenueIntelligence] ✅ Parsed traffic JSON:', trafficData.density_level);
+    venuesLog.info(`Traffic parsed: density=${trafficData.density_level}`);
 
     // MAP TO UNIFIED SCHEMA for briefing-service compatibility
     return {
@@ -421,7 +422,7 @@ Return ONLY valid JSON:
       fetchedAt: new Date().toISOString()
     };
   } catch (error) {
-    console.error('[VenueIntelligence] ❌ Traffic Error:', error.message);
+    venuesLog.error(1, `Traffic intelligence failed`, error);
     // Return safe fallback
     return {
       summary: 'Traffic data currently unavailable',
@@ -442,18 +443,18 @@ Return ONLY valid JSON:
  */
 export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, holiday = null, timezone = null, localIso = null }) {
   try {
-    console.log('[VenueIntelligence] getSmartBlocksIntelligence called:', { city, state, radiusMiles });
-    
+    venuesLog.start(`SmartBlocks for ${city}, ${state} (${radiusMiles} mile radius)`);
+
     // Run venue discovery and traffic intelligence in parallel
     const venuePromise = discoverNearbyVenues({ lat, lng, city, state, radiusMiles, holiday, timezone, localIso });
     const trafficPromise = getTrafficIntelligence({ lat, lng, city, state }).catch(err => {
-      console.warn('[VenueIntelligence] Traffic intelligence failed:', err.message);
+      venuesLog.warn(1, `Traffic intelligence failed: ${err.message}`);
       return { density_level: 'unknown', high_demand_zones: [], driver_advice: '' };
     });
 
     const [venueData, trafficData] = await Promise.all([venuePromise, trafficPromise]);
 
-    console.log('[VenueIntelligence] Combined intelligence ready:', { venues: venueData.total_venues, traffic: trafficData.density_level });
+    venuesLog.done(1, `Combined intelligence: venues=${venueData.total_venues}, traffic=${trafficData.density_level}`);
 
     return {
       timestamp: new Date().toISOString(),
@@ -468,7 +469,7 @@ export async function getSmartBlocksIntelligence({ lat, lng, city, state, radius
       }
     };
   } catch (error) {
-    console.error('[VenueIntelligence] Error getting combined intelligence:', error.message, error.stack);
+    venuesLog.error(1, `SmartBlocks intelligence failed`, error);
     throw error;
   }
 }
@@ -521,10 +522,10 @@ export async function persistVenuesToDatabase(venues, context) {
 
     // Use onConflictDoNothing to make batch insert resilient to unique key violations
     const inserted = await db.insert(nearby_venues).values(records).onConflictDoNothing().returning();
-    console.log(`[VenueIntelligence] Persisted ${inserted?.length || 0} venues to database`);
+    venuesLog.done(4, `Persisted ${inserted?.length || 0} venues to database`);
     return inserted || [];
   } catch (error) {
-    console.warn('[VenueIntelligence] Failed to persist venues:', error.message);
+    venuesLog.warn(4, `Failed to persist venues: ${error.message}`);
     // Don't throw - allow API to continue even if DB persistence fails
     return [];
   }

@@ -1,6 +1,7 @@
 // server/middleware/auth.js
 // Converted from auth.ts to JavaScript for Node.js compatibility
 import crypto from 'crypto';
+import { authLog } from '../logger/workflow.js';
 
 // JWT functions - basic implementation
 function verifyAppToken(token) {
@@ -22,11 +23,11 @@ function verifyAppToken(token) {
       throw new Error('Invalid userId format');
     }
     
-    console.log('[auth] Token verified for user:', userId.substring(0, 20));
+    // Token verified - no log needed (too noisy on every API call)
     return { userId, verified: true };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error('[auth] Token verification failed:', errMsg);
+    authLog.error(1, `Token verification failed: ${errMsg}`);
     throw new Error('Invalid or expired token');
   }
 }
@@ -63,7 +64,7 @@ export function optionalAuth(req, res, next) {
         const payload = verifyAppToken(token);
         req.auth = { userId: payload.userId, phantom: isPhantom(payload.userId, payload.tetherSig) };
       } catch (e) {
-        console.warn('[auth] Token provided but invalid:', e?.message);
+        authLog.warn(1, `Token provided but invalid: ${e?.message}`);
         // Token was provided but invalid - reject the request
         return res.status(401).json({ error: 'unauthorized', detail: e?.message });
       }
