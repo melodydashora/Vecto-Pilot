@@ -479,11 +479,11 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
                 latitude: lat,
                 longitude: lng,
               },
-              radius: 20.0, // PRECISE: 20 meter radius to find exact venue at these coords
+              radius: 150.0, // 150m radius - GPT coords can be slightly off, find nearest venue
             },
           },
-          maxResultCount: 1,
-          rankPreference: "DISTANCE", // Prioritize closest venue to exact coords
+          maxResultCount: 3, // Get top 3 and pick closest match
+          rankPreference: "DISTANCE", // Prioritize closest venue to coords
         }),
       });
 
@@ -512,8 +512,20 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
       const data = await response.json();
 
       if (data.places && data.places.length > 0) {
-        const place = data.places[0];
+        // Pick best match from results based on name similarity
+        let bestPlace = data.places[0];
+        let bestSimilarity = 0;
 
+        for (const place of data.places) {
+          const placeName = place.displayName?.text || place.name || '';
+          const similarity = calculateNameSimilarity(name, placeName);
+          if (similarity > bestSimilarity) {
+            bestSimilarity = similarity;
+            bestPlace = place;
+          }
+        }
+
+        const place = bestPlace;
         const googleName = place.displayName?.text || place.name;
         const googleLat = place.location?.latitude;
         const googleLng = place.location?.longitude;
@@ -529,7 +541,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
 
         // Only log if name mismatch or significant distance
         if (distance && distance > 50) {
-          venuesLog.info(`Places API: "${name}" → "${googleName}" (${distance.toFixed(0)}m away)`, OP.API);
+          venuesLog.info(`Places API: "${name}" → "${googleName}" (${distance.toFixed(0)}m away, ${(bestSimilarity * 100).toFixed(0)}% match)`, OP.API);
         }
 
         // Extract business hours
