@@ -9,24 +9,27 @@ const router = Router();
 /**
  * GET /api/venues/nearby
  * Discover nearby bars and restaurants sorted by expense level
- * Query params: lat, lng, city, state, radius (miles)
+ * Query params: lat, lng, city, state, radius (miles), timezone
  */
 router.get('/nearby', async (req, res) => {
   try {
-    const { lat, lng, city, state, radius } = req.query;
-    
+    const { lat, lng, city, state, radius, timezone } = req.query;
+
     if (!lat || !lng) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: lat, lng' 
+      return res.status(400).json({
+        error: 'Missing required parameters: lat, lng'
       });
     }
 
+    // CRITICAL: Use timezone for accurate time-based venue filtering
+    // Without this, server uses UTC and late-night venues show as closed
     const venueData = await discoverNearbyVenues({
       lat: parseFloat(lat),
       lng: parseFloat(lng),
       city: city || 'Unknown',
       state: state || '',
-      radiusMiles: parseFloat(radius) || 5
+      radiusMiles: parseFloat(radius) || 25,  // Default 25 mile radius for upscale bars
+      timezone: timezone || null  // Pass to use correct local time
     });
 
     res.json({
