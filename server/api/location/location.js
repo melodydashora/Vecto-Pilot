@@ -503,7 +503,7 @@ router.get('/resolve', async (req, res) => {
                 await db.insert(snapshots).values(snapshotRecord);
                 console.log(`📸 [SNAPSHOT] ✅ Snapshot created: ${snapshotId.slice(0, 8)} for ${existingUser.city}, ${existingUser.state}`);
 
-                // Update users table: coords + current_snapshot_id
+                // Update users table: coords + current_snapshot_id + location fields (ensure they stay populated)
                 await db.update(users)
                   .set({
                     new_lat: lat,
@@ -515,9 +515,16 @@ router.get('/resolve', async (req, res) => {
                     day_part_key: dayPartKey,
                     current_snapshot_id: snapshotId,
                     updated_at: now,
+                    // CRITICAL: Preserve location fields from existing user (ensures /api/users/me returns them)
+                    city: existingUser.city,
+                    state: existingUser.state,
+                    country: existingUser.country,
+                    formatted_address: existingUser.formatted_address,
+                    timezone: tz,
+                    coord_key: existingUser.coord_key,
                   })
                   .where(eq(users.device_id, deviceId));
-                console.log(`📸 [SNAPSHOT] ✅ Users table updated with current_snapshot_id`);
+                console.log(`📸 [SNAPSHOT] ✅ Users table updated with current_snapshot_id and location fields`);
 
               } catch (snapshotErr) {
                 console.error(`📸 [SNAPSHOT] ❌ Failed to create snapshot:`, snapshotErr.message);
@@ -1833,25 +1840,58 @@ router.get('/users/me', async (req, res) => {
         message: 'No location data found for this device'
       });
     }
-    
+
+    // FALLBACK: If users table missing city/state, lookup from coords_cache via coord_key
+    let city = userRecord.city;
+    let state = userRecord.state;
+    let country = userRecord.country;
+    let formattedAddress = userRecord.formatted_address;
+
+    if ((!city || !formattedAddress) && userRecord.coord_key) {
+      console.log('[users/me] ⚠️ Users table missing city/state, checking coords_cache...');
+      try {
+        const [cacheRecord] = await db
+          .select()
+          .from(coords_cache)
+          .where(eq(coords_cache.coord_key, userRecord.coord_key))
+          .limit(1);
+
+        if (cacheRecord) {
+          city = city || cacheRecord.city;
+          state = state || cacheRecord.state;
+          country = country || cacheRecord.country;
+          formattedAddress = formattedAddress || cacheRecord.formatted_address;
+          console.log('[users/me] ✅ Populated from coords_cache:', { city, state, formattedAddress });
+
+          // Backfill users table for next time (fire and forget)
+          db.update(users)
+            .set({ city, state, country, formatted_address: formattedAddress })
+            .where(eq(users.device_id, deviceId))
+            .catch(() => {});
+        }
+      } catch (cacheErr) {
+        console.warn('[users/me] coords_cache lookup failed:', cacheErr.message);
+      }
+    }
+
     // Return latest location data from authoritative users table
     console.log('[users/me] ✅ Returning latest location:', {
       user_id: userRecord.user_id,
-      formatted_address: userRecord.formatted_address,
-      city: userRecord.city,
-      state: userRecord.state,
+      formatted_address: formattedAddress,
+      city,
+      state,
       updated_at: userRecord.updated_at
     });
-    
+
     // CRITICAL FIX Finding #2: Return camelCase to match /api/location/resolve contract
     res.json({
       ok: true,
       user_id: userRecord.user_id,
       device_id: userRecord.device_id,
-      formattedAddress: userRecord.formatted_address,
-      city: userRecord.city,
-      state: userRecord.state,
-      country: userRecord.country,
+      formattedAddress: formattedAddress,
+      city,
+      state,
+      country,
       timeZone: userRecord.timezone,
       lat: userRecord.new_lat || userRecord.lat,
       lng: userRecord.new_lng || userRecord.lng,
