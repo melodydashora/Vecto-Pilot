@@ -589,17 +589,25 @@ const CoPilot: React.FC = () => {
 
   // Server now returns Top6 pre-ranked by earnings per mile
   // No client-side distance filtering - server handles expand policy
-  const blocks = (blocksData?.blocks || []).map(block => {
-    // Merge in real-time enriched reasoning for closed venues
-    if (!block.isOpen && !block.closed_venue_reasoning) {
-      const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
-      const reasoning = enrichedReasonings.get(key);
-      if (reasoning) {
-        return { ...block, closed_venue_reasoning: reasoning };
+  // Filter out venues without business hours - they provide no value to drivers
+  const blocks = (blocksData?.blocks || [])
+    .filter(block => {
+      // Must have business hours to be useful
+      if (!block.businessHours) return false;
+      if (typeof block.businessHours === 'string' && block.businessHours.trim().length === 0) return false;
+      return true;
+    })
+    .map(block => {
+      // Merge in real-time enriched reasoning for closed venues
+      if (!block.isOpen && !block.closed_venue_reasoning) {
+        const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
+        const reasoning = enrichedReasonings.get(key);
+        if (reasoning) {
+          return { ...block, closed_venue_reasoning: reasoning };
+        }
       }
-    }
-    return block;
-  });
+      return block;
+    });
 
   // Log blocks for debugging
   if (blocks.length > 0) {
