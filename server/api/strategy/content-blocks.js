@@ -105,6 +105,10 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
 
     if (!hasStrategyForNow) {
       // Strategy pending - return pending status with phase info
+      // Log when phase is NULL (should not happen after fix)
+      if (!strategy.phase) {
+        console.warn(`[content-blocks] WARNING: phase is NULL for ${snapshotId.slice(0, 8)} - falling back to 'starting'`);
+      }
       return res.json({
         status: "pending",
         snapshot_id: snapshotId,

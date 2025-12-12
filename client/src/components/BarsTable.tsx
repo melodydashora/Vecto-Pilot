@@ -185,10 +185,23 @@ export default function BarsTable({ blocks }: BarsTableProps) {
     return isBevenue && isNotCommon;
   });
 
-  // Filter out closed venues AND venues with unknown hours
-  // Only show venues that are explicitly open (isOpen === true)
+  // Filter out closed venues AND venues with unknown/missing hours
+  // Only show venues that are explicitly open (isOpen === true) AND have business hours
   const openBars = bars.filter((bar) => {
-    return bar.isOpen === true;
+    // Must be explicitly open
+    if (bar.isOpen !== true) return false;
+
+    // Must have business hours
+    if (!bar.businessHours) return false;
+
+    // If businessHours is a string, it must not be empty
+    if (typeof bar.businessHours === 'string') {
+      return bar.businessHours.trim().length > 0;
+    }
+
+    // If businessHours is an object, must have todayHours or weekdayTexts
+    const hours = bar.businessHours as BusinessHours;
+    return !!(hours.todayHours || (hours.weekdayTexts && hours.weekdayTexts.length > 0));
   });
 
   if (openBars.length === 0) {
