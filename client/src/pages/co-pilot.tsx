@@ -269,16 +269,21 @@ const CoPilot: React.FC = () => {
       if (!response.ok) return null;
 
       const data = await response.json();
-      console.log(`[strategy-fetch] Status: ${data.status}, Time elapsed: ${data.timeElapsedMs}ms`);
+      console.log(`[strategy-fetch] Status: ${data.status}, Phase: ${data.phase || 'none'}, Time: ${data.timeElapsedMs}ms`);
       // Attach the snapshot ID to the response for validation
       return { ...data, _snapshotId: lastSnapshotId };
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     // Reduced polling - SSE is primary mechanism, this is just a safety fallback
-    // Poll every 15 seconds only if pending (SSE should trigger most updates)
+    // Poll every 3 seconds while pending/missing to show phase progress, stop when complete
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === 'pending' ? 15000 : false;
+      // Poll while strategy is being generated (pending) or row doesn't exist yet (missing)
+      // Also poll for pending_blocks (strategy ready, blocks still generating)
+      if (status === 'pending' || status === 'missing' || status === 'pending_blocks') {
+        return 3000; // 3 seconds for responsive phase updates
+      }
+      return false; // Stop polling when status is 'ok' or 'error'
     },
     // Cache for 5 minutes to avoid refetching
     staleTime: 5 * 60 * 1000,
@@ -589,25 +594,17 @@ const CoPilot: React.FC = () => {
 
   // Server now returns Top6 pre-ranked by earnings per mile
   // No client-side distance filtering - server handles expand policy
-  // Filter out venues without business hours - they provide no value to drivers
-  const blocks = (blocksData?.blocks || [])
-    .filter(block => {
-      // Must have business hours to be useful
-      if (!block.businessHours) return false;
-      if (typeof block.businessHours === 'string' && block.businessHours.trim().length === 0) return false;
-      return true;
-    })
-    .map(block => {
-      // Merge in real-time enriched reasoning for closed venues
-      if (!block.isOpen && !block.closed_venue_reasoning) {
-        const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
-        const reasoning = enrichedReasonings.get(key);
-        if (reasoning) {
-          return { ...block, closed_venue_reasoning: reasoning };
-        }
+  const blocks = (blocksData?.blocks || []).map(block => {
+    // Merge in real-time enriched reasoning for closed venues
+    if (!block.isOpen && !block.closed_venue_reasoning) {
+      const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
+      const reasoning = enrichedReasonings.get(key);
+      if (reasoning) {
+        return { ...block, closed_venue_reasoning: reasoning };
       }
-      return block;
-    });
+    }
+    return block;
+  });
 
   // Log blocks for debugging
   if (blocks.length > 0) {
