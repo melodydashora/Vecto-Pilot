@@ -16,6 +16,12 @@ import {
   searchBriefingDataParallel as perplexitySearchAll
 } from '../external/perplexity-api.js';
 
+// Serper.dev for Google Search API (optional traffic provider)
+import { searchTrafficWithSerper } from '../external/serper-api.js';
+
+// TomTom Traffic API for real-time traffic conditions (primary provider)
+import { getTomTomTraffic } from '../external/tomtom-traffic.js';
+
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
 // Claude Opus fallback configuration
@@ -898,6 +904,8 @@ Return ONLY valid JSON array:
 export async function fetchTrafficConditions({ snapshot }) {
   const city = snapshot?.city || 'Unknown';
   const state = snapshot?.state || 'Unknown';
+  const lat = snapshot?.lat;
+  const lng = snapshot?.lng;
   const timezone = snapshot?.timezone || 'America/Chicago';
 
   // Get current date in user's timezone
@@ -921,7 +929,55 @@ export async function fetchTrafficConditions({ snapshot }) {
     isFallback: true
   };
 
-  // TRY PERPLEXITY FIRST (if configured) - faster with 25-mile radius
+  // TRY TOMTOM FIRST (if configured + has coordinates) - real-time traffic data
+  if (process.env.TOMTOM_API_KEY && lat && lng) {
+    try {
+      const tomtomResult = await getTomTomTraffic({
+        lat,
+        lon: lng,
+        city,
+        state,
+        radiusMiles: 15  // 15-mile radius for city-wide coverage
+      });
+
+      if (tomtomResult.traffic && !tomtomResult.error) {
+        // Map TomTom congestion levels to our format
+        const congestionMap = {
+          'light': 'low',
+          'moderate': 'medium',
+          'heavy': 'high',
+          'unknown': 'medium'
+        };
+
+        return {
+          summary: tomtomResult.traffic.summary,
+          incidents: tomtomResult.traffic.incidents.slice(0, 10).map(inc => ({
+            description: inc.location ? `${inc.category}: ${inc.location}` : inc.description,
+            severity: inc.magnitude === 'Major' ? 'high' : inc.magnitude === 'Moderate' ? 'medium' : 'low',
+            category: inc.category,
+            delayMinutes: inc.delayMinutes,
+            lengthMiles: inc.lengthMiles
+          })),
+          congestionLevel: congestionMap[tomtomResult.traffic.congestionLevel] || 'medium',
+          totalIncidents: tomtomResult.traffic.totalIncidents,
+          jams: tomtomResult.traffic.jams,
+          closures: tomtomResult.traffic.closures,
+          highDemandZones: [],  // TomTom doesn't provide this
+          repositioning: null,
+          surgePricing: tomtomResult.traffic.congestionLevel === 'heavy',
+          safetyAlert: tomtomResult.traffic.jams > 3 ? `${tomtomResult.traffic.jams} active traffic jams in the area` : null,
+          fetchedAt: tomtomResult.traffic.fetchedAt,
+          provider: 'tomtom'
+        };
+      }
+
+      briefingLog.warn(1, `TomTom traffic failed - trying Perplexity`, OP.FALLBACK);
+    } catch (tomtomErr) {
+      briefingLog.warn(1, `TomTom traffic error: ${tomtomErr.message} - trying Perplexity`, OP.FALLBACK);
+    }
+  }
+
+  // TRY PERPLEXITY (if configured) - 25-mile radius search
   if (process.env.PERPLEXITY_API_KEY) {
     try {
       // Pass formatted address for 25-mile radius search context
@@ -942,7 +998,7 @@ export async function fetchTrafficConditions({ snapshot }) {
 
   // FALLBACK TO GEMINI
   if (!process.env.GEMINI_API_KEY) {
-    briefingLog.warn(1, `Neither PERPLEXITY_API_KEY nor GEMINI_API_KEY set - using fallback traffic`, OP.AI);
+    briefingLog.warn(1, `No traffic providers available - using fallback traffic`, OP.AI);
     return fallbackTraffic;
   }
 

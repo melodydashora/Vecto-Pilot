@@ -197,12 +197,21 @@ export default function BarTab({
     );
   }
 
+  // Filter out venues without business hours - they're not useful to drivers
+  const venuesWithHours = venueData.venues.filter(v => {
+    // Must have hours_today to be displayed
+    if (!v.hours_today || v.hours_today.trim().length === 0) return false;
+    // Filter out "Hours not available" or similar
+    if (v.hours_today.toLowerCase().includes('not available')) return false;
+    return true;
+  });
+
   // Sort venues by strategic value for drivers:
   // 1. Open venues with latest closing times first (more time to work them)
   // 2. Then open venues closing soon (last call opportunities)
   // 3. Then opening soon venues
   // Within each group, sort by expense level (highest first = better tips)
-  const sortedVenues = [...venueData.venues].sort((a, b) => {
+  const sortedVenues = [...venuesWithHours].sort((a, b) => {
     // Both open
     if (a.is_open && b.is_open) {
       // Neither closing soon - sort by expense (highest first)
@@ -233,8 +242,30 @@ export default function BarTab({
   });
 
   const venues = sortedVenues;
-  const lastCallVenues = venueData.last_call_venues || [];
+  // Filter last_call_venues the same way
+  const lastCallVenues = (venueData.last_call_venues || []).filter(v =>
+    v.hours_today && v.hours_today.trim().length > 0 && !v.hours_today.toLowerCase().includes('not available')
+  );
   const lateNightVenues = venues.filter(v => v.is_open && !v.closing_soon);
+
+  // No venues after filtering
+  if (venues.length === 0) {
+    return (
+      <Card className="p-6 border-gray-100">
+        <div className="flex flex-col items-center text-center py-8">
+          <Wine className="w-12 h-12 text-gray-400 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-700">No venues with hours</h3>
+          <p className="text-gray-500 mt-2">No bars with business hours found in your area</p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          >
+            Refresh
+          </button>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">

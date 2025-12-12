@@ -668,4 +668,59 @@ router.post('/test-consolidate/:snapshotId', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/diagnostics/test-traffic
+// Compare traffic data from all providers
+router.get('/test-traffic', requireAuth, async (req, res) => {
+  const { city = 'Frisco', state = 'TX' } = req.query;
+  const results = {};
+  const formattedAddress = `${city}, ${state}`;
+  const date = new Date().toISOString().split('T')[0];
+
+  // Test Serper
+  if (process.env.SERPER_API_KEY || process.env.SERP_API_KEY) {
+    try {
+      const { searchTrafficWithSerper } = await import('../../lib/external/serper-api.js');
+      const startTime = Date.now();
+      const serperResult = await searchTrafficWithSerper({ city, state, formattedAddress });
+      results.serper = {
+        provider: 'serper',
+        elapsedMs: Date.now() - startTime,
+        success: !serperResult.error,
+        data: serperResult.traffic,
+        error: serperResult.error || null
+      };
+    } catch (err) {
+      results.serper = { provider: 'serper', success: false, error: err.message };
+    }
+  } else {
+    results.serper = { provider: 'serper', success: false, error: 'SERPER_API_KEY not configured' };
+  }
+
+  // Test Perplexity
+  if (process.env.PERPLEXITY_API_KEY) {
+    try {
+      const { searchTrafficConditions } = await import('../../lib/external/perplexity-api.js');
+      const startTime = Date.now();
+      const perplexityResult = await searchTrafficConditions({ city, state, date, formattedAddress });
+      results.perplexity = {
+        provider: 'perplexity',
+        elapsedMs: Date.now() - startTime,
+        success: !perplexityResult.error,
+        data: perplexityResult.traffic,
+        error: perplexityResult.error || null
+      };
+    } catch (err) {
+      results.perplexity = { provider: 'perplexity', success: false, error: err.message };
+    }
+  } else {
+    results.perplexity = { provider: 'perplexity', success: false, error: 'PERPLEXITY_API_KEY not configured' };
+  }
+
+  res.json({
+    ok: true,
+    query: { city, state, formattedAddress, date },
+    results
+  });
+});
+
 export default router;
