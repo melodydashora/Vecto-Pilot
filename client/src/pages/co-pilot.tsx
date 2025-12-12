@@ -274,16 +274,15 @@ const CoPilot: React.FC = () => {
       return { ...data, _snapshotId: lastSnapshotId };
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    // Reduced polling - SSE is primary mechanism, this is just a safety fallback
     // Poll every 3 seconds while pending/missing to show phase progress, stop when complete
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      // Poll while strategy is being generated (pending) or row doesn't exist yet (missing)
-      // Also poll for pending_blocks (strategy ready, blocks still generating)
-      if (status === 'pending' || status === 'missing' || status === 'pending_blocks') {
-        return 3000; // 3 seconds for responsive phase updates
+      // Stop polling only when we have a definitive completion status
+      if (status === 'ok' || status === 'error') {
+        return false;
       }
-      return false; // Stop polling when status is 'ok' or 'error'
+      // Poll while: no data yet (undefined), missing, pending, or pending_blocks
+      return 3000;
     },
     // Cache for 5 minutes to avoid refetching
     staleTime: 5 * 60 * 1000,

@@ -50,7 +50,12 @@
       "Bash(else)",
       "Bash(npm run lint:*)",
       "Bash(node --check:*)",
-      "Bash(npm audit:*)"
+      "Bash(npm audit:*)",
+      "WebSearch",
+      "Bash(printenv:*)",
+      "Bash(node -e:*)",
+      "Bash(node --eval:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []
