@@ -65,6 +65,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         status: "missing",
         snapshot_id: snapshotId,
         timeElapsedMs: 0,
+        phase: "starting", // Strategy row not yet created, still initializing
       });
     }
 
