@@ -35,6 +35,8 @@ export async function ensureStrategyRow(snapshotId) {
     }
 
     // Create strategy row with location data from snapshot
+    // CRITICAL: Explicitly set phase='starting' - don't rely on SQL defaults
+    // PostgreSQL + Drizzle + onConflictDoNothing can leave phase as NULL otherwise
     await db.insert(strategies).values({
       snapshot_id: snapshotId,
       user_id: snapshot.user_id,
@@ -43,7 +45,8 @@ export async function ensureStrategyRow(snapshotId) {
       city: snapshot.city,
       state: snapshot.state,
       user_address: snapshot.formatted_address,
-      status: 'pending'
+      status: 'pending',
+      phase: 'starting'
     }).onConflictDoNothing();
 
     triadLog.done(1, `Strategy row created: ${snapshot.city}, ${snapshot.state}`, OP.DB);
@@ -132,50 +135,8 @@ export async function getStrategyContext(snapshotId) {
   };
 }
 
-/**
- * Synthesize a fallback strategy from minstrategy and briefing when consolidation fails
- * @param {string} minstrategy - Claude's tactical analysis
- * @param {Object} briefing - Gemini's city intelligence {events, holidays, traffic, news}
- * @returns {string} - Synthesized strategy text
- */
-export function synthesizeFallback(minstrategy, briefing) {
-  const lines = [];
-  
-  // Extract plan from minstrategy (assume it's plain text)
-  if (minstrategy && typeof minstrategy === 'string') {
-    const summary = minstrategy.slice(0, 200).trim();
-    lines.push(`📍 **Strategic Position:** ${summary}${minstrategy.length > 200 ? '...' : ''}`);
-  }
-  
-  // Add event intelligence
-  if (briefing?.events && Array.isArray(briefing.events) && briefing.events.length > 0) {
-    const topEvents = briefing.events.slice(0, 3).join(', ');
-    lines.push(`\n🎯 **Active Events:** ${topEvents}`);
-  }
-  
-  // Add holiday information
-  if (briefing?.holidays && Array.isArray(briefing.holidays) && briefing.holidays.length > 0) {
-    const holidays = briefing.holidays.join(', ');
-    lines.push(`\n🎉 **Holidays:** ${holidays}`);
-  }
-  
-  // Add traffic intelligence
-  if (briefing?.traffic && Array.isArray(briefing.traffic) && briefing.traffic.length > 0) {
-    const trafficSummary = briefing.traffic.slice(0, 2).join('; ');
-    lines.push(`\n🚦 **Traffic:** ${trafficSummary}`);
-  }
-  
-  // Add news intelligence
-  if (briefing?.news && Array.isArray(briefing.news) && briefing.news.length > 0) {
-    const newsSummary = briefing.news.slice(0, 2).join('; ');
-    lines.push(`\n📰 **News:** ${newsSummary}`);
-  }
-  
-  // Add fallback notice
-  lines.push('\n\n_Note: Strategy synthesized from tactical analysis and market intelligence due to consolidation timeout. All intelligence data is current._');
-  
-  return lines.join('');
-}
+// NOTE: synthesizeFallback function REMOVED Dec 2025 - dead code
+// The active pipeline uses runImmediateStrategy from consolidator.js which has its own error handling
 
 /**
  * Compress text to fit within token limits

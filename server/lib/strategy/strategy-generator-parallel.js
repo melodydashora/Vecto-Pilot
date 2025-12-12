@@ -171,6 +171,7 @@ async function saveStrategy(row) {
 
     // CRITICAL: Use onConflictDoNothing to preserve the FIRST insert with model_name
     // If row already exists (race condition), don't overwrite - first writer wins
+    // Set phase='complete' explicitly to avoid NULL phase issues in production
     await db.insert(strategies).values({
       snapshot_id: row.snapshot_id,
       user_id: row.user_id,
@@ -184,6 +185,7 @@ async function saveStrategy(row) {
       traffic: row.traffic,
       strategy_for_now: row.consolidated_strategy,
       status: 'ok',
+      phase: 'complete',
       model_name: modelName,
       created_at: new Date(),
       updated_at: new Date()
@@ -223,10 +225,12 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }
     }
 
     // Create initial strategy row - ensures exactly ONE row per snapshot
+    // CRITICAL: Set phase='starting' on insert to avoid NULL phase race condition in prod
     const [insertedStrategy] = await db.insert(strategies).values({
       snapshot_id: snapshotId,
       user_id: userId,
-      status: 'pending',
+      status: 'running',
+      phase: 'starting',
       model_name: modelChain,
       created_at: new Date(),
       updated_at: new Date()
@@ -237,13 +241,6 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }
       triadLog.info(`Another process already handling strategy for ${snapshotId.slice(0, 8)}, skipping`);
       return { ok: true, status: 'deduplicated', reason: 'race_condition_detected' };
     }
-
-    // Set status to running, phase to starting
-    await db.update(strategies).set({
-      status: 'running',
-      phase: 'starting',
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId));
 
     triadLog.start(`${snapshotId.slice(0, 8)} (${snapshot.city}, ${snapshot.state})`);
     triadLog.phase(1, `Location: ${snapshot.formatted_address}`);
@@ -308,120 +305,8 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }
   }
 }
 
-/**
- * GPT-5 consolidation - called by event-driven worker
- * Includes retry logic with reduced max_tokens and fallback synthesis
- */
-export async function consolidateStrategy({ snapshotId, claudeStrategy, briefing, user, snapshot, holiday }) {
-  triadLog.ai(3, 'Consolidator', `${snapshotId.slice(0, 8)}`);
-
-  try {
-    // CRITICAL: Validate weather and traffic conditions FIRST - reject bad strategies early
-    triadLog.phase(3, `Validating conditions...`);
-    const conditions = await validateConditions(snapshot);
-
-    if (!conditions.valid) {
-      triadLog.warn(3, `REJECTED: ${conditions.rejectionReason}`);
-      
-      await db.update(strategies).set({
-        consolidated_strategy: null,
-        status: 'rejected',
-        error_message: `Strategy rejected due to unsafe conditions: ${conditions.rejectionReason}`,
-        updated_at: new Date()
-      }).where(eq(strategies.snapshot_id, snapshotId));
-      
-      return { ok: false, reason: 'bad_conditions', details: conditions };
-    }
-
-    triadLog.done(3, `Conditions validated`);
-
-    // Extract briefing fields from single JSONB object
-    let events = briefing?.events || [];
-    const news = briefing?.news || [];
-    const traffic = briefing?.traffic || [];
-    const holidays = briefing?.holidays || [];
-    
-    // Retry logic with progressively reduced max_tokens
-    const attempts = 3;
-    const maxTokensSequence = [900, 600, 450]; // Reduced from 2000 to avoid length truncation
-    let lastError = null;
-    let finishReason = null;
-
-    for (let i = 0; i < attempts; i++) {
-      const maxTokens = maxTokensSequence[i];
-      if (i > 0) {
-        triadLog.phase(3, `Consolidator retry ${i + 1}/${attempts} (tokens=${maxTokens})`, OP.RETRY);
-      }
-      
-      try {
-        const consolidated = await consolidateWithGPT5Thinking({
-          plan: claudeStrategy,
-          briefing: briefing,
-          userAddress: user?.user_address || snapshot?.formatted_address || 'Unknown location',
-          city: snapshot?.city,
-          state: snapshot?.state
-        });
-
-        finishReason = consolidated.finishReason;
-        
-        // Success: content present
-        if (consolidated.ok && consolidated.strategy && consolidated.strategy.trim().length > 0) {
-          await db.update(strategies).set({
-            consolidated_strategy: consolidated.strategy,
-            status: 'ok',
-            updated_at: new Date()
-          }).where(eq(strategies.snapshot_id, snapshotId));
-
-          triadLog.done(3, `Consolidation complete (${consolidated.strategy.length} chars)`, OP.AI);
-          return { ok: true };
-        }
-        
-        // Length truncation - retry with smaller max_tokens
-        if (finishReason === 'length') {
-          lastError = new Error(`Consolidation truncated with finish_reason: length`);
-          triadLog.warn(3, `Truncated - will retry with fewer tokens`, OP.AI);
-          continue;
-        }
-        
-        // Other failure - break retry loop
-        lastError = new Error(consolidated.reason || 'No content from consolidator');
-        break;
-        
-      } catch (attemptErr) {
-        lastError = attemptErr;
-        triadLog.error(3, `Consolidator attempt ${i + 1} failed`, attemptErr, OP.AI);
-        if (i < attempts - 1) continue;
-        break;
-      }
-    }
-
-    // All retries failed - synthesize fallback strategy
-    triadLog.warn(3, `Consolidator failed - using fallback synthesis`, OP.FALLBACK);
-    const { synthesizeFallback } = await import('./strategy-utils.js');
-    const fallbackStrategy = synthesizeFallback(claudeStrategy, briefing);
-    
-    await db.update(strategies).set({
-      consolidated_strategy: fallbackStrategy,
-      status: 'ok_partial',  // Differentiate from full consolidation
-      error_message: `Fallback used: ${lastError?.message || 'Unknown error'}`,
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId));
-
-    triadLog.done(3, `Fallback synthesized (${fallbackStrategy.length} chars)`, OP.FALLBACK);
-    return { ok: true, partial: true, reason: lastError?.message };
-    
-  } catch (err) {
-    triadLog.error(3, `Consolidation failed`, err);
-    await db.update(strategies).set({
-      error_message: `[gpt5] ${err.message?.slice(0, 800)}`,
-      status: 'error',
-      updated_at: new Date()
-    }).where(eq(strategies.snapshot_id, snapshotId));
-    return { ok: false, reason: err.message };
-  }
-}
-
-// Old consolidateWithGPT5ThinkingWithMetadata function DELETED - replaced with role-pure consolidateWithGPT5Thinking
+// NOTE: consolidateStrategy function REMOVED Dec 2025 - dead code
+// The active pipeline uses runImmediateStrategy from consolidator.js instead
 
 /**
  * Legacy main function - kept for backwards compatibility
