@@ -60,8 +60,7 @@ Time: ${localTime} (${snapshot.day_part_key})
 ${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
 === BRIEFING DATA ===
-TRAFFIC:
-${JSON.stringify(briefing.traffic, null, 2)}
+TRAFFIC IMPACT: ${briefing.traffic?.driverImpact || briefing.traffic?.headline || 'Normal traffic conditions'}
 
 EVENTS:
 ${JSON.stringify(briefing.events, null, 2)}
