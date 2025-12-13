@@ -5,11 +5,13 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, strategies } from '../../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 import { coachDAL } from '../../lib/ai/coach-dal.js';
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
 // GET /coach/context/:snapshotId - Snapshot-wide context for strategy coach
-router.get('/context/:snapshotId', async (req, res) => {
+// SECURITY: Requires auth (returns strategy and venue data)
+router.get('/context/:snapshotId', requireAuth, async (req, res) => {
   const { snapshotId } = req.params;
   
   console.log('[coach] Fetching context for snapshot:', snapshotId);
@@ -40,8 +42,6 @@ router.get('/context/:snapshotId', async (req, res) => {
 
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
 // SECURITY: Requires authentication
-import { requireAuth } from '../../middleware/auth.js';
-
 router.post('/', requireAuth, async (req, res) => {
   const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [] } = req.body;
 

@@ -2,6 +2,7 @@ import express from 'express';
 import { getDb } from '../../db/drizzle-lazy.js';
 import { snapshots, strategies, rankings, ranking_candidates } from '../../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
 
@@ -16,8 +17,9 @@ const router = express.Router();
  * - Venue candidates with all enrichment (business_hours, venue_events, pro_tips, etc.)
  * 
  * NO resolving, NO Places API, NO Perplexity, NO geocoding
+ * SECURITY: Requires auth (returns strategy and candidate data)
  */
-router.get('/context', async (req, res) => {
+router.get('/context', requireAuth, async (req, res) => {
   const sid = req.headers['x-snapshot-id'] || req.query.snapshotId;
   if (!sid) return res.status(400).json({ ok: false, error: 'snapshot_id_required' });
 

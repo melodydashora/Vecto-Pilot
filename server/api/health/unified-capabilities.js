@@ -1,5 +1,6 @@
 
 import { unifiedAI } from '../../lib/ai/unified-ai-capabilities.js';
+import { requireAuth } from '../../middleware/auth.js';
 
 export default function unifiedCapabilitiesRoutes(app) {
   // Get all unified capabilities
@@ -37,7 +38,8 @@ export default function unifiedCapabilitiesRoutes(app) {
   });
   
   // Trigger manual healing
-  app.post('/api/unified/heal', async (req, res) => {
+  // SECURITY: Requires auth (can trigger system healing operations)
+  app.post('/api/unified/heal', requireAuth, async (req, res) => {
     try {
       await unifiedAI.autoHeal();
       const health = await unifiedAI.checkHealth();

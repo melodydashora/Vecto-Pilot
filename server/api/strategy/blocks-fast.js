@@ -355,7 +355,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
   triadLog.start(`POST request for ${req.body?.snapshotId?.slice(0, 8) || 'unknown'}`);
 
   const wallClockStart = Date.now();

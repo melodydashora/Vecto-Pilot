@@ -5,8 +5,19 @@ import { authLog } from '../logger/workflow.js';
 
 // JWT functions - basic implementation
 function verifyAppToken(token) {
-  // If no JWT_SECRET configured, generate from Device ID for development
-  const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'dev-secret-change-in-production';
+  // Security: Require JWT_SECRET in production
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
+
+  if (isProduction && !process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET must be configured in production');
+  }
+
+  // Use JWT_SECRET, fallback to Replit device ID for dev (unique per instance)
+  const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
+
+  if (!secret) {
+    throw new Error('No JWT_SECRET or REPLIT_DEVSERVER_INTERNAL_ID available for token verification');
+  }
   
   try {
     // Simple token verification: token format is "userId.signature"
