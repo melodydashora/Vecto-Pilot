@@ -13,7 +13,7 @@ strategy/
 ├── strategy-utils.js              # Utility functions
 ├── strategyPrompt.js              # System prompts
 ├── strategy-triggers.js           # Trigger condition detection
-├── planner-gpt5.js                # Venue planner (GPT-5.1)
+├── planner-gpt5.js                # Venue planner (GPT-5.2)
 ├── tactical-planner.js            # Tactical guidance generation
 ├── providers.js                   # Strategy provider registry
 └── assert-safe.js                 # Async validation, cache warming
@@ -79,7 +79,7 @@ blocks-fast.js (validates formatted_address exists)
     │   └── briefing.js (Gemini) → briefings table
     │
     ├── Phase 2: Immediate Strategy
-    │   └── consolidator.js/runImmediateStrategy (GPT-5.1)
+    │   └── consolidator.js/runImmediateStrategy (GPT-5.2)
     │       └── → strategies.strategy_for_now (1hr tactical)
     │
     └── Phase 3: Venue Generation
@@ -130,7 +130,7 @@ blocks-fast.js
 ## Database Writes
 
 Writes to `strategies` table:
-- `strategy_for_now` - Immediate 1-hour guidance (GPT-5.1)
+- `strategy_for_now` - Immediate 1-hour guidance (GPT-5.2)
 - `consolidated_strategy` - 8-12 hour daily strategy (Gemini, on-demand)
 - `status` - Pipeline status
 - `phase` - Current pipeline phase

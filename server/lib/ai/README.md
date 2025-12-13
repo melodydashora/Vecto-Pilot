@@ -12,7 +12,7 @@ ai/
 │   └── index.js        # Main dispatcher: callModel(role, {system, user})
 ├── providers/          # Strategy generation providers
 │   ├── briefing.js     # Events, traffic, news (Gemini + Search)
-│   └── consolidator.js # Strategy generation (GPT-5.1 + Gemini)
+│   └── consolidator.js # Strategy generation (GPT-5.2 + Gemini)
 ├── coach-dal.js        # Data access layer for AI Coach chat
 ├── llm-router-v2.js    # LLM status/routing (used by health endpoint)
 ├── models-dictionary.js # Model metadata registry
@@ -55,7 +55,7 @@ Configured via environment variables:
 | Role | Env Variable | Default Model |
 |------|--------------|---------------|
 | `briefer` | `STRATEGY_BRIEFER` | Gemini 3.0 Pro |
-| `consolidator` | `STRATEGY_CONSOLIDATOR` | GPT-5.1 |
+| `consolidator` | `STRATEGY_CONSOLIDATOR` | GPT-5.2 |
 | `event_validator` | `STRATEGY_EVENT_VALIDATOR` | Claude Opus 4.5 (with web search) |
 
 ## Strategy Pipeline
@@ -63,7 +63,7 @@ Configured via environment variables:
 ```
 POST /api/blocks-fast:
 1. briefing.js (Gemini) → briefings table
-2. consolidator.js/runImmediateStrategy (GPT-5.1) → strategies.strategy_for_now
+2. consolidator.js/runImmediateStrategy (GPT-5.2) → strategies.strategy_for_now
 3. SmartBlocks generation → rankings + ranking_candidates
 
 POST /api/strategy/daily (on-demand):

@@ -14,7 +14,7 @@ const {
   ANTHROPIC_API_KEY = "",
   ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1",
   ANTHROPIC_VERSION = "2023-06-01",
-  OPENAI_MODEL = "gpt-5.1",
+  OPENAI_MODEL = "gpt-5.2",
   OPENAI_API_KEY = "",
   PERPLEXITY_API_KEY = "",
   PERPLEXITY_MODEL = "sonar-pro",

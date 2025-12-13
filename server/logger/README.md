@@ -115,7 +115,7 @@ Use **role names** (Briefer, Consolidator, Immediate) not model names (Claude, G
 ```javascript
 // GOOD
 triadLog.phase(1, `Starting for ${snapshotId}`);  // [TRIAD 1/4 - Briefer]
-console.log(`[immediate-strategy] GPT-5.1 returned: ...`);
+console.log(`[immediate-strategy] GPT-5.2 returned: ...`);
 
 // BAD
 console.log(`[gpt5] Starting strategy for snapshot`);

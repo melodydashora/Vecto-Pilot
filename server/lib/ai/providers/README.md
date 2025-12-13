@@ -9,7 +9,7 @@ Strategy generation providers that produce specific outputs for the strategy pip
 | File | Purpose | Output | Model |
 |------|---------|--------|-------|
 | `briefing.js` | Events, traffic, news, weather | `briefings` table | Gemini 3.0 Pro + Search |
-| `consolidator.js` | Strategy generation | `strategies.strategy_for_now`, `strategies.consolidated_strategy` | GPT-5.1 / Gemini |
+| `consolidator.js` | Strategy generation | `strategies.strategy_for_now`, `strategies.consolidated_strategy` | GPT-5.2 / Gemini |
 
 ## Provider Details
 

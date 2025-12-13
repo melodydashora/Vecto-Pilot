@@ -55,7 +55,9 @@
       "Bash(printenv:*)",
       "Bash(node -e:*)",
       "Bash(node --eval:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nReplace Perplexity with Gemini 3 Pro Preview for briefing data\n\nBREAKING CHANGE: Perplexity is no longer used for briefing data.\n\n## Briefing Provider Changes\n- Events: Gemini 3 Pro (primary) → Claude web search (fallback)\n- News: Gemini 3 Pro (primary) → Claude web search (fallback)  \n- Traffic: TomTom (primary) → Gemini 3 Pro (secondary)\n- Airport: Gemini 3 Pro with Google Search grounding\n\n## Strategy Generator Fixes\n- runImmediateStrategy now includes ALL briefing fields:\n  - traffic, events, weather, news, school_closures\n- Previously only traffic, events, weather were passed to GPT-5.2\n\n## New Functions Added\n- callClaudeWithWebSearch() - Claude Opus with web_search tool\n- fetchEventsWithClaudeWebSearch() - Parallel category event search\n- fetchNewsWithClaudeWebSearch() - Rideshare news fallback\n\n## Documentation Updated\n- docs/architecture/ai-pipeline.md - Updated models table\n- ARCHITECTURE.md - Updated Perplexity removal section\n- LESSONS_LEARNED.md - Updated model strengths\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

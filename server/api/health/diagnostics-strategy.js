@@ -11,7 +11,7 @@ import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 
 export const router = Router();
 
-/** POST /api/diagnostics/test-immediate/:snapshotId - Test GPT-5.1 immediate strategy */
+/** POST /api/diagnostics/test-immediate/:snapshotId - Test GPT-5.2 immediate strategy */
 router.post('/test-immediate/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
 

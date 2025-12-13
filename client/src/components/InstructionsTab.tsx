@@ -385,7 +385,7 @@ export const InstructionsTab: React.FC = () => {
         <CardContent className="space-y-4">
           {[
             { step: 1, title: 'Enable Location', desc: 'Click "Allow" when the app asks for your location. This is required for all features.' },
-            { step: 2, title: 'Check the Strategy Tab', desc: 'Watch the progress bar (1-2 min) as Claude, Perplexity, and GPT-5.1 generate your personalized recommendation.' },
+            { step: 2, title: 'Check the Strategy Tab', desc: 'Watch the progress bar (1-2 min) as Claude, Perplexity, and GPT-5.2 generate your personalized recommendation.' },
             { step: 3, title: 'Explore Smart Blocks', desc: 'Scroll down to see specific venues with earnings estimates, drive times, and ratings.' },
             { step: 4, title: 'Use the Map', desc: 'Switch to the Map tab to see all venues at a glance with live traffic overlays.' },
             { step: 5, title: 'Read the Briefing', desc: 'Check news/events and weather to understand what\'s driving demand in your area.' },

@@ -185,43 +185,56 @@ async function analyzeTrafficWithClaude({ tomtomData, city, state, formattedAddr
     const jams = incidents.filter(i => i.category === 'Jam');
     const accidents = incidents.filter(i => i.category === 'Accident');
 
-    const prompt = `Analyze this traffic data for a rideshare driver located at: ${formattedAddress}
+    const prompt = `You are a traffic analyst for rideshare drivers. Analyze this traffic data and provide a comprehensive briefing.
 
-TRAFFIC STATS:
+DRIVER LOCATION: ${formattedAddress}
+CITY: ${city}, ${state}
+
+TRAFFIC STATISTICS:
 - Total incidents: ${stats.total || 0}
 - Highway incidents: ${stats.highways || 0}
 - Road closures: ${stats.closures || 0}
 - Construction zones: ${stats.construction || 0}
 - Traffic jams: ${stats.jams || 0}
 - Accidents: ${stats.accidents || 0}
-- Congestion level: ${tomtomData.congestionLevel}
+- Overall congestion: ${tomtomData.congestionLevel}
 
-TOP PRIORITY INCIDENTS (sorted by impact to driver):
-${incidents.slice(0, 15).map((inc, i) =>
-  `${i+1}. [${inc.category}] ${inc.road || ''} ${inc.location} (${inc.magnitude}, priority: ${inc.priority})`
+HIGHEST PRIORITY INCIDENTS (sorted by driver impact):
+${incidents.slice(0, 20).map((inc, i) =>
+  `${i+1}. [${inc.category}] ${inc.road || ''} ${inc.location} (severity: ${inc.magnitude}, delay: ${inc.delayMinutes || 0}min)`
 ).join('\n')}
 
-ROAD CLOSURES:
-${closures.slice(0, 10).map(c => `- ${c.road || ''} ${c.location}`).join('\n') || 'None reported'}
+ROAD CLOSURES (${closures.length} total):
+${closures.slice(0, 15).map(c => `- ${c.road || ''}: ${c.location}`).join('\n') || 'None reported'}
 
-CONSTRUCTION:
-${construction.slice(0, 5).map(c => `- ${c.road || ''} ${c.location}`).join('\n') || 'None reported'}
+CONSTRUCTION ZONES (${construction.length} total):
+${construction.slice(0, 8).map(c => `- ${c.road || ''}: ${c.location}`).join('\n') || 'None reported'}
+
+ACTIVE TRAFFIC JAMS (${jams.length} total):
+${jams.slice(0, 10).map(j => `- ${j.road || ''}: ${j.location}`).join('\n') || 'None reported'}
 
 Return a JSON object with this EXACT structure:
 {
-  "headline": "One sentence traffic overview (e.g., 'Heavy congestion on I-35E with multiple jams; avoid downtown exits')",
-  "keyIssues": ["Issue 1 - specific road and problem", "Issue 2", "Issue 3"],
-  "avoidAreas": ["Road/area to avoid and why"],
-  "driverImpact": "One sentence on how this affects the driver's routes/earnings",
-  "closuresSummary": "X road closures, mostly on local streets" or "Major closure on I-35",
-  "constructionSummary": "X construction zones" or null if none significant
+  "briefing": "3-4 sentence traffic briefing focused on DRIVER IMPACT. First sentence: overall congestion level and incident count. Second sentence: which specific corridors/highways are worst affected and delays. Third sentence: secondary impacts and alternative routes. Fourth sentence (optional): time-sensitive info (rush hour ending, event traffic clearing). Be SPECIFIC with highway names, interchange names, and delay times.",
+  "keyIssues": [
+    "Specific issue 1 - road name, problem, and delay impact",
+    "Specific issue 2 - road name, problem, and delay impact",
+    "Specific issue 3 - road name, problem, and delay impact"
+  ],
+  "avoidAreas": [
+    "Road/area to avoid: specific reason (e.g., '20+ min delays')",
+    "Another road/area: specific reason"
+  ],
+  "driverImpact": "One sentence: How this specifically affects rideshare drivers - impact on pickup times, areas to avoid for efficient routing, expected delay ranges",
+  "closuresSummary": "Summary of road closures - count and most impactful ones",
+  "constructionSummary": "Summary of construction zones if significant"
 }
 
-Be specific with road names. Focus on what matters to a driver navigating this area RIGHT NOW.`;
+IMPORTANT: The "briefing" field should be 3-4 sentences that a driver can read in 10 seconds to understand the traffic situation and make routing decisions. Focus on DRIVER IMPACT - which roads to avoid, expected delays, and alternative routing suggestions.`;
 
     const response = await anthropic.messages.create({
       model: 'claude-opus-4-5-20251101',
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }]
     });
 
@@ -239,7 +252,8 @@ Be specific with road names. Focus on what matters to a driver navigating this a
     briefingLog.done(1, `Claude traffic analysis (${elapsedMs}ms)`, OP.AI);
 
     return {
-      headline: analysis.headline,
+      briefing: analysis.briefing,  // Full 2-3 sentence traffic briefing
+      headline: analysis.briefing?.split('.')[0] + '.' || analysis.headline,  // First sentence for backwards compat
       keyIssues: analysis.keyIssues || [],
       avoidAreas: analysis.avoidAreas || [],
       driverImpact: analysis.driverImpact,
@@ -1240,8 +1254,9 @@ export async function fetchTrafficConditions({ snapshot }) {
           }));
 
         return {
-          // Claude analysis (human-readable)
-          headline: analysis?.headline || traffic.summary,
+          // Claude analysis (human-readable briefing)
+          briefing: analysis?.briefing || traffic.summary,  // Full 2-3 sentence briefing
+          headline: analysis?.headline || traffic.summary,  // First sentence (backwards compat)
           keyIssues: analysis?.keyIssues || [],
           avoidAreas: analysis?.avoidAreas || [],
           driverImpact: analysis?.driverImpact || null,
@@ -1249,16 +1264,17 @@ export async function fetchTrafficConditions({ snapshot }) {
           constructionSummary: analysis?.constructionSummary || null,
 
           // Legacy summary for backwards compatibility
-          summary: analysis?.headline || traffic.summary,
+          summary: analysis?.briefing || analysis?.headline || traffic.summary,
 
-          // Prioritized incidents (top 10 by impact)
+          // Prioritized incidents (top 10 by impact) - for collapsed "Active Incidents" section
           incidents: prioritizedIncidents,
+          incidentsCount: traffic.totalIncidents,
 
           // Expandable closures list
           closures: allClosures,
           closuresCount: allClosures.length,
 
-          // Stats
+          // Stats for UI display
           stats: traffic.stats || {
             total: traffic.totalIncidents,
             highways: 0,

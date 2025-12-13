@@ -4,7 +4,7 @@ Critical rules and constraints that must be followed when working with the codeb
 
 ## Model Parameters
 
-### GPT-5.1 Constraints (Avoid 400 Errors)
+### GPT-5.2 Constraints (Avoid 400 Errors)
 
 **DO NOT USE:**
 - `temperature` - Causes 400 error

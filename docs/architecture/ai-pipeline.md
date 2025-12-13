@@ -15,7 +15,7 @@ Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligenc
 | Holiday Checker | Gemini 3.0 Pro | Google | Holiday detection |
 | Daily Consolidator | Gemini 3.0 Pro | Google | 8-12hr strategy |
 | Immediate Consolidator | GPT-5.2 | OpenAI | 1hr tactical strategy |
-| Venue Planner | GPT-5.1 | OpenAI | Smart Blocks generation |
+| Venue Planner | GPT-5.2 | OpenAI | Smart Blocks generation |
 
 **Note:** Perplexity was replaced with Gemini 3 Pro Preview (with Google Search tool) as the primary briefing provider in December 2024. Claude web search serves as the fallback when Gemini fails.
 
@@ -44,7 +44,7 @@ POST /api/blocks-fast (triggers waterfall)
 │                                            │
 │  ┌──────────────────┐ ┌─────────────────┐ │
 │  │ Daily Consolid.  │ │Immediate Consol.│ │
-│  │  Gemini 3.0 Pro  │ │    GPT-5.1      │ │
+│  │  Gemini 3.0 Pro  │ │    GPT-5.2      │ │
 │  └────────┬─────────┘ └────────┬────────┘ │
 │           │                    │          │
 │           ▼                    ▼          │
@@ -57,7 +57,7 @@ POST /api/blocks-fast (triggers waterfall)
 │           PHASE 3 (SEQUENTIAL)             │
 │                                            │
 │  ┌──────────────────────────────────────┐ │
-│  │        Venue Planner (GPT-5.1)       │ │
+│  │        Venue Planner (GPT-5.2)       │ │
 │  │  Generates Top 6 venue recommendations│ │
 │  └────────────────┬─────────────────────┘ │
 │                   │                        │
@@ -141,11 +141,11 @@ Claude Opus 4.5 with web search serves as automatic fallback when primary models
 
 ## Model Parameters
 
-### GPT-5.1 (Critical)
+### GPT-5.2 (Critical)
 ```javascript
 // CORRECT
 {
-  model: "gpt-5.1",
+  model: "gpt-5.2",
   reasoning_effort: "medium",  // FLAT string, not nested
   max_completion_tokens: 32000
 }
@@ -184,7 +184,7 @@ Claude Opus 4.5 with web search serves as automatic fallback when primary models
 # Model configuration
 STRATEGY_STRATEGIST=claude-opus-4-5-20251101
 STRATEGY_BRIEFER=gemini-3-pro-preview
-STRATEGY_CONSOLIDATOR=gpt-5.1
+STRATEGY_CONSOLIDATOR=gpt-5.2
 STRATEGY_HOLIDAY_CHECKER=gemini-3-pro-preview
 STRATEGY_VALIDATOR=gemini-2.5-pro
 STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
@@ -201,7 +201,7 @@ GEMINI_API_KEY=...
 |------|---------|
 | `server/lib/ai/adapters/index.js` | Model adapter dispatcher |
 | `server/lib/ai/adapters/anthropic-adapter.js` | Claude adapter |
-| `server/lib/ai/adapters/openai-adapter.js` | GPT-5.1 adapter |
+| `server/lib/ai/adapters/openai-adapter.js` | GPT-5.2 adapter |
 | `server/lib/ai/adapters/gemini-adapter.js` | Gemini adapter |
 | `server/lib/ai/providers/minstrategy.js` | Strategist provider |
 | `server/lib/ai/providers/briefing.js` | Briefer provider |

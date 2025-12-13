@@ -93,7 +93,7 @@ export const strategies = pgTable("strategies", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   // Model version tracking for A/B testing and rollback capability
-  model_name: text("model_name"), // e.g., 'gemini-3-pro→gpt-5.1'
+  model_name: text("model_name"), // e.g., 'gemini-3-pro→gpt-5.2'
   user_id: uuid("user_id"),
 
   // Time windowing (freshness-first spec compliance)
@@ -102,7 +102,7 @@ export const strategies = pgTable("strategies", {
   strategy_timestamp: timestamp("strategy_timestamp", { withTimezone: true }),
 
   // Strategy outputs
-  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour strategy (GPT-5.1)
+  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour strategy (GPT-5.2)
   consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (user-request only)
 });
 

@@ -58,7 +58,7 @@ fullContext = {
     // 12 fields from strategies table
     strategy_id, snapshot_id, user_id,
     minstrategy,           // Full Claude Sonnet 4.5 strategic text
-    consolidated_strategy, // Full GPT-5.1 tactical briefing
+    consolidated_strategy, // Full GPT-5.2 tactical briefing
     model_name, model_params, prompt_version,
     latency_ms, tokens, status,
     created_at, updated_at
@@ -268,7 +268,7 @@ briefing: {
 
 The Coach can analyze uploaded files:
 - **Supported Types**: Images (heat maps, screenshots), PDFs, documents
-- **Vision Models**: GPT-5.1 with vision capabilities
+- **Vision Models**: GPT-5.2 with vision capabilities
 - **Use Cases**:
   - Heat map analysis: Identify high-demand zones
   - Earnings screenshots: Extract data and provide insights
@@ -317,7 +317,7 @@ const userMessage = attachments.length > 0
    - ✅ briefing.news (filtered rideshare-relevant news with citations)
 
 5. ✅ **Full Block Details** - RESOLVED
-   - ✅ smartBlocks[].pro_tips[] (tactical advice from GPT-5.1)
+   - ✅ smartBlocks[].pro_tips[] (tactical advice from GPT-5.2)
    - ✅ smartBlocks[].staging_name/lat/lng/tips (parking guidance)
    - ✅ smartBlocks[].value_per_min, value_grade, earnings_per_mile
    - ✅ smartBlocks[].business_hours, isOpen calculated status

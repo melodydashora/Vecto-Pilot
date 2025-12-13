@@ -44,7 +44,8 @@ router.get('/current', requireAuth, async (req, res) => {
         },
         traffic: briefing.traffic_conditions,
         events: briefing.events,
-        school_closures: briefing.school_closures
+        school_closures: briefing.school_closures,
+        airport_conditions: briefing.airport_conditions
       },
       created_at: briefing.created_at,
       updated_at: briefing.updated_at
@@ -85,7 +86,9 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
           forecast: briefing.weather_forecast
         },
         traffic: briefing.traffic_conditions,
-        events: briefing.events
+        events: briefing.events,
+        school_closures: briefing.school_closures,
+        airport_conditions: briefing.airport_conditions
       }
     });
   } catch (error) {
@@ -112,7 +115,8 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
         },
         traffic: briefing.traffic_conditions,
         events: briefing.events,
-        school_closures: briefing.school_closures
+        school_closures: briefing.school_closures,
+        airport_conditions: briefing.airport_conditions
       },
       created_at: briefing.created_at,
       updated_at: briefing.updated_at
@@ -152,7 +156,9 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
             forecast: result.briefing.weather_forecast
           },
           traffic: result.briefing.traffic_conditions,
-          events: result.briefing.events
+          events: result.briefing.events,
+          school_closures: result.briefing.school_closures,
+          airport_conditions: result.briefing.airport_conditions
         }
       });
     } else {

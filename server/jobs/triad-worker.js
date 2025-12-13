@@ -20,7 +20,7 @@ let shuttingDown = false;
 /**
  * Start LISTEN-only SmartBlocks listener.
  * Subscribes to channel `strategy_ready`. When a notification with snapshotId arrives:
- * - Verify strategy_for_now exists (from GPT-5.1)
+ * - Verify strategy_for_now exists (from GPT-5.2)
  * - Verify briefing exists
  * - Generate enhanced smart blocks
  *

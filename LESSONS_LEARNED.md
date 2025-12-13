@@ -26,7 +26,7 @@ This document captures historical issues, pitfalls, and best practices discovere
 1. **DO NOT delete files without verifying they are unused** - Always grep for imports/requires first
 2. **DO NOT create duplicate implementations** - Search for existing code before writing new
 3. **DO NOT use deprecated model parameters** - Check MODEL.md for current API specs
-4. **DO NOT add temperature to GPT-5.1 or o1 models** - They don't support it (causes 400 errors)
+4. **DO NOT add temperature to GPT-5.2 or o1 models** - They don't support it (causes 400 errors)
 5. **DO NOT use `thinking_budget` for Gemini** - Use `thinkingConfig.thinkingLevel` (nested structure)
 6. **DO NOT skip enrichment steps** - Smart Blocks require Google Places/Routes/Geocoding enrichment
 7. **DO NOT store secrets in code** - Use environment variables only
@@ -43,7 +43,7 @@ This document captures historical issues, pitfalls, and best practices discovere
 
 ## AI Model Configuration
 
-### GPT-5.1 (OpenAI)
+### GPT-5.2 (OpenAI)
 
 **CORRECT:**
 ```javascript
@@ -476,7 +476,7 @@ npm run dev
 Each model has strengths:
 - **Claude**: Best for strategic reasoning, web search fallback
 - **Gemini**: Native Google Search grounding for real-time events, news, traffic, airport data
-- **GPT-5.1/5.2**: Best for structured outputs and immediate tactical actions
+- **GPT-5.2/5.2**: Best for structured outputs and immediate tactical actions
 - **TomTom**: Real-time traffic data (primary traffic source)
 
 **Note (Dec 2024):** Perplexity was replaced with Gemini 3 Pro Preview (with Google Search tool) as the primary briefing provider. Claude web search serves as fallback when Gemini fails.
@@ -515,7 +515,7 @@ Enables ML training by:
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | PostgreSQL connection |
-| `OPENAI_API_KEY` | GPT-5.1 + Voice |
+| `OPENAI_API_KEY` | GPT-5.2 + Voice |
 | `GEMINI_API_KEY` | Gemini 3 Pro |
 | `ANTHROPIC_API_KEY` | Claude Sonnet |
 | `PERPLEXITY_API_KEY` | Holiday detection |
@@ -671,7 +671,7 @@ Validation gates check:
 
 ## Resolved Historical Issues
 
-### Issue: GPT-5.1 API Rejects Temperature
+### Issue: GPT-5.2 API Rejects Temperature
 - **Error:** `Unsupported value: 'temperature' does not support 0.2`
 - **Fix:** Removed temperature, use `reasoning.effort` instead
 - **Status:** RESOLVED
@@ -741,6 +741,67 @@ LLM prompt                      ← "LOCATION: 1753 Saddle Tree Rd, Frisco, TX"
 ```
 
 **NEVER send raw coordinates to LLMs** - they cannot determine addresses.
+
+---
+
+## Stable Implementations (DO NOT CHANGE)
+
+### Traffic Briefing System - STABLE (Dec 2025)
+
+**⚠️ DO NOT MODIFY without very good reason - this implementation is working perfectly.**
+
+The traffic briefing system combines TomTom real-time data with Claude analysis:
+
+**Data Flow:**
+```
+TomTom Traffic API → Raw incidents with priority scoring
+       ↓
+analyzeTrafficWithClaude() → Human-readable briefing
+       ↓
+BriefingTab.tsx → Collapsible UI
+```
+
+**Backend (`briefing-service.js`):**
+- `analyzeTrafficWithClaude()` - Sends prioritized TomTom data to Claude Opus 4.5
+- Returns structured JSON: `briefing`, `keyIssues`, `avoidAreas`, `driverImpact`
+- Uses 2048 max_tokens for comprehensive analysis
+
+**Traffic Briefing Format (3-4 sentences):**
+1. Overall congestion level and incident count
+2. Which specific corridors/highways are worst affected and delays
+3. Secondary impacts and alternative routes
+4. Time-sensitive info (rush hour ending, event traffic clearing)
+
+**Frontend (`BriefingTab.tsx`):**
+- Traffic card shows full briefing (not just summary)
+- Key Issues section highlights top problems
+- Active Incidents are **collapsible** (collapsed by default)
+- Driver Impact section shows earnings/routing effect
+
+**Key Implementation Details:**
+```javascript
+// Server returns these fields:
+{
+  briefing: "3-4 sentence comprehensive traffic overview",
+  keyIssues: ["Issue 1 with road name", "Issue 2", "Issue 3"],
+  avoidAreas: ["Road to avoid: reason"],
+  driverImpact: "How this affects rideshare operations",
+  incidents: [...],  // Top 10 prioritized
+  incidentsCount: 146  // Total count for header
+}
+```
+
+**Why It Works:**
+- TomTom provides accurate real-time data
+- Claude analyzes and produces driver-focused briefing
+- UI shows essential info upfront, details on demand
+- Collapsed incidents save screen space while remaining accessible
+
+**DO NOT:**
+- Change the prompt structure without testing extensively
+- Remove fields (frontend depends on them)
+- Reduce max_tokens (briefing quality will suffer)
+- Make incidents expanded by default (too much UI space)
 
 ---
 

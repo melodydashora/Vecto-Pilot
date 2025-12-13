@@ -101,7 +101,7 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │  │ Chat Routes (chat.js, realtime.js)                           ││  │
 │  │  │ POST /api/chat                                               ││  │
 │  │  │   → CoachDAL (read all tables for context)                   ││  │
-│  │  │   → GPT-5.1 API                                              ││  │
+│  │  │   → GPT-5.2 API                                              ││  │
 │  │  │   → return AI response                                       ││  │
 │  │  │ WebSocket /api/realtime                                      ││  │
 │  │  │   → OpenAI Realtime API (voice)                              ││  │
@@ -136,7 +136,7 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │ • File: providers/minstrategy.js → adapters/anthropic-adapter.js│   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ OpenAI GPT-5.1                                                  │   │
+│  │ OpenAI GPT-5.2                                                  │   │
 │  │ • Strategy consolidation (consolidator provider)                │   │
 │  │ • Venue recommendations (tactical planner)                      │   │
 │  │ • AI Coach (text chat)                                          │   │
@@ -190,11 +190,11 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
       └─ snapshots.holiday, snapshots.is_holiday ✓
       └─ Supports override via server/config/holiday-override.json
    ↓
-3. runConsolidator (GPT-5.1)
+3. runConsolidator (GPT-5.2)
    └─ strategies.consolidated_strategy ✓
    ↓
 4. generateEnhancedSmartBlocks:
-   ├─ GPT-5.1 Tactical Planner
+   ├─ GPT-5.2 Tactical Planner
    │  └─ venue coords + staging coords
    ├─ Google Places API
    │  └─ business hours, place_id
@@ -291,7 +291,7 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
   - News: local_news, news_briefing (Gemini 60-min intel)
   - Device: device metadata, permissions
 - `strategies.*` - Full strategy (12 fields):
-  - Strategic text: minstrategy (Claude), consolidated_strategy (GPT-5.1)
+  - Strategic text: minstrategy (Claude), consolidated_strategy (GPT-5.2)
   - Metadata: model_name, model_params, prompt_version, latency_ms, tokens
   - Status: pending/ok/failed, error tracking
 - `briefings.*` - Comprehensive briefing (15 fields):
@@ -330,8 +330,8 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 - **Memory Context**: Cross-session personalization and learning
 
 **AI Models:** 
-- GPT-5.1 (text chat, reasoning_effort=medium)
-- GPT-4o Realtime (voice chat with streaming)
+- GPT-5.2 (text chat, reasoning_effort=medium)
+- GPT-5.2 Realtime (voice chat with streaming)
 - Google Gemini 3.0 Pro (briefing generation with Google Search)
 
 ---

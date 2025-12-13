@@ -9,9 +9,8 @@ const router = Router();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Voice model configuration
-// GPT-4o Realtime: 232-320ms latency (proven, production-ready)
-// Future upgrade: GPT-5 Pro (<150ms) or GPT-5.1 when voice API available
-const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-4o-realtime-preview-2024-12-17';
+// GPT-5.2: Latest flagship model for voice chat
+const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-5.2';
 const TOKEN_EXPIRY_SECONDS = 3600; // 1 hour
 
 /**

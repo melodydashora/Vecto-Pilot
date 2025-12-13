@@ -16,7 +16,7 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | File | Purpose | Key Export |
 |------|---------|------------|
 | `enhanced-smart-blocks.js` | VENUES pipeline orchestrator | `generateEnhancedSmartBlocks(snapshotId)` |
-| `venue-intelligence.js` | Bar Tab discovery (GPT-5.1) | `discoverNearbyVenues()` |
+| `venue-intelligence.js` | Bar Tab discovery (GPT-5.2) | `discoverNearbyVenues()` |
 | `venue-enrichment.js` | Google Places/Routes data | `enrichVenue()`, `getBatchDriveTimes()` |
 | `venue-address-resolver.js` | Batch geocoding | `resolveAddresses()` |
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
@@ -67,9 +67,9 @@ const venues = await discoverNearbyVenues(lat, lng, city, state, {
 });
 ```
 
-**Model Configuration (GPT-5.1):**
+**Model Configuration (GPT-5.2):**
 ```javascript
-// CORRECT - GPT-5.1 parameters
+// CORRECT - GPT-5.2 parameters
 {
   model: 'gpt-5.1',
   reasoning_effort: 'low',      // Fast discovery
@@ -79,7 +79,7 @@ const venues = await discoverNearbyVenues(lat, lng, city, state, {
 
 // WRONG - causes 400 error
 {
-  temperature: 0.1,     // Not supported by GPT-5.1
+  temperature: 0.1,     // Not supported by GPT-5.2
   max_tokens: 8000      // Use max_completion_tokens instead
 }
 ```
@@ -88,7 +88,7 @@ const venues = await discoverNearbyVenues(lat, lng, city, state, {
 
 | API | Purpose | File |
 |-----|---------|------|
-| OpenAI GPT-5.1 | Bar Tab discovery | `venue-intelligence.js` |
+| OpenAI GPT-5.2 | Bar Tab discovery | `venue-intelligence.js` |
 | Google Places (searchNearby) | Find venues near location | `venue-enrichment.js` |
 | Google Places (getDetails) | Business hours, ratings | `venue-enrichment.js` |
 | Google Routes API | Drive time, distance | `venue-enrichment.js` |
