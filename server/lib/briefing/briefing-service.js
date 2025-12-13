@@ -161,6 +161,99 @@ Return an empty array [] if no events found.`;
 }
 
 /**
+ * Analyze TomTom traffic data with Claude to produce human-readable briefing
+ * Takes raw prioritized incidents and creates a dispatcher-style summary
+ */
+async function analyzeTrafficWithClaude({ tomtomData, city, state, formattedAddress }) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return null; // Fall back to raw data
+  }
+
+  const startTime = Date.now();
+  briefingLog.ai(1, 'Claude', `analyzing traffic for ${city}, ${state}`);
+
+  try {
+    const anthropic = new Anthropic();
+
+    // Prepare incident summary for Claude
+    const stats = tomtomData.stats || {};
+    const incidents = tomtomData.incidents || [];
+
+    // Group incidents by category for analysis
+    const closures = incidents.filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed');
+    const construction = incidents.filter(i => i.category === 'Road Works');
+    const jams = incidents.filter(i => i.category === 'Jam');
+    const accidents = incidents.filter(i => i.category === 'Accident');
+
+    const prompt = `Analyze this traffic data for a rideshare driver located at: ${formattedAddress}
+
+TRAFFIC STATS:
+- Total incidents: ${stats.total || 0}
+- Highway incidents: ${stats.highways || 0}
+- Road closures: ${stats.closures || 0}
+- Construction zones: ${stats.construction || 0}
+- Traffic jams: ${stats.jams || 0}
+- Accidents: ${stats.accidents || 0}
+- Congestion level: ${tomtomData.congestionLevel}
+
+TOP PRIORITY INCIDENTS (sorted by impact to driver):
+${incidents.slice(0, 15).map((inc, i) =>
+  `${i+1}. [${inc.category}] ${inc.road || ''} ${inc.location} (${inc.magnitude}, priority: ${inc.priority})`
+).join('\n')}
+
+ROAD CLOSURES:
+${closures.slice(0, 10).map(c => `- ${c.road || ''} ${c.location}`).join('\n') || 'None reported'}
+
+CONSTRUCTION:
+${construction.slice(0, 5).map(c => `- ${c.road || ''} ${c.location}`).join('\n') || 'None reported'}
+
+Return a JSON object with this EXACT structure:
+{
+  "headline": "One sentence traffic overview (e.g., 'Heavy congestion on I-35E with multiple jams; avoid downtown exits')",
+  "keyIssues": ["Issue 1 - specific road and problem", "Issue 2", "Issue 3"],
+  "avoidAreas": ["Road/area to avoid and why"],
+  "driverImpact": "One sentence on how this affects the driver's routes/earnings",
+  "closuresSummary": "X road closures, mostly on local streets" or "Major closure on I-35",
+  "constructionSummary": "X construction zones" or null if none significant
+}
+
+Be specific with road names. Focus on what matters to a driver navigating this area RIGHT NOW.`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-5-20251101',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const content = response.content[0]?.text || '';
+
+    // Parse JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      briefingLog.warn(1, `Claude traffic analysis returned non-JSON`, OP.AI);
+      return null;
+    }
+
+    const analysis = JSON.parse(jsonMatch[0]);
+    const elapsedMs = Date.now() - startTime;
+    briefingLog.done(1, `Claude traffic analysis (${elapsedMs}ms)`, OP.AI);
+
+    return {
+      headline: analysis.headline,
+      keyIssues: analysis.keyIssues || [],
+      avoidAreas: analysis.avoidAreas || [],
+      driverImpact: analysis.driverImpact,
+      closuresSummary: analysis.closuresSummary,
+      constructionSummary: analysis.constructionSummary,
+      analyzedAt: new Date().toISOString()
+    };
+  } catch (err) {
+    briefingLog.warn(1, `Claude traffic analysis failed: ${err.message}`, OP.FALLBACK);
+    return null;
+  }
+}
+
+/**
  * Fetch news using Claude web search (fallback when Gemini fails)
  */
 async function fetchNewsWithClaudeWebSearch({ city, state, date }) {
@@ -1112,25 +1205,79 @@ export async function fetchTrafficConditions({ snapshot }) {
           'unknown': 'medium'
         };
 
+        const traffic = tomtomResult.traffic;
+        const formattedAddress = snapshot?.formatted_address || `${city}, ${state}`;
+
+        // Analyze traffic with Claude for human-readable briefing
+        const analysis = await analyzeTrafficWithClaude({
+          tomtomData: traffic,
+          city,
+          state,
+          formattedAddress
+        });
+
+        // Format incidents for display (prioritized)
+        const prioritizedIncidents = traffic.incidents.slice(0, 10).map(inc => ({
+          description: inc.displayDescription || `${inc.category}: ${inc.location}`,
+          severity: inc.magnitude === 'Major' ? 'high' : inc.magnitude === 'Moderate' ? 'medium' : 'low',
+          category: inc.category,
+          road: inc.road,
+          location: inc.location,
+          isHighway: inc.isHighway,
+          priority: inc.priority,
+          delayMinutes: inc.delayMinutes,
+          lengthMiles: inc.lengthMiles
+        }));
+
+        // Separate closures for expandable section
+        const allClosures = (traffic.allIncidents || traffic.incidents)
+          .filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed')
+          .map(c => ({
+            road: c.road,
+            location: c.location,
+            isHighway: c.isHighway,
+            severity: c.magnitude === 'Major' ? 'high' : c.magnitude === 'Moderate' ? 'medium' : 'low'
+          }));
+
         return {
-          summary: tomtomResult.traffic.summary,
-          incidents: tomtomResult.traffic.incidents.slice(0, 10).map(inc => ({
-            description: inc.location ? `${inc.category}: ${inc.location}` : inc.description,
-            severity: inc.magnitude === 'Major' ? 'high' : inc.magnitude === 'Moderate' ? 'medium' : 'low',
-            category: inc.category,
-            delayMinutes: inc.delayMinutes,
-            lengthMiles: inc.lengthMiles
-          })),
-          congestionLevel: congestionMap[tomtomResult.traffic.congestionLevel] || 'medium',
-          totalIncidents: tomtomResult.traffic.totalIncidents,
-          jams: tomtomResult.traffic.jams,
-          closures: tomtomResult.traffic.closures,
-          highDemandZones: [],  // TomTom doesn't provide this
+          // Claude analysis (human-readable)
+          headline: analysis?.headline || traffic.summary,
+          keyIssues: analysis?.keyIssues || [],
+          avoidAreas: analysis?.avoidAreas || [],
+          driverImpact: analysis?.driverImpact || null,
+          closuresSummary: analysis?.closuresSummary || `${traffic.closures} road closures`,
+          constructionSummary: analysis?.constructionSummary || null,
+
+          // Legacy summary for backwards compatibility
+          summary: analysis?.headline || traffic.summary,
+
+          // Prioritized incidents (top 10 by impact)
+          incidents: prioritizedIncidents,
+
+          // Expandable closures list
+          closures: allClosures,
+          closuresCount: allClosures.length,
+
+          // Stats
+          stats: traffic.stats || {
+            total: traffic.totalIncidents,
+            highways: 0,
+            construction: 0,
+            closures: traffic.closures,
+            jams: traffic.jams,
+            accidents: 0
+          },
+
+          congestionLevel: congestionMap[traffic.congestionLevel] || 'medium',
+          totalIncidents: traffic.totalIncidents,
+          jams: traffic.jams,
+          highDemandZones: [],
           repositioning: null,
-          surgePricing: tomtomResult.traffic.congestionLevel === 'heavy',
-          safetyAlert: tomtomResult.traffic.jams > 3 ? `${tomtomResult.traffic.jams} active traffic jams in the area` : null,
-          fetchedAt: tomtomResult.traffic.fetchedAt,
-          provider: 'tomtom'
+          surgePricing: traffic.congestionLevel === 'heavy',
+          safetyAlert: traffic.jams > 3 ? `${traffic.jams} active traffic jams in the area` : null,
+          fetchedAt: traffic.fetchedAt,
+          provider: 'tomtom',
+          analyzed: !!analysis
         };
       }
 
