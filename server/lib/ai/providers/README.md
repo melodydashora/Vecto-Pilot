@@ -34,18 +34,16 @@ import { runImmediateStrategy } from './consolidator.js';
 await runImmediateStrategy(snapshotId, { snapshot });
 // Writes to strategies.strategy_for_now
 ```
-- Generates a **2-line directive** from briefing data:
-  - Line 1: "Head to **[Area]**" - where to go
-  - Line 2: "Avoid **[Road]**" - what to avoid
-- Does NOT list venues or timing (SmartBlocks/venue cards handle that)
-- Uses GPT-5.2 with minimal tokens (~200) for fast response
+- Analyzes ALL briefing data (traffic, events, news, closures, weather)
+- Generates strategic brief (~500 chars) with structured fields:
+  - **GO:** Area/zone to position now
+  - **AVOID:** Roads with incidents
+  - **WHEN:** Timing window
+  - **WHY:** Which event/condition is driving demand
+  - **IF NO PING:** Backup plan, how long to wait
+- Does NOT list specific venues (venue cards handle that)
+- Uses GPT-5.2 with medium reasoning effort
 - Called automatically during POST /api/blocks-fast
-
-Example output:
-```
-Head to **Frisco Star area** — NCAA game at Comerica driving demand.
-Avoid **I-35E northbound** — 20+ min delays at exits 27A-442.
-```
 
 #### runConsolidator (On-demand - user request only)
 ```javascript
