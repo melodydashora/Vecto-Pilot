@@ -28,7 +28,7 @@
  * 3. STRATEGY PIPELINE (TRIAD)
  *    [TRIAD 1/4 - Strategist] Claude Opus strategic analysis
  *    [TRIAD 2/4 - Briefer] Gemini events/traffic/news
- *    [TRIAD 3/4 - Consolidator] GPT-5.1 tactical synthesis
+ *    [TRIAD 3/4 - Consolidator] GPT-5.2 tactical synthesis
  *    [TRIAD 4/4 - SmartBlocks] Venue planning + enrichment
  *
  * 4. SMARTBLOCKS (Venue Pipeline)

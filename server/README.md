@@ -79,9 +79,9 @@ POST /api/blocks-fast
     ↓
 lib/ai/providers/briefing.js (Gemini 3.0 Pro → briefings table)
     ↓
-lib/ai/providers/consolidator.js (GPT-5.1 → strategy_for_now)
+lib/ai/providers/consolidator.js (GPT-5.2 → strategy_for_now)
     ↓
-lib/venue/enhanced-smart-blocks.js (GPT-5.1 → venues)
+lib/venue/enhanced-smart-blocks.js (GPT-5.2 → venues)
     ↓
 Response with strategy + blocks
 

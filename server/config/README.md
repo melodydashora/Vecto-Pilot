@@ -50,7 +50,7 @@ validateStrategyEnv(); // Validates AI model configuration
 
 ### API Keys
 - `ANTHROPIC_API_KEY` - Claude API
-- `OPENAI_API_KEY` - GPT-5.1 API
+- `OPENAI_API_KEY` - GPT-5.2 API
 - `GEMINI_API_KEY` - Gemini API
 - `GOOGLE_MAPS_API_KEY` - Google Maps/Places/Routes
 
@@ -58,7 +58,7 @@ validateStrategyEnv(); // Validates AI model configuration
 ```bash
 STRATEGY_STRATEGIST=claude-opus-4-5-20251101
 STRATEGY_BRIEFER=gemini-3-pro-preview
-STRATEGY_CONSOLIDATOR=gpt-5.1
+STRATEGY_CONSOLIDATOR=gpt-5.2
 STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
 ```
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-Vecto Pilot is an AI-powered rideshare intelligence platform. It uses a multi-model AI pipeline (Claude Opus 4.5, Gemini 3.0 Pro, GPT-5.1) to generate venue recommendations and tactical guidance for drivers.
+Vecto Pilot is an AI-powered rideshare intelligence platform. It uses a multi-model AI pipeline (Claude Opus 4.5, Gemini 3.0 Pro, GPT-5.2) to generate venue recommendations and tactical guidance for drivers.
 
 ## Quick Start
 
@@ -58,10 +58,10 @@ npm run lint && npm run typecheck && npm run build  # Pre-PR
 
 ### Model Parameters
 
-**GPT-5.1** - Avoid 400 errors:
+**GPT-5.2** - Avoid 400 errors:
 ```javascript
 // CORRECT
-{ model: "gpt-5.1", reasoning_effort: "medium", max_completion_tokens: 32000 }
+{ model: "gpt-5.2", reasoning_effort: "medium", max_completion_tokens: 32000 }
 // WRONG - causes 400
 { reasoning: { effort: "medium" } }  // Nested format
 { temperature: 0.7 }  // Not supported
@@ -123,7 +123,7 @@ const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
 ### Required
 ```bash
 DATABASE_URL=...           # PostgreSQL
-OPENAI_API_KEY=...         # GPT-5.1
+OPENAI_API_KEY=...         # GPT-5.2
 GEMINI_API_KEY=...         # Gemini 3.0 Pro
 ANTHROPIC_API_KEY=...      # Claude Opus 4.5
 GOOGLE_MAPS_API_KEY=...    # Places, Routes, Weather
@@ -133,7 +133,7 @@ GOOGLE_MAPS_API_KEY=...    # Places, Routes, Weather
 ```bash
 STRATEGY_STRATEGIST=claude-opus-4-5-20251101
 STRATEGY_BRIEFER=gemini-3-pro-preview
-STRATEGY_CONSOLIDATOR=gpt-5.1
+STRATEGY_CONSOLIDATOR=gpt-5.2
 STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
 ```
 
@@ -307,7 +307,7 @@ console.log(`[Venue Enrichment] ✅ Distance: 5.2 mi`);
 
 ### No Model Names in Logs
 
-Use **role names** (Strategist, Briefer, Consolidator) not model names (Claude, Gemini, GPT-5.1):
+Use **role names** (Strategist, Briefer, Consolidator) not model names (Claude, Gemini, GPT-5.2):
 
 ```javascript
 // GOOD - Role-based

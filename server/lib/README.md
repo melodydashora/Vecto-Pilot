@@ -43,7 +43,7 @@ Strategy Pipeline:
 │  strategy/strategy-generator-parallel.js                     │
 │    ├── ai/providers/minstrategy.js (Claude Opus)            │
 │    ├── ai/providers/briefing.js (Gemini + Google Search)    │
-│    └── ai/providers/consolidator.js (Gemini/GPT-5.1)        │
+│    └── ai/providers/consolidator.js (Gemini/GPT-5.2)        │
 │    ↓                                                         │
 │  venue/enhanced-smart-blocks.js                              │
 │    ├── venue/venue-intelligence.js (Google Places)          │

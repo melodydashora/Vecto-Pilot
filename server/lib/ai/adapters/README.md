@@ -10,7 +10,7 @@ Model-agnostic API adapters that normalize calls to different AI providers. **Al
 |------|---------|----------|
 | `index.js` | Main dispatcher - routes by role | All |
 | `anthropic-adapter.js` | Claude API calls + web search | Anthropic |
-| `openai-adapter.js` | GPT-5.1 / o1 calls | OpenAI |
+| `openai-adapter.js` | GPT-5.2 / o1 calls | OpenAI |
 | `gemini-adapter.js` | Gemini 3.0 Pro calls + Google Search | Google |
 | `gemini-2.5-pro.js` | Gemini 2.5 Pro specific calls | Google |
 | `anthropic-sonnet45.js` | Claude Sonnet 4.5 raw calls | Anthropic |
@@ -46,7 +46,7 @@ if (result.ok) {
 
 ## Provider-Specific Rules
 
-### GPT-5.1 / o1 Models
+### GPT-5.2 / o1 Models
 - NO `temperature` parameter (causes 400 error)
 - NO `top_p` parameter
 - Use `reasoning_effort` (flat string: "low", "medium", "high")
@@ -76,7 +76,7 @@ Return error
 # Role → Model mapping
 STRATEGY_STRATEGIST=claude-opus-4-5-20251101
 STRATEGY_BRIEFER=gemini-3-pro-preview
-STRATEGY_CONSOLIDATOR=gpt-5.1
+STRATEGY_CONSOLIDATOR=gpt-5.2
 STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
 
 # Per-role parameters (optional)

@@ -119,7 +119,7 @@ Each folder now contains a README.md explaining its purpose, files, and connecti
 ┌─────────────────────────────────────────────────────────────────┐
 │                    EXTERNAL AI/API SERVICES                      │
 │  • Anthropic (Claude Sonnet 4.5)                                │
-│  • OpenAI (GPT-5.1, Realtime API)                               │
+│  • OpenAI (GPT-5.2, Realtime API)                               │
 │  • Google (Gemini 3.0 Pro, Places, Routes, Weather, AQ)         │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -228,7 +228,7 @@ GPS coords → /api/location/resolve
 **Provider Functions:**
 - `server/lib/ai/providers/minstrategy.js` - Strategic overview (Claude Opus 4.5)
 - `server/lib/ai/providers/briefing.js` - Events, traffic, news (Gemini 3.0 Pro)
-- `server/lib/ai/providers/consolidator.js` - Final strategy (GPT-5.1)
+- `server/lib/ai/providers/consolidator.js` - Final strategy (GPT-5.2)
 
 **Snapshot Enrichment:**
 - `server/lib/location/holiday-detector.js` - Holiday detection at snapshot creation (Gemini 3.0 Pro + Google Search)
@@ -258,7 +258,7 @@ Snapshot Creation (includes holiday detection via Gemini + override check) →
 POST /api/blocks-fast →
 2 Parallel Providers (minstrategy, briefing) →
 strategies table (minstrategy, briefing columns) →
-consolidator (GPT-5.1) →
+consolidator (GPT-5.2) →
 strategies table (consolidated_strategy column) →
 SSE notification (strategy_ready event) →
 UI polls /api/strategy/:snapshotId → Display strategy
@@ -281,7 +281,7 @@ The holiday detector supports manual overrides via `server/config/holiday-overri
 - `client/src/pages/co-pilot.tsx` - Venues tab
 
 **Backend Logic:**
-- `server/lib/strategy/tactical-planner.js` - GPT-5.1 venue generation
+- `server/lib/strategy/tactical-planner.js` - GPT-5.2 venue generation
 - `server/lib/venue/enhanced-smart-blocks.js` - Venue enrichment orchestrator
 - `server/lib/venue/venue-enrichment.js` - Google Places/Routes integration
 - `server/lib/venue/venue-event-verifier.js` - Event verification (Gemini 2.5 Pro)
@@ -305,7 +305,7 @@ The holiday detector supports manual overrides via `server/config/holiday-overri
 **Data Flow:**
 ```
 Strategy Complete → POST /api/blocks-fast (if no ranking exists) →
-GPT-5.1 Tactical Planner (venue coords + staging coords) →
+GPT-5.2 Tactical Planner (venue coords + staging coords) →
 Google Places API (business hours, place_id) →
 Google Routes API (distance, drive time) →
 Gemini 2.5 Pro (event verification) →
@@ -396,8 +396,8 @@ BriefingTab displays real-time data
 - **Memory Context**: Cross-session learning and personalization
 
 **External APIs:**
-- OpenAI GPT-4o Realtime API - Voice chat with streaming
-- OpenAI GPT-5.1 API - Text chat with reasoning_effort=medium
+- OpenAI GPT-5.2 Realtime API - Voice chat with streaming
+- OpenAI GPT-5.2 API - Text chat with reasoning_effort=medium
 - Google Gemini 3.0 Pro - Briefing data with Google Search tool
 
 **Data Flow (Enhanced):**
@@ -412,7 +412,7 @@ CoachDAL.getCompleteContext(snapshotId) → Fetches ALL fields from:
   - strategy_feedback (thumbs up/down counts, comments)
   - actions (view/select/navigate history, dwell times)
 CoachDAL.formatContextForPrompt() → Structured context string →
-GPT-5.1 API (reasoning_effort=medium, max_tokens=32000) →
+GPT-5.2 API (reasoning_effort=medium, max_tokens=32000) →
 SSE Stream → CoachChat UI displays response
 ```
 
@@ -559,7 +559,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 - `snapshot_id` (PK, FK) - Links to snapshots
 - `user_id` - FK to users
 - `minstrategy` - Strategic overview from Claude Sonnet 4.5
-- `consolidated_strategy` - Actionable summary from GPT-5.1
+- `consolidated_strategy` - Actionable summary from GPT-5.2
 - `model_name` - Full model chain (strategist→briefer→consolidator)
 - `status` - pending/running/ok/failed/pending_blocks
 - ~~`briefing_news`, `briefing_events`, `briefing_traffic`~~ - DEPRECATED (moved to briefings table)
@@ -596,7 +596,7 @@ The following endpoints were never implemented in the backend. Frontend code tha
 - `snapshot_id` (FK) - Links to snapshots
 - `model_name` - Venue planner model (gpt-5.1-venue-planner)
 - `path_taken` - enhanced-smart-blocks
-- `planner_ms` - GPT-5.1 planner timing
+- `planner_ms` - GPT-5.2 planner timing
 - `total_ms` - Total pipeline timing
 
 ---
@@ -612,8 +612,8 @@ The following endpoints were never implemented in the backend. Frontend code tha
 - `id` (PK) - UUID
 - `ranking_id` (FK) - Links to rankings
 - `snapshot_id` (FK) - Links to snapshots
-- `name` - Venue name (from GPT-5.1)
-- `lat`, `lng` - Venue coordinates (from GPT-5.1)
+- `name` - Venue name (from GPT-5.2)
+- `lat`, `lng` - Venue coordinates (from GPT-5.2)
 - `place_id` - Google Places ID (from Places API)
 - `address` - Full street address (from Geocoding API)
 - `distance_miles` - Drive distance (from Routes API)
@@ -621,10 +621,10 @@ The following endpoints were never implemented in the backend. Frontend code tha
 - `value_per_min` - Calculated earnings per minute
 - `value_grade` - A/B/C grade based on value_per_min
 - `business_hours` - JSONB (from Places API)
-- `pro_tips` - Array of tactical tips (from GPT-5.1)
-- `staging_name`, `staging_lat`, `staging_lng` - Staging area (from GPT-5.1)
+- `pro_tips` - Array of tactical tips (from GPT-5.2)
+- `staging_name`, `staging_lat`, `staging_lng` - Staging area (from GPT-5.2)
 - `venue_events` - JSONB (from Gemini 2.5 Pro verification)
-- `closed_reasoning` - Strategic timing explanation (from GPT-5.1)
+- `closed_reasoning` - Strategic timing explanation (from GPT-5.2)
 
 ---
 
@@ -1008,8 +1008,8 @@ The following endpoints were never implemented in the backend. Frontend code tha
 |---|---|---|---|
 | `strategist` | Claude Sonnet 4.5 | `providers/minstrategy.js` | Strategic overview |
 | `briefer` | Gemini 3.0 Pro | `providers/briefing.js` | Events, traffic, news |
-| `consolidator` | GPT-5.1 | `providers/consolidator.js` | Final actionable strategy |
-| `tactical_planner` | GPT-5.1 | `tactical-planner.js` | Venue recommendations |
+| `consolidator` | GPT-5.2 | `providers/consolidator.js` | Final actionable strategy |
+| `tactical_planner` | GPT-5.2 | `tactical-planner.js` | Venue recommendations |
 | `validator` | Gemini 2.5 Pro | `venue-event-verifier.js` | Event verification |
 | `holiday_detector` | Gemini 3.0 Pro | `lib/holiday-detector.js` | Holiday detection (at snapshot) |
 
@@ -1108,7 +1108,7 @@ Pipeline operations use structured workflow logging (`server/logger/workflow.js`
    console.log(`🏢 [VENUE "${venueName}"] Route: 5.2mi, 12min`);
    ```
 
-2. **No Model Names** - Use role names (Strategist, Briefer, Consolidator) not model names (Claude, Gemini, GPT-5.1)
+2. **No Model Names** - Use role names (Strategist, Briefer, Consolidator) not model names (Claude, Gemini, GPT-5.2)
 
 3. **Files:**
    - `server/logger/workflow.js` - Workflow-aware logging utility

@@ -30,7 +30,7 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
     }
 
     // GPT-5 family model behavior:
-    // - GPT-5.1: reasoning_effort only, NO temperature support
+    // - GPT-5.2: reasoning_effort only, NO temperature support
     // - GPT-5.2: reasoning_effort only, NO temperature support (only default=1 allowed)
     // - o1 models: reasoning_effort only, NO temperature support
 

@@ -12,8 +12,8 @@
 //
 // PIPELINE (POST):
 //   1. Briefing (Gemini 3.0 Pro) → events, traffic, news
-//   2. Immediate Strategy (GPT-5.1) → strategy_for_now (for Strategy Tab)
-//   3. Venue Planner (GPT-5.1) → venue recommendations
+//   2. Immediate Strategy (GPT-5.2) → strategy_for_now (for Strategy Tab)
+//   3. Venue Planner (GPT-5.2) → venue recommendations
 //   4. Google APIs → distances, business hours, enrichment
 //
 // NOTE: Daily strategy (consolidated_strategy) is NOT generated automatically.
@@ -483,13 +483,13 @@ router.post('/', async (req, res) => {
           // Continue - immediate strategy can still work with snapshot weather data
         }
 
-        // Phase 3: Immediate Strategy (GPT-5.1 with snapshot + briefing)
+        // Phase 3: Immediate Strategy (GPT-5.2 with snapshot + briefing)
         await updatePhase(snapshotId, 'immediate');
 
         triadLog.phase(3, `[blocks-fast] Calling runImmediateStrategy for ${snapshot.city}, ${snapshot.state}`);
 
         try {
-          // GPT-5.1 → strategy_for_now (immediate 1hr strategy for Strategy Tab)
+          // GPT-5.2 → strategy_for_now (immediate 1hr strategy for Strategy Tab)
           // Uses snapshot data + briefing (traffic, events) directly
           await runImmediateStrategy(snapshotId, { snapshot });
 

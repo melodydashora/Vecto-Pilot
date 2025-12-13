@@ -80,7 +80,7 @@ export function validateStrategyEnv() {
     console.error('\nPlease configure these environment variables in your .env file:');
     console.error('   STRATEGY_STRATEGIST=claude-opus-4-5-20251101');
     console.error('   STRATEGY_BRIEFER=gemini-3-pro-preview');
-    console.error('   STRATEGY_CONSOLIDATOR=gpt-5.1-2025-11-13');
+    console.error('   STRATEGY_CONSOLIDATOR=gpt-5.2');
     console.error('\nExiting due to missing configuration...\n');
     process.exit(1);
   }

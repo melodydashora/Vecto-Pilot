@@ -201,7 +201,7 @@ async function saveStrategy(row) {
 /**
  * NEW ARCHITECTURE: Briefing + Immediate Strategy (NO minstrategy)
  * 1. Run briefing provider (Gemini) to get events, traffic, news
- * 2. Run immediate strategy (GPT-5.1) with snapshot + briefing
+ * 2. Run immediate strategy (GPT-5.2) with snapshot + briefing
  *
  * Daily consolidated_strategy is user-request only (not part of this pipeline)
  */
@@ -209,7 +209,7 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }
   try {
     // Build model name for audit trail
     const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3-pro';
-    const immediateModel = 'gpt-5.1';
+    const immediateModel = 'gpt-5.2';
     const modelChain = `${briefer}→${immediateModel}`;
 
     // GLOBAL DEDUPLICATION: Check if strategy already running for this snapshot
@@ -269,7 +269,7 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }
       // Continue - immediate strategy can still work with snapshot weather data
     }
 
-    // Step 2: Run immediate strategy (GPT-5.1 with snapshot + briefing)
+    // Step 2: Run immediate strategy (GPT-5.2 with snapshot + briefing)
     const { runImmediateStrategy } = await import('../ai/providers/consolidator.js');
 
     // Phase: immediate - AI strategy generation

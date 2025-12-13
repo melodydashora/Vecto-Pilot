@@ -44,11 +44,12 @@ interface Airport {
   tipsForDrivers?: string;
 }
 
-interface BusyPeriod {
+// BusyPeriod can be either a string or an object
+type BusyPeriod = string | {
   time: string;
   airport: string;
   reason: string;
-}
+};
 
 interface AirportConditions {
   airports?: Airport[];
@@ -82,6 +83,7 @@ export default function BriefingTab({
 }: BriefingTabProps) {
   const [_expandedWeather, _setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
+  const [expandedIncidents, setExpandedIncidents] = useState(false); // Collapsed by default
   const [expandedNews, setExpandedNews] = useState(true);
   const [expandedClosures, setExpandedClosures] = useState(true);
   const [expandedAirport, setExpandedAirport] = useState(true);
@@ -477,26 +479,72 @@ export default function BriefingTab({
               </div>
             ) : traffic ? (
               <div className="space-y-3">
-                {/* Traffic Summary */}
+                {/* Traffic Briefing (3-4 sentences) */}
                 <div className="p-3 bg-white/50 rounded-lg border border-orange-100">
-                  <p className="text-gray-700 font-medium">{traffic.summary || 'No significant traffic issues'}</p>
+                  <p className="text-gray-700 font-medium leading-relaxed">
+                    {traffic.briefing || traffic.summary || 'No significant traffic issues'}
+                  </p>
                 </div>
 
-                {/* Traffic Incidents */}
+                {/* Key Issues - if available */}
+                {traffic.keyIssues && traffic.keyIssues.length > 0 && (
+                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <p className="text-sm font-semibold text-amber-800 mb-2">Key Issues:</p>
+                    <ul className="space-y-1">
+                      {traffic.keyIssues.map((issue, idx) => (
+                        <li key={idx} className="text-sm text-amber-700 flex items-start gap-2">
+                          <span className="text-amber-500">•</span>
+                          <span>{issue}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Collapsible Active Incidents */}
                 {traffic.incidents && traffic.incidents.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">Active Incidents ({traffic.incidents.length}):</p>
-                    {traffic.incidents.map((incident, idx) => (
-                      <div key={idx} className="flex items-start gap-2 p-3 bg-white/50 rounded border border-orange-100">
-                        <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-sm text-gray-700 font-medium">{incident.description}</p>
-                          <Badge variant="outline" className="text-xs mt-2 bg-orange-100 text-orange-700 border-orange-300">
-                            {incident.severity}
-                          </Badge>
-                        </div>
+                  <div className="border border-orange-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedIncidents(!expandedIncidents);
+                      }}
+                      className="w-full flex items-center justify-between p-3 bg-orange-50 hover:bg-orange-100 transition-colors"
+                    >
+                      <span className="text-sm font-medium text-orange-800 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-orange-500" />
+                        Active Incidents ({traffic.incidentsCount || traffic.incidents.length})
+                      </span>
+                      {expandedIncidents ? (
+                        <ChevronUp className="w-4 h-4 text-orange-600" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-orange-600" />
+                      )}
+                    </button>
+                    {expandedIncidents && (
+                      <div className="p-3 space-y-2 bg-white/50">
+                        {traffic.incidents.map((incident, idx) => (
+                          <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded border border-orange-100">
+                            <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-sm text-gray-700">{incident.description}</p>
+                              <Badge variant="outline" className="text-xs mt-1 bg-orange-100 text-orange-700 border-orange-300">
+                                {incident.severity}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                  </div>
+                )}
+
+                {/* Driver Impact - if available */}
+                {traffic.driverImpact && (
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-800">
+                      <span className="font-semibold">Driver Impact:</span> {traffic.driverImpact}
+                    </p>
                   </div>
                 )}
               </div>
@@ -641,12 +689,22 @@ export default function BriefingTab({
                     </p>
                     {busyPeriods.map((period, idx) => (
                       <div key={idx} className="flex items-center gap-3 p-2 bg-white/50 rounded border border-sky-100">
-                        <Badge variant="outline" className="bg-sky-100 text-sky-700 border-sky-300 font-mono text-xs">
-                          {period.time}
-                        </Badge>
-                        <span className="text-sm text-gray-600">
-                          <span className="font-medium">{period.airport}</span> - {period.reason}
-                        </span>
+                        {/* Handle both string format and object format */}
+                        {typeof period === 'string' ? (
+                          <span className="text-sm text-gray-700 flex items-center gap-2">
+                            <Clock className="w-3 h-3 text-sky-500" />
+                            {period}
+                          </span>
+                        ) : (
+                          <>
+                            <Badge variant="outline" className="bg-sky-100 text-sky-700 border-sky-300 font-mono text-xs">
+                              {period.time}
+                            </Badge>
+                            <span className="text-sm text-gray-600">
+                              <span className="font-medium">{period.airport}</span> - {period.reason}
+                            </span>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>

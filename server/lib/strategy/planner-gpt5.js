@@ -51,7 +51,7 @@ export async function runPlannerGPT5({
   
   // For high reasoning_effort, don't constrain tokens - let model use what it needs
   const body = {
-    model: process.env.OPENAI_MODEL || "gpt-5.1",
+    model: process.env.OPENAI_MODEL || "gpt-5.2",
     reasoning_effort: reasoningEffort,
     response_format: { type: "json_object" },
     messages: [

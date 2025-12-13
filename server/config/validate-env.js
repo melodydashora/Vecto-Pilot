@@ -40,7 +40,7 @@ export function validateEnvironment() {
   // Model configuration validation
   const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-5-20251101';
   const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3-pro-preview';
-  const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.1-2025-11-13';
+  const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.2';
   
   console.log('[env-validation] AI Model Configuration:', {
     strategist,

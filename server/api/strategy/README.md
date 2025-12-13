@@ -49,10 +49,10 @@ Phase 1: Briefing
   - Briefer (Gemini 3.0 Pro) → events, traffic, news, weather
     ↓
 Phase 2: Immediate Strategy
-  - GPT-5.1 → strategy_for_now (1hr tactical)
+  - GPT-5.2 → strategy_for_now (1hr tactical)
     ↓
 Phase 3: Venue Generation
-  - Venue Planner (GPT-5.1) → Smart Blocks
+  - Venue Planner (GPT-5.2) → Smart Blocks
   - Google APIs → distances, business hours
     ↓
 Return venue recommendations

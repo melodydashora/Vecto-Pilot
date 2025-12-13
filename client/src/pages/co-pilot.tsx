@@ -63,7 +63,7 @@ const CoPilot: React.FC = () => {
   const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null); // Start empty for fresh load
   const [persistentStrategy, setPersistentStrategy] = useState<string | null>(null); // Start empty for fresh load (consolidated daily strategy)
-  const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null); // Strategy for right now (GPT-5.1 generated)
+  const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null); // Strategy for right now (GPT-5.2 generated)
   const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null); // Start empty for fresh load
   const [_strategyReadyTime, _setStrategyReadyTime] = useState<number | null>(null); // Track when strategy became ready
   const [enrichedReasonings, setEnrichedReasonings] = useState<Map<string, string>>(new Map());

@@ -2,7 +2,7 @@
 // Strategy generation provider
 //
 // TWO FUNCTIONS:
-//   1. runImmediateStrategy() - GPT-5.1 generates "strategy_for_now" (1-hour tactical)
+//   1. runImmediateStrategy() - GPT-5.2 generates "strategy_for_now" (1-hour tactical)
 //      - Called by blocks-fast.js during initial pipeline
 //      - Uses snapshot + briefing data directly (no minstrategy)
 //
@@ -23,8 +23,8 @@ const FALLBACK_MAX_TOKENS = 8000;
 const FALLBACK_TEMPERATURE = 0.3;
 
 /**
- * Call GPT-5.1 to generate immediate strategy from snapshot + briefing data
- * NO minstrategy required - GPT-5.1 has all the context it needs
+ * Call GPT-5.2 to generate immediate strategy from snapshot + briefing data
+ * NO minstrategy required - GPT-5.2 has all the context it needs
  * @param {Object} snapshot - Full snapshot row from DB
  * @param {Object} briefing - Briefing data { traffic, events, weather }
  */
@@ -72,6 +72,8 @@ NEWS: ${JSON.stringify(briefing.news)}
 
 SCHOOL CLOSURES: ${JSON.stringify(briefing.school_closures)}
 
+AIRPORT CONDITIONS: ${JSON.stringify(briefing.airport)}
+
 === OUTPUT (500 chars max) ===
 Based on ALL the data above, provide a strategic brief:
 
@@ -89,6 +91,8 @@ RULES:
 
 
     // GPT-5.2 with medium reasoning for strategic analysis
+    // Note: GPT-5.2 requires max_completion_tokens and reasoning_effort
+    // Use "developer" role instead of "system" for newer models
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -98,16 +102,17 @@ RULES:
       body: JSON.stringify({
         model: 'gpt-5.2',
         messages: [
+          { role: 'developer', content: 'You are a rideshare strategy expert. Provide concise, actionable guidance.' },
           { role: 'user', content: prompt }
         ],
-        reasoning_effort: 'medium',  // Need to analyze briefing data
-        max_completion_tokens: 500   // ~500 chars strategic brief
+        reasoning_effort: 'medium',
+        max_completion_tokens: 2000  // GPT-5.2 needs tokens for reasoning + output
       })
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      aiLog.warn(1, `[GPT-5.2] Immediate strategy failed (${response.status}): ${errText.substring(0, 100)}`, OP.AI);
+      aiLog.warn(1, `[GPT-5.2] Immediate strategy failed (${response.status}): ${errText.substring(0, 200)}`, OP.AI);
       return { strategy: '' };
     }
 
@@ -119,7 +124,7 @@ RULES:
       return { strategy };
     }
 
-    aiLog.warn(1, `[GPT-5.2] Empty immediate strategy response`, OP.AI);
+    aiLog.warn(1, `[GPT-5.2] Empty response. Response: ${JSON.stringify(data).substring(0, 300)}`, OP.AI);
     return { strategy: '' };
   } catch (error) {
     aiLog.warn(1, `Immediate strategy call failed: ${error.message}`, OP.AI);
@@ -295,8 +300,9 @@ export async function runConsolidator(snapshotId, options = {}) {
     const newsData = parseJsonField(briefingRow.news);
     const weatherData = parseJsonField(briefingRow.weather_current);
     const closuresData = parseJsonField(briefingRow.school_closures);
+    const airportData = parseJsonField(briefingRow.airport_conditions);
 
-    triadLog.phase(3, `Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}`);
+    triadLog.phase(3, `Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}, airport=${!!airportData}`);
 
     // Get location/time context from SNAPSHOT (not strategies table)
     const userAddress = snapshot.formatted_address || 'Unknown location';
@@ -356,10 +362,13 @@ ${JSON.stringify(weatherData, null, 2)}
 === SCHOOL_CLOSURES_DATA ===
 ${JSON.stringify(closuresData, null, 2)}
 
+=== AIRPORT_CONDITIONS_DATA ===
+${JSON.stringify(airportData, null, 2)}
+
 === YOUR TASK ===
 Create a DAILY STRATEGY for this driver covering the next 8-12 hours. Think like a shift planner, not just immediate tactics.
 
-CRITICAL: Reference SPECIFIC details from the data above (traffic incidents by name, event venues, closure streets, weather impacts).
+CRITICAL: Reference SPECIFIC details from the data above (traffic incidents by name, event venues, closure streets, weather impacts, airport arrivals/departures).
 
 Output 4-6 paragraphs covering:
 1. Today's overview: "Today in ${cityDisplay} (${dayOfWeek})..." - What makes today unique?
@@ -367,7 +376,8 @@ Output 4-6 paragraphs covering:
 3. Events impact: Specific events from CURRENT_EVENTS_DATA and their timing/surge windows
 4. Traffic & hazards: Road closures, construction, areas to avoid
 5. Weather considerations: How conditions affect rider behavior
-6. Peak windows: "Your best earning windows today are..." with specific times and locations
+6. Airport strategy: Peak arrival/departure times, which terminal to position at, expected delays
+7. Peak windows: "Your best earning windows today are..." with specific times and locations
 
 STYLE: Strategic and forward-looking. Think 8-12 hours ahead. Be specific about times, locations, and events. No bullet points.
 
@@ -489,23 +499,24 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       return { ok: true, skipped: true, reason: 'already_exists' };
     }
 
-    // Parse ALL briefing data (not just traffic/events - include news and closures too)
+    // Parse ALL briefing data (not just traffic/events - include news, closures, and airport too)
     const briefing = {
       traffic: parseJsonField(briefingRow.traffic_conditions),
       events: parseJsonField(briefingRow.events),
       weather: parseJsonField(briefingRow.weather_current),
       news: parseJsonField(briefingRow.news),
-      school_closures: parseJsonField(briefingRow.school_closures)
+      school_closures: parseJsonField(briefingRow.school_closures),
+      airport: parseJsonField(briefingRow.airport_conditions)
     };
 
     triadLog.phase(3, `[consolidator] ${snapshot.formatted_address}`);
-    triadLog.phase(3, `[consolidator] Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}`);
+    triadLog.phase(3, `[consolidator] Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}, airport=${!!briefing.airport}`);
 
-    // Call GPT-5.1 with snapshot + briefing (NO minstrategy)
+    // Call GPT-5.2 with snapshot + briefing (NO minstrategy)
     const result = await callGPT5ForImmediateStrategy({ snapshot, briefing });
 
     if (!result.strategy) {
-      throw new Error('GPT-5.1 returned empty strategy');
+      throw new Error('GPT-5.2 returned empty strategy');
     }
 
     // Write to strategies table

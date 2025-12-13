@@ -13,7 +13,7 @@ Vecto Pilot is an AI-powered rideshare intelligence platform that provides drive
 - **Real-time Venue Intelligence**: AI-powered bar/restaurant discovery with expense-level sorting and last-call alerts
 - **Smart Blocks System**: Structured, validated content blocks with venue recommendations
 - **Voice AI Coach**: OpenAI Realtime API for hands-free voice chat
-- **Strategy Waterfall**: Claude (Strategist) -> Gemini (Briefer/Consolidator) -> GPT-5.1 (Immediate Strategy)
+- **Strategy Waterfall**: Claude (Strategist) -> Gemini (Briefer/Consolidator) -> GPT-5.2 (Immediate Strategy)
 - **Holiday-Aware**: Dynamic holiday detection via Perplexity
 - **Location-Agnostic**: Works globally with any GPS location
 - **Mobile-First UI**: React + TypeScript + TailwindCSS + Radix UI
@@ -27,8 +27,8 @@ Vecto Pilot is an AI-powered rideshare intelligence platform that provides drive
 | **Frontend** | React 18 + TypeScript + Vite + TailwindCSS + Radix UI |
 | **Backend** | Node.js 20+ + Express + PostgreSQL |
 | **ORM** | Drizzle ORM with automated migrations |
-| **AI Models** | Claude 4.5 (Anthropic) + GPT-5.1 (OpenAI) + Gemini 3 Pro Preview (Google) |
-| **Voice** | OpenAI Realtime API (GPT-4o) |
+| **AI Models** | Claude 4.5 (Anthropic) + GPT-5.2 (OpenAI) + Gemini 3 Pro Preview (Google) |
+| **Voice** | OpenAI Realtime API (GPT-5.2) |
 | **APIs** | Google Maps, Places, Routes, Weather, Air Quality |
 | **Database** | PostgreSQL (Replit managed) |
 
@@ -100,7 +100,7 @@ PostgreSQL Database (Drizzle ORM)
       |
 External AI/API Services
   |-- Anthropic (Claude Sonnet 4.5)
-  |-- OpenAI (GPT-5.1, Realtime API)
+  |-- OpenAI (GPT-5.2, Realtime API)
   |-- Google (Gemini 3 Pro, Places, Routes, Weather, AQ)
   |-- Perplexity (Holiday detection)
 ```
@@ -121,10 +121,10 @@ Snapshot Creation
   |-- Consolidator (Gemini 3 Pro): Combine all data -> Daily Strategy
       |
 [Phase 3]
-  |-- Immediate Strategy (GPT-5.1): "Right now" tactical guidance
+  |-- Immediate Strategy (GPT-5.2): "Right now" tactical guidance
       |
 [Phase 4]
-  |-- Venue Generation (GPT-5.1): Smart Blocks with enrichment
+  |-- Venue Generation (GPT-5.2): Smart Blocks with enrichment
 ```
 
 **Total time**: 35-50 seconds for full waterfall
@@ -136,8 +136,8 @@ Snapshot Creation
 | `strategist` | Claude Sonnet 4.5 | Strategic overview (minstrategy) |
 | `briefer` | Gemini 3 Pro Preview | Events, traffic, news, weather, closures |
 | `consolidator` | Gemini 3 Pro Preview | Daily tactical strategy |
-| `immediate` | GPT-5.1 | "Right now" guidance (next 1 hour) |
-| `venue_planner` | GPT-5.1 | Smart Blocks venue recommendations |
+| `immediate` | GPT-5.2 | "Right now" guidance (next 1 hour) |
+| `venue_planner` | GPT-5.2 | Smart Blocks venue recommendations |
 | `validator` | Gemini 2.5 Pro | Event verification |
 | `holiday_checker` | Perplexity Sonar Pro | Holiday detection |
 
