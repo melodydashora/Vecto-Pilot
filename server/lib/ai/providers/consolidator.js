@@ -51,46 +51,51 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
   }) : 'Unknown time';
 
   try {
-    const prompt = `You are a TACTICAL RIDESHARE COACH. Generate a focused "GO NOW" strategy for the next 1 hour.
+    const prompt = `You are a TACTICAL RIDESHARE INTELLIGENCE ANALYST. Analyze the briefing data and tell the driver what's happening RIGHT NOW that affects their earnings.
 
-=== DRIVER SNAPSHOT ===
-Location: ${snapshot.formatted_address}
+=== DRIVER LOCATION ===
+Currently at: ${snapshot.formatted_address}
 City: ${snapshot.city}, ${snapshot.state}
-Coordinates: ${snapshot.lat}, ${snapshot.lng}
-Current Time: ${localTime}
-Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
-Day Part: ${snapshot.day_part_key}
-${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
+Time: ${localTime} (${snapshot.day_part_key})
+${snapshot.is_holiday ? `⚠️ HOLIDAY: ${snapshot.holiday}` : ''}
 
-=== WEATHER ===
+=== LIVE BRIEFING DATA ===
+
+WEATHER:
 ${JSON.stringify(snapshot.weather, null, 2)}
 
-=== CURRENT TRAFFIC ===
+TRAFFIC (prioritized by impact):
 ${JSON.stringify(briefing.traffic, null, 2)}
 
-=== CURRENT EVENTS ===
+EVENTS HAPPENING NOW/SOON:
 ${JSON.stringify(briefing.events, null, 2)}
 
-=== RIDESHARE NEWS ===
+RIDESHARE NEWS:
 ${JSON.stringify(briefing.news, null, 2)}
 
-=== SCHOOL CLOSURES ===
+SCHOOL CLOSURES:
 ${JSON.stringify(briefing.school_closures, null, 2)}
 
-=== YOUR TASK ===
-Generate a tactical instruction for what the driver should do RIGHT NOW (next 1-2 hours).
-Be specific: name exact locations, venues, and reference events/traffic from the data above.
-Consider any school closures that may affect traffic patterns or parent pickup demand.
+=== YOUR ANALYSIS ===
+Based on this briefing data, provide IMMEDIATE tactical intelligence:
 
-FORMAT REQUIREMENTS:
-- Start with "POSITION AT **[Location Name]**" or "HEAD TO **[Location Name]**"
-- Use **bold** for all venue names, road names, and key locations
-- Write 1 focused paragraph (4-6 sentences max)
-- Include specific timing windows if relevant (e.g., "by 4:30 PM", "until 6 PM")
-- Mention specific events by name if they're happening soon
-- Note any traffic hazards to avoid
+1. **WHAT'S HAPPENING RIGHT NOW** - Analyze the events, traffic, and conditions. What's the most significant demand driver in the next 1-2 hours?
 
-Be directive and actionable. Focus on the NEXT 1-2 HOURS only.`;
+2. **WHERE TO FOCUS** - Name ONE general area or district (not specific venues - those come separately). Why is this area hot right now based on the data?
+
+3. **WHAT TO AVOID** - Any traffic incidents, road closures, or dead zones to steer clear of?
+
+4. **TIMING** - When exactly should they be in position? What's the window?
+
+FORMAT:
+- 3-4 sentences MAX - be concise and urgent
+- Use **bold** for key areas, roads, and events
+- Reference SPECIFIC data from above (event names, road numbers, times)
+- DO NOT list multiple venues - just identify the hot zone/area
+- Sound like a dispatcher giving real-time intel, not a tour guide
+
+Example tone: "**Downtown** is surging right now - **Mavs game** lets out at 10pm and **I-35** northbound is already backing up. Get to **Victory Park** area by 9:45pm. Avoid **Commerce St** construction."`;
+
 
     // GPT-5.2 with reasoning_effort for faster, smarter tactical strategy
     // Using "low" reasoning for speed - this is a quick 1-hour tactical decision
