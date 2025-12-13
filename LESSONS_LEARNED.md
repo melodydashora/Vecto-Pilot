@@ -474,10 +474,12 @@ npm run dev
 ### Why Multiple AI Models?
 
 Each model has strengths:
-- **Claude**: Best for strategic reasoning
-- **Gemini**: Native Google Search for real-time data
-- **GPT-5.1**: Best for structured outputs and immediate actions
-- **Perplexity**: Best for current events/holidays
+- **Claude**: Best for strategic reasoning, web search fallback
+- **Gemini**: Native Google Search grounding for real-time events, news, traffic, airport data
+- **GPT-5.1/5.2**: Best for structured outputs and immediate tactical actions
+- **TomTom**: Real-time traffic data (primary traffic source)
+
+**Note (Dec 2024):** Perplexity was replaced with Gemini 3 Pro Preview (with Google Search tool) as the primary briefing provider. Claude web search serves as fallback when Gemini fails.
 
 ### Why Snapshot-Centric?
 

@@ -71,9 +71,16 @@ ${JSON.stringify(briefing.traffic, null, 2)}
 === CURRENT EVENTS ===
 ${JSON.stringify(briefing.events, null, 2)}
 
+=== RIDESHARE NEWS ===
+${JSON.stringify(briefing.news, null, 2)}
+
+=== SCHOOL CLOSURES ===
+${JSON.stringify(briefing.school_closures, null, 2)}
+
 === YOUR TASK ===
 Generate a tactical instruction for what the driver should do RIGHT NOW (next 1-2 hours).
 Be specific: name exact locations, venues, and reference events/traffic from the data above.
+Consider any school closures that may affect traffic patterns or parent pickup demand.
 
 FORMAT REQUIREMENTS:
 - Start with "POSITION AT **[Location Name]**" or "HEAD TO **[Location Name]**"
@@ -487,15 +494,17 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       return { ok: true, skipped: true, reason: 'already_exists' };
     }
 
-    // Parse briefing data
+    // Parse ALL briefing data (not just traffic/events - include news and closures too)
     const briefing = {
       traffic: parseJsonField(briefingRow.traffic_conditions),
       events: parseJsonField(briefingRow.events),
-      weather: parseJsonField(briefingRow.weather_current)
+      weather: parseJsonField(briefingRow.weather_current),
+      news: parseJsonField(briefingRow.news),
+      school_closures: parseJsonField(briefingRow.school_closures)
     };
 
     triadLog.phase(3, `[consolidator] ${snapshot.formatted_address}`);
-    triadLog.phase(3, `[consolidator] Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}`);
+    triadLog.phase(3, `[consolidator] Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}`);
 
     // Call GPT-5.1 with snapshot + briefing (NO minstrategy)
     const result = await callGPT5ForImmediateStrategy({ snapshot, briefing });

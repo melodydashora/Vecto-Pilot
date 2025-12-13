@@ -9,12 +9,15 @@ Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligenc
 | Role | Model | Provider | Purpose |
 |------|-------|----------|---------|
 | Strategist | Claude Opus 4.5 | Anthropic | Generate minstrategy |
-| Briefer | Gemini 3.0 Pro | Google | Events, traffic, news (with Google Search) |
+| Briefer (Primary) | Gemini 3.0 Pro | Google | Events, traffic, news, airport (with Google Search grounding) |
+| Briefer (Fallback) | Claude Opus 4.5 | Anthropic | Web search fallback when Gemini fails |
+| Traffic (Primary) | TomTom | TomTom | Real-time traffic data |
 | Holiday Checker | Gemini 3.0 Pro | Google | Holiday detection |
 | Daily Consolidator | Gemini 3.0 Pro | Google | 8-12hr strategy |
-| Immediate Consolidator | GPT-5.1 | OpenAI | 1hr tactical strategy |
+| Immediate Consolidator | GPT-5.2 | OpenAI | 1hr tactical strategy |
 | Venue Planner | GPT-5.1 | OpenAI | Smart Blocks generation |
-| Event Validator | Claude Opus 4.5 | Anthropic | Event verification (with web search) |
+
+**Note:** Perplexity was replaced with Gemini 3 Pro Preview (with Google Search tool) as the primary briefing provider in December 2024. Claude web search serves as the fallback when Gemini fails.
 
 ## Pipeline Flow
 
@@ -115,15 +118,17 @@ The adapter at `server/lib/ai/adapters/index.js` handles:
 
 ## Fallback System
 
-Claude Opus 4.5 serves as automatic fallback when primary models fail:
+Claude Opus 4.5 with web search serves as automatic fallback when primary models fail:
 
-**Adapter-level fallbacks:**
-- Roles with fallback: `consolidator`, `briefer`
-- When `callModel()` returns `!result.ok`, automatically retries with Claude Opus
+**Briefing Fallbacks (Gemini → Claude):**
+- Events: If Gemini returns 0 events → Claude web search with parallel category searches
+- News: If Gemini fails/returns empty → Claude web search for rideshare news
+- Traffic: TomTom (primary) → Gemini (secondary) → Static fallback
+- Airport: Gemini with Google Search → Static fallback
 
-**Direct Gemini fallbacks:**
-- Daily consolidator has its own Claude Opus fallback
-- Logs `[consolidator] 🔄 Trying Claude Opus fallback...`
+**Strategy Fallbacks:**
+- Daily Consolidator: Gemini 3 Pro → Claude Opus fallback
+- Adapter-level: When `callModel()` returns `!result.ok`, automatically retries with Claude Opus
 
 ## Model Parameters
 
