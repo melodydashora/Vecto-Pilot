@@ -51,54 +51,36 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
   }) : 'Unknown time';
 
   try {
-    const prompt = `You are a TACTICAL RIDESHARE INTELLIGENCE ANALYST. Analyze the briefing data and tell the driver what's happening RIGHT NOW that affects their earnings.
+    const prompt = `You are a rideshare dispatcher. Based on the briefing data, tell the driver WHERE TO GO RIGHT NOW in ONE sentence.
 
-=== DRIVER LOCATION ===
-Currently at: ${snapshot.formatted_address}
-City: ${snapshot.city}, ${snapshot.state}
-Time: ${localTime} (${snapshot.day_part_key})
-${snapshot.is_holiday ? `⚠️ HOLIDAY: ${snapshot.holiday}` : ''}
+DRIVER: ${snapshot.formatted_address} | ${localTime} | ${snapshot.day_part_key}
+${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
-=== LIVE BRIEFING DATA ===
+BRIEFING DATA:
+- Traffic: ${JSON.stringify(briefing.traffic?.headline || briefing.traffic?.summary || 'Normal conditions')}
+- Events: ${JSON.stringify(briefing.events?.items?.slice(0, 5) || briefing.events || [])}
+- Weather: ${snapshot.weather?.description || 'Clear'}
+${briefing.school_closures?.length > 0 ? `- School closures: ${briefing.school_closures.length} closures` : ''}
 
-WEATHER:
-${JSON.stringify(snapshot.weather, null, 2)}
+OUTPUT FORMAT - exactly 2 lines:
+Line 1: "Head to **[Area/Zone]**" - the ONE best area based on the data
+Line 2: "Avoid **[Road]**" - ONE key road/area to avoid (or skip if none)
 
-TRAFFIC (prioritized by impact):
-${JSON.stringify(briefing.traffic, null, 2)}
+RULES:
+- ONE area only (not venues - venue cards handle that)
+- Use **bold** for the area name and road name
+- Base it on the events/traffic above
+- No explanations, no timing, no tips - just WHERE
 
-EVENTS HAPPENING NOW/SOON:
-${JSON.stringify(briefing.events, null, 2)}
+Example outputs:
+"Head to **Downtown/Arts District** — Mavs game surge starting.
+Avoid **I-35E northbound** — 20+ min delays."
 
-RIDESHARE NEWS:
-${JSON.stringify(briefing.news, null, 2)}
-
-SCHOOL CLOSURES:
-${JSON.stringify(briefing.school_closures, null, 2)}
-
-=== YOUR ANALYSIS ===
-Based on this briefing data, provide IMMEDIATE tactical intelligence:
-
-1. **WHAT'S HAPPENING RIGHT NOW** - Analyze the events, traffic, and conditions. What's the most significant demand driver in the next 1-2 hours?
-
-2. **WHERE TO FOCUS** - Name ONE general area or district (not specific venues - those come separately). Why is this area hot right now based on the data?
-
-3. **WHAT TO AVOID** - Any traffic incidents, road closures, or dead zones to steer clear of?
-
-4. **TIMING** - When exactly should they be in position? What's the window?
-
-FORMAT:
-- 3-4 sentences MAX - be concise and urgent
-- Use **bold** for key areas, roads, and events
-- Reference SPECIFIC data from above (event names, road numbers, times)
-- DO NOT list multiple venues - just identify the hot zone/area
-- Sound like a dispatcher giving real-time intel, not a tour guide
-
-Example tone: "**Downtown** is surging right now - **Mavs game** lets out at 10pm and **I-35** northbound is already backing up. Get to **Victory Park** area by 9:45pm. Avoid **Commerce St** construction."`;
+"Head to **Airport area** — flight arrivals peaking.
+Avoid **635** — construction."`;
 
 
-    // GPT-5.2 with reasoning_effort for faster, smarter tactical strategy
-    // Using "low" reasoning for speed - this is a quick 1-hour tactical decision
+    // GPT-5.2 with minimal reasoning - just need 2 lines of output
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -110,8 +92,8 @@ Example tone: "**Downtown** is surging right now - **Mavs game** lets out at 10p
         messages: [
           { role: 'user', content: prompt }
         ],
-        reasoning_effort: 'low',  // Fast reasoning for tactical decisions
-        max_completion_tokens: 1000
+        reasoning_effort: 'low',  // Fast - simple 2-line output
+        max_completion_tokens: 200  // Only need ~50 tokens for 2 lines
       })
     });
 
