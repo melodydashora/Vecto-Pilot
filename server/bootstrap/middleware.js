@@ -18,12 +18,18 @@ export async function configureMiddleware(app) {
   // Bot blocker - FIRST, before any other processing
   try {
     const botBlockerPath = path.join(rootDir, 'server/middleware/bot-blocker.js');
-    const { apiOnlyBotBlocker } = await import(botBlockerPath);
-    app.use(apiOnlyBotBlocker);
-    console.log('[gateway] ✅ Bot blocker enabled');
+    const { botBlocker } = await import(botBlockerPath);
+    app.use(botBlocker);
+    console.log('[gateway] ✅ Bot blocker enabled (full protection)');
   } catch (e) {
     console.warn('[gateway] Bot blocker not available:', e?.message);
   }
+
+  // X-Robots-Tag header - prevent indexing at HTTP level
+  app.use((req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    next();
+  });
 
   // Helmet security headers (CSP disabled for SPA compatibility)
   app.use(helmet({ contentSecurityPolicy: false }));
