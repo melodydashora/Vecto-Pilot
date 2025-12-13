@@ -1,10 +1,12 @@
 
 import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
 // Diagnostic endpoint to identify which AI system is handling requests
-router.get('/identity', (req, res) => {
+// SECURITY: Requires auth (reveals configuration details)
+router.get('/identity', requireAuth, (req, res) => {
   const identity = {
     timestamp: new Date().toISOString(),
     

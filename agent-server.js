@@ -256,9 +256,16 @@ app.get("/healthz", (_req, res) => {
 const caps = capsFromEnv("AGENT");
 const agentRouter = express.Router();
 
-// Auth gate (if TOKEN set, require it)
+// Auth gate - ALWAYS require token for agent routes (security fix)
+// In production, AGENT_TOKEN must be set
+if (!TOKEN && IS_PRODUCTION) {
+  console.error('[agent] CRITICAL: AGENT_TOKEN must be set in production!');
+  process.exit(1);
+}
 if (TOKEN) {
   agentRouter.use(bearer(TOKEN, "x-agent-token"));
+} else {
+  console.warn('[agent] ⚠️ Running without auth (dev mode only)');
 }
 
 // Shell whitelist enforcement for parity routes

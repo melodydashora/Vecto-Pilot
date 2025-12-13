@@ -260,7 +260,8 @@ router.post('/migrate', requireAuth, async (req, res) => {
 });
 
 // GET /api/diagnostics/worker-status - Check worker configuration
-router.get('/worker-status', async (req, res) => {
+// SECURITY: Requires auth (exposes environment configuration)
+router.get('/worker-status', requireAuth, async (req, res) => {
   try {
     const status = {
       env: {
@@ -308,7 +309,8 @@ router.get('/worker-status', async (req, res) => {
 });
 
 // GET /diagnostics/workflow-prereqs - Check workflow prerequisites
-router.get('/workflow-prereqs', async (req, res) => {
+// SECURITY: Requires auth (exposes database job status)
+router.get('/workflow-prereqs', requireAuth, async (req, res) => {
   try {
     const result = { checks: {} };
 
@@ -398,7 +400,8 @@ router.get('/workflow-prereqs', async (req, res) => {
 });
 
 // GET /diagnostics/model-ping - Test model reachability with minimal prompts
-router.get('/model-ping', async (req, res) => {
+// SECURITY: Requires auth (triggers AI API calls which cost money)
+router.get('/model-ping', requireAuth, async (req, res) => {
   const results = {};
   const timeout = 8000; // 8s timeout per model
 
@@ -528,7 +531,8 @@ router.get('/model-ping', async (req, res) => {
 });
 
 // GET /diagnostics/workflow-dry-run - Minimal workflow dry-run without DB writes
-router.get('/workflow-dry-run', async (req, res) => {
+// SECURITY: Requires auth (triggers AI API calls)
+router.get('/workflow-dry-run', requireAuth, async (req, res) => {
   const report = { steps: {} };
 
   try {
