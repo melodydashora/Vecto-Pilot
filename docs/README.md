@@ -10,6 +10,7 @@ Detailed technical documentation split by domain:
 | [Database Schema](architecture/database-schema.md) | PostgreSQL tables and relationships |
 | [AI Pipeline](architecture/ai-pipeline.md) | TRIAD architecture and model configuration |
 | [Constraints](architecture/constraints.md) | Critical rules and limitations |
+| [Google Cloud APIs](architecture/google-cloud-apis.md) | Google APIs reference and usage patterns |
 
 ## Quick Links
 

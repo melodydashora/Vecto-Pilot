@@ -12,6 +12,8 @@ Custom React hooks for data fetching and UI state.
 | `useEnrichmentProgress.ts` | Tracks briefing enrichment progress |
 | `useStrategyPolling.ts` | Strategy data fetching with SSE and caching |
 | `useStrategy.ts` | Strategy hook for strategy state management |
+| `useStrategyLoadingMessages.ts` | Rotating loading messages during strategy generation |
+| `useVenueLoadingMessages.ts` | Rotating loading messages during venue enrichment |
 | `useTTS.ts` | Text-to-speech with OpenAI |
 | `use-toast.ts` | Toast notifications |
 | `use-mobile.tsx` | Mobile device detection |
@@ -55,6 +57,18 @@ Shows toast notifications.
 const isMobile = useMobile();
 ```
 Detects mobile viewport.
+
+### useStrategyLoadingMessages
+```typescript
+const { message } = useStrategyLoadingMessages({ isLoading: true });
+```
+Returns rotating loading messages during strategy generation (e.g., "Analyzing local events...").
+
+### useVenueLoadingMessages
+```typescript
+const { message } = useVenueLoadingMessages({ isLoading: true });
+```
+Returns rotating loading messages during venue enrichment (e.g., "Finding optimal venues...").
 
 ## Connections
 
