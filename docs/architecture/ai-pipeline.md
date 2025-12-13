@@ -123,8 +123,17 @@ Claude Opus 4.5 with web search serves as automatic fallback when primary models
 **Briefing Fallbacks (Gemini → Claude):**
 - Events: If Gemini returns 0 events → Claude web search with parallel category searches
 - News: If Gemini fails/returns empty → Claude web search for rideshare news
-- Traffic: TomTom (primary) → Gemini (secondary) → Static fallback
+- Traffic: TomTom (primary) → Claude analysis → Gemini (secondary) → Static fallback
 - Airport: Gemini with Google Search → Static fallback
+
+**Traffic Analysis Pipeline:**
+1. TomTom provides raw incidents with priority scoring
+2. Claude Opus analyzes and produces human-readable briefing:
+   - `headline`: One sentence overview
+   - `keyIssues`: Top 3 problems with specific roads
+   - `avoidAreas`: Roads to avoid and why
+   - `driverImpact`: How it affects earnings/routes
+   - `closures`: Expandable list of all road closures
 
 **Strategy Fallbacks:**
 - Daily Consolidator: Gemini 3 Pro → Claude Opus fallback
