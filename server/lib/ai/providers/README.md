@@ -34,8 +34,11 @@ import { runImmediateStrategy } from './consolidator.js';
 await runImmediateStrategy(snapshotId, { snapshot });
 // Writes to strategies.strategy_for_now
 ```
-- Generates 1-hour tactical "GO NOW" strategy
-- Uses GPT-5.1 with snapshot + briefing data
+- Generates tactical intelligence from briefing data (traffic, events, news, closures)
+- Focuses on EMERGENT conditions - what's happening RIGHT NOW
+- Does NOT list specific venues (SmartBlocks handles venue recommendations)
+- Identifies hot zones/areas based on events, traffic patterns, timing
+- Uses GPT-5.2 with snapshot + ALL briefing fields
 - Called automatically during POST /api/blocks-fast
 
 #### runConsolidator (On-demand - user request only)
