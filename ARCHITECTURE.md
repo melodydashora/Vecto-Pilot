@@ -2,7 +2,7 @@
 
 ---
 
-**Last Updated:** 2025-12-10 UTC (Phase 3 reorganization complete)
+**Last Updated:** 2025-12-13 UTC (Documentation sync)
 
 ---
 
@@ -16,6 +16,7 @@ For focused documentation, see these files in `docs/architecture/`:
 | [Database Schema](docs/architecture/database-schema.md) | PostgreSQL tables and relationships |
 | [AI Pipeline](docs/architecture/ai-pipeline.md) | TRIAD architecture and model configuration |
 | [Constraints](docs/architecture/constraints.md) | Critical rules and limitations |
+| [Google Cloud APIs](docs/architecture/google-cloud-apis.md) | Google APIs reference and usage patterns |
 
 ---
 

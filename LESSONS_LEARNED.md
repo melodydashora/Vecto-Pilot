@@ -34,7 +34,7 @@ This document captures historical issues, pitfalls, and best practices discovere
 ### ALWAYS DO
 
 1. **ALWAYS check existing code first** - This repo has accumulated duplicate implementations
-2. **ALWAYS use the adapter pattern** - Call models via `server/lib/adapters/index.js`
+2. **ALWAYS use the adapter pattern** - Call models via `server/lib/ai/adapters/index.js`
 3. **ALWAYS link data to snapshot_id** - Snapshots are the central ML connector
 4. **ALWAYS test after changes** - Run `npm run lint && npm run typecheck && npm run build`
 5. **ALWAYS update documentation** - Keep MODEL.md, ARCHITECTURE.md current
@@ -287,7 +287,7 @@ try {
 ### Files That ARE Used (Do Not Delete)
 
 - `client/src/contexts/location-context-clean.tsx` - Main location provider
-- `server/lib/adapters/index.js` - Model dispatcher
+- `server/lib/ai/adapters/index.js` - Model dispatcher
 - `strategy-generator.js` (root) - Worker process spawned by gateway
 - `server/lib/drizzle-lazy.js` - Used by chat-context.js
 
@@ -502,8 +502,8 @@ Enables ML training by:
 | Purpose | File |
 |---------|------|
 | Main entry | `gateway-server.js` |
-| Model dispatch | `server/lib/adapters/index.js` |
-| Strategy providers | `server/lib/providers/*.js` |
+| Model dispatch | `server/lib/ai/adapters/index.js` |
+| Strategy providers | `server/lib/ai/providers/*.js` |
 | Schema definition | `shared/schema.js` |
 | Location context | `client/src/contexts/location-context-clean.tsx` |
 | Main UI | `client/src/pages/co-pilot.tsx` |
@@ -742,5 +742,5 @@ LLM prompt                      ← "LOCATION: 1753 Saddle Tree Rd, Frisco, TX"
 
 ---
 
-**Last Updated**: December 11, 2025
+**Last Updated**: December 13, 2025
 **Maintained By**: Development Team

@@ -28,6 +28,7 @@ npm run lint && npm run typecheck && npm run build  # Pre-PR
 | [docs/architecture/database-schema.md](docs/architecture/database-schema.md) | Database tables |
 | [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) | AI models & flow |
 | [docs/architecture/constraints.md](docs/architecture/constraints.md) | Critical rules |
+| [docs/architecture/google-cloud-apis.md](docs/architecture/google-cloud-apis.md) | Google APIs reference |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Full system overview |
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Historical issues |
 
@@ -44,8 +45,14 @@ npm run lint && npm run typecheck && npm run build  # Pre-PR
 | Folder | Purpose |
 |--------|---------|
 | [client/src/](client/src/README.md) | Frontend overview |
+| [client/src/components/](client/src/components/README.md) | UI components |
 | [client/src/hooks/](client/src/hooks/README.md) | Custom hooks |
 | [client/src/contexts/](client/src/contexts/README.md) | React contexts |
+| [client/src/lib/](client/src/lib/README.md) | Core utilities |
+| [client/src/utils/](client/src/utils/README.md) | Feature helpers |
+| [client/src/types/](client/src/types/README.md) | TypeScript types |
+| [client/src/features/](client/src/features/README.md) | Feature modules |
+| [client/src/pages/](client/src/pages/README.md) | Page components |
 
 ## Critical Rules
 
@@ -212,14 +219,23 @@ client/src/
 ├── components/             # UI components
 │   ├── co-pilot/           # Co-pilot specific (tabs, greeting)
 │   ├── strategy/           # Strategy display components
+│   ├── ui/                 # shadcn/ui primitives (46 components)
 │   └── _future/            # Staged components
-├── contexts/               # React contexts (location)
-├── hooks/                  # Custom hooks (TTS, polling, queries)
+├── contexts/               # React contexts (location-context-clean.tsx)
+├── hooks/                  # Custom hooks
+│   ├── useBriefingQueries.ts   # Fetches weather, traffic, news
+│   ├── useEnrichmentProgress.ts # Tracks briefing progress
+│   ├── useStrategyLoadingMessages.ts # Strategy loading messages
+│   ├── useStrategyPolling.ts   # Strategy polling with SSE
+│   ├── useStrategy.ts          # Strategy state management
+│   ├── useVenueLoadingMessages.ts # Venue loading messages
+│   ├── useTTS.ts               # Text-to-speech with OpenAI
+│   └── use-toast.ts            # Toast notifications
 ├── features/               # Feature modules
 │   └── strategy/           # Strategy feature
 ├── lib/                    # Core utilities (daypart, queryClient)
 ├── types/                  # TypeScript types
-├── utils/                  # Feature helpers
+├── utils/                  # Feature helpers (co-pilot-helpers.ts)
 └── _future/                # Staged future features
     ├── engine/             # Reflection engine (Phase 17)
     └── user-settings/      # User profile types
