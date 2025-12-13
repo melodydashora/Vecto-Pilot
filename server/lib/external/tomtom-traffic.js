@@ -36,6 +36,157 @@ const MAGNITUDE_LABELS = {
   4: 'Undefined',
 };
 
+// Road type priority for ranking (higher = more important to drivers)
+// Global patterns that work across US/international roads
+const ROAD_PRIORITY = {
+  // Interstates & Motorways (highest priority)
+  'I-': 100,       // US Interstate (I-35, I-95)
+  'M-': 100,       // UK Motorway (M1, M25)
+  'A-': 90,        // European A-roads / UK A-roads
+  'E-': 95,        // European E-roads
+
+  // US Highways
+  'US-': 90,       // US Highway (US-75, US-1)
+  'SR-': 80,       // State Route (generic)
+  'SH-': 80,       // State Highway
+  'HWY': 70,       // Generic highway
+  'HIGHWAY': 70,
+  'ROUTE': 70,
+
+  // State-specific patterns (handled dynamically)
+  // Two-letter state codes followed by dash (TX-, CA-, NY-, FL-)
+  // Will be matched by pattern check below
+
+  // Toll roads (high priority - usually major arterials)
+  'TOLLWAY': 85,
+  'TOLL': 85,
+  'TURNPIKE': 85,
+  'PIKE': 80,
+  'EXPRESSWAY': 80,
+  'EXPWY': 80,
+  'FREEWAY': 85,
+  'FWY': 85,
+
+  // Secondary roads
+  'PKWY': 65,      // Parkway
+  'PARKWAY': 65,
+  'BLVD': 50,      // Boulevard
+  'BOULEVARD': 50,
+  'AVE': 35,       // Avenue
+  'AVENUE': 35,
+  'RD': 30,        // Road
+  'ROAD': 30,
+  'DR': 25,        // Drive
+  'DRIVE': 25,
+  'ST': 25,        // Street
+  'STREET': 25,
+  'WAY': 20,       // Way
+  'LN': 15,        // Lane
+  'LANE': 15,
+  'CT': 10,        // Court
+  'COURT': 10,
+  'CIR': 10,       // Circle
+  'CIRCLE': 10,
+  'PL': 10,        // Place
+  'PLACE': 10,
+};
+
+/**
+ * Calculate road priority score based on road name/number
+ * Higher score = more important road for drivers
+ * Works globally - handles US interstates, state highways, UK motorways, European routes
+ */
+function getRoadPriority(roadName, roadNumbers) {
+  let maxPriority = 0;
+
+  // Check road numbers first (TX-114, I-35, M25, A1, etc.)
+  if (roadNumbers && roadNumbers.length > 0) {
+    for (const road of roadNumbers) {
+      const upperRoad = road.toUpperCase();
+
+      // Check against known patterns
+      for (const [prefix, priority] of Object.entries(ROAD_PRIORITY)) {
+        if (upperRoad.includes(prefix) || upperRoad.startsWith(prefix)) {
+          maxPriority = Math.max(maxPriority, priority);
+        }
+      }
+
+      // Dynamic state highway detection: [A-Z]{2}-\d+ (TX-114, CA-1, NY-17, FL-528)
+      if (/^[A-Z]{2}-\d+/.test(upperRoad)) {
+        maxPriority = Math.max(maxPriority, 80); // State highway priority
+      }
+
+      // Farm-to-Market roads (FM-) - common in rural US
+      if (/^FM-\d+/.test(upperRoad)) {
+        maxPriority = Math.max(maxPriority, 60);
+      }
+
+      // County roads (CR-, CO-)
+      if (/^(CR|CO)-\d+/.test(upperRoad)) {
+        maxPriority = Math.max(maxPriority, 45);
+      }
+    }
+  }
+
+  // Check road name for patterns
+  if (roadName) {
+    const upperName = roadName.toUpperCase();
+
+    for (const [prefix, priority] of Object.entries(ROAD_PRIORITY)) {
+      if (upperName.includes(prefix)) {
+        maxPriority = Math.max(maxPriority, priority);
+      }
+    }
+
+    // Check for major road keywords (global)
+    if (upperName.includes('MOTORWAY') || upperName.includes('AUTOBAHN') ||
+        upperName.includes('AUTOROUTE') || upperName.includes('AUTOPISTA')) {
+      maxPriority = Math.max(maxPriority, 100);
+    }
+
+    // Check for tollway keywords (global)
+    if (upperName.includes('TOLLWAY') || upperName.includes('TOLL') ||
+        upperName.includes('TURNPIKE') || upperName.includes('EXPRESSWAY') ||
+        upperName.includes('PEAGE') || upperName.includes('MAUT')) {
+      maxPriority = Math.max(maxPriority, 85);
+    }
+  }
+
+  return maxPriority || 15; // Default to low priority for unknown roads
+}
+
+/**
+ * Calculate overall incident priority for sorting
+ * Combines road importance + incident severity + type
+ */
+function calculateIncidentPriority(incident) {
+  const roadPriority = getRoadPriority(incident.location, incident.road ? [incident.road] : []);
+
+  // Magnitude score
+  const magnitudeScore = {
+    'Major': 40,
+    'Moderate': 25,
+    'Minor': 10,
+    'Unknown': 5,
+  }[incident.magnitude] || 5;
+
+  // Category score (construction and closures affect routes more)
+  const categoryScore = {
+    'Road Closed': 35,
+    'Road Works': 30,  // Construction
+    'Accident': 25,
+    'Lane Closed': 20,
+    'Jam': 15,
+    'Flooding': 30,
+    'Dangerous Conditions': 20,
+  }[incident.category] || 10;
+
+  // Delay score (longer delays = higher priority)
+  const delayScore = Math.min(incident.delayMinutes || 0, 30);
+
+  return roadPriority + magnitudeScore + categoryScore + delayScore;
+}
+
 /**
  * Create a bounding box around coordinates
  * @param {number} lat - Latitude
@@ -112,7 +263,7 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, city, state
     const data = await response.json();
     const rawIncidents = data.incidents || [];
 
-    // Parse incidents into useful format
+    // Parse incidents into useful format with priority scoring
     const parsedIncidents = rawIncidents.map(inc => {
       const props = inc.properties || {};
       const category = CATEGORY_LABELS[props.iconCategory] || 'Unknown';
@@ -121,22 +272,26 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, city, state
       // Get description from events
       const description = props.events?.map(e => e.description).join('; ') || category;
 
-      // Format road info
-      const road = props.roadNumbers?.join(', ') || '';
+      // Format road info - prefer road numbers for clarity
+      const roadNumbers = props.roadNumbers || [];
+      const road = roadNumbers.join(', ') || '';
+
+      // Create location string
       const fromTo = props.from && props.to ? `${props.from} to ${props.to}` : '';
 
       // Delay in minutes
       const delayMinutes = props.delay ? Math.round(props.delay / 60) : 0;
 
       // Length in miles
-      const lengthMiles = props.length ? (props.length / 1609.34).toFixed(1) : null;
+      const lengthMiles = props.length ? parseFloat((props.length / 1609.34).toFixed(1)) : null;
 
-      return {
+      const incident = {
         id: props.id,
         category,
         magnitude,
         description,
         road,
+        roadNumbers,
         location: fromTo,
         from: props.from || '',
         to: props.to || '',
@@ -144,12 +299,30 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, city, state
         lengthMiles,
         startTime: props.startTime,
         endTime: props.endTime,
+        // Add city context from the request
+        city: city || null,
+        state: state || null,
       };
+
+      // Calculate priority score for sorting
+      incident.priority = calculateIncidentPriority(incident);
+
+      // Determine if this is a major arterial/highway
+      incident.isHighway = getRoadPriority(incident.location, roadNumbers) >= 60;
+
+      // Format display description with road context
+      if (road) {
+        incident.displayDescription = `${category}: ${road} (${fromTo})`;
+      } else {
+        incident.displayDescription = `${category}: ${fromTo}`;
+      }
+
+      return incident;
     });
 
     // Deduplicate reverse-direction incidents (e.g., "A to B" and "B to A" are the same closure)
     const seenPairs = new Set();
-    const incidents = parsedIncidents.filter(inc => {
+    const deduplicatedIncidents = parsedIncidents.filter(inc => {
       if (!inc.from || !inc.to) return true; // Keep incidents without from/to
 
       // Create a normalized key that's the same regardless of direction
@@ -165,41 +338,73 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, city, state
       return true;
     });
 
+    // Sort by priority (highest first) - highways and major incidents first
+    const sortedIncidents = deduplicatedIncidents.sort((a, b) => b.priority - a.priority);
+
+    // Categorize incidents for better display
+    const highwayIncidents = sortedIncidents.filter(i => i.isHighway);
+    const constructionIncidents = sortedIncidents.filter(i => i.category === 'Road Works');
+    const closureIncidents = sortedIncidents.filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed');
+    const jamIncidents = sortedIncidents.filter(i => i.category === 'Jam');
+    const accidentIncidents = sortedIncidents.filter(i => i.category === 'Accident');
+
     // Calculate overall congestion level based on incidents
     let congestionLevel = 'light';
-    const majorIncidents = incidents.filter(i => i.magnitude === 'Major').length;
-    const moderateIncidents = incidents.filter(i => i.magnitude === 'Moderate').length;
-    const jams = incidents.filter(i => i.category === 'Jam').length;
-    const closures = incidents.filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed').length;
+    const majorIncidents = sortedIncidents.filter(i => i.magnitude === 'Major').length;
+    const moderateIncidents = sortedIncidents.filter(i => i.magnitude === 'Moderate').length;
+    const highwayClosures = closureIncidents.filter(i => i.isHighway).length;
 
-    if (majorIncidents >= 2 || jams >= 5 || closures >= 2) {
+    if (majorIncidents >= 2 || jamIncidents.length >= 5 || highwayClosures >= 1) {
       congestionLevel = 'heavy';
-    } else if (majorIncidents >= 1 || moderateIncidents >= 3 || jams >= 2) {
+    } else if (majorIncidents >= 1 || moderateIncidents >= 3 || jamIncidents.length >= 2) {
       congestionLevel = 'moderate';
     }
 
-    // Generate summary
-    let summary = `${incidents.length} active traffic incidents`;
-    if (jams > 0) summary += `, ${jams} traffic jams`;
-    if (closures > 0) summary += `, ${closures} road closures`;
-    if (incidents.length === 0) {
-      summary = 'Traffic flowing smoothly, no incidents reported';
+    // Generate summary with city context
+    const locationContext = city ? ` near ${city}` : '';
+    let summary = `${sortedIncidents.length} active traffic incidents${locationContext}`;
+    if (jamIncidents.length > 0) summary += `, ${jamIncidents.length} traffic jams`;
+    if (closureIncidents.length > 0) summary += `, ${closureIncidents.length} road closures`;
+    if (constructionIncidents.length > 0) summary += `, ${constructionIncidents.length} construction zones`;
+    if (sortedIncidents.length === 0) {
+      summary = `Traffic flowing smoothly${locationContext}, no incidents reported`;
       congestionLevel = 'light';
     }
 
+    // Create prioritized list: highways first, then by category importance
+    // Take top 10 most important for display
+    const prioritizedForDisplay = sortedIncidents.slice(0, 15);
+
     const elapsedMs = Date.now() - startTime;
-    briefingLog.done(1, `Traffic: ${congestionLevel}, ${incidents.length} incidents (${elapsedMs}ms)`, OP.AI);
+    briefingLog.done(1, `Traffic: ${congestionLevel}, ${sortedIncidents.length} incidents (${elapsedMs}ms)`, OP.AI);
 
     return {
       traffic: {
         summary,
-        incidents,
+        // Return prioritized incidents (sorted by importance)
+        incidents: prioritizedForDisplay,
+        // Also provide full sorted list for detailed views
+        allIncidents: sortedIncidents,
         congestionLevel,
-        totalIncidents: incidents.length,
+        totalIncidents: sortedIncidents.length,
+        // Categorized counts
+        stats: {
+          total: sortedIncidents.length,
+          highways: highwayIncidents.length,
+          construction: constructionIncidents.length,
+          closures: closureIncidents.length,
+          jams: jamIncidents.length,
+          accidents: accidentIncidents.length,
+          major: majorIncidents,
+        },
+        // Legacy fields for backwards compatibility
         majorIncidents,
-        jams,
-        closures,
+        jams: jamIncidents.length,
+        closures: closureIncidents.length,
+        // Metadata
         source: 'tomtom',
+        city: city || null,
+        state: state || null,
         bbox,
         radiusMiles,
         fetchedAt: new Date().toISOString(),

@@ -8,12 +8,37 @@ Third-party API integrations that don't fit into other domain modules.
 
 | File | Purpose | Key Export |
 |------|---------|------------|
+| `tomtom-traffic.js` | TomTom real-time traffic | `getTomTomTraffic()` |
 | `faa-asws.js` | FAA airport status | `fetchFAAStatus(airportCode)` |
 | `routes-api.js` | Google Routes API | `getRouteMatrix()`, `getDriveTime()` |
 | `semantic-search.js` | Vector/semantic search | `indexFeedback()`, `searchSimilar()` |
 | `tts-handler.js` | Text-to-speech | `synthesizeSpeech(text)` |
 
 ## Usage
+
+### TomTom Traffic (Primary Traffic Provider)
+```javascript
+import { getTomTomTraffic } from './tomtom-traffic.js';
+
+const result = await getTomTomTraffic({
+  lat: 40.7128,
+  lon: -74.0060,
+  radiusMiles: 15,
+  city: 'New York',
+  state: 'NY'
+});
+
+// Returns prioritized incidents sorted by:
+// 1. Road type (Interstate/Motorway > US/A-road > State > local)
+// 2. Incident severity (Major > Moderate > Minor)
+// 3. Category (closures > construction > accidents > jams)
+//
+// Works globally: US interstates, UK motorways, European routes
+//
+// result.traffic.incidents      - Top 15 prioritized incidents
+// result.traffic.stats          - { highways, construction, closures, jams }
+// result.traffic.congestionLevel - 'light' | 'moderate' | 'heavy'
+```
 
 ### FAA Airport Status
 ```javascript
@@ -51,6 +76,7 @@ const results = await searchSimilar("airport pickup strategy");
 
 | API | Provider | Purpose |
 |-----|----------|---------|
+| TomTom Traffic | TomTom | Real-time traffic incidents (primary) |
 | FAA ASWS | FAA | Airport delays, closures |
 | Routes API | Google | Traffic-aware routing |
 | Text-to-Speech | OpenAI | Voice synthesis |
