@@ -7,17 +7,8 @@ import { z } from 'zod';
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
 import Anthropic from "@anthropic-ai/sdk";
 import { briefingLog, OP } from '../../logger/workflow.js';
-// Perplexity Sonar Pro for parallel web searches (primary provider)
-import {
-  searchEventsParallel as perplexitySearchEvents,
-  searchRideshareNews as perplexitySearchNews,
-  searchTrafficConditions as perplexitySearchTraffic,
-  searchAirportConditions as perplexitySearchAirport,
-  searchBriefingDataParallel as perplexitySearchAll
-} from '../external/perplexity-api.js';
-
-// Serper.dev for Google Search API (optional traffic provider)
-import { searchTrafficWithSerper } from '../external/serper-api.js';
+// NOTE: Perplexity replaced by Gemini 3 Pro Preview with Google Search grounding
+// Perplexity imports removed - using Gemini as primary, Claude as fallback
 
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 import { getTomTomTraffic } from '../external/tomtom-traffic.js';
@@ -29,7 +20,195 @@ const FALLBACK_MODEL = 'claude-opus-4-5-20251101';
 const FALLBACK_MAX_TOKENS = 8192;
 const FALLBACK_TEMPERATURE = 0.2;
 
-// Startup logging moved to first use to avoid noise
+// Initialize Anthropic client for Claude web search
+const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+/**
+ * Call Claude Opus with web_search tool for grounded responses
+ * Used as secondary fallback for news, events, and other web searches
+ * @param {Object} params - { system, prompt, maxTokens, temperature }
+ * @returns {Promise<{ok: boolean, output: string, citations?: array, error?: string}>}
+ */
+async function callClaudeWithWebSearch({ system, prompt, maxTokens = 4096, temperature = 0.2 }) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    briefingLog.warn(2, `ANTHROPIC_API_KEY not configured`, OP.AI);
+    return { ok: false, output: '', citations: [], error: 'ANTHROPIC_API_KEY not configured' };
+  }
+
+  try {
+    briefingLog.ai(2, 'Claude Opus', `web search with ${maxTokens} tokens`);
+
+    // Use assistant prefill to force JSON array output
+    const messages = [
+      { role: 'user', content: prompt },
+      { role: 'assistant', content: '[' }
+    ];
+
+    const res = await anthropicClient.messages.create({
+      model: FALLBACK_MODEL,
+      max_tokens: maxTokens,
+      temperature,
+      system,
+      messages,
+      tools: [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 5
+        }
+      ]
+    });
+
+    // Extract text from response (may have tool_use blocks interspersed)
+    let output = '';
+    const citations = [];
+
+    for (const block of res?.content || []) {
+      if (block.type === 'text') {
+        output += block.text;
+        if (block.citations) {
+          citations.push(...block.citations);
+        }
+      }
+    }
+
+    // Prepend the opening bracket from prefill
+    output = '[' + output.trim();
+
+    briefingLog.done(2, `Claude Opus: ${output.length} chars, ${citations.length} citations`, OP.AI);
+
+    return output
+      ? { ok: true, output, citations }
+      : { ok: false, output: '', citations: [], error: 'Empty response from Claude' };
+  } catch (err) {
+    briefingLog.error(2, `Claude web search failed: ${err.message}`, err, OP.AI);
+    return { ok: false, output: '', citations: [], error: err.message };
+  }
+}
+
+/**
+ * Fetch events using Claude web search (fallback when Gemini fails)
+ * Uses parallel category searches similar to Gemini approach
+ */
+async function fetchEventsWithClaudeWebSearch({ snapshot, city, state, date, lat, lng, timezone }) {
+  const startTime = Date.now();
+
+  // Run all 5 categories in parallel using Claude web search
+  const categoryPromises = EVENT_CATEGORIES.map(async (category) => {
+    const prompt = `Search the web for ${category.name.replace('_', ' ')} events happening in ${city}, ${state} TODAY (${date}).
+
+SEARCH QUERY: "${category.searchTerms(city, state, date)}"
+
+Return a JSON array of events with this format (max 3 events):
+[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_time":"7:00 PM","subtype":"${category.eventTypes[0]}","impact":"high"}]
+
+Return an empty array [] if no events found.`;
+
+    const system = `You are an event search assistant. Search the web for local events and return structured JSON data. Only include events happening TODAY. Be accurate with venue names and times.`;
+
+    try {
+      const result = await callClaudeWithWebSearch({ system, prompt, maxTokens: 2048 });
+
+      if (!result.ok) {
+        return { category: category.name, items: [], error: result.error };
+      }
+
+      const parsed = safeJsonParse(result.output);
+      const items = Array.isArray(parsed) ? parsed : [];
+      return {
+        category: category.name,
+        items: items.filter(e => e.title && e.venue),
+        citations: result.citations || []
+      };
+    } catch (err) {
+      return { category: category.name, items: [], error: err.message };
+    }
+  });
+
+  const categoryResults = await Promise.all(categoryPromises);
+
+  // Merge and deduplicate results
+  const allEvents = [];
+  const allCitations = [];
+  const seenTitles = new Set();
+  let totalFound = 0;
+
+  for (const result of categoryResults) {
+    totalFound += result.items.length;
+    if (result.citations) {
+      allCitations.push(...result.citations);
+    }
+    for (const event of result.items) {
+      const titleKey = event.title?.toLowerCase().trim();
+      if (titleKey && !seenTitles.has(titleKey)) {
+        seenTitles.add(titleKey);
+        allEvents.push(event);
+      }
+    }
+    if (result.error) {
+      briefingLog.warn(2, `Claude category ${result.category} failed: ${result.error}`, OP.AI);
+    }
+  }
+
+  const elapsedMs = Date.now() - startTime;
+  briefingLog.done(2, `Claude: ${allEvents.length} unique events (${totalFound} total) in ${elapsedMs}ms`, OP.FALLBACK);
+
+  if (allEvents.length === 0) {
+    return { items: [], reason: 'No events found via Claude web search', provider: 'claude' };
+  }
+
+  return { items: allEvents, citations: allCitations, reason: null, provider: 'claude' };
+}
+
+/**
+ * Fetch news using Claude web search (fallback when Gemini fails)
+ */
+async function fetchNewsWithClaudeWebSearch({ city, state, date }) {
+  const prompt = `Search the web for rideshare-relevant news in ${city}, ${state} as of ${date}.
+
+SEARCH FOR:
+1. "${city} ${state} rideshare driver news today"
+2. "Uber Lyft driver earnings ${city}"
+3. "${state} gig economy news rideshare"
+4. "rideshare regulation update ${state}"
+
+Return a JSON array of 2-5 news items:
+[
+  {
+    "title": "News Title",
+    "summary": "One sentence summary with driver impact",
+    "impact": "high" | "medium" | "low",
+    "source": "Source Name",
+    "link": "url"
+  }
+]
+
+If no rideshare-specific news found, return general local news affecting drivers.`;
+
+  const system = `You are a news search assistant for rideshare drivers. Search the web for relevant news and return structured JSON data. Focus on news that impacts driver earnings, regulations, and working conditions.`;
+
+  try {
+    const result = await callClaudeWithWebSearch({ system, prompt, maxTokens: 2048 });
+
+    if (!result.ok) {
+      briefingLog.warn(2, `Claude news failed: ${result.error}`, OP.FALLBACK);
+      return { items: [], reason: result.error, provider: 'claude' };
+    }
+
+    const parsed = safeJsonParse(result.output);
+    const newsArray = Array.isArray(parsed) ? parsed : [];
+
+    if (newsArray.length === 0 || !newsArray[0]?.title) {
+      return { items: [], reason: 'No news found via Claude web search', provider: 'claude' };
+    }
+
+    briefingLog.done(2, `Claude: ${newsArray.length} news items, ${result.citations?.length || 0} citations`, OP.FALLBACK);
+    return { items: newsArray, citations: result.citations, reason: null, provider: 'claude' };
+  } catch (err) {
+    briefingLog.error(2, `Claude news failed`, err, OP.FALLBACK);
+    return { items: [], reason: err.message, provider: 'claude' };
+  }
+}
 
 /**
  * Claude Opus fallback when Gemini fails
@@ -509,39 +688,18 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // TRY PERPLEXITY FIRST (if configured) - faster and has citations
-  if (process.env.PERPLEXITY_API_KEY) {
-    briefingLog.ai(2, 'Perplexity', `events for ${city}, ${state} (${date}) - 5 parallel searches`);
-
-    try {
-      // Pass formatted address for 25-mile radius search context
-      const formattedAddress = snapshot?.formatted_address;
-      const perplexityResult = await perplexitySearchEvents({ city, state, date, lat, lng, formattedAddress });
-
-      if (perplexityResult.items && perplexityResult.items.length > 0) {
-        briefingLog.done(2, `Perplexity: ${perplexityResult.items.length} events, ${perplexityResult.citations?.length || 0} citations`, OP.AI);
-        return {
-          items: perplexityResult.items,
-          citations: perplexityResult.citations,
-          reason: null,
-          provider: 'perplexity'
-        };
-      }
-
-      // Perplexity returned no results - fall through to Gemini
-      briefingLog.warn(2, `Perplexity returned 0 events - falling back to Gemini`, OP.FALLBACK);
-    } catch (perplexityErr) {
-      briefingLog.warn(2, `Perplexity failed: ${perplexityErr.message} - falling back to Gemini`, OP.FALLBACK);
-    }
-  }
-
-  // FALLBACK TO GEMINI - parallel category searches
+  // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
   if (!process.env.GEMINI_API_KEY) {
-    briefingLog.error(2, `Neither PERPLEXITY_API_KEY nor GEMINI_API_KEY set`, null, OP.AI);
+    // Try Claude web search as fallback if Gemini not configured
+    if (process.env.ANTHROPIC_API_KEY) {
+      briefingLog.ai(2, 'Claude', `events for ${city}, ${state} (${date}) - web search fallback`);
+      return fetchEventsWithClaudeWebSearch({ snapshot, city, state, date, lat, lng, timezone });
+    }
+    briefingLog.error(2, `Neither GEMINI_API_KEY nor ANTHROPIC_API_KEY set`, null, OP.AI);
     return { items: [], reason: 'No API keys configured for event search' };
   }
 
-  briefingLog.ai(2, 'Gemini', `events for ${city}, ${state} (${date}) - 5 parallel searches (fallback)`);
+  briefingLog.ai(2, 'Gemini', `events for ${city}, ${state} (${date}) - 5 parallel searches`);
 
   // PARALLEL CATEGORY SEARCHES - 5 simultaneous searches for better coverage
   // Each category runs independently, results are merged and deduplicated
@@ -577,6 +735,11 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   briefingLog.done(2, `Gemini: ${allEvents.length} unique events (${totalFound} total from 5 searches) in ${elapsedMs}ms`, OP.AI);
 
   if (allEvents.length === 0) {
+    // TRY CLAUDE WEB SEARCH AS FALLBACK
+    if (process.env.ANTHROPIC_API_KEY) {
+      briefingLog.warn(2, `Gemini returned 0 events - trying Claude web search`, OP.FALLBACK);
+      return fetchEventsWithClaudeWebSearch({ snapshot, city, state, date, lat, lng, timezone });
+    }
     return { items: [], reason: 'No events found across all categories', provider: 'gemini' };
   }
 
@@ -971,38 +1134,19 @@ export async function fetchTrafficConditions({ snapshot }) {
         };
       }
 
-      briefingLog.warn(1, `TomTom traffic failed - trying Perplexity`, OP.FALLBACK);
+      briefingLog.warn(1, `TomTom traffic failed - trying Gemini`, OP.FALLBACK);
     } catch (tomtomErr) {
-      briefingLog.warn(1, `TomTom traffic error: ${tomtomErr.message} - trying Perplexity`, OP.FALLBACK);
+      briefingLog.warn(1, `TomTom traffic error: ${tomtomErr.message} - trying Gemini`, OP.FALLBACK);
     }
   }
 
-  // TRY PERPLEXITY (if configured) - 25-mile radius search
-  if (process.env.PERPLEXITY_API_KEY) {
-    try {
-      // Pass formatted address for 25-mile radius search context
-      const formattedAddress = snapshot?.formatted_address;
-      const perplexityResult = await perplexitySearchTraffic({ city, state, date, formattedAddress });
-
-      if (perplexityResult.traffic && !perplexityResult.traffic.isFallback) {
-        perplexityResult.traffic.provider = 'perplexity';
-        return perplexityResult.traffic;
-      }
-
-      // Perplexity returned fallback - try Gemini
-      briefingLog.warn(1, `Perplexity traffic fallback - trying Gemini`, OP.FALLBACK);
-    } catch (perplexityErr) {
-      briefingLog.warn(1, `Perplexity traffic failed: ${perplexityErr.message} - trying Gemini`, OP.FALLBACK);
-    }
-  }
-
-  // FALLBACK TO GEMINI
+  // GEMINI 3 PRO PREVIEW (SECONDARY) - uses Google Search grounding
   if (!process.env.GEMINI_API_KEY) {
     briefingLog.warn(1, `No traffic providers available - using fallback traffic`, OP.AI);
     return fallbackTraffic;
   }
 
-  briefingLog.ai(1, 'Gemini', `traffic for ${city}, ${state} (fallback)`);
+  briefingLog.ai(1, 'Gemini', `traffic for ${city}, ${state}`);
 
   const prompt = `Search for current traffic conditions in ${city}, ${state} as of today ${date}. Return traffic data as JSON ONLY with ALL these fields:
 
@@ -1048,7 +1192,7 @@ CRITICAL: Include highDemandZones and repositioning.`;
 }
 
 /**
- * Fetch airport conditions using Perplexity
+ * Fetch airport conditions using Gemini with Google Search
  * Includes flight delays, arrivals, departures, and airport recommendations for drivers
  * @param {Object} params - Parameters object
  * @param {Object} params.snapshot - Snapshot with location data
@@ -1058,6 +1202,8 @@ async function fetchAirportConditions({ snapshot }) {
   const city = snapshot?.city || 'Unknown';
   const state = snapshot?.state || 'Unknown';
   const timezone = snapshot?.timezone || 'America/Chicago';
+  const lat = snapshot?.lat;
+  const lng = snapshot?.lng;
 
   // Get current date in user's timezone
   let date;
@@ -1076,28 +1222,58 @@ async function fetchAirportConditions({ snapshot }) {
     isFallback: true
   };
 
-  // TRY PERPLEXITY (if configured)
-  if (process.env.PERPLEXITY_API_KEY) {
-    try {
-      const formattedAddress = snapshot?.formatted_address;
-      const airportContext = snapshot?.airport_context;
-      const result = await perplexitySearchAirport({ city, state, date, formattedAddress, airportContext });
-
-      if (result.airport && !result.airport.isFallback) {
-        result.airport.provider = 'perplexity';
-        return result.airport;
-      }
-
-      // Perplexity returned fallback
-      briefingLog.warn(2, `Perplexity airport fallback`, OP.FALLBACK);
-    } catch (perplexityErr) {
-      briefingLog.warn(2, `Perplexity airport failed: ${perplexityErr.message}`, OP.FALLBACK);
-    }
-  } else {
-    briefingLog.warn(2, `PERPLEXITY_API_KEY not set - skipping airport search`, OP.AI);
+  // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
+  if (!process.env.GEMINI_API_KEY) {
+    briefingLog.warn(2, `GEMINI_API_KEY not set - skipping airport search`, OP.AI);
+    return fallbackAirport;
   }
 
-  return fallbackAirport;
+  try {
+    briefingLog.ai(2, 'Gemini', `airport conditions for ${city}, ${state}`);
+
+    const prompt = `Search for current airport conditions near ${city}, ${state} as of ${date}.
+
+Find airports within 50 miles and report:
+1. Flight delays and cancellations
+2. Busy arrival/departure periods today
+3. Recommendations for rideshare drivers (best pickup spots, busy times)
+
+Return JSON:
+{
+  "airports": [
+    {
+      "code": "DFW",
+      "name": "Dallas/Fort Worth International",
+      "delays": "Minor delays (15-30 min) on arrivals",
+      "status": "normal" | "delays" | "severe_delays",
+      "busyTimes": ["6-8 AM", "5-7 PM"]
+    }
+  ],
+  "busyPeriods": ["Morning rush 6-9 AM", "Evening rush 4-8 PM"],
+  "recommendations": "Position near Terminal D for international arrivals after 2 PM"
+}`;
+
+    const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
+
+    if (!result.ok) {
+      briefingLog.warn(2, `Gemini airport failed: ${result.error}`, OP.FALLBACK);
+      return fallbackAirport;
+    }
+
+    const parsed = safeJsonParse(result.output);
+    briefingLog.done(2, `Gemini airport: ${parsed.airports?.length || 0} airports`, OP.AI);
+
+    return {
+      airports: Array.isArray(parsed.airports) ? parsed.airports : [],
+      busyPeriods: Array.isArray(parsed.busyPeriods) ? parsed.busyPeriods : [],
+      recommendations: parsed.recommendations || null,
+      fetchedAt: new Date().toISOString(),
+      provider: 'gemini'
+    };
+  } catch (err) {
+    briefingLog.warn(2, `Gemini airport error: ${err.message}`, OP.FALLBACK);
+    return fallbackAirport;
+  }
 }
 
 async function fetchRideshareNews({ snapshot }) {
@@ -1113,35 +1289,18 @@ async function fetchRideshareNews({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // TRY PERPLEXITY FIRST (if configured) - faster and has citations
-  if (process.env.PERPLEXITY_API_KEY) {
-    try {
-      const perplexityResult = await perplexitySearchNews({ city, state, date });
-
-      if (perplexityResult.items && perplexityResult.items.length > 0) {
-        briefingLog.done(2, `Perplexity: ${perplexityResult.items.length} news items, ${perplexityResult.citations?.length || 0} citations`, OP.AI);
-        return {
-          items: perplexityResult.items,
-          citations: perplexityResult.citations,
-          reason: null,
-          provider: 'perplexity'
-        };
-      }
-
-      // Perplexity returned no results - fall through to Gemini
-      briefingLog.warn(2, `Perplexity returned 0 news items - falling back to Gemini`, OP.FALLBACK);
-    } catch (perplexityErr) {
-      briefingLog.warn(2, `Perplexity news failed: ${perplexityErr.message} - falling back to Gemini`, OP.FALLBACK);
-    }
-  }
-
-  // FALLBACK TO GEMINI
+  // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
   if (!process.env.GEMINI_API_KEY) {
-    briefingLog.warn(2, `Neither PERPLEXITY_API_KEY nor GEMINI_API_KEY set`, OP.AI);
+    // Try Claude web search as fallback if Gemini not configured
+    if (process.env.ANTHROPIC_API_KEY) {
+      briefingLog.ai(2, 'Claude', `news for ${city}, ${state} - web search fallback`);
+      return fetchNewsWithClaudeWebSearch({ city, state, date });
+    }
+    briefingLog.warn(2, `Neither GEMINI_API_KEY nor ANTHROPIC_API_KEY set`, OP.AI);
     return { items: [], reason: 'No API keys configured for news search' };
   }
 
-  briefingLog.ai(2, 'Gemini', `news for ${city}, ${state} (fallback)`);
+  briefingLog.ai(2, 'Gemini', `news for ${city}, ${state}`);
 
   const prompt = `You MUST search for and find rideshare-relevant news. Search the web NOW.
 
@@ -1169,8 +1328,12 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
 
   const result = await callGeminiWithSearch({ prompt, maxTokens: 2048 });
 
-  // Graceful degradation - return empty instead of throwing
+  // Graceful degradation - try Claude fallback
   if (!result.ok) {
+    if (process.env.ANTHROPIC_API_KEY) {
+      briefingLog.warn(2, `Gemini news failed - trying Claude web search`, OP.FALLBACK);
+      return fetchNewsWithClaudeWebSearch({ city, state, date });
+    }
     briefingLog.warn(2, `Gemini news failed: ${result.error}`, OP.FALLBACK);
     return { items: [], reason: `News fetch failed: ${result.error}`, provider: 'gemini' };
   }
@@ -1180,6 +1343,11 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
     const newsArray = Array.isArray(parsed) ? parsed : [];
 
     if (newsArray.length === 0 || !newsArray[0]?.title) {
+      // TRY CLAUDE WEB SEARCH AS FALLBACK
+      if (process.env.ANTHROPIC_API_KEY) {
+        briefingLog.warn(2, `Gemini returned 0 news - trying Claude web search`, OP.FALLBACK);
+        return fetchNewsWithClaudeWebSearch({ city, state, date });
+      }
       briefingLog.info(`No news found for ${city}, ${state}`);
       return { items: [], reason: 'No rideshare news found for this location', provider: 'gemini' };
     }
@@ -1187,6 +1355,11 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
     briefingLog.done(2, `Gemini: ${newsArray.length} news items`, OP.AI);
     return { items: newsArray, reason: null, provider: 'gemini' };
   } catch (parseErr) {
+    // TRY CLAUDE WEB SEARCH AS FALLBACK
+    if (process.env.ANTHROPIC_API_KEY) {
+      briefingLog.warn(2, `Gemini news parse failed - trying Claude web search`, OP.FALLBACK);
+      return fetchNewsWithClaudeWebSearch({ city, state, date });
+    }
     briefingLog.error(2, `Gemini news parse failed`, parseErr, OP.AI);
     return { items: [], reason: `Parse error: ${parseErr.message}`, provider: 'gemini' };
   }

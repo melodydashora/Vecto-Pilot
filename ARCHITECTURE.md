@@ -1239,14 +1239,15 @@ All enrich/validate merges use stable keys (place_id preferred; name fallback) a
 ---
 
 ### ~~Perplexity Integration~~
-**Status:** REMOVED (December 2025)
+**Status:** REMOVED (December 2024)
 **Removed Files:**
 - `server/lib/adapters/perplexity-adapter.js`
 - `server/lib/perplexity-research.js`
 - `server/lib/perplexity-event-prompt.js`
 - `server/lib/venue-event-research.js`
+- `server/lib/external/perplexity-api.js` (imports removed from briefing-service.js)
 
-**Reason:** Briefing system migrated to Gemini 3.0 Pro with Google Search for all real-time research (events, traffic, news, holidays). Perplexity adapter and related utilities removed.
+**Reason:** Briefing system migrated to Gemini 3 Pro Preview with Google Search grounding for all real-time research (events, traffic, news, airport conditions). Claude Opus with web search tool serves as fallback when Gemini fails.
 
 ---
 
