@@ -1,6 +1,6 @@
 # UI_FILE_MAP.md - Component, API, and Event Mapping
 
-**Last Updated:** 2025-12-10 UTC
+**Last Updated:** 2025-12-14 UTC
 
 This document provides a complete mapping of UI components to their source files, API calls, events, and identifies orphaned/redundant files.
 
@@ -49,7 +49,6 @@ This document provides a complete mapping of UI components to their source files
 | `InstructionsTab.tsx` | How-to instructions | DonationTab.tsx | ✅ Active |
 | `EventsComponent.tsx` | Event cards display | BriefingTab.tsx | ✅ Active |
 | `ErrorBoundary.tsx` | React error boundary | App.tsx | ✅ Active |
-| `MarketIntelligenceBlocks.tsx` | Market intelligence display | co-pilot.tsx (aliased as unused) | ⚠️ Imported but unused |
 
 ### Co-Pilot Sub-Components
 
@@ -62,9 +61,9 @@ This document provides a complete mapping of UI components to their source files
 
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
-| `strategy/ConsolidatedStrategyComp.tsx` | Strategy display | co-pilot.tsx (aliased as unused) | ⚠️ Imported but unused |
-| `strategy/SmartBlocks.tsx` | Smart blocks display | NONE | ❌ Orphaned |
-| `strategy/StrategyCoach.tsx` | Strategy coach UI | NONE | ❌ Orphaned |
+| `strategy/_future/` | Staged strategy components | - | ⏳ Future |
+
+Note: Legacy strategy components (SmartBlocks.tsx, StrategyCoach.tsx, ConsolidatedStrategyComp.tsx) have been removed or moved to `_future/`.
 
 ### Contexts
 
@@ -79,9 +78,12 @@ This document provides a complete mapping of UI components to their source files
 | `hooks/use-toast.ts` | Toast notifications | Multiple components | ✅ Active |
 | `hooks/use-mobile.tsx` | Mobile detection | UI sidebar | ✅ Active |
 | `hooks/useBriefingQueries.ts` | Briefing data queries | co-pilot.tsx | ✅ Active |
-| `hooks/useEnrichmentProgress.ts` | Progress tracking | co-pilot.tsx | ✅ Active |
-| `hooks/useStrategy.ts` | Strategy polling | strategy/* components | ⚠️ Used by orphaned files |
-| `hooks/useDwellTracking.ts` | Venue dwell time tracking | NONE | ❌ Orphaned |
+| `hooks/useEnrichmentProgress.ts` | Dynamic progress tracking with timing | co-pilot.tsx | ✅ Active |
+| `hooks/useStrategyPolling.ts` | Strategy fetching with SSE + caching | co-pilot.tsx | ✅ Active |
+| `hooks/useStrategyLoadingMessages.ts` | Rotating loading messages + time remaining | co-pilot.tsx | ✅ Active |
+| `hooks/useVenueLoadingMessages.ts` | Venue enrichment loading messages | co-pilot.tsx | ✅ Active |
+| `hooks/useTTS.ts` | Text-to-speech with OpenAI | CoachChat.tsx | ✅ Active |
+| `hooks/useStrategy.ts` | Legacy strategy hook | ⚠️ Review - may be unused |
 
 ### Libraries
 
@@ -90,24 +92,14 @@ This document provides a complete mapping of UI components to their source files
 | `lib/utils.ts` | Utility functions (cn) | ✅ Active |
 | `lib/daypart.ts` | Time classification | ✅ Active |
 | `lib/queryClient.ts` | React Query client + apiRequest | ✅ Active |
-| `lib/prompt/baseline.ts` | Prompt templates | ❌ Orphaned |
-
-### Services
-
-| File | Purpose | Status |
-|------|---------|--------|
-| `services/geocodeService.ts` | Geocoding service | ❌ Orphaned |
-| `services/locationService.ts` | Location service | ❌ Orphaned |
 
 ### Types
 
 | File | Purpose | Status |
 |------|---------|--------|
 | `types/co-pilot.ts` | Co-pilot types (SmartBlock, etc.) | ✅ Active |
-| `types/driver.ts` | Driver types | ❌ Orphaned |
-| `types/location.ts` | Location types | ❌ Orphaned |
-| `types/performance.ts` | Performance types | ❌ Orphaned |
-| `types/settings.ts` | Settings types | ❌ Orphaned |
+| `types/app.d.ts` | App type declarations | ✅ Active |
+| `types/shims.d.ts` | Module shims | ✅ Active |
 
 ### Utilities
 
@@ -119,7 +111,7 @@ This document provides a complete mapping of UI components to their source files
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `engine/reflectionEngine.ts` | Reflection/learning engine | ⚠️ Defined but needs review |
+| `_future/engine/reflectionEngine.ts` | Reflection/learning engine | ⏳ Staged for future |
 
 ### Future Functionality (Staged for Later)
 
@@ -172,10 +164,11 @@ See `client/src/_future/README.md` for activation instructions.
 
 ### Chat & Voice APIs
 
-| Endpoint | Method | Called By | Purpose |
-|----------|--------|-----------|---------|
-| `/api/chat` | POST (SSE) | CoachChat.tsx | Text chat streaming |
-| `/api/realtime/token` | GET | CoachChat.tsx | Voice API token |
+| Endpoint | Method | Called By | Purpose | Auth |
+|----------|--------|-----------|---------|------|
+| `/api/chat/:snapshotId/message` | POST (SSE) | CoachChat.tsx | Text chat streaming | Yes |
+| `/api/realtime/token` | POST | CoachChat.tsx | Voice API token | **Yes** |
+| `/api/tts` | POST | co-pilot.tsx | Text-to-speech | **Yes** |
 
 ### Feedback & Actions APIs
 
@@ -191,7 +184,6 @@ See `client/src/_future/README.md` for activation instructions.
 
 | Endpoint | Method | Called By | Purpose |
 |----------|--------|-----------|---------|
-| `/api/tts` | POST | co-pilot.tsx | Text-to-speech |
 | `/api/geocode/reverse` | GET | (unused in client) | Reverse geocoding |
 | `/api/timezone` | GET | (unused in client) | Timezone lookup |
 
@@ -254,10 +246,14 @@ main.tsx
     └── CoPilot (co-pilot.tsx)
         ├── useLocation (location-context-clean)
         ├── useBriefingQueries.ts
-        ├── useEnrichmentProgress.ts
+        ├── useEnrichmentProgress.ts (dynamic progress + timing)
+        ├── useStrategyPolling.ts (SSE + caching)
+        ├── useStrategyLoadingMessages.ts (rotating messages + time remaining)
+        ├── useVenueLoadingMessages.ts
         ├── co-pilot-helpers.ts
         ├── FeedbackModal.tsx
         ├── CoachChat.tsx
+        │   └── useTTS.ts
         ├── SmartBlocksStatus.tsx
         ├── BarsTable.tsx
         ├── BriefingTab.tsx
@@ -273,46 +269,42 @@ main.tsx
 
 ## ORPHANED FILES (CANDIDATES FOR REMOVAL)
 
-These files exist but are **not imported anywhere** in the codebase:
+### Already Cleaned Up (Dec 2025)
 
-### High Confidence - Safe to Remove
+The following orphaned files have been removed:
+- ~~`client/src/services/locationService.ts`~~ - DELETED
+- ~~`client/src/services/geocodeService.ts`~~ - DELETED
+- ~~`client/src/main-simple.tsx`~~ - DELETED
+- ~~`client/src/lib/prompt/baseline.ts`~~ - DELETED
+- ~~`client/src/components/strategy/SmartBlocks.tsx`~~ - DELETED
+- ~~`client/src/components/strategy/StrategyCoach.tsx`~~ - DELETED
+- ~~`client/src/hooks/useDwellTracking.ts`~~ - DELETED
+
+### Remaining Items to Review
 
 | File | Reason | Recommendation |
 |------|--------|----------------|
-| `client/src/services/locationService.ts` | Not imported anywhere | **DELETE** |
-| `client/src/main-simple.tsx` | Alternate entry point, not used | **DELETE** |
-| `client/src/lib/prompt/baseline.ts` | Not imported anywhere | **DELETE** |
-
-### Medium Confidence - Review Before Removing
-
-| File | Reason | Recommendation |
-|------|--------|----------------|
-| `client/src/components/strategy/SmartBlocks.tsx` | Not imported, uses orphaned hook | **REVIEW** - may be legacy |
-| `client/src/components/strategy/StrategyCoach.tsx` | Not imported, uses orphaned hook | **REVIEW** - may be legacy |
-| `client/src/hooks/useDwellTracking.ts` | Not imported anywhere | **REVIEW** - intended feature? |
-| `client/src/hooks/useStrategy.ts` | Only used by orphaned files | **REVIEW** - remove with strategy/* |
+| `client/src/hooks/useStrategy.ts` | May be legacy, check usage | **REVIEW** |
+| `client/src/components/_future/MarketIntelligenceBlocks.tsx` | Staged for future | Keep in _future |
 
 ---
 
 ## POTENTIALLY REDUNDANT FILES (NEEDS REVIEW)
 
-These files are imported but may be duplicates or unused code paths:
-
 ### Client-Side
 
 | File | Issue | Action |
 |------|-------|--------|
-| `MarketIntelligenceBlocks.tsx` | Imported as `_MarketIntelligenceBlocks` (unused alias) | Review if needed |
-| `strategy/ConsolidatedStrategyComp.tsx` | Imported as `_ConsolidatedStrategyComp` (unused alias) | Review if needed |
-| `engine/reflectionEngine.ts` | Has 3 references but functionality unclear | Review purpose |
+| `_future/MarketIntelligenceBlocks.tsx` | Staged for future activation | Keep in _future |
+| `_future/engine/reflectionEngine.ts` | Staged for Phase 17 | Keep in _future |
 
 ### Server-Side (Needs Separate Review)
 
 | File | Issue | Action |
 |------|-------|--------|
-| `server/lib/ai/llm-router-v2.js` | Deprecated per ARCHITECTURE.md | Review for removal |
-| `server/lib/strategy/strategy-generator.js` | Parallel version exists | Review if still needed |
-| `server/api/research/vector-search.js` | No imports found | Review for removal |
+| `server/lib/ai/llm-router-v2.js` | Used by health endpoint | Keep - provides LLM status |
+| `server/lib/strategy/strategy-generator.js` | Entry point for pipeline | Keep - routes to parallel |
+| `server/api/research/vector-search.js` | Limited usage | Review for removal |
 | `server/api/research/research.js` | Limited usage | Review for removal |
 
 ---
@@ -357,28 +349,23 @@ These files are imported but may be duplicates or unused code paths:
 - **Pages**: 2
 - **Core Components**: 12
 - **Sub-Components**: 2
-- **Strategy Components**: 1 active, 2 orphaned
-- **Hooks**: 4 active, 2 orphaned
+- **Strategy Components**: 0 active (legacy moved to _future)
+- **Hooks**: 9 active, 1 review
 - **Contexts**: 1
-- **Libraries**: 3 active, 1 orphaned
-- **Services**: 0 active, 2 orphaned
-- **Types**: 1 active, 4 orphaned
+- **Libraries**: 3 active
+- **Types**: 3 active
 - **Utilities**: 1
+- **Future/Staged**: 8 files in `_future/`
 
-### Cleanup Recommendations
+### Cleanup Status (Dec 2025)
 
-1. **Immediate Deletion** (3 files):
-   - `services/locationService.ts`
-   - `main-simple.tsx`
-   - `lib/prompt/baseline.ts`
+**Completed Cleanup:**
+- ✅ `services/` folder - DELETED
+- ✅ `main-simple.tsx` - DELETED
+- ✅ `lib/prompt/baseline.ts` - DELETED
+- ✅ Legacy strategy components - DELETED
+- ✅ `hooks/useDwellTracking.ts` - DELETED
+- ✅ Orphaned types moved to `_future/user-settings/`
 
-2. **Review Then Delete** (4 files):
-   - `strategy/SmartBlocks.tsx`
-   - `strategy/StrategyCoach.tsx`
-   - `hooks/useDwellTracking.ts`
-   - `hooks/useStrategy.ts`
-
-3. **Review Purpose** (3 files):
-   - `MarketIntelligenceBlocks.tsx`
-   - `strategy/ConsolidatedStrategyComp.tsx`
-   - `engine/reflectionEngine.ts`
+**Remaining Review:**
+- `hooks/useStrategy.ts` - May be unused, verify before removal
