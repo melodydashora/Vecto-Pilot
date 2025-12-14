@@ -210,6 +210,35 @@ const { data } = useQuery({
 });
 ```
 
+### Progress Bar Accuracy (Dec 2025)
+
+**Problem:** Progress bar was stuck at 55% during strategy generation
+
+**Root Cause:**
+- Hardcoded phase-to-percentage mapping (e.g., `immediate: 55%`)
+- No sub-phase progress tracking
+- 3-second polling interval meant progress only updated on phase changes
+
+**Solution:** Dynamic time-based progress calculation:
+1. Backend tracks `phase_started_at` timestamp in `strategies` table
+2. Backend returns `timing` metadata in polling response:
+   - `phase_started_at`: When current phase started
+   - `phase_elapsed_ms`: How long current phase has been running
+   - `expected_durations`: Expected time for each phase
+3. Frontend calculates progress based on:
+   - Completed phases (sum of their expected durations)
+   - Current phase progress (elapsed / expected, capped at 95%)
+4. Frontend updates locally every 500ms for smooth progress animation
+5. Time remaining displayed (e.g., "~30 seconds remaining")
+
+**Files Changed:**
+- `server/lib/strategy/strategy-utils.js`: Added `PHASE_EXPECTED_DURATIONS`, `phase_started_at` tracking
+- `server/api/strategy/content-blocks.js`: Returns `timing` metadata in response
+- `server/api/briefing/events.js`: Added `phaseEmitter` for SSE phase_change events
+- `client/src/hooks/useEnrichmentProgress.ts`: Dynamic progress calculation
+- `client/src/hooks/useStrategyLoadingMessages.ts`: Added `timeRemaining` output
+- `client/src/pages/co-pilot.tsx`: Displays time remaining in UI
+
 ### Location Race Condition (Issue Dec 2025)
 
 **Problem:** Bar Tab venues showing "Unknown" city because query fires before location resolved

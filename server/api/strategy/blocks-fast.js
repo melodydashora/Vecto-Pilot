@@ -42,7 +42,7 @@ import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 import { generateEnhancedSmartBlocks } from '../../lib/venue/enhanced-smart-blocks.js';
 import { resolveVenueAddressesBatch } from '../../lib/venue/venue-address-resolver.js';
 import { isPlusCode } from '../utils/http-helpers.js';
-import { strategyEmitter, blocksEmitter } from '../briefing/events.js';
+import { strategyEmitter, blocksEmitter, phaseEmitter } from '../briefing/events.js';
 import { sseLog, venuesLog, triadLog, dbLog, briefingLog } from '../../logger/workflow.js';
 
 const router = Router();
@@ -124,7 +124,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
 
   try {
     // Phase: enriching (venue enrichment and ranking)
-    await updatePhase(snapshotId, 'enriching');
+    await updatePhase(snapshotId, 'enriching', { phaseEmitter: options.phaseEmitter });
 
     await generateEnhancedSmartBlocks({
       snapshotId,
@@ -145,7 +145,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     if (newRanking) {
       venuesLog.done(4, `SmartBlocks generated for ${snapshotId.slice(0, 8)}`);
       // Mark phase complete (updatePhase is imported at file level)
-      await updatePhase(snapshotId, 'complete');
+      await updatePhase(snapshotId, 'complete', { phaseEmitter: options.phaseEmitter });
       return { ranking: newRanking, generated: true, error: null };
     } else {
       venuesLog.warn(4, `SmartBlocks generated but no ranking found`);
@@ -308,7 +308,8 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     // GATE 2: Ensure blocks exist (generate if missing)
     const { ranking, error } = await ensureSmartBlocksExist(snapshotId, {
       strategyRow,
-      snapshot
+      snapshot,
+      phaseEmitter
     });
 
     if (error === 'missing_briefing') {
@@ -469,11 +470,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         await ensureStrategyRow(snapshotId);
 
         // Phase 1: Resolving location and examining conditions
-        await updatePhase(snapshotId, 'resolving');
+        await updatePhase(snapshotId, 'resolving', { phaseEmitter });
 
         // Phase 2: Run briefing provider (Gemini with Google Search)
         // Note: Holiday is already in snapshot table from holiday-detector.js
-        await updatePhase(snapshotId, 'analyzing');
+        await updatePhase(snapshotId, 'analyzing', { phaseEmitter });
 
         try {
           await runBriefing(snapshotId, { snapshot });
@@ -484,7 +485,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         }
 
         // Phase 3: Immediate Strategy (GPT-5.2 with snapshot + briefing)
-        await updatePhase(snapshotId, 'immediate');
+        await updatePhase(snapshotId, 'immediate', { phaseEmitter });
 
         triadLog.phase(3, `[blocks-fast] Calling runImmediateStrategy for ${snapshot.city}, ${snapshot.state}`);
 
@@ -502,7 +503,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         }
 
         // Phase 4: Venue Discovery
-        await updatePhase(snapshotId, 'venues');
+        await updatePhase(snapshotId, 'venues', { phaseEmitter });
 
         // Generate smart blocks using shared helper
         const [consolidatedRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
@@ -514,7 +515,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         const { ranking, error: blocksError } = await ensureSmartBlocksExist(snapshotId, {
           strategyRow: consolidatedRow,
           briefingRow: briefingRowForBlocks,
-          snapshot
+          snapshot,
+          phaseEmitter
         });
 
         if (blocksError) {
@@ -588,7 +590,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         if (strategy && ['complete', 'ok'].includes(strategy.status)) {
           const { ranking, error } = await ensureSmartBlocksExist(snapshotId, {
             strategyRow: strategy,
-            snapshot
+            snapshot,
+            phaseEmitter
           });
 
           if (error) {

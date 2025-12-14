@@ -28,9 +28,25 @@ Fetches all briefing data from `/api/briefing/*` endpoints.
 
 ### useEnrichmentProgress
 ```typescript
-const { progress, phase } = useEnrichmentProgress({ coords, strategyData, snapshotId, hasBlocks });
+const { progress, strategyProgress, phase, pipelinePhase, timeRemainingText, timeRemainingMs } = useEnrichmentProgress({
+  coords,
+  strategyData,
+  lastSnapshotId,
+  hasBlocks
+});
 ```
-Tracks strategy and briefing generation progress with phase detection.
+Tracks strategy and briefing generation progress with:
+- **Dynamic progress calculation** based on actual phase timing (not hardcoded percentages)
+- **Time remaining estimates** (e.g., "~30 seconds")
+- **Real-time updates** every 500ms using backend `timing` metadata
+
+The hook uses expected phase durations from the backend to calculate progress:
+- `starting`: 500ms
+- `resolving`: 1500ms
+- `analyzing`: 12000ms (briefing)
+- `immediate`: 8000ms (GPT-5.2 strategy)
+- `venues`: 3000ms
+- `enriching`: 15000ms (Google APIs)
 
 ### useStrategyPolling
 ```typescript
@@ -60,9 +76,19 @@ Detects mobile viewport.
 
 ### useStrategyLoadingMessages
 ```typescript
-const { message } = useStrategyLoadingMessages({ isLoading: true });
+// New API with time remaining support
+const { icon, text, title, step, badge, timeRemaining } = useStrategyLoadingMessages({
+  pipelinePhase,
+  timeRemainingText  // Optional: from useEnrichmentProgress
+});
+
+// Legacy API still supported
+const { icon, text, step, badge } = useStrategyLoadingMessages(pipelinePhase);
 ```
-Returns rotating loading messages during strategy generation (e.g., "Analyzing local events...").
+Returns rotating loading messages during strategy generation with:
+- **Phase-specific messages** (e.g., "Checking real-time traffic conditions...")
+- **Step indicators** (e.g., "Step 3/7: Research")
+- **Time remaining** when provided by useEnrichmentProgress
 
 ### useVenueLoadingMessages
 ```typescript

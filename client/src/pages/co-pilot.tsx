@@ -512,15 +512,15 @@ const CoPilot: React.FC = () => {
 
   // Enrichment progress tracking (using extracted hook)
   const hasBlocks = (blocksData?.blocks?.length ?? 0) > 0;
-  const { progress: enrichmentProgress, strategyProgress, phase: enrichmentPhase, pipelinePhase } = useEnrichmentProgress({
+  const { progress: enrichmentProgress, strategyProgress, phase: enrichmentPhase, pipelinePhase, timeRemainingText } = useEnrichmentProgress({
     coords: coords ? { latitude: coords.latitude, longitude: coords.longitude } : null,
     strategyData: strategyData as StrategyData | null,
     lastSnapshotId,
     hasBlocks
   });
 
-  // Cycling loading messages for strategy generation
-  const loadingMessages = useStrategyLoadingMessages(pipelinePhase);
+  // Cycling loading messages for strategy generation (with time remaining)
+  const loadingMessages = useStrategyLoadingMessages({ pipelinePhase, timeRemainingText });
 
   useEffect(() => {
     if (error) {
@@ -1066,9 +1066,17 @@ const CoPilot: React.FC = () => {
                         />
                       </div>
                       <div className="space-y-1 mt-2">
-                        <p className="text-xs text-blue-600 italic">
-                          {loadingMessages.step}
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-blue-600 italic">
+                            {loadingMessages.step}
+                          </p>
+                          {/* Time remaining estimate */}
+                          {loadingMessages.timeRemaining && (
+                            <p className="text-xs text-blue-500">
+                              {loadingMessages.timeRemaining}
+                            </p>
+                          )}
+                        </div>
                         {/* Sub-message dots indicator */}
                         <div className="flex gap-1 justify-center mt-1">
                           {Array.from({ length: loadingMessages.messageCount }).map((_, i) => (
@@ -1174,6 +1182,12 @@ const CoPilot: React.FC = () => {
                         }}
                       />
                     </div>
+                    {/* Time remaining estimate */}
+                    {timeRemainingText && pipelinePhase !== 'complete' && (
+                      <p className="text-xs text-gray-500 text-center mt-2">
+                        {timeRemainingText} remaining
+                      </p>
+                    )}
                   </div>
                 </div>
               </Card>

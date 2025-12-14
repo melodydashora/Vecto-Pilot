@@ -74,8 +74,22 @@ const PHASE_INFO: Record<string, { title: string; step: string; badge: string }>
 // Default phase info fallback
 const DEFAULT_PHASE_INFO = { title: 'Loading', step: 'Processing...', badge: 'Loading' };
 
-export function useStrategyLoadingMessages(pipelinePhase: PipelinePhase | undefined | null) {
+interface UseStrategyLoadingMessagesOptions {
+  pipelinePhase: PipelinePhase | undefined | null;
+  timeRemainingText?: string | null;
+}
+
+export function useStrategyLoadingMessages(
+  pipelinePhaseOrOptions: PipelinePhase | undefined | null | UseStrategyLoadingMessagesOptions
+) {
   const [messageIndex, setMessageIndex] = useState(0);
+
+  // Support both old signature (just phase) and new signature (options object)
+  const options = typeof pipelinePhaseOrOptions === 'object' && pipelinePhaseOrOptions !== null && 'pipelinePhase' in pipelinePhaseOrOptions
+    ? pipelinePhaseOrOptions
+    : { pipelinePhase: pipelinePhaseOrOptions as PipelinePhase | undefined | null, timeRemainingText: null };
+
+  const { pipelinePhase, timeRemainingText } = options;
 
   // Normalize phase - default to 'starting' if undefined/null
   const normalizedPhase = pipelinePhase || 'starting';
@@ -121,5 +135,6 @@ export function useStrategyLoadingMessages(pipelinePhase: PipelinePhase | undefi
     badge: phaseInfo.badge,
     messageCount: messages.length,
     currentIndex: messageIndex,
+    timeRemaining: timeRemainingText || null,
   };
 }

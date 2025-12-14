@@ -184,24 +184,81 @@ export function normalizeBriefingShape(briefing) {
   };
 }
 
+// Expected duration for each phase (in milliseconds) based on historical averages
+// These are used for progress calculation on the frontend
+export const PHASE_EXPECTED_DURATIONS = {
+  starting: 500,      // Nearly instant
+  resolving: 1500,    // Location resolution
+  analyzing: 12000,   // Briefing (Gemini with search) - can take 8-15s
+  immediate: 8000,    // GPT-5.2 strategy generation
+  venues: 3000,       // Venue planner
+  enriching: 15000,   // Google APIs (Routes, Places, enrichment)
+  complete: 0         // Done
+};
+
+// Total expected pipeline duration (sum of all phases)
+export const TOTAL_EXPECTED_DURATION = Object.values(PHASE_EXPECTED_DURATIONS).reduce((a, b) => a + b, 0);
+
 /**
- * Update pipeline phase for a snapshot's strategy
- * Phases: starting → strategist → briefer → consolidator → venues → complete
+ * Update pipeline phase for a snapshot's strategy with timing metadata
+ * Phases: starting → resolving → analyzing → immediate → venues → enriching → complete
  *
  * @param {string} snapshotId - UUID of snapshot
- * @param {string} phase - Phase name (strategist|briefer|consolidator|venues|complete)
+ * @param {string} phase - Phase name
+ * @param {Object} options - Optional parameters
+ * @param {EventEmitter} options.phaseEmitter - Optional emitter for SSE phase_change events
  * @returns {Promise<void>}
  */
-export async function updatePhase(snapshotId, phase) {
+export async function updatePhase(snapshotId, phase, options = {}) {
   try {
+    const now = new Date();
+
     await db.update(strategies)
-      .set({ phase })
+      .set({
+        phase,
+        phase_started_at: now  // Track when this phase started
+      })
       .where(eq(strategies.snapshot_id, snapshotId));
+
     // Map phase to TRIAD type for clearer logging
     const triadType = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'Strategy' :
                       ['venues', 'enriching'].includes(phase) ? 'Venue' : 'Pipeline';
     triadLog.info(`[strategy-utils] ${triadType}|${snapshotId.slice(0, 8)} → ${phase}`, OP.DB);
+
+    // Emit phase_change SSE event if emitter provided
+    if (options.phaseEmitter) {
+      options.phaseEmitter.emit('change', {
+        snapshot_id: snapshotId,
+        phase,
+        phase_started_at: now.toISOString(),
+        expected_duration_ms: PHASE_EXPECTED_DURATIONS[phase] || 5000
+      });
+    }
   } catch (error) {
     triadLog.error(1, `Phase update failed`, error, OP.DB);
+  }
+}
+
+/**
+ * Get phase timing info for a snapshot
+ * @param {string} snapshotId - UUID of snapshot
+ * @returns {Promise<{phase: string, phase_started_at: Date|null, pipeline_started_at: Date|null}>}
+ */
+export async function getPhaseTimingInfo(snapshotId) {
+  try {
+    const [row] = await db.select({
+      phase: strategies.phase,
+      phase_started_at: strategies.phase_started_at,
+      created_at: strategies.created_at
+    }).from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+
+    return {
+      phase: row?.phase || 'starting',
+      phase_started_at: row?.phase_started_at || null,
+      pipeline_started_at: row?.created_at || null
+    };
+  } catch (error) {
+    triadLog.error(1, `getPhaseTimingInfo failed`, error);
+    return { phase: 'starting', phase_started_at: null, pipeline_started_at: null };
   }
 }
