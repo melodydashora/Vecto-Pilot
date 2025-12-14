@@ -11,6 +11,7 @@ This folder contains detailed technical documentation for Vecto Pilot's architec
 | [ai-pipeline.md](ai-pipeline.md) | TRIAD AI pipeline architecture | Model configuration, phase timing, fallbacks |
 | [api-reference.md](api-reference.md) | Complete API endpoint documentation | Routes, parameters, responses |
 | [database-schema.md](database-schema.md) | PostgreSQL tables and relationships | Snapshots, strategies, rankings |
+| [event-discovery.md](event-discovery.md) | Multi-model AI event search | SerpAPI, GPT-5.2, Gemini, Claude, Perplexity |
 | [constraints.md](constraints.md) | Critical rules and limitations | Model parameters, GPS rules, security |
 | [google-cloud-apis.md](google-cloud-apis.md) | Google APIs reference | Places, Routes, Weather, Geocoding |
 

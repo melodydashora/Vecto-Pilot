@@ -26,9 +26,39 @@ The `types/` subfolder contains shared TypeScript types.
 - `briefings` - Real-time intelligence
 - `rankings` - Venue recommendations
 - `ranking_candidates` - Individual venues
+- `discovered_events` - **AI-discovered events** (multi-model search)
 - `feedback` - User feedback
 - `actions` - User interactions
 - `coords_cache` - Geocode cache
+
+### discovered_events Table
+
+Stores events found by multi-model AI search (SerpAPI, GPT-5.2, Gemini, Claude, Perplexity):
+
+```javascript
+export const discovered_events = pgTable("discovered_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  venue_name: text("venue_name"),
+  address: text("address"),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  event_date: text("event_date").notNull(),   // YYYY-MM-DD
+  event_time: text("event_time"),              // "7:00 PM"
+  event_end_time: text("event_end_time"),      // "10:00 PM"
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  category: text("category").notNull().default('other'),
+  expected_attendance: text("expected_attendance").default('medium'),
+  source_model: text("source_model").notNull(),  // SerpAPI, GPT-5.2, etc.
+  event_hash: text("event_hash").notNull().unique(),  // Deduplication key
+  // ...
+});
+```
+
+**Deduplication**: Uses MD5 hash of `normalize(title + venue + date + city)` to prevent duplicates across sources.
+
+See [Event Discovery Architecture](../docs/architecture/event-discovery.md) for full documentation.
 
 ## Usage
 

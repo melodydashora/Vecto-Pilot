@@ -9,6 +9,7 @@ Detailed technical documentation split by domain:
 | [API Reference](architecture/api-reference.md) | Complete API endpoint documentation |
 | [Database Schema](architecture/database-schema.md) | PostgreSQL tables and relationships |
 | [AI Pipeline](architecture/ai-pipeline.md) | TRIAD architecture and model configuration |
+| [Event Discovery](architecture/event-discovery.md) | Multi-model AI event search system |
 | [Constraints](architecture/constraints.md) | Critical rules and limitations |
 | [Google Cloud APIs](architecture/google-cloud-apis.md) | Google APIs reference and usage patterns |
 

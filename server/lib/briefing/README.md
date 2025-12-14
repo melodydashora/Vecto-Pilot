@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Real-time briefing service for events, traffic, weather, and news. Provides the data shown in the Briefing tab.
+Real-time briefing service for events, traffic, weather, and news. Provides the data shown in the Briefing tab. Events are now sourced from the `discovered_events` table via multi-model AI discovery.
 
 ## Files
 
@@ -10,6 +10,33 @@ Real-time briefing service for events, traffic, weather, and news. Provides the 
 |------|---------|------------|
 | `briefing-service.js` | Main briefing orchestrator | `getOrGenerateBriefing(snapshotId)` |
 | `event-schedule-validator.js` | Event verification (DISABLED) | `validateEventSchedules(events)` |
+
+## Event Discovery Integration
+
+Events are now discovered using SerpAPI + GPT-5.2 and stored in the `discovered_events` table:
+
+```javascript
+import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
+
+// Called in fetchEventsForBriefing()
+const result = await syncEventsForLocation(
+  { city, state, lat, lng },
+  false  // Normal mode: SerpAPI + GPT-5.2 only
+);
+// Result: { events: [...], inserted: 12, skipped: 33 }
+
+// Then read back from discovered_events table
+const events = await db.select()
+  .from(discovered_events)
+  .where(and(
+    eq(discovered_events.city, city),
+    eq(discovered_events.state, state),
+    gte(discovered_events.event_date, today),
+    lte(discovered_events.event_date, weekFromNow)
+  ));
+```
+
+See [Event Discovery Architecture](../../../docs/architecture/event-discovery.md) for full documentation.
 
 ## Usage
 

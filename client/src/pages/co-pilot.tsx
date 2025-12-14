@@ -1715,7 +1715,7 @@ const CoPilot: React.FC = () => {
         {activeTab === 'map' && (
           <div data-testid="map-section" className="mb-24">
             {coords && lastSnapshotId ? (
-              <MapTab 
+              <MapTab
                 driverLat={coords.latitude}
                 driverLng={coords.longitude}
                 venues={blocks.map((block, idx) => ({
@@ -1729,6 +1729,18 @@ const CoPilot: React.FC = () => {
                   rank: idx + 1,
                   value_grade: block.value_grade,
                 }))}
+                events={eventsData?.events?.map((e: Record<string, unknown>) => ({
+                  title: e.title as string,
+                  venue: e.venue as string | undefined,
+                  address: e.address as string | undefined,
+                  event_date: e.event_date as string | undefined,
+                  event_time: e.event_time as string | undefined,
+                  event_end_time: e.event_end_time as string | undefined,
+                  latitude: e.latitude as number | undefined,
+                  longitude: e.longitude as number | undefined,
+                  impact: e.impact as 'high' | 'medium' | 'low' | undefined,
+                  subtype: e.subtype as string | undefined,
+                })) || []}
                 snapshotId={lastSnapshotId}
                 isLoading={isLoading}
               />

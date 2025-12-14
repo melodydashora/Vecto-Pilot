@@ -200,6 +200,39 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 
 ---
 
+### `discovered_events` - AI-Discovered Events
+
+**Purpose:** Events found by multi-model AI search (SerpAPI, GPT-5.2, Gemini, Claude, Perplexity) for rideshare demand prediction
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/scripts/sync-events.mjs`
+- Query: `server/api/briefing/briefing.js`
+
+**Key Columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `title` | TEXT | Event name |
+| `venue_name` | TEXT | Venue name |
+| `address` | TEXT | Full address |
+| `city`, `state` | TEXT | Location |
+| `event_date` | TEXT | Date (YYYY-MM-DD) |
+| `event_time` | TEXT | Start time (e.g., "7:00 PM") |
+| `event_end_time` | TEXT | End time (e.g., "10:00 PM") |
+| `lat`, `lng` | DOUBLE PRECISION | Coordinates |
+| `category` | TEXT | concert/sports/festival/etc. |
+| `expected_attendance` | TEXT | high/medium/low |
+| `source_model` | TEXT | SerpAPI, GPT-5.2, Gemini, etc. |
+| `event_hash` | TEXT (UNIQUE) | Deduplication key |
+| `is_active` | BOOLEAN | False if cancelled |
+
+**Deduplication:** Uses MD5 hash of `normalize(title + venue + date + city)` to prevent duplicates across sources.
+
+See [Event Discovery Architecture](event-discovery.md) for full documentation.
+
+---
+
 ## JSONB Field Schemas
 
 ### `weather` (in snapshots)
