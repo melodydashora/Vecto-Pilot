@@ -96,18 +96,21 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           timezone,
         );
 
-        // 3a. LOG name differences (but ACCEPT nearby venues - they share event context)
-        if (
-          placeDetails?.google_name &&
-          placeDetails.google_name !== venue.name
-        ) {
-          const similarity = calculateNameSimilarity(
-            venue.name,
-            placeDetails.google_name,
-          );
+        // 3a. Validate name matches - REJECT low-confidence matches to avoid wrong venues
+        // Threshold: 20% minimum similarity required to accept Google's result
+        const MIN_SIMILARITY_THRESHOLD = 0.20;
+        let useGoogleDetails = true;
 
-          if (similarity < 0.4) {
-            venuesLog.warn(3, `"${venue.name}" → Google found "${placeDetails.google_name}" (${(similarity * 100).toFixed(0)}% match) - accepting nearby venue`, OP.API);
+        if (placeDetails?.google_name && placeDetails.google_name !== venue.name) {
+          const similarity = calculateNameSimilarity(venue.name, placeDetails.google_name);
+
+          if (similarity < MIN_SIMILARITY_THRESHOLD) {
+            // REJECT: Match quality too low - Google found a different business
+            venuesLog.warn(3, `"${venue.name}" → Google found "${placeDetails.google_name}" (${(similarity * 100).toFixed(0)}% match) - REJECTED (below ${MIN_SIMILARITY_THRESHOLD * 100}% threshold)`, OP.API);
+            useGoogleDetails = false;
+          } else if (similarity < 0.4) {
+            // ACCEPT with warning: Low but acceptable match
+            venuesLog.warn(3, `"${venue.name}" → Google found "${placeDetails.google_name}" (${(similarity * 100).toFixed(0)}% match) - accepting with caution`, OP.API);
           }
         }
 
@@ -131,11 +134,13 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           ...venue,
           rank: index + 1,
           // Google-enriched data (camelCase for consistency with blocks route)
+          // Only use Google place details if name match passed threshold
           address: address || "Address unavailable",
-          placeId: placeDetails?.place_id || null,
-          businessStatus: placeDetails?.business_status || "UNKNOWN",
-          isOpen: placeDetails?.isOpen ?? null,
-          businessHours: placeDetails?.businessHours || null,
+          placeId: useGoogleDetails ? (placeDetails?.place_id || null) : null,
+          businessStatus: useGoogleDetails ? (placeDetails?.business_status || "UNKNOWN") : "UNVERIFIED",
+          isOpen: useGoogleDetails ? (placeDetails?.isOpen ?? null) : null,
+          businessHours: useGoogleDetails ? (placeDetails?.businessHours || null) : null,
+          placeVerified: useGoogleDetails, // Flag indicating if Google place match was accepted
           distanceMeters: route.distanceMeters,
           distanceMiles: (route.distanceMeters * 0.000621371).toFixed(1),
           driveTimeMinutes: Math.ceil(route.durationSeconds / 60),
@@ -145,7 +150,8 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         };
 
         const openStatus = enrichedVenue.isOpen === true ? 'OPEN' : enrichedVenue.isOpen === false ? 'CLOSED' : 'UNKNOWN';
-        venuesLog.done(3, `"${venueName}" → ${openStatus}, ${enrichedVenue.businessHours || 'no hours'}`, OP.API);
+        const verifiedStatus = useGoogleDetails ? '' : ' [UNVERIFIED]';
+        venuesLog.done(3, `"${venueName}" → ${openStatus}, ${enrichedVenue.businessHours || 'no hours'}${verifiedStatus}`, OP.API);
         return enrichedVenue;
       } catch (error) {
         venuesLog.error(3, `"${venueName}" enrichment failed`, error, OP.API);

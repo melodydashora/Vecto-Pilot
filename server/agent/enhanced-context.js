@@ -130,7 +130,9 @@ export async function getEnhancedProjectContext(options = {}) {
       created: s.created_at,
     }));
   } catch (err) {
-    console.warn('[Agent Enhanced Context] Failed to load recent strategies:', err.message);
+    // Log error code/name for debugging (e.g., connection timeout, missing column)
+    const errorDetail = err.code || err.name || 'unknown';
+    console.warn(`[Agent Enhanced Context] Failed to load recent strategies (${errorDetail}):`, err.message?.substring(0, 200));
   }
 
   try {
