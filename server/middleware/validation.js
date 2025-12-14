@@ -8,17 +8,18 @@ export const schemas = {
   
   action: z.object({
     // Support both 'action' (used by client) and 'action_type' for flexibility
-    action: z.enum(['view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate']).optional(),
-    action_type: z.enum(['view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate']).optional(),
-    snapshot_id: z.string().uuid().optional(),
-    ranking_id: z.string().uuid().optional(),
-    block_id: z.string().optional(),
-    venue_id: z.string().optional(),
-    dwell_ms: z.number().int().min(0).max(3600000).nullable().optional(),
-    from_rank: z.number().int().optional(),
-    user_id: z.string().optional(),
-    raw: z.any().optional(),
-    metadata: z.record(z.any()).optional()
+    // Using .nullish() to accept both undefined and null from client
+    action: z.enum(['view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate']).nullish(),
+    action_type: z.enum(['view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate']).nullish(),
+    snapshot_id: z.string().uuid().nullish(),
+    ranking_id: z.string().uuid().nullish(),
+    block_id: z.string().nullish(),
+    venue_id: z.string().nullish(),
+    dwell_ms: z.number().int().min(0).max(3600000).nullish(),
+    from_rank: z.number().int().nullish(),
+    user_id: z.string().nullish(),
+    raw: z.any().nullish(),
+    metadata: z.record(z.any()).nullish()
   }).strict(false),
   
   feedback: z.object({
