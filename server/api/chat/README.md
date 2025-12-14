@@ -6,21 +6,32 @@ AI Strategy Coach with streaming and voice capabilities.
 
 ## Files
 
-| File | Route | Purpose |
-|------|-------|---------|
-| `chat.js` | `/api/chat` | AI Coach SSE streaming |
-| `chat-context.js` | `/coach/context/*` | Read-only chat context |
-| `realtime.js` | `/api/realtime` | OpenAI Realtime voice |
-| `tts.js` | `/api/tts` | Text-to-speech |
+| File | Route | Purpose | Auth Required |
+|------|-------|---------|---------------|
+| `chat.js` | `/api/chat` | AI Coach SSE streaming | Yes |
+| `chat-context.js` | `/coach/context/*` | Read-only chat context | No |
+| `realtime.js` | `/api/realtime` | OpenAI Realtime voice | **Yes** |
+| `tts.js` | `/api/tts` | Text-to-speech | **Yes** |
 
 ## Endpoints
 
 ```
-POST /api/chat                    - AI Coach with streaming (SSE)
-GET  /coach/context/:snapshotId   - Get chat context
-GET  /api/realtime/session        - Get Realtime session token
-POST /api/tts                     - Text-to-speech conversion
+POST /api/chat/:snapshotId/message  - AI Coach with streaming (SSE)
+GET  /coach/context/:snapshotId     - Get chat context
+POST /api/realtime/token            - Get Realtime session token (AUTH REQUIRED)
+POST /api/tts                       - Text-to-speech conversion (AUTH REQUIRED)
 ```
+
+## Security
+
+**Auth-Protected Endpoints:** The following endpoints require authentication because they incur API costs:
+
+| Endpoint | Reason for Auth |
+|----------|-----------------|
+| `POST /api/realtime/token` | Mints OpenAI Realtime tokens (expensive) |
+| `POST /api/tts` | Calls OpenAI TTS API (has per-request cost) |
+
+Both use `requireAuth` middleware to prevent unauthenticated API cost abuse.
 
 ## AI Coach Flow
 

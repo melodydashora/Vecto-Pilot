@@ -2,7 +2,7 @@
 
 ---
 
-**Last Updated:** 2025-12-13 UTC (Documentation sync)
+**Last Updated:** 2025-12-14 UTC (Documentation sync)
 
 ---
 
@@ -118,7 +118,7 @@ Each folder now contains a README.md explaining its purpose, files, and connecti
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                    EXTERNAL AI/API SERVICES                      │
-│  • Anthropic (Claude Sonnet 4.5)                                │
+│  • Anthropic (Claude Opus 4.5)                                  │
 │  • OpenAI (GPT-5.2, Realtime API)                               │
 │  • Google (Gemini 3.0 Pro, Places, Routes, Weather, AQ)         │
 └─────────────────────────────────────────────────────────────────┘
