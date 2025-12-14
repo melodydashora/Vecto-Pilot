@@ -63,7 +63,8 @@
       "Bash(for dir in /home/runner/workspace/{attached_assets,config,data,drizzle,keys,migrations,public,schema})",
       "Bash(if [ -d \"$dir\" ])",
       "Bash(if [ -f \"$dir/README.md\" ])",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(npm ls:*)"
     ],
     "deny": [],
     "ask": []
