@@ -22,7 +22,7 @@ components/
 ├── co-pilot/              # Co-pilot sub-components
 ├── strategy/              # Strategy display components
 ├── _future/               # Future components (not imported)
-└── ui/                    # shadcn/ui primitives (46 files)
+└── ui/                    # shadcn/ui primitives (48 files)
 ```
 
 ## Active Components
@@ -43,10 +43,10 @@ components/
 
 ## Sub-folders
 
-- `co-pilot/` - Co-pilot page sub-components (tabs, banners)
-- `strategy/` - Strategy display (some orphaned)
-- `_future/` - Not imported, waiting for implementation
-- `ui/` - 46 shadcn/ui primitives (button, card, dialog, etc.)
+- [`co-pilot/`](co-pilot/README.md) - Co-pilot page sub-components (tabs, banners)
+- [`strategy/`](strategy/README.md) - Strategy display (some orphaned)
+- [`_future/`](_future/README.md) - Not imported, waiting for implementation
+- [`ui/`](ui/README.md) - 48 shadcn/ui primitives (button, card, dialog, etc.)
 
 ## Connections
 
@@ -74,6 +74,7 @@ const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
 
 ## See Also
 
-- `co-pilot/README.md` - Sub-component details
-- `strategy/README.md` - Strategy components
-- `_future/README.md` - Staging area
+- [co-pilot/README.md](co-pilot/README.md) - Sub-component details
+- [strategy/README.md](strategy/README.md) - Strategy components
+- [ui/README.md](ui/README.md) - Shadcn/ui component library
+- [_future/README.md](_future/README.md) - Staging area

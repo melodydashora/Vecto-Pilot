@@ -72,22 +72,27 @@ db/drizzle.js (database)
 Response
 ```
 
-## AI Pipeline Flow
+## TRIAD Pipeline (AI Strategy Generation)
 
 ```
-POST /api/blocks-fast
-    ↓
-lib/ai/providers/briefing.js (Gemini 3.0 Pro → briefings table)
-    ↓
-lib/ai/providers/consolidator.js (GPT-5.2 → strategy_for_now)
-    ↓
-lib/venue/enhanced-smart-blocks.js (GPT-5.2 → venues)
-    ↓
-Response with strategy + blocks
+POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
+│
+├── Phase 1 (Parallel): Strategist + Briefer + Holiday
+│   ├── minstrategy (Claude Opus 4.5) → strategies.minstrategy
+│   ├── briefing.js (Gemini 3.0 Pro) → briefings table
+│   └── holiday-checker → holiday context
+│
+├── Phase 2 (Parallel): Consolidators
+│   ├── runConsolidator (Gemini) → strategies.consolidated_strategy
+│   └── runImmediateStrategy (GPT-5.2) → strategies.strategy_for_now
+│
+├── Phase 3: Venue Generation
+│   └── enhanced-smart-blocks.js → rankings + ranking_candidates
+│
+└── Response with strategy + blocks
 
-POST /api/strategy/daily (on-demand)
-    ↓
-lib/ai/providers/consolidator.js (Gemini → consolidated_strategy)
+Phase timing tracked via strategies.phase_started_at for real-time progress.
+See lib/ai/README.md for model details.
 ```
 
 ## Key Conventions

@@ -52,23 +52,42 @@ const result = await callModel('strategist', { system, user });
 
 Configured via environment variables:
 
-| Role | Env Variable | Default Model |
-|------|--------------|---------------|
-| `briefer` | `STRATEGY_BRIEFER` | Gemini 3.0 Pro |
-| `consolidator` | `STRATEGY_CONSOLIDATOR` | GPT-5.2 |
-| `event_validator` | `STRATEGY_EVENT_VALIDATOR` | Claude Opus 4.5 (with web search) |
+| Role | Env Variable | Default Model | Purpose |
+|------|--------------|---------------|---------|
+| `strategist` | `STRATEGY_STRATEGIST` | Claude Opus 4.5 | Minstrategy (longer-term analysis) |
+| `briefer` | `STRATEGY_BRIEFER` | Gemini 3.0 Pro | Events, traffic, news (with Google Search) |
+| `consolidator` | `STRATEGY_CONSOLIDATOR` | GPT-5.2 | Immediate strategy (1hr tactical) |
+| `event_validator` | `STRATEGY_EVENT_VALIDATOR` | Claude Opus 4.5 | Event validation (disabled) |
 
-## Strategy Pipeline
+## TRIAD Pipeline (Strategy Generation)
+
+The TRIAD pipeline generates strategies in 4 phases:
 
 ```
-POST /api/blocks-fast:
-1. briefing.js (Gemini) → briefings table
-2. consolidator.js/runImmediateStrategy (GPT-5.2) → strategies.strategy_for_now
-3. SmartBlocks generation → rankings + ranking_candidates
-
-POST /api/strategy/daily (on-demand):
-4. consolidator.js/runConsolidator (Gemini) → strategies.consolidated_strategy
+POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
+├── Phase 1 (Parallel): Strategist + Briefer + Holiday Check
+│   ├── minstrategy (Claude Opus 4.5) → strategies.minstrategy
+│   ├── briefing.js (Gemini 3.0 Pro) → briefings table
+│   └── holiday-checker → holiday context
+│
+├── Phase 2 (Parallel): Daily + Immediate Consolidator
+│   ├── runConsolidator (Gemini) → strategies.consolidated_strategy
+│   └── runImmediateStrategy (GPT-5.2) → strategies.strategy_for_now
+│
+├── Phase 3: Venue Planner + Enrichment
+│   └── enhanced-smart-blocks.js → rankings + ranking_candidates
+│
+└── Phase 4: Event Validator (disabled)
+    └── Claude Opus 4.5 web search validation
 ```
+
+**Phase Timing (expected durations):**
+- `starting`: 500ms
+- `resolving`: 1500ms
+- `analyzing` (briefing): 12000ms
+- `immediate` (GPT-5.2): 8000ms
+- `venues`: 3000ms
+- `enriching` (Google APIs): 15000ms
 
 ## Fallback System
 

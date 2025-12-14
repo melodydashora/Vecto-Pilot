@@ -13,9 +13,24 @@ JWT token generation and authentication endpoints.
 ## Endpoints
 
 ```
-POST /api/auth/token    - Generate JWT token from device_id
+POST /api/auth/token    - Generate JWT token from user_id (DEV ONLY)
 GET  /api/auth/verify   - Verify existing token
 ```
+
+## Security: Production Restrictions
+
+**`POST /api/auth/token` is DISABLED in production.**
+
+This endpoint allows arbitrary token generation for any `user_id`, which could enable impersonation attacks. It returns `403 Forbidden` in production environments.
+
+| Environment | Behavior |
+|-------------|----------|
+| Development | Returns signed token for testing |
+| Production | Returns 403 with `token_minting_disabled` error |
+
+Production detection uses: `NODE_ENV === 'production'` OR `REPLIT_DEPLOYMENT === '1'`
+
+**TODO:** When user authentication is implemented, replace this endpoint with a proper OAuth/login flow.
 
 ## Connections
 
