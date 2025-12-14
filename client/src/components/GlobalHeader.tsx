@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/useToast";
 import { LocationContext } from "@/contexts/location-context-clean";
 import { useQuery } from "@tanstack/react-query";
 

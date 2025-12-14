@@ -15,8 +15,8 @@ Custom React hooks for data fetching and UI state.
 | `useStrategyLoadingMessages.ts` | Rotating loading messages during strategy generation |
 | `useVenueLoadingMessages.ts` | Rotating loading messages during venue enrichment |
 | `useTTS.ts` | Text-to-speech with OpenAI |
-| `use-toast.ts` | Toast notifications |
-| `use-mobile.tsx` | Mobile device detection |
+| `useToast.ts` | Toast notifications |
+| `useMobile.tsx` | Mobile device detection |
 
 ## Active Hooks
 
@@ -61,14 +61,14 @@ await speak("Text to read aloud");
 ```
 Text-to-speech using OpenAI TTS API.
 
-### use-toast
+### useToast
 ```typescript
 const { toast } = useToast();
 toast({ title: "Success", description: "..." });
 ```
 Shows toast notifications.
 
-### use-mobile
+### useMobile
 ```typescript
 const isMobile = useMobile();
 ```
