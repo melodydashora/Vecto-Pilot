@@ -25,7 +25,7 @@ import {
   Wine
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
