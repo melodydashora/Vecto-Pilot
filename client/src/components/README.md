@@ -72,9 +72,68 @@ const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
 - Overnight hours: `5:00 PM - 2:00 AM` (handles midnight crossover)
 - Falls back to server-cached `bar.isOpen` if parsing fails
 
+### EventsComponent.tsx - Event Display with Navigation
+
+Displays events grouped by category (concerts, sports, festivals, etc.) with:
+
+- **Event times**: Start and end times (e.g., "7:00 PM - 10:00 PM")
+- **Venue/address display**: Venue name with address
+- **Impact badges**: HIGH/MEDIUM/LOW with color coding
+- **Navigation button**: Opens Google Maps directions to event
+
+```typescript
+// Opens Google Maps with coordinates or address
+const openNavigation = (event: Event) => {
+  if (event.latitude && event.longitude) {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${event.latitude},${event.longitude}`);
+  } else if (event.address) {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(event.address)}`);
+  }
+};
+```
+
+### MapTab.tsx - Interactive Map with Event Markers
+
+Google Maps integration with:
+
+- **Driver location** (blue marker)
+- **Venue recommendations** (red/orange/yellow by grade)
+- **Event markers** (purple) with click popups showing:
+  - Event title with category icon
+  - Venue name
+  - Start/End times
+  - Impact badge
+  - Navigate to Event button
+
+```typescript
+// Events with coordinates appear as purple markers
+events={eventsData?.events?.map(e => ({
+  title: e.title,
+  venue: e.venue,
+  event_time: e.event_time,
+  event_end_time: e.event_end_time,
+  latitude: e.latitude,
+  longitude: e.longitude,
+  impact: e.impact,
+  subtype: e.subtype
+}))}
+```
+
+### BriefingTab.tsx - Discover Events Button
+
+On-demand event discovery button:
+
+```typescript
+// Triggers comprehensive event discovery (all 6 AI models)
+const discoverEvents = async () => {
+  await fetch(`/api/briefing/discover-events/${snapshotId}?daily=true`, { method: 'POST' });
+};
+```
+
 ## See Also
 
 - [co-pilot/README.md](co-pilot/README.md) - Sub-component details
 - [strategy/README.md](strategy/README.md) - Strategy components
 - [ui/README.md](ui/README.md) - Shadcn/ui component library
 - [_future/README.md](_future/README.md) - Staging area
+- [Event Discovery Architecture](../../../docs/architecture/event-discovery.md)

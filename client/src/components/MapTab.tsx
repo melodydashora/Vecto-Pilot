@@ -18,24 +18,40 @@ interface Venue {
   value_grade?: string;
 }
 
+interface MapEvent {
+  title: string;
+  venue?: string;
+  address?: string;
+  event_date?: string;
+  event_time?: string;
+  event_end_time?: string;
+  latitude?: number;
+  longitude?: number;
+  impact?: 'high' | 'medium' | 'low';
+  subtype?: string;
+}
+
 interface MapTabProps {
   driverLat: number;
   driverLng: number;
   venues: Venue[];
+  events?: MapEvent[];
   snapshotId?: string;
   isLoading?: boolean;
 }
 
-const MapTab: React.FC<MapTabProps> = ({ 
+const MapTab: React.FC<MapTabProps> = ({
   driverLat,
   driverLng,
   venues,
+  events = [],
   snapshotId: _snapshotId,
   isLoading = false
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const eventMarkersRef = useRef<google.maps.Marker[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
@@ -166,15 +182,129 @@ const MapTab: React.FC<MapTabProps> = ({
       markersRef.current.push(marker);
     });
 
-    // Fit bounds to show all markers
-    if (markersRef.current.length > 0 && window.google) {
+    // Fit bounds to show all markers (venues + events)
+    if ((markersRef.current.length > 0 || eventMarkersRef.current.length > 0) && window.google) {
       const bounds = new window.google.maps.LatLngBounds();
       markersRef.current.forEach(marker => {
+        bounds.extend(marker.getPosition()!);
+      });
+      eventMarkersRef.current.forEach(marker => {
         bounds.extend(marker.getPosition()!);
       });
       mapInstanceRef.current?.fitBounds(bounds, { padding: 60 });
     }
   }, [mapReady, venues, driverLat, driverLng]);
+
+  // Add event markers with flag icons
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !window.google) return;
+
+    // Clear existing event markers
+    eventMarkersRef.current.forEach(marker => marker.setMap(null));
+    eventMarkersRef.current = [];
+
+    // Filter events with valid coordinates
+    const eventsWithCoords = events.filter(e => e.latitude && e.longitude);
+
+    eventsWithCoords.forEach((event) => {
+      // Use purple marker for events (distinct from venue colors)
+      const icon = 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png';
+
+      const marker = new window.google.maps.Marker({
+        position: { lat: event.latitude!, lng: event.longitude! },
+        map: mapInstanceRef.current,
+        title: event.title,
+        icon: icon,
+        zIndex: 800, // Below top venues but visible
+      });
+
+      // Build time display
+      let timeDisplay = '';
+      if (event.event_time) {
+        timeDisplay = event.event_time;
+        if (event.event_end_time) {
+          timeDisplay += ` - ${event.event_end_time}`;
+        }
+      }
+
+      // Get event category icon
+      const getCategoryIcon = (subtype?: string) => {
+        if (!subtype) return '📍';
+        const sub = subtype.toLowerCase();
+        if (sub.includes('concert') || sub.includes('music')) return '🎵';
+        if (sub.includes('sport') || sub.includes('game')) return '🏀';
+        if (sub.includes('festival') || sub.includes('fair')) return '🎉';
+        if (sub.includes('convention') || sub.includes('expo')) return '🎪';
+        if (sub.includes('theater') || sub.includes('comedy')) return '🎭';
+        if (sub.includes('nightlife') || sub.includes('club')) return '🍸';
+        return '📍';
+      };
+
+      // Impact badge color
+      const getImpactStyle = (impact?: string) => {
+        switch (impact) {
+          case 'high': return 'background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;';
+          case 'medium': return 'background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;';
+          default: return 'background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7;';
+        }
+      };
+
+      // Info window on click
+      marker.addListener('click', () => {
+        if (infoWindowRef.current) {
+          infoWindowRef.current.close();
+        }
+
+        const content = `
+          <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 260px;">
+            <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
+              <span style="font-size: 20px;">${getCategoryIcon(event.subtype)}</span>
+              <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 14px; color: #1f2937; line-height: 1.3;">
+                  ${event.title}
+                </div>
+                ${event.venue ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">@ ${event.venue}</div>` : ''}
+              </div>
+            </div>
+
+            ${timeDisplay ? `
+              <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 8px; background: #f3e8ff; border-radius: 6px;">
+                <span style="font-size: 14px;">🕐</span>
+                <span style="font-weight: 600; color: #7c3aed; font-size: 13px;">${timeDisplay}</span>
+              </div>
+            ` : ''}
+
+            ${event.address ? `
+              <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+                📍 ${event.address}
+              </div>
+            ` : ''}
+
+            ${event.impact ? `
+              <div style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; ${getImpactStyle(event.impact)}">
+                ${event.impact.toUpperCase()} IMPACT
+              </div>
+            ` : ''}
+
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${event.latitude},${event.longitude}"
+                 target="_blank"
+                 style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; background: #8b5cf6; color: white; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;">
+                🧭 Navigate to Event
+              </a>
+            </div>
+          </div>
+        `;
+
+        infoWindowRef.current?.setContent(content);
+        infoWindowRef.current?.open(mapInstanceRef.current, marker);
+      });
+
+      eventMarkersRef.current.push(marker);
+    });
+
+    console.log(`✅ Added ${eventsWithCoords.length} event markers to map`);
+  }, [mapReady, events]);
 
   return (
     <div className="mb-24" data-testid="map-tab">
@@ -217,6 +347,10 @@ const MapTab: React.FC<MapTabProps> = ({
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full bg-yellow-400 border border-yellow-500" />
             <span className="text-gray-700">Standard venue (Grade C+)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-purple-400 border border-purple-500" />
+            <span className="text-gray-700">Event (click for times & navigation)</span>
           </div>
           <div className="mt-3 text-xs text-gray-500 flex items-start gap-2">
             <span className="mt-0.5">🚦</span>

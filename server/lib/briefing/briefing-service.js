@@ -1,14 +1,14 @@
 
 import { db } from '../../db/drizzle.js';
-import { briefings, snapshots } from '../../../shared/schema.js';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { briefings, snapshots, discovered_events } from '../../../shared/schema.js';
+import { eq, and, desc, sql, gte, lte } from 'drizzle-orm';
 import { z } from 'zod';
 // Event validation disabled - Gemini handles event discovery, Claude is fallback only
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
 import Anthropic from "@anthropic-ai/sdk";
 import { briefingLog, OP } from '../../logger/workflow.js';
-// NOTE: Perplexity replaced by Gemini 3 Pro Preview with Google Search grounding
-// Perplexity imports removed - using Gemini as primary, Claude as fallback
+// SerpAPI + GPT-5.2 event discovery (replaces Gemini for events)
+import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
 
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 import { getTomTomTraffic } from '../external/tomtom-traffic.js';
@@ -731,9 +731,7 @@ async function callGeminiForEvents({ prompt, maxTokens = 4096 }) {
             { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
           ],
           generationConfig: {
-            thinkingConfig: {
-              thinkingLevel: "LOW"  // LOW for speed in parallel searches
-            },
+            // No thinkingConfig = no thinking (avoids MAX_TOKENS issues)
             temperature: 0.1,
             maxOutputTokens: maxTokens,
             responseMimeType: "application/json"
@@ -904,15 +902,74 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
     throw new Error('Snapshot is required for events fetch');
   }
 
-  // Delegate to Gemini 3 Pro (the actual implementation)
-  const result = await fetchEventsWithGemini3ProPreview({ snapshot });
+  const { city, state, lat, lng, timezone } = snapshot;
 
-  if (result.items && result.items.length > 0) {
-    const normalizedEvents = mapGeminiEventsToLocalEvents(result.items, { lat: snapshot.lat, lng: snapshot.lng });
-    return { items: normalizedEvents, reason: null };
+  // Get date range: today to 7 days out
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const weekFromNow = new Date();
+  weekFromNow.setDate(weekFromNow.getDate() + 7);
+  const endDateStr = weekFromNow.toISOString().split('T')[0];
+
+  briefingLog.ai(2, 'SerpAPI+GPT-5.2', `events for ${city}, ${state} (${todayStr})`);
+
+  try {
+    // Run SerpAPI + GPT-5.2 event discovery (isDaily=false = fast mode)
+    // This stores discovered events in the discovered_events table
+    const syncResult = await syncEventsForLocation(
+      { city, state, lat, lng },
+      false // isDaily=false means SerpAPI + GPT-5.2 only
+    );
+
+    briefingLog.done(2, `Sync: ${syncResult.events.length} found, ${syncResult.inserted} new`, OP.AI);
+  } catch (syncErr) {
+    briefingLog.warn(2, `Event sync failed: ${syncErr.message}`, OP.AI);
+    // Continue - we can still read cached events from DB
   }
 
-  return { items: [], reason: result.reason || 'No events found' };
+  // Read events from discovered_events table for this city/state and date range
+  try {
+    const events = await db.select()
+      .from(discovered_events)
+      .where(and(
+        eq(discovered_events.city, city),
+        eq(discovered_events.state, state),
+        gte(discovered_events.event_date, todayStr),
+        lte(discovered_events.event_date, endDateStr),
+        eq(discovered_events.is_active, true)
+      ))
+      .orderBy(discovered_events.event_date)
+      .limit(50);
+
+    if (events.length > 0) {
+      // Map discovered_events format to the briefing events format
+      const normalizedEvents = events.map(e => ({
+        title: e.title,
+        summary: [e.title, e.venue_name, e.event_date, e.event_time].filter(Boolean).join(' • '),
+        impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
+        source: e.source_model,
+        event_type: e.category,
+        subtype: e.category, // For EventsComponent category grouping
+        event_date: e.event_date,
+        event_time: e.event_time,
+        event_end_time: e.event_end_time,
+        address: e.address,
+        venue: e.venue_name,
+        location: e.venue_name ? `${e.venue_name}, ${e.address || ''}`.trim() : e.address,
+        latitude: e.lat,
+        longitude: e.lng
+      }));
+
+      briefingLog.done(2, `Events: ${normalizedEvents.length} from discovered_events table`, OP.DB);
+      return { items: normalizedEvents, reason: null, provider: 'discovered_events' };
+    }
+
+    briefingLog.info(`No events found for ${city}, ${state}`);
+    return { items: [], reason: 'No events found for this location', provider: 'discovered_events' };
+  } catch (dbErr) {
+    briefingLog.error(2, `Events DB read failed: ${dbErr.message}`, dbErr, OP.DB);
+    return { items: [], reason: `Database error: ${dbErr.message}`, provider: 'discovered_events' };
+  }
 }
 
 export async function confirmTBDEventDetails(events) {

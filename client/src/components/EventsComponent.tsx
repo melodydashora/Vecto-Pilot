@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MapPin, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp, Navigation } from "lucide-react";
 
 interface Event {
   title: string;
@@ -16,6 +17,9 @@ interface Event {
   impact?: "high" | "medium" | "low";
   recommended_driver_action?: string;
   confidence?: string;
+  latitude?: number;
+  longitude?: number;
+  location?: string;
 }
 
 interface EventsComponentProps {
@@ -31,6 +35,30 @@ export default function EventsComponent({ events, isLoading: _isLoading }: Event
     conventions: true,
     other: true,
   });
+
+  // Open navigation to event location
+  const openNavigation = (event: Event) => {
+    // Try coordinates first, fall back to address
+    if (event.latitude && event.longitude) {
+      // Use Google Maps with coordinates
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${event.latitude},${event.longitude}`;
+      window.open(url, '_blank');
+    } else if (event.address) {
+      // Use address for navigation
+      const encodedAddress = encodeURIComponent(event.address);
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`;
+      window.open(url, '_blank');
+    } else if (event.venue) {
+      // Try venue name as last resort
+      const encodedVenue = encodeURIComponent(event.venue);
+      const url = `https://www.google.com/maps/search/?api=1&query=${encodedVenue}`;
+      window.open(url, '_blank');
+    }
+  };
+
+  const hasNavigationInfo = (event: Event) => {
+    return !!(event.latitude && event.longitude) || !!event.address || !!event.venue;
+  };
 
   const getImpactColor = (impact?: string) => {
     switch (impact) {
@@ -189,6 +217,24 @@ export default function EventsComponent({ events, isLoading: _isLoading }: Event
                           </div>
                         )}
                       </div>
+
+                      {/* Navigation button */}
+                      {hasNavigationInfo(event) && (
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-xs h-7 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openNavigation(event);
+                            }}
+                          >
+                            <Navigation className="w-3 h-3 mr-1.5" />
+                            Navigate to Venue
+                          </Button>
+                        </div>
+                      )}
 
                       {event.recommended_driver_action && (
                         <div className="mt-2 pt-2 border-t border-gray-200">

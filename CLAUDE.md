@@ -27,6 +27,7 @@ npm run lint && npm run typecheck && npm run build  # Pre-PR
 | [docs/architecture/api-reference.md](docs/architecture/api-reference.md) | API endpoints |
 | [docs/architecture/database-schema.md](docs/architecture/database-schema.md) | Database tables |
 | [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) | AI models & flow |
+| [docs/architecture/event-discovery.md](docs/architecture/event-discovery.md) | Multi-model event search |
 | [docs/architecture/constraints.md](docs/architecture/constraints.md) | Critical rules |
 | [docs/architecture/google-cloud-apis.md](docs/architecture/google-cloud-apis.md) | Google APIs reference |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Full system overview |
@@ -331,3 +332,4 @@ See `server/logger/README.md` for full documentation.
 
 - `REORGANIZATION_PLAN.md` - Codebase organization status
 - `LESSONS_LEARNED.md` - Historical issues (read before changes)
+- Can we add the button in the UI to match the fetch daily strategy on briefing tab?

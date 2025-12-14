@@ -491,6 +491,48 @@ export const venue_events = pgTable("venue_events", {
   idxStartsAt: sql`create index if not exists idx_venue_events_starts_at on ${table} (starts_at)`,
 }));
 
+// Discovered events from AI model searches (SerpAPI, GPT-5.2, etc.)
+// Populated daily by event sync script, used for rideshare demand prediction
+export const discovered_events = pgTable("discovered_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Event identity
+  title: text("title").notNull(),
+  venue_name: text("venue_name"),
+  address: text("address"),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  zip: text("zip"),
+  // Event timing
+  event_date: text("event_date").notNull(), // YYYY-MM-DD format
+  event_time: text("event_time"), // e.g., "7:00 PM", "All Day"
+  event_end_time: text("event_end_time"), // e.g., "10:00 PM"
+  event_end_date: text("event_end_date"), // For multi-day events
+  // Coordinates (optional - if available from source)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  // Categorization
+  category: text("category").notNull().default('other'), // concert, sports, theater, conference, festival, nightlife, civic, academic, airport, other
+  expected_attendance: text("expected_attendance").default('medium'), // high, medium, low
+  // Discovery metadata
+  source_model: text("source_model").notNull(), // SerpAPI, GPT-5.2, Gemini, Claude, etc.
+  source_url: text("source_url"), // Original source link if available
+  raw_source_data: jsonb("raw_source_data"), // Full response from source for debugging
+  // Deduplication
+  event_hash: text("event_hash").notNull().unique(), // MD5 of normalized(title + venue + date + city)
+  // Timestamps
+  discovered_at: timestamp("discovered_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // Flags
+  is_verified: boolean("is_verified").default(false), // Human verified
+  is_active: boolean("is_active").default(true), // False if event was cancelled
+}, (table) => ({
+  idxCity: sql`create index if not exists idx_discovered_events_city on ${table} (city, state)`,
+  idxDate: sql`create index if not exists idx_discovered_events_date on ${table} (event_date)`,
+  idxCategory: sql`create index if not exists idx_discovered_events_category on ${table} (category)`,
+  idxHash: sql`create unique index if not exists idx_discovered_events_hash on ${table} (event_hash)`,
+  idxDiscoveredAt: sql`create index if not exists idx_discovered_events_discovered_at on ${table} (discovered_at desc)`,
+}));
+
 // Traffic zones for real-time traffic intelligence
 export const traffic_zones = pgTable("traffic_zones", {
   id: uuid("id").primaryKey().defaultRandom(),

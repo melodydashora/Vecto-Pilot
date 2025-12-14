@@ -6,7 +6,7 @@ import {
   Newspaper, Cloud, CloudRain, Sun,
   AlertTriangle, Car, Loader, Clock, ExternalLink,
   ChevronDown, ChevronUp, BookOpen, Sparkles, FileText, Zap,
-  Plane, PlaneLanding, PlaneTakeoff
+  Plane, PlaneLanding, PlaneTakeoff, CalendarSearch
 } from "lucide-react";
 import { getAuthHeader } from "@/utils/co-pilot-helpers";
 import EventsComponent from "./EventsComponent";
@@ -93,6 +93,56 @@ export default function BriefingTab({
   const [dailyStrategy, setDailyStrategy] = useState<string | null>(consolidatedStrategy || null);
   const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);
   const [dailyError, setDailyError] = useState<string | null>(null);
+
+  // Event discovery - on-demand fetch
+  const [isDiscoveringEvents, setIsDiscoveringEvents] = useState(false);
+  const [discoveredEventsResult, setDiscoveredEventsResult] = useState<{
+    total: number;
+    inserted: number;
+    skipped: number;
+  } | null>(null);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
+
+  // Discover events on-demand (calls all AI models)
+  const discoverEvents = useCallback(async () => {
+    if (!snapshotId || isDiscoveringEvents) return;
+
+    setIsDiscoveringEvents(true);
+    setDiscoverError(null);
+
+    try {
+      console.log('[BriefingTab] Discovering events for snapshot:', snapshotId);
+      const response = await fetch(`/api/briefing/discover-events/${snapshotId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to discover events');
+      }
+
+      if (data.ok) {
+        console.log('[BriefingTab] Events discovered:', data.total_discovered, 'inserted:', data.inserted);
+        setDiscoveredEventsResult({
+          total: data.total_discovered,
+          inserted: data.inserted,
+          skipped: data.skipped
+        });
+      } else {
+        throw new Error('No events returned');
+      }
+    } catch (err) {
+      console.error('[BriefingTab] Failed to discover events:', err);
+      setDiscoverError(err instanceof Error ? err.message : 'Failed to discover events');
+    } finally {
+      setIsDiscoveringEvents(false);
+    }
+  }, [snapshotId, isDiscoveringEvents]);
 
   // Generate daily strategy on-demand
   const generateDailyStrategy = useCallback(async () => {
@@ -407,6 +457,99 @@ export default function BriefingTab({
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{dailyStrategy}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Discover Events Card - ON-DEMAND AI search */}
+      {/* State 1: Not yet run, show discover button */}
+      {!discoveredEventsResult && !isDiscoveringEvents && (
+        <Card
+          className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-emerald-300 border-dashed cursor-pointer hover:border-solid hover:shadow-lg transition-all group"
+          data-testid="discover-events-button"
+          onClick={discoverEvents}
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg group-hover:scale-105 transition-transform">
+                  <CalendarSearch className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-emerald-900 text-lg">Discover Events</h3>
+                  <p className="text-sm text-emerald-600">AI-powered search across 6 models (SerpAPI, GPT-5.2, Gemini, Claude...)</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 gap-2"
+              >
+                <Zap className="w-4 h-4" />
+                Search Events
+              </Button>
+            </div>
+            {discoverError && (
+              <p className="text-red-600 text-sm mt-3">{discoverError}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* State 2: Discovering events */}
+      {isDiscoveringEvents && (
+        <Card
+          className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-emerald-300"
+          data-testid="discover-events-loading"
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg">
+                <Loader className="w-6 h-6 text-white animate-spin" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-emerald-900 text-lg">Discovering Events...</h3>
+                <p className="text-sm text-emerald-600">Searching 6 AI models for local events (may take 30-60s)</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* State 3: Discovery complete - show results */}
+      {discoveredEventsResult && !isDiscoveringEvents && (
+        <Card
+          className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-emerald-300 shadow-lg"
+          data-testid="discover-events-complete"
+        >
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg">
+                  <CalendarSearch className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-emerald-900 text-lg">Events Discovered</h3>
+                  <p className="text-sm text-emerald-600">
+                    Found {discoveredEventsResult.total} events • {discoveredEventsResult.inserted} new • {discoveredEventsResult.skipped} already known
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
+                  ✅ Complete
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={discoverEvents}
+                  className="bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 gap-2"
+                >
+                  <Zap className="w-4 h-4" />
+                  Refresh
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

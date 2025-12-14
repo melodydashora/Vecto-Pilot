@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, confirmTBDEventDetails, fetchWeatherConditions } from '../../lib/briefing/briefing-service.js';
 import { db } from '../../db/drizzle.js';
-import { snapshots } from '../../../shared/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { snapshots, discovered_events } from '../../../shared/schema.js';
+import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
+import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
 
 const router = Router();
 
@@ -282,23 +283,47 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
 
 router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
-    // FETCH-ONCE: Just read cached data from DB
-    const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
+    // Read events directly from discovered_events table for this snapshot's location
+    const snapshot = req.snapshot;
+    const today = new Date().toISOString().split('T')[0];
+    const weekFromNow = new Date();
+    weekFromNow.setDate(weekFromNow.getDate() + 7);
+    const endDate = weekFromNow.toISOString().split('T')[0];
 
-    // Handle both array format and {items: [], reason: string} format
-    let allEvents = [];
-    let reason = null;
-    if (Array.isArray(briefing?.events)) {
-      allEvents = briefing.events;
-    } else if (briefing?.events?.items && Array.isArray(briefing.events.items)) {
-      allEvents = briefing.events.items;
-      reason = briefing.events.reason || null;
-    }
+    const events = await db.select()
+      .from(discovered_events)
+      .where(and(
+        eq(discovered_events.city, snapshot.city),
+        eq(discovered_events.state, snapshot.state),
+        gte(discovered_events.event_date, today),
+        lte(discovered_events.event_date, endDate),
+        eq(discovered_events.is_active, true)
+      ))
+      .orderBy(discovered_events.event_date)
+      .limit(50);
+
+    // Map to briefing events format
+    const allEvents = events.map(e => ({
+      title: e.title,
+      summary: [e.title, e.venue_name, e.event_date, e.event_time].filter(Boolean).join(' • '),
+      impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
+      source: e.source_model,
+      event_type: e.category,
+      subtype: e.category, // For EventsComponent category grouping
+      event_date: e.event_date,
+      event_time: e.event_time,
+      event_end_time: e.event_end_time,
+      address: e.address,
+      venue: e.venue_name,
+      location: e.venue_name ? `${e.venue_name}, ${e.address || ''}`.trim() : e.address,
+      latitude: e.lat,
+      longitude: e.lng
+    }));
 
     res.json({
       success: true,
       events: allEvents,
-      reason,
+      reason: allEvents.length === 0 ? 'No events found for this location' : null,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -396,6 +421,97 @@ router.post('/confirm-event-details', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('[BriefingRoute] Error confirming event details:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/briefing/discover-events/:snapshotId
+ * On-demand event discovery using all AI models (daily mode)
+ *
+ * Called when user clicks "Discover Events" button in BriefingTab.
+ * Uses: snapshot location → SerpAPI + GPT-5.2 + Gemini + Claude + Perplexity → discovered_events table
+ *
+ * Query params:
+ *   - daily=true: Run ALL models (default)
+ *   - daily=false: Run only SerpAPI + GPT-5.2
+ *
+ * Returns:
+ *   - 200: { ok: true, events: [...], inserted: N, skipped: N }
+ *   - 404: { error: "snapshot_not_found" }
+ */
+router.post('/discover-events/:snapshotId', expensiveEndpointLimiter, requireAuth, requireSnapshotOwnership, async (req, res) => {
+  try {
+    const snapshot = req.snapshot;
+    const isDaily = req.query.daily !== 'false'; // Default to daily (all models)
+
+    console.log(`[BriefingRoute] POST /discover-events/${snapshot.snapshot_id} - isDaily=${isDaily}`);
+    console.log(`[BriefingRoute] Location: ${snapshot.city}, ${snapshot.state} (${snapshot.lat}, ${snapshot.lng})`);
+
+    // Run event discovery with snapshot location
+    const result = await syncEventsForLocation({
+      city: snapshot.city,
+      state: snapshot.state,
+      lat: snapshot.lat,
+      lng: snapshot.lng
+    }, isDaily);
+
+    console.log(`[BriefingRoute] ✅ Event discovery complete: ${result.events.length} found, ${result.inserted} inserted`);
+
+    // Return discovered events
+    res.json({
+      ok: true,
+      snapshot_id: snapshot.snapshot_id,
+      mode: isDaily ? 'daily' : 'normal',
+      total_discovered: result.events.length,
+      inserted: result.inserted,
+      skipped: result.skipped,
+      events: result.events.slice(0, 50) // Return first 50 for display
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error discovering events:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/briefing/discovered-events/:snapshotId
+ * Fetch discovered events from database for snapshot's location
+ *
+ * Returns events within same city/state, for next 7 days
+ */
+router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+  try {
+    const snapshot = req.snapshot;
+    const today = new Date().toISOString().split('T')[0];
+    const weekFromNow = new Date();
+    weekFromNow.setDate(weekFromNow.getDate() + 7);
+    const endDate = weekFromNow.toISOString().split('T')[0];
+
+    console.log(`[BriefingRoute] GET /discovered-events for ${snapshot.city}, ${snapshot.state} (${today} to ${endDate})`);
+
+    const events = await db.select()
+      .from(discovered_events)
+      .where(and(
+        eq(discovered_events.city, snapshot.city),
+        eq(discovered_events.state, snapshot.state),
+        gte(discovered_events.event_date, today),
+        lte(discovered_events.event_date, endDate),
+        eq(discovered_events.is_active, true)
+      ))
+      .orderBy(discovered_events.event_date)
+      .limit(100);
+
+    res.json({
+      ok: true,
+      snapshot_id: snapshot.snapshot_id,
+      location: { city: snapshot.city, state: snapshot.state },
+      date_range: { start: today, end: endDate },
+      count: events.length,
+      events
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error fetching discovered events:', error);
     res.status(500).json({ error: error.message });
   }
 });
