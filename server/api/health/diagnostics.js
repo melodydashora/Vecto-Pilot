@@ -212,32 +212,46 @@ router.post('/migrate', requireAuth, async (req, res) => {
     // NOTE: news_briefing and local_news columns removed Dec 2025 - briefing data is now in 'briefings' table
 
     // Add unique constraints to memory tables
-    const memoryTables = ['assistant_memory', 'eidolon_memory', 'cross_thread_memory'];
-    
-    for (const tableName of memoryTables) {
+    // Using explicit SQL statements for each table (Drizzle best practice - no sql.raw())
+    const memoryTableMigrations = [
+      {
+        table: 'assistant_memory',
+        constraintName: 'assistant_memory_scope_key_user_id_key',
+        checkSql: sql`SELECT constraint_name FROM information_schema.table_constraints
+                      WHERE table_name = 'assistant_memory' AND constraint_type = 'UNIQUE'
+                      AND constraint_name = 'assistant_memory_scope_key_user_id_key'`,
+        alterSql: sql`ALTER TABLE assistant_memory ADD CONSTRAINT assistant_memory_scope_key_user_id_key UNIQUE (scope, key, user_id)`
+      },
+      {
+        table: 'eidolon_memory',
+        constraintName: 'eidolon_memory_scope_key_user_id_key',
+        checkSql: sql`SELECT constraint_name FROM information_schema.table_constraints
+                      WHERE table_name = 'eidolon_memory' AND constraint_type = 'UNIQUE'
+                      AND constraint_name = 'eidolon_memory_scope_key_user_id_key'`,
+        alterSql: sql`ALTER TABLE eidolon_memory ADD CONSTRAINT eidolon_memory_scope_key_user_id_key UNIQUE (scope, key, user_id)`
+      },
+      {
+        table: 'cross_thread_memory',
+        constraintName: 'cross_thread_memory_scope_key_user_id_key',
+        checkSql: sql`SELECT constraint_name FROM information_schema.table_constraints
+                      WHERE table_name = 'cross_thread_memory' AND constraint_type = 'UNIQUE'
+                      AND constraint_name = 'cross_thread_memory_scope_key_user_id_key'`,
+        alterSql: sql`ALTER TABLE cross_thread_memory ADD CONSTRAINT cross_thread_memory_scope_key_user_id_key UNIQUE (scope, key, user_id)`
+      }
+    ];
+
+    for (const migration of memoryTableMigrations) {
       try {
-        const constraintName = `${tableName}_scope_key_user_id_key`;
-        
-        // Use parameterized query to prevent SQL injection
-        const checkConstraint = await db.execute(sql`
-          SELECT constraint_name 
-          FROM information_schema.table_constraints 
-          WHERE table_name = ${tableName}
-            AND constraint_type = 'UNIQUE'
-            AND constraint_name = ${constraintName}
-        `);
-        
+        const checkConstraint = await db.execute(migration.checkSql);
+
         if (checkConstraint.rows.length === 0) {
-          // Table names can't be parameterized, but we validate against whitelist above
-          // This is safe because tableName is from a hardcoded array
-          const alterQuery = `ALTER TABLE ${tableName} ADD CONSTRAINT ${constraintName} UNIQUE (scope, key, user_id)`;
-          await db.execute(sql.raw(alterQuery));
-          results.push({ table: tableName, constraint: constraintName, action: 'added' });
+          await db.execute(migration.alterSql);
+          results.push({ table: migration.table, constraint: migration.constraintName, action: 'added' });
         } else {
-          results.push({ table: tableName, constraint: constraintName, action: 'exists' });
+          results.push({ table: migration.table, constraint: migration.constraintName, action: 'exists' });
         }
       } catch (err) {
-        results.push({ table: tableName, constraint: `unique`, action: 'error', error: err.message });
+        results.push({ table: migration.table, constraint: migration.constraintName, action: 'error', error: err.message });
       }
     }
     
