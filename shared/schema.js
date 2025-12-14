@@ -83,6 +83,7 @@ export const strategies = pgTable("strategies", {
   strategy: text("strategy"),
   status: text("status").notNull().default("pending"), // pending|ok|failed
   phase: text("phase").default("starting"), // starting|resolving|analyzing|consolidator|venues|enriching|complete
+  phase_started_at: timestamp("phase_started_at", { withTimezone: true }), // When current phase started (for progress calculation)
   trigger_reason: text("trigger_reason"), // 'initial' | 'retry' | 'refresh' - why strategy was generated
   error_code: integer("error_code"),
   error_message: text("error_message"),

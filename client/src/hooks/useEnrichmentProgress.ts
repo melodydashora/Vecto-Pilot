@@ -1,8 +1,8 @@
 // client/src/hooks/useEnrichmentProgress.ts
 // Progress tracking for strategy/blocks generation pipeline
-// Uses real backend pipeline phases instead of time estimates
+// Uses real backend pipeline phases with dynamic time-based calculation
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { EnrichmentPhase, CoordData, StrategyData, PipelinePhase } from '@/types/co-pilot';
 
 interface UseEnrichmentProgressOptions {
@@ -18,42 +18,133 @@ interface EnrichmentProgressState {
   phase: EnrichmentPhase;
   pipelinePhase: PipelinePhase;
   startTime: number | null;
+  timeRemainingMs: number | null;  // Estimated time remaining in milliseconds
+  timeRemainingText: string | null; // Human-readable time remaining
 }
 
-// Map backend pipeline phase to progress percentage for BOTTOM progress bar
-// Full process from strategy to venues loaded - evenly distributed across 7 phases
-const PHASE_PROGRESS: Record<PipelinePhase, number> = {
-  starting: 10,      // ~14% per phase
-  resolving: 25,
-  analyzing: 40,
-  immediate: 55,     // AI processing - past 50%!
-  venues: 70,
-  enriching: 85,
-  complete: 100
+// Default expected durations (fallback if not provided by backend)
+const DEFAULT_EXPECTED_DURATIONS: Record<string, number> = {
+  starting: 500,
+  resolving: 1500,
+  analyzing: 12000,
+  immediate: 8000,
+  venues: 3000,
+  enriching: 15000,
+  complete: 0
 };
 
+// Phase order for progress calculation
+const PHASE_ORDER: PipelinePhase[] = ['starting', 'resolving', 'analyzing', 'immediate', 'venues', 'enriching', 'complete'];
+
 // Map backend phase to frontend phase category
-// 'strategy' = strategy card visible, 'blocks' = venues loading, 'idle' = done
 const PHASE_TO_FRONTEND: Record<PipelinePhase, EnrichmentPhase> = {
   starting: 'strategy',
   resolving: 'strategy',
   analyzing: 'strategy',
-  immediate: 'strategy',  // AI processing is still part of strategy generation
+  immediate: 'strategy',
   venues: 'blocks',
   enriching: 'blocks',
   complete: 'idle'
 };
 
-// Strategy card progress (tops out at 100% when immediate phase completes)
-const STRATEGY_CARD_PROGRESS: Record<PipelinePhase, number> = {
-  starting: 10,
-  resolving: 30,
-  analyzing: 55,
-  immediate: 80,   // AI processing - getting close
-  venues: 100,     // Strategy done, now on venues
+// Strategy card progress caps (strategy is "done" once immediate phase completes)
+const STRATEGY_CARD_CAPS: Record<PipelinePhase, number> = {
+  starting: 100,      // Can go up to 100% during this phase
+  resolving: 100,
+  analyzing: 100,
+  immediate: 100,
+  venues: 100,        // Strategy complete, cap at 100
   enriching: 100,
   complete: 100
 };
+
+/**
+ * Calculate dynamic progress based on:
+ * 1. Which phases are complete (sum their durations)
+ * 2. Progress within current phase (elapsed / expected)
+ */
+function calculateDynamicProgress(
+  currentPhase: PipelinePhase,
+  phaseElapsedMs: number,
+  expectedDurations: Record<string, number>
+): { progress: number; strategyProgress: number; timeRemainingMs: number } {
+  const durations = { ...DEFAULT_EXPECTED_DURATIONS, ...expectedDurations };
+  const totalDuration = PHASE_ORDER.reduce((sum, p) => sum + (durations[p] || 0), 0);
+
+  if (totalDuration === 0) {
+    return { progress: 0, strategyProgress: 0, timeRemainingMs: 0 };
+  }
+
+  // Find index of current phase
+  const currentIndex = PHASE_ORDER.indexOf(currentPhase);
+  if (currentIndex === -1) {
+    return { progress: 0, strategyProgress: 0, timeRemainingMs: totalDuration };
+  }
+
+  // Sum duration of completed phases
+  let completedDuration = 0;
+  for (let i = 0; i < currentIndex; i++) {
+    completedDuration += durations[PHASE_ORDER[i]] || 0;
+  }
+
+  // Calculate progress within current phase (capped at 95% to show we're still working)
+  const currentPhaseDuration = durations[currentPhase] || 5000;
+  const phaseProgress = Math.min(0.95, phaseElapsedMs / currentPhaseDuration);
+  const currentPhaseContribution = currentPhaseDuration * phaseProgress;
+
+  // Total progress as percentage
+  const totalCompleted = completedDuration + currentPhaseContribution;
+  const progress = Math.min(99, Math.round((totalCompleted / totalDuration) * 100));
+
+  // Strategy progress (only counts phases up to 'immediate')
+  const strategyPhases: PipelinePhase[] = ['starting', 'resolving', 'analyzing', 'immediate'];
+  const strategyTotalDuration = strategyPhases.reduce((sum, p) => sum + (durations[p] || 0), 0);
+
+  let strategyCompleted = 0;
+  for (const phase of strategyPhases) {
+    const phaseIdx = PHASE_ORDER.indexOf(phase);
+    if (phaseIdx < currentIndex) {
+      strategyCompleted += durations[phase] || 0;
+    } else if (phaseIdx === currentIndex) {
+      strategyCompleted += (durations[phase] || 0) * phaseProgress;
+      break;
+    }
+  }
+
+  const strategyProgress = strategyTotalDuration > 0
+    ? Math.min(100, Math.round((strategyCompleted / strategyTotalDuration) * 100))
+    : 0;
+
+  // Time remaining calculation
+  const remainingInCurrentPhase = Math.max(0, currentPhaseDuration - phaseElapsedMs);
+  let remainingInFuturePhases = 0;
+  for (let i = currentIndex + 1; i < PHASE_ORDER.length; i++) {
+    remainingInFuturePhases += durations[PHASE_ORDER[i]] || 0;
+  }
+  const timeRemainingMs = remainingInCurrentPhase + remainingInFuturePhases;
+
+  return { progress, strategyProgress, timeRemainingMs };
+}
+
+/**
+ * Format milliseconds to human-readable text
+ */
+function formatTimeRemaining(ms: number): string {
+  if (ms <= 0) return 'Almost done';
+  if (ms < 1000) return 'Less than a second';
+
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 60) {
+    return `~${seconds} second${seconds !== 1 ? 's' : ''}`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (remainingSeconds === 0) {
+    return `~${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  }
+  return `~${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
 
 export function useEnrichmentProgress({
   coords,
@@ -64,25 +155,36 @@ export function useEnrichmentProgress({
   const [startTime, setStartTime] = useState<number | null>(null);
   const [animatedProgress, setAnimatedProgress] = useState(0);
   const [animatedStrategyProgress, setAnimatedStrategyProgress] = useState(0);
+  const [localPhaseElapsed, setLocalPhaseElapsed] = useState(0);
 
-  // Get backend phase directly from API response
-  const backendPhase = strategyData?.phase as PipelinePhase || 'starting';
+  // Get backend data
+  const backendPhase = (strategyData?.phase as PipelinePhase) || 'starting';
   const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
+  const timing = strategyData?.timing as {
+    phase_started_at?: string;
+    phase_elapsed_ms?: number;
+    expected_duration_ms?: number;
+    expected_durations?: Record<string, number>;
+  } | undefined;
 
-  // Target progress for bottom bar (full process)
-  const targetProgress = useMemo(() => {
-    if (hasBlocks) return 100;
-    if (!coords) return 0;
-    if (!snapshotMatches) return 5;
-    return PHASE_PROGRESS[backendPhase] || 5;
-  }, [hasBlocks, coords, snapshotMatches, backendPhase]);
+  // Use backend elapsed time or calculate locally
+  const phaseElapsedMs = timing?.phase_elapsed_ms ?? localPhaseElapsed;
+  const expectedDurations = timing?.expected_durations ?? DEFAULT_EXPECTED_DURATIONS;
 
-  // Target progress for strategy card (only first 4 phases)
-  const targetStrategyProgress = useMemo(() => {
-    if (!coords) return 0;
-    if (!snapshotMatches) return 5;
-    return STRATEGY_CARD_PROGRESS[backendPhase] || 5;
-  }, [coords, snapshotMatches, backendPhase]);
+  // Calculate dynamic progress
+  const { progress: targetProgress, strategyProgress: targetStrategyProgress, timeRemainingMs } = useMemo(() => {
+    if (hasBlocks) return { progress: 100, strategyProgress: 100, timeRemainingMs: 0 };
+    if (!coords) return { progress: 0, strategyProgress: 0, timeRemainingMs: 0 };
+    if (!snapshotMatches) return { progress: 5, strategyProgress: 5, timeRemainingMs: 40000 };
+
+    return calculateDynamicProgress(backendPhase, phaseElapsedMs, expectedDurations);
+  }, [hasBlocks, coords, snapshotMatches, backendPhase, phaseElapsedMs, expectedDurations]);
+
+  // Format time remaining
+  const timeRemainingText = useMemo(() => {
+    if (hasBlocks || !coords || timeRemainingMs <= 0) return null;
+    return formatTimeRemaining(timeRemainingMs);
+  }, [hasBlocks, coords, timeRemainingMs]);
 
   // Determine frontend phase category
   const phase = useMemo((): EnrichmentPhase => {
@@ -99,6 +201,25 @@ export function useEnrichmentProgress({
     }
   }, [coords, startTime]);
 
+  // Update local phase elapsed time every 500ms for smooth progress
+  useEffect(() => {
+    if (!timing?.phase_started_at || hasBlocks) {
+      setLocalPhaseElapsed(0);
+      return;
+    }
+
+    const phaseStartTime = new Date(timing.phase_started_at).getTime();
+
+    const updateElapsed = () => {
+      setLocalPhaseElapsed(Date.now() - phaseStartTime);
+    };
+
+    updateElapsed(); // Initial update
+    const interval = setInterval(updateElapsed, 500);
+
+    return () => clearInterval(interval);
+  }, [timing?.phase_started_at, hasBlocks]);
+
   // Animate bottom bar progress smoothly toward target
   useEffect(() => {
     if (animatedProgress >= targetProgress) return;
@@ -106,7 +227,7 @@ export function useEnrichmentProgress({
     const interval = setInterval(() => {
       setAnimatedProgress(prev => {
         const diff = targetProgress - prev;
-        const step = Math.max(1, diff * 0.15);
+        const step = Math.max(0.5, diff * 0.2);
         return Math.min(targetProgress, prev + step);
       });
     }, 100);
@@ -121,7 +242,7 @@ export function useEnrichmentProgress({
     const interval = setInterval(() => {
       setAnimatedStrategyProgress(prev => {
         const diff = targetStrategyProgress - prev;
-        const step = Math.max(1, diff * 0.15);
+        const step = Math.max(0.5, diff * 0.2);
         return Math.min(targetStrategyProgress, prev + step);
       });
     }, 100);
@@ -135,21 +256,24 @@ export function useEnrichmentProgress({
       setAnimatedProgress(5);
       setAnimatedStrategyProgress(5);
       setStartTime(Date.now());
+      setLocalPhaseElapsed(0);
     }
   }, [snapshotMatches, coords]);
 
   // Log phase changes for debugging
   useEffect(() => {
-    if (coords) {
-      console.log(`[enrichment] Phase: ${backendPhase} | Bottom: ${Math.round(animatedProgress)}% | Strategy: ${Math.round(animatedStrategyProgress)}%`);
+    if (coords && !hasBlocks) {
+      console.log(`[enrichment] Phase: ${backendPhase} | Progress: ${Math.round(animatedProgress)}% | Time remaining: ${timeRemainingText || 'N/A'}`);
     }
-  }, [backendPhase, animatedProgress, animatedStrategyProgress, coords]);
+  }, [backendPhase, animatedProgress, timeRemainingText, coords, hasBlocks]);
 
   return {
     progress: Math.round(animatedProgress),
     strategyProgress: Math.round(animatedStrategyProgress),
     phase,
     pipelinePhase: backendPhase,
-    startTime
+    startTime,
+    timeRemainingMs,
+    timeRemainingText
   };
 }

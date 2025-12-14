@@ -31,6 +31,7 @@ import {
 } from "../../../shared/schema.js";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../../middleware/auth.js";
+import { PHASE_EXPECTED_DURATIONS } from "../../lib/strategy/strategy-utils.js";
 
 export const router = Router();
 
@@ -105,16 +106,34 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
     );
 
     if (!hasStrategyForNow) {
-      // Strategy pending - return pending status with phase info
+      // Strategy pending - return pending status with phase info and timing metadata
       // Log when phase is NULL (should not happen after fix)
+      const currentPhase = strategy.phase || 'starting';
       if (!strategy.phase) {
         console.warn(`[content-blocks] WARNING: phase is NULL for ${snapshotId.slice(0, 8)} - falling back to 'starting'`);
       }
+
+      // Calculate phase timing for dynamic progress
+      const phaseStartedAt = strategy.phase_started_at
+        ? new Date(strategy.phase_started_at).toISOString()
+        : null;
+      const phaseElapsedMs = strategy.phase_started_at
+        ? Date.now() - new Date(strategy.phase_started_at).getTime()
+        : 0;
+      const expectedDurationMs = PHASE_EXPECTED_DURATIONS[currentPhase] || 5000;
+
       return res.json({
         status: "pending",
         snapshot_id: snapshotId,
         timeElapsedMs,
-        phase: strategy.phase || 'starting',
+        phase: currentPhase,
+        // Timing metadata for dynamic progress calculation
+        timing: {
+          phase_started_at: phaseStartedAt,
+          phase_elapsed_ms: phaseElapsedMs,
+          expected_duration_ms: expectedDurationMs,
+          expected_durations: PHASE_EXPECTED_DURATIONS
+        },
         waitFor: ["strategy"],
         strategy: {
           consolidated: strategy.consolidated_strategy || "",
@@ -161,11 +180,27 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       }));
     } else {
       // Rankings not yet created - strategy is ready but blocks are still generating
+      const currentPhase = strategy.phase || 'venues';
+      const phaseStartedAt = strategy.phase_started_at
+        ? new Date(strategy.phase_started_at).toISOString()
+        : null;
+      const phaseElapsedMs = strategy.phase_started_at
+        ? Date.now() - new Date(strategy.phase_started_at).getTime()
+        : 0;
+      const expectedDurationMs = PHASE_EXPECTED_DURATIONS[currentPhase] || 5000;
+
       return res.json({
         status: "pending_blocks",
         snapshot_id: snapshotId,
         timeElapsedMs,
-        phase: strategy.phase || 'venues',
+        phase: currentPhase,
+        // Timing metadata for dynamic progress calculation
+        timing: {
+          phase_started_at: phaseStartedAt,
+          phase_elapsed_ms: phaseElapsedMs,
+          expected_duration_ms: expectedDurationMs,
+          expected_durations: PHASE_EXPECTED_DURATIONS
+        },
         waitFor: ["blocks"],
         strategy: {
           consolidated: strategy.consolidated_strategy || "",
