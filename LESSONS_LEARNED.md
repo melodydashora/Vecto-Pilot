@@ -610,6 +610,50 @@ user_id: req.body.user_id  // SECURITY VULNERABILITY
 - Keep OAuth secrets server-side only
 - Use backend proxy for third-party API calls
 
+### Ownership Enforcement (TODO: Implement with User Auth)
+
+**Status:** PENDING - Requires user authentication system
+
+When user auth is implemented, the following ownership checks MUST be added:
+
+**1. Chat Snapshot Ownership**
+- `server/api/chat/chat.js`: `POST /:snapshotId/message`
+- Before allowing chat messages, verify:
+  ```javascript
+  const snapshot = await db.select().from(snapshots)
+    .where(and(
+      eq(snapshots.snapshot_id, snapshotId),
+      eq(snapshots.user_id, req.auth.userId)  // ADD THIS CHECK
+    ));
+  if (!snapshot.length) return res.status(403).json({ error: 'Access denied' });
+  ```
+
+**2. Strategy Access Ownership**
+- `server/api/strategy/blocks-fast.js`: `GET /`
+- Verify user owns the snapshot before returning strategy data
+
+**3. Feedback & Actions Ownership**
+- `server/api/feedback/`: All endpoints should verify snapshot ownership
+
+**4. RLS Policy Updates (Neon Database)**
+- Current RLS policies are permissive when `user_id IS NULL`
+- Once user auth exists, update policies to require authenticated user:
+  ```sql
+  -- CURRENT (permissive):
+  USING (user_id = auth.user_id() OR user_id IS NULL)
+
+  -- UPDATE TO (strict):
+  USING (user_id = auth.user_id())
+  ```
+
+**Why Deferred:** Without a login/signup flow, there's no authenticated user session to enforce ownership against. Implementing ownership checks now would break the app.
+
+**Security Fixes Already Applied (Dec 2025):**
+- ✅ `/api/tts`: Added `requireAuth` (prevents unauthenticated API cost abuse)
+- ✅ `/api/realtime/token`: Added `requireAuth` (prevents unauthenticated OpenAI token minting)
+- ✅ `/api/auth/token`: Blocked in production (prevents arbitrary user impersonation)
+- ✅ Agent server legacy endpoints: Added bearer auth middleware (15+ endpoints)
+
 ---
 
 ## Cloud Run / Autoscale Deployment

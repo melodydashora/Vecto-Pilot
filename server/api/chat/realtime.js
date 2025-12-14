@@ -3,6 +3,7 @@
 
 import { Router } from 'express';
 import { coachDAL } from '../../lib/ai/coach-dal.js';
+import { requireAuth } from '../../middleware/auth.js';
 // Node.js 18+ has built-in fetch - no import needed
 
 const router = Router();
@@ -17,11 +18,13 @@ const TOKEN_EXPIRY_SECONDS = 3600; // 1 hour
  * POST /api/realtime/token
  * Generate ephemeral session token for OpenAI Realtime API
  * Returns token + context for voice chat with snapshot access
- * 
+ *
+ * SECURITY: Requires auth (mints OpenAI tokens using server API key, has API cost)
+ *
  * Request: { snapshotId, userId, strategyId }
  * Response: { token, expires_at, model, context }
  */
-router.post('/token', async (req, res) => {
+router.post('/token', requireAuth, async (req, res) => {
   try {
     const { snapshotId, userId, strategyId } = req.body;
 

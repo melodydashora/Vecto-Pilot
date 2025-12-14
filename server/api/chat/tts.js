@@ -3,16 +3,18 @@
 
 import { Router } from 'express';
 import { synthesizeSpeech } from '../../lib/external/tts-handler.js';
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
 /**
  * POST /api/tts
  * Generate natural voice audio from text
+ * SECURITY: Requires auth (uses server-side OpenAI API key, has API cost)
  * Request: { text: string }
  * Response: MP3 audio file
  */
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const { text } = req.body;
     

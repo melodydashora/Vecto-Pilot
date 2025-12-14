@@ -283,14 +283,24 @@ mountAbilityRoutes(agentRouter, "agent", caps, makeLocalExecutor(caps));
 app.use("/agent", agentRouter);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// File System Operations
+// Legacy File System Operations (Protected by bearer auth)
+// SECURITY: These endpoints require AGENT_TOKEN in production
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Apply bearer auth to legacy endpoints (same as agentRouter)
+const legacyAuthMiddleware = TOKEN ? bearer(TOKEN, "x-agent-token") : (req, res, next) => {
+  if (IS_PRODUCTION) {
+    return res.status(401).json({ ok: false, error: "auth_required_in_production" });
+  }
+  next();
+};
 
 /**
  * POST /agent/fs/read
  * Read file contents with security checks
+ * SECURITY: Requires AGENT_TOKEN in production
  */
-app.post("/agent/fs/read", async (req, res, next) => {
+app.post("/agent/fs/read", legacyAuthMiddleware, async (req, res, next) => {
   const id = randomId();
   try {
     const { path: p } = schemas.path.parse(req.body || {});
@@ -320,8 +330,9 @@ app.post("/agent/fs/read", async (req, res, next) => {
 /**
  * POST /agent/fs/write
  * Write file contents with security checks
+ * SECURITY: Requires AGENT_TOKEN in production
  */
-app.post("/agent/fs/write", async (req, res, next) => {
+app.post("/agent/fs/write", legacyAuthMiddleware, async (req, res, next) => {
   const id = randomId();
   try {
     const { path: p, content } = schemas.write.parse(req.body || {});
@@ -351,8 +362,9 @@ app.post("/agent/fs/write", async (req, res, next) => {
 /**
  * POST /agent/shell
  * Execute whitelisted shell commands (no shell interpolation for security)
+ * SECURITY: Requires AGENT_TOKEN in production
  */
-app.post("/agent/shell", async (req, res, next) => {
+app.post("/agent/shell", legacyAuthMiddleware, async (req, res, next) => {
   const id = randomId();
   try {
     const { cmd, args = [] } = schemas.shell.parse(req.body || {});
@@ -416,8 +428,9 @@ app.post("/agent/shell", async (req, res, next) => {
 /**
  * POST /agent/sql/query
  * Execute SELECT queries (read-only)
+ * SECURITY: Requires AGENT_TOKEN in production
  */
-app.post("/agent/sql/query", async (req, res, next) => {
+app.post("/agent/sql/query", legacyAuthMiddleware, async (req, res, next) => {
   const id = randomId();
   try {
     const pool = getDBPool();
@@ -441,7 +454,7 @@ app.post("/agent/sql/query", async (req, res, next) => {
  * POST /agent/sql/execute
  * Execute DML/DDL statements (INSERT/UPDATE/DELETE)
  */
-app.post("/agent/sql/execute", async (req, res, next) => {
+app.post("/agent/sql/execute", legacyAuthMiddleware, async (req, res, next) => {
   const id = randomId();
   try {
     const pool = getDBPool();
@@ -465,7 +478,7 @@ app.post("/agent/sql/execute", async (req, res, next) => {
 // Configuration Management
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get("/agent/config/list", async (req, res, next) => {
+app.get("/agent/config/list", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { listConfigFiles } = await import("./server/agent/config-manager.js");
     const files = await listConfigFiles();
@@ -475,7 +488,7 @@ app.get("/agent/config/list", async (req, res, next) => {
   }
 });
 
-app.get("/agent/config/read/:filename", async (req, res, next) => {
+app.get("/agent/config/read/:filename", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { readConfigFile } = await import("./server/agent/config-manager.js");
     const result = await readConfigFile(req.params.filename);
@@ -485,7 +498,7 @@ app.get("/agent/config/read/:filename", async (req, res, next) => {
   }
 });
 
-app.post("/agent/config/env/update", async (req, res, next) => {
+app.post("/agent/config/env/update", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { updateEnvFile } = await import("./server/agent/config-manager.js");
     const { updates } = req.body || {};
@@ -499,7 +512,7 @@ app.post("/agent/config/env/update", async (req, res, next) => {
   }
 });
 
-app.post("/agent/config/backup/:filename", async (req, res, next) => {
+app.post("/agent/config/backup/:filename", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { backupConfigFile } = await import("./server/agent/config-manager.js");
     const result = await backupConfigFile(req.params.filename);
@@ -513,7 +526,7 @@ app.post("/agent/config/backup/:filename", async (req, res, next) => {
 // Context Awareness & Memory
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get("/agent/context", async (req, res, next) => {
+app.get("/agent/context", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { getProjectContext } = await import("./server/agent/context-awareness.js");
     const context = await getProjectContext();
@@ -523,7 +536,7 @@ app.get("/agent/context", async (req, res, next) => {
   }
 });
 
-app.get("/agent/context/summary", async (req, res, next) => {
+app.get("/agent/context/summary", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { getProjectSummary } = await import("./server/agent/context-awareness.js");
     const summary = await getProjectSummary();
@@ -533,7 +546,7 @@ app.get("/agent/context/summary", async (req, res, next) => {
   }
 });
 
-app.post("/agent/memory/preference", async (req, res, next) => {
+app.post("/agent/memory/preference", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { saveUserPreference } = await import("./server/agent/context-awareness.js");
     const { key, value, userId } = req.body || {};
@@ -547,7 +560,7 @@ app.post("/agent/memory/preference", async (req, res, next) => {
   }
 });
 
-app.post("/agent/memory/session", async (req, res, next) => {
+app.post("/agent/memory/session", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { saveSessionState } = await import("./server/agent/context-awareness.js");
     const { key, value, userId } = req.body || {};
@@ -561,7 +574,7 @@ app.post("/agent/memory/session", async (req, res, next) => {
   }
 });
 
-app.post("/agent/memory/project", async (req, res, next) => {
+app.post("/agent/memory/project", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { saveProjectState } = await import("./server/agent/context-awareness.js");
     const { key, value, userId } = req.body || {};
@@ -575,7 +588,7 @@ app.post("/agent/memory/project", async (req, res, next) => {
   }
 });
 
-app.get("/agent/context/enhanced", async (req, res, next) => {
+app.get("/agent/context/enhanced", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { getEnhancedProjectContext } = await import("./server/agent/enhanced-context.js");
     const context = await getEnhancedProjectContext();
@@ -585,7 +598,7 @@ app.get("/agent/context/enhanced", async (req, res, next) => {
   }
 });
 
-app.post("/agent/search/internet", async (req, res, next) => {
+app.post("/agent/search/internet", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { performInternetSearch } = await import("./server/agent/enhanced-context.js");
     const { query, userId } = req.body || {};
@@ -599,7 +612,7 @@ app.post("/agent/search/internet", async (req, res, next) => {
   }
 });
 
-app.get("/agent/analyze/deep", async (req, res, next) => {
+app.get("/agent/analyze/deep", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { analyzeWorkspaceDeep } = await import("./server/agent/enhanced-context.js");
     const analysis = await analyzeWorkspaceDeep();
@@ -609,7 +622,7 @@ app.get("/agent/analyze/deep", async (req, res, next) => {
   }
 });
 
-app.post("/agent/memory/conversation", async (req, res, next) => {
+app.post("/agent/memory/conversation", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { rememberConversation } = await import("./server/agent/context-awareness.js");
     const { topic, summary, userId } = req.body || {};
@@ -623,7 +636,7 @@ app.post("/agent/memory/conversation", async (req, res, next) => {
   }
 });
 
-app.get("/agent/memory/conversations", async (req, res, next) => {
+app.get("/agent/memory/conversations", legacyAuthMiddleware, async (req, res, next) => {
   try {
     const { getRecentConversations } = await import("./server/agent/context-awareness.js");
     const { userId, limit } = req.query || {};
