@@ -30,6 +30,7 @@ import { generateTacticalPlan } from '../strategy/tactical-planner.js';
 import { hasRenderableBriefing, updatePhase } from '../strategy/strategy-utils.js';
 import { enrichVenues } from './venue-enrichment.js';
 import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
+import { matchVenuesToEvents } from './event-matcher.js';
 import { venuesLog } from '../../logger/workflow.js';
 
 /**
@@ -103,6 +104,19 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
     venuesLog.done(2, `Routes API: ${enrichedVenues.map(v => `${v.name.slice(0,20)}=${v.distanceMiles}mi`).join(', ')}`, enrichmentMs);
 
+    // Step 2.3: Match venues to discovered events from DB
+    // Phase: 'places' - Google Places API (event matching happens here too)
+    await updatePhase(snapshotId, 'places', { phaseEmitter });
+
+    const eventDate = snapshot.date || new Date().toISOString().slice(0, 10);
+    const eventMatches = await matchVenuesToEvents(
+      enrichedVenues,
+      snapshot.city,
+      snapshot.state,
+      eventDate
+    );
+    venuesLog.phase(3, `Event matching: ${eventMatches.size} venues matched to events`);
+
     // Step 2.5: Verify venue events using Gemini 2.5 Pro
     // Phase: 'verifying' - Gemini event verification
     await updatePhase(snapshotId, 'verifying', { phaseEmitter });
@@ -152,13 +166,17 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       const estimatedEarnings = distanceMiles * 1.50; // $1.50/mile estimate
       const valuePerMin = driveMinutes > 0 ? estimatedEarnings / driveMinutes : 0;
 
-      console.log(`🏢 [VENUE "${enriched.name}"] ${distanceMiles}mi, ${driveMinutes}min, isOpen=${enriched.isOpen}, hours=${enriched.businessHours || 'unknown'}`);
-      
+      // Get matched events for this venue
+      const matchedEvents = eventMatches.get(enriched.name) || null;
+      const hasEvent = matchedEvents && matchedEvents.length > 0;
+
+      console.log(`🏢 [VENUE "${enriched.name}"] ${distanceMiles}mi, ${driveMinutes}min, isOpen=${enriched.isOpen}, hours=${enriched.businessHours || 'unknown'}${hasEvent ? `, 🎫 EVENT: ${matchedEvents[0].title}` : ''}`);
+
       // Grade venues: A = $1+/min, B = $0.50-$1/min, C = <$0.50/min
       let valueGrade = 'C';
       if (valuePerMin >= 1.0) valueGrade = 'A';
       else if (valuePerMin >= 0.50) valueGrade = 'B';
-      
+
       return {
         id: randomUUID(),
         ranking_id: rankingId,
@@ -183,7 +201,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
         staging_name: enriched.staging_name || null,
         staging_lat: enriched.staging_lat || null,
         staging_lng: enriched.staging_lng || null,
-        venue_events: null,
+        venue_events: matchedEvents,  // Events matched from discovered_events table
         business_hours: enriched.businessHours,
         closed_reasoning: enriched.strategic_timing || null,
         
@@ -202,7 +220,9 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
           strategic_timing: enriched.strategic_timing,
           isOpen: enriched.isOpen,
           address: enriched.address,
-          streetViewUrl: enriched.streetViewUrl
+          streetViewUrl: enriched.streetViewUrl,
+          hasEvent: hasEvent,
+          eventBadge: hasEvent ? matchedEvents[0].title : null
         },
         h3_r8: null,
         estimated_distance_miles: distanceMiles,

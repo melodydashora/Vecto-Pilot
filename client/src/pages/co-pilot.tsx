@@ -429,7 +429,10 @@ const CoPilot: React.FC = () => {
                 closed_venue_reasoning: v.closed_venue_reasoning,
                 stagingArea: v.stagingArea,
                 proTips: v.proTips || v.pro_tips || [],
-                streetViewUrl: v.streetViewUrl
+                streetViewUrl: v.streetViewUrl,
+                // Event flags from discovered_events matching
+                hasEvent: v.hasEvent ?? v.features?.hasEvent ?? false,
+                eventBadge: v.eventBadge ?? v.features?.eventBadge ?? null
               };
             }) || [],
             ranking_id: data.ranking_id || data.correlationId,  // Use actual ranking_id from DB
