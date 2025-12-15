@@ -1,7 +1,7 @@
 # AI Partnership Checkpoint
 
 **Created:** December 15, 2024
-**Status:** Phase 1, 2 & 3 COMPLETE
+**Status:** Phase 1, 2, 3 & 4 COMPLETE
 
 ## Phase 1: Split ARCHITECTURE.md - COMPLETE
 
@@ -105,15 +105,42 @@ Files fixed:
 
 ---
 
-## What's Next
+## Phase 4: Document the Undocumented - COMPLETE
 
-**Phase 4: Document the Undocumented**
-- Audit server/agent/, server/eidolon/, server/assistant/
-- Create docs/ai-tools/ folder with tool documentation
+AI tools and capabilities documented.
+
+### Audited Folders
+
+| Folder | Status | Notes |
+|--------|--------|-------|
+| `server/agent/` | Verified | README accurate |
+| `server/eidolon/` | Enhanced | Created `core/README.md` |
+| `server/assistant/` | Enhanced | Updated README with API docs |
+| `mcp-server/` | Verified | 39 tools documented |
+
+### Documents Created (6 total)
+
+1. `docs/ai-tools/README.md` - AI tools index
+2. `docs/ai-tools/mcp.md` - MCP server reference (39 tools)
+3. `docs/ai-tools/agent.md` - Workspace agent docs
+4. `docs/ai-tools/eidolon.md` - Eidolon SDK features
+5. `docs/ai-tools/memory.md` - Memory system guide
+6. `docs/ai-tools/assistant.md` - Assistant API docs
+
+### Additional Updates
+
+- Created `server/eidolon/core/README.md` - Core component documentation
+- Enhanced `server/assistant/README.md` - Added API endpoints and usage
+- Updated `CLAUDE.md` - Added "Available AI Tools" section
+
+---
+
+## What's Next
 
 **Phase 5: Continuous Improvement Loop**
 - Post-change documentation prompts
 - Monthly review checklist
+- Version decisions with dates
 
 See `docs/AI_PARTNERSHIP_PLAN.md` for full roadmap.
 
