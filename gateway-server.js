@@ -49,7 +49,7 @@ process.on('unhandledRejection', (reason, promise) => {
     const { configureHealthEndpoints, mountHealthRouter } = await import('./server/bootstrap/health.js');
     const { configureMiddleware, configureErrorHandler } = await import('./server/bootstrap/middleware.js');
     const { mountRoutes, mountSSE, mountUnifiedCapabilities } = await import('./server/bootstrap/routes.js');
-    const { startStrategyWorker, shouldStartWorker, killAllChildren } = await import('./server/bootstrap/workers.js');
+    const { startStrategyWorker, shouldStartWorker, killAllChildren, startEventSyncJob } = await import('./server/bootstrap/workers.js');
 
     // Health endpoints FIRST (before any heavy imports)
     configureHealthEndpoints(app, distDir, MODE);
@@ -156,6 +156,11 @@ process.on('unhandledRejection', (reason, promise) => {
         startStrategyWorker({ useLogFile: workerConfig.useLogFile });
       } else {
         console.log(`[gateway] ⏸️ Worker not started: ${workerConfig.reason}`);
+      }
+
+      // Start daily event sync job (runs at 6 AM daily)
+      if (!isAutoscaleMode) {
+        startEventSyncJob();
       }
 
       console.log('[gateway] ✅ All routes and middleware loaded');

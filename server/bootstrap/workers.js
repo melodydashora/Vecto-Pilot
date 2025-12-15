@@ -7,6 +7,9 @@ import { openSync } from 'node:fs';
 // Track spawned child processes for graceful shutdown
 const children = new Map();
 
+// Track in-process jobs
+let eventSyncJob = null;
+
 /**
  * Spawn a child process with auto-restart on crash
  * @param {string} name - Process name for logging
@@ -147,4 +150,26 @@ export function killAllChildren(signal = 'SIGTERM') {
     console.log(`[gateway] Stopping ${name}...`);
     child.kill(signal);
   });
+
+  // Stop in-process jobs
+  if (eventSyncJob) {
+    eventSyncJob.stop();
+    eventSyncJob = null;
+  }
+}
+
+/**
+ * Start the daily event sync job
+ * Runs in-process (not spawned) for simplicity
+ */
+export async function startEventSyncJob() {
+  try {
+    const { startEventSyncJob: startJob } = await import('../jobs/event-sync-job.js');
+    eventSyncJob = startJob();
+    console.log('[gateway] ✅ Event sync job started');
+    return eventSyncJob;
+  } catch (err) {
+    console.error('[gateway] ❌ Failed to start event sync job:', err.message);
+    return null;
+  }
 }

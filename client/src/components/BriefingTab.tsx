@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,10 +89,21 @@ export default function BriefingTab({
   const [expandedAirport, setExpandedAirport] = useState(true);
 
   // Daily strategy - on-demand generation
-  const [showDailyStrategy, setShowDailyStrategy] = useState(false);
+  // Initialize with prop value if available (for returning users with cached strategy)
+  const [showDailyStrategy, setShowDailyStrategy] = useState(!!consolidatedStrategy);
   const [dailyStrategy, setDailyStrategy] = useState<string | null>(consolidatedStrategy || null);
   const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);
   const [dailyError, setDailyError] = useState<string | null>(null);
+
+  // Sync with prop when it changes (e.g., from localStorage on page load)
+  // Only update if prop has value and local state is empty
+  useEffect(() => {
+    if (consolidatedStrategy && !dailyStrategy) {
+      console.log('[BriefingTab] Syncing strategy from prop:', consolidatedStrategy.length, 'chars');
+      setDailyStrategy(consolidatedStrategy);
+      setShowDailyStrategy(true);
+    }
+  }, [consolidatedStrategy]); // Intentionally exclude dailyStrategy to avoid loops
 
   // Event discovery - on-demand fetch
   const [isDiscoveringEvents, setIsDiscoveringEvents] = useState(false);
@@ -391,8 +402,33 @@ export default function BriefingTab({
               </div>
               <div>
                 <h3 className="font-semibold text-purple-900 text-lg">Generating Daily Strategy...</h3>
-                <p className="text-sm text-purple-600">AI is analyzing conditions for your 8-12 hour plan</p>
+                <p className="text-sm text-purple-600">AI is analyzing conditions for your 8-12 hour plan (30-60s)</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Show error if generation failed */}
+      {dailyError && !isGeneratingDaily && !dailyStrategy && (
+        <Card className="bg-red-50 border-red-300" data-testid="daily-strategy-error">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-red-500 shadow-lg">
+                <AlertTriangle className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-900 text-lg">Strategy Generation Failed</h3>
+                <p className="text-sm text-red-600">{dailyError}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={generateDailyStrategy}
+                className="bg-white border-red-300 text-red-700 hover:bg-red-100"
+              >
+                Retry
+              </Button>
             </div>
           </CardContent>
         </Card>

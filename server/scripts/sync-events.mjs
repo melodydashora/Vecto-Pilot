@@ -23,6 +23,75 @@ import { sql } from 'drizzle-orm';
 const { Pool } = pg;
 
 const MAX_DRIVE_MINUTES = 8;
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+
+// ============================================================================
+// Geocode address to coordinates (forward geocoding)
+// ============================================================================
+async function geocodeAddress(address, city, state) {
+  if (!address || !GOOGLE_MAPS_API_KEY) return null;
+
+  try {
+    // Build full address string for geocoding
+    const fullAddress = [address, city, state].filter(Boolean).join(', ');
+
+    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+    url.searchParams.set('address', fullAddress);
+    url.searchParams.set('key', GOOGLE_MAPS_API_KEY);
+
+    const response = await fetch(url.toString());
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (data.status === 'OK' && data.results?.[0]?.geometry?.location) {
+      const { lat, lng } = data.results[0].geometry.location;
+      return { lat, lng };
+    }
+    return null;
+  } catch (err) {
+    console.log(`  [Geocode] Error: ${err.message}`);
+    return null;
+  }
+}
+
+// ============================================================================
+// Batch geocode events that are missing coordinates
+// ============================================================================
+async function geocodeMissingCoordinates(events) {
+  const eventsNeedingGeocode = events.filter(e => !e.lat || !e.lng);
+
+  if (eventsNeedingGeocode.length === 0) {
+    return events;
+  }
+
+  console.log(`  [Geocode] Geocoding ${eventsNeedingGeocode.length} events without coordinates...`);
+
+  // Process in batches of 5 to avoid rate limits
+  for (let i = 0; i < eventsNeedingGeocode.length; i += 5) {
+    const batch = eventsNeedingGeocode.slice(i, i + 5);
+
+    await Promise.all(batch.map(async (event) => {
+      // Try venue name + city first, then full address
+      const searchQuery = event.venue_name || event.address;
+      const coords = await geocodeAddress(searchQuery, event.city, event.state);
+
+      if (coords) {
+        event.lat = coords.lat;
+        event.lng = coords.lng;
+      }
+    }));
+
+    // Small delay between batches
+    if (i + 5 < eventsNeedingGeocode.length) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+
+  const geocoded = events.filter(e => e.lat && e.lng).length;
+  console.log(`  [Geocode] ${geocoded}/${events.length} events now have coordinates`);
+
+  return events;
+}
 
 // ============================================================================
 // Database connection
@@ -89,6 +158,8 @@ Return a JSON array with ALL events found:
     "title": "Event Name",
     "venue": "Venue Name",
     "address": "Full Address with City, State ZIP",
+    "lat": 32.7767,
+    "lng": -96.7970,
     "event_date": "YYYY-MM-DD",
     "event_time": "7:00 PM",
     "event_end_time": "10:00 PM",
@@ -97,6 +168,8 @@ Return a JSON array with ALL events found:
     "source": "where you found this info"
   }
 ]
+
+IMPORTANT: Always include lat/lng coordinates for each event venue. You can search for the venue coordinates or use known landmark coordinates.
 
 IMPORTANT: Always include event_end_time when available. For concerts, typically 2-3 hours after start. For sports, check typical game lengths. If end time is unknown, omit the field.
 
@@ -170,6 +243,10 @@ async function searchWithSerpAPI(city, state) {
         const stateMatch = address.match(/,\s*([A-Z]{2})\s/);
         if (stateMatch) parsedState = stateMatch[1];
 
+        // Extract GPS coordinates if available (SerpAPI may include venue.gps)
+        const venueLat = evt.venue?.gps?.latitude || evt.gps?.latitude || null;
+        const venueLng = evt.venue?.gps?.longitude || evt.gps?.longitude || null;
+
         events.push({
           title: evt.title,
           venue_name: evt.venue?.name || evt.address?.[0] || null,
@@ -179,6 +256,8 @@ async function searchWithSerpAPI(city, state) {
           zip,
           event_date: eventDate || new Date().toISOString().split('T')[0],
           event_time: eventTime || evt.date?.when || null,
+          lat: venueLat,
+          lng: venueLng,
           category: categorizeEvent(evt.title),
           expected_attendance: 'medium',
           source_model: 'SerpAPI',
@@ -261,6 +340,8 @@ async function searchWithGPT52(city, state, lat, lng) {
       event_date: evt.event_date || date,
       event_time: evt.event_time || null,
       event_end_time: evt.event_end_time || null,
+      lat: evt.lat || null,
+      lng: evt.lng || null,
       category: evt.category || categorizeEvent(evt.title),
       expected_attendance: evt.expected_attendance || 'medium',
       source_model: 'GPT-5.2',
@@ -337,6 +418,8 @@ async function searchWithGemini3Pro(city, state, lat, lng) {
       event_date: evt.event_date || date,
       event_time: evt.event_time || null,
       event_end_time: evt.event_end_time || null,
+      lat: evt.lat || null,
+      lng: evt.lng || null,
       category: evt.category || categorizeEvent(evt.title),
       expected_attendance: evt.expected_attendance || 'medium',
       source_model: 'Gemini-3-Pro',
@@ -421,6 +504,8 @@ Search for: concerts, sports games, festivals, theater, comedy shows, convention
       event_date: evt.event_date || date,
       event_time: evt.event_time || null,
       event_end_time: evt.event_end_time || null,
+      lat: evt.lat || null,
+      lng: evt.lng || null,
       category: evt.category || categorizeEvent(evt.title),
       expected_attendance: evt.expected_attendance || 'medium',
       source_model: 'Gemini-2.5-Pro',
@@ -501,6 +586,8 @@ async function searchWithClaude(city, state, lat, lng) {
       event_date: evt.event_date || date,
       event_time: evt.event_time || null,
       event_end_time: evt.event_end_time || null,
+      lat: evt.lat || null,
+      lng: evt.lng || null,
       category: evt.category || categorizeEvent(evt.title),
       expected_attendance: evt.expected_attendance || 'medium',
       source_model: 'Claude',
@@ -574,6 +661,8 @@ async function searchWithPerplexityReasoning(city, state, lat, lng) {
       event_date: evt.event_date || date,
       event_time: evt.event_time || null,
       event_end_time: evt.event_end_time || null,
+      lat: evt.lat || null,
+      lng: evt.lng || null,
       category: evt.category || categorizeEvent(evt.title),
       expected_attendance: evt.expected_attendance || 'medium',
       source_model: 'Perplexity-Reasoning',
@@ -744,6 +833,9 @@ async function syncEventsForLocation(location, isDaily = false) {
   let skipped = 0;
 
   if (allEvents.length > 0) {
+    // Geocode events missing lat/lng coordinates
+    allEvents = await geocodeMissingCoordinates(allEvents);
+
     console.log(`\n[Storing] ${allEvents.length} events...`);
     const result = await storeEvents(db, allEvents);
     inserted = result.inserted;
