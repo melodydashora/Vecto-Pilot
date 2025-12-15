@@ -219,8 +219,10 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
       stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
       isOpen: c.features?.isOpen,
       streetViewUrl: c.features?.streetViewUrl,
-      eventBadge: c.venue_events?.badge,
-      eventSummary: c.venue_events?.summary,
+      // Event flags from discovered_events matching (venue_events is array of matched events)
+      hasEvent: c.features?.hasEvent || (Array.isArray(c.venue_events) && c.venue_events.length > 0),
+      eventBadge: c.features?.eventBadge || (Array.isArray(c.venue_events) && c.venue_events.length > 0 ? c.venue_events[0].title : null),
+      eventSummary: Array.isArray(c.venue_events) && c.venue_events.length > 0 ? `${c.venue_events[0].category} at ${c.venue_events[0].event_time || 'today'}` : null,
     };
 
     // Dynamic business hours enrichment - only include if NOT holiday/special hours
