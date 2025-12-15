@@ -26,6 +26,7 @@ npm run lint && npm run typecheck && npm run build  # Pre-PR
 | [docs/README.md](docs/README.md) | Documentation index |
 | [docs/architecture/](docs/architecture/README.md) | Architecture docs (13 focused files) |
 | [docs/preflight/](docs/preflight/README.md) | **Pre-flight cards (read before edits)** |
+| [docs/memory/](docs/memory/README.md) | Memory layer (session rituals) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System overview + folder index |
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Historical issues |
 
@@ -135,6 +136,40 @@ Before ANY edit:
 3. Grep for existing implementations
 4. THEN make the change
 ```
+
+## Memory Layer
+
+Persistent memory for context across sessions. See [docs/memory/](docs/memory/README.md) for full documentation.
+
+### Session Start
+
+Load context at session start:
+```javascript
+memory_search({ tags: ["decision"], limit: 20 })  // Architecture decisions
+memory_search({ tags: ["learning"], limit: 5 })   // Recent learnings
+memory_retrieve({ key: "user_preferences" })       // User preferences
+```
+
+### Session End
+
+Store learnings before ending:
+```javascript
+memory_store({
+  key: "session_YYYY_MM_DD_learnings",
+  content: "What was learned/fixed/discovered",
+  tags: ["session", "learning"],
+  ttl_hours: 720
+})
+```
+
+### Key Memory Prefixes
+
+| Prefix | Purpose |
+|--------|---------|
+| `decision_` | Architecture decisions |
+| `session_` | Session learnings |
+| `user_` | User preferences |
+| `debug_` | Debugging notes |
 
 ## Environment Variables
 
