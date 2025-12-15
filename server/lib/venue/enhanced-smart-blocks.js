@@ -27,7 +27,7 @@ import { db } from '../../db/drizzle.js';
 import { rankings, ranking_candidates } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { generateTacticalPlan } from '../strategy/tactical-planner.js';
-import { hasRenderableBriefing } from '../strategy/strategy-utils.js';
+import { hasRenderableBriefing, updatePhase } from '../strategy/strategy-utils.js';
 import { enrichVenues } from './venue-enrichment.js';
 import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
 import { venuesLog } from '../../logger/workflow.js';
@@ -42,8 +42,9 @@ import { venuesLog } from '../../logger/workflow.js';
  * @param {Object} params.briefing - Gemini briefing (optional)
  * @param {Object} params.snapshot - Snapshot context
  * @param {string} params.user_id - User ID
+ * @param {EventEmitter} params.phaseEmitter - Optional emitter for SSE phase updates
  */
-export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrategy, briefing, snapshot, user_id }) {
+export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrategy, briefing, snapshot, user_id, phaseEmitter }) {
   const startTime = Date.now();
   const correlationId = randomUUID();
   const rankingId = randomUUID();
@@ -62,29 +63,35 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
   }
 
   venuesLog.phase(1, `Input ready: strategy=${immediateStrategy.length}chars, briefing=${Object.keys(briefing).filter(k => briefing[k]).length} fields`);
-  
+
   try {
     // Step 1: Call GPT-5.2 Venue Planner with IMMEDIATE strategy (where to go NOW)
+    // Phase: 'venues' - AI venue recommendation
+    await updatePhase(snapshotId, 'venues', { phaseEmitter });
+
     const plannerStart = Date.now();
     const venuesPlan = await generateTacticalPlan({
       strategy: immediateStrategy,  // Uses "where to go NOW" strategy
       snapshot
     });
     const plannerMs = Date.now() - plannerStart;
-    
+
     if (!venuesPlan || !venuesPlan.recommended_venues || venuesPlan.recommended_venues.length === 0) {
       throw new Error('GPT-5.2 planner returned no venues');
     }
 
     venuesLog.done(1, `GPT-5.2 planner returned ${venuesPlan.recommended_venues.length} venues`, plannerMs);
-    
+
     // Step 2: Enrich venues with Google APIs (Places, Routes, Geocoding)
+    // Phase: 'routing' - Google Routes + Places APIs
+    await updatePhase(snapshotId, 'routing', { phaseEmitter });
+
     const enrichmentStart = Date.now();
     const driverLocation = {
       lat: snapshot.lat,
       lng: snapshot.lng
     };
-    
+
     venuesLog.phase(2, `Driver at ${driverLocation.lat.toFixed(4)},${driverLocation.lng.toFixed(4)} - calling Google Routes API`);
 
     const enrichedVenues = await enrichVenues(
@@ -95,8 +102,11 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     const enrichmentMs = Date.now() - enrichmentStart;
 
     venuesLog.done(2, `Routes API: ${enrichedVenues.map(v => `${v.name.slice(0,20)}=${v.distanceMiles}mi`).join(', ')}`, enrichmentMs);
-    
+
     // Step 2.5: Verify venue events using Gemini 2.5 Pro
+    // Phase: 'verifying' - Gemini event verification
+    await updatePhase(snapshotId, 'verifying', { phaseEmitter });
+
     venuesLog.phase(3, `Places API: Fetching hours + verifying events for ${enrichedVenues.length} venues`);
     const verificationStart = Date.now();
     const eventVerificationMap = await verifyVenueEventsBatch(

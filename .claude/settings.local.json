@@ -68,7 +68,8 @@
       "Bash(node tools/research/event-model-comparison.mjs:*)",
       "Bash(tee:*)",
       "Bash(timeout 5 node:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

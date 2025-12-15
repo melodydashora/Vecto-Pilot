@@ -89,8 +89,9 @@ export interface FeedbackModalState {
 export type TabType = 'strategy' | 'venues' | 'briefing' | 'map' | 'donation';
 
 // Backend pipeline phases (from strategies.phase column)
-// Full pipeline: starting → resolving → analyzing → immediate → venues → enriching → complete
-export type PipelinePhase = 'starting' | 'resolving' | 'analyzing' | 'immediate' | 'venues' | 'enriching' | 'complete';
+// Strategy phases: starting → resolving → analyzing → immediate
+// SmartBlocks phases: venues → routing → places → verifying → complete
+export type PipelinePhase = 'starting' | 'resolving' | 'analyzing' | 'immediate' | 'venues' | 'routing' | 'places' | 'verifying' | 'enriching' | 'complete';
 
 // Legacy frontend phases (kept for backwards compatibility)
 export type EnrichmentPhase = 'idle' | 'strategy' | 'blocks';

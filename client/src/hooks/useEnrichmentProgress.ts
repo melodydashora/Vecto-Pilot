@@ -2,7 +2,7 @@
 // Progress tracking for strategy/blocks generation pipeline
 // Uses real backend pipeline phases with dynamic time-based calculation
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { EnrichmentPhase, CoordData, StrategyData, PipelinePhase } from '@/types/co-pilot';
 
 interface UseEnrichmentProgressOptions {
@@ -23,18 +23,22 @@ interface EnrichmentProgressState {
 }
 
 // Default expected durations (fallback if not provided by backend)
+// SmartBlocks phases: venues → routing → places → verifying → complete
 const DEFAULT_EXPECTED_DURATIONS: Record<string, number> = {
   starting: 500,
   resolving: 1500,
   analyzing: 12000,
   immediate: 8000,
-  venues: 3000,
-  enriching: 15000,
+  venues: 4000,       // GPT-5.2 venue planner
+  routing: 5000,      // Google Routes API
+  places: 6000,       // Google Places API
+  verifying: 4000,    // Gemini event verification
+  enriching: 15000,   // Legacy fallback
   complete: 0
 };
 
 // Phase order for progress calculation
-const PHASE_ORDER: PipelinePhase[] = ['starting', 'resolving', 'analyzing', 'immediate', 'venues', 'enriching', 'complete'];
+const PHASE_ORDER: PipelinePhase[] = ['starting', 'resolving', 'analyzing', 'immediate', 'venues', 'routing', 'places', 'verifying', 'complete'];
 
 // Map backend phase to frontend phase category
 const PHASE_TO_FRONTEND: Record<PipelinePhase, EnrichmentPhase> = {
@@ -43,7 +47,10 @@ const PHASE_TO_FRONTEND: Record<PipelinePhase, EnrichmentPhase> = {
   analyzing: 'strategy',
   immediate: 'strategy',
   venues: 'blocks',
-  enriching: 'blocks',
+  routing: 'blocks',
+  places: 'blocks',
+  verifying: 'blocks',
+  enriching: 'blocks',  // Legacy fallback
   complete: 'idle'
 };
 
@@ -54,6 +61,9 @@ const STRATEGY_CARD_CAPS: Record<PipelinePhase, number> = {
   analyzing: 100,
   immediate: 100,
   venues: 100,        // Strategy complete, cap at 100
+  routing: 100,
+  places: 100,
+  verifying: 100,
   enriching: 100,
   complete: 100
 };
@@ -156,6 +166,7 @@ export function useEnrichmentProgress({
   const [animatedProgress, setAnimatedProgress] = useState(0);
   const [animatedStrategyProgress, setAnimatedStrategyProgress] = useState(0);
   const [localPhaseElapsed, setLocalPhaseElapsed] = useState(0);
+  const prevPhaseRef = useRef<PipelinePhase | null>(null);
 
   // Get backend data
   const backendPhase = (strategyData?.phase as PipelinePhase) || 'starting';
@@ -220,32 +231,32 @@ export function useEnrichmentProgress({
     return () => clearInterval(interval);
   }, [timing?.phase_started_at, hasBlocks]);
 
-  // Animate bottom bar progress smoothly toward target
+  // Animate bottom bar progress smoothly toward target (250ms for smoother UX with fewer re-renders)
   useEffect(() => {
     if (animatedProgress >= targetProgress) return;
 
     const interval = setInterval(() => {
       setAnimatedProgress(prev => {
         const diff = targetProgress - prev;
-        const step = Math.max(0.5, diff * 0.2);
+        const step = Math.max(1, diff * 0.3); // Larger steps to compensate for slower interval
         return Math.min(targetProgress, prev + step);
       });
-    }, 100);
+    }, 250);
 
     return () => clearInterval(interval);
   }, [targetProgress, animatedProgress]);
 
-  // Animate strategy card progress smoothly toward target
+  // Animate strategy card progress smoothly toward target (250ms for smoother UX with fewer re-renders)
   useEffect(() => {
     if (animatedStrategyProgress >= targetStrategyProgress) return;
 
     const interval = setInterval(() => {
       setAnimatedStrategyProgress(prev => {
         const diff = targetStrategyProgress - prev;
-        const step = Math.max(0.5, diff * 0.2);
+        const step = Math.max(1, diff * 0.3); // Larger steps to compensate for slower interval
         return Math.min(targetStrategyProgress, prev + step);
       });
-    }, 100);
+    }, 250);
 
     return () => clearInterval(interval);
   }, [targetStrategyProgress, animatedStrategyProgress]);
@@ -260,12 +271,13 @@ export function useEnrichmentProgress({
     }
   }, [snapshotMatches, coords]);
 
-  // Log phase changes for debugging
+  // Log phase changes for debugging (only on actual phase transitions)
   useEffect(() => {
-    if (coords && !hasBlocks) {
-      console.log(`[enrichment] Phase: ${backendPhase} | Progress: ${Math.round(animatedProgress)}% | Time remaining: ${timeRemainingText || 'N/A'}`);
+    if (coords && !hasBlocks && backendPhase !== prevPhaseRef.current) {
+      console.log(`[enrichment] Phase: ${backendPhase} | Progress: ${Math.round(animatedProgress)}%`);
+      prevPhaseRef.current = backendPhase;
     }
-  }, [backendPhase, animatedProgress, timeRemainingText, coords, hasBlocks]);
+  }, [backendPhase, coords, hasBlocks, animatedProgress]);
 
   return {
     progress: Math.round(animatedProgress),
