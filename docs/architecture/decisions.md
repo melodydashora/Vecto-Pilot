@@ -251,6 +251,57 @@ const isOpen = bar.isOpen;  // Trust server's timezone-aware calculation
 
 ---
 
+## Decision History
+
+Track when decisions were made and how they evolved.
+
+| Decision | Date | Status | Notes |
+|----------|------|--------|-------|
+| Single-Path Orchestration | Oct 2024 | Active | No changes |
+| Coordinates from Google | Oct 2024 | Active | No changes |
+| Complete Snapshot Gating | Oct 2024 | Active | No changes |
+| Fail-Fast, No Stub Data | Oct 2024 | Active | No changes |
+| Key-Based Merge | Oct 2024 | Active | Fixed venue data bugs |
+| Server Truth for Coordinates | Oct 2024 | Active | No changes |
+| Per-Route JSON Parsing | Nov 2024 | Active | Added after client abort errors |
+| Model Roles, Not Names | Nov 2024 | Active | No changes |
+| Server Calculates isOpen | Dec 2024 | Active | Changed from client-side calc |
+| Same Behavior Dev/Prod | Dec 2024 | Active | Added after stale briefing bug |
+| GPT-5.2 Parameters | Oct 2024 | Active | No temperature support |
+| Gemini 3 Pro Config | Nov 2024 | Active | thinkingConfig format |
+| Staging Area Constraint | Oct 2024 | Active | 2-minute drive rule |
+| Location Resolution Priority | Dec 2024 | Active | Users → Cache → API |
+
+### Status Meanings
+
+| Status | Meaning |
+|--------|---------|
+| Active | Currently in use |
+| Modified | Changed from original |
+| Deprecated | No longer applies |
+| Superseded | Replaced by another decision |
+
+### Adding New Decisions
+
+When adding a decision:
+1. Add entry to the history table above
+2. Add detailed section below with:
+   - **Decision:** What we chose
+   - **Added:** Date
+   - **Why:** Reasoning
+   - **Implementation:** Where enforced
+3. Store in memory:
+```javascript
+memory_store({
+  key: "decision_name",
+  content: "Full decision text",
+  tags: ["decision", "area"],
+  metadata: { decided_on: "YYYY-MM-DD" }
+})
+```
+
+---
+
 ## When to Update This Document
 
 Add a new decision when:
@@ -264,6 +315,8 @@ Format:
 ### [Decision Name]
 
 **Decision:** What we chose
+
+**Added:** Date
 
 **Why:** Reasoning (the important part)
 
