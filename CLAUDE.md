@@ -28,6 +28,7 @@ npm run lint && npm run typecheck && npm run build  # Pre-PR
 | [docs/preflight/](docs/preflight/README.md) | **Pre-flight cards (read before edits)** |
 | [docs/memory/](docs/memory/README.md) | Memory layer (session rituals) |
 | [docs/ai-tools/](docs/ai-tools/README.md) | AI tools documentation |
+| [docs/review-queue/](docs/review-queue/README.md) | **Change analyzer findings (check on session start)** |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System overview + folder index |
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Historical issues |
 
@@ -173,6 +174,9 @@ Load context at session start:
 memory_search({ tags: ["decision"], limit: 20 })  // Architecture decisions
 memory_search({ tags: ["learning"], limit: 5 })   // Recent learnings
 memory_retrieve({ key: "user_preferences" })       // User preferences
+
+// Also check for pending doc reviews from Change Analyzer
+Read({ file_path: "docs/review-queue/pending.md" })
 ```
 
 ### Session End
@@ -245,6 +249,46 @@ memory_store({
   ttl_hours: 168  // 1 week
 })
 ```
+
+## Change Analyzer
+
+Automated sub-agent that runs on server startup to flag documentation that may need updates.
+
+### How It Works
+
+1. **Server starts** → Change Analyzer runs automatically
+2. **Git analysis** → Detects modified, added, deleted files
+3. **Doc mapping** → Maps changed files to potentially affected docs
+4. **Output** → Appends findings to `docs/review-queue/`
+
+### Review Queue Files
+
+| File | Purpose |
+|------|---------|
+| `docs/review-queue/pending.md` | Current items needing review |
+| `docs/review-queue/YYYY-MM-DD.md` | Daily analysis logs |
+
+### Manual Trigger
+
+```javascript
+// Via MCP tool
+analyze_changes
+```
+
+### Session Workflow
+
+**At session start:**
+1. Check `docs/review-queue/pending.md` for flagged items
+2. Review high-priority items
+3. Update docs if needed
+
+**After reviewing:**
+```markdown
+// Change status in pending.md
+### Status: PENDING  →  ### Status: REVIEWED
+```
+
+See [docs/review-queue/README.md](docs/review-queue/README.md) for full documentation.
 
 ## Environment Variables
 
