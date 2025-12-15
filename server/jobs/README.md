@@ -2,13 +2,14 @@
 
 ## Purpose
 
-Background workers for async processing. Currently contains the SmartBlocks generation listener.
+Background workers for async processing.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `triad-worker.js` | LISTEN-only SmartBlocks worker |
+| `event-sync-job.js` | Daily event discovery sync |
 
 ## triad-worker.js
 
@@ -86,4 +87,56 @@ node server/jobs/triad-worker.js
 import { generateEnhancedSmartBlocks } from '../lib/venue/enhanced-smart-blocks.js';
 import { db } from '../db/drizzle.js';
 import { strategies, snapshots, briefings } from '../../shared/schema.js';
+```
+
+## event-sync-job.js
+
+Daily event discovery sync job that keeps local events fresh for all active users.
+
+### How It Works
+
+```
+1. Runs daily at 6 AM (configurable)
+       ↓
+2. Clean up past events (mark is_active=false)
+       ↓
+3. Get unique city/state from recent snapshots (7 days)
+       ↓
+4. Run syncEventsForLocation() for each location
+       ↓
+5. Events stored with deduplication via event_hash
+```
+
+### Key Features
+
+- **Daily schedule**: Runs at 6 AM automatically
+- **Past event cleanup**: Deactivates events with event_date < today
+- **Multi-location**: Syncs all active user locations
+- **All AI models**: Uses daily mode (SerpAPI + GPT-5.2 + Gemini + Claude + Perplexity)
+- **Geocoding**: Fills in missing lat/lng coordinates via Google Geocoding
+
+### Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `EVENT_SYNC_RUN_ON_START` | Set to `true` to run sync immediately on server start |
+
+### Manual Run
+
+```bash
+node server/jobs/event-sync-job.js
+```
+
+### Logging
+
+```
+[EventSync] DAILY EVENT SYNC STARTED
+[EventSync] Step 1: Cleaning up past events...
+[EventSync] Deactivated 12 past events
+[EventSync] Step 2: Finding active user locations...
+[EventSync] Found 3 unique locations
+[EventSync] Step 3: Syncing events for each location...
+[EventSync] Syncing: Dallas, TX
+[EventSync] Dallas: +25 new, 8 duplicates
+[EventSync] DAILY SYNC COMPLETE
 ```
