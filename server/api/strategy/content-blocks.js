@@ -31,7 +31,7 @@ import {
 } from "../../../shared/schema.js";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../../middleware/auth.js";
-import { PHASE_EXPECTED_DURATIONS } from "../../lib/strategy/strategy-utils.js";
+import { PHASE_EXPECTED_DURATIONS, updatePhase } from "../../lib/strategy/strategy-utils.js";
 
 export const router = Router();
 
@@ -210,6 +210,12 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         },
         blocks: [],
       });
+    }
+
+    // Auto-correct phase if blocks exist but phase stuck (Fix #15.2)
+    if (strategy.phase !== 'complete') {
+      console.log(`[content-blocks] Auto-correcting phase: ${strategy.phase} → complete for ${snapshotId.slice(0, 8)}`);
+      await updatePhase(snapshotId, 'complete');
     }
 
     // Strategy AND blocks ready - return complete data

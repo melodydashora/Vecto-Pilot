@@ -142,9 +142,9 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
     return { ok: false, error: 'GEMINI_API_KEY not configured' };
   }
 
-  // RETRY CONFIGURATION: 3 attempts with 2s, 4s, 8s delays
-  const MAX_RETRIES = 3;
-  const BASE_DELAY_MS = 2000;
+  // RETRY CONFIGURATION: 2 attempts with 1s, 2s delays (faster failure, rely on circuit breaker)
+  const MAX_RETRIES = 2;
+  const BASE_DELAY_MS = 1000;
   const callStart = Date.now();
 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {

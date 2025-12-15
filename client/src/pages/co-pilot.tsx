@@ -1149,7 +1149,10 @@ const CoPilot: React.FC = () => {
                       {pipelinePhase === 'resolving' && 'Examining location...'}
                       {pipelinePhase === 'analyzing' && 'Analyzing area...'}
                       {pipelinePhase === 'immediate' && 'Building strategy...'}
-                      {pipelinePhase === 'venues' && 'Looking for best venues...'}
+                      {pipelinePhase === 'venues' && 'AI finding venues...'}
+                      {pipelinePhase === 'routing' && 'Calculating routes...'}
+                      {pipelinePhase === 'places' && 'Fetching venue details...'}
+                      {pipelinePhase === 'verifying' && 'Verifying events...'}
                       {pipelinePhase === 'enriching' && 'Enriching venue data...'}
                       {pipelinePhase === 'complete' && 'Loading venues and map...'}
                     </p>
@@ -1158,19 +1161,25 @@ const CoPilot: React.FC = () => {
                       {pipelinePhase === 'resolving' && 'Resolving your location and examining the area...'}
                       {pipelinePhase === 'analyzing' && 'Examining late night venues and evaluating conditions...'}
                       {pipelinePhase === 'immediate' && 'AI processing your area intel...'}
-                      {pipelinePhase === 'venues' && 'Finding optimal venues near you...'}
+                      {pipelinePhase === 'venues' && 'GPT-5.2 selecting optimal venues near you...'}
+                      {pipelinePhase === 'routing' && 'Google Routes API calculating drive times...'}
+                      {pipelinePhase === 'places' && 'Google Places API fetching business hours...'}
+                      {pipelinePhase === 'verifying' && 'Gemini AI verifying venue events...'}
                       {pipelinePhase === 'enriching' && 'Calculating distances, drive times, and rankings...'}
                       {pipelinePhase === 'complete' && 'Almost done! Loading venue cards and map...'}
                     </p>
                     <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
                       <span>
-                        {pipelinePhase === 'starting' && 'Step 1/7: Starting'}
-                        {pipelinePhase === 'resolving' && 'Step 2/7: Location'}
-                        {pipelinePhase === 'analyzing' && 'Step 3/7: Research'}
-                        {pipelinePhase === 'immediate' && 'Step 4/7: AI Processing'}
-                        {pipelinePhase === 'venues' && 'Step 5/7: Venues'}
-                        {pipelinePhase === 'enriching' && 'Step 6/7: Enrichment'}
-                        {pipelinePhase === 'complete' && 'Step 7/7: Complete!'}
+                        {pipelinePhase === 'starting' && 'Step 1/9: Starting'}
+                        {pipelinePhase === 'resolving' && 'Step 2/9: Location'}
+                        {pipelinePhase === 'analyzing' && 'Step 3/9: Research'}
+                        {pipelinePhase === 'immediate' && 'Step 4/9: Strategy'}
+                        {pipelinePhase === 'venues' && 'Step 5/9: Venue AI'}
+                        {pipelinePhase === 'routing' && 'Step 6/9: Routes'}
+                        {pipelinePhase === 'places' && 'Step 7/9: Details'}
+                        {pipelinePhase === 'verifying' && 'Step 8/9: Verify'}
+                        {pipelinePhase === 'enriching' && 'Step 6/9: Enrichment'}
+                        {pipelinePhase === 'complete' && 'Step 9/9: Complete!'}
                       </span>
                       <span className="font-mono">{enrichmentProgress}%</span>
                     </div>

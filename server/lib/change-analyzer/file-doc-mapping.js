@@ -155,6 +155,18 @@ export const FILE_TO_DOC_MAP = {
     docs: [],  // Self-documenting
     priority: 'low',
     reason: 'Architecture docs updated'
+  },
+
+  // Root-level documentation files
+  'LESSONS_LEARNED.md': {
+    docs: [],  // Self-documenting
+    priority: 'medium',
+    reason: 'Lessons learned updated'
+  },
+  'NEWERRORSFOUND.md': {
+    docs: ['LESSONS_LEARNED.md'],
+    priority: 'high',
+    reason: 'New errors documented - may need to add to LESSONS_LEARNED'
   }
 };
 

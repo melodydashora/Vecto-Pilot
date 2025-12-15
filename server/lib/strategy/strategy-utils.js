@@ -186,13 +186,17 @@ export function normalizeBriefingShape(briefing) {
 
 // Expected duration for each phase (in milliseconds) based on historical averages
 // These are used for progress calculation on the frontend
+// SmartBlocks phases: venues → routing → places → verifying → complete
 export const PHASE_EXPECTED_DURATIONS = {
   starting: 500,      // Nearly instant
   resolving: 1500,    // Location resolution
   analyzing: 12000,   // Briefing (Gemini with search) - can take 8-15s
   immediate: 8000,    // GPT-5.2 strategy generation
-  venues: 3000,       // Venue planner
-  enriching: 15000,   // Google APIs (Routes, Places, enrichment)
+  venues: 4000,       // GPT-5.2 venue planner (SmartBlocks step 1)
+  routing: 5000,      // Google Routes API batch (SmartBlocks step 2)
+  places: 6000,       // Google Places API enrichment (SmartBlocks step 3)
+  verifying: 4000,    // Gemini event verification (SmartBlocks step 4)
+  enriching: 15000,   // Legacy fallback - all Google APIs combined
   complete: 0         // Done
 };
 
@@ -201,7 +205,8 @@ export const TOTAL_EXPECTED_DURATION = Object.values(PHASE_EXPECTED_DURATIONS).r
 
 /**
  * Update pipeline phase for a snapshot's strategy with timing metadata
- * Phases: starting → resolving → analyzing → immediate → venues → enriching → complete
+ * Strategy phases: starting → resolving → analyzing → immediate
+ * SmartBlocks phases: venues → routing → places → verifying → complete
  *
  * @param {string} snapshotId - UUID of snapshot
  * @param {string} phase - Phase name
@@ -222,7 +227,7 @@ export async function updatePhase(snapshotId, phase, options = {}) {
 
     // Map phase to TRIAD type for clearer logging
     const triadType = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'Strategy' :
-                      ['venues', 'enriching'].includes(phase) ? 'Venue' : 'Pipeline';
+                      ['venues', 'routing', 'places', 'verifying', 'enriching'].includes(phase) ? 'Venue' : 'Pipeline';
     triadLog.info(`[strategy-utils] ${triadType}|${snapshotId.slice(0, 8)} → ${phase}`, OP.DB);
 
     // Emit phase_change SSE event if emitter provided

@@ -123,15 +123,16 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
   venuesLog.info(`[blocks-fast] Generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
 
   try {
-    // Phase: enriching (venue enrichment and ranking)
-    await updatePhase(snapshotId, 'enriching', { phaseEmitter: options.phaseEmitter });
+    // Phase updates now happen INSIDE generateEnhancedSmartBlocks for granular tracking
+    // Phases: venues → routing → verifying → complete
 
     await generateEnhancedSmartBlocks({
       snapshotId,
       immediateStrategy: strategyRow.strategy_for_now,
       briefing: briefingRow,
       snapshot: snapshot,
-      user_id: null
+      user_id: null,
+      phaseEmitter: options.phaseEmitter
     });
 
     // Fetch newly created ranking
@@ -505,9 +506,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // Phase 4: Venue Discovery
         await updatePhase(snapshotId, 'venues', { phaseEmitter });
 
-        // Generate smart blocks using shared helper
-        const [consolidatedRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-        const [briefingRowForBlocks] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+        // Generate smart blocks using shared helper (parallel DB queries for performance)
+        const [[consolidatedRow], [briefingRowForBlocks]] = await Promise.all([
+          db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1),
+          db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1)
+        ]);
 
         triadLog.phase(4, `[blocks-fast] Strategy ready (${consolidatedRow?.strategy_for_now?.length || 0} chars), generating venues`);
 
@@ -546,6 +549,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
           triadLog.done(4, `Returning ${blocks.length} blocks for ${snapshotId.slice(0, 8)}`);
 
+          // Ensure phase is marked complete (Fix #15 - prevents 98% stuck issue)
+          await updatePhase(snapshotId, 'complete', { phaseEmitter });
+
           // Emit SSE event for blocks ready
           blocksEmitter.emit('ready', { snapshot_id: snapshotId, status: 'blocks_ready', count: blocks.length });
           sseLog.info(`blocks_ready emitted for ${snapshotId.slice(0, 8)} (${blocks.length} blocks)`);
@@ -563,6 +569,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           });
         } else {
           venuesLog.warn(4, `No ranking found for ${snapshotId.slice(0, 8)} after generation`);
+
+          // Ensure phase is marked complete even without ranking
+          await updatePhase(snapshotId, 'complete', { phaseEmitter });
 
           // Still include strategy even if no ranking
           const [strategyRow] = await db.select().from(strategies)
