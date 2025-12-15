@@ -102,19 +102,19 @@ const result = await callModel('strategist', { system, user });
 
 ### Venue Open/Closed Status
 
-**Server-side** (`venue-enrichment.js`): `isOpen` is calculated once during enrichment and stored in `ranking_candidates.features.isOpen`.
+**Server-side** (`venue-enrichment.js`): `isOpen` is calculated using the **venue's timezone** via `Intl.DateTimeFormat` with snapshot timezone and stored in `ranking_candidates.features.isOpen`.
 
-**Client-side** (`BarsTable.tsx`): Real-time recalculation using `calculateIsOpenNow(todayHours)` to avoid stale cached values.
+**Client-side** (`BarsTable.tsx`): Trusts server's `isOpen` value. **No client-side recalculation.**
 
 ```javascript
-// Server: blocks-fast.js - Access from features, NOT business_hours
-isOpen: c.features?.isOpen,  // ✓ Correct
+// Server: venue-enrichment.js - Calculates with venue timezone
+// Uses Intl.DateTimeFormat with snapshot.timezone
 
-// Client: BarsTable.tsx - Real-time calculation
-const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
+// Client: BarsTable.tsx - Trusts server value
+const isOpen = bar.isOpen;  // Trust server's timezone-aware calculation
 ```
 
-**Why client-side recalculation?** Server `isOpen` becomes stale if user views strategy hours after generation. Client calculates based on current time for accuracy.
+**Why no client recalculation?** Browser timezone ≠ venue timezone. Client-side recalculation caused late-night venues to show as "Closed" incorrectly. Server uses the correct venue timezone.
 
 ## Pre-flight Checklist
 
