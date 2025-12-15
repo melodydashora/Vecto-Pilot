@@ -1,7 +1,7 @@
 # AI Partnership Checkpoint
 
 **Created:** December 15, 2024
-**Status:** Phase 1 COMPLETE (Refined)
+**Status:** Phase 1 & Phase 2 COMPLETE
 
 ## Phase 1: Split ARCHITECTURE.md - COMPLETE
 
@@ -17,39 +17,59 @@ All documents created, refined with accurate folder README mappings.
 6. `docs/architecture/decisions.md` - WHY we made choices
 7. `docs/architecture/strategy-framework.md` - 13-component pipeline
 
-### Other Changes
-
-- Updated `docs/architecture/README.md` as master index with navigation guide and line counts
-- Updated `ARCHITECTURE.md` with complete folder README index (68 files)
-- Server structure now documents all 37 server folder READMEs
-- Client structure now documents all 16 client folder READMEs
-
-## Results
+### Phase 1 Results
 
 | Metric | Before | After |
 |--------|--------|-------|
 | ARCHITECTURE.md lines | 2,325 | ~195 |
 | Focused docs | 6 | 13 |
 | Folder READMEs documented | ~20 | 68 |
-| Avg doc size | Variable | <300 lines |
 
-## Codebase README Summary
+---
 
-The codebase has **68 folder README files**:
-- Root level: 8
-- Server folders: 37
-- Client folders: 16
-- Test folders: 6
-- Tools: 2
+## Phase 2: Pre-flight Check System - COMPLETE
 
-All are now indexed in ARCHITECTURE.md.
+Quick-reference cards created for Claude to read before making changes.
+
+### Documents Created (5 total)
+
+1. `docs/preflight/README.md` - Index and workflow guide
+2. `docs/preflight/ai-models.md` - Model parameters, adapter pattern
+3. `docs/preflight/location.md` - GPS-first rules, coordinate sources
+4. `docs/preflight/database.md` - snapshot_id linking, sorting
+5. `docs/preflight/code-style.md` - Conventions, patterns
+
+### CLAUDE.md Updates
+
+- Added "Pre-flight Checklist" section with card links
+- Added "Pre-flight Workflow" with step-by-step process
+- Updated Documentation Structure to include preflight folder
+
+### Phase 2 Results
+
+| Card | Lines | Key Rules |
+|------|-------|-----------|
+| ai-models.md | ~45 | Adapter pattern, GPT-5.2/Gemini params |
+| location.md | ~45 | GPS-first, coordinate sources |
+| database.md | ~45 | snapshot_id, sorting |
+| code-style.md | ~45 | Imports, logging, conventions |
+
+---
 
 ## What's Next
 
-**Phase 2: Pre-flight Check System**
-- Create `docs/preflight/` folder with quick-reference cards
-- Update `get_guidelines` MCP tool
-- Add preflight checklist to CLAUDE.md
+**Phase 3: Memory Layer**
+- Formalize `mcp_memory` table usage
+- Create session start/end rituals
+- Add memory retrieval to MCP tools
+
+**Phase 4: Document the Undocumented**
+- Audit server/agent/, server/eidolon/, server/assistant/
+- Create docs/ai-tools/ folder
+
+**Phase 5: Continuous Improvement Loop**
+- Post-change documentation prompts
+- Monthly review checklist
 
 See `docs/AI_PARTNERSHIP_PLAN.md` for full roadmap.
 
@@ -61,19 +81,24 @@ User's goal: Transform Claude from a tool into a partner with:
 - Memory layer across sessions
 - Self-healing documentation
 
-## Files Modified in Phase 1 (Final)
+## All Files Modified
 
-**Created:**
-- `docs/AI_PARTNERSHIP_PLAN.md`
-- `docs/architecture/server-structure.md`
-- `docs/architecture/client-structure.md`
-- `docs/architecture/auth-system.md`
-- `docs/architecture/logging.md`
-- `docs/architecture/deprecated.md`
-- `docs/architecture/decisions.md`
-- `docs/architecture/strategy-framework.md`
+### Phase 1
+- Created: `docs/AI_PARTNERSHIP_PLAN.md`
+- Created: `docs/architecture/server-structure.md`
+- Created: `docs/architecture/client-structure.md`
+- Created: `docs/architecture/auth-system.md`
+- Created: `docs/architecture/logging.md`
+- Created: `docs/architecture/deprecated.md`
+- Created: `docs/architecture/decisions.md`
+- Created: `docs/architecture/strategy-framework.md`
+- Updated: `docs/architecture/README.md`
+- Updated: `ARCHITECTURE.md`
 
-**Updated:**
-- `docs/architecture/README.md` (master index)
-- `ARCHITECTURE.md` (slimmed to pointer file with full folder index)
-- `docs/CHECKPOINT_AI_PARTNERSHIP.md` (this file)
+### Phase 2
+- Created: `docs/preflight/README.md`
+- Created: `docs/preflight/ai-models.md`
+- Created: `docs/preflight/location.md`
+- Created: `docs/preflight/database.md`
+- Created: `docs/preflight/code-style.md`
+- Updated: `CLAUDE.md`
