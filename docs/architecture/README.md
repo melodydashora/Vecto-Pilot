@@ -1,19 +1,41 @@
 # Architecture Documentation
 
-## Overview
+This folder contains focused, readable technical documentation for Vecto Pilot's architecture. Each document is designed to be read in a single pass (<300 lines).
 
-This folder contains detailed technical documentation for Vecto Pilot's architecture.
+## Document Index
 
-## Documents
+### Core System
 
-| Document | Purpose | Key Topics |
-|----------|---------|------------|
-| [ai-pipeline.md](ai-pipeline.md) | TRIAD AI pipeline architecture | Model configuration, phase timing, fallbacks |
-| [api-reference.md](api-reference.md) | Complete API endpoint documentation | Routes, parameters, responses |
-| [database-schema.md](database-schema.md) | PostgreSQL tables and relationships | Snapshots, strategies, rankings |
-| [event-discovery.md](event-discovery.md) | Multi-model AI event search | SerpAPI, GPT-5.2, Gemini, Claude, Perplexity |
-| [constraints.md](constraints.md) | Critical rules and limitations | Model parameters, GPS rules, security |
-| [google-cloud-apis.md](google-cloud-apis.md) | Google APIs reference | Places, Routes, Weather, Geocoding |
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [server-structure.md](server-structure.md) | Backend organization, API routes, libs | Modifying server code |
+| [client-structure.md](client-structure.md) | Frontend organization, components, hooks | Modifying client code |
+| [database-schema.md](database-schema.md) | PostgreSQL tables and relationships | Working with DB |
+| [api-reference.md](api-reference.md) | Complete API endpoint documentation | Adding/modifying API routes |
+
+### AI System
+
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [ai-pipeline.md](ai-pipeline.md) | TRIAD pipeline, model configuration | Modifying AI flow |
+| [strategy-framework.md](strategy-framework.md) | 13-component recommendation pipeline | Understanding how recommendations work |
+| [event-discovery.md](event-discovery.md) | Multi-model AI event search | Modifying event detection |
+| [google-cloud-apis.md](google-cloud-apis.md) | Places, Routes, Weather, Geocoding | Using Google APIs |
+
+### System Rules
+
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [constraints.md](constraints.md) | Critical rules that cannot be violated | Before any code change |
+| [decisions.md](decisions.md) | WHY choices were made, fix capsules | Questioning architecture decisions |
+| [deprecated.md](deprecated.md) | Removed features - DO NOT re-implement | Before adding "new" features |
+
+### Infrastructure
+
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [auth-system.md](auth-system.md) | JWT authentication, security | Modifying auth |
+| [logging.md](logging.md) | Workflow logging conventions | Adding logging |
 
 ## Quick Reference
 
@@ -45,9 +67,22 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 | `rankings` | Venue sessions | `snapshot_id`, `ranking_id` |
 | `ranking_candidates` | Individual venues | `features`, `business_hours`, `distance_miles` |
 
+## Navigation Guide
+
+**Starting point**: New to the codebase? Read in this order:
+1. [constraints.md](constraints.md) - What you cannot do
+2. [server-structure.md](server-structure.md) or [client-structure.md](client-structure.md) - Where things are
+3. [ai-pipeline.md](ai-pipeline.md) - How AI works
+4. [decisions.md](decisions.md) - Why things are the way they are
+
+**Before making changes**: Always check:
+1. [constraints.md](constraints.md) - Critical rules
+2. [deprecated.md](deprecated.md) - Don't re-implement removed features
+3. Relevant domain doc (AI, database, auth, etc.)
+
 ## Related Documentation
 
 - [CLAUDE.md](../../CLAUDE.md) - AI assistant quick reference
-- [ARCHITECTURE.md](../../ARCHITECTURE.md) - Full system overview
+- [ARCHITECTURE.md](../../ARCHITECTURE.md) - System overview (points here)
 - [LESSONS_LEARNED.md](../../LESSONS_LEARNED.md) - Historical issues and fixes
-- [server/lib/ai/README.md](../../server/lib/ai/README.md) - AI module details
+- [AI_PARTNERSHIP_PLAN.md](../AI_PARTNERSHIP_PLAN.md) - Documentation improvement roadmap
