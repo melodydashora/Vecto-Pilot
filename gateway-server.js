@@ -163,6 +163,12 @@ process.on('unhandledRejection', (reason, promise) => {
         startEventSyncJob();
       }
 
+      // Start change analyzer job (runs on startup, flags doc updates needed)
+      if (!isAutoscaleMode) {
+        const { startChangeAnalyzerJob } = await import('./server/jobs/change-analyzer-job.js');
+        startChangeAnalyzerJob();
+      }
+
       console.log('[gateway] ✅ All routes and middleware loaded');
     });
 

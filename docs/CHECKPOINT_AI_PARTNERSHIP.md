@@ -192,6 +192,32 @@ Self-healing documentation system implemented.
 
 ---
 
+## Phase 6: Change Analyzer Sub-Agent - COMPLETE
+
+Automated change detection for documentation maintenance.
+
+### Components Created
+
+1. `server/jobs/change-analyzer-job.js` - Main analyzer logic
+2. `server/lib/change-analyzer/file-doc-mapping.js` - File→doc mapping
+3. `docs/review-queue/README.md` - Review queue documentation
+4. `docs/review-queue/pending.md` - Pending items template
+5. MCP tool `analyze_changes` for manual triggering
+
+### Integration
+
+- Runs automatically on server startup
+- Hooks into `gateway-server.js`
+- Can be disabled via `RUN_CHANGE_ANALYZER=false`
+
+### CLAUDE.md Updates
+
+- Added review queue to Core Documentation table
+- Added check to Session Start workflow
+- Added "Change Analyzer" section with workflow
+
+---
+
 ## Maintenance Schedule
 
 See `docs/MONTHLY_REVIEW_CHECKLIST.md` for ongoing maintenance.

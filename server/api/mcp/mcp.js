@@ -784,7 +784,7 @@ const tools = {
   },
 
   // -------------------------------------------------------------------------
-  // MCP DIAGNOSTICS (3 tools)
+  // MCP DIAGNOSTICS (4 tools)
   // -------------------------------------------------------------------------
 
   mcp_status: {
@@ -840,6 +840,34 @@ const tools = {
     },
     async execute({ limit = 20 }) {
       return { logs: requestLog.slice(0, limit), total: requestLog.length };
+    }
+  },
+
+  analyze_changes: {
+    category: 'mcp',
+    description: 'Analyze repo changes and flag documentation that may need updating',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    },
+    async execute() {
+      try {
+        const { runAnalysis } = await import('../../jobs/change-analyzer-job.js');
+        const result = await runAnalysis();
+        return {
+          success: result.success,
+          changesFound: result.changesFound || 0,
+          highPriority: result.highPriority || 0,
+          mediumPriority: result.mediumPriority || 0,
+          lowPriority: result.lowPriority || 0,
+          duration: result.duration,
+          message: result.success
+            ? `Analysis complete. Check docs/review-queue/pending.md for findings.`
+            : `Analysis failed: ${result.error}`
+        };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
     }
   },
 
