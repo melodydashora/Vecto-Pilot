@@ -27,6 +27,7 @@ npm run lint && npm run typecheck && npm run build  # Pre-PR
 | [docs/architecture/](docs/architecture/README.md) | Architecture docs (13 focused files) |
 | [docs/preflight/](docs/preflight/README.md) | **Pre-flight cards (read before edits)** |
 | [docs/memory/](docs/memory/README.md) | Memory layer (session rituals) |
+| [docs/ai-tools/](docs/ai-tools/README.md) | AI tools documentation |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System overview + folder index |
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Historical issues |
 
@@ -51,6 +52,30 @@ npm run lint && npm run typecheck && npm run build  # Pre-PR
 | [client/src/types/](client/src/types/README.md) | TypeScript types |
 | [client/src/features/](client/src/features/README.md) | Feature modules |
 | [client/src/pages/](client/src/pages/README.md) | Page components |
+
+## Available AI Tools
+
+| Tool System | When to Use |
+|-------------|-------------|
+| [MCP Server](docs/ai-tools/mcp.md) | Claude Desktop integration (39 tools) |
+| [Memory System](docs/ai-tools/memory.md) | Persistent cross-session storage |
+| [Workspace Agent](docs/ai-tools/agent.md) | WebSocket real-time access |
+| [Eidolon SDK](docs/ai-tools/eidolon.md) | Deep analysis & context awareness |
+| [Assistant API](docs/ai-tools/assistant.md) | Context enrichment & web search |
+
+**Key Memory Tools:**
+```javascript
+// Store a decision
+await memory_store({ key: 'decision_xyz', content: '...', tags: ['decision'] });
+
+// Search memories
+await memory_search({ tags: ['decision'], limit: 10 });
+
+// Get project context
+const context = await context_get();
+```
+
+See [docs/ai-tools/README.md](docs/ai-tools/README.md) for full documentation.
 
 ## Critical Rules
 
