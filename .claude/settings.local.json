@@ -64,7 +64,11 @@
       "Bash(if [ -d \"$dir\" ])",
       "Bash(if [ -f \"$dir/README.md\" ])",
       "Bash(git mv:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(node tools/research/event-model-comparison.mjs:*)",
+      "Bash(tee:*)",
+      "Bash(timeout 5 node:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
