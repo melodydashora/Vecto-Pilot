@@ -164,14 +164,14 @@ LocationContext (snapshotId)
 
 ## Venue Open/Closed Logic
 
-**Server-side:** `isOpen` calculated once during enrichment, stored in `ranking_candidates.features.isOpen`
+**Server-side:** `isOpen` calculated during enrichment using venue's timezone via `Intl.DateTimeFormat`. Stored in `ranking_candidates.features.isOpen`.
 
-**Client-side:** Real-time recalculation in `BarsTable.tsx`:
+**Client-side:** Trusts server value in `BarsTable.tsx`:
 ```javascript
-const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
+const isOpen = bar.isOpen;  // Trust server's timezone-aware calculation
 ```
 
-**Why client recalculates:** Server `isOpen` becomes stale if user views hours after generation.
+**Why client trusts server:** Server uses venue's timezone (e.g., "America/Chicago") for accurate calculation. Client-side recalculation was removed because browser timezone ≠ venue timezone, which caused late-night venues to incorrectly show as closed.
 
 ## localStorage Keys
 
@@ -198,7 +198,7 @@ import { useBriefingQueries } from '@/hooks/useBriefingQueries';
 import { useLocation } from '@/contexts/location-context-clean';
 
 // Utils
-import { calculateIsOpenNow } from '@/utils/co-pilot-helpers';
+import { formatTime, getDaypartGreeting } from '@/utils/co-pilot-helpers';
 ```
 
 ## Tech Stack

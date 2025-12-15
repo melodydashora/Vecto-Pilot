@@ -56,21 +56,16 @@ components/
 
 ## Key Implementation Details
 
-### BarsTable.tsx - Real-time Open/Closed Status
+### BarsTable.tsx - Venue Open/Closed Status
 
-The `BarsTable` component calculates venue open/closed status in **real-time** using `calculateIsOpenNow()`:
+The `BarsTable` component displays venue open/closed status from the server:
 
 ```typescript
-// Calculates if venue is open based on hours string and user's current time
-const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
+// Trust server's timezone-aware calculation
+const isOpen = bar.isOpen;
 ```
 
-**Why real-time calculation?** The server-side `isOpen` value is calculated once during venue enrichment and cached. If a user views a strategy generated hours ago, the cached value would be stale. Client-side calculation ensures accuracy.
-
-**Supports:**
-- Standard hours: `9:00 AM - 5:00 PM`
-- Overnight hours: `5:00 PM - 2:00 AM` (handles midnight crossover)
-- Falls back to server-cached `bar.isOpen` if parsing fails
+**Why trust server value?** The server calculates `isOpen` using the venue's timezone via `Intl.DateTimeFormat` (e.g., "America/Chicago"). Client-side recalculation was removed because browser timezone ≠ venue timezone, which caused late-night venues to incorrectly show as closed in production.
 
 ### EventsComponent.tsx - Event Display with Navigation
 

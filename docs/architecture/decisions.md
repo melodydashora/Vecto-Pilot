@@ -120,20 +120,22 @@ app.use('/mcp', express.json({ limit: '1mb' }));
 
 ---
 
-### 9. Client Recalculates isOpen
+### 9. Server Calculates isOpen with Venue Timezone
 
-**Decision:** Client recalculates venue open/closed status in real-time.
+**Decision:** Server calculates venue open/closed using venue's timezone; client trusts this value.
 
 **Why:**
-- Server `isOpen` is calculated at generation time
-- User might view strategy hours later
-- Stale `isOpen` could send driver to closed venue
-- Current time calculation is trivial on client
+- Server knows venue's timezone (e.g., "America/Chicago")
+- Browser timezone ≠ venue timezone (driver traveling across timezones)
+- Client-side recalculation caused late-night venues to show incorrectly as closed
+- `Intl.DateTimeFormat` with venue timezone gives accurate results
 
 **Implementation:** `BarsTable.tsx`:
 ```javascript
-const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
+const isOpen = bar.isOpen;  // Trust server's timezone-aware calculation
 ```
+
+**Historical note:** Client-side recalculation with `calculateIsOpenNow()` was removed after timezone bugs in production.
 
 ---
 

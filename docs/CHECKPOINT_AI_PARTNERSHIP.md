@@ -78,6 +78,33 @@ Persistent memory system for Claude to maintain context across sessions.
 
 ---
 
+## Pre-Phase 4 Verification - COMPLETE
+
+Before proceeding to Phase 4, all documentation was verified against actual code:
+
+### Verification Results
+
+| Item | Status | Notes |
+|------|--------|-------|
+| AI model configuration | ✅ Verified | `models-dictionary.js` matches docs |
+| Server folder structure | ✅ Verified | All 37 READMEs accurate |
+| Client folder structure | ✅ Verified | All 16 READMEs accurate |
+| Database schema references | ✅ Verified | Schema matches docs |
+| Preflight cards accuracy | ✅ Verified | Rules match codebase |
+
+### Documentation Fix Applied
+
+**isOpen calculation**: Fixed incorrect documentation in 5 files. Docs incorrectly stated client recalculates `isOpen` with `calculateIsOpenNow()`. Actual behavior: server calculates using venue's timezone via `Intl.DateTimeFormat`, client trusts server value.
+
+Files fixed:
+- `CLAUDE.md`
+- `docs/architecture/client-structure.md`
+- `docs/architecture/decisions.md`
+- `client/src/components/README.md`
+- `docs/memory/session-end.md`
+
+---
+
 ## What's Next
 
 **Phase 4: Document the Undocumented**

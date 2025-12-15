@@ -60,8 +60,8 @@ memory_store({
 memory_store({
   key: "session_2024_12_15_learnings",
   content: `
-    1. Fixed: BarsTable was using stale isOpen from server
-       - Solution: Client-side recalculation with calculateIsOpenNow()
+    1. Fixed: BarsTable was showing wrong isOpen for venues in other timezones
+       - Solution: Server calculates with venue timezone, client trusts server
     2. Discovered: Routes API needs departureTime 30s in future
     3. User prefers: Detailed commit messages with bullet points
     4. Warning: Don't use temperature param with GPT-5.2
@@ -73,7 +73,7 @@ memory_store({
 // Decision update
 memory_store({
   key: "decision_venue_isopen",
-  content: "Server calculates isOpen once at enrichment time. Client MUST recalculate using calculateIsOpenNow(todayHours) to avoid stale values.",
+  content: "Server calculates isOpen using venue's timezone via Intl.DateTimeFormat. Client trusts server value. Client-side recalculation removed due to timezone bugs.",
   tags: ["decision", "venue", "client"],
   metadata: { decided_on: "2024-12-15" }
 })
