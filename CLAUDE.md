@@ -196,6 +196,56 @@ memory_store({
 | `user_` | User preferences |
 | `debug_` | Debugging notes |
 
+## Post-Change Documentation
+
+After completing significant changes, ask yourself:
+
+### Documentation Check
+```
+1. Does this change any documented behavior?
+   → If yes, update the relevant doc in docs/architecture/ or docs/preflight/
+
+2. Should LESSONS_LEARNED.md be updated?
+   → If you discovered a non-obvious fix or pattern, add it
+
+3. Are there new constraints to add?
+   → If you found something that "must always" or "must never" be done
+
+4. Should this be stored in memory?
+   → If it's a decision, learning, or user preference
+```
+
+### When to Update Docs
+
+| Change Type | Update |
+|-------------|--------|
+| New API endpoint | `docs/architecture/api-reference.md` |
+| Database change | `docs/architecture/database-schema.md` |
+| AI model change | `docs/preflight/ai-models.md` |
+| New component | Folder README.md |
+| Bug fix with lesson | `LESSONS_LEARNED.md` |
+| Architecture decision | `docs/architecture/decisions.md` + memory |
+
+### Memory Storage
+
+```javascript
+// Store significant decisions
+memory_store({
+  key: "decision_feature_name",
+  content: "Decision details and reasoning",
+  tags: ["decision", "feature_area"],
+  metadata: { decided_on: "YYYY-MM-DD", reason: "..." }
+})
+
+// Flag docs needing update
+memory_store({
+  key: "doc_update_YYYY_MM_DD",
+  content: "Which doc needs what update",
+  tags: ["documentation", "todo"],
+  ttl_hours: 168  // 1 week
+})
+```
+
 ## Environment Variables
 
 ### Required
