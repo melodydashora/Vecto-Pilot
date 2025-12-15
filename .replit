@@ -18,6 +18,10 @@ run = ["sh", "-c", "DEPLOY_MODE=webservice node gateway-server.js"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
+localPort = 3001
+externalPort = 3001
+
+[[ports]]
 localPort = 5000
 externalPort = 80
 
