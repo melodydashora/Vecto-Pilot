@@ -24,13 +24,9 @@ npm run lint && npm run typecheck && npm run build  # Pre-PR
 | Document | Purpose |
 |----------|---------|
 | [docs/README.md](docs/README.md) | Documentation index |
-| [docs/architecture/api-reference.md](docs/architecture/api-reference.md) | API endpoints |
-| [docs/architecture/database-schema.md](docs/architecture/database-schema.md) | Database tables |
-| [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) | AI models & flow |
-| [docs/architecture/event-discovery.md](docs/architecture/event-discovery.md) | Multi-model event search |
-| [docs/architecture/constraints.md](docs/architecture/constraints.md) | Critical rules |
-| [docs/architecture/google-cloud-apis.md](docs/architecture/google-cloud-apis.md) | Google APIs reference |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Full system overview |
+| [docs/architecture/](docs/architecture/README.md) | Architecture docs (13 focused files) |
+| [docs/preflight/](docs/preflight/README.md) | **Pre-flight cards (read before edits)** |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System overview + folder index |
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Historical issues |
 
 ### Server Folders
@@ -118,6 +114,27 @@ const isOpen = calculateIsOpenNow(todayHours) ?? bar.isOpen;
 ```
 
 **Why client-side recalculation?** Server `isOpen` becomes stale if user views strategy hours after generation. Client calculates based on current time for accuracy.
+
+## Pre-flight Checklist
+
+**Before ANY edit**, read the relevant quick-reference card:
+
+| Area | Card | Key Rules |
+|------|------|-----------|
+| AI/Models | [docs/preflight/ai-models.md](docs/preflight/ai-models.md) | Model parameters, adapter pattern |
+| Location/GPS | [docs/preflight/location.md](docs/preflight/location.md) | GPS-first, coordinate sources |
+| Database | [docs/preflight/database.md](docs/preflight/database.md) | snapshot_id linking, sorting |
+| Code Style | [docs/preflight/code-style.md](docs/preflight/code-style.md) | Conventions, patterns |
+
+### Pre-flight Workflow
+
+```
+Before ANY edit:
+1. What area does this touch? (AI, database, location, UI)
+2. Read the relevant preflight card (docs/preflight/*.md)
+3. Grep for existing implementations
+4. THEN make the change
+```
 
 ## Environment Variables
 
