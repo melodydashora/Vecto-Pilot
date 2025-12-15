@@ -5,21 +5,64 @@ Frontend organization for Vecto Pilot. React 18 + TypeScript + Vite.
 ## Directory Overview
 
 ```
-client/src/
-├── pages/                  # Route pages
-├── components/             # UI components
-│   ├── co-pilot/           # Co-pilot specific
-│   ├── strategy/           # Strategy display
-│   ├── ui/                 # shadcn/ui primitives (46 components)
-│   └── _future/            # Staged components
-├── contexts/               # React contexts
-├── hooks/                  # Custom hooks
-├── features/               # Feature modules
-├── lib/                    # Core utilities
-├── types/                  # TypeScript types
-├── utils/                  # Feature helpers
-└── _future/                # Staged future features
+client/
+├── src/
+│   ├── pages/                  # Route pages
+│   ├── components/             # UI components
+│   │   ├── co-pilot/           # Co-pilot specific
+│   │   ├── strategy/           # Strategy display
+│   │   └── ui/                 # shadcn/ui primitives (46 components)
+│   ├── contexts/               # React contexts
+│   ├── hooks/                  # Custom hooks
+│   ├── features/               # Feature modules
+│   │   └── strategy/           # Strategy feature
+│   ├── lib/                    # Core utilities
+│   ├── types/                  # TypeScript types
+│   ├── utils/                  # Feature helpers
+│   └── _future/                # Staged future features
+│       └── engine/             # Reflection engine (Phase 17)
+└── README.md
 ```
+
+## Folder READMEs
+
+Every folder has a README.md explaining its purpose.
+
+### Top-Level Client Folders
+
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `client/` | [README](../../client/README.md) | Client overview |
+| `client/src/` | [README](../../client/src/README.md) | Source overview |
+
+### Component Folders
+
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `components/` | [README](../../client/src/components/README.md) | Components index |
+| `components/co-pilot/` | [README](../../client/src/components/co-pilot/README.md) | Co-pilot specific |
+| `components/strategy/` | [README](../../client/src/components/strategy/README.md) | Strategy display |
+| `components/ui/` | [README](../../client/src/components/ui/README.md) | shadcn/ui primitives |
+
+### Feature & Logic Folders
+
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `contexts/` | [README](../../client/src/contexts/README.md) | React contexts |
+| `hooks/` | [README](../../client/src/hooks/README.md) | Custom hooks |
+| `features/` | [README](../../client/src/features/README.md) | Feature modules |
+| `features/strategy/` | [README](../../client/src/features/strategy/README.md) | Strategy feature |
+| `lib/` | [README](../../client/src/lib/README.md) | Core utilities |
+| `types/` | [README](../../client/src/types/README.md) | TypeScript types |
+| `utils/` | [README](../../client/src/utils/README.md) | Feature helpers |
+| `pages/` | [README](../../client/src/pages/README.md) | Route pages |
+
+### Future/Staged Features
+
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `_future/` | [README](../../client/src/_future/README.md) | Staged features |
+| `_future/engine/` | [README](../../client/src/_future/engine/README.md) | Reflection engine |
 
 ## Key Pages (`client/src/pages/`)
 

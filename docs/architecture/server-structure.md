@@ -7,41 +7,120 @@ Backend organization for Vecto Pilot. All server code lives in `/server/`.
 ```
 server/
 ├── api/                    # API routes (domain-organized)
+│   ├── auth/               # JWT authentication
+│   ├── briefing/           # Events, traffic, news, weather
+│   ├── chat/               # AI Coach, voice, TTS
+│   ├── feedback/           # User feedback, action logging
+│   ├── health/             # Health checks, diagnostics
+│   ├── location/           # GPS resolution, snapshots
+│   ├── mcp/                # MCP protocol for Claude Desktop
+│   ├── research/           # Vector search
+│   ├── strategy/           # Strategy generation, SSE
+│   ├── utils/              # HTTP helpers, timing
+│   └── venue/              # Venue intelligence
 ├── lib/                    # Business logic
-├── config/                 # Configuration files
-├── middleware/             # Express middleware
-├── bootstrap/              # Server startup
-├── jobs/                   # Background workers
-├── db/                     # Database connection
-├── logger/                 # Workflow-aware logging
-├── agent/                  # AI agent infrastructure
-├── eidolon/                # Enhanced SDK
+│   ├── ai/                 # AI layer
+│   │   ├── adapters/       # Model adapters (anthropic, openai, gemini)
+│   │   └── providers/      # AI providers (minstrategy, briefing, etc.)
+│   ├── briefing/           # Briefing service
+│   ├── external/           # Third-party APIs (Perplexity, FAA)
+│   ├── infrastructure/     # Job queue
+│   ├── location/           # Geo, holiday detection, snapshot context
+│   ├── strategy/           # Strategy pipeline, providers
+│   └── venue/              # Venue intelligence, enrichment, places
+├── agent/                  # Workspace agent (file ops, shell, SQL)
 ├── assistant/              # Assistant proxy layer
-└── scripts/                # Server-side scripts
+├── bootstrap/              # Server startup, route mounting
+├── config/                 # Configuration files
+├── db/                     # Database connection, pool
+├── eidolon/                # Enhanced SDK
+│   ├── memory/             # Memory management
+│   └── tools/              # Tool definitions
+├── gateway/                # Gateway proxy
+├── jobs/                   # Background workers (triad-worker)
+├── logger/                 # Logging utilities (ndjson, workflow)
+├── middleware/             # Express middleware (auth, validation)
+├── scripts/                # Server-side scripts
+├── types/                  # TypeScript types
+├── util/                   # Utilities (circuit breaker, UUID, ETA)
+└── validation/             # Schema validation
 ```
 
-## API Routes (`server/api/`)
+## Folder READMEs
 
-Routes are organized by domain. Each folder has a README.md.
+Every folder has a README.md explaining its purpose.
 
-| Folder | Routes | Purpose |
+### Top-Level Server Folders
+
+| Folder | README | Purpose |
 |--------|--------|---------|
-| `auth/` | `/api/auth/*` | JWT token generation |
-| `briefing/` | `/api/briefing/*` | Events, traffic, news, weather |
-| `chat/` | `/api/chat`, `/api/tts`, `/api/realtime` | AI Coach, voice, TTS |
-| `feedback/` | `/api/feedback/*`, `/api/actions` | User feedback, action logging |
-| `health/` | `/api/health`, `/api/diagnostics` | Health checks, monitoring |
-| `location/` | `/api/location/*`, `/api/snapshot` | GPS resolution, snapshots |
-| `research/` | `/api/research`, `/api/vector-search` | Vector search, research |
-| `strategy/` | `/api/blocks-fast`, `/api/strategy` | Strategy generation, venues |
-| `venue/` | `/api/venues/*` | Venue intelligence |
-| `mcp/` | `/mcp/*` | MCP protocol for Claude Desktop |
+| `server/` | [README](../../server/README.md) | Server overview |
+| `server/api/` | [README](../../server/api/README.md) | API routes index |
+| `server/lib/` | [README](../../server/lib/README.md) | Business logic index |
+| `server/agent/` | [README](../../server/agent/README.md) | Workspace agent |
+| `server/assistant/` | [README](../../server/assistant/README.md) | Assistant proxy |
+| `server/bootstrap/` | [README](../../server/bootstrap/README.md) | Server startup |
+| `server/config/` | [README](../../server/config/README.md) | Configuration |
+| `server/db/` | [README](../../server/db/README.md) | Database connection |
+| `server/eidolon/` | [README](../../server/eidolon/README.md) | Enhanced SDK |
+| `server/gateway/` | [README](../../server/gateway/README.md) | Gateway proxy |
+| `server/jobs/` | [README](../../server/jobs/README.md) | Background workers |
+| `server/logger/` | [README](../../server/logger/README.md) | Workflow logging |
+| `server/middleware/` | [README](../../server/middleware/README.md) | Express middleware |
+| `server/scripts/` | [README](../../server/scripts/README.md) | Server scripts |
+| `server/types/` | [README](../../server/types/README.md) | TypeScript types |
+| `server/util/` | [README](../../server/util/README.md) | Utilities |
+| `server/validation/` | [README](../../server/validation/README.md) | Schema validation |
 
-## Business Logic (`server/lib/`)
+### API Route Folders
 
-Core business logic, organized by domain.
+| Folder | README | Routes | Purpose |
+|--------|--------|--------|---------|
+| `api/auth/` | [README](../../server/api/auth/README.md) | `/api/auth/*` | JWT token generation |
+| `api/briefing/` | [README](../../server/api/briefing/README.md) | `/api/briefing/*` | Events, traffic, news, weather |
+| `api/chat/` | [README](../../server/api/chat/README.md) | `/api/chat`, `/api/tts`, `/api/realtime` | AI Coach, voice, TTS |
+| `api/feedback/` | [README](../../server/api/feedback/README.md) | `/api/feedback/*`, `/api/actions` | User feedback, action logging |
+| `api/health/` | [README](../../server/api/health/README.md) | `/api/health`, `/api/diagnostics` | Health checks, monitoring |
+| `api/location/` | [README](../../server/api/location/README.md) | `/api/location/*`, `/api/snapshot` | GPS resolution, snapshots |
+| `api/mcp/` | [README](../../server/api/mcp/README.md) | `/mcp/*` | MCP protocol for Claude Desktop |
+| `api/research/` | [README](../../server/api/research/README.md) | `/api/research`, `/api/vector-search` | Vector search, research |
+| `api/strategy/` | [README](../../server/api/strategy/README.md) | `/api/blocks-fast`, `/api/strategy` | Strategy generation, venues |
+| `api/utils/` | [README](../../server/api/utils/README.md) | (internal) | HTTP helpers, timing |
+| `api/venue/` | [README](../../server/api/venue/README.md) | `/api/venues/*` | Venue intelligence |
 
-### AI Layer (`server/lib/ai/`)
+### Business Logic Folders
+
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `lib/ai/` | [README](../../server/lib/ai/README.md) | AI layer index |
+| `lib/ai/adapters/` | [README](../../server/lib/ai/adapters/README.md) | Model adapters |
+| `lib/ai/providers/` | [README](../../server/lib/ai/providers/README.md) | AI providers |
+| `lib/briefing/` | [README](../../server/lib/briefing/README.md) | Briefing service |
+| `lib/external/` | [README](../../server/lib/external/README.md) | Third-party APIs |
+| `lib/infrastructure/` | [README](../../server/lib/infrastructure/README.md) | Job queue |
+| `lib/location/` | [README](../../server/lib/location/README.md) | Location services |
+| `lib/strategy/` | [README](../../server/lib/strategy/README.md) | Strategy pipeline |
+| `lib/venue/` | [README](../../server/lib/venue/README.md) | Venue intelligence |
+
+### Eidolon Subfolders
+
+| Folder | README | Purpose |
+|--------|--------|---------|
+| `eidolon/memory/` | [README](../../server/eidolon/memory/README.md) | Memory management |
+| `eidolon/tools/` | [README](../../server/eidolon/tools/README.md) | Tool definitions |
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `gateway-server.js` | Main Express server entry |
+| `strategy-generator.js` | Background strategy worker |
+| `sdk-embed.js` | SDK router factory |
+| `server/bootstrap/routes.js` | Route mounting order |
+| `server/bootstrap/middleware.js` | Middleware configuration |
+| `server/bootstrap/workers.js` | Background job startup |
+
+## AI Layer (`server/lib/ai/`)
 
 | File/Folder | Purpose |
 |-------------|---------|
@@ -61,49 +140,7 @@ import { callModel } from './lib/ai/adapters/index.js';
 const result = await callModel('strategist', { system, user });
 ```
 
-### Strategy Layer (`server/lib/strategy/`)
-
-| File | Purpose |
-|------|---------|
-| `strategy-generator-parallel.js` | Main TRIAD pipeline orchestrator |
-| `tactical-planner.js` | GPT-5.2 venue generation |
-| `providers.js` | Strategy provider registry |
-
-### Venue Layer (`server/lib/venue/`)
-
-| File | Purpose |
-|------|---------|
-| `enhanced-smart-blocks.js` | Venue enrichment orchestrator |
-| `venue-enrichment.js` | Google Places/Routes integration |
-| `venue-event-verifier.js` | Event verification (Gemini 2.5 Pro) |
-| `venue-address-resolver.js` | Batch address resolution |
-
-### Location Layer (`server/lib/location/`)
-
-| File | Purpose |
-|------|---------|
-| `geo.js` | Geospatial utilities (haversine, etc.) |
-| `get-snapshot-context.js` | Snapshot context builder |
-| `holiday-detector.js` | Holiday detection (Gemini + override) |
-
-### External APIs (`server/lib/external/`)
-
-| File | Purpose |
-|------|---------|
-| `routes-api.js` | Google Routes API integration |
-| `faa-api.js` | FAA airport delay data |
-
 ## Data Flow Examples
-
-### Location Resolution
-```
-GPS coords → /api/location/resolve
-    → Check users table (device_id match?)
-    → Check coords_cache (4-decimal precision)
-    → Google Geocoding API (if cache miss)
-    → Update users table
-    → Return user_id + resolved location
-```
 
 ### Strategy Generation (TRIAD)
 ```
@@ -126,16 +163,6 @@ GPT-5.2 venue suggestions
     → Store in ranking_candidates table
 ```
 
-## Key Entry Points
-
-| File | Purpose |
-|------|---------|
-| `gateway-server.js` | Main Express server entry |
-| `strategy-generator.js` | Background strategy worker |
-| `server/bootstrap/routes.js` | Route mounting order |
-| `server/bootstrap/middleware.js` | Middleware configuration |
-| `server/bootstrap/workers.js` | Background job startup |
-
 ## Import Patterns
 
 ```javascript
@@ -155,6 +182,7 @@ import { getSnapshotContext } from '../../lib/location/get-snapshot-context.js';
 
 ## See Also
 
+- [Client Structure](client-structure.md) - Frontend organization
 - [API Reference](api-reference.md) - Endpoint documentation
 - [AI Pipeline](ai-pipeline.md) - Model configuration
 - [Database Schema](database-schema.md) - Table structures
