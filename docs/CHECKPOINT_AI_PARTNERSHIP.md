@@ -1,7 +1,7 @@
 # AI Partnership Checkpoint
 
 **Created:** December 15, 2024
-**Status:** Phase 1 & Phase 2 COMPLETE
+**Status:** Phase 1, 2 & 3 COMPLETE
 
 ## Phase 1: Split ARCHITECTURE.md - COMPLETE
 
@@ -29,7 +29,7 @@ All documents created, refined with accurate folder README mappings.
 
 ## Phase 2: Pre-flight Check System - COMPLETE
 
-Quick-reference cards created for Claude to read before making changes.
+Quick-reference cards for Claude to read before making changes.
 
 ### Documents Created (5 total)
 
@@ -39,33 +39,50 @@ Quick-reference cards created for Claude to read before making changes.
 4. `docs/preflight/database.md` - snapshot_id linking, sorting
 5. `docs/preflight/code-style.md` - Conventions, patterns
 
+---
+
+## Phase 3: Memory Layer - COMPLETE
+
+Persistent memory system for Claude to maintain context across sessions.
+
+### Documents Created (3 total)
+
+1. `docs/memory/README.md` - Full memory documentation with usage patterns
+2. `docs/memory/session-start.md` - What to load at session start
+3. `docs/memory/session-end.md` - What to save at session end
+
 ### CLAUDE.md Updates
 
-- Added "Pre-flight Checklist" section with card links
-- Added "Pre-flight Workflow" with step-by-step process
-- Updated Documentation Structure to include preflight folder
+- Added "Memory Layer" section with session start/end examples
+- Added key memory prefixes table
+- Added docs/memory/ to Documentation Structure
 
-### Phase 2 Results
+### Memory Tools Available
 
-| Card | Lines | Key Rules |
-|------|-------|-----------|
-| ai-models.md | ~45 | Adapter pattern, GPT-5.2/Gemini params |
-| location.md | ~45 | GPS-first, coordinate sources |
-| database.md | ~45 | snapshot_id, sorting |
-| code-style.md | ~45 | Imports, logging, conventions |
+| Tool | Purpose |
+|------|---------|
+| `memory_store` | Store persistent memories |
+| `memory_retrieve` | Retrieve by key |
+| `memory_search` | Search by tags/content |
+| `memory_clear` | Clear memories |
+| `context_get` | Get session context |
+
+### Key Naming Conventions
+
+| Prefix | Purpose |
+|--------|---------|
+| `decision_` | Architecture decisions |
+| `session_` | Session learnings |
+| `user_` | User preferences |
+| `debug_` | Debugging notes |
 
 ---
 
 ## What's Next
 
-**Phase 3: Memory Layer**
-- Formalize `mcp_memory` table usage
-- Create session start/end rituals
-- Add memory retrieval to MCP tools
-
 **Phase 4: Document the Undocumented**
 - Audit server/agent/, server/eidolon/, server/assistant/
-- Create docs/ai-tools/ folder
+- Create docs/ai-tools/ folder with tool documentation
 
 **Phase 5: Continuous Improvement Loop**
 - Post-change documentation prompts
@@ -101,4 +118,10 @@ User's goal: Transform Claude from a tool into a partner with:
 - Created: `docs/preflight/location.md`
 - Created: `docs/preflight/database.md`
 - Created: `docs/preflight/code-style.md`
+- Updated: `CLAUDE.md`
+
+### Phase 3
+- Created: `docs/memory/README.md`
+- Created: `docs/memory/session-start.md`
+- Created: `docs/memory/session-end.md`
 - Updated: `CLAUDE.md`
