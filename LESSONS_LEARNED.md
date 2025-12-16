@@ -455,6 +455,96 @@ return res.json({
 
 **Lesson:** Time-sensitive status values should be calculated client-side using the user's current time, not cached from server-side generation. The `businessHours` string provides the data; the client calculates the current state.
 
+### Bug: Progress bar stuck at 63% then jumps to 100% (Dec 2025)
+
+**Cause:** Expected phase durations didn't match actual pipeline timing
+
+**Root Cause:**
+- The `venues` phase (GPT-5.2 tactical planner) takes 20-30 seconds
+- But expected duration was set to 4000ms
+- Progress calculation was: `completedDuration / totalDuration`
+- At 63%, the bar was at end of 'immediate' phase, waiting for 'venues'
+- When 'venues' finally completed after 25s, progress jumped to 100%
+
+**Fix:** Update expected durations to match reality:
+```javascript
+// OLD (wrong)
+venues: 4000,    // GPT-5.2 venue planner
+
+// NEW (correct)
+venues: 25000,   // GPT-5.2 tactical planner - SLOWEST step (20-30s)
+verifying: 12000, // Gemini verification (was 4000)
+routing: 3000,   // Routes API (was 5000)
+places: 2000,    // Places lookup (was 6000)
+```
+
+**Files Changed:**
+- `client/src/hooks/useEnrichmentProgress.ts`: Updated DEFAULT_EXPECTED_DURATIONS
+- `server/lib/strategy/strategy-utils.js`: Updated PHASE_EXPECTED_DURATIONS
+
+**Lesson:** Progress bar durations must be tuned to actual pipeline timings. The GPT-5.2 tactical planner is the slowest step (~25s), not the enrichment APIs (~5s total).
+
+### Bug: ZodError action validation failing (Dec 2025)
+
+**Cause:** Client sending action types not in validation schema
+
+**Symptoms:**
+```
+[validation] ZodError: action=Invalid option: expected one of "view"|"dwell"|"click"...
+```
+
+**Root Cause:** The action validation schema only had 6 action types, but client sends 15+:
+- `blocks_viewed`, `block_dwell`, `block_selected`, `block_deselected`
+- `navigate_google_maps`, `navigate_apple_maps`
+- `strategy_viewed`, `feedback_submitted`, `refresh_requested`
+
+**Fix:** Add all client action types to `server/middleware/validation.js`:
+```javascript
+action: z.enum([
+  'view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate',
+  'blocks_viewed', 'block_dwell', 'block_selected', 'block_deselected',
+  'navigate_google_maps', 'navigate_apple_maps', 'strategy_viewed',
+  'feedback_submitted', 'refresh_requested'
+]).nullish(),
+```
+
+**Lesson:** When adding new client analytics events (logAction), remember to add them to the server validation schema too.
+
+### Bug: No model configured for role: haiku (Dec 2025)
+
+**Cause:** `venue-intelligence.js` calls `callModel('haiku')` but `STRATEGY_HAIKU` env var not set
+
+**Fix:** Add to environment:
+```bash
+STRATEGY_HAIKU=claude-3-5-haiku-20241022
+```
+
+**Lesson:** When adding a new model role in code, always add the corresponding `STRATEGY_*` environment variable.
+
+### Feature: Event Deduplication for Discovery (Dec 2025)
+
+**Problem:** Discovered events table accumulated 15+ variations of same event:
+- "Christmas in the Square"
+- "Christmas in the Square (lights show)"
+- "Christmas in the Square (daily)"
+
+**Solution:** Semantic deduplication via GPT-5.2:
+1. Before discovery, fetch existing events from DB
+2. Pass existing events to LLM prompt
+3. Ask LLM to skip events that are semantically the same
+
+**Key Code (`sync-events.mjs`):**
+```javascript
+const existingEvents = await fetchExistingEvents(db, city, state, startDate, endDate);
+const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
+```
+
+**Deduplication Rules in Prompt:**
+- Same venue + date + event type (different wording) = DUPLICATE
+- Same venue + date + DIFFERENT time = NOT duplicate (different shows)
+
+**Lesson:** Hash-based deduplication (exact match) isn't enough for LLM-discovered data. Use semantic deduplication by passing existing data back to the LLM.
+
 ---
 
 ## Testing Checklist

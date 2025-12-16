@@ -23,89 +23,51 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
-## 2025-12-15 Analysis
+## 2025-12-16 Session Summary
 
-**Generated:** 2025-12-15T21:54:09.338Z
+**Session Date:** 2025-12-16
 **Branch:** main
-**Last Commit:** d493581 Assistant checkpoint: Created comprehensive error analysis document
 
-### New Files Detected
-- `NEWERRORSFOUND.md` - Root-level error analysis document
+### Changes Made This Session
 
-### High Priority
-- [x] `docs/architecture/server-structure.md` - Main server changes (gateway-server.js) - **REVIEWED: Added change-analyzer-job.js to jobs list**
-- [x] `CLAUDE.md` - Main server changes (gateway-server.js) - **REVIEWED: Already updated with Change Analyzer section**
-- [x] `docs/ai-tools/mcp.md` - MCP tool changes (server/api/mcp/mcp.js) - **REVIEWED: Need to add analyze_changes tool**
-- [ ] `mcp-server/README.md` - MCP tool changes - Update tool count to 40
+#### Performance Optimizations (Issues #14, #15, #16)
+- [x] Reduced animation interval 100ms → 250ms (useEnrichmentProgress.ts)
+- [x] Parallelized DB queries in blocks-fast.js
+- [x] Added phase completion after ensureSmartBlocksExist
+- [x] Added phase auto-correction in content-blocks.js
+- [x] Reduced Gemini retry delays (consolidator.js)
 
-### Low Priority
-- [x] `server/lib/change-analyzer/` - **REVIEWED: Self-documenting, file-doc-mapping.js has inline comments**
+**Documentation:** Added to LESSONS_LEARNED.md
 
-### Status: IN REVIEW
+#### Event Flag Feature for SmartBlocks
+- [x] Created event-matcher.js for address/name matching
+- [x] Updated enhanced-smart-blocks.js to call event matcher
+- [x] Updated blocks-fast.js to return hasEvent/eventBadge
+- [x] Updated co-pilot.tsx to display event badges
 
-## 2025-12-15 Analysis
+**Documentation:** Self-documenting code, no external docs needed
 
-**Generated:** 2025-12-15T23:37:07.434Z
-**Branch:** main
-**Last Commit:** d493581 Assistant checkpoint: Created comprehensive error analysis document
+#### Event Deduplication
+- [x] Added semantic deduplication to sync-events.mjs
+- [x] Pass existing events to GPT-5.2 prompt
 
-### Uncommitted Changes (13)
-| File | Status |
-|------|--------|
-| `claude/settings.local.json` | Modified |
-| `NEWERRORSFOUND.md` | Modified |
-| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
-| `client/src/pages/co-pilot.tsx` | Modified |
-| `client/src/types/co-pilot.ts` | Modified |
-| `docs/review-queue/2025-12-15.md` | Modified |
-| `docs/review-queue/pending.md` | Modified |
-| `server/api/strategy/blocks-fast.js` | Modified |
-| `server/api/strategy/content-blocks.js` | Modified |
-| `server/lib/ai/providers/consolidator.js` | Modified |
-| `server/lib/change-analyzer/file-doc-mapping.js` | Modified |
-| `server/lib/strategy/strategy-utils.js` | Modified |
-| `server/lib/venue/enhanced-smart-blocks.js` | Modified |
+**Documentation:** Added to LESSONS_LEARNED.md
 
-### Recent Commit Changes (14)
-| File | Status |
-|------|--------|
-| `.claude/settings.local.json` | Modified |
-| `.replit` | Modified |
-| `CLAUDE.md` | Modified |
-| `NEWERRORSFOUND.md` | Added |
-| `docs/CHECKPOINT_AI_PARTNERSHIP.md` | Modified |
-| `docs/MONTHLY_REVIEW_CHECKLIST.md` | Added |
-| `docs/architecture/decisions.md` | Modified |
-| `docs/review-queue/2025-12-15.md` | Added |
-| `docs/review-queue/README.md` | Added |
-| `docs/review-queue/pending.md` | Added |
-| `gateway-server.js` | Modified |
-| `server/api/mcp/mcp.js` | Modified |
-| `server/jobs/change-analyzer-job.js` | Added |
-| `server/lib/change-analyzer/file-doc-mapping.js` | Added |
+#### Bug Fixes
+- [x] Action validation schema (validation.js) - Added missing action types
+- [x] STRATEGY_HAIKU env var - Added to mono-mode.env
+- [x] Progress bar 63%→100% jump - Fixed expected durations
 
-### Documentation Review Needed
+**Documentation:** Added to LESSONS_LEARNED.md
 
-#### High Priority
-- [ ] `LESSONS_LEARNED.md` - New errors documented - may need to add to LESSONS_LEARNED (NEWERRORSFOUND.md)
-- [ ] `docs/architecture/api-reference.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
-- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
-- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
-- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
-- [ ] `docs/architecture/server-structure.md` - Main server changes (gateway-server.js)
-- [ ] `CLAUDE.md` - Main server changes (gateway-server.js)
-- [ ] `docs/ai-tools/mcp.md` - MCP tool changes (server/api/mcp/mcp.js)
-- [ ] `mcp-server/README.md` - MCP tool changes (server/api/mcp/mcp.js)
+### Remaining Items (Low Priority)
 
-#### Medium Priority
-- [ ] `docs/architecture/client-structure.md` - Hook changes (client/src/hooks/useEnrichmentProgress.ts)
-- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/enhanced-smart-blocks.js)
+#### Consider for Future
+- [ ] `docs/architecture/event-discovery.md` - Could document event-matcher.js integration
+- [ ] `mcp-server/README.md` - Update tool count if MCP tools changed
 
-#### Low Priority
-- [ ] Consider adding documentation - New file added (server/lib/change-analyzer/file-doc-mapping.js)
+### Status: REVIEWED
 
-### Status: PENDING
-
----
+All major changes from this session have been documented in LESSONS_LEARNED.md.
 
 ---
