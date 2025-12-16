@@ -191,12 +191,12 @@ export function normalizeBriefingShape(briefing) {
 export const PHASE_EXPECTED_DURATIONS = {
   starting: 500,      // Nearly instant
   resolving: 2000,    // Location resolution
-  analyzing: 15000,   // Briefing (Gemini with search) - can take 10-20s
-  immediate: 10000,   // GPT-5.2 immediate strategy
-  venues: 35000,      // GPT-5.2 tactical planner - SLOWEST (25-35s)
-  routing: 4000,      // Google Routes API batch
-  places: 3000,       // Event matching + Places lookup
-  verifying: 15000,   // Gemini event verification (10-18s)
+  analyzing: 25000,   // Briefing (Gemini + traffic analysis) - can take 20-45s
+  immediate: 8000,    // GPT-5.2 immediate strategy (5-10s)
+  venues: 90000,      // GPT-5.2 tactical planner - SLOWEST (~60-90s with medium reasoning)
+  routing: 2000,      // Google Routes API batch (fast)
+  places: 2000,       // Event matching + Places lookup (fast)
+  verifying: 1000,    // Event verification (fast when no events)
   enriching: 20000,   // Legacy fallback - all Google APIs combined
   complete: 0         // Done
 };
@@ -219,12 +219,15 @@ export async function updatePhase(snapshotId, phase, options = {}) {
   try {
     const now = new Date();
 
-    await db.update(strategies)
+    const result = await db.update(strategies)
       .set({
         phase,
         phase_started_at: now  // Track when this phase started
       })
       .where(eq(strategies.snapshot_id, snapshotId));
+
+    // Log phase transition with confirmation
+    console.log(`[PHASE-UPDATE] ${snapshotId.slice(0, 8)} → ${phase} (updated at ${now.toISOString()})`);
 
     // Map phase to TRIAD type for clearer logging
     const triadType = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'Strategy' :

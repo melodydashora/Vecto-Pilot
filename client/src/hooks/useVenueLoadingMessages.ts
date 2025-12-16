@@ -29,13 +29,31 @@ const PHASE_MESSAGES: Record<string, LoadingMessage[]> = {
     { icon: '🤖', text: 'AI processing...' },
   ],
   // Venue-specific phases with detailed messages
+  // SmartBlocks phases: venues → routing → places → verifying → complete
   venues: [
-    { icon: '🏢', text: 'Querying Google Places API for nearby venues...' },
-    { icon: '🔍', text: 'Searching for bars, restaurants, and nightclubs...' },
-    { icon: '📍', text: 'Filtering venues by distance and ratings...' },
-    { icon: '🎯', text: 'Identifying high-potential pickup locations...' },
+    { icon: '🤖', text: 'GPT-5.2 tactical planner analyzing your area...' },
+    { icon: '🏢', text: 'Identifying high-value venue categories...' },
+    { icon: '🎯', text: 'Selecting optimal pickup locations...' },
     { icon: '⭐', text: 'Ranking venues by rideshare potential...' },
-    { icon: '🗺️', text: 'Mapping venue coordinates...' },
+    { icon: '📍', text: 'Building venue recommendation list...' },
+  ],
+  routing: [
+    { icon: '🚗', text: 'Calling Google Routes API for drive times...' },
+    { icon: '📊', text: 'Calculating distance from your location...' },
+    { icon: '⏱️', text: 'Computing travel times with traffic...' },
+    { icon: '💰', text: 'Estimating value per minute metrics...' },
+  ],
+  places: [
+    { icon: '📍', text: 'Looking up venue details from Places API...' },
+    { icon: '🕐', text: 'Fetching business hours and ratings...' },
+    { icon: '📞', text: 'Getting contact info and addresses...' },
+    { icon: '🎪', text: 'Matching venues to local events...' },
+  ],
+  verifying: [
+    { icon: '🔍', text: 'Gemini verifying event information...' },
+    { icon: '✅', text: 'Cross-checking venue details...' },
+    { icon: '🏷️', text: 'Assigning venue grades (A/B/C)...' },
+    { icon: '✨', text: 'Finalizing Smart Block recommendations...' },
   ],
   enriching: [
     { icon: '🚗', text: 'Calling Routes API for drive times...' },
@@ -58,7 +76,10 @@ const PHASE_BADGES: Record<string, string> = {
   resolving: 'Location',
   analyzing: 'Analyzing',
   immediate: 'AI Processing',
-  venues: 'Finding Venues',
+  venues: 'Tactical Planner',
+  routing: 'Routes API',
+  places: 'Places API',
+  verifying: 'Verifying',
   enriching: 'Enriching Data',
   complete: 'Complete',
 };
