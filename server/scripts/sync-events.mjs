@@ -126,15 +126,67 @@ function generateEventHash(event) {
 }
 
 // ============================================================================
+// Fetch existing events for deduplication
+// ============================================================================
+async function fetchExistingEvents(db, city, state, startDate, endDate) {
+  try {
+    const result = await db.execute(sql`
+      SELECT title, venue_name, address, event_date, event_time
+      FROM discovered_events
+      WHERE city = ${city}
+        AND state = ${state}
+        AND event_date >= ${startDate}
+        AND event_date <= ${endDate}
+        AND is_active = true
+      ORDER BY event_date, title
+      LIMIT 100
+    `);
+    return result.rows || [];
+  } catch (err) {
+    console.log(`  [Dedup] Error fetching existing events: ${err.message}`);
+    return [];
+  }
+}
+
+// ============================================================================
+// Format existing events for LLM prompt
+// ============================================================================
+function formatExistingEventsForPrompt(events) {
+  if (!events || events.length === 0) return '';
+
+  const eventList = events.map(e => {
+    const time = e.event_time || 'time unknown';
+    return `- "${e.title}" @ ${e.venue_name || 'Unknown Venue'} on ${e.event_date} at ${time}`;
+  }).join('\n');
+
+  return `
+
+IMPORTANT - AVOID DUPLICATES:
+The following events are ALREADY in our database. Do NOT return any events that are essentially the same as these (even with slight title variations like "Christmas in the Square" vs "Christmas in the Square (lights show)" - these are the SAME event):
+
+${eventList}
+
+DEDUPLICATION RULES:
+1. Same venue + same date + same event type (even with different title wording) = DUPLICATE, skip it
+2. Same venue + same date + DIFFERENT time = NOT a duplicate (could be different shows)
+3. "Christmas in the Square" at 6:00 PM is the SAME as "Christmas in the Square (Lights & Music)" at 6:00 PM = DUPLICATE
+4. "Christmas in the Square" at 6:00 PM is DIFFERENT from "Christmas in the Square" at 9:00 PM = KEEP BOTH
+
+Only return genuinely NEW events not already covered above.`;
+}
+
+// ============================================================================
 // Event prompt for GPT-5.2
 // ============================================================================
-function buildEventPrompt(city, state, date, lat, lng) {
+function buildEventPrompt(city, state, date, lat, lng, existingEvents = []) {
   const today = new Date(date);
   const dayAfter = new Date(today);
   dayAfter.setDate(today.getDate() + 6); // Get a week of events
   const dateRange = `${date} to ${dayAfter.toISOString().split('T')[0]}`;
 
-  return `Search for ALL events happening within ${MAX_DRIVE_MINUTES} minutes drive of coordinates ${lat}, ${lng} (near ${city}, ${state}) from ${dateRange}.
+  const dedupSection = formatExistingEventsForPrompt(existingEvents);
+
+  return `Search for ALL events happening within ${MAX_DRIVE_MINUTES} minutes drive of coordinates ${lat}, ${lng} (near ${city}, ${state}) from ${dateRange}.${dedupSection}
 
 This is for rideshare drivers - we need events that generate pickups/dropoffs.
 
@@ -278,7 +330,7 @@ async function searchWithSerpAPI(city, state) {
 // ============================================================================
 // GPT-5.2 Search (best quality)
 // ============================================================================
-async function searchWithGPT52(city, state, lat, lng) {
+async function searchWithGPT52(city, state, lat, lng, existingEvents = []) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     console.log('  [GPT-5.2] Skipped - OPENAI_API_KEY not set');
@@ -287,10 +339,10 @@ async function searchWithGPT52(city, state, lat, lng) {
 
   const startTime = Date.now();
   const date = new Date().toISOString().split('T')[0];
-  console.log(`  [GPT-5.2] Searching events near ${city}, ${state}...`);
+  console.log(`  [GPT-5.2] Searching events near ${city}, ${state}... (${existingEvents.length} existing events for dedup)`);
 
   try {
-    const prompt = buildEventPrompt(city, state, date, lat, lng);
+    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
 
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -360,7 +412,7 @@ async function searchWithGPT52(city, state, lat, lng) {
 // ============================================================================
 // MODEL: Gemini 3 Pro with Google Search (daily sync)
 // ============================================================================
-async function searchWithGemini3Pro(city, state, lat, lng) {
+async function searchWithGemini3Pro(city, state, lat, lng, existingEvents = []) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.log('  [Gemini 3 Pro] Skipped - GEMINI_API_KEY not set');
@@ -369,10 +421,10 @@ async function searchWithGemini3Pro(city, state, lat, lng) {
 
   const startTime = Date.now();
   const date = new Date().toISOString().split('T')[0];
-  console.log(`  [Gemini 3 Pro] Searching events near ${city}, ${state}...`);
+  console.log(`  [Gemini 3 Pro] Searching events near ${city}, ${state}... (${existingEvents.length} existing for dedup)`);
 
   try {
-    const prompt = buildEventPrompt(city, state, date, lat, lng);
+    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
@@ -524,7 +576,7 @@ Search for: concerts, sports games, festivals, theater, comedy shows, convention
 // ============================================================================
 // MODEL: Claude with Web Search (daily sync)
 // ============================================================================
-async function searchWithClaude(city, state, lat, lng) {
+async function searchWithClaude(city, state, lat, lng, existingEvents = []) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.log('  [Claude] Skipped - ANTHROPIC_API_KEY not set');
@@ -533,10 +585,10 @@ async function searchWithClaude(city, state, lat, lng) {
 
   const startTime = Date.now();
   const date = new Date().toISOString().split('T')[0];
-  console.log(`  [Claude] Searching events near ${city}, ${state}...`);
+  console.log(`  [Claude] Searching events near ${city}, ${state}... (${existingEvents.length} existing for dedup)`);
 
   try {
-    const prompt = buildEventPrompt(city, state, date, lat, lng);
+    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -606,7 +658,7 @@ async function searchWithClaude(city, state, lat, lng) {
 // ============================================================================
 // MODEL: Perplexity Sonar Reasoning Pro (daily sync)
 // ============================================================================
-async function searchWithPerplexityReasoning(city, state, lat, lng) {
+async function searchWithPerplexityReasoning(city, state, lat, lng, existingEvents = []) {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) {
     console.log('  [Perplexity Reasoning] Skipped - PERPLEXITY_API_KEY not set');
@@ -615,10 +667,10 @@ async function searchWithPerplexityReasoning(city, state, lat, lng) {
 
   const startTime = Date.now();
   const date = new Date().toISOString().split('T')[0];
-  console.log(`  [Perplexity Reasoning] Searching events near ${city}, ${state}...`);
+  console.log(`  [Perplexity Reasoning] Searching events near ${city}, ${state}... (${existingEvents.length} existing for dedup)`);
 
   try {
-    const prompt = buildEventPrompt(city, state, date, lat, lng);
+    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -808,23 +860,34 @@ async function syncEventsForLocation(location, isDaily = false) {
   const db = getDb();
   let allEvents = [];
 
+  // Fetch existing events for semantic deduplication
+  const today = new Date().toISOString().split('T')[0];
+  const weekFromNow = new Date();
+  weekFromNow.setDate(weekFromNow.getDate() + 7);
+  const endDate = weekFromNow.toISOString().split('T')[0];
+
+  console.log('[Dedup] Fetching existing events for semantic deduplication...');
+  const existingEvents = await fetchExistingEvents(db, city, state, today, endDate);
+  console.log(`[Dedup] Found ${existingEvents.length} existing events to avoid duplicates\n`);
+
   if (isDaily) {
     // DAILY MODE: Run ALL working models in parallel for maximum coverage
-    console.log('Running 6 models in parallel...');
+    // All models receive existing events for semantic deduplication
+    console.log('Running 6 models in parallel (with semantic deduplication)...');
     const results = await Promise.all([
-      searchWithSerpAPI(city, state),
-      searchWithGPT52(city, state, lat, lng),
-      searchWithGemini3Pro(city, state, lat, lng),
-      searchWithGemini25Pro(city, state, lat, lng),
-      searchWithClaude(city, state, lat, lng),
-      searchWithPerplexityReasoning(city, state, lat, lng)
+      searchWithSerpAPI(city, state),  // SerpAPI doesn't support custom prompts
+      searchWithGPT52(city, state, lat, lng, existingEvents),
+      searchWithGemini3Pro(city, state, lat, lng, existingEvents),
+      searchWithGemini25Pro(city, state, lat, lng),  // Uses different prompt format
+      searchWithClaude(city, state, lat, lng, existingEvents),
+      searchWithPerplexityReasoning(city, state, lat, lng, existingEvents)
     ]);
     allEvents = results.flat();
   } else {
     // NORMAL MODE: Run only SerpAPI + GPT-5.2 (fast/efficient)
     const [serpEvents, gptEvents] = await Promise.all([
       searchWithSerpAPI(city, state),
-      searchWithGPT52(city, state, lat, lng)
+      searchWithGPT52(city, state, lat, lng, existingEvents)
     ]);
     allEvents = [...serpEvents, ...gptEvents];
   }
