@@ -141,4 +141,37 @@ All major changes from this session have been documented in LESSONS_LEARNED.md.
 
 ---
 
+## 2025-12-16 Analysis
+
+**Generated:** 2025-12-16T01:52:50.150Z
+**Branch:** main
+**Last Commit:** 0980953 Increase phase durations to prevent progress bar stalling
+
+### Recent Commit Changes (7)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| `docs/review-queue/2025-12-15.md` | Modified |
+| `docs/review-queue/2025-12-16.md` | Added |
+| `docs/review-queue/pending.md` | Modified |
+| `server/jobs/change-analyzer-job.js` | Modified |
+| `server/lib/strategy/strategy-utils.js` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Hook changes (client/src/hooks/useEnrichmentProgress.ts)
+
+#### Low Priority
+- [ ] docs/architecture/server-structure.md - Background job changes (server/jobs/change-analyzer-job.js)
+
+### Status: PENDING
+
+---
+
 ---
