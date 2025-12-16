@@ -6,12 +6,19 @@ import { z } from 'zod';
 // Event validation disabled - Gemini handles event discovery, Claude is fallback only
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { briefingLog, OP } from '../../logger/workflow.js';
 // SerpAPI + GPT-5.2 event discovery (replaces Gemini for events)
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
 
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 import { getTomTomTraffic } from '../external/tomtom-traffic.js';
+
+// Email alerts for model errors
+import { sendModelErrorAlert } from '../notifications/email-alerts.js';
+
+// Initialize OpenAI client for GPT-5.2 fallback
+const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -262,7 +269,151 @@ IMPORTANT: The "briefing" field should be 3-4 sentences that a driver can read i
       analyzedAt: new Date().toISOString()
     };
   } catch (err) {
+    // Check if this is a credit exhaustion error - try GPT-5.2 fallback
+    const isCreditError = err.message?.includes('credit balance') ||
+                          err.message?.includes('insufficient_quota') ||
+                          err.status === 400 || err.status === 402;
+
+    if (isCreditError && openaiClient) {
+      briefingLog.warn(1, `Claude traffic analysis failed (credits) - trying GPT-5.2 fallback`, OP.FALLBACK);
+
+      // Try GPT-5.2 fallback
+      const fallbackResult = await analyzeTrafficWithGPT52({ tomtomData, city, state, formattedAddress });
+      const fallbackSucceeded = fallbackResult !== null;
+
+      // Send email alert about the credit error
+      sendModelErrorAlert({
+        model: 'claude-opus-4-5-20251101',
+        errorType: 'credit_exhaustion',
+        errorMessage: err.message || 'Credit balance too low to access Anthropic API',
+        context: 'traffic_analysis',
+        fallbackSucceeded,
+        fallbackModel: fallbackSucceeded ? 'gpt-5.2' : null
+      }).catch(emailErr => console.error('Email alert failed:', emailErr.message));
+
+      return fallbackResult;
+    }
+
+    // Send email alert for other errors too
+    sendModelErrorAlert({
+      model: 'claude-opus-4-5-20251101',
+      errorType: 'api_error',
+      errorMessage: err.message,
+      context: 'traffic_analysis',
+      fallbackSucceeded: false
+    }).catch(emailErr => console.error('Email alert failed:', emailErr.message));
+
     briefingLog.warn(1, `Claude traffic analysis failed: ${err.message}`, OP.FALLBACK);
+    return null;
+  }
+}
+
+/**
+ * Analyze TomTom traffic data with GPT-5.2 (fallback when Claude fails)
+ * Takes raw prioritized incidents and creates a dispatcher-style summary
+ */
+async function analyzeTrafficWithGPT52({ tomtomData, city, state, formattedAddress }) {
+  if (!openaiClient) {
+    briefingLog.warn(1, `GPT-5.2 fallback unavailable - no OPENAI_API_KEY`, OP.FALLBACK);
+    return null;
+  }
+
+  const startTime = Date.now();
+  briefingLog.ai(1, 'GPT-5.2', `analyzing traffic for ${city}, ${state} (fallback)`);
+
+  try {
+    // Prepare incident summary (same as Claude version)
+    const stats = tomtomData.stats || {};
+    const incidents = tomtomData.incidents || [];
+
+    // Group incidents by category for analysis
+    const closures = incidents.filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed');
+    const construction = incidents.filter(i => i.category === 'Road Works');
+    const jams = incidents.filter(i => i.category === 'Jam');
+
+    const prompt = `You are a traffic analyst for rideshare drivers. Analyze this traffic data and provide a comprehensive briefing.
+
+DRIVER LOCATION: ${formattedAddress}
+CITY: ${city}, ${state}
+
+TRAFFIC STATISTICS:
+- Total incidents: ${stats.total || 0}
+- Highway incidents: ${stats.highways || 0}
+- Road closures: ${stats.closures || 0}
+- Construction zones: ${stats.construction || 0}
+- Traffic jams: ${stats.jams || 0}
+- Accidents: ${stats.accidents || 0}
+- Overall congestion: ${tomtomData.congestionLevel}
+
+HIGHEST PRIORITY INCIDENTS (sorted by driver impact):
+${incidents.slice(0, 20).map((inc, i) =>
+  `${i+1}. [${inc.category}] ${inc.road || ''} ${inc.location} (severity: ${inc.magnitude}, delay: ${inc.delayMinutes || 0}min)`
+).join('\n')}
+
+ROAD CLOSURES (${closures.length} total):
+${closures.slice(0, 15).map(c => `- ${c.road || ''}: ${c.location}`).join('\n') || 'None reported'}
+
+CONSTRUCTION ZONES (${construction.length} total):
+${construction.slice(0, 8).map(c => `- ${c.road || ''}: ${c.location}`).join('\n') || 'None reported'}
+
+ACTIVE TRAFFIC JAMS (${jams.length} total):
+${jams.slice(0, 10).map(j => `- ${j.road || ''}: ${j.location}`).join('\n') || 'None reported'}
+
+Return a JSON object with this EXACT structure:
+{
+  "briefing": "3-4 sentence traffic briefing focused on DRIVER IMPACT. First sentence: overall congestion level and incident count. Second sentence: which specific corridors/highways are worst affected and delays. Third sentence: secondary impacts and alternative routes. Fourth sentence (optional): time-sensitive info (rush hour ending, event traffic clearing). Be SPECIFIC with highway names, interchange names, and delay times.",
+  "keyIssues": [
+    "Specific issue 1 - road name, problem, and delay impact",
+    "Specific issue 2 - road name, problem, and delay impact",
+    "Specific issue 3 - road name, problem, and delay impact"
+  ],
+  "avoidAreas": [
+    "Road/area to avoid: specific reason (e.g., '20+ min delays')",
+    "Another road/area: specific reason"
+  ],
+  "driverImpact": "One sentence: How this specifically affects rideshare drivers - impact on pickup times, areas to avoid for efficient routing, expected delay ranges",
+  "closuresSummary": "Summary of road closures - count and most impactful ones",
+  "constructionSummary": "Summary of construction zones if significant"
+}
+
+IMPORTANT: Return ONLY valid JSON. The "briefing" field should be 3-4 sentences that a driver can read in 10 seconds.`;
+
+    const response = await openaiClient.chat.completions.create({
+      model: 'gpt-5.2',
+      max_completion_tokens: 2048,
+      reasoning_effort: 'medium',
+      messages: [
+        { role: 'system', content: 'You are a traffic analyst assistant. Return only valid JSON responses.' },
+        { role: 'user', content: prompt }
+      ]
+    });
+
+    const content = response.choices[0]?.message?.content || '';
+
+    // Parse JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      briefingLog.warn(1, `GPT-5.2 traffic analysis returned non-JSON`, OP.FALLBACK);
+      return null;
+    }
+
+    const analysis = JSON.parse(jsonMatch[0]);
+    const elapsedMs = Date.now() - startTime;
+    briefingLog.done(1, `GPT-5.2 traffic analysis (${elapsedMs}ms) - fallback success`, OP.FALLBACK);
+
+    return {
+      briefing: analysis.briefing,
+      headline: analysis.briefing?.split('.')[0] + '.' || analysis.headline,
+      keyIssues: analysis.keyIssues || [],
+      avoidAreas: analysis.avoidAreas || [],
+      driverImpact: analysis.driverImpact,
+      closuresSummary: analysis.closuresSummary,
+      constructionSummary: analysis.constructionSummary,
+      analyzedAt: new Date().toISOString(),
+      fallbackProvider: 'gpt-5.2'
+    };
+  } catch (err) {
+    briefingLog.warn(1, `GPT-5.2 traffic analysis failed: ${err.message}`, OP.FALLBACK);
     return null;
   }
 }

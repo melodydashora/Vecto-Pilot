@@ -69,7 +69,8 @@
       "Bash(tee:*)",
       "Bash(timeout 5 node:*)",
       "Bash(cat:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []
