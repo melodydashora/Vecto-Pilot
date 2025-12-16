@@ -9,8 +9,19 @@ export const schemas = {
   action: z.object({
     // Support both 'action' (used by client) and 'action_type' for flexibility
     // Using .nullish() to accept both undefined and null from client
-    action: z.enum(['view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate']).nullish(),
-    action_type: z.enum(['view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate']).nullish(),
+    // Full list of actions from client: co-pilot.tsx logAction() calls
+    action: z.enum([
+      'view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate',
+      'blocks_viewed', 'block_dwell', 'block_selected', 'block_deselected',
+      'navigate_google_maps', 'navigate_apple_maps', 'strategy_viewed',
+      'feedback_submitted', 'refresh_requested'
+    ]).nullish(),
+    action_type: z.enum([
+      'view', 'dwell', 'click', 'block_clicked', 'dismiss', 'navigate',
+      'blocks_viewed', 'block_dwell', 'block_selected', 'block_deselected',
+      'navigate_google_maps', 'navigate_apple_maps', 'strategy_viewed',
+      'feedback_submitted', 'refresh_requested'
+    ]).nullish(),
     snapshot_id: z.string().uuid().nullish(),
     ranking_id: z.string().uuid().nullish(),
     block_id: z.string().nullish(),
