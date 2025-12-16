@@ -1317,8 +1317,8 @@ const CoPilot: React.FC = () => {
                                 </Badge>
                               )}
                               {block.hasEvent && block.eventBadge && (
-                                <Badge className="bg-gradient-to-r from-pink-100 to-purple-200 text-purple-700 border-purple-300 text-xs font-normal whitespace-nowrap">
-                                  <span className="text-xs">🎫 {block.eventBadge}</span>
+                                <Badge className="bg-gradient-to-r from-pink-100 to-purple-200 text-purple-700 border-purple-300 text-xs font-normal">
+                                  <span className="text-xs">🎫 Event: {block.eventBadge}</span>
                                 </Badge>
                               )}
                             </div>
