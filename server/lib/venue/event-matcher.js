@@ -44,21 +44,12 @@ export async function matchVenuesToEvents(venues, city, state, eventDate) {
     const matchMap = new Map();
 
     for (const venue of venues) {
-      const venueAddress = normalizeAddress(venue.address);
-      const venueName = venue.name?.toLowerCase() || '';
       const matchedEvents = [];
 
       for (const event of events) {
-        // Match by normalized address
-        const eventAddress = normalizeAddress(event.address);
-        const eventVenueName = event.venue_name?.toLowerCase() || '';
-
-        // Check for address match or venue name match
-        const addressMatch = eventAddress && venueAddress &&
-          (eventAddress.includes(venueAddress) || venueAddress.includes(eventAddress));
-
-        const nameMatch = eventVenueName && venueName &&
-          (eventVenueName.includes(venueName) || venueName.includes(eventVenueName));
+        // STRICT matching: require street number + street name OR significant venue name match
+        const addressMatch = addressesMatchStrictly(venue.address, event.address);
+        const nameMatch = venueNamesMatch(venue.name, event.venue_name);
 
         if (addressMatch || nameMatch) {
           matchedEvents.push({
@@ -69,12 +60,12 @@ export async function matchVenuesToEvents(venues, city, state, eventDate) {
             category: event.category,
             expected_attendance: event.expected_attendance
           });
+          console.log(`[event-matcher] ✅ MATCH: "${venue.name}" ↔ "${event.title}" (${addressMatch ? 'address' : 'name'} match)`);
         }
       }
 
       if (matchedEvents.length > 0) {
         matchMap.set(venue.name, matchedEvents);
-        console.log(`[event-matcher] ✅ ${venue.name} matched ${matchedEvents.length} event(s): ${matchedEvents.map(e => e.title).join(', ')}`);
       }
     }
 
@@ -87,16 +78,67 @@ export async function matchVenuesToEvents(venues, city, state, eventDate) {
 }
 
 /**
- * Normalize address for fuzzy matching
- * Removes common suffixes, punctuation, and extra spaces
+ * Extract street number from address (e.g., "6991 Main St" → "6991")
  */
-function normalizeAddress(address) {
+function extractStreetNumber(address) {
   if (!address) return '';
+  const match = address.match(/^(\d+)\s/);
+  return match ? match[1] : '';
+}
 
+/**
+ * Extract street name from address (e.g., "6991 Main St" → "main")
+ */
+function extractStreetName(address) {
+  if (!address) return '';
   return address
     .toLowerCase()
+    .replace(/^\d+\s+/, '')  // Remove leading street number
     .replace(/[,\.#]/g, '')  // Remove punctuation
-    .replace(/\b(street|st|avenue|ave|boulevard|blvd|road|rd|drive|dr|lane|ln|way|court|ct|place|pl)\b/g, '') // Remove street suffixes
-    .replace(/\s+/g, ' ')    // Collapse whitespace
-    .trim();
+    .replace(/\b(street|st|avenue|ave|boulevard|blvd|road|rd|drive|dr|lane|ln|way|court|ct|place|pl|parkway|pkwy|highway|hwy)\b/g, '')
+    .replace(/\s+(tx|texas|usa|frisco|plano|dallas|mckinney)\b.*/i, '')  // Remove city/state suffix
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')[0] || '';  // Just the first word of street name
+}
+
+/**
+ * Check if two addresses match strictly
+ * Requires BOTH street number AND street name to match
+ */
+function addressesMatchStrictly(addr1, addr2) {
+  if (!addr1 || !addr2) return false;
+
+  const num1 = extractStreetNumber(addr1);
+  const num2 = extractStreetNumber(addr2);
+
+  // Street numbers must both exist and match
+  if (!num1 || !num2 || num1 !== num2) return false;
+
+  const street1 = extractStreetName(addr1);
+  const street2 = extractStreetName(addr2);
+
+  // Street names must match (at least one word)
+  if (!street1 || !street2) return false;
+
+  return street1 === street2 || street1.includes(street2) || street2.includes(street1);
+}
+
+/**
+ * Check if venue names match (must be substantial match, not just partial)
+ */
+function venueNamesMatch(name1, name2) {
+  if (!name1 || !name2) return false;
+
+  const n1 = name1.toLowerCase().trim();
+  const n2 = name2.toLowerCase().trim();
+
+  // Exact match
+  if (n1 === n2) return true;
+
+  // One contains the other, but only if it's a significant portion (>50%)
+  if (n1.includes(n2) && n2.length > n1.length * 0.5) return true;
+  if (n2.includes(n1) && n1.length > n2.length * 0.5) return true;
+
+  return false;
 }

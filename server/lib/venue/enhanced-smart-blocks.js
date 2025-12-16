@@ -85,6 +85,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
     // Step 2: Enrich venues with Google APIs (Places, Routes, Geocoding)
     // Phase: 'routing' - Google Routes + Places APIs
+    console.log(`[PHASE] ${snapshotId.slice(0, 8)} venues → routing`);
     await updatePhase(snapshotId, 'routing', { phaseEmitter });
 
     const enrichmentStart = Date.now();
@@ -106,6 +107,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
     // Step 2.3: Match venues to discovered events from DB
     // Phase: 'places' - Google Places API (event matching happens here too)
+    console.log(`[PHASE] ${snapshotId.slice(0, 8)} routing → places`);
     await updatePhase(snapshotId, 'places', { phaseEmitter });
 
     const eventDate = snapshot.date || new Date().toISOString().slice(0, 10);
@@ -119,6 +121,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
     // Step 2.5: Verify venue events using Gemini 2.5 Pro
     // Phase: 'verifying' - Gemini event verification
+    console.log(`[PHASE] ${snapshotId.slice(0, 8)} places → verifying`);
     await updatePhase(snapshotId, 'verifying', { phaseEmitter });
 
     venuesLog.phase(3, `Places API: Fetching hours + verifying events for ${enrichedVenues.length} venues`);

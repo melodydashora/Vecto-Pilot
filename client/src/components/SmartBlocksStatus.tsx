@@ -130,7 +130,7 @@ export function SmartBlocksStatus({
                   : blocksError
                     ? `Error: ${blocksError.message}`
                     : isBlocksLoading
-                      ? 'Enrichment beginning...'
+                      ? `${venueMessages.badge}: ${venueMessages.text}`
                       : !strategyReady
                         ? 'Waiting for strategy to complete...'
                         : 'Waiting for worker to generate venues...'}

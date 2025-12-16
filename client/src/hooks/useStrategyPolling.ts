@@ -81,16 +81,23 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
       if (!response.ok) return null;
 
       const data = await response.json();
-      console.log(`[strategy-polling] Status: ${data.status}, Time: ${data.timeElapsedMs}ms`);
+      console.log(`[strategy-polling] Status: ${data.status}, Phase: ${data.phase || 'n/a'}, Time: ${data.timeElapsedMs}ms`);
       return { ...data, _snapshotId: snapshotId } as StrategyData;
     },
     enabled: !!snapshotId && snapshotId !== 'live-snapshot',
-    // Reduced polling - SSE is primary mechanism, this is just a safety fallback
+    // Dynamic polling based on status:
+    // - undefined/pending/pending_blocks: Poll every 2s to track phase changes
+    // - ok/error: Stop polling (done)
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === 'pending' ? 15000 : false;
+      // Poll until we reach 'ok' or 'error' status
+      if (!status || status === 'pending' || status === 'pending_blocks' || status === 'missing') {
+        return 2000; // Fast polling during generation to show phase updates
+      }
+      return false; // Stop polling when done
     },
-    staleTime: 5 * 60 * 1000,
+    // Don't consider data stale during generation - always use fresh data
+    staleTime: 0,
     gcTime: 10 * 60 * 1000,
   });
 

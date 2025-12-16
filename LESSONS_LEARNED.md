@@ -545,6 +545,124 @@ const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
 
 **Lesson:** Hash-based deduplication (exact match) isn't enough for LLM-discovered data. Use semantic deduplication by passing existing data back to the LLM.
 
+### Bug: SmartBlocks progress stuck at 72% with static message (Dec 2025)
+
+**Cause:** Two issues combined:
+1. `useVenueLoadingMessages.ts` was missing phases: `routing`, `places`, `verifying`
+2. `SmartBlocksStatus.tsx` showed static "Enrichment beginning..." instead of dynamic phase messages
+
+**Symptoms:**
+- Progress bar stuck at 72% for extended periods
+- Message shows "Enrichment beginning..." even deep into SmartBlocks phase
+- No indication of what pipeline step is running (routing, places, verifying)
+
+**Root Cause:**
+The SmartBlocks pipeline has these phases: `venues → routing → places → verifying → complete`
+But the `useVenueLoadingMessages` hook only had messages for `venues` and `enriching` (legacy).
+When `routing`/`places`/`verifying` phases fired, it fell back to default `venues` messages.
+
+**Fix:**
+1. Added phase-specific messages to `useVenueLoadingMessages.ts`:
+   ```javascript
+   routing: [
+     { icon: '🚗', text: 'Calling Google Routes API for drive times...' },
+     { icon: '📊', text: 'Calculating distance from your location...' },
+   ],
+   places: [
+     { icon: '📍', text: 'Looking up venue details from Places API...' },
+     { icon: '🕐', text: 'Fetching business hours and ratings...' },
+   ],
+   verifying: [
+     { icon: '🔍', text: 'Gemini verifying event information...' },
+     { icon: '✅', text: 'Cross-checking venue details...' },
+   ],
+   ```
+
+2. Updated `SmartBlocksStatus.tsx` to use dynamic messages:
+   ```javascript
+   // OLD: Static text
+   ? 'Enrichment beginning...'
+
+   // NEW: Dynamic phase-specific message
+   ? `${venueMessages.badge}: ${venueMessages.text}`
+   ```
+
+**Files Changed:**
+- `client/src/hooks/useVenueLoadingMessages.ts`: Added routing, places, verifying phases
+- `client/src/components/SmartBlocksStatus.tsx`: Use dynamic phase messages
+
+**Lesson:** UI loading messages should reflect backend pipeline phases exactly. When adding new pipeline phases, update the corresponding frontend message hooks.
+
+### Bug: All venues showing same event badge (Dec 2025)
+
+**Cause:** Event matching was too loose - partial address matching matched all venues in a city
+
+**Symptoms:**
+- All 5 SmartBlocks venues show "🎫 Event: Emerson Christmas Concert"
+- Even venues at different addresses (Main St, Oak St, El Dorado Pkwy) show same event
+
+**Root Cause:**
+The `event-matcher.js` used loose address matching:
+```javascript
+// OLD: Too loose - "frisco" matches all Frisco addresses
+const addressMatch = eventAddress.includes(venueAddress) || venueAddress.includes(eventAddress);
+```
+After normalizing addresses, city names like "frisco" would match ALL venues in that city.
+
+**Fix:** Strict address matching requiring BOTH street number AND street name:
+```javascript
+// NEW: Requires "6991" + "main" to both match
+function addressesMatchStrictly(addr1, addr2) {
+  const num1 = extractStreetNumber(addr1);  // "6991"
+  const num2 = extractStreetNumber(addr2);
+  if (num1 !== num2) return false;  // Numbers must match
+
+  const street1 = extractStreetName(addr1);  // "main"
+  const street2 = extractStreetName(addr2);
+  return street1 === street2 || street1.includes(street2);
+}
+```
+
+**File Changed:** `server/lib/venue/event-matcher.js`
+
+**Lesson:** Address matching for event correlation must be strict. Require specific street number + street name, not just partial city/neighborhood matching. Log each match for debugging.
+
+### Bug: Phase updates not visible during SmartBlocks (stuck at 72%) (Dec 2025)
+
+**Cause:** Polling only triggered during `pending` status, not `pending_blocks`
+
+**Symptoms:**
+- Progress bar stuck at 72% showing "Tactical Planner: Building venue recommendation list..."
+- Never shows routing/places/verifying phases
+- Jumps straight from 72% to 100%
+
+**Root Cause:**
+The `useStrategyPolling.ts` hook had this logic:
+```javascript
+// OLD: Only polls during 'pending', stops for 'pending_blocks'
+refetchInterval: (query) => {
+  const status = query.state.data?.status;
+  return status === 'pending' ? 15000 : false;  // Blocks phase is 'pending_blocks'!
+}
+```
+Once strategy completed (status='pending_blocks'), polling stopped at 15 seconds instead of continuing to poll for phase updates.
+
+**Fix:** Poll fast during both 'pending' AND 'pending_blocks':
+```javascript
+// NEW: Fast 2s polling during any generation phase
+refetchInterval: (query) => {
+  const status = query.state.data?.status;
+  if (status === 'pending' || status === 'pending_blocks') {
+    return 2000; // Fast polling during generation
+  }
+  return false;
+}
+```
+
+**File Changed:** `client/src/hooks/useStrategyPolling.ts`
+
+**Lesson:** When adding new status codes (like 'pending_blocks'), update all polling/SSE logic to handle them. Status codes control polling behavior.
+
 ---
 
 ## Testing Checklist
