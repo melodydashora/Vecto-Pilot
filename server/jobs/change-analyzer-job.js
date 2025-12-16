@@ -26,6 +26,18 @@ let isRunning = false;
 let lastAnalysisTime = null;
 
 /**
+ * Check if we're in a git repository
+ */
+async function isGitRepo() {
+  try {
+    await fs.access(path.join(REPO_ROOT, '.git'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Main analysis function
  * @returns {Object} Analysis results
  */
@@ -33,6 +45,13 @@ export async function runAnalysis() {
   if (isRunning) {
     console.log('[ChangeAnalyzer] Analysis already running, skipping...');
     return { skipped: true, reason: 'Already running' };
+  }
+
+  // Skip in non-git environments (e.g., production deployments)
+  const hasGit = await isGitRepo();
+  if (!hasGit) {
+    console.log('[ChangeAnalyzer] Skipped - not a git repository (production deployment)');
+    return { skipped: true, reason: 'Not a git repository' };
   }
 
   isRunning = true;
