@@ -70,4 +70,75 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 All major changes from this session have been documented in LESSONS_LEARNED.md.
 
+## 2025-12-16 Analysis
+
+**Generated:** 2025-12-16T01:32:43.227Z
+**Branch:** main
+**Last Commit:** 15b2f4b Document session changes in LESSONS_LEARNED.md
+
+### Uncommitted Changes (2)
+| File | Status |
+|------|--------|
+| `ocs/review-queue/2025-12-15.md` | Modified |
+| `docs/review-queue/2025-12-16.md` | Untracked |
+
+### Recent Commit Changes (6)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/lib/strategy/strategy-utils.js` | Modified |
+| `server/middleware/validation.js` | Modified |
+| `server/scripts/sync-events.mjs` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Hook changes (client/src/hooks/useEnrichmentProgress.ts)
+
+### Status: PENDING
+
+---
+
+## 2025-12-16 Analysis
+
+**Generated:** 2025-12-16T01:36:56.962Z
+**Branch:** main
+**Last Commit:** 15b2f4b Document session changes in LESSONS_LEARNED.md
+
+### Uncommitted Changes (3)
+| File | Status |
+|------|--------|
+| `ocs/review-queue/2025-12-15.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `docs/review-queue/2025-12-16.md` | Untracked |
+
+### Recent Commit Changes (6)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/lib/strategy/strategy-utils.js` | Modified |
+| `server/middleware/validation.js` | Modified |
+| `server/scripts/sync-events.mjs` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Hook changes (client/src/hooks/useEnrichmentProgress.ts)
+
+### Status: PENDING
+
+---
+
 ---
