@@ -162,15 +162,16 @@ function formatExistingEventsForPrompt(events) {
   return `
 
 IMPORTANT - AVOID DUPLICATES:
-The following events are ALREADY in our database. Do NOT return any events that are essentially the same as these (even with slight title variations like "Christmas in the Square" vs "Christmas in the Square (lights show)" - these are the SAME event):
+The following events are ALREADY in our database. Do NOT return any events that are essentially the same as these (even with slight title variations):
 
 ${eventList}
 
 DEDUPLICATION RULES:
 1. Same venue + same date + same event type (even with different title wording) = DUPLICATE, skip it
 2. Same venue + same date + DIFFERENT time = NOT a duplicate (could be different shows)
-3. "Christmas in the Square" at 6:00 PM is the SAME as "Christmas in the Square (Lights & Music)" at 6:00 PM = DUPLICATE
-4. "Christmas in the Square" at 6:00 PM is DIFFERENT from "Christmas in the Square" at 9:00 PM = KEEP BOTH
+3. Example: "Holiday Lights Show" at 6:00 PM = "Holiday Lights Show (Daily)" at 6:00 PM = DUPLICATE
+4. Example: "Holiday Lights Show" at 6:00 PM ≠ "Holiday Lights Show" at 9:00 PM = KEEP BOTH
+5. Title variations with extra details in parentheses are usually the SAME event
 
 Only return genuinely NEW events not already covered above.`;
 }
