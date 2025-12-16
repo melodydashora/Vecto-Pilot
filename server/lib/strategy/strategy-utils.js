@@ -187,16 +187,17 @@ export function normalizeBriefingShape(briefing) {
 // Expected duration for each phase (in milliseconds) based on actual pipeline timing (Dec 2025)
 // These are used for progress calculation on the frontend
 // SmartBlocks phases: venues → routing → places → verifying → complete
+// Note: Overestimate slightly to avoid progress stalling at 95% within a phase
 export const PHASE_EXPECTED_DURATIONS = {
   starting: 500,      // Nearly instant
-  resolving: 1500,    // Location resolution
-  analyzing: 14000,   // Briefing (Gemini with search) - typically 10-20s
-  immediate: 8000,    // GPT-5.2 immediate strategy
-  venues: 25000,      // GPT-5.2 tactical planner - SLOWEST step (20-30s)
-  routing: 3000,      // Google Routes API batch
-  places: 2000,       // Event matching + Places lookup
-  verifying: 12000,   // Gemini event verification (10-15s)
-  enriching: 15000,   // Legacy fallback - all Google APIs combined
+  resolving: 2000,    // Location resolution
+  analyzing: 15000,   // Briefing (Gemini with search) - can take 10-20s
+  immediate: 10000,   // GPT-5.2 immediate strategy
+  venues: 35000,      // GPT-5.2 tactical planner - SLOWEST (25-35s)
+  routing: 4000,      // Google Routes API batch
+  places: 3000,       // Event matching + Places lookup
+  verifying: 15000,   // Gemini event verification (10-18s)
+  enriching: 20000,   // Legacy fallback - all Google APIs combined
   complete: 0         // Done
 };
 
