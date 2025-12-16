@@ -184,18 +184,18 @@ export function normalizeBriefingShape(briefing) {
   };
 }
 
-// Expected duration for each phase (in milliseconds) based on historical averages
+// Expected duration for each phase (in milliseconds) based on actual pipeline timing (Dec 2025)
 // These are used for progress calculation on the frontend
 // SmartBlocks phases: venues → routing → places → verifying → complete
 export const PHASE_EXPECTED_DURATIONS = {
   starting: 500,      // Nearly instant
   resolving: 1500,    // Location resolution
-  analyzing: 12000,   // Briefing (Gemini with search) - can take 8-15s
-  immediate: 8000,    // GPT-5.2 strategy generation
-  venues: 4000,       // GPT-5.2 venue planner (SmartBlocks step 1)
-  routing: 5000,      // Google Routes API batch (SmartBlocks step 2)
-  places: 6000,       // Google Places API enrichment (SmartBlocks step 3)
-  verifying: 4000,    // Gemini event verification (SmartBlocks step 4)
+  analyzing: 14000,   // Briefing (Gemini with search) - typically 10-20s
+  immediate: 8000,    // GPT-5.2 immediate strategy
+  venues: 25000,      // GPT-5.2 tactical planner - SLOWEST step (20-30s)
+  routing: 3000,      // Google Routes API batch
+  places: 2000,       // Event matching + Places lookup
+  verifying: 12000,   // Gemini event verification (10-15s)
   enriching: 15000,   // Legacy fallback - all Google APIs combined
   complete: 0         // Done
 };

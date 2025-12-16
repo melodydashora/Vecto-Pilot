@@ -24,15 +24,16 @@ interface EnrichmentProgressState {
 
 // Default expected durations (fallback if not provided by backend)
 // SmartBlocks phases: venues → routing → places → verifying → complete
+// Tuned to match actual pipeline timing (Dec 2025)
 const DEFAULT_EXPECTED_DURATIONS: Record<string, number> = {
   starting: 500,
   resolving: 1500,
-  analyzing: 12000,
-  immediate: 8000,
-  venues: 4000,       // GPT-5.2 venue planner
-  routing: 5000,      // Google Routes API
-  places: 6000,       // Google Places API
-  verifying: 4000,    // Gemini event verification
+  analyzing: 14000,   // Gemini briefing
+  immediate: 8000,    // GPT-5.2 immediate strategy
+  venues: 25000,      // GPT-5.2 tactical planner (slowest step)
+  routing: 3000,      // Google Routes API batch
+  places: 2000,       // Event matching + Places lookup
+  verifying: 12000,   // Gemini event verification
   enriching: 15000,   // Legacy fallback
   complete: 0
 };
