@@ -355,4 +355,95 @@ All major changes from this session have been documented in LESSONS_LEARNED.md.
 
 ---
 
+## 2025-12-16 Analysis
+
+**Generated:** 2025-12-16T14:24:15.921Z
+**Branch:** main
+**Last Commit:** a77d9f1 Published your App
+
+### Recent Commit Changes (12)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/SmartBlocksStatus.tsx` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `client/src/hooks/useVenueLoadingMessages.ts` | Modified |
+| `docs/review-queue/2025-12-15.md` | Modified |
+| `docs/review-queue/2025-12-16.md` | Added |
+| `docs/review-queue/pending.md` | Modified |
+| `server/jobs/change-analyzer-job.js` | Modified |
+| `server/lib/strategy/strategy-utils.js` | Modified |
+| `server/lib/venue/enhanced-smart-blocks.js` | Modified |
+| `server/lib/venue/event-matcher.js` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/SmartBlocksStatus.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/enhanced-smart-blocks.js)
+
+#### Low Priority
+- [ ] docs/architecture/server-structure.md - Background job changes (server/jobs/change-analyzer-job.js)
+
+### Status: PENDING
+
+---
+
+## 2025-12-16 Analysis
+
+**Generated:** 2025-12-16T15:49:01.125Z
+**Branch:** main
+**Last Commit:** a77d9f1 Published your App
+
+### Uncommitted Changes (9)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+| `client/src/components/ui/alert.tsx` | Modified |
+| `client/src/components/ui/toast.tsx` | Modified |
+| `docs/review-queue/2025-12-16.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `package-lock.json` | Modified |
+| `package.json` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| `server/lib/notifications/` | Untracked |
+
+### Recent Commit Changes (12)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/SmartBlocksStatus.tsx` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `client/src/hooks/useVenueLoadingMessages.ts` | Modified |
+| `docs/review-queue/2025-12-15.md` | Modified |
+| `docs/review-queue/2025-12-16.md` | Added |
+| `docs/review-queue/pending.md` | Modified |
+| `server/jobs/change-analyzer-job.js` | Modified |
+| `server/lib/strategy/strategy-utils.js` | Modified |
+| `server/lib/venue/enhanced-smart-blocks.js` | Modified |
+| `server/lib/venue/event-matcher.js` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/ui/alert.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/enhanced-smart-blocks.js)
+
+#### Low Priority
+- [ ] docs/architecture/server-structure.md - Background job changes (server/jobs/change-analyzer-job.js)
+
+### Status: PENDING
+
+---
+
 ---
