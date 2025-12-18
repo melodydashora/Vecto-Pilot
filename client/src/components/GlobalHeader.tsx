@@ -40,6 +40,7 @@ const GlobalHeaderComponent: React.FC = () => {
   // state for display
   const [now, setNow] = useState<Date>(new Date());
   const [timeString, setTimeString] = useState<string>("");
+  const [dateString, setDateString] = useState<string>("");
   const [dayOfWeek, setDayOfWeek] = useState<string>("");
   const [timeContextLabel, setTimeContextLabel] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -196,7 +197,15 @@ const GlobalHeaderComponent: React.FC = () => {
       ...(tz && { timeZone: tz }),
     });
 
+    // Format date with timezone awareness (e.g., "Dec 17")
+    const dateFmt = new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      ...(tz && { timeZone: tz }),
+    });
+
     setTimeString(formatter.format(now));
+    setDateString(dateFmt.format(now));
     const day = dayFmt.format(now);
     const { label } = classifyDayPart(now, tz);
 
@@ -356,11 +365,11 @@ const GlobalHeaderComponent: React.FC = () => {
                   {/* Prioritize holiday name over day part label when available */}
                   {isHoliday && holiday ? (
                     <span className="text-amber-300 font-semibold">
-                      {holiday}
+                      {dayOfWeek}, {dateString} • {holiday}
                     </span>
                   ) : (
                     <>
-                      {dayOfWeek} {timeContextLabel}
+                      {dayOfWeek}, {dateString} • {timeContextLabel}
                     </>
                   )}
                 </span>

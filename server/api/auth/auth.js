@@ -5,7 +5,13 @@ import { authLog, OP } from '../../logger/workflow.js';
 const router = Router();
 
 // Environment checks
-const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
+// REPLIT_DEPLOYMENT is only set during actual Replit deployments, not during development/preview
+// NODE_ENV=production is set by Vite for optimization, but doesn't mean it's a real production deployment
+// On Replit, we should only block token minting in actual deployments (REPLIT_DEPLOYMENT=1)
+const IS_REPLIT = Boolean(process.env.REPL_ID || process.env.REPLIT_DB_URL);
+const IS_PRODUCTION = IS_REPLIT
+  ? process.env.REPLIT_DEPLOYMENT === '1'  // On Replit: only true deployments
+  : process.env.NODE_ENV === 'production'; // Elsewhere: respect NODE_ENV
 
 /**
  * POST /api/auth/token - Generate JWT token for user
