@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Intelligence System - Vecto Pilot Architecture</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #10b981;
+            --accent: #f59e0b;
+            --danger: #ef4444;
+            --dark: #1e293b;
+            --darker: #0f172a;
+            --light: #f8fafc;
+            --gray: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.7;
+            color: var(--dark);
+            background: var(--light);
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px;
+        }
+
+        /* Cover Page */
+        .cover {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: linear-gradient(135deg, var(--darker) 0%, var(--dark) 100%);
+            color: white;
+            padding: 60px;
+            page-break-after: always;
+        }
+
+        .cover-logo {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .cover h1 {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .cover .subtitle {
+            font-size: 20px;
+            color: #94a3b8;
+            margin-bottom: 40px;
+            font-weight: 300;
+        }
+
+        .cover-meta {
+            display: flex;
+            gap: 40px;
+            margin-top: 60px;
+            padding-top: 40px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .cover-meta-item {
+            text-align: center;
+        }
+
+        .cover-meta-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+
+        .cover-meta-value {
+            font-size: 14px;
+            color: #e2e8f0;
+        }
+
+        /* Headers */
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--darker);
+            margin: 48px 0 24px;
+            padding-bottom: 12px;
+            border-bottom: 3px solid var(--primary);
+        }
+
+        h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--dark);
+            margin: 36px 0 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--dark);
+            margin: 28px 0 12px;
+        }
+
+        h4 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 24px 0 12px;
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: #475569;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+
+        th {
+            background: var(--darker);
+            color: white;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:nth-child(even) {
+            background: #f1f5f9;
+        }
+
+        /* Code blocks */
+        pre {
+            background: var(--darker);
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            margin: 20px 0;
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            background: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        /* Diagram boxes */
+        .diagram {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: #e2e8f0;
+            padding: 24px;
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            margin: 24px 0;
+            white-space: pre;
+            overflow-x: auto;
+            border: 1px solid #334155;
+        }
+
+        /* Info boxes */
+        .info-box {
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+
+        .info-box.primary {
+            background: #eef2ff;
+            border-color: var(--primary);
+        }
+
+        .info-box.success {
+            background: #ecfdf5;
+            border-color: var(--secondary);
+        }
+
+        .info-box.warning {
+            background: #fffbeb;
+            border-color: var(--accent);
+        }
+
+        .info-box.danger {
+            background: #fef2f2;
+            border-color: var(--danger);
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 16px 0;
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+            color: #475569;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge.green { background: #dcfce7; color: #166534; }
+        .badge.yellow { background: #fef3c7; color: #92400e; }
+        .badge.red { background: #fee2e2; color: #991b1b; }
+        .badge.blue { background: #dbeafe; color: #1e40af; }
+
+        /* Page breaks */
+        .page-break {
+            page-break-before: always;
+        }
+
+        /* TOC */
+        .toc {
+            background: white;
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin: 32px 0;
+        }
+
+        .toc h2 {
+            margin-top: 0;
+        }
+
+        .toc ol {
+            list-style: none;
+            padding: 0;
+            counter-reset: toc-counter;
+        }
+
+        .toc > ol > li {
+            counter-increment: toc-counter;
+            margin: 16px 0;
+        }
+
+        .toc > ol > li::before {
+            content: counter(toc-counter) ".";
+            font-weight: 600;
+            color: var(--primary);
+            margin-right: 12px;
+        }
+
+        .toc a {
+            color: var(--dark);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        /* Section cards */
+        .section-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin: 24px 0;
+        }
+
+        /* State grid */
+        .state-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin: 24px 0;
+        }
+
+        .state-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-top: 4px solid var(--primary);
+        }
+
+        .state-card h4 {
+            margin-top: 0;
+            color: var(--dark);
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        .state-card.staging { border-color: var(--secondary); }
+        .state-card.enroute { border-color: var(--primary); }
+        .state-card.withrider { border-color: var(--accent); }
+        .state-card.deadzone { border-color: var(--danger); }
+
+        /* Metrics */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin: 24px 0;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 60px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--gray);
+            font-size: 12px;
+        }
+
+        @media print {
+            body { background: white; }
+            .container { padding: 20px; }
+            .cover { min-height: auto; padding: 40px; }
+            pre, .diagram { break-inside: avoid; }
+            h1, h2, h3 { break-after: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Cover Page -->
+    <div class="cover">
+        <div class="cover-logo">&#x1F697;</div>
+        <h1>Driver Intelligence System</h1>
+        <p class="subtitle">Architecture & Vision for Real-Time Decision Support</p>
+        <p style="color: #64748b; max-width: 500px;">
+            A comprehensive technical document capturing the evolution from staging recommendations
+            to solving the 9-second decision problem for rideshare drivers.
+        </p>
+        <div class="cover-meta">
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Platform</div>
+                <div class="cover-meta-value">Vecto Pilot</div>
+            </div>
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Version</div>
+                <div class="cover-meta-value">1.0</div>
+            </div>
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Date</div>
+                <div class="cover-meta-value">December 2024</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Executive Summary -->
+        <div class="info-box primary">
+            <h3 style="margin-top: 0;">Executive Summary</h3>
+            <p style="margin-bottom: 0;">
+                This document captures the complete architecture for Vecto Pilot's driver intelligence system&mdash;from
+                current staging recommendations to the proposed real-time decision support that solves the
+                <strong>9-second decision problem</strong>. It details the current TRIAD pipeline, defines four driver
+                workflow states, analyzes Uber's algorithmic patterns, and proposes a screenshot-based solution
+                with session persistence.
+            </p>
+        </div>
+
+        <!-- Table of Contents -->
+        <div class="toc">
+            <h2>Table of Contents</h2>
+            <ol>
+                <li><a href="#section1">Current Architecture: Staging Recommendations</a></li>
+                <li><a href="#section2">Driver Workflow States</a></li>
+                <li><a href="#section3">The 9-Second Decision Problem</a></li>
+                <li><a href="#section4">Uber's Algorithmic Patterns</a></li>
+                <li><a href="#section5">Proposed Screenshot Solution</a></li>
+                <li><a href="#section6">Implementation Roadmap</a></li>
+            </ol>
+        </div>
+
+        <!-- Section 1 -->
+        <h1 id="section1">1. Current Architecture: Staging Recommendations</h1>
+
+        <h2>How Staging Works Today</h2>
+        <p>
+            Vecto Pilot generates venue recommendations through a 4-phase <strong>TRIAD pipeline</strong>
+            (Three-model Intelligence and Analysis Design) taking approximately 35-50 seconds:
+        </p>
+
+        <div class="diagram">
+POST /api/blocks-fast
+    |
+    v
++-----------------------------------------------------------+
+|  PHASE 1 (10-15s, Parallel)                               |
+|  +-- Strategist (Claude Opus 4.5) --> minstrategy         |
+|  +-- Briefer (Gemini 3.0 Pro) --> events, traffic, news   |
+|  +-- Holiday Detector (Gemini) --> holiday status         |
++-----------------------------------------------------------+
+    |
+    v
++-----------------------------------------------------------+
+|  PHASE 2 (8-12s, Parallel)                                |
+|  +-- Daily Consolidator (Gemini) --> 8-12hr strategy      |
+|  +-- Immediate Consolidator (GPT-5.2) --> strategy_for_now|
++-----------------------------------------------------------+
+    |
+    v
++-----------------------------------------------------------+
+|  PHASE 3 (15-20s, Sequential)                             |
+|  +-- GPT-5.2 Tactical Planner --> venue + staging coords  |
+|  +-- Google APIs --> distance, hours, address enrichment  |
++-----------------------------------------------------------+
+    |
+    v
++-----------------------------------------------------------+
+|  PHASE 4 (3-5s, Optional)                                 |
+|  +-- Event Validator (Claude) --> verify event schedules  |
++-----------------------------------------------------------+</div>
+
+        <h3>Staging Intelligence Output</h3>
+        <p>The GPT-5.2 Tactical Planner generates <strong>two coordinate sets</strong> per venue:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Coordinate Type</th>
+                    <th>Purpose</th>
+                    <th>Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Venue coords</strong> (lat, lng)</td>
+                    <td>Actual destination/entrance</td>
+                    <td>32.7765, -96.7970</td>
+                </tr>
+                <tr>
+                    <td><strong>Staging coords</strong> (staging_lat, staging_lng)</td>
+                    <td>Where to park/wait</td>
+                    <td>32.7750, -96.7960</td>
+                </tr>
+                <tr>
+                    <td><strong>Staging name</strong></td>
+                    <td>Verification label</td>
+                    <td>"Lot behind Starbucks"</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Current Limitations</h3>
+        <div class="info-box warning">
+            <table style="margin: 0;">
+                <tr><td><strong>35-50s generation time</strong></td><td>Too slow for real-time decisions</td></tr>
+                <tr><td><strong>Location-change triggered</strong></td><td>Doesn't adapt during active rides</td></tr>
+                <tr><td><strong>No ping history analysis</strong></td><td>Can't detect algorithmic patterns</td></tr>
+                <tr><td><strong>No ride-in-progress context</strong></td><td>Treats all states the same</td></tr>
+            </table>
+        </div>
+
+        <!-- Section 2 -->
+        <h1 id="section2" class="page-break">2. Driver Workflow States</h1>
+
+        <h2>The Four Driver States</h2>
+        <p>A rideshare driver cycles through distinct operational states, each requiring different intelligence:</p>
+
+        <div class="diagram">
++---------------------------------------------------------------+
+|                    DRIVER WORKFLOW STATES                      |
+|                                                                |
+|  +------------+     +------------+     +------------+          |
+|  |  STAGING   | --> | EN ROUTE   | --> | WITH RIDER |          |
+|  |  (Waiting) |     | TO PICKUP  |     | (In-trip)  |          |
+|  +-----+------+     +------------+     +------+-----+          |
+|        |                                      |                |
+|        |            +------------+            |                |
+|        +----------> | DEAD ZONE  | <----------+                |
+|                     | (Trapped)  |                             |
+|                     +------------+                             |
++---------------------------------------------------------------+</div>
+
+        <div class="state-grid">
+            <div class="state-card staging">
+                <h4>State 1: STAGING</h4>
+                <p style="font-size: 12px; color: var(--gray);">Driver is parked/waiting, app is on, seeking rides</p>
+                <p><span class="badge green">Full Support</span></p>
+                <ul style="font-size: 12px;">
+                    <li>Best venues by daypart/demand</li>
+                    <li>Staging spot recommendations</li>
+                    <li>Event timing + crowd dispersal</li>
+                </ul>
+            </div>
+            <div class="state-card enroute">
+                <h4>State 2: EN ROUTE TO PICKUP</h4>
+                <p style="font-size: 12px; color: var(--gray);">Accepted a ping, driving to passenger</p>
+                <p><span class="badge yellow">Partial Support</span></p>
+                <ul style="font-size: 12px;">
+                    <li>Parking/staging at pickup</li>
+                    <li>Dead zone risk assessment</li>
+                    <li>Worth the drive analysis</li>
+                </ul>
+            </div>
+            <div class="state-card withrider">
+                <h4>State 3: WITH RIDER</h4>
+                <p style="font-size: 12px; color: var(--gray);">Passenger in car, navigating to destination</p>
+                <p><span class="badge yellow">Partial Support</span></p>
+                <ul style="font-size: 12px;">
+                    <li>What's near the dropoff?</li>
+                    <li>Demand forecast at destination</li>
+                    <li>Time to plan next move</li>
+                </ul>
+            </div>
+            <div class="state-card deadzone">
+                <h4>State 4: DEAD ZONE</h4>
+                <p style="font-size: 12px; color: var(--gray);">Dropped off in low-demand area, no pings</p>
+                <p><span class="badge red">Limited Support</span></p>
+                <ul style="font-size: 12px;">
+                    <li>Nearest high-demand area</li>
+                    <li>Pattern: "Uber sent you here 3x"</li>
+                    <li>Repositioning cost analysis</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Section 3 -->
+        <h1 id="section3" class="page-break">3. The 9-Second Decision Problem</h1>
+
+        <h2>What Is It?</h2>
+        <p>
+            When a rideshare ping arrives, drivers have approximately <strong>9-15 seconds</strong>
+            to make a binary decision with incomplete information:
+        </p>
+
+        <div class="diagram">
++---------------------------------------------------------------+
+|                     THE 9-SECOND WINDOW                        |
+|                                                                |
+|   +--------+     +------------------+     +----------+         |
+|   |  PING  | --> | 9-15 SECONDS TO  | --> | ACCEPT / |         |
+|   | ARRIVES|     |      DECIDE      |     | DECLINE  |         |
+|   +--------+     +------------------+     +----------+         |
+|                                                                |
+|   Information Shown:          Information Hidden:              |
+|   * Pickup location           * Final destination (often)     |
+|   * Estimated time to pickup  * Rider destination type        |
+|   * Rider rating (sometimes)  * Surge at destination          |
+|   * Trip distance (sometimes) * Dead zone risk                |
+|                               * Chained ride likelihood        |
+|                               * "Is this an airport return?"   |
++---------------------------------------------------------------+</div>
+
+        <h3>Why 9 Seconds Matters</h3>
+        <table>
+            <thead>
+                <tr><th>Factor</th><th>Impact</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>Cognitive load</strong></td><td>Driver is often moving, can't research</td></tr>
+                <tr><td><strong>Incomplete information</strong></td><td>Uber/Lyft hide destination until accept</td></tr>
+                <tr><td><strong>Acceptance rate pressure</strong></td><td>Low acceptance = fewer pings, deplatforming risk</td></tr>
+                <tr><td><strong>Algorithmic punishment</strong></td><td>Declining "bad" rides may reduce future good ones</td></tr>
+                <tr><td><strong>Revenue at stake</strong></td><td>Wrong decision costs $10-50+ per occurrence</td></tr>
+            </tbody>
+        </table>
+
+        <h3>Data Required for 9-Second Decision Support</h3>
+
+        <div class="section-card">
+            <h4>Tier 1: Immediate Data (&lt; 100ms lookup)</h4>
+            <pre><code>{
+  pickup_zone_profile: {
+    h3_cell: "872a1073fffffff",
+    avg_wait_time: "4.2 min",
+    typical_destinations: ["Downtown 45%", "Airport 30%", "Suburbs 25%"],
+    dead_zone_risk: 0.35,
+    driver_acceptance_rate: 0.72
+  }
+}</code></pre>
+        </div>
+
+        <div class="section-card">
+            <h4>Tier 2: Contextual Data (&lt; 500ms compute)</h4>
+            <pre><code>{
+  session_context: {
+    rides_completed_today: 8,
+    current_earnings: 142.50,
+    acceptance_rate_session: 0.85,
+    last_dead_zone_trap: "2 hours ago at Oak Lawn",
+    pattern_detected: "3rd airport pickup today - likely return coming"
+  }
+}</code></pre>
+        </div>
+
+        <div class="section-card">
+            <h4>Tier 3: Screenshot Analysis (&lt; 2s)</h4>
+            <pre><code>{
+  ping_analysis: {
+    pickup_address: "2500 Victory Ave",
+    venue_type: "American Airlines Center",
+    event_status: "Mavs game ending in 15 min",
+    estimated_destination: "Downtown/Uptown 70%, Suburbs 30%",
+    recommendation: "ACCEPT - high surge post-game, chain likely",
+    dead_zone_risk: "LOW",
+    confidence: 0.85
+  }
+}</code></pre>
+        </div>
+
+        <!-- Section 4 -->
+        <h1 id="section4" class="page-break">4. Uber's Algorithmic Patterns</h1>
+
+        <h2>Reverse-Engineering Uber's System</h2>
+        <p>Based on driver experience patterns, the following algorithmic behaviors can be detected:</p>
+
+        <h3>4.1 Ping Radius by Driver Tier</h3>
+        <div class="diagram">
++---------------------------------------------------------------+
+|           PING RADIUS BY DRIVER TIER                           |
+|                                                                |
+|   Diamond/Platinum        Gold Drivers       New/Low-Rated    |
+|   +---------------+      +-----------+      +--------+        |
+|   | ############# |      | ######### |      | ####   |        |
+|   | ############# |      | ######### |      | ####   |        |
+|   |     25mi      |      |   15mi    |      |  8mi   |        |
+|   +---------------+      +-----------+      +--------+        |
+|                                                                |
+|   * First access to       * Standard        * Last access     |
+|     surges                  radius          * Longer waits    |
+|   * Airport priority      * Normal queue    * Minimal info    |
+|   * Destination preview   * Basic info                        |
++---------------------------------------------------------------+</div>
+
+        <h3>4.2 Dead Zone Trap Patterns</h3>
+        <div class="info-box danger">
+            <h4 style="margin-top: 0; color: var(--danger);">Pattern 1: SUBURB BLEED</h4>
+            <p>Downtown (High Demand) --ride--> Suburb (Dead Zone)<br>
+            Next ping: 15-25 min wait or 10mi drive back</p>
+
+            <h4 style="color: var(--danger);">Pattern 2: AIRPORT DUMP</h4>
+            <p>Busy Area --airport ride--> Airport --no return--> Trapped<br>
+            Driver waits 45min in queue OR drives back empty</p>
+
+            <h4 style="color: var(--danger);">Pattern 3: EVENT SCATTER</h4>
+            <p>Stadium --post-event ride--> Random suburb<br>
+            Surge ends, driver stranded 20mi from next surge</p>
+        </div>
+
+        <h3>4.3 Detection & Prevention</h3>
+        <pre><code>{
+  dead_zone_analysis: {
+    destination_h3: "872a1073fffffff",
+    historical_demand: "LOW (avg 0.3 rides/hr)",
+    return_distance: "12.4 mi to nearest surge",
+    pattern_match: "SUBURB_BLEED",
+    times_trapped_here: 3,
+    recommendation: "DECLINE - dead zone trap",
+    alternative: "Wait 5min, ping likely from downtown"
+  }
+}</code></pre>
+
+        <h3>4.4 Acceptance Rate Manipulation</h3>
+        <table>
+            <thead>
+                <tr><th>Acceptance Rate</th><th>Effect</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>&lt; 50%</td><td>Dramatically fewer pings, worse quality pings</td></tr>
+                <tr><td>50-70%</td><td>Normal ping flow</td></tr>
+                <tr><td>70-85%</td><td>Good ping quality</td></tr>
+                <tr><td>&gt; 85%</td><td>Best pings, but driver may accept bad rides</td></tr>
+            </tbody>
+        </table>
+
+        <div class="info-box primary">
+            <strong>Intelligence Opportunity:</strong> Track "test pings" (intentionally bad rides sent to measure driver floor).
+            If accepted: more bad rides follow. If declined: temporary drought, then normal resumes.
+        </div>
+
+        <!-- Section 5 -->
+        <h1 id="section5" class="page-break">5. Proposed Screenshot Solution</h1>
+
+        <h2>Architecture Overview</h2>
+        <div class="diagram">
++---------------------------------------------------------------+
+|              SCREENSHOT INTELLIGENCE PIPELINE                  |
+|                                                                |
+|   +--------+    +-----------+    +--------------------+        |
+|   | Driver | -> | Screenshot| -> | Vision AI Analysis |        |
+|   | Phone  |    | Capture   |    | (Claude 4.5 Vision)|        |
+|   +--------+    +-----------+    +---------+----------+        |
+|                                            |                   |
+|                   +------------------------+                   |
+|                   v                                            |
+|   +-------------------------------------------------------+   |
+|   |               SESSION CONTEXT ENGINE                   |   |
+|   |  +-----------+  +-----------+  +---------------+      |   |
+|   |  |Ping       |  |Dead Zone  |  |Earnings Track |      |   |
+|   |  |History(20)|  |Patterns   |  |(session)      |      |   |
+|   |  +-----------+  +-----------+  +---------------+      |   |
+|   |  +-----------+  +-----------+  +---------------+      |   |
+|   |  |H3 Demand  |  |Surge      |  |Driver Profile |      |   |
+|   |  |Profiles   |  |Stability  |  |(preferences)  |      |   |
+|   |  +-----------+  +-----------+  +---------------+      |   |
+|   +-------------------------------------------------------+   |
+|                   |                                            |
+|                   v                                            |
+|   +-------------------------------------------------------+   |
+|   |         INSTANT RECOMMENDATION (< 2 seconds)           |   |
+|   |                                                        |   |
+|   |   +--------------------------------------------------+ |   |
+|   |   | [CHECK] ACCEPT - Stadium pickup, game ending 10m | |   |
+|   |   | * High surge expected (2.1x predicted)           | |   |
+|   |   | * 70% -> Downtown (good demand zone)             | |   |
+|   |   | * Chain ride likely post-dropoff                 | |   |
+|   |   | Dead zone risk: LOW (12%)                        | |   |
+|   |   +--------------------------------------------------+ |   |
+|   +-------------------------------------------------------+   |
++---------------------------------------------------------------+</div>
+
+        <h2>Session Persistence Model</h2>
+        <h3>Database Schema</h3>
+        <pre><code>CREATE TABLE driver_sessions (
+  session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  current_state TEXT DEFAULT 'STAGING',
+  current_h3 TEXT,
+  rides_completed INTEGER DEFAULT 0,
+  total_earnings DECIMAL(10,2) DEFAULT 0,
+  acceptance_rate DECIMAL(3,2) DEFAULT 1.0
+);
+
+CREATE TABLE ping_analyses (
+  analysis_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL REFERENCES driver_sessions(session_id),
+  analyzed_at TIMESTAMPTZ DEFAULT NOW(),
+  pickup_address TEXT,
+  pickup_h3 TEXT,
+  venue_detected TEXT,
+  destination_prediction JSONB,
+  dead_zone_risk DECIMAL(3,2),
+  recommendation TEXT,
+  confidence DECIMAL(3,2),
+  driver_action TEXT,
+  actual_outcome JSONB
+);</code></pre>
+
+        <h3>Response Format (&lt; 2 seconds)</h3>
+        <pre><code>{
+  recommendation: "ACCEPT",
+  confidence: 0.88,
+  reasoning: {
+    primary: "Mavs game ending in 10min - surge incoming",
+    factors: [
+      { factor: "Event timing", impact: "+0.3" },
+      { factor: "Destination forecast", impact: "+0.2" },
+      { factor: "Dead zone risk", impact: "+0.1" }
+    ]
+  },
+  destination_forecast: {
+    downtown: 0.45, uptown: 0.30,
+    suburbs: 0.20, airport: 0.05
+  },
+  risks: {
+    dead_zone: 0.12, hidden_stops: 0.08, surge_decay: 0.25
+  }
+}</code></pre>
+
+        <!-- Section 6 -->
+        <h1 id="section6" class="page-break">6. Implementation Roadmap</h1>
+
+        <div class="metrics-grid">
+            <div class="metric">
+                <div class="metric-value">&lt;2s</div>
+                <div class="metric-label">Decision Time</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">75%+</div>
+                <div class="metric-label">Accuracy Target</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">50%</div>
+                <div class="metric-label">Dead Zone Reduction</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">+15%</div>
+                <div class="metric-label">Earnings Impact</div>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr><th>Phase</th><th>Focus</th><th>Timeline</th><th>Priority</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Phase 1</strong></td>
+                    <td>Session Infrastructure (tables, API, state machine)</td>
+                    <td>Week 1-2</td>
+                    <td><span class="badge red">P0</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 2</strong></td>
+                    <td>Screenshot Analysis (upload, Claude Vision, extraction)</td>
+                    <td>Week 3-4</td>
+                    <td><span class="badge red">P0</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 3</strong></td>
+                    <td>Zone Intelligence (H3 profiles, destination prediction)</td>
+                    <td>Week 5-6</td>
+                    <td><span class="badge yellow">P1</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 4</strong></td>
+                    <td>Pattern Detection (acceptance rate, dead zones, hidden stops)</td>
+                    <td>Week 7-8</td>
+                    <td><span class="badge yellow">P1</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Phase 5</strong></td>
+                    <td>Driver Interface (screenshot button, dashboard, alerts)</td>
+                    <td>Week 9-10</td>
+                    <td><span class="badge blue">P2</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="info-box success">
+            <h3 style="margin-top: 0;">Key Success Factors</h3>
+            <ul style="margin-bottom: 0;">
+                <li><strong>Speed:</strong> Response in &lt;2 seconds or drivers won't use it</li>
+                <li><strong>Accuracy:</strong> Wrong recommendations erode trust quickly</li>
+                <li><strong>Simplicity:</strong> One-tap screenshot, clear yes/no guidance</li>
+                <li><strong>Learning:</strong> Track outcomes to improve predictions over time</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p><strong>Vecto Pilot</strong> &mdash; Driver Intelligence System Architecture</p>
+            <p>December 2024 &bull; Version 1.0</p>
+        </div>
+    </div>
+</body>
+</html>
