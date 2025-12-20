@@ -13,6 +13,15 @@ Detailed technical documentation split by domain:
 | [Constraints](architecture/constraints.md) | Critical rules and limitations |
 | [Google Cloud APIs](architecture/google-cloud-apis.md) | Google APIs reference and usage patterns |
 
+## Research
+
+Research findings that inform platform development:
+
+| Document | Purpose |
+|----------|---------|
+| [Rideshare Algorithm Research](research/rideshare-algorithm-research.md) | Platform algorithm behaviors, detection rules, surge patterns |
+| [Mobile Subscription Architecture](research/mobile-subscription-architecture.md) | iOS/Android separate solutions for subscription services |
+
 ## Quick Links
 
 ### Folder Documentation

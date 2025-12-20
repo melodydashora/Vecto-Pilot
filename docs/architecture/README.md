@@ -108,6 +108,11 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the complete folder README inde
 - [LESSONS_LEARNED.md](../../LESSONS_LEARNED.md) - Historical issues and fixes
 - [AI_PARTNERSHIP_PLAN.md](../AI_PARTNERSHIP_PLAN.md) - Documentation improvement roadmap
 
+### Research
+
+- [Rideshare Algorithm Research](../research/rideshare-algorithm-research.md) - Platform algorithm behaviors and detection patterns
+- [Mobile Subscription Architecture](../research/mobile-subscription-architecture.md) - iOS/Android subscription service solutions
+
 ## Document Statistics
 
 | Category | Count | Total Lines |
