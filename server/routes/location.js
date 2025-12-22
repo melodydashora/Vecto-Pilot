@@ -839,7 +839,9 @@ router.post('/snapshot', async (req, res) => {
           const dataDir = path.join(process.cwd(), 'data', 'context-snapshots');
           await fs.mkdir(dataDir, { recursive: true });
 
-          const filename = `snapshot_${snapshotV1.device_id}_${Date.now()}.json`;
+          // Add random suffix to prevent race condition on same-millisecond snapshots
+          const randomSuffix = Math.random().toString(36).substring(2, 8);
+          const filename = `snapshot_${snapshotV1.device_id}_${Date.now()}_${randomSuffix}.json`;
           await fs.writeFile(
             path.join(dataDir, filename),
             JSON.stringify(snapshotV1, null, 2)

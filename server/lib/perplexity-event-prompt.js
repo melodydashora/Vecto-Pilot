@@ -95,6 +95,8 @@ function parseEventResponse(responseText) {
     
     const events = JSON.parse(jsonMatch[0]);
     
+    const now = new Date();
+
     // Normalize and validate
     return events.map(e => ({
       title: e.title || e.event_title || 'Untitled Event',
@@ -105,13 +107,29 @@ function parseEventResponse(responseText) {
       radius_hint_m: e.radius_hint_m || null,
       confidence: Math.max(0, Math.min(1, parseFloat(e.confidence || 0.7))),
       source_urls: Array.isArray(e.source_urls) ? e.source_urls : [],
-      impact_hint: ['none', 'low', 'med', 'high'].includes(e.impact_hint) 
-        ? e.impact_hint 
+      impact_hint: ['none', 'low', 'med', 'high'].includes(e.impact_hint)
+        ? e.impact_hint
         : 'none',
       notes: e.notes || '',
       coordinates_source: 'perplexity',
       location_quality: e.coordinates ? 'approx' : null
-    })).filter(e => e.start_time_iso && e.end_time_iso);
+    })).filter(e => {
+      // Must have time window
+      if (!e.start_time_iso || !e.end_time_iso) return false;
+
+      // Filter out events that have already ended (stale data)
+      try {
+        const endTime = new Date(e.end_time_iso);
+        if (endTime < now) {
+          console.log(`[perplexity] Filtering stale event: "${e.title}" (ended ${e.end_time_iso})`);
+          return false;
+        }
+      } catch {
+        // Keep events with unparseable dates
+      }
+
+      return true;
+    });
   } catch (err) {
     console.error('[perplexity] Failed to parse event response:', err.message);
     return [];

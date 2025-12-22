@@ -2,8 +2,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useStrategy } from '@/hooks/useStrategy';
 import { Loader2, AlertCircle, MapPin, TrendingUp, Radio, Newspaper, Calendar, Plane } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+
+/**
+ * Filter out stale events that have already ended
+ * Client-side defensive filter as fallback
+ */
+function filterFreshEvents(events: any[]): any[] {
+  if (!Array.isArray(events)) return [];
+  const now = new Date();
+
+  return events.filter(event => {
+    const endTime = event.end_time || event.endTime || event.end_time_iso || event.endsAt || event.ends_at;
+    if (!endTime) return true; // Keep events without end_time
+    try {
+      return new Date(endTime) > now;
+    } catch {
+      return true; // Keep events with unparseable dates
+    }
+  });
+}
 
 export default function BriefingPage() {
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
@@ -68,7 +87,8 @@ export default function BriefingPage() {
 
   const { strategy } = data;
   const briefing = strategy.briefing || {};
-  const events = briefing.events || [];
+  // Apply client-side defensive filter to remove stale events
+  const events = useMemo(() => filterFreshEvents(briefing.events || []), [briefing.events]);
   const traffic = briefing.traffic || [];
   const news = briefing.news || [];
   const holidays = briefing.holidays || [];

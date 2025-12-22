@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(node -e:*)",
+      "Bash(psql:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(echo echo \"=== DB Functions \\(can''''t be in Drizzle schema\\) ===\" grep -oE fn_[a-z_]+ drizzle/0003_event_enrichment.sql drizzle/0008_event_ttl_automation.sql)",
+      "Skill(pr-review-toolkit:review-pr)",
+      "Bash(gh pr view:*)"
+    ]
+  }
+}

@@ -22,7 +22,7 @@ const ROUTE_CACHE_MAX_SIZE = 500; // Max cache entries
  * @param {Object} origin - {lat, lng}
  * @param {Object} destination - {lat, lng}
  * @param {Object} options - {departureTime, trafficModel, travelMode}
- * @returns {Promise<{distanceMeters, durationSeconds, durationInTrafficSeconds}>}
+ * @returns {Promise<{distanceMeters: number, durationSeconds: number, staticDurationSeconds: number, trafficDelaySeconds: number}>}
  */
 export async function getRouteWithTraffic(origin, destination, options = {}) {
   // Create cache key (round to 3 decimals for ~110m precision)
@@ -110,11 +110,14 @@ export async function getRouteWithTraffic(origin, destination, options = {}) {
     
     // Cache the result
     routeCache.set(cacheKey, { data: result, timestamp: Date.now() });
-    
-    // Implement simple LRU eviction if cache grows too large
+
+    // Batch LRU eviction: remove 10% of oldest entries when cache exceeds limit
+    // This prevents memory leaks under burst traffic
     if (routeCache.size > ROUTE_CACHE_MAX_SIZE) {
-      const firstKey = routeCache.keys().next().value;
-      routeCache.delete(firstKey);
+      const entriesToRemove = Math.ceil(ROUTE_CACHE_MAX_SIZE * 0.1);
+      const keysToRemove = Array.from(routeCache.keys()).slice(0, entriesToRemove);
+      keysToRemove.forEach(key => routeCache.delete(key));
+      console.log(`[Routes API] Cache eviction: removed ${keysToRemove.length} entries, size now ${routeCache.size}`);
     }
     
     return result;

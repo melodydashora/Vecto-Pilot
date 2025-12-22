@@ -10,7 +10,7 @@
 ### 1. Location Capture & Anchoring
 - ✅ GPS acquisition via browser geolocation API
 - ✅ Reverse geocoding to street-level address (rooftop precision)
-- ✅ Snapshot creation with `(lat, lng, formatted_address, timestamp)` tuple
+- ✅ Snapshot creation with `(lat, lng, formatted_address, timestamp) **need to verify table fields` tuple
 - ✅ Address propagation through entire pipeline unchanged
 - ✅ No hardcoded locations/regions - all coordinate-driven
 
@@ -30,7 +30,7 @@
 
 ### 4. Movement Detection
 - ✅ **UPDATED**: Primary threshold reduced from 3.2km (2 miles) to **500 meters** (spec compliant)
-- ✅ Day_part change detection
+- ✅ Day_part change detection ***(app should persist until app is refreshed via browser or manually by user)
 - ✅ Manual refresh trigger
 - ✅ Haversine distance calculation
 

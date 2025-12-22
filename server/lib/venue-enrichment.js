@@ -105,9 +105,22 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         );
         return enrichedVenue;
       } catch (error) {
+        // Categorize error type for easier debugging
+        let errorType = 'unknown';
+        if (error.message.includes('Routes API')) errorType = 'routes_api';
+        else if (error.message.includes('Geocoding')) errorType = 'geocoding';
+        else if (error.message.includes('Places API')) errorType = 'places_api';
+        else if (error.message.includes('timeout') || error.name === 'AbortError') errorType = 'timeout';
+        else if (error.message.includes('fetch')) errorType = 'network';
+
         console.error(
-          `[Venue Enrichment] Failed to enrich venue "${venue.name}":`,
-          error.message,
+          `[Venue Enrichment] Failed to enrich venue "${venue.name}" (${errorType}):`,
+          {
+            error: error.message,
+            stack: error.stack,
+            coords: { lat: venue.lat, lng: venue.lng },
+            errorType
+          }
         );
 
         // CRITICAL: Always preserve GPT-5 coords even if enrichment fails
@@ -121,7 +134,7 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           distanceMeters: null,
           distanceMiles: null,
           driveTimeMinutes: null,
-          distanceSource: "enrichment_failed",
+          distanceSource: `enrichment_failed:${errorType}`,
         };
       }
     }),
@@ -171,11 +184,14 @@ async function reverseGeocode(lat, lng) {
       
       // Cache the result
       geocodeCache.set(cacheKey, { address, timestamp: Date.now() });
-      
-      // Implement simple LRU eviction if cache grows too large
+
+      // Batch LRU eviction: remove 10% of oldest entries when cache exceeds limit
+      // This prevents memory leaks under burst traffic
       if (geocodeCache.size > GEOCODE_CACHE_MAX_SIZE) {
-        const firstKey = geocodeCache.keys().next().value;
-        geocodeCache.delete(firstKey);
+        const entriesToRemove = Math.ceil(GEOCODE_CACHE_MAX_SIZE * 0.1);
+        const keysToRemove = Array.from(geocodeCache.keys()).slice(0, entriesToRemove);
+        keysToRemove.forEach(key => geocodeCache.delete(key));
+        console.log(`[Reverse Geocode] Cache eviction: removed ${keysToRemove.length} entries, size now ${geocodeCache.size}`);
       }
       
       return address;

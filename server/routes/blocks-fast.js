@@ -11,7 +11,7 @@ import { predictDriveMinutes } from '../lib/driveTime.js';
 import { rerankCandidates } from '../lib/fast-tactical-reranker.js';
 import { persistRankingTx } from '../lib/persist-ranking.js';
 import { generateVenueCoordinates } from '../lib/gpt5-venue-generator.js';
-import { isStrategyReady } from '../lib/strategy-utils.js';
+import { isStrategyReady, filterFreshEvents } from '../lib/strategy-utils.js';
 
 const router = Router();
 
@@ -682,7 +682,7 @@ router.post('/', async (req, res) => {
         modelRoute: 'gpt-5-venue-generator',
         statusCounts
       },
-      audit: auditTrail
+      audit
     };
 
     console.log(`✅ [${correlationId}] Fast blocks complete in ${totalMs}ms (gpt5-generated): ${blocksWithinPerimeter.length}/${blocks.length} venues within 15-min perimeter`);
@@ -753,7 +753,7 @@ export async function getStrategyFast({ snapshotId }) {
       holiday: holidayData,
       briefing: {
         news: briefing.news ?? [],
-        events: briefing.events ?? [],
+        events: filterFreshEvents(briefing.events ?? []),
         traffic: briefing.traffic ?? [],
         holidays: briefing.holidays ?? []
       },
