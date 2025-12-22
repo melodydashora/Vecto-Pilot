@@ -12,6 +12,7 @@ import fs from "fs";
 const { createProxyServer } = httpProxy;
 import { GATEWAY_CONFIG } from "./agent-ai-config.js";
 import { startConsolidationListener } from "./server/jobs/triad-worker.js";
+import { startCleanupLoop } from "./server/jobs/event-cleanup.js";
 
 // Mode detection
 const MODE = (process.env.APP_MODE || "mono").toLowerCase();
@@ -85,6 +86,13 @@ function spawnChild(name, command, args, env) {
     startConsolidationListener()
       .then(() => console.log("[gateway] 🎧 Consolidation listener started"))
       .catch((err) => console.error("[gateway] ❌ Listener failed:", err?.message || err));
+  }
+
+  // Start event cleanup job (removes expired events from events_facts table)
+  if (!global.__EVENT_CLEANUP_STARTED__) {
+    global.__EVENT_CLEANUP_STARTED__ = true;
+    startCleanupLoop();
+    console.log("[gateway] 🧹 Event cleanup job started");
   }
 
   // Mount middleware and routes after server is listening

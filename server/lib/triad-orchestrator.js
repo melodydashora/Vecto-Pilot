@@ -43,7 +43,11 @@ export async function runTriadPlan({ shortlist, catalog, snapshot, goals }) {
     strategist = safeJson(raw) || {};
   } finally { clearTimeout(claudeTimer); }
 
-  // Guard: Single-path only - GPT-5 requires valid Claude strategy
+  // ARCHITECTURE: Sequential triad pipeline (Claude → GPT-5 → Gemini)
+  // - GPT-5 consolidates Claude's strategy with news briefing - cannot run without it
+  // - Gemini validates GPT-5's output - cannot run without it
+  // - No parallel fallback path: each stage depends on the previous stage's output
+  // - Fail-fast design: better to fail early than produce low-quality strategy
   if (!strategist?.strategy_for_now) {
     throw new Error("Claude strategist failed - triad pipeline aborted (single-path only)");
   }

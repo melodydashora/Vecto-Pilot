@@ -6,7 +6,7 @@ import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { getSnapshotContext } from '../snapshot/get-snapshot-context.js';
 import { callModel } from '../adapters/index.js';
-import { normalizeBriefingShape } from '../strategy-utils.js';
+import { normalizeBriefingShape, filterFreshEvents } from '../strategy-utils.js';
 
 /**
  * Run briefing generation using Gemini
@@ -111,6 +111,12 @@ Generate real-time intelligence briefing for the next 60 minutes in the 15-mile 
     // Normalize parsed data to ensure consistent shape
     if (parsed) {
       briefing = normalizeBriefingShape(parsed);
+      // Filter out stale events that have already ended
+      const originalEventCount = briefing.events.length;
+      briefing.events = filterFreshEvents(briefing.events);
+      if (originalEventCount > briefing.events.length) {
+        console.log(`[briefing] Filtered ${originalEventCount - briefing.events.length} stale events`);
+      }
       // Add fallback holiday if present
       if (holiday && (!briefing.holidays || briefing.holidays.length === 0)) {
         briefing.holidays = [holiday];

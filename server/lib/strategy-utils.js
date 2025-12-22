@@ -195,3 +195,31 @@ export function normalizeBriefingShape(briefing) {
     traffic: Array.isArray(briefing?.traffic) ? briefing.traffic : []
   };
 }
+
+/**
+ * Filter out stale events that have already ended
+ * Keeps events where end_time > now, or events without end_time (legacy)
+ * @param {Array} events - Array of event objects
+ * @param {Date} now - Current time (default: new Date())
+ * @returns {Array} - Filtered array of fresh events
+ */
+export function filterFreshEvents(events, now = new Date()) {
+  if (!Array.isArray(events)) return [];
+
+  return events.filter(event => {
+    // Try multiple possible end_time field names
+    const endTime = event.end_time || event.endTime || event.end_time_iso || event.endsAt || event.ends_at;
+
+    // Keep events without end_time (legacy compatibility)
+    if (!endTime) return true;
+
+    try {
+      const endDate = new Date(endTime);
+      // Filter out events that have ended
+      return endDate > now;
+    } catch {
+      // Keep events with unparseable dates
+      return true;
+    }
+  });
+}

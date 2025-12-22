@@ -39,18 +39,34 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
       await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
     }
     // Skip SET for NULL - not needed when RLS is disabled
-    
-    const q = `
-      INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
-      VALUES ($1, $2, $3, $4, now(), now(), $5)
-      ON CONFLICT (scope, key, user_id)
-      DO UPDATE SET content = $4, updated_at = now(), expires_at = $5
-      RETURNING id
-    `;
+
+    // Try upsert first (requires unique constraint on scope, key, user_id)
+    // Fall back to simple insert if constraint doesn't exist
     const v = [scope, key, user_id_val, contentVal, expiresAt];
 
-    const { rows } = await client.query(q, v);
-    return rows[0]?.id || null;
+    try {
+      const q = `
+        INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
+        VALUES ($1, $2, $3, $4, now(), now(), $5)
+        ON CONFLICT (scope, key, user_id)
+        DO UPDATE SET content = $4, updated_at = now(), expires_at = $5
+        RETURNING id
+      `;
+      const { rows } = await client.query(q, v);
+      return rows[0]?.id || null;
+    } catch (conflictErr) {
+      // If unique constraint doesn't exist, fall back to simple insert
+      if (conflictErr.message?.includes('no unique or exclusion constraint')) {
+        const insertQ = `
+          INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
+          VALUES ($1, $2, $3, $4, now(), now(), $5)
+          RETURNING id
+        `;
+        const { rows } = await client.query(insertQ, v);
+        return rows[0]?.id || null;
+      }
+      throw conflictErr;
+    }
   } finally {
     client.release();
   }

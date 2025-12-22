@@ -74,7 +74,14 @@ export async function persistRankingTx({ snapshot_id, user_id, city, model_name,
           
           console.log(`✅ [${correlation_id}] Batch upserted ${venuesWithPlaceId.length} venues to catalog/metrics`);
         } catch (catalogErr) {
-          console.warn(`⚠️ [${correlation_id}] Batch catalog/metrics upsert failed:`, catalogErr.message);
+          // Non-critical: catalog/metrics enrichment can fail without affecting core ranking
+          // Rankings will still be saved; venues may need re-enrichment later
+          console.error(`⚠️ [${correlation_id}] Batch catalog/metrics upsert failed (non-critical):`, {
+            error: catalogErr.message,
+            stack: catalogErr.stack,
+            venueCount: venuesWithPlaceId.length,
+            placeIds: venuesWithPlaceId.map(v => v.place_id).slice(0, 5) // Log first 5 for debugging
+          });
         }
       }
 

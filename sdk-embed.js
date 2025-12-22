@@ -24,6 +24,7 @@ import { securityMiddleware } from "./server/middleware/security.js";
 import { 
   getEnhancedProjectContext,
   storeCrossThreadMemory,
+  // Removed duplicate import of storeAgentMemory - already imported via getEnhancedProjectContext -to do list (agent deleted both imports)
   storeAgentMemory
 } from "./server/agent/enhanced-context.js";
 import { getThreadManager } from "./server/agent/thread-context.js";
@@ -56,7 +57,7 @@ export default function createSdkRouter(opts = {}) {
         method: req.method,
         t: Date.now(),
         ip: req.ip
-      }, null, 7); // Use null for system-level data (UUID field)
+      }, null, 7); // Use null for system-level data (UUID field) - to do list this is not correct logic and causes errors
 
       req.extendedContext = ctx;
       req.threadManager = threadManager;
@@ -100,7 +101,7 @@ export default function createSdkRouter(opts = {}) {
   r.use('/metrics/jobs', jobMetricsRoutes);
   r.use('/ml', mlHealthRoutes);
   r.use('/chat', chatRoutes); // AI Strategy Coach
-  r.use('/chat', chatContextRoutes); // Read-only context for AI Coach (no external API calls)
+  r.use('/chat', chatContextRoutes); // Read-only context for AI Coach (no external API calls - to do list this is not correct logic AI Strategy Coach should have web search access)
   r.use('/closed-venue-reasoning', closedVenueReasoningRoutes); // Closed venue reasoning (GPT-5)
   r.use('/strategy', strategyRoutes); // Model-agnostic strategy API (minstrategy + briefing + consolidation)
   r.use('/diagnostics', diagnosticsStrategyRoutes); // Strategy pipeline test routes
