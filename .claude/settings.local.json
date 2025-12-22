@@ -10,7 +10,8 @@
       "Bash(echo echo \"=== DB Functions \\(can''''t be in Drizzle schema\\) ===\" grep -oE fn_[a-z_]+ drizzle/0003_event_enrichment.sql drizzle/0008_event_ttl_automation.sql)",
       "Skill(pr-review-toolkit:review-pr)",
       "Bash(gh pr view:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(node list-repo-files.js:*)"
     ]
   }
 }

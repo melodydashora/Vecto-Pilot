@@ -1,0 +1,5623 @@
+# Repository File Listing
+
+Generated: 2025-12-22T21:32:35.118Z
+
+---
+
+## config
+
+### Files
+
+- [.cache/replit/env/latest.json](./.cache/replit/env/latest.json) (not active)
+- [.cache/replit/nix/dotreplitenv.json](./.cache/replit/nix/dotreplitenv.json) (not active)
+- [.cache/replit/security-scan/dependencyAudit.json](./.cache/replit/security-scan/dependencyAudit.json) (not active)
+- [.cache/replit/security-scan/hounddog.json](./.cache/replit/security-scan/hounddog.json) (not active)
+- [.cache/replit/security-scan/maliciousFile.json](./.cache/replit/security-scan/maliciousFile.json) (not active)
+- [.cache/replit/security-scan/sast.json](./.cache/replit/security-scan/sast.json) (not active)
+- [.cache/replit/toolchain.json](./.cache/replit/toolchain.json) (not active)
+- [.cache/typescript/5.9/package-lock.json](./.cache/typescript/5.9/package-lock.json) (not active)
+- [.cache/typescript/5.9/package.json](./.cache/typescript/5.9/package.json) (active)
+- [.claude/settings.json](./.claude/settings.json) (not active)
+- [.claude/settings.local.json](./.claude/settings.local.json) (not active)
+- [.config/.semgrep/semgrep_rules.json](./.config/.semgrep/semgrep_rules.json) (not active)
+- [.config/npm/node_global/bin/claude](./.config/npm/node_global/bin/claude) (not active)
+- [.config/npm/node_global/bin/copilot](./.config/npm/node_global/bin/copilot) (not active)
+- [.config/npm/node_global/bin/gemini](./.config/npm/node_global/bin/gemini) (not active)
+- [.config/npm/node_global/bin/npm](./.config/npm/node_global/bin/npm) (not active)
+- [.config/npm/node_global/bin/npx](./.config/npm/node_global/bin/npx) (not active)
+- [.config/npm/node_global/share/man/man1/npm-access.1](./.config/npm/node_global/share/man/man1/npm-access.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-adduser.1](./.config/npm/node_global/share/man/man1/npm-adduser.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-audit.1](./.config/npm/node_global/share/man/man1/npm-audit.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-bugs.1](./.config/npm/node_global/share/man/man1/npm-bugs.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-cache.1](./.config/npm/node_global/share/man/man1/npm-cache.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-ci.1](./.config/npm/node_global/share/man/man1/npm-ci.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-completion.1](./.config/npm/node_global/share/man/man1/npm-completion.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-config.1](./.config/npm/node_global/share/man/man1/npm-config.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-dedupe.1](./.config/npm/node_global/share/man/man1/npm-dedupe.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-deprecate.1](./.config/npm/node_global/share/man/man1/npm-deprecate.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-diff.1](./.config/npm/node_global/share/man/man1/npm-diff.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-dist-tag.1](./.config/npm/node_global/share/man/man1/npm-dist-tag.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-docs.1](./.config/npm/node_global/share/man/man1/npm-docs.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-doctor.1](./.config/npm/node_global/share/man/man1/npm-doctor.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-edit.1](./.config/npm/node_global/share/man/man1/npm-edit.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-exec.1](./.config/npm/node_global/share/man/man1/npm-exec.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-explain.1](./.config/npm/node_global/share/man/man1/npm-explain.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-explore.1](./.config/npm/node_global/share/man/man1/npm-explore.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-find-dupes.1](./.config/npm/node_global/share/man/man1/npm-find-dupes.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-fund.1](./.config/npm/node_global/share/man/man1/npm-fund.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-help-search.1](./.config/npm/node_global/share/man/man1/npm-help-search.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-help.1](./.config/npm/node_global/share/man/man1/npm-help.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-init.1](./.config/npm/node_global/share/man/man1/npm-init.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-install-ci-test.1](./.config/npm/node_global/share/man/man1/npm-install-ci-test.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-install-test.1](./.config/npm/node_global/share/man/man1/npm-install-test.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-install.1](./.config/npm/node_global/share/man/man1/npm-install.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-link.1](./.config/npm/node_global/share/man/man1/npm-link.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-login.1](./.config/npm/node_global/share/man/man1/npm-login.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-logout.1](./.config/npm/node_global/share/man/man1/npm-logout.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-ls.1](./.config/npm/node_global/share/man/man1/npm-ls.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-org.1](./.config/npm/node_global/share/man/man1/npm-org.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-outdated.1](./.config/npm/node_global/share/man/man1/npm-outdated.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-owner.1](./.config/npm/node_global/share/man/man1/npm-owner.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-pack.1](./.config/npm/node_global/share/man/man1/npm-pack.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-ping.1](./.config/npm/node_global/share/man/man1/npm-ping.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-pkg.1](./.config/npm/node_global/share/man/man1/npm-pkg.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-prefix.1](./.config/npm/node_global/share/man/man1/npm-prefix.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-profile.1](./.config/npm/node_global/share/man/man1/npm-profile.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-prune.1](./.config/npm/node_global/share/man/man1/npm-prune.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-publish.1](./.config/npm/node_global/share/man/man1/npm-publish.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-query.1](./.config/npm/node_global/share/man/man1/npm-query.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-rebuild.1](./.config/npm/node_global/share/man/man1/npm-rebuild.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-repo.1](./.config/npm/node_global/share/man/man1/npm-repo.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-restart.1](./.config/npm/node_global/share/man/man1/npm-restart.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-root.1](./.config/npm/node_global/share/man/man1/npm-root.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-run.1](./.config/npm/node_global/share/man/man1/npm-run.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-sbom.1](./.config/npm/node_global/share/man/man1/npm-sbom.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-search.1](./.config/npm/node_global/share/man/man1/npm-search.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-shrinkwrap.1](./.config/npm/node_global/share/man/man1/npm-shrinkwrap.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-star.1](./.config/npm/node_global/share/man/man1/npm-star.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-stars.1](./.config/npm/node_global/share/man/man1/npm-stars.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-start.1](./.config/npm/node_global/share/man/man1/npm-start.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-stop.1](./.config/npm/node_global/share/man/man1/npm-stop.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-team.1](./.config/npm/node_global/share/man/man1/npm-team.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-test.1](./.config/npm/node_global/share/man/man1/npm-test.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-token.1](./.config/npm/node_global/share/man/man1/npm-token.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-undeprecate.1](./.config/npm/node_global/share/man/man1/npm-undeprecate.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-uninstall.1](./.config/npm/node_global/share/man/man1/npm-uninstall.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-unpublish.1](./.config/npm/node_global/share/man/man1/npm-unpublish.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-unstar.1](./.config/npm/node_global/share/man/man1/npm-unstar.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-update.1](./.config/npm/node_global/share/man/man1/npm-update.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-version.1](./.config/npm/node_global/share/man/man1/npm-version.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-view.1](./.config/npm/node_global/share/man/man1/npm-view.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm-whoami.1](./.config/npm/node_global/share/man/man1/npm-whoami.1) (not active)
+- [.config/npm/node_global/share/man/man1/npm.1](./.config/npm/node_global/share/man/man1/npm.1) (not active)
+- [.config/npm/node_global/share/man/man1/npx.1](./.config/npm/node_global/share/man/man1/npx.1) (not active)
+- [.config/npm/node_global/share/man/man5/folders.5](./.config/npm/node_global/share/man/man5/folders.5) (not active)
+- [.config/npm/node_global/share/man/man5/install.5](./.config/npm/node_global/share/man/man5/install.5) (not active)
+- [.config/npm/node_global/share/man/man5/npm-global.5](./.config/npm/node_global/share/man/man5/npm-global.5) (not active)
+- [.config/npm/node_global/share/man/man5/npm-json.5](./.config/npm/node_global/share/man/man5/npm-json.5) (not active)
+- [.config/npm/node_global/share/man/man5/npm-shrinkwrap-json.5](./.config/npm/node_global/share/man/man5/npm-shrinkwrap-json.5) (not active)
+- [.config/npm/node_global/share/man/man5/npmrc.5](./.config/npm/node_global/share/man/man5/npmrc.5) (not active)
+- [.config/npm/node_global/share/man/man5/package-json.5](./.config/npm/node_global/share/man/man5/package-json.5) (not active)
+- [.config/npm/node_global/share/man/man5/package-lock-json.5](./.config/npm/node_global/share/man/man5/package-lock-json.5) (not active)
+- [.config/npm/node_global/share/man/man7/config.7](./.config/npm/node_global/share/man/man7/config.7) (not active)
+- [.config/npm/node_global/share/man/man7/dependency-selectors.7](./.config/npm/node_global/share/man/man7/dependency-selectors.7) (not active)
+- [.config/npm/node_global/share/man/man7/developers.7](./.config/npm/node_global/share/man/man7/developers.7) (not active)
+- [.config/npm/node_global/share/man/man7/logging.7](./.config/npm/node_global/share/man/man7/logging.7) (not active)
+- [.config/npm/node_global/share/man/man7/orgs.7](./.config/npm/node_global/share/man/man7/orgs.7) (not active)
+- [.config/npm/node_global/share/man/man7/package-spec.7](./.config/npm/node_global/share/man/man7/package-spec.7) (not active)
+- [.config/npm/node_global/share/man/man7/registry.7](./.config/npm/node_global/share/man/man7/registry.7) (not active)
+- [.config/npm/node_global/share/man/man7/removal.7](./.config/npm/node_global/share/man/man7/removal.7) (not active)
+- [.config/npm/node_global/share/man/man7/scope.7](./.config/npm/node_global/share/man/man7/scope.7) (not active)
+- [.config/npm/node_global/share/man/man7/scripts.7](./.config/npm/node_global/share/man/man7/scripts.7) (not active)
+- [.config/npm/node_global/share/man/man7/workspaces.7](./.config/npm/node_global/share/man/man7/workspaces.7) (not active)
+- [.config/replit/.semgrep/semgrep_rules.json](./.config/replit/.semgrep/semgrep_rules.json) (not active)
+- [.env](./.env) (active)
+- [.env.example](./.env.example) (active)
+- [.replit](./.replit) (active)
+- [.replit.workflows.json](./.replit.workflows.json) (active)
+- [client/postcss.config.js](./client/postcss.config.js) (not active)
+- [client/tsconfig.json](./client/tsconfig.json) (active)
+- [client/vite.config.ts](./client/vite.config.ts) (not active)
+- [config/assistant-policy.json](./config/assistant-policy.json) (not active)
+- [config/eidolon-policy.json](./config/eidolon-policy.json) (not active)
+- [drizzle.config.js](./drizzle.config.js) (active)
+- [drizzle/meta/_journal.json](./drizzle/meta/_journal.json) (not active)
+- [drizzle/meta/0000_snapshot.json](./drizzle/meta/0000_snapshot.json) (not active)
+- [drizzle/meta/0001_snapshot.json](./drizzle/meta/0001_snapshot.json) (not active)
+- [drizzle/meta/0002_snapshot.json](./drizzle/meta/0002_snapshot.json) (not active)
+- [drizzle/meta/0003_snapshot.json](./drizzle/meta/0003_snapshot.json) (not active)
+- [drizzle/meta/0004_snapshot.json](./drizzle/meta/0004_snapshot.json) (not active)
+- [drizzle/meta/0005_snapshot.json](./drizzle/meta/0005_snapshot.json) (not active)
+- [drizzle/meta/0006_snapshot.json](./drizzle/meta/0006_snapshot.json) (not active)
+- [drizzle/meta/0007_snapshot.json](./drizzle/meta/0007_snapshot.json) (not active)
+- [extension.json](./extension.json) (not active)
+- [models-dictionary.json](./models-dictionary.json) (not active)
+- [mono-mode.env](./mono-mode.env) (active)
+- [mono-mode.env.example](./mono-mode.env.example) (active)
+- [package-lock.json](./package-lock.json) (not active)
+- [package.json](./package.json) (active)
+- [payload.json](./payload.json) (not active)
+- [postcss.config.js](./postcss.config.js) (not active)
+- [server/config/assistant-policy.json](./server/config/assistant-policy.json) (active)
+- [tailwind.config.js](./tailwind.config.js) (not active)
+- [tsconfig.agent.json](./tsconfig.agent.json) (not active)
+- [tsconfig.base.json](./tsconfig.base.json) (not active)
+- [tsconfig.client.json](./tsconfig.client.json) (not active)
+- [tsconfig.json](./tsconfig.json) (active)
+- [tsconfig.server.json](./tsconfig.server.json) (not active)
+- [vite.config.js](./vite.config.js) (active)
+
+---
+
+## tests
+
+### Files
+
+- [.cache/replit/env/latest](./.cache/replit/env/latest) (not active)
+- [client/src/components/ui/aspect-ratio.tsx](./client/src/components/ui/aspect-ratio.tsx) (active)
+- [client/test.html](./client/test.html) (not active)
+- [FIELD_TEST_READY.md](./FIELD_TEST_READY.md) (not active)
+- [QUICK_TEST_GUIDE.md](./QUICK_TEST_GUIDE.md) (not active)
+- [scripts/latest-snapshot.mjs](./scripts/latest-snapshot.mjs) (not active)
+- [scripts/test-boot-under-load.sh](./scripts/test-boot-under-load.sh) (not active)
+- [scripts/test-health-endpoints.mjs](./scripts/test-health-endpoints.mjs) (not active)
+- [scripts/test-workflow-capture.sh](./scripts/test-workflow-capture.sh) (not active)
+- [server/scripts/test-memory.js](./server/scripts/test-memory.js) (active)
+- [server/tests/pool-idle-soak.js](./server/tests/pool-idle-soak.js) (active)
+- [SPEC_COMPLIANCE_STATUS.md](./SPEC_COMPLIANCE_STATUS.md) (not active)
+- [STRATEGY_PIPELINE_TEST_GUIDE.md](./STRATEGY_PIPELINE_TEST_GUIDE.md) (not active)
+- [test-database-fixes.js](./test-database-fixes.js) (not active)
+- [test-event-research.js](./test-event-research.js) (not active)
+- [test-global-scenarios.js](./test-global-scenarios.js) (not active)
+- [test-perplexity.js](./test-perplexity.js) (not active)
+- [test-startup.sh](./test-startup.sh) (not active)
+- [test-verification.sh](./test-verification.sh) (not active)
+- [tests/eidolon/test-sdk-integration.js](./tests/eidolon/test-sdk-integration.js) (not active)
+- [tests/gateway/test-routing.js](./tests/gateway/test-routing.js) (not active)
+- [tests/phase-c-infrastructure.js](./tests/phase-c-infrastructure.js) (not active)
+- [tests/run-all-phases.js](./tests/run-all-phases.js) (not active)
+- [tests/run-all-tests.js](./tests/run-all-tests.js) (not active)
+- [tests/schema-validation.test.js](./tests/schema-validation.test.js) (not active)
+- [tests/scripts/preflight-check.js](./tests/scripts/preflight-check.js) (not active)
+- [tests/scripts/smoke-test.js](./tests/scripts/smoke-test.js) (not active)
+- [tests/scripts/toggle-rls.js](./tests/scripts/toggle-rls.js) (not active)
+- [tests/triad/test-pipeline.js](./tests/triad/test-pipeline.js) (not active)
+- [tests/verify-startup.sh](./tests/verify-startup.sh) (not active)
+
+### 2. API Call
+
+#### 2.1 Resolved in memory
+
+- `.filter(` - scripts/test-health-endpoints.mjs:189
+- `.map(` - scripts/test-health-endpoints.mjs:192
+- `.reduce(` - scripts/test-health-endpoints.mjs:191
+- `.filter(` - test-global-scenarios.js:235
+- `.filter(` - test-global-scenarios.js:247
+- `.filter(` - test-global-scenarios.js:301
+- `.filter(` - test-global-scenarios.js:302
+- `.filter(` - test-global-scenarios.js:303
+- `.filter(` - tests/eidolon/test-sdk-integration.js:56
+- `.filter(` - tests/gateway/test-routing.js:74
+- `.filter(` - tests/phase-c-infrastructure.js:236
+- `.filter(` - tests/run-all-phases.js:47
+- `.filter(` - tests/run-all-tests.js:25
+- `.filter(` - tests/scripts/preflight-check.js:208
+- `.filter(` - tests/scripts/toggle-rls.js:112
+- `.filter(` - tests/scripts/toggle-rls.js:113
+- `.filter(` - tests/triad/test-pipeline.js:325
+- `.map(` - tests/triad/test-pipeline.js:299
+
+#### 2.2 Resolved in db
+
+- `await db.execute(` - scripts/latest-snapshot.mjs:14
+- `await pool.query(` - server/scripts/test-memory.js:9
+- `await pool.query(` - server/scripts/test-memory.js:15
+- `await pool.query(` - server/tests/pool-idle-soak.js:54
+- `await db.execute(` - test-database-fixes.js:34
+- `await db.execute(` - test-database-fixes.js:43
+- `await db.execute(` - test-database-fixes.js:58
+- `await db.execute(` - test-database-fixes.js:73
+- `await db.execute(` - test-database-fixes.js:100
+- `await db.execute(` - test-database-fixes.js:112
+- `await pool.query(` - tests/schema-validation.test.js:19
+- `await pool.query(` - tests/schema-validation.test.js:36
+- `await pool.query(` - tests/scripts/preflight-check.js:61
+- `await pool.query(` - tests/scripts/preflight-check.js:81
+- `await pool.query(` - tests/scripts/preflight-check.js:102
+- `await pool.query(` - tests/scripts/preflight-check.js:122
+- `await pool.query(` - tests/scripts/preflight-check.js:150
+- `await pool.query(` - tests/scripts/preflight-check.js:170
+- `await client.query(` - tests/scripts/preflight-check.js:49
+- `await client.query(` - tests/scripts/toggle-rls.js:69
+- `await client.query(` - tests/scripts/toggle-rls.js:87
+- `await client.query(` - tests/scripts/toggle-rls.js:105
+
+### 3. Console log
+
+- `console.log(`${colors.cyan}═══════════════════════════════════...)` - scripts/test-health-endpoints.mjs:154
+- `console.log(`${colors.cyan}  Vecto Pilot™ Health Endpoint Test...)` - scripts/test-health-endpoints.mjs:155
+- `console.log(`${colors.cyan}═══════════════════════════════════...)` - scripts/test-health-endpoints.mjs:156
+- `console.log(`${colors.blue}Testing server at:${colors.reset} $...)` - scripts/test-health-endpoints.mjs:157
+- `console.log(`${colors.blue}Total tests:${colors.reset} ${TESTS...)` - scripts/test-health-endpoints.mjs:158
+- `console.log('')` - scripts/test-health-endpoints.mjs:159
+- `console.log(`${colors.green}✓${colors.reset} ${latencyColor}${...)` - scripts/test-health-endpoints.mjs:175
+- `console.log(`${colors.red}✗${colors.reset} ${result.message}`)` - scripts/test-health-endpoints.mjs:178
+- `console.log('')` - scripts/test-health-endpoints.mjs:182
+- `console.log(`${colors.cyan}═══════════════════════════════════...)` - scripts/test-health-endpoints.mjs:183
+- `console.log(`${colors.blue}Results:${colors.reset}`)` - scripts/test-health-endpoints.mjs:184
+- `console.log(`  ${colors.green}Passed:${colors.reset} ${passed}...)` - scripts/test-health-endpoints.mjs:185
+- `console.log(`  ${colors.red}Failed:${colors.reset} ${failed}/$...)` - scripts/test-health-endpoints.mjs:186
+- `console.log(`  ${colors.blue}Avg latency:${colors.reset} ${avg...)` - scripts/test-health-endpoints.mjs:193
+- `console.log(`  ${colors.blue}Max latency:${colors.reset} ${max...)` - scripts/test-health-endpoints.mjs:194
+- `console.log(`${colors.cyan}═══════════════════════════════════...)` - scripts/test-health-endpoints.mjs:197
+- `console.log('')` - scripts/test-health-endpoints.mjs:198
+- `console.log(`${colors.red}❌ Health check tests FAILED${colors....)` - scripts/test-health-endpoints.mjs:201
+- `console.log(`${colors.yellow}   Server may not be ready for Cl...)` - scripts/test-health-endpoints.mjs:202
+- `console.log(`${colors.green}✅ All health check tests PASSED${c...)` - scripts/test-health-endpoints.mjs:205
+- `console.log(`${colors.green}   Server is ready for Cloud Run d...)` - scripts/test-health-endpoints.mjs:206
+- `console.log('\n📚 Testing Assistant Memory Recall...\n')` - server/scripts/test-memory.js:23
+- `console.log(`✅ Architecture memories: ${arch.length}`)` - server/scripts/test-memory.js:26
+- `console.log(`   - ${m.key}: ${JSON.stringify(m.content)` - server/scripts/test-memory.js:27
+- `console.log(`\n✅ DB Philosophy:`)` - server/scripts/test-memory.js:30
+- `console.log(`   Principle: ${dbPhil?.content?.principle}`)` - server/scripts/test-memory.js:31
+- `console.log(`   Rule: ${dbPhil?.content?.rule}`)` - server/scripts/test-memory.js:32
+- `console.log(`   Reasoning: ${dbPhil?.content?.reasoning}`)` - server/scripts/test-memory.js:33
+- `console.log(`\n✅ Deployment memories: ${deployment.length}`)` - server/scripts/test-memory.js:36
+- `console.log(`   - ${m.key}`)` - server/scripts/test-memory.js:37
+- `console.log('🧪 PostgreSQL Pool Idle Soak Test')` - server/tests/pool-idle-soak.js:19
+- `console.log('================================================')` - server/tests/pool-idle-soak.js:20
+- `console.log(`Idle duration: ${IDLE_DURATION_MS / 1000}s`)` - server/tests/pool-idle-soak.js:21
+- `console.log(`Heartbeat interval: ${HEARTBEAT_INTERVAL_MS / 100...)` - server/tests/pool-idle-soak.js:22
+- `console.log(`Total test duration: ${TEST_DURATION_MS / 1000}s`)` - server/tests/pool-idle-soak.js:23
+- `console.log('================================================\...)` - server/tests/pool-idle-soak.js:24
+- `console.error('❌ Test requires PG_USE_SHARED_POOL=true')` - server/tests/pool-idle-soak.js:28
+- `console.error('Run with: PG_USE_SHARED_POOL=true node server/tes...)` - server/tests/pool-idle-soak.js:29
+- `console.error('❌ Shared pool not initialized')` - server/tests/pool-idle-soak.js:36
+- `console.log('✅ Shared pool initialized\n')` - server/tests/pool-idle-soak.js:40
+- `console.log(`✅ [${label}] Query successful (${queryTime}ms)` - server/tests/pool-idle-soak.js:61
+- `console.log(`   Time: ${current_time}`)` - server/tests/pool-idle-soak.js:62
+- `console.error(`❌ [${label}] Query failed: ${err.message}`)` - server/tests/pool-idle-soak.js:69
+- `console.error(`   Code: ${err.code}`)` - server/tests/pool-idle-soak.js:70
+- `console.log(`\n📊 [${label}] Pool Stats:`)` - server/tests/pool-idle-soak.js:81
+- `console.log(`   Total connections: ${stats.totalCount}`)` - server/tests/pool-idle-soak.js:82
+- `console.log(`   Idle connections: ${stats.idleCount}`)` - server/tests/pool-idle-soak.js:83
+- `console.log(`   Waiting clients: ${stats.waitingCount}`)` - server/tests/pool-idle-soak.js:84
+- `console.log(`   Max pool size: ${stats.maxSize}\n`)` - server/tests/pool-idle-soak.js:85
+- `console.log('🚀 Starting idle soak test...\n')` - server/tests/pool-idle-soak.js:92
+- _... and 288 more_
+
+---
+
+## workflow
+
+### Files
+
+- [agent-server.js](./agent-server.js) (active)
+- [dist/index.js](./dist/index.js) (active)
+- [dist/index.js.map](./dist/index.js.map) (active)
+- [drizzle/0000_overjoyed_human_torch.sql](./drizzle/0000_overjoyed_human_torch.sql) (not active)
+- [drizzle/0001_crazy_warstar.sql](./drizzle/0001_crazy_warstar.sql) (not active)
+- [drizzle/0002_natural_thunderbolts.sql](./drizzle/0002_natural_thunderbolts.sql) (not active)
+- [drizzle/0003_charming_grandmaster.sql](./drizzle/0003_charming_grandmaster.sql) (not active)
+- [drizzle/0003_event_enrichment.sql](./drizzle/0003_event_enrichment.sql) (not active)
+- [drizzle/0004_event_proximity.sql](./drizzle/0004_event_proximity.sql) (not active)
+- [drizzle/0004_fluffy_sunfire.sql](./drizzle/0004_fluffy_sunfire.sql) (not active)
+- [drizzle/0005_overjoyed_quicksilver.sql](./drizzle/0005_overjoyed_quicksilver.sql) (not active)
+- [drizzle/0005_staging_nodes.sql](./drizzle/0005_staging_nodes.sql) (not active)
+- [drizzle/0006_steep_the_hood.sql](./drizzle/0006_steep_the_hood.sql) (not active)
+- [drizzle/0006_unblock_enrichment_and_staging.sql](./drizzle/0006_unblock_enrichment_and_staging.sql) (not active)
+- [drizzle/0007_hot_katie_power.sql](./drizzle/0007_hot_katie_power.sql) (not active)
+- [drizzle/0008_event_ttl_automation.sql](./drizzle/0008_event_ttl_automation.sql) (not active)
+- [gateway-server.js](./gateway-server.js) (active)
+- [index.js](./index.js) (active)
+- [migrations/001_init.sql](./migrations/001_init.sql) (not active)
+- [migrations/002_memory_tables.sql](./migrations/002_memory_tables.sql) (not active)
+- [migrations/003_rls_security.sql](./migrations/003_rls_security.sql) (not active)
+- [migrations/004_jwt_helpers.sql](./migrations/004_jwt_helpers.sql) (not active)
+- [migrations/manual/20251006_add_perf_indexes.sql](./migrations/manual/20251006_add_perf_indexes.sql) (not active)
+- [migrations/manual/20251007_add_fk_cascade.sql](./migrations/manual/20251007_add_fk_cascade.sql) (not active)
+- [migrations/manual/20251007_fk_cascade_fix.sql](./migrations/manual/20251007_fk_cascade_fix.sql) (not active)
+- [scripts/capture-workflow-logs.js](./scripts/capture-workflow-logs.js) (not active)
+- [scripts/check-no-hardcoded-location.mjs](./scripts/check-no-hardcoded-location.mjs) (not active)
+- [scripts/complete-workflow-capture.sh](./scripts/complete-workflow-capture.sh) (not active)
+- [scripts/create-all-tables.sql](./scripts/create-all-tables.sql) (not active)
+- [scripts/enhanced-db-logger.js](./scripts/enhanced-db-logger.js) (not active)
+- [scripts/find-json-errors.mjs](./scripts/find-json-errors.mjs) (not active)
+- [scripts/fix-progress.js](./scripts/fix-progress.js) (not active)
+- [scripts/full-workflow-analysis.mjs](./scripts/full-workflow-analysis.mjs) (not active)
+- [scripts/make-jwks.mjs](./scripts/make-jwks.mjs) (not active)
+- [scripts/port-probe.mjs](./scripts/port-probe.mjs) (not active)
+- [scripts/postdeploy-sql.mjs](./scripts/postdeploy-sql.mjs) (not active)
+- [scripts/README.md](./scripts/README.md) (not active)
+- [scripts/refresh-enrichment.mjs](./scripts/refresh-enrichment.mjs) (not active)
+- [scripts/seed-event.mjs](./scripts/seed-event.mjs) (not active)
+- [scripts/sign-token.mjs](./scripts/sign-token.mjs) (not active)
+- [scripts/simple-capture.sh](./scripts/simple-capture.sh) (not active)
+- [scripts/smoke-coach-context.mjs](./scripts/smoke-coach-context.mjs) (not active)
+- [scripts/smoke-strategy.mjs](./scripts/smoke-strategy.mjs) (not active)
+- [scripts/start-replit.js](./scripts/start-replit.js) (not active)
+- [scripts/trace-workflow-detailed.sh](./scripts/trace-workflow-detailed.sh) (not active)
+- [scripts/typescript-error-counter.js](./scripts/typescript-error-counter.js) (not active)
+- [scripts/validate-all.sh](./scripts/validate-all.sh) (not active)
+- [scripts/which-assistant.mjs](./scripts/which-assistant.mjs) (not active)
+- [server/agent/agent-override-llm.js](./server/agent/agent-override-llm.js) (active)
+- [server/agent/chat.js](./server/agent/chat.js) (active)
+- [server/agent/config-manager.js](./server/agent/config-manager.js) (active)
+- [server/agent/context-awareness.js](./server/agent/context-awareness.js) (active)
+- [server/agent/embed.js](./server/agent/embed.js) (active)
+- [server/agent/enhanced-context.js](./server/agent/enhanced-context.js) (active)
+- [server/agent/index.ts](./server/agent/index.ts) (active)
+- [server/agent/routes.js](./server/agent/routes.js) (active)
+- [server/agent/thread-context.js](./server/agent/thread-context.js) (active)
+- [server/assistant-events.ts](./server/assistant-events.ts) (active)
+- [server/bootstrap/enqueue-initial.js](./server/bootstrap/enqueue-initial.js) (active)
+- [server/continuity-manager.ts](./server/continuity-manager.ts) (active)
+- [server/db/001_init.sql](./server/db/001_init.sql) (active)
+- [server/db/002_seed_dfw.sql](./server/db/002_seed_dfw.sql) (active)
+- [server/db/client.js](./server/db/client.js) (active)
+- [server/db/drizzle-lazy.js](./server/db/drizzle-lazy.js) (active)
+- [server/db/drizzle.js](./server/db/drizzle.js) (active)
+- [server/db/pool-lazy.js](./server/db/pool-lazy.js) (active)
+- [server/db/pool.js](./server/db/pool.js) (active)
+- [server/db/rls-middleware.js](./server/db/rls-middleware.js) (active)
+- [server/db/sql/2025-10-31_strategy_generic.sql](./server/db/sql/2025-10-31_strategy_generic.sql) (active)
+- [server/diagnostics.sh](./server/diagnostics.sh) (active)
+- [server/eidolon/config.ts](./server/eidolon/config.ts) (active)
+- [server/eidolon/core/code-map.ts](./server/eidolon/core/code-map.ts) (active)
+- [server/eidolon/core/context-awareness.ts](./server/eidolon/core/context-awareness.ts) (active)
+- [server/eidolon/core/deep-thinking-engine.ts](./server/eidolon/core/deep-thinking-engine.ts) (active)
+- [server/eidolon/core/deployment-tracker.ts](./server/eidolon/core/deployment-tracker.ts) (active)
+- [server/eidolon/core/llm.ts](./server/eidolon/core/llm.ts) (active)
+- [server/eidolon/core/memory-enhanced.ts](./server/eidolon/core/memory-enhanced.ts) (active)
+- [server/eidolon/core/memory-store.ts](./server/eidolon/core/memory-store.ts) (active)
+- [server/eidolon/index.ts](./server/eidolon/index.ts) (active)
+- [server/eidolon/memory/compactor.js](./server/eidolon/memory/compactor.js) (active)
+- [server/eidolon/memory/pg.js](./server/eidolon/memory/pg.js) (active)
+- [server/eidolon/policy-loader.js](./server/eidolon/policy-loader.js) (active)
+- [server/eidolon/policy-middleware.js](./server/eidolon/policy-middleware.js) (active)
+- [server/gateway/assistant-proxy.ts](./server/gateway/assistant-proxy.ts) (active)
+- [server/jobs/event-cleanup.js](./server/jobs/event-cleanup.js) (active)
+- [server/jobs/triad-worker.js](./server/jobs/triad-worker.js) (active)
+- [server/lib/ability-routes.js](./server/lib/ability-routes.js) (active)
+- [server/lib/adapters/anthropic-adapter.js](./server/lib/adapters/anthropic-adapter.js) (active)
+- [server/lib/adapters/anthropic-claude.js](./server/lib/adapters/anthropic-claude.js) (active)
+- [server/lib/adapters/anthropic-sonnet45.js](./server/lib/adapters/anthropic-sonnet45.js) (active)
+- [server/lib/adapters/gemini-2.5-pro.js](./server/lib/adapters/gemini-2.5-pro.js) (active)
+- [server/lib/adapters/gemini-adapter.js](./server/lib/adapters/gemini-adapter.js) (active)
+- [server/lib/adapters/google-gemini.js](./server/lib/adapters/google-gemini.js) (active)
+- [server/lib/adapters/index.js](./server/lib/adapters/index.js) (active)
+- [server/lib/adapters/openai-adapter.js](./server/lib/adapters/openai-adapter.js) (active)
+- [server/lib/adapters/openai-gpt5.js](./server/lib/adapters/openai-gpt5.js) (active)
+- [server/lib/anthropic-extended.d.ts](./server/lib/anthropic-extended.d.ts) (active)
+- [server/lib/anthropic-extended.js](./server/lib/anthropic-extended.js) (active)
+- [server/lib/audit-logger.js](./server/lib/audit-logger.js) (active)
+- [server/lib/auth.js](./server/lib/auth.js) (active)
+- [server/lib/blocks-job-queue.js](./server/lib/blocks-job-queue.js) (active)
+- [server/lib/blocks-jobs.js](./server/lib/blocks-jobs.js) (active)
+- [server/lib/blocks-queue.js](./server/lib/blocks-queue.js) (active)
+- [server/lib/cache-routes.js](./server/lib/cache-routes.js) (active)
+- [server/lib/capabilities.js](./server/lib/capabilities.js) (active)
+- [server/lib/coach-dal.js](./server/lib/coach-dal.js) (active)
+- [server/lib/db-client.js](./server/lib/db-client.js) (active)
+- [server/lib/driveTime.js](./server/lib/driveTime.js) (active)
+- [server/lib/enhanced-smart-blocks.js](./server/lib/enhanced-smart-blocks.js) (active)
+- [server/lib/event-map.js](./server/lib/event-map.js) (active)
+- [server/lib/event-proximity-boost.js](./server/lib/event-proximity-boost.js) (active)
+- [server/lib/exploration.js](./server/lib/exploration.js) (active)
+- [server/lib/explore.js](./server/lib/explore.js) (active)
+- [server/lib/faa-asws.js](./server/lib/faa-asws.js) (active)
+- [server/lib/fast-tactical-reranker.js](./server/lib/fast-tactical-reranker.js) (active)
+- [server/lib/gemini-enricher.js](./server/lib/gemini-enricher.js) (active)
+- [server/lib/gemini-news-briefing.js](./server/lib/gemini-news-briefing.js) (active)
+- [server/lib/geo.js](./server/lib/geo.js) (active)
+- [server/lib/geocoding.js](./server/lib/geocoding.js) (active)
+- [server/lib/gpt5-retry.js](./server/lib/gpt5-retry.js) (active)
+- [server/lib/gpt5-tactical-planner.js](./server/lib/gpt5-tactical-planner.js) (active)
+- [server/lib/gpt5-venue-generator.js](./server/lib/gpt5-venue-generator.js) (active)
+- [server/lib/job-queue.js](./server/lib/job-queue.js) (active)
+- [server/lib/jwt.ts](./server/lib/jwt.ts) (active)
+- [server/lib/llm-router-v2.js](./server/lib/llm-router-v2.js) (active)
+- [server/lib/llm-router.js](./server/lib/llm-router.js) (active)
+- [server/lib/locks.js](./server/lib/locks.js) (active)
+- [server/lib/logger.ts](./server/lib/logger.ts) (active)
+- [server/lib/models-dictionary.js](./server/lib/models-dictionary.js) (active)
+- [server/lib/perplexity-event-prompt.js](./server/lib/perplexity-event-prompt.js) (active)
+- [server/lib/perplexity-research.js](./server/lib/perplexity-research.js) (active)
+- [server/lib/persist-ranking.js](./server/lib/persist-ranking.js) (active)
+- [server/lib/places-cache.js](./server/lib/places-cache.js) (active)
+- [server/lib/places-hours.js](./server/lib/places-hours.js) (active)
+- [server/lib/planner-gpt5.js](./server/lib/planner-gpt5.js) (active)
+- [server/lib/priors.js](./server/lib/priors.js) (active)
+- [server/lib/prompt-templates.js](./server/lib/prompt-templates.js) (active)
+- [server/lib/providers/briefing.js](./server/lib/providers/briefing.js) (active)
+- [server/lib/providers/consolidator.js](./server/lib/providers/consolidator.js) (active)
+- [server/lib/providers/holiday-checker.js](./server/lib/providers/holiday-checker.js) (active)
+- [server/lib/providers/minstrategy.js](./server/lib/providers/minstrategy.js) (active)
+- [server/lib/rangePolicy.js](./server/lib/rangePolicy.js) (active)
+- [server/lib/receipt.js](./server/lib/receipt.js) (active)
+- [server/lib/routes-api.js](./server/lib/routes-api.js) (active)
+- [server/lib/runtime-fresh-planner-prompt.js](./server/lib/runtime-fresh-planner-prompt.js) (active)
+- [server/lib/schema-registry.js](./server/lib/schema-registry.js) (active)
+- [server/lib/scoring-engine.js](./server/lib/scoring-engine.js) (active)
+- [server/lib/semantic-search.js](./server/lib/semantic-search.js) (active)
+- [server/lib/snapshot/get-snapshot-context.js](./server/lib/snapshot/get-snapshot-context.js) (active)
+- [server/lib/strategies/assert-safe.js](./server/lib/strategies/assert-safe.js) (active)
+- [server/lib/strategies/index.js](./server/lib/strategies/index.js) (active)
+- [server/lib/strategy-consolidator.js](./server/lib/strategy-consolidator.js) (active)
+- [server/lib/strategy-generator-parallel.js](./server/lib/strategy-generator-parallel.js) (active)
+- [server/lib/strategy-generator.js](./server/lib/strategy-generator.js) (active)
+- [server/lib/strategy-triggers.js](./server/lib/strategy-triggers.js) (active)
+- [server/lib/strategy-utils.js](./server/lib/strategy-utils.js) (active)
+- [server/lib/strategyPrompt.js](./server/lib/strategyPrompt.js) (active)
+- [server/lib/subagents/event-verifier.js](./server/lib/subagents/event-verifier.js) (active)
+- [server/lib/transient-retry.js](./server/lib/transient-retry.js) (active)
+- [server/lib/triad-orchestrator.js](./server/lib/triad-orchestrator.js) (active)
+- [server/lib/validate-strategy-env.js](./server/lib/validate-strategy-env.js) (active)
+- [server/lib/validation-gates.js](./server/lib/validation-gates.js) (active)
+- [server/lib/validation.ts](./server/lib/validation.ts) (active)
+- [server/lib/validator-gemini.js](./server/lib/validator-gemini.js) (active)
+- [server/lib/venue-discovery.js](./server/lib/venue-discovery.js) (active)
+- [server/lib/venue-enrichment.js](./server/lib/venue-enrichment.js) (active)
+- [server/lib/venue-event-research.js](./server/lib/venue-event-research.js) (active)
+- [server/middleware/auth.ts](./server/middleware/auth.ts) (active)
+- [server/middleware/idempotency.js](./server/middleware/idempotency.js) (active)
+- [server/middleware/learning-capture.js](./server/middleware/learning-capture.js) (active)
+- [server/middleware/logging.js](./server/middleware/logging.js) (active)
+- [server/middleware/logging.ts](./server/middleware/logging.ts) (active)
+- [server/middleware/metrics.js](./server/middleware/metrics.js) (active)
+- [server/middleware/security.js](./server/middleware/security.js) (active)
+- [server/middleware/security.ts](./server/middleware/security.ts) (active)
+- [server/middleware/timeout.js](./server/middleware/timeout.js) (active)
+- [server/middleware/validation.js](./server/middleware/validation.js) (active)
+- [server/pathHelper.js](./server/pathHelper.js) (active)
+- [server/routes/actions.js](./server/routes/actions.js) (active)
+- [server/routes/blocks-discovery.js](./server/routes/blocks-discovery.js) (active)
+- [server/routes/blocks-fast.js](./server/routes/blocks-fast.js) (active)
+- [server/routes/blocks-idempotent.js](./server/routes/blocks-idempotent.js) (active)
+- [server/routes/blocks-processor.js](./server/routes/blocks-processor.js) (active)
+- [server/routes/blocks-triad-strict.js](./server/routes/blocks-triad-strict.js) (active)
+- [server/routes/blocks.js](./server/routes/blocks.js) (active)
+- [server/routes/chat-context.js](./server/routes/chat-context.js) (active)
+- [server/routes/chat.js](./server/routes/chat.js) (active)
+- [server/routes/closed-venue-reasoning.js](./server/routes/closed-venue-reasoning.js) (active)
+- [server/routes/diagnostics-strategy.js](./server/routes/diagnostics-strategy.js) (active)
+- [server/routes/diagnostics.js](./server/routes/diagnostics.js) (active)
+- [server/routes/feedback.js](./server/routes/feedback.js) (active)
+- [server/routes/geocode-proxy.js](./server/routes/geocode-proxy.js) (active)
+- [server/routes/health.js](./server/routes/health.js) (active)
+- [server/routes/job-metrics.js](./server/routes/job-metrics.js) (active)
+- [server/routes/location.js](./server/routes/location.js) (active)
+- [server/routes/ml-health.js](./server/routes/ml-health.js) (active)
+- [server/routes/research.js](./server/routes/research.js) (active)
+- [server/routes/snapshot.js](./server/routes/snapshot.js) (active)
+- [server/routes/strategy.js](./server/routes/strategy.js) (active)
+- [server/routes/utils/safeElapsedMs.js](./server/routes/utils/safeElapsedMs.js) (active)
+- [server/routes/vector-search.js](./server/routes/vector-search.js) (active)
+- [server/routes/venue-events.js](./server/routes/venue-events.js) (active)
+- [server/scripts/continuous-monitor.js](./server/scripts/continuous-monitor.js) (active)
+- [server/scripts/db-doctor.js](./server/scripts/db-doctor.js) (active)
+- [server/scripts/run-sql-migration.js](./server/scripts/run-sql-migration.js) (active)
+- [server/scripts/seed-dfw-venues.js](./server/scripts/seed-dfw-venues.js) (active)
+- [server/scripts/self-healing-monitor.js](./server/scripts/self-healing-monitor.js) (active)
+- [server/scripts/workspace-startup.sh](./server/scripts/workspace-startup.sh) (active)
+- [server/types/driving-plan.ts](./server/types/driving-plan.ts) (active)
+- [server/util/circuit.js](./server/util/circuit.js) (active)
+- [server/util/uuid.js](./server/util/uuid.js) (active)
+- [server/util/validate-snapshot.js](./server/util/validate-snapshot.js) (active)
+- [server/utils/eta.js](./server/utils/eta.js) (active)
+- [shared/config.js](./shared/config.js) (active)
+- [shared/identity.ts](./shared/identity.ts) (active)
+- [shared/ports.js](./shared/ports.js) (active)
+- [shared/schema.js](./shared/schema.js) (active)
+- [shared/types/action.ts](./shared/types/action.ts) (active)
+- [shared/types/ids.ts](./shared/types/ids.ts) (active)
+- [shared/types/location.ts](./shared/types/location.ts) (active)
+- [shared/types/reco.ts](./shared/types/reco.ts) (active)
+- [shared/types/snapshot.ts](./shared/types/snapshot.ts) (active)
+
+### 1. Schema
+
+#### 1.1 actions
+
+- 1.1.1 action_id
+- 1.1.1 created_at
+- 1.1.1 with
+- 1.1.1 ranking_id
+- 1.1.1 snapshot_id
+- 1.1.1 user_id
+- 1.1.1 action
+- 1.1.1 block_id
+- 1.1.1 dwell_ms
+- 1.1.1 from_rank
+- 1.1.1 raw
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 agent_memory
+
+- 1.1.1 id
+- 1.1.1 session_id
+- 1.1.1 entry_type
+- 1.1.1 title
+- 1.1.1 content
+- 1.1.1 status
+- 1.1.1 metadata
+- 1.1.1 created_at
+- 1.1.1 with
+- 1.1.1 expires_at
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 app_feedback
+
+- 1.1.1 id
+- 1.1.1 snapshot_id
+- 1.1.1 sentiment
+- 1.1.1 comment
+- 1.1.1 created_at
+- 1.1.1 with
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 assistant_memory
+
+- 1.1.1 id
+- 1.1.1 scope
+- 1.1.1 key
+- 1.1.1 user_id
+- 1.1.1 content
+- 1.1.1 created_at
+- 1.1.1 with
+- 1.1.1 updated_at
+- 1.1.1 expires_at
+- 1.1.1 WITH
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 block_jobs
+
+- 1.1.1 id
+- 1.1.1 status
+- 1.1.1 request_body
+- 1.1.1 result
+- 1.1.1 error
+- 1.1.1 created_at
+- 1.1.1 with
+- 1.1.1 updated_at
+
+_Source: drizzle/0003_charming_grandmaster.sql_
+
+#### 1.1 blocks_catalog
+
+- 1.1.1 id
+- 1.1.1 region
+- 1.1.1 slug
+- 1.1.1 name
+- 1.1.1 address
+- 1.1.1 meta
+
+_Source: server/db/001_init.sql_
+
+#### 1.1 cross_thread_memory
+
+- 1.1.1 id
+- 1.1.1 scope
+- 1.1.1 key
+- 1.1.1 user_id
+- 1.1.1 content
+- 1.1.1 created_at
+- 1.1.1 with
+- 1.1.1 updated_at
+- 1.1.1 expires_at
+- 1.1.1 WITH
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 documents
+
+- 1.1.1 id
+- 1.1.1 content
+- 1.1.1 metadata
+- 1.1.1 created_at
+- 1.1.1 updated_at
+
+_Source: migrations/001_init.sql_
+
+#### 1.1 eidolon_memory
+
+- 1.1.1 id
+- 1.1.1 scope
+- 1.1.1 key
+- 1.1.1 user_id
+- 1.1.1 content
+- 1.1.1 created_at
+- 1.1.1 with
+- 1.1.1 updated_at
+- 1.1.1 expires_at
+- 1.1.1 WITH
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 events_facts
+
+- 1.1.1 event_id
+- 1.1.1 source
+- 1.1.1 source_url
+- 1.1.1 venue_place_id
+- 1.1.1 venue_name
+- 1.1.1 event_title
+- 1.1.1 event_type
+- 1.1.1 start_time
+- 1.1.1 end_time
+- 1.1.1 coordinates
+- 1.1.1 description
+- 1.1.1 tags
+- 1.1.1 expires_at
+- 1.1.1 coordinates_source
+- 1.1.1 location_quality
+- 1.1.1 radius_hint_m
+- 1.1.1 impact_hint
+- 1.1.1 created_at
+- 1.1.1 updated_at
+
+_Source: drizzle/0003_event_enrichment.sql_
+
+#### 1.1 http_idem
+
+- 1.1.1 key
+- 1.1.1 status
+- 1.1.1 body
+- 1.1.1 created_at
+- 1.1.1 with
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 llm_venue_suggestions
+
+- 1.1.1 suggestion_id
+- 1.1.1 suggested_at
+- 1.1.1 with
+- 1.1.1 model_name
+- 1.1.1 ranking_id
+- 1.1.1 venue_name
+- 1.1.1 suggested_category
+- 1.1.1 llm_reasoning
+- 1.1.1 validation_status
+- 1.1.1 place_id_found
+- 1.1.1 venue_id_created
+- 1.1.1 validated_at
+- 1.1.1 rejection_reason
+- 1.1.1 llm_analysis
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 places_cache
+
+- 1.1.1 place_id
+- 1.1.1 formatted_hours
+- 1.1.1 cached_at
+- 1.1.1 with
+- 1.1.1 access_count
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 policies
+
+- 1.1.1 id
+- 1.1.1 user_id
+- 1.1.1 region
+- 1.1.1 name
+- 1.1.1 is_active
+- 1.1.1 rules
+- 1.1.1 created_at
+- 1.1.1 updated_at
+
+_Source: server/db/001_init.sql_
+
+#### 1.1 ranking_candidates
+
+- 1.1.1 id
+- 1.1.1 ranking_id
+- 1.1.1 block_id
+- 1.1.1 name
+- 1.1.1 drive_time_min
+- 1.1.1 rank
+- 1.1.1 exploration_policy
+- 1.1.1 was_forced
+- 1.1.1 features
+- 1.1.1 h3_r8
+- 1.1.1 drive_minutes
+- 1.1.1 value_grade
+- 1.1.1 not_worth
+- 1.1.1 trip_minutes_used
+- 1.1.1 wait_minutes_used
+- 1.1.1 snapshot_id
+- 1.1.1 place_id
+- 1.1.1 drive_time_minutes
+- 1.1.1 distance_source
+- 1.1.1 pro_tips
+- 1.1.1 closed_reasoning
+- 1.1.1 staging_tips
+- 1.1.1 venue_events
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 rankings
+
+- 1.1.1 ranking_id
+- 1.1.1 created_at
+- 1.1.1 with
+- 1.1.1 snapshot_id
+- 1.1.1 correlation_id
+- 1.1.1 user_id
+- 1.1.1 city
+- 1.1.1 ui
+- 1.1.1 model_name
+- 1.1.1 scoring_ms
+- 1.1.1 planner_ms
+- 1.1.1 total_ms
+- 1.1.1 timed_out
+- 1.1.1 path_taken
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 snapshots
+
+- 1.1.1 snapshot_id
+- 1.1.1 created_at
+- 1.1.1 with
+- 1.1.1 user_id
+- 1.1.1 device_id
+- 1.1.1 session_id
+- 1.1.1 coord_source
+- 1.1.1 city
+- 1.1.1 state
+- 1.1.1 country
+- 1.1.1 formatted_address
+- 1.1.1 timezone
+- 1.1.1 local_iso
+- 1.1.1 dow
+- 1.1.1 hour
+- 1.1.1 day_part_key
+- 1.1.1 h3_r8
+- 1.1.1 weather
+- 1.1.1 air
+- 1.1.1 airport_context
+- 1.1.1 local_news
+- 1.1.1 device
+- 1.1.1 permissions
+- 1.1.1 extras
+- 1.1.1 last_strategy_day_part
+- 1.1.1 trigger_reason
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 strategies
+
+- 1.1.1 id
+- 1.1.1 snapshot_id
+- 1.1.1 correlation_id
+- 1.1.1 strategy
+- 1.1.1 status
+- 1.1.1 error_code
+- 1.1.1 error_message
+- 1.1.1 attempt
+- 1.1.1 latency_ms
+- 1.1.1 tokens
+- 1.1.1 next_retry_at
+- 1.1.1 with
+- 1.1.1 created_at
+- 1.1.1 updated_at
+- 1.1.1 model_name
+- 1.1.1 model_params
+- 1.1.1 prompt_version
+- 1.1.1 strategy_for_now
+- 1.1.1 city
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 strategy_feedback
+
+- 1.1.1 id
+- 1.1.1 user_id
+- 1.1.1 snapshot_id
+- 1.1.1 ranking_id
+- 1.1.1 sentiment
+- 1.1.1 comment
+- 1.1.1 created_at
+- 1.1.1 with
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 travel_disruptions
+
+- 1.1.1 id
+- 1.1.1 country_code
+- 1.1.1 airport_code
+- 1.1.1 airport_name
+- 1.1.1 delay_minutes
+- 1.1.1 ground_stops
+- 1.1.1 ground_delay_programs
+- 1.1.1 closure_status
+- 1.1.1 delay_reason
+- 1.1.1 ai_summary
+- 1.1.1 impact_level
+- 1.1.1 data_source
+- 1.1.1 last_updated
+- 1.1.1 with
+- 1.1.1 next_update_at
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 triad_jobs
+
+- 1.1.1 id
+- 1.1.1 snapshot_id
+- 1.1.1 kind
+- 1.1.1 status
+- 1.1.1 created_at
+- 1.1.1 with
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 venue_catalog
+
+- 1.1.1 venue_id
+- 1.1.1 place_id
+- 1.1.1 venue_name
+- 1.1.1 address
+- 1.1.1 category
+- 1.1.1 dayparts
+- 1.1.1 staging_notes
+- 1.1.1 city
+- 1.1.1 metro
+- 1.1.1 ai_estimated_hours
+- 1.1.1 business_hours
+- 1.1.1 discovery_source
+- 1.1.1 validated_at
+- 1.1.1 with
+- 1.1.1 suggestion_metadata
+- 1.1.1 created_at
+- 1.1.1 last_known_status
+- 1.1.1 status_checked_at
+- 1.1.1 consecutive_closed_checks
+- 1.1.1 auto_suppressed
+- 1.1.1 suppression_reason
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 venue_events
+
+- 1.1.1 id
+- 1.1.1 venue_id
+- 1.1.1 place_id
+- 1.1.1 title
+- 1.1.1 starts_at
+- 1.1.1 with
+- 1.1.1 ends_at
+- 1.1.1 source
+- 1.1.1 radius_m
+- 1.1.1 created_at
+- 1.1.1 updated_at
+- 1.1.1 snapshot_id
+- 1.1.1 user_id
+- 1.1.1 device_id
+- 1.1.1 session_id
+- 1.1.1 coord_source
+- 1.1.1 city
+- 1.1.1 state
+- 1.1.1 country
+- 1.1.1 formatted_address
+- 1.1.1 timezone
+- 1.1.1 local_iso
+- 1.1.1 dow
+- 1.1.1 hour
+- 1.1.1 day_part_key
+- 1.1.1 h3_r8
+- 1.1.1 weather
+- 1.1.1 air
+- 1.1.1 airport_context
+- 1.1.1 local_news
+- 1.1.1 news_briefing
+- 1.1.1 device
+- 1.1.1 permissions
+- 1.1.1 extras
+- 1.1.1 last_strategy_day_part
+- 1.1.1 trigger_reason
+- 1.1.1 strategy_id
+- 1.1.1 correlation_id
+- 1.1.1 strategy
+- 1.1.1 status
+- 1.1.1 error_code
+- 1.1.1 error_message
+- 1.1.1 attempt
+- 1.1.1 latency_ms
+- 1.1.1 tokens
+- 1.1.1 next_retry_at
+- 1.1.1 model_name
+- 1.1.1 model_params
+- 1.1.1 prompt_version
+- 1.1.1 strategy_for_now
+- 1.1.1 user_address
+- 1.1.1 events
+- 1.1.1 news
+- 1.1.1 traffic
+- 1.1.1 valid_window_start
+- 1.1.1 valid_window_end
+- 1.1.1 strategy_timestamp
+- 1.1.1 user_resolved_address
+- 1.1.1 user_resolved_city
+- 1.1.1 user_resolved_state
+- 1.1.1 minstrategy
+- 1.1.1 holiday
+- 1.1.1 briefing_news
+- 1.1.1 briefing_events
+- 1.1.1 briefing_traffic
+- 1.1.1 briefing
+- 1.1.1 consolidated_strategy
+- 1.1.1 ranking_id
+- 1.1.1 ui
+- 1.1.1 scoring_ms
+- 1.1.1 planner_ms
+- 1.1.1 total_ms
+- 1.1.1 timed_out
+- 1.1.1 path_taken
+- 1.1.1 block_id
+- 1.1.1 name
+- 1.1.1 drive_time_min
+- 1.1.1 rank
+- 1.1.1 exploration_policy
+- 1.1.1 was_forced
+- 1.1.1 features
+- 1.1.1 drive_minutes
+- 1.1.1 value_grade
+- 1.1.1 not_worth
+- 1.1.1 trip_minutes_used
+- 1.1.1 wait_minutes_used
+- 1.1.1 drive_time_minutes
+- 1.1.1 distance_source
+- 1.1.1 pro_tips
+- 1.1.1 closed_reasoning
+- 1.1.1 staging_tips
+- 1.1.1 staging_name
+- 1.1.1 business_hours
+- 1.1.1 venue_events
+- 1.1.1 action_id
+- 1.1.1 action
+- 1.1.1 dwell_ms
+- 1.1.1 from_rank
+- 1.1.1 raw
+- 1.1.1 venue_name
+- 1.1.1 address
+- 1.1.1 category
+- 1.1.1 dayparts
+- 1.1.1 staging_notes
+- 1.1.1 metro
+- 1.1.1 ai_estimated_hours
+- 1.1.1 discovery_source
+- 1.1.1 validated_at
+- 1.1.1 suggestion_metadata
+- 1.1.1 last_known_status
+- 1.1.1 status_checked_at
+- 1.1.1 consecutive_closed_checks
+- 1.1.1 auto_suppressed
+- 1.1.1 suppression_reason
+- 1.1.1 times_recommended
+- 1.1.1 times_chosen
+- 1.1.1 positive_feedback
+- 1.1.1 negative_feedback
+- 1.1.1 last_verified_by_driver
+- 1.1.1 request_body
+- 1.1.1 result
+- 1.1.1 error
+- 1.1.1 kind
+- 1.1.1 key
+- 1.1.1 body
+- 1.1.1 formatted_hours
+- 1.1.1 cached_at
+- 1.1.1 access_count
+- 1.1.1 sentiment
+- 1.1.1 comment
+- 1.1.1 country_code
+- 1.1.1 airport_code
+- 1.1.1 airport_name
+- 1.1.1 delay_minutes
+- 1.1.1 ground_stops
+- 1.1.1 ground_delay_programs
+- 1.1.1 closure_status
+- 1.1.1 delay_reason
+- 1.1.1 ai_summary
+- 1.1.1 impact_level
+- 1.1.1 data_source
+- 1.1.1 last_updated
+- 1.1.1 next_update_at
+- 1.1.1 suggestion_id
+- 1.1.1 suggested_at
+- 1.1.1 suggested_category
+- 1.1.1 llm_reasoning
+- 1.1.1 validation_status
+- 1.1.1 place_id_found
+- 1.1.1 venue_id_created
+- 1.1.1 rejection_reason
+- 1.1.1 llm_analysis
+- 1.1.1 entry_type
+- 1.1.1 content
+- 1.1.1 metadata
+- 1.1.1 expires_at
+- 1.1.1 scope
+
+_Source: drizzle/0006_steep_the_hood.sql_
+
+#### 1.1 venue_feedback
+
+- 1.1.1 id
+- 1.1.1 user_id
+- 1.1.1 snapshot_id
+- 1.1.1 ranking_id
+- 1.1.1 place_id
+- 1.1.1 venue_name
+- 1.1.1 sentiment
+- 1.1.1 comment
+- 1.1.1 created_at
+- 1.1.1 with
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+#### 1.1 venue_metrics
+
+- 1.1.1 venue_id
+- 1.1.1 times_recommended
+- 1.1.1 times_chosen
+- 1.1.1 positive_feedback
+- 1.1.1 negative_feedback
+- 1.1.1 last_verified_by_driver
+- 1.1.1 with
+
+_Source: drizzle/0000_overjoyed_human_torch.sql_
+
+### 2. API Call
+
+#### 2.1 Resolved in memory
+
+- `new Map(` - gateway-server.js:36
+- `new Map(` - index.js:358
+- `new Map(` - index.js:601
+- `new Map(` - index.js:602
+- `new Map(` - index.js:608
+- `new Map(` - index.js:611
+- `.filter(` - index.js:163
+- `.filter(` - index.js:490
+- `.filter(` - index.js:671
+- `.filter(` - index.js:672
+- `.filter(` - index.js:673
+- `.filter(` - index.js:674
+- `.filter(` - index.js:675
+- `.filter(` - index.js:1533
+- `.map(` - index.js:165
+- `.map(` - index.js:680
+- `.map(` - index.js:744
+- `.map(` - scripts/capture-workflow-logs.js:64
+- `.map(` - scripts/capture-workflow-logs.js:99
+- `.map(` - scripts/capture-workflow-logs.js:105
+- `.map(` - scripts/fix-progress.js:27
+- `.map(` - scripts/fix-progress.js:28
+- `.reduce(` - scripts/fix-progress.js:104
+- `.map(` - scripts/port-probe.mjs:2
+- `.map(` - scripts/port-probe.mjs:9
+- `.map(` - scripts/postdeploy-sql.mjs:51
+- `.filter(` - scripts/smoke-coach-context.mjs:43
+- `.filter(` - scripts/smoke-strategy.mjs:64
+- `.map(` - scripts/typescript-error-counter.js:168
+- `.map(` - server/agent/context-awareness.js:26
+- `.map(` - server/agent/context-awareness.js:37
+- `.map(` - server/agent/context-awareness.js:47
+- `.map(` - server/agent/context-awareness.js:63
+- `.map(` - server/agent/context-awareness.js:75
+- `.map(` - server/agent/context-awareness.js:87
+- `.map(` - server/agent/context-awareness.js:155
+- `.map(` - server/agent/enhanced-context.js:57
+- `.map(` - server/agent/enhanced-context.js:72
+- `.map(` - server/agent/enhanced-context.js:84
+- `.map(` - server/agent/enhanced-context.js:103
+- `.map(` - server/agent/enhanced-context.js:117
+- `.map(` - server/agent/enhanced-context.js:131
+- `.map(` - server/agent/enhanced-context.js:144
+- `.map(` - server/agent/enhanced-context.js:162
+- `.map(` - server/agent/enhanced-context.js:381
+- `.map(` - server/agent/enhanced-context.js:399
+- `.map(` - server/agent/routes.js:213
+- `new Map(` - server/agent/thread-context.js:447
+- `new Map(` - server/agent/thread-context.js:448
+- `new Map(` - server/agent/thread-context.js:449
+- _... and 246 more_
+
+#### 2.2 Resolved in db
+
+- `await pool.query(` - agent-server.js:417
+- `await pool.query(` - agent-server.js:441
+- `await pool.query(` - index.js:1168
+- `db.select(` - scripts/enhanced-db-logger.js:62
+- `db.insert(` - scripts/enhanced-db-logger.js:69
+- `await client.query(` - scripts/full-workflow-analysis.mjs:241
+- `await client.query(` - scripts/full-workflow-analysis.mjs:272
+- `await client.query(` - scripts/full-workflow-analysis.mjs:302
+- `await client.query(` - scripts/full-workflow-analysis.mjs:320
+- `await db.execute(` - scripts/postdeploy-sql.mjs:34
+- `await db.execute(` - scripts/postdeploy-sql.mjs:46
+- `await db.execute(` - scripts/postdeploy-sql.mjs:71
+- `await db.execute(` - scripts/postdeploy-sql.mjs:100
+- `await db.execute(` - scripts/refresh-enrichment.mjs:24
+- `await db.execute(` - scripts/refresh-enrichment.mjs:33
+- `await db.execute(` - scripts/seed-event.mjs:52
+- `await pool.query(` - server/agent/chat.js:14
+- `await pool.query(` - server/agent/chat.js:25
+- `await db.select(` - server/agent/context-awareness.js:25
+- `await db.select(` - server/agent/context-awareness.js:36
+- `await db.select(` - server/agent/context-awareness.js:46
+- `await db.execute(` - server/agent/context-awareness.js:175
+- `await db.select(` - server/agent/enhanced-context.js:56
+- `await db.select(` - server/agent/enhanced-context.js:71
+- `await db.select(` - server/agent/enhanced-context.js:83
+- `await db.execute(` - server/agent/enhanced-context.js:282
+- `await db.execute(` - server/agent/enhanced-context.js:306
+- `await db.select(` - server/agent/enhanced-context.js:322
+- `await pool.query(` - server/agent/enhanced-context.js:354
+- `await pool.query(` - server/agent/enhanced-context.js:391
+- `await pool.query(` - server/agent/thread-context.js:126
+- `await pool.query(` - server/agent/thread-context.js:386
+- `await db.execute(` - server/bootstrap/enqueue-initial.js:16
+- `await db.execute(` - server/bootstrap/enqueue-initial.js:28
+- `await db.insert(` - server/bootstrap/enqueue-initial.js:42
+- `db.select(` - server/db/drizzle.js:9
+- `pool.query(` - server/db/pool-lazy.js:107
+- `await client.query(` - server/db/rls-middleware.js:29
+- `await client.query(` - server/db/rls-middleware.js:33
+- `await client.query(` - server/db/rls-middleware.js:37
+- `await client.query(` - server/db/rls-middleware.js:43
+- `await client.query(` - server/db/rls-middleware.js:44
+- `await client.query(` - server/db/rls-middleware.js:70
+- `await client.query(` - server/db/rls-middleware.js:74
+- `await client.query(` - server/db/rls-middleware.js:78
+- `await client.query(` - server/db/rls-middleware.js:84
+- `await client.query(` - server/db/rls-middleware.js:88
+- `await pool.query(` - server/eidolon/memory/pg.js:144
+- `await client.query(` - server/eidolon/memory/pg.js:39
+- `await client.query(` - server/eidolon/memory/pg.js:55
+- _... and 168 more_
+
+### 3. Console log
+
+- `console.log('[agent] Using local pool (shared pool disabled)` - agent-server.js:71
+- `console.error(`Failed to write log: ${err.message}`)` - agent-server.js:157
+- `console.log(`[agent] Listening on ${HOST}:${PORT}`)` - agent-server.js:657
+- `console.log(`[agent] Base directory: ${BASE_DIR}`)` - agent-server.js:658
+- `console.log(`[agent] Environment: ${IS_REPLIT ? "REPLIT" : "LO...)` - agent-server.js:659
+- `console.log(`[agent] Token auth: enabled`)` - agent-server.js:660
+- `console.error(`[agent] ERROR: Port ${PORT} is already in use!`)` - agent-server.js:666
+- `console.error(`[agent] Another process is using port ${PORT}. Ex...)` - agent-server.js:667
+- `console.log("[agent] Shutting down…")` - agent-server.js:678
+- `console.log("GPT-5 Agent initialized")` - dist/index.js:5
+- `console.log("Agent response:", msg)` - dist/index.js:11
+- `console.log("Terminal command:", cmd)` - dist/index.js:29
+- `console.log("GPT-5 Agent ready - context configured")` - dist/index.js:39
+- `console.error("Agent initialization failed:", error)` - dist/index.js:42
+- `console.log(`[gateway] PID: ${process.pid}`)` - gateway-server.js:32
+- `console.log(`[gateway] Mode: ${MODE.toUpperCase()` - gateway-server.js:33
+- `console.log("[gateway] AI Config:", GATEWAY_CONFIG)` - gateway-server.js:34
+- `console.log(`🐕 [gateway] Starting ${name}...`)` - gateway-server.js:38
+- `console.log(`[${name}] ${data.toString()` - gateway-server.js:43
+- `console.error(`[${name}] ${data.toString()` - gateway-server.js:44
+- `console.error(`❌ [gateway] ${name} exited with code ${code}, res...)` - gateway-server.js:46
+- `console.log(`[ready] Server listening on 0.0.0.0:${PORT}`)` - gateway-server.js:80
+- `console.log("[gateway] 🎧 Consolidation listener started")` - gateway-server.js:87
+- `console.error("[gateway] ❌ Listener failed:", err?.message || er...)` - gateway-server.js:88
+- `console.log("[gateway] 🧹 Event cleanup job started")` - gateway-server.js:95
+- `console.error("[mono] SDK embed failed:", e?.message)` - gateway-server.js:110
+- `console.error("[mono] Agent embed failed:", e?.message)` - gateway-server.js:116
+- `console.log("[signal] SIGINT received, shutting down...")` - gateway-server.js:123
+- `console.log("[signal] SIGTERM received, shutting down...")` - gateway-server.js:128
+- `console.log('[SDK/Eidolon] AI Config:', EIDOLON_CONFIG)` - index.js:64
+- `console.error('[memory] Context enrichment failed:', err.message)` - index.js:123
+- `console.error('[diagnostics/memory] Error:', err)` - index.js:177
+- `console.error('[diagnostics/prefs] Error:', err)` - index.js:192
+- `console.error('[diagnostics/session] Error:', err)` - index.js:214
+- `console.error('[diagnostics/conversations] Error:', err)` - index.js:224
+- `console.error('[diagnostics/remember] Error:', err)` - index.js:240
+- `console.warn(`[eidolon] Warning: main and agent ports are ident...)` - index.js:322
+- `console.log("[eidolon] Anthropic client initialized.")` - index.js:346
+- `console.log('[Research Engine] Internet research enabled via P...)` - index.js:364
+- `console.log('[Research Engine] Running in offline mode (no Per...)` - index.js:366
+- `console.error('[Research Engine] Perplexity error, falling back ...)` - index.js:542
+- `console.log(`[eidolon] Workspace analyzed: ${files.length} fil...)` - index.js:681
+- `console.warn("[eidolon] Workspace analysis failed:", e.message)` - index.js:685
+- `console.warn(`[eidolon] Scan error in ${dir}: ${e.message}`)` - index.js:728
+- `console.log(`Session ${session.id} archived`)` - index.js:737
+- `console.log('[eidolon] Phase A context not loaded:', e.message)` - index.js:759
+- `console.log("[main] starting agent:", agentPath)` - index.js:819
+- `console.log(`[eidolon] Executing command: ${full}`)` - index.js:989
+- `console.warn('[assistant] Research unavailable:', err.message)` - index.js:1130
+- `console.log(result.rows)` - index.js:1169
+- _... and 1243 more_
+
+---
+
+## future
+
+### Files
+
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__pycache__/arguments_schema.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__pycache__/arguments_schema.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__pycache__/missing_sentinel.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__pycache__/missing_sentinel.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__pycache__/pipeline.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/__pycache__/pipeline.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/arguments_schema.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/arguments_schema.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/missing_sentinel.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/missing_sentinel.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/pipeline.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/experimental/pipeline.py) (not active)
+- [gateway-server.js.backup-split](./gateway-server.js.backup-split) (not active)
+- [gateway-server.js.backup-split-original](./gateway-server.js.backup-split-original) (not active)
+- [package.json.backup-pre-agent](./package.json.backup-pre-agent) (not active)
+- [server/routes/__DEAD__blocks-async.RETIRED.js](./server/routes/__DEAD__blocks-async.RETIRED.js) (not active)
+- [server/routes/__DEAD__blocks-processor-full.RETIRED.js](./server/routes/__DEAD__blocks-processor-full.RETIRED.js) (not active)
+
+### 2. API Call
+
+#### 2.1 Resolved in memory
+
+- `new Map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:664
+- `new Map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:685
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:96
+- `new Map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:440
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:676
+- `.filter(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:91
+- `.filter(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:110
+- `.filter(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:625
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:98
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:127
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:155
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:383
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:441
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:450
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:509
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:560
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:599
+- `.map(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:711
+
+#### 2.2 Resolved in db
+
+- `await db.select(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:63
+- `await db.select(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:90
+- `await db.select(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:95
+- `await db.execute(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:612
+- `await db.insert(` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:644
+
+### 3. Console log
+
+- `console.log(`[blocks-async] Job ${jobId} queued, starting back...)` - server/routes/__DEAD__blocks-async.RETIRED.js:29
+- `console.log(`[blocks-async] ✅ Job ${jobId} completed`)` - server/routes/__DEAD__blocks-async.RETIRED.js:45
+- `console.error(`[blocks-async] ❌ Job ${jobId} failed:`, e.message)` - server/routes/__DEAD__blocks-async.RETIRED.js:48
+- `console.error('[blocks-async] Failed to create job:', error)` - server/routes/__DEAD__blocks-async.RETIRED.js:53
+- `console.error('[blocks-async] Failed to load job:', error)` - server/routes/__DEAD__blocks-async.RETIRED.js:90
+- `console.log(`🎯 [${correlationId}] Loading snapshot ${snapshot...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:62
+- `console.log(`🌍 [${correlationId}] No venue catalog matches fo...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:142
+- `console.log(`📋 [${correlationId}] Venue shortlist: ${shortlis...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:144
+- `console.log(`✅ [${correlationId}] TRIAD Step 1/3: Using existi...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:184
+- `console.error(`[blocks] ⏱️ Job ${correlationId} exceeded 60s tim...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:197
+- `console.log(`🧠 [${correlationId}] TRIAD Step 1/3: Generating ...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:216
+- `console.error(`❌ [${correlationId}] Strategy generator returned ...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:226
+- `console.log(`✅ [${correlationId}] TRIAD Step 1/3 Complete: Con...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:234
+- `console.error(`❌ [${correlationId}] Strategy generation failed: ...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:236
+- `console.warn(`⚠️ [${correlationId}] Consolidated strategy requi...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:251
+- `console.log(`🎯 [${correlationId}] TRIAD Step 2/3: Starting GP...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:265
+- `console.log(`📋 [${correlationId}] Planner input (consolidated...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:266
+- `console.log(`✅ [${correlationId}] TRIAD Step 2/3 Complete: GPT...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:278
+- `console.error(`❌ [${correlationId}] GPT-5 tactical planner faile...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:280
+- `console.error(`❌ [${correlationId}] No valid output from GPT-5 t...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:285
+- `console.log(`🔍 [${correlationId}] TRIAD Step 3/3: Enriching $...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:296
+- `console.log(`✅ [${correlationId}] TRIAD Step 3/3 Complete: Enr...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:309
+- `console.error(`❌ [${correlationId}] Venue enrichment failed: ${e...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:311
+- `console.error(`❌ [${correlationId}] No venues successfully enric...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:316
+- `console.log(`✅ [${correlationId}] Business hours enrichment co...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:325
+- `console.log(`🔍 [${correlationId}] Resolving staging location:...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:333
+- `console.log(`✅ [${correlationId}] Staging location enriched: $...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:370
+- `console.warn(`⚠️ [${correlationId}] Failed to enrich staging lo...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:372
+- `console.log(`🔍 [${correlationId}] Calculating traffic-aware d...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:379
+- `console.log(`📏 [${correlationId}] ${v.name}: ${distanceMiles}...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:394
+- `console.error(`❌ [${correlationId}] Routes API failed for ${v.na...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:404
+- `console.log(`🔍 [${correlationId}] DEBUG: First venue data str...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:414
+- `console.error(`❌ [${correlationId}] Venue not resolved: ${v.name...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:418
+- `console.error(`❌ [${correlationId}] DEBUG - Venue data:`, JSON.s...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:419
+- `console.warn(`⚠️ [${correlationId}] Venue "${v.name}" has no pl...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:423
+- `console.log(`🔍 [${correlationId}] Gemini raw response (first ...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:435
+- `console.log(`✅ [${correlationId}] TRIAD Step 3/3 Complete: Gem...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:493
+- `console.log(`💰 [${correlationId}] Sample enriched venue:`, { ...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:494
+- `console.log(`💾 [${correlationId}] Preparing database persiste...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:558
+- `console.log(`📊 [${correlationId}] Venue ${i + 1}: ${venue.nam...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:561
+- `console.log(`🔐 [${correlationId}] Starting atomic transaction...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:579
+- `console.info(`✅ [${correlationId}] TRANSACTION COMMITTED: ranki...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:590
+- `console.log(`🎪 [${correlationId}] Researching events for ${ve...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:597
+- `console.log(`🎪 [${correlationId}] ${venue.name}: ${eventData....)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:618
+- `console.warn(`⚠️ [${correlationId}] Event update failed for ${v...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:620
+- `console.log(`✅ [${correlationId}] Event research complete: ${w...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:626
+- `console.warn(`⚠️ [${correlationId}] Event research failed (non-...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:628
+- `console.error(`❌ [${correlationId}] TRANSACTION FAILED - Databas...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:633
+- `console.log(`💡 [${correlationId}] Logged ${triadPlan.seed_add...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:655
+- `console.warn(`⚠️ [${correlationId}] Seed additions logging fail...)` - server/routes/__DEAD__blocks-processor-full.RETIRED.js:657
+- _... and 10 more_
+
+---
+
+## UI Adapter
+
+### Files
+
+- [client/dist/assets/index-BzKHz2OF.js](./client/dist/assets/index-BzKHz2OF.js) (not active)
+- [client/dist/assets/index-iVY7724n.css](./client/dist/assets/index-iVY7724n.css) (not active)
+- [client/dist/index.html](./client/dist/index.html) (not active)
+- [client/index.html](./client/index.html) (not active)
+- [client/src/App.css](./client/src/App.css) (active)
+- [client/src/App.tsx](./client/src/App.tsx) (active)
+- [client/src/components/CoachChat.tsx](./client/src/components/CoachChat.tsx) (active)
+- [client/src/components/ErrorBoundary.tsx](./client/src/components/ErrorBoundary.tsx) (active)
+- [client/src/components/FeedbackModal.tsx](./client/src/components/FeedbackModal.tsx) (active)
+- [client/src/components/GlobalHeader.tsx](./client/src/components/GlobalHeader.tsx) (active)
+- [client/src/components/strategy/SmartBlocks.tsx](./client/src/components/strategy/SmartBlocks.tsx) (active)
+- [client/src/components/strategy/StrategyCoach.tsx](./client/src/components/strategy/StrategyCoach.tsx) (active)
+- [client/src/components/ui/accordion.tsx](./client/src/components/ui/accordion.tsx) (active)
+- [client/src/components/ui/alert-dialog.tsx](./client/src/components/ui/alert-dialog.tsx) (active)
+- [client/src/components/ui/alert.tsx](./client/src/components/ui/alert.tsx) (active)
+- [client/src/components/ui/avatar.tsx](./client/src/components/ui/avatar.tsx) (active)
+- [client/src/components/ui/badge.tsx](./client/src/components/ui/badge.tsx) (active)
+- [client/src/components/ui/breadcrumb.tsx](./client/src/components/ui/breadcrumb.tsx) (active)
+- [client/src/components/ui/button.tsx](./client/src/components/ui/button.tsx) (active)
+- [client/src/components/ui/calendar.tsx](./client/src/components/ui/calendar.tsx) (active)
+- [client/src/components/ui/card.tsx](./client/src/components/ui/card.tsx) (active)
+- [client/src/components/ui/carousel.tsx](./client/src/components/ui/carousel.tsx) (active)
+- [client/src/components/ui/chart-wrapper.tsx](./client/src/components/ui/chart-wrapper.tsx) (active)
+- [client/src/components/ui/chart.tsx](./client/src/components/ui/chart.tsx) (active)
+- [client/src/components/ui/checkbox.tsx](./client/src/components/ui/checkbox.tsx) (active)
+- [client/src/components/ui/collapsible.tsx](./client/src/components/ui/collapsible.tsx) (active)
+- [client/src/components/ui/command.tsx](./client/src/components/ui/command.tsx) (active)
+- [client/src/components/ui/context-menu.tsx](./client/src/components/ui/context-menu.tsx) (active)
+- [client/src/components/ui/dialog.tsx](./client/src/components/ui/dialog.tsx) (active)
+- [client/src/components/ui/drawer.tsx](./client/src/components/ui/drawer.tsx) (active)
+- [client/src/components/ui/dropdown-menu.tsx](./client/src/components/ui/dropdown-menu.tsx) (active)
+- [client/src/components/ui/form.tsx](./client/src/components/ui/form.tsx) (active)
+- [client/src/components/ui/hover-card.tsx](./client/src/components/ui/hover-card.tsx) (active)
+- [client/src/components/ui/input-otp.tsx](./client/src/components/ui/input-otp.tsx) (active)
+- [client/src/components/ui/input.tsx](./client/src/components/ui/input.tsx) (active)
+- [client/src/components/ui/label.tsx](./client/src/components/ui/label.tsx) (active)
+- [client/src/components/ui/menubar.tsx](./client/src/components/ui/menubar.tsx) (active)
+- [client/src/components/ui/navigation-menu.tsx](./client/src/components/ui/navigation-menu.tsx) (active)
+- [client/src/components/ui/pagination.tsx](./client/src/components/ui/pagination.tsx) (active)
+- [client/src/components/ui/popover.tsx](./client/src/components/ui/popover.tsx) (active)
+- [client/src/components/ui/progress.tsx](./client/src/components/ui/progress.tsx) (active)
+- [client/src/components/ui/radio-group.tsx](./client/src/components/ui/radio-group.tsx) (active)
+- [client/src/components/ui/resizable.tsx](./client/src/components/ui/resizable.tsx) (active)
+- [client/src/components/ui/scroll-area.tsx](./client/src/components/ui/scroll-area.tsx) (active)
+- [client/src/components/ui/select.tsx](./client/src/components/ui/select.tsx) (active)
+- [client/src/components/ui/separator.tsx](./client/src/components/ui/separator.tsx) (active)
+- [client/src/components/ui/sheet.tsx](./client/src/components/ui/sheet.tsx) (active)
+- [client/src/components/ui/sidebar.tsx](./client/src/components/ui/sidebar.tsx) (active)
+- [client/src/components/ui/skeleton.tsx](./client/src/components/ui/skeleton.tsx) (active)
+- [client/src/components/ui/slider.tsx](./client/src/components/ui/slider.tsx) (active)
+- [client/src/components/ui/switch.tsx](./client/src/components/ui/switch.tsx) (active)
+- [client/src/components/ui/table.tsx](./client/src/components/ui/table.tsx) (active)
+- [client/src/components/ui/tabs.tsx](./client/src/components/ui/tabs.tsx) (active)
+- [client/src/components/ui/textarea.tsx](./client/src/components/ui/textarea.tsx) (active)
+- [client/src/components/ui/ThreadPatternRouter.ts](./client/src/components/ui/ThreadPatternRouter.ts) (active)
+- [client/src/components/ui/toast.tsx](./client/src/components/ui/toast.tsx) (active)
+- [client/src/components/ui/toaster.tsx](./client/src/components/ui/toaster.tsx) (active)
+- [client/src/components/ui/toggle-group.tsx](./client/src/components/ui/toggle-group.tsx) (active)
+- [client/src/components/ui/toggle.tsx](./client/src/components/ui/toggle.tsx) (active)
+- [client/src/components/ui/tooltip.tsx](./client/src/components/ui/tooltip.tsx) (active)
+- [client/src/contexts/location-context-clean.tsx](./client/src/contexts/location-context-clean.tsx) (active)
+- [client/src/engine/reflectionEngine.ts](./client/src/engine/reflectionEngine.ts) (active)
+- [client/src/GlobalHeader.tsx/vehicleTiers.ts](./client/src/GlobalHeader.tsx/vehicleTiers.ts) (active)
+- [client/src/hooks/use-enhanced-geolocation.tsx](./client/src/hooks/use-enhanced-geolocation.tsx) (active)
+- [client/src/hooks/use-geolocation.tsx](./client/src/hooks/use-geolocation.tsx) (active)
+- [client/src/hooks/use-mobile.tsx](./client/src/hooks/use-mobile.tsx) (active)
+- [client/src/hooks/use-toast.ts](./client/src/hooks/use-toast.ts) (active)
+- [client/src/hooks/useAuth.ts](./client/src/hooks/useAuth.ts) (active)
+- [client/src/hooks/useGeoPosition.ts](./client/src/hooks/useGeoPosition.ts) (active)
+- [client/src/hooks/useGeoPosition.tsx](./client/src/hooks/useGeoPosition.tsx) (active)
+- [client/src/hooks/useGestureTracker.ts](./client/src/hooks/useGestureTracker.ts) (active)
+- [client/src/hooks/usePreviewContext.ts](./client/src/hooks/usePreviewContext.ts) (active)
+- [client/src/hooks/useProfile.ts](./client/src/hooks/useProfile.ts) (active)
+- [client/src/hooks/useResponseTuning.ts](./client/src/hooks/useResponseTuning.ts) (active)
+- [client/src/hooks/useStrategy.ts](./client/src/hooks/useStrategy.ts) (active)
+- [client/src/hooks/useVectoPilotProfile.ts](./client/src/hooks/useVectoPilotProfile.ts) (active)
+- [client/src/index.css](./client/src/index.css) (active)
+- [client/src/lib/cached.ts](./client/src/lib/cached.ts) (active)
+- [client/src/lib/daypart.ts](./client/src/lib/daypart.ts) (active)
+- [client/src/lib/once.ts](./client/src/lib/once.ts) (active)
+- [client/src/lib/prompt/baseline.ts](./client/src/lib/prompt/baseline.ts) (active)
+- [client/src/lib/queryClient.ts](./client/src/lib/queryClient.ts) (active)
+- [client/src/lib/snapshot.ts](./client/src/lib/snapshot.ts) (active)
+- [client/src/lib/utils.ts](./client/src/lib/utils.ts) (active)
+- [client/src/main-simple.tsx](./client/src/main-simple.tsx) (active)
+- [client/src/main.tsx](./client/src/main.tsx) (active)
+- [client/src/pages/BriefingPage.tsx](./client/src/pages/BriefingPage.tsx) (active)
+- [client/src/pages/co-pilot.tsx](./client/src/pages/co-pilot.tsx) (active)
+- [client/src/services/geocodeService.ts](./client/src/services/geocodeService.ts) (active)
+- [client/src/services/locationService.ts](./client/src/services/locationService.ts) (active)
+- [client/src/types/app.d.ts](./client/src/types/app.d.ts) (active)
+- [client/src/types/driver.ts](./client/src/types/driver.ts) (active)
+- [client/src/types/location.ts](./client/src/types/location.ts) (active)
+- [client/src/types/performance.ts](./client/src/types/performance.ts) (active)
+- [client/src/types/settings.ts](./client/src/types/settings.ts) (active)
+- [client/src/types/shims.d.ts](./client/src/types/shims.d.ts) (active)
+- [client/src/utils/buildContext.ts](./client/src/utils/buildContext.ts) (active)
+- [client/src/utils/buildPrompt.ts](./client/src/utils/buildPrompt.ts) (active)
+- [client/src/utils/driverPreferences.ts](./client/src/utils/driverPreferences.ts) (active)
+- [client/src/utils/getGeoPosition.ts](./client/src/utils/getGeoPosition.ts) (active)
+- [client/src/utils/getLocationZone.ts](./client/src/utils/getLocationZone.ts) (active)
+- [client/src/utils/getTimeMetadata.ts](./client/src/utils/getTimeMetadata.ts) (active)
+- [client/src/utils/gpsManager.ts](./client/src/utils/gpsManager.ts) (active)
+- [client/src/utils/mirrorFeedback.ts](./client/src/utils/mirrorFeedback.ts) (active)
+- [client/src/utils/mirrorProfile.ts](./client/src/utils/mirrorProfile.ts) (active)
+- [client/src/utils/openNavigation.ts](./client/src/utils/openNavigation.ts) (active)
+- [client/src/utils/peakWindowFilter.ts](./client/src/utils/peakWindowFilter.ts) (active)
+- [client/src/utils/shouldUpdateLocation.ts](./client/src/utils/shouldUpdateLocation.ts) (active)
+- [client/src/utils/smartBlockEngine.ts](./client/src/utils/smartBlockEngine.ts) (active)
+- [client/src/utils/tripStateManager.ts](./client/src/utils/tripStateManager.ts) (active)
+- [client/src/vite-env.d.ts](./client/src/vite-env.d.ts) (active)
+
+### 2. API Call
+
+#### 2.1 Resolved in memory
+
+- `.reduce(` - client/dist/assets/index-BzKHz2OF.js:259
+- `.reduce(` - client/dist/assets/index-BzKHz2OF.js:48
+- `.reduce(` - client/dist/assets/index-BzKHz2OF.js:40
+- `.filter(` - client/dist/assets/index-BzKHz2OF.js:53
+- `.reduce(` - client/dist/assets/index-BzKHz2OF.js:213
+- `.filter(` - client/dist/assets/index-BzKHz2OF.js:228
+- `.map(` - client/dist/assets/index-BzKHz2OF.js:253
+- `.map(` - client/dist/assets/index-BzKHz2OF.js:63
+- `.map(` - client/src/components/CoachChat.tsx:137
+- `.map(` - client/src/components/CoachChat.tsx:156
+- `.map(` - client/src/components/strategy/SmartBlocks.tsx:145
+- `.filter(` - client/src/components/ui/chart.tsx:69
+- `.filter(` - client/src/components/ui/chart.tsx:90
+- `.map(` - client/src/components/ui/chart.tsx:80
+- `.map(` - client/src/components/ui/chart.tsx:82
+- `.map(` - client/src/components/ui/chart.tsx:191
+- `.map(` - client/src/components/ui/chart.tsx:330
+- `.map(` - client/src/components/ui/toaster.tsx:16
+- `localStorage.` - client/src/contexts/location-context-clean.tsx:302
+- `localStorage.` - client/src/contexts/location-context-clean.tsx:303
+- `localStorage.` - client/src/contexts/location-context-clean.tsx:544
+- `localStorage.` - client/src/contexts/location-context-clean.tsx:545
+- `localStorage.` - client/src/contexts/location-context-clean.tsx:728
+- `.map(` - client/src/contexts/location-context-clean.tsx:553
+- `localStorage.` - client/src/engine/reflectionEngine.ts:24
+- `localStorage.` - client/src/engine/reflectionEngine.ts:29
+- `localStorage.` - client/src/engine/reflectionEngine.ts:98
+- `.filter(` - client/src/engine/reflectionEngine.ts:40
+- `.filter(` - client/src/engine/reflectionEngine.ts:50
+- `.filter(` - client/src/engine/reflectionEngine.ts:71
+- `.filter(` - client/src/engine/reflectionEngine.ts:90
+- `.filter(` - client/src/engine/reflectionEngine.ts:92
+- `.filter(` - client/src/engine/reflectionEngine.ts:125
+- `.map(` - client/src/engine/reflectionEngine.ts:41
+- `.map(` - client/src/engine/reflectionEngine.ts:51
+- `.map(` - client/src/engine/reflectionEngine.ts:72
+- `.map(` - client/src/engine/reflectionEngine.ts:82
+- `.map(` - client/src/engine/reflectionEngine.ts:126
+- `.reduce(` - client/src/engine/reflectionEngine.ts:64
+- `.reduce(` - client/src/engine/reflectionEngine.ts:65
+- `.reduce(` - client/src/engine/reflectionEngine.ts:91
+- `.filter(` - client/src/hooks/use-toast.ts:124
+- `.map(` - client/src/hooks/use-toast.ts:87
+- `.map(` - client/src/hooks/use-toast.ts:105
+- `localStorage.` - client/src/hooks/useAuth.ts:17
+- `localStorage.` - client/src/hooks/useAuth.ts:30
+- `localStorage.` - client/src/hooks/useAuth.ts:36
+- `localStorage.` - client/src/hooks/useProfile.ts:35
+- `localStorage.` - client/src/hooks/useProfile.ts:59
+- `localStorage.` - client/src/hooks/useVectoPilotProfile.ts:163
+- _... and 64 more_
+
+### 3. Console log
+
+- `console.error("forceFrameRate takes a positive int between 0 and...)` - client/dist/assets/index-BzKHz2OF.js:25
+- `console.error(o)` - client/dist/assets/index-BzKHz2OF.js:40
+- `console.error(`Invalid prop \`altText\` supplied to \`${Gh}\`. E...)` - client/dist/assets/index-BzKHz2OF.js:48
+- `console.error("Production error:",{error:o,errorInfo:s})` - client/dist/assets/index-BzKHz2OF.js:213
+- `console.error("aria-hidden: cannot operate on ",k,L)` - client/dist/assets/index-BzKHz2OF.js:253
+- `console.error("Feedback submission error:",H)` - client/dist/assets/index-BzKHz2OF.js:257
+- `console.log("Building route with blocks:",Array.from(s)` - client/dist/assets/index-BzKHz2OF.js:259
+- `console.error('ErrorBoundary caught an error:', error, errorInfo)` - client/src/components/ErrorBoundary.tsx:27
+- `console.error('Production error:', { error, errorInfo })` - client/src/components/ErrorBoundary.tsx:37
+- `console.error('Feedback submission error:', error)` - client/src/components/FeedbackModal.tsx:124
+- `console.warn('Failed to poll strategy status:', err)` - client/src/components/GlobalHeader.tsx:124
+- `console.error('[GlobalHeader] Reverse geocode failed:', err)` - client/src/components/GlobalHeader.tsx:209
+- `console.error('[GlobalHeader] Timezone fetch failed:', err)` - client/src/components/GlobalHeader.tsx:221
+- `console.log('⏳ Skipping snapshot - waiting for city to resolve...)` - client/src/components/GlobalHeader.tsx:283
+- `console.log('🔍 payload.time:', payload.time)` - client/src/components/GlobalHeader.tsx:288
+- `console.log("📸 Snapshot saved with ID:", snapshotId)` - client/src/components/GlobalHeader.tsx:339
+- `console.log("🎯 GPS: Starting location request...")` - client/src/contexts/location-context-clean.tsx:140
+- `console.warn("Geolocation not supported")` - client/src/contexts/location-context-clean.tsx:143
+- `console.log(`✅ GPS coordinates obtained: ${latitude.toFixed(6)` - client/src/contexts/location-context-clean.tsx:151
+- `console.log(`✅ Location resolved via Google Maps: ${cityName}`)` - client/src/contexts/location-context-clean.tsx:165
+- `console.log(`🌍 Timezone received: ${data.timeZone}`)` - client/src/contexts/location-context-clean.tsx:166
+- `console.warn("⚠️ Google Maps API unavailable, using coordinates...)` - client/src/contexts/location-context-clean.tsx:178
+- `console.warn("⚠️ Location resolution failed, using coordinates:...)` - client/src/contexts/location-context-clean.tsx:189
+- `console.error("GPS Error:", error)` - client/src/contexts/location-context-clean.tsx:204
+- `console.log("🌐 Starting GPS refresh using useGeoPosition hook...)` - client/src/contexts/location-context-clean.tsx:265
+- `console.log("🔄 GPS refresh - override coordinates cleared")` - client/src/contexts/location-context-clean.tsx:269
+- `console.log("✅ GPS refresh completed")` - client/src/contexts/location-context-clean.tsx:281
+- `console.log("[Global App] GPS coordinates received:", coords)` - client/src/contexts/location-context-clean.tsx:298
+- `console.log("🧹 Clearing old strategy before creating new snap...)` - client/src/contexts/location-context-clean.tsx:301
+- `console.log("🚫 Aborting stale enrichment request")` - client/src/contexts/location-context-clean.tsx:311
+- `console.log("[Global App] Location resolved to:", locationName)` - client/src/contexts/location-context-clean.tsx:348
+- `console.log("[Global App] Weather:", weatherData?.available ? ...)` - client/src/contexts/location-context-clean.tsx:349
+- `console.log("[Global App] Air Quality:", airQualityData?.avail...)` - client/src/contexts/location-context-clean.tsx:350
+- `console.log("🎯 Co-Pilot: Strategy pipeline started for snapsh...)` - client/src/contexts/location-context-clean.tsx:457
+- `console.log("📋 Job status:", jobData.status)` - client/src/contexts/location-context-clean.tsx:458
+- `console.warn("⚠️ Failed to start strategy pipeline:", jobRespon...)` - client/src/contexts/location-context-clean.tsx:460
+- `console.warn("⚠️ Error starting strategy pipeline:", jobErr)` - client/src/contexts/location-context-clean.tsx:463
+- `console.log("✅ Snapshot complete and ready! ID:", snapshotId)` - client/src/contexts/location-context-clean.tsx:476
+- `console.log("📸 Context snapshot saved:", {               city...)` - client/src/contexts/location-context-clean.tsx:486
+- `console.warn("Failed to save context snapshot:", err)` - client/src/contexts/location-context-clean.tsx:494
+- `console.log("⏭️ Enrichment aborted - new GPS position received...)` - client/src/contexts/location-context-clean.tsx:514
+- `console.error("[Global App] Location resolve error:", err)` - client/src/contexts/location-context-clean.tsx:518
+- `console.error("[Global App] GPS error:", gpsError)` - client/src/contexts/location-context-clean.tsx:529
+- `console.error("Failed to parse saved no-go zones:", error)` - client/src/contexts/location-context-clean.tsx:567
+- `console.error("Failed to parse saved location:", error)` - client/src/contexts/location-context-clean.tsx:610
+- `console.log("📍 Location context initialized - Initial GPS fet...)` - client/src/contexts/location-context-clean.tsx:616
+- `console.log("📍 Manual location update received:", manualLocat...)` - client/src/contexts/location-context-clean.tsx:622
+- `console.log("🚫 Aborting stale enrichment request")` - client/src/contexts/location-context-clean.tsx:636
+- `console.log("✅ Manual city search - overrideCoords set:", data...)` - client/src/contexts/location-context-clean.tsx:655
+- `console.error("❌ Manual location geocoding failed:", error)` - client/src/contexts/location-context-clean.tsx:657
+- _... and 203 more_
+
+---
+
+## Other
+
+### Files
+
+- [.cache/replit/modules.stamp](./.cache/replit/modules.stamp) (not active)
+- [.cache/replit/modules/nodejs-20](./.cache/replit/modules/nodejs-20) (not active)
+- [.cache/replit/modules/nodejs-20.res](./.cache/replit/modules/nodejs-20.res) (not active)
+- [.cache/replit/modules/postgresql-16](./.cache/replit/modules/postgresql-16) (not active)
+- [.cache/replit/modules/postgresql-16.res](./.cache/replit/modules/postgresql-16.res) (not active)
+- [.cache/replit/modules/python-3.11](./.cache/replit/modules/python-3.11) (not active)
+- [.cache/replit/modules/python-3.11.res](./.cache/replit/modules/python-3.11.res) (not active)
+- [.cache/replit/modules/replit](./.cache/replit/modules/replit) (not active)
+- [.cache/replit/modules/replit-rtld-loader](./.cache/replit/modules/replit-rtld-loader) (not active)
+- [.cache/replit/modules/replit-rtld-loader.res](./.cache/replit/modules/replit-rtld-loader.res) (not active)
+- [.cache/replit/modules/replit.res](./.cache/replit/modules/replit.res) (not active)
+- [.local/state/replit/agent/.agent_state_07f70ddbfe550d58530ac8257abc2c61efff7375.bin](./.local/state/replit/agent/.agent_state_07f70ddbfe550d58530ac8257abc2c61efff7375.bin) (not active)
+- [.local/state/replit/agent/.agent_state_0d9c7c457af55edcf0dbbc78912b2d841de2b1ce.bin](./.local/state/replit/agent/.agent_state_0d9c7c457af55edcf0dbbc78912b2d841de2b1ce.bin) (not active)
+- [.local/state/replit/agent/.agent_state_0eae9ed67db9f1035528efac0684756c146a0488.bin](./.local/state/replit/agent/.agent_state_0eae9ed67db9f1035528efac0684756c146a0488.bin) (not active)
+- [.local/state/replit/agent/.agent_state_2193dc53e345e0462ac4f520af6f2e7d28e69fee.bin](./.local/state/replit/agent/.agent_state_2193dc53e345e0462ac4f520af6f2e7d28e69fee.bin) (not active)
+- [.local/state/replit/agent/.agent_state_2ff6129d7a91aaf30b255c7b856201894566aa04.bin](./.local/state/replit/agent/.agent_state_2ff6129d7a91aaf30b255c7b856201894566aa04.bin) (not active)
+- [.local/state/replit/agent/.agent_state_3f44c1e2ea1e0eabfbb769a0f1008f2330f03326.bin](./.local/state/replit/agent/.agent_state_3f44c1e2ea1e0eabfbb769a0f1008f2330f03326.bin) (not active)
+- [.local/state/replit/agent/.agent_state_4dc1291b8304e124223747d3e1af92881cebc5db.bin](./.local/state/replit/agent/.agent_state_4dc1291b8304e124223747d3e1af92881cebc5db.bin) (not active)
+- [.local/state/replit/agent/.agent_state_5260cf84d1a09a1e5bfb287d75a5deea2df57f85.bin](./.local/state/replit/agent/.agent_state_5260cf84d1a09a1e5bfb287d75a5deea2df57f85.bin) (not active)
+- [.local/state/replit/agent/.agent_state_65a6f6382c73c457eaf153ab2493beda77153b9f.bin](./.local/state/replit/agent/.agent_state_65a6f6382c73c457eaf153ab2493beda77153b9f.bin) (not active)
+- [.local/state/replit/agent/.agent_state_71243197116f9402304f9390229eae42caa9089e.bin](./.local/state/replit/agent/.agent_state_71243197116f9402304f9390229eae42caa9089e.bin) (not active)
+- [.local/state/replit/agent/.agent_state_7be750db44a10a93115230e33b1301ae7b867232.bin](./.local/state/replit/agent/.agent_state_7be750db44a10a93115230e33b1301ae7b867232.bin) (not active)
+- [.local/state/replit/agent/.agent_state_7fd1f47e14ce334c3dfafae886f9f51bf1605385.bin](./.local/state/replit/agent/.agent_state_7fd1f47e14ce334c3dfafae886f9f51bf1605385.bin) (not active)
+- [.local/state/replit/agent/.agent_state_81903ab73116382ed4b9572d591d53597616600d.bin](./.local/state/replit/agent/.agent_state_81903ab73116382ed4b9572d591d53597616600d.bin) (not active)
+- [.local/state/replit/agent/.agent_state_95c813b5cf0b77b7c34ca25b5b8365d1e653aee5.bin](./.local/state/replit/agent/.agent_state_95c813b5cf0b77b7c34ca25b5b8365d1e653aee5.bin) (not active)
+- [.local/state/replit/agent/.agent_state_9c68a1b286f7d750b5b0775cd8be17aed39b11c9.bin](./.local/state/replit/agent/.agent_state_9c68a1b286f7d750b5b0775cd8be17aed39b11c9.bin) (not active)
+- [.local/state/replit/agent/.agent_state_9cd27331beab14a39ea523b054722e07ef054287.bin](./.local/state/replit/agent/.agent_state_9cd27331beab14a39ea523b054722e07ef054287.bin) (not active)
+- [.local/state/replit/agent/.agent_state_a77d9f18c3a71e369be56fa369d610530d260244.bin](./.local/state/replit/agent/.agent_state_a77d9f18c3a71e369be56fa369d610530d260244.bin) (not active)
+- [.local/state/replit/agent/.agent_state_d5a9187773f4da73a48616f43fbf91f4b78bcebd.bin](./.local/state/replit/agent/.agent_state_d5a9187773f4da73a48616f43fbf91f4b78bcebd.bin) (not active)
+- [.local/state/replit/agent/.agent_state_d6660ab7c66fc01e8672ec4997c9e45a3e86b42a.bin](./.local/state/replit/agent/.agent_state_d6660ab7c66fc01e8672ec4997c9e45a3e86b42a.bin) (not active)
+- [.local/state/replit/agent/.agent_state_d6b28bc396d4a2484f1a44f991b6138edd780494.bin](./.local/state/replit/agent/.agent_state_d6b28bc396d4a2484f1a44f991b6138edd780494.bin) (not active)
+- [.local/state/replit/agent/.agent_state_d7043e415ef59e6ea6486360d131fa0ffa9443ce.bin](./.local/state/replit/agent/.agent_state_d7043e415ef59e6ea6486360d131fa0ffa9443ce.bin) (not active)
+- [.local/state/replit/agent/.agent_state_dc55f86c585f4e0a2cbb30382d6196e11b15e04c.bin](./.local/state/replit/agent/.agent_state_dc55f86c585f4e0a2cbb30382d6196e11b15e04c.bin) (not active)
+- [.local/state/replit/agent/.agent_state_e43ad82343b844b73d77ef914d693b29ea33dd56.bin](./.local/state/replit/agent/.agent_state_e43ad82343b844b73d77ef914d693b29ea33dd56.bin) (not active)
+- [.local/state/replit/agent/.agent_state_fb6f2715ade1ba611565490eb7c005b777ed953c.bin](./.local/state/replit/agent/.agent_state_fb6f2715ade1ba611565490eb7c005b777ed953c.bin) (not active)
+- [.local/state/replit/agent/.agent_state_ff5cf4d1edfff4484ee8a753bd0367994ebb7f8b.bin](./.local/state/replit/agent/.agent_state_ff5cf4d1edfff4484ee8a753bd0367994ebb7f8b.bin) (not active)
+- [.local/state/replit/agent/.agent_state_main.bin](./.local/state/replit/agent/.agent_state_main.bin) (not active)
+- [.local/state/replit/agent/.latest.json](./.local/state/replit/agent/.latest.json) (not active)
+- [.local/state/replit/agent/repl_state.bin](./.local/state/replit/agent/repl_state.bin) (not active)
+- [.pythonlibs/.lock](./.pythonlibs/.lock) (not active)
+- [.pythonlibs/bin/activate](./.pythonlibs/bin/activate) (not active)
+- [.pythonlibs/bin/activate_this.py](./.pythonlibs/bin/activate_this.py) (not active)
+- [.pythonlibs/bin/activate.bat](./.pythonlibs/bin/activate.bat) (not active)
+- [.pythonlibs/bin/activate.csh](./.pythonlibs/bin/activate.csh) (not active)
+- [.pythonlibs/bin/activate.fish](./.pythonlibs/bin/activate.fish) (not active)
+- [.pythonlibs/bin/activate.nu](./.pythonlibs/bin/activate.nu) (not active)
+- [.pythonlibs/bin/activate.ps1](./.pythonlibs/bin/activate.ps1) (not active)
+- [.pythonlibs/bin/deactivate.bat](./.pythonlibs/bin/deactivate.bat) (not active)
+- [.pythonlibs/bin/distro](./.pythonlibs/bin/distro) (not active)
+- [.pythonlibs/bin/httpx](./.pythonlibs/bin/httpx) (not active)
+- [.pythonlibs/bin/markdown_py](./.pythonlibs/bin/markdown_py) (not active)
+- [.pythonlibs/bin/normalizer](./.pythonlibs/bin/normalizer) (not active)
+- [.pythonlibs/bin/openai](./.pythonlibs/bin/openai) (not active)
+- [.pythonlibs/bin/pydoc.bat](./.pythonlibs/bin/pydoc.bat) (not active)
+- [.pythonlibs/bin/pyrsa-decrypt](./.pythonlibs/bin/pyrsa-decrypt) (not active)
+- [.pythonlibs/bin/pyrsa-encrypt](./.pythonlibs/bin/pyrsa-encrypt) (not active)
+- [.pythonlibs/bin/pyrsa-keygen](./.pythonlibs/bin/pyrsa-keygen) (not active)
+- [.pythonlibs/bin/pyrsa-priv2pub](./.pythonlibs/bin/pyrsa-priv2pub) (not active)
+- [.pythonlibs/bin/pyrsa-sign](./.pythonlibs/bin/pyrsa-sign) (not active)
+- [.pythonlibs/bin/pyrsa-verify](./.pythonlibs/bin/pyrsa-verify) (not active)
+- [.pythonlibs/bin/python](./.pythonlibs/bin/python) (not active)
+- [.pythonlibs/bin/python3](./.pythonlibs/bin/python3) (not active)
+- [.pythonlibs/bin/python3.11](./.pythonlibs/bin/python3.11) (not active)
+- [.pythonlibs/bin/tqdm](./.pythonlibs/bin/tqdm) (not active)
+- [.pythonlibs/bin/websockets](./.pythonlibs/bin/websockets) (not active)
+- [.pythonlibs/CACHEDIR.TAG](./.pythonlibs/CACHEDIR.TAG) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/__pycache__/_virtualenv.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/__pycache__/_virtualenv.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/__pycache__/typing_extensions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/__pycache__/typing_extensions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/_virtualenv.pth](./.pythonlibs/lib/python3.11/site-packages/_virtualenv.pth) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/_virtualenv.py](./.pythonlibs/lib/python3.11/site-packages/_virtualenv.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/annotated_types-0.7.0.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types/__init__.py](./.pythonlibs/lib/python3.11/site-packages/annotated_types/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/annotated_types/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types/__pycache__/test_cases.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/annotated_types/__pycache__/test_cases.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types/py.typed](./.pythonlibs/lib/python3.11/site-packages/annotated_types/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/annotated_types/test_cases.py](./.pythonlibs/lib/python3.11/site-packages/annotated_types/test_cases.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/entry_points.txt](./.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/entry_points.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/anyio-4.12.0.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/__init__.py](./.pythonlibs/lib/python3.11/site-packages/anyio/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/from_thread.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/from_thread.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/functools.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/functools.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/lowlevel.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/lowlevel.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/pytest_plugin.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/pytest_plugin.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/to_interpreter.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/to_interpreter.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/to_process.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/to_process.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/to_thread.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/__pycache__/to_thread.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_backends/__init__.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_backends/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_backends/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_backends/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_backends/__pycache__/_asyncio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_backends/__pycache__/_asyncio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_backends/__pycache__/_trio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_backends/__pycache__/_trio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_backends/_asyncio.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_backends/_asyncio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_backends/_trio.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_backends/_trio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__init__.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_asyncio_selector_thread.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_asyncio_selector_thread.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_contextmanagers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_contextmanagers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_eventloop.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_eventloop.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_exceptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_exceptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_fileio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_fileio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_resources.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_resources.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_signals.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_signals.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_sockets.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_sockets.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_streams.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_streams.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_subprocesses.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_subprocesses.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_synchronization.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_synchronization.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_tasks.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_tasks.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_tempfile.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_tempfile.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_testing.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_testing.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_typedattr.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/__pycache__/_typedattr.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_asyncio_selector_thread.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_asyncio_selector_thread.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_contextmanagers.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_contextmanagers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_eventloop.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_eventloop.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_exceptions.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_exceptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_fileio.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_fileio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_resources.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_resources.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_signals.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_signals.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_sockets.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_sockets.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_streams.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_streams.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_subprocesses.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_subprocesses.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_synchronization.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_synchronization.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_tasks.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_tasks.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_tempfile.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_tempfile.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_testing.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_testing.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/_core/_typedattr.py](./.pythonlibs/lib/python3.11/site-packages/anyio/_core/_typedattr.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/__init__.py](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_eventloop.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_eventloop.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_resources.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_resources.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_sockets.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_sockets.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_streams.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_streams.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_subprocesses.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_subprocesses.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_tasks.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_tasks.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_testing.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/__pycache__/_testing.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/_eventloop.py](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/_eventloop.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/_resources.py](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/_resources.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/_sockets.py](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/_sockets.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/_streams.py](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/_streams.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/_subprocesses.py](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/_subprocesses.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/_tasks.py](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/_tasks.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/abc/_testing.py](./.pythonlibs/lib/python3.11/site-packages/anyio/abc/_testing.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/from_thread.py](./.pythonlibs/lib/python3.11/site-packages/anyio/from_thread.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/functools.py](./.pythonlibs/lib/python3.11/site-packages/anyio/functools.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/lowlevel.py](./.pythonlibs/lib/python3.11/site-packages/anyio/lowlevel.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/py.typed](./.pythonlibs/lib/python3.11/site-packages/anyio/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/pytest_plugin.py](./.pythonlibs/lib/python3.11/site-packages/anyio/pytest_plugin.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/__init__.py](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/buffered.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/buffered.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/file.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/file.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/memory.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/memory.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/stapled.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/stapled.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/text.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/text.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/tls.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/__pycache__/tls.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/buffered.py](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/buffered.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/file.py](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/file.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/memory.py](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/memory.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/stapled.py](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/stapled.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/text.py](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/text.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/streams/tls.py](./.pythonlibs/lib/python3.11/site-packages/anyio/streams/tls.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/to_interpreter.py](./.pythonlibs/lib/python3.11/site-packages/anyio/to_interpreter.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/to_process.py](./.pythonlibs/lib/python3.11/site-packages/anyio/to_process.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/anyio/to_thread.py](./.pythonlibs/lib/python3.11/site-packages/anyio/to_thread.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/cachetools-6.2.2.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/__init__.py](./.pythonlibs/lib/python3.11/site-packages/cachetools/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/_cached.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/_cached.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/_cachedmethod.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/_cachedmethod.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/func.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/func.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/keys.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/cachetools/__pycache__/keys.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/_cached.py](./.pythonlibs/lib/python3.11/site-packages/cachetools/_cached.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/_cachedmethod.py](./.pythonlibs/lib/python3.11/site-packages/cachetools/_cachedmethod.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/func.py](./.pythonlibs/lib/python3.11/site-packages/cachetools/func.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/cachetools/keys.py](./.pythonlibs/lib/python3.11/site-packages/cachetools/keys.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/certifi-2025.11.12.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi/__init__.py](./.pythonlibs/lib/python3.11/site-packages/certifi/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi/__main__.py](./.pythonlibs/lib/python3.11/site-packages/certifi/__main__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/certifi/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi/__pycache__/__main__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/certifi/__pycache__/__main__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi/__pycache__/core.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/certifi/__pycache__/core.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi/cacert.pem](./.pythonlibs/lib/python3.11/site-packages/certifi/cacert.pem) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi/core.py](./.pythonlibs/lib/python3.11/site-packages/certifi/core.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/certifi/py.typed](./.pythonlibs/lib/python3.11/site-packages/certifi/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/entry_points.txt](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/entry_points.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer-3.4.4.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__init__.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__main__.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__main__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/__main__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/__main__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/api.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/api.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/cd.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/cd.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/constant.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/constant.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/legacy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/legacy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/md.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/md.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/models.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/__pycache__/version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/api.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/api.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cd.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cd.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cli/__init__.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cli/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cli/__main__.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cli/__main__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cli/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cli/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cli/__pycache__/__main__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/cli/__pycache__/__main__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/constant.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/constant.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/legacy.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/legacy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/md__mypyc.cpython-311-x86_64-linux-gnu.so](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/md__mypyc.cpython-311-x86_64-linux-gnu.so) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/md.cpython-311-x86_64-linux-gnu.so](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/md.cpython-311-x86_64-linux-gnu.so) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/md.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/md.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/models.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/models.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/py.typed](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/utils.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/charset_normalizer/version.py](./.pythonlibs/lib/python3.11/site-packages/charset_normalizer/version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/entry_points.txt](./.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/entry_points.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/LICENSE](./.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/distro-1.9.0.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro/__init__.py](./.pythonlibs/lib/python3.11/site-packages/distro/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro/__main__.py](./.pythonlibs/lib/python3.11/site-packages/distro/__main__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/distro/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro/__pycache__/__main__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/distro/__pycache__/__main__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro/__pycache__/distro.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/distro/__pycache__/distro.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro/distro.py](./.pythonlibs/lib/python3.11/site-packages/distro/distro.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/distro/py.typed](./.pythonlibs/lib/python3.11/site-packages/distro/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/google_auth-2.43.0.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/REQUESTED](./.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/REQUESTED) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/google_genai-1.52.0.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__init__.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_cloud_sdk.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_cloud_sdk.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_constants.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_constants.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_credentials_async.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_credentials_async.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_credentials_base.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_credentials_base.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_default_async.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_default_async.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_default.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_default.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_exponential_backoff.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_exponential_backoff.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_helpers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_helpers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_jwt_async.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_jwt_async.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_oauth2client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_oauth2client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_refresh_worker.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_refresh_worker.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_service_account_info.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/_service_account_info.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/api_key.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/api_key.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/app_engine.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/app_engine.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/aws.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/aws.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/credentials.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/credentials.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/downscoped.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/downscoped.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/environment_vars.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/environment_vars.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/exceptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/exceptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/external_account_authorized_user.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/external_account_authorized_user.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/external_account.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/external_account.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/iam.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/iam.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/identity_pool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/identity_pool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/impersonated_credentials.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/impersonated_credentials.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/jwt.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/jwt.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/metrics.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/metrics.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/pluggable.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/pluggable.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/__pycache__/version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_cloud_sdk.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_cloud_sdk.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_constants.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_constants.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_credentials_async.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_credentials_async.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_credentials_base.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_credentials_base.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_default_async.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_default_async.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_default.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_default.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_exponential_backoff.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_exponential_backoff.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_helpers.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_helpers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_jwt_async.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_jwt_async.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_oauth2client.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_oauth2client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_refresh_worker.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_refresh_worker.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/_service_account_info.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/_service_account_info.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/__init__.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/__pycache__/_helpers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/__pycache__/_helpers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/__pycache__/credentials.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/__pycache__/credentials.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/_helpers.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/_helpers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/credentials.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/credentials.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/__init__.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/__pycache__/aiohttp.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/__pycache__/aiohttp.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/__pycache__/sessions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/__pycache__/sessions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/aiohttp.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/aiohttp.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/sessions.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/aio/transport/sessions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/api_key.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/api_key.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/app_engine.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/app_engine.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/aws.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/aws.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/__init__.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/__pycache__/_metadata.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/__pycache__/_metadata.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/__pycache__/credentials.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/__pycache__/credentials.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/_metadata.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/_metadata.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/credentials.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/compute_engine/credentials.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/credentials.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/credentials.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__init__.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/_cryptography_rsa.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/_cryptography_rsa.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/_helpers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/_helpers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/_python_rsa.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/_python_rsa.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/base.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/base.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/es256.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/es256.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/rsa.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/__pycache__/rsa.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/_cryptography_rsa.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/_cryptography_rsa.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/_helpers.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/_helpers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/_python_rsa.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/_python_rsa.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/base.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/base.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/es256.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/es256.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/rsa.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/crypt/rsa.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/downscoped.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/downscoped.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/environment_vars.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/environment_vars.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/exceptions.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/exceptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/external_account_authorized_user.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/external_account_authorized_user.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/external_account.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/external_account.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/iam.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/iam.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/identity_pool.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/identity_pool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/impersonated_credentials.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/impersonated_credentials.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/jwt.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/jwt.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/metrics.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/metrics.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/pluggable.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/pluggable.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/py.typed](./.pythonlibs/lib/python3.11/site-packages/google/auth/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__init__.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_aiohttp_requests.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_aiohttp_requests.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_custom_tls_signer.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_custom_tls_signer.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_http_client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_http_client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_mtls_helper.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_mtls_helper.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_requests_base.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/_requests_base.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/grpc.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/grpc.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/mtls.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/mtls.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/requests.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/requests.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/urllib3.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/__pycache__/urllib3.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_aiohttp_requests.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_aiohttp_requests.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_custom_tls_signer.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_custom_tls_signer.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_http_client.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_http_client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_mtls_helper.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_mtls_helper.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_requests_base.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/_requests_base.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/grpc.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/grpc.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/mtls.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/mtls.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/requests.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/requests.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/transport/urllib3.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/transport/urllib3.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/auth/version.py](./.pythonlibs/lib/python3.11/site-packages/google/auth/version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__init__.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_adapters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_adapters.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_api_client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_api_client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_api_module.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_api_module.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_automatic_function_calling_util.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_automatic_function_calling_util.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_base_transformers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_base_transformers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_base_url.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_base_url.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_common.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_common.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_extra_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_extra_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_live_converters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_live_converters.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_local_tokenizer_loader.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_local_tokenizer_loader.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_mcp_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_mcp_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_operations_converters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_operations_converters.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_replay_api_client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_replay_api_client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_test_api_client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_test_api_client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_tokens_converters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_tokens_converters.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_transformers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/_transformers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/batches.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/batches.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/caches.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/caches.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/chats.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/chats.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/documents.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/documents.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/errors.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/errors.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/file_search_stores.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/file_search_stores.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/files.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/files.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/live_music.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/live_music.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/live.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/live.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/local_tokenizer.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/local_tokenizer.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/models.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/operations.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/operations.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/pagers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/pagers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/tokens.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/tokens.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/tunings.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/tunings.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/genai/__pycache__/version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_adapters.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_adapters.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_api_client.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_api_client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_api_module.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_api_module.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_automatic_function_calling_util.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_automatic_function_calling_util.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_base_transformers.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_base_transformers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_base_url.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_base_url.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_common.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_common.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_extra_utils.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_extra_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_live_converters.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_live_converters.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_local_tokenizer_loader.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_local_tokenizer_loader.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_mcp_utils.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_mcp_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_operations_converters.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_operations_converters.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_replay_api_client.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_replay_api_client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_test_api_client.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_test_api_client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_tokens_converters.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_tokens_converters.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/_transformers.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/_transformers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/batches.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/batches.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/caches.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/caches.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/chats.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/chats.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/client.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/documents.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/documents.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/errors.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/errors.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/file_search_stores.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/file_search_stores.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/files.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/files.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/live_music.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/live_music.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/live.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/live.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/local_tokenizer.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/local_tokenizer.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/models.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/models.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/operations.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/operations.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/pagers.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/pagers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/py.typed](./.pythonlibs/lib/python3.11/site-packages/google/genai/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/tokens.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/tokens.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/tunings.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/tunings.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/types.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/genai/version.py](./.pythonlibs/lib/python3.11/site-packages/google/genai/version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__init__.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_client_async.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_client_async.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_credentials_async.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_credentials_async.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_id_token_async.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_id_token_async.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_reauth_async.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_reauth_async.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_service_account_async.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/_service_account_async.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/challenges.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/challenges.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/credentials.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/credentials.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/gdch_credentials.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/gdch_credentials.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/id_token.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/id_token.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/reauth.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/reauth.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/service_account.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/service_account.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/sts.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/sts.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/webauthn_handler_factory.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/webauthn_handler_factory.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/webauthn_handler.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/webauthn_handler.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/webauthn_types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/__pycache__/webauthn_types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/_client_async.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/_client_async.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/_client.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/_client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/_credentials_async.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/_credentials_async.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/_id_token_async.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/_id_token_async.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/_reauth_async.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/_reauth_async.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/_service_account_async.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/_service_account_async.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/challenges.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/challenges.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/credentials.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/credentials.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/gdch_credentials.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/gdch_credentials.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/id_token.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/id_token.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/py.typed](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/reauth.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/reauth.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/service_account.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/service_account.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/sts.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/sts.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/utils.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/webauthn_handler_factory.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/webauthn_handler_factory.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/webauthn_handler.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/webauthn_handler.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/google/oauth2/webauthn_types.py](./.pythonlibs/lib/python3.11/site-packages/google/oauth2/webauthn_types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/licenses/LICENSE.txt](./.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/licenses/LICENSE.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/h11-0.16.0.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__init__.py](./.pythonlibs/lib/python3.11/site-packages/h11/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_abnf.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_abnf.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_events.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_events.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_headers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_headers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_readers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_readers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_receivebuffer.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_receivebuffer.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_state.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_state.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_util.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_util.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_writers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/h11/__pycache__/_writers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_abnf.py](./.pythonlibs/lib/python3.11/site-packages/h11/_abnf.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_connection.py](./.pythonlibs/lib/python3.11/site-packages/h11/_connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_events.py](./.pythonlibs/lib/python3.11/site-packages/h11/_events.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_headers.py](./.pythonlibs/lib/python3.11/site-packages/h11/_headers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_readers.py](./.pythonlibs/lib/python3.11/site-packages/h11/_readers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_receivebuffer.py](./.pythonlibs/lib/python3.11/site-packages/h11/_receivebuffer.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_state.py](./.pythonlibs/lib/python3.11/site-packages/h11/_state.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_util.py](./.pythonlibs/lib/python3.11/site-packages/h11/_util.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_version.py](./.pythonlibs/lib/python3.11/site-packages/h11/_version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/_writers.py](./.pythonlibs/lib/python3.11/site-packages/h11/_writers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/h11/py.typed](./.pythonlibs/lib/python3.11/site-packages/h11/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/licenses/LICENSE.md](./.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/licenses/LICENSE.md) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/httpcore-1.0.9.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/__init__.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_api.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_api.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_exceptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_exceptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_models.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_ssl.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_ssl.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_synchronization.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_synchronization.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_trace.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_trace.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/__pycache__/_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_api.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_api.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__init__.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/connection_pool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/connection_pool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/http_proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/http_proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/http11.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/http11.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/http2.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/http2.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/interfaces.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/interfaces.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/socks_proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/__pycache__/socks_proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/connection_pool.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/connection_pool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/connection.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/http_proxy.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/http_proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/http11.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/http11.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/http2.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/http2.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/interfaces.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/interfaces.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_async/socks_proxy.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_async/socks_proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__init__.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/anyio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/anyio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/auto.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/auto.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/base.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/base.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/mock.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/mock.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/sync.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/sync.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/trio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/__pycache__/trio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/anyio.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/anyio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/auto.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/auto.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/base.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/base.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/mock.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/mock.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/sync.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/sync.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/trio.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_backends/trio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_exceptions.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_exceptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_models.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_models.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_ssl.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_ssl.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__init__.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/connection_pool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/connection_pool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/http_proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/http_proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/http11.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/http11.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/http2.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/http2.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/interfaces.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/interfaces.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/socks_proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/__pycache__/socks_proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/connection_pool.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/connection_pool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/connection.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/http_proxy.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/http_proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/http11.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/http11.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/http2.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/http2.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/interfaces.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/interfaces.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/socks_proxy.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_sync/socks_proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_synchronization.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_synchronization.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_trace.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_trace.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/_utils.py](./.pythonlibs/lib/python3.11/site-packages/httpcore/_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpcore/py.typed](./.pythonlibs/lib/python3.11/site-packages/httpcore/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/entry_points.txt](./.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/entry_points.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/licenses/LICENSE.md](./.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/licenses/LICENSE.md) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/httpx-0.28.1.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__init__.py](./.pythonlibs/lib/python3.11/site-packages/httpx/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/__version__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/__version__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_api.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_api.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_auth.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_auth.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_decoders.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_decoders.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_exceptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_exceptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_main.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_main.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_models.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_multipart.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_multipart.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_status_codes.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_status_codes.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_urlparse.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_urlparse.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_urls.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_urls.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/__pycache__/_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/__version__.py](./.pythonlibs/lib/python3.11/site-packages/httpx/__version__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_api.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_api.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_auth.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_auth.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_client.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_config.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_content.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_decoders.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_decoders.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_exceptions.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_exceptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_main.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_main.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_models.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_models.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_multipart.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_multipart.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_status_codes.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_status_codes.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__init__.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/asgi.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/asgi.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/base.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/base.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/default.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/default.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/mock.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/mock.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/wsgi.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/__pycache__/wsgi.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/asgi.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/asgi.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/base.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/base.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/default.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/default.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/mock.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/mock.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_transports/wsgi.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_transports/wsgi.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_types.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_urlparse.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_urlparse.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_urls.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_urls.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/_utils.py](./.pythonlibs/lib/python3.11/site-packages/httpx/_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/httpx/py.typed](./.pythonlibs/lib/python3.11/site-packages/httpx/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/licenses/LICENSE.md](./.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/licenses/LICENSE.md) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/idna-3.11.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/__init__.py](./.pythonlibs/lib/python3.11/site-packages/idna/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/codec.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/codec.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/compat.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/compat.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/core.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/core.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/idnadata.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/idnadata.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/intranges.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/intranges.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/package_data.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/package_data.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/uts46data.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/idna/__pycache__/uts46data.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/codec.py](./.pythonlibs/lib/python3.11/site-packages/idna/codec.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/compat.py](./.pythonlibs/lib/python3.11/site-packages/idna/compat.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/core.py](./.pythonlibs/lib/python3.11/site-packages/idna/core.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/idnadata.py](./.pythonlibs/lib/python3.11/site-packages/idna/idnadata.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/intranges.py](./.pythonlibs/lib/python3.11/site-packages/idna/intranges.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/package_data.py](./.pythonlibs/lib/python3.11/site-packages/idna/package_data.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/py.typed](./.pythonlibs/lib/python3.11/site-packages/idna/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/idna/uts46data.py](./.pythonlibs/lib/python3.11/site-packages/idna/uts46data.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/jiter-0.12.0.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter/__init__.py](./.pythonlibs/lib/python3.11/site-packages/jiter/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter/__init__.pyi](./.pythonlibs/lib/python3.11/site-packages/jiter/__init__.pyi) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/jiter/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter/jiter.cpython-311-x86_64-linux-gnu.so](./.pythonlibs/lib/python3.11/site-packages/jiter/jiter.cpython-311-x86_64-linux-gnu.so) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/jiter/py.typed](./.pythonlibs/lib/python3.11/site-packages/jiter/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/entry_points.txt](./.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/entry_points.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/licenses/LICENSE.md](./.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/licenses/LICENSE.md) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/REQUESTED](./.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/REQUESTED) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/markdown-3.10.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__init__.py](./.pythonlibs/lib/python3.11/site-packages/markdown/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__main__.py](./.pythonlibs/lib/python3.11/site-packages/markdown/__main__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__meta__.py](./.pythonlibs/lib/python3.11/site-packages/markdown/__meta__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/__main__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/__main__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/__meta__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/__meta__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/blockparser.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/blockparser.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/blockprocessors.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/blockprocessors.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/core.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/core.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/htmlparser.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/htmlparser.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/inlinepatterns.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/inlinepatterns.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/postprocessors.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/postprocessors.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/preprocessors.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/preprocessors.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/serializers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/serializers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/test_tools.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/test_tools.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/treeprocessors.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/treeprocessors.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/util.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/__pycache__/util.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/blockparser.py](./.pythonlibs/lib/python3.11/site-packages/markdown/blockparser.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/blockprocessors.py](./.pythonlibs/lib/python3.11/site-packages/markdown/blockprocessors.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/core.py](./.pythonlibs/lib/python3.11/site-packages/markdown/core.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__init__.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/abbr.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/abbr.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/admonition.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/admonition.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/attr_list.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/attr_list.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/codehilite.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/codehilite.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/def_list.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/def_list.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/extra.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/extra.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/fenced_code.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/fenced_code.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/footnotes.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/footnotes.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/legacy_attrs.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/legacy_attrs.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/legacy_em.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/legacy_em.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/md_in_html.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/md_in_html.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/meta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/meta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/nl2br.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/nl2br.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/sane_lists.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/sane_lists.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/smarty.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/smarty.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/tables.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/tables.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/toc.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/toc.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/wikilinks.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/__pycache__/wikilinks.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/abbr.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/abbr.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/admonition.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/admonition.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/attr_list.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/attr_list.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/codehilite.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/codehilite.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/def_list.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/def_list.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/extra.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/extra.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/fenced_code.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/fenced_code.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/footnotes.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/footnotes.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/legacy_attrs.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/legacy_attrs.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/legacy_em.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/legacy_em.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/md_in_html.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/md_in_html.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/meta.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/meta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/nl2br.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/nl2br.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/sane_lists.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/sane_lists.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/smarty.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/smarty.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/tables.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/tables.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/toc.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/toc.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/extensions/wikilinks.py](./.pythonlibs/lib/python3.11/site-packages/markdown/extensions/wikilinks.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/htmlparser.py](./.pythonlibs/lib/python3.11/site-packages/markdown/htmlparser.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/inlinepatterns.py](./.pythonlibs/lib/python3.11/site-packages/markdown/inlinepatterns.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/postprocessors.py](./.pythonlibs/lib/python3.11/site-packages/markdown/postprocessors.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/preprocessors.py](./.pythonlibs/lib/python3.11/site-packages/markdown/preprocessors.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/serializers.py](./.pythonlibs/lib/python3.11/site-packages/markdown/serializers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/test_tools.py](./.pythonlibs/lib/python3.11/site-packages/markdown/test_tools.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/treeprocessors.py](./.pythonlibs/lib/python3.11/site-packages/markdown/treeprocessors.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/markdown/util.py](./.pythonlibs/lib/python3.11/site-packages/markdown/util.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/entry_points.txt](./.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/entry_points.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/REQUESTED](./.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/REQUESTED) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/openai-2.8.1.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__main__.py](./.pythonlibs/lib/python3.11/site-packages/openai/__main__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/__main__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/__main__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_base_client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_base_client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_compat.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_compat.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_constants.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_constants.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_exceptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_exceptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_files.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_files.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_legacy_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_legacy_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_models.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_module_client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_module_client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_qs.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_qs.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_resource.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_resource.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_streaming.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_streaming.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/_version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/pagination.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/pagination.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/__pycache__/version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_base_client.py](./.pythonlibs/lib/python3.11/site-packages/openai/_base_client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_client.py](./.pythonlibs/lib/python3.11/site-packages/openai/_client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_compat.py](./.pythonlibs/lib/python3.11/site-packages/openai/_compat.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_constants.py](./.pythonlibs/lib/python3.11/site-packages/openai/_constants.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_exceptions.py](./.pythonlibs/lib/python3.11/site-packages/openai/_exceptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/_common.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/_common.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/numpy_proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/numpy_proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/pandas_proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/pandas_proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/sounddevice_proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/__pycache__/sounddevice_proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/_common.py](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/_common.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/numpy_proxy.py](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/numpy_proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/pandas_proxy.py](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/pandas_proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_extras/sounddevice_proxy.py](./.pythonlibs/lib/python3.11/site-packages/openai/_extras/sounddevice_proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_files.py](./.pythonlibs/lib/python3.11/site-packages/openai/_files.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_legacy_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/_legacy_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_models.py](./.pythonlibs/lib/python3.11/site-packages/openai/_models.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_module_client.py](./.pythonlibs/lib/python3.11/site-packages/openai/_module_client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_qs.py](./.pythonlibs/lib/python3.11/site-packages/openai/_qs.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_resource.py](./.pythonlibs/lib/python3.11/site-packages/openai/_resource.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_streaming.py](./.pythonlibs/lib/python3.11/site-packages/openai/_streaming.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_types.py](./.pythonlibs/lib/python3.11/site-packages/openai/_types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_compat.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_compat.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_datetime_parse.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_datetime_parse.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_logs.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_logs.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_reflection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_reflection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_resources_proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_resources_proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_streams.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_streams.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_sync.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_sync.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_transform.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_transform.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_typing.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_typing.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/__pycache__/_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_compat.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_compat.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_datetime_parse.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_datetime_parse.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_logs.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_logs.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_proxy.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_reflection.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_reflection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_resources_proxy.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_resources_proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_streams.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_streams.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_sync.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_sync.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_transform.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_transform.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_typing.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_typing.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_utils/_utils.py](./.pythonlibs/lib/python3.11/site-packages/openai/_utils/_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/_version.py](./.pythonlibs/lib/python3.11/site-packages/openai/_version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_cli.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_cli.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_errors.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_errors.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_models.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_progress.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_progress.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/__pycache__/_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/_main.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/_main.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/audio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/audio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/completions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/completions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/files.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/files.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/image.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/image.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/__pycache__/models.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/_main.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/_main.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/audio.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/audio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/chat/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/chat/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/chat/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/chat/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/chat/__pycache__/completions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/chat/__pycache__/completions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/chat/completions.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/chat/completions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/completions.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/completions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/files.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/files.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/fine_tuning/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/fine_tuning/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/fine_tuning/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/fine_tuning/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/fine_tuning/__pycache__/jobs.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/fine_tuning/__pycache__/jobs.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/fine_tuning/jobs.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/fine_tuning/jobs.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/image.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/image.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/models.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_api/models.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_cli.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_cli.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_errors.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_errors.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_models.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_models.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_progress.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_progress.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__pycache__/_main.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__pycache__/_main.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__pycache__/fine_tunes.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__pycache__/fine_tunes.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__pycache__/migrate.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/__pycache__/migrate.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/_main.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/_main.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/fine_tunes.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/fine_tunes.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/migrate.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_tools/migrate.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/cli/_utils.py](./.pythonlibs/lib/python3.11/site-packages/openai/cli/_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/helpers/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/helpers/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/helpers/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/helpers/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/helpers/__pycache__/local_audio_player.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/helpers/__pycache__/local_audio_player.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/helpers/__pycache__/microphone.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/helpers/__pycache__/microphone.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/helpers/local_audio_player.py](./.pythonlibs/lib/python3.11/site-packages/openai/helpers/local_audio_player.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/helpers/microphone.py](./.pythonlibs/lib/python3.11/site-packages/openai/helpers/microphone.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_old_api.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_old_api.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_pydantic.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_pydantic.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_realtime.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_realtime.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_tools.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_tools.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_validators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/_validators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/azure.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/__pycache__/azure.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_old_api.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_old_api.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/__pycache__/_completions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/__pycache__/_completions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/__pycache__/_responses.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/__pycache__/_responses.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/_completions.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/_completions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/_responses.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_parsing/_responses.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_pydantic.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_pydantic.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_realtime.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_realtime.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_tools.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_tools.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/_validators.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/_validators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/.keep](./.pythonlibs/lib/python3.11/site-packages/openai/lib/.keep) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/azure.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/azure.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/__pycache__/_assistants.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/__pycache__/_assistants.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/__pycache__/_deltas.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/__pycache__/_deltas.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/_assistants.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/_assistants.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/_deltas.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/_deltas.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__pycache__/_completions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__pycache__/_completions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__pycache__/_events.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__pycache__/_events.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__pycache__/_types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/__pycache__/_types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/_completions.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/_completions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/_events.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/_events.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/_types.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/chat/_types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__pycache__/_events.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__pycache__/_events.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__pycache__/_responses.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__pycache__/_responses.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__pycache__/_types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/__pycache__/_types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/_events.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/_events.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/_responses.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/_responses.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/_types.py](./.pythonlibs/lib/python3.11/site-packages/openai/lib/streaming/responses/_types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/pagination.py](./.pythonlibs/lib/python3.11/site-packages/openai/pagination.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/py.typed](./.pythonlibs/lib/python3.11/site-packages/openai/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/batches.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/batches.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/completions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/completions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/embeddings.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/embeddings.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/files.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/files.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/images.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/images.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/models.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/moderations.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/moderations.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/videos.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/videos.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/webhooks.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/__pycache__/webhooks.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/audio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/audio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/speech.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/speech.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/transcriptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/transcriptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/translations.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/__pycache__/translations.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/audio.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/audio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/speech.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/speech.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/transcriptions.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/transcriptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/translations.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/audio/translations.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/batches.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/batches.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/__pycache__/assistants.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/__pycache__/assistants.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/__pycache__/beta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/__pycache__/beta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/assistants.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/assistants.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/beta.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/beta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__pycache__/chatkit.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__pycache__/chatkit.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__pycache__/sessions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__pycache__/sessions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__pycache__/threads.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/__pycache__/threads.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/chatkit.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/chatkit.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/sessions.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/sessions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/threads.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/chatkit/threads.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__pycache__/realtime.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__pycache__/realtime.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__pycache__/sessions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__pycache__/sessions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__pycache__/transcription_sessions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/__pycache__/transcription_sessions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/realtime.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/realtime.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/sessions.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/sessions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/transcription_sessions.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/realtime/transcription_sessions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/__pycache__/messages.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/__pycache__/messages.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/__pycache__/threads.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/__pycache__/threads.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/messages.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/messages.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/__pycache__/runs.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/__pycache__/runs.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/__pycache__/steps.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/__pycache__/steps.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/runs.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/runs.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/steps.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/runs/steps.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/threads.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/beta/threads/threads.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/__pycache__/chat.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/__pycache__/chat.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/chat.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/chat.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/__pycache__/completions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/__pycache__/completions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/__pycache__/messages.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/__pycache__/messages.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/completions.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/completions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/messages.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/chat/completions/messages.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/completions.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/completions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/__pycache__/containers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/__pycache__/containers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/containers.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/containers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/__pycache__/content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/__pycache__/content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/__pycache__/files.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/__pycache__/files.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/content.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/files.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/containers/files/files.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/__pycache__/conversations.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/__pycache__/conversations.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/__pycache__/items.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/__pycache__/items.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/conversations.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/conversations.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/items.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/conversations/items.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/embeddings.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/embeddings.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/__pycache__/evals.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/__pycache__/evals.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/evals.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/evals.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/__pycache__/output_items.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/__pycache__/output_items.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/__pycache__/runs.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/__pycache__/runs.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/output_items.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/output_items.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/runs.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/evals/runs/runs.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/files.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/files.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/__pycache__/fine_tuning.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/__pycache__/fine_tuning.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/__pycache__/alpha.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/__pycache__/alpha.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/__pycache__/graders.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/__pycache__/graders.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/alpha.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/alpha.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/graders.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/alpha/graders.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/__pycache__/checkpoints.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/__pycache__/checkpoints.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/__pycache__/permissions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/__pycache__/permissions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/checkpoints.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/checkpoints.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/permissions.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/checkpoints/permissions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/fine_tuning.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/fine_tuning.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/__pycache__/checkpoints.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/__pycache__/checkpoints.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/__pycache__/jobs.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/__pycache__/jobs.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/checkpoints.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/checkpoints.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/jobs.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/fine_tuning/jobs/jobs.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/images.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/images.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/models.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/models.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/moderations.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/moderations.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__pycache__/calls.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__pycache__/calls.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__pycache__/client_secrets.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__pycache__/client_secrets.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__pycache__/realtime.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/__pycache__/realtime.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/calls.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/calls.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/client_secrets.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/client_secrets.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/realtime.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/realtime/realtime.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__pycache__/input_items.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__pycache__/input_items.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__pycache__/input_tokens.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__pycache__/input_tokens.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__pycache__/responses.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/__pycache__/responses.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/input_items.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/input_items.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/input_tokens.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/input_tokens.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/responses.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/responses/responses.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/__pycache__/parts.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/__pycache__/parts.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/__pycache__/uploads.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/__pycache__/uploads.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/parts.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/parts.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/uploads.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/uploads/uploads.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__pycache__/file_batches.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__pycache__/file_batches.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__pycache__/files.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__pycache__/files.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__pycache__/vector_stores.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/__pycache__/vector_stores.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/file_batches.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/file_batches.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/files.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/files.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/vector_stores.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/vector_stores/vector_stores.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/videos.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/videos.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/resources/webhooks.py](./.pythonlibs/lib/python3.11/site-packages/openai/resources/webhooks.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/audio_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/audio_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/audio_response_format.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/audio_response_format.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/auto_file_chunking_strategy_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/auto_file_chunking_strategy_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_request_counts.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_request_counts.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_usage.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch_usage.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/batch.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/chat_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/chat_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/completion_choice.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/completion_choice.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/completion_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/completion_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/completion_usage.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/completion_usage.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/completion.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/completion.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_list_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_list_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_retrieve_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/container_retrieve_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/create_embedding_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/create_embedding_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/embedding_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/embedding_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/embedding_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/embedding_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/embedding.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/embedding.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_custom_data_source_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_custom_data_source_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_delete_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_delete_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_list_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_list_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_retrieve_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_retrieve_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_stored_completions_data_source_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_stored_completions_data_source_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_update_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_update_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_update_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/eval_update_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_chunking_strategy_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_chunking_strategy_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_chunking_strategy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_chunking_strategy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_deleted.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_deleted.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_object.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_object.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_purpose.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/file_purpose.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_create_variation_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_create_variation_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_edit_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_edit_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_edit_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_edit_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_edit_partial_image_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_edit_partial_image_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_edit_stream_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_edit_stream_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_gen_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_gen_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_gen_partial_image_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_gen_partial_image_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_gen_stream_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_gen_stream_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_generate_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_generate_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/image.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/images_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/images_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/model_deleted.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/model_deleted.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_image_url_input_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_image_url_input_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_multi_modal_input_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_multi_modal_input_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_text_input_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation_text_input_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/moderation.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/other_file_chunking_strategy_object.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/other_file_chunking_strategy_object.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/static_file_chunking_strategy_object_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/static_file_chunking_strategy_object_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/static_file_chunking_strategy_object.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/static_file_chunking_strategy_object.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/static_file_chunking_strategy_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/static_file_chunking_strategy_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/static_file_chunking_strategy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/static_file_chunking_strategy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/upload_complete_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/upload_complete_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/upload_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/upload_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/upload.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/upload.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_deleted.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_deleted.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_search_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_search_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_search_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_search_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_update_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store_update_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/vector_store.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_create_error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_create_error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_delete_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_delete_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_download_content_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_download_content_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_remix_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_remix_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_seconds.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_seconds.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_size.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video_size.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/video.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/websocket_connection_options.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/__pycache__/websocket_connection_options.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio_response_format.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio_response_format.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/speech_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/speech_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/speech_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/speech_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_diarized_segment.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_diarized_segment.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_diarized.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_diarized.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_include.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_include.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_segment.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_segment.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_stream_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_stream_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_text_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_text_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_text_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_text_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_text_segment_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_text_segment_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_verbose.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_verbose.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_word.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription_word.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/transcription.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/translation_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/translation_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/translation_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/translation_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/translation_verbose.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/translation_verbose.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/translation.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/__pycache__/translation.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/speech_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/speech_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/speech_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/speech_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_diarized_segment.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_diarized_segment.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_diarized.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_diarized.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_include.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_include.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_segment.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_segment.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_stream_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_stream_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_text_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_text_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_text_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_text_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_text_segment_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_text_segment_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_verbose.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_verbose.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_word.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription_word.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/transcription.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/translation_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/translation_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/translation_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/translation_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/translation_verbose.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/translation_verbose.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/audio/translation.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/audio/translation.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/auto_file_chunking_strategy_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/auto_file_chunking_strategy_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/batch_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/batch_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/batch_error.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/batch_error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/batch_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/batch_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/batch_request_counts.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/batch_request_counts.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/batch_usage.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/batch_usage.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/batch.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/batch.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_deleted.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_deleted.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_response_format_option_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_response_format_option_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_response_format_option.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_response_format_option.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_stream_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_stream_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_function_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_function_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_function.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_function.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_option_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_option_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_option.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_option.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_choice.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_update_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant_update_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/assistant.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/chatkit_workflow.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/chatkit_workflow.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/code_interpreter_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/code_interpreter_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/code_interpreter_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/code_interpreter_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/file_search_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/file_search_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/file_search_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/file_search_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/function_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/function_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/function_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/function_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread_create_and_run_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread_create_and_run_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread_deleted.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread_deleted.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread_update_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread_update_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/__pycache__/thread.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_deleted.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_deleted.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_response_format_option_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_response_format_option_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_response_format_option.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_response_format_option.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_stream_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_stream_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_function_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_function_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_function.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_function.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_option_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_option_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_option.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_option.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_choice.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_update_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant_update_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/assistant.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chat/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chat/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chat/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chat/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit_workflow.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit_workflow.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_automatic_thread_titling.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_automatic_thread_titling.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_chatkit_configuration_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_chatkit_configuration_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_chatkit_configuration.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_chatkit_configuration.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_expires_after_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_expires_after_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_file_upload.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_file_upload.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_history.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_history.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_rate_limits_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_rate_limits_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_rate_limits.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_rate_limits.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_status.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_status.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_workflow_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session_workflow_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chat_session.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_attachment.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_attachment.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_response_output_text.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_response_output_text.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_thread_assistant_message_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_thread_assistant_message_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_thread_item_list.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_thread_item_list.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_thread_user_message_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_thread_user_message_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_thread.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_thread.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_widget_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/chatkit_widget_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/session_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/session_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/thread_delete_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/thread_delete_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/thread_list_items_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/thread_list_items_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/thread_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/__pycache__/thread_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_automatic_thread_titling.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_automatic_thread_titling.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_chatkit_configuration_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_chatkit_configuration_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_chatkit_configuration.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_chatkit_configuration.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_expires_after_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_expires_after_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_file_upload.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_file_upload.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_history.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_history.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_rate_limits_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_rate_limits_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_rate_limits.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_rate_limits.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_status.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_status.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_workflow_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session_workflow_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chat_session.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_attachment.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_attachment.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_response_output_text.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_response_output_text.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_thread_assistant_message_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_thread_assistant_message_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_thread_item_list.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_thread_item_list.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_thread_user_message_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_thread_user_message_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_thread.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_thread.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_widget_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/chatkit_widget_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/session_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/session_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/thread_delete_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/thread_delete_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/thread_list_items_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/thread_list_items_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/thread_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/chatkit/thread_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/code_interpreter_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/code_interpreter_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/code_interpreter_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/code_interpreter_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/file_search_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/file_search_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/file_search_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/file_search_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/function_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/function_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/function_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/function_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_created_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_created_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_create_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_create_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_create_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_create_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_created_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_created_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_delete_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_delete_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_delete_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_delete_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_deleted_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_deleted_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_input_audio_transcription_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_input_audio_transcription_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_input_audio_transcription_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_input_audio_transcription_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_input_audio_transcription_failed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_input_audio_transcription_failed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_retrieve_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_retrieve_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_retrieve_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_retrieve_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_truncate_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_truncate_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_truncate_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_truncate_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_truncated_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_truncated_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_with_reference_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_with_reference_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_with_reference.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item_with_reference.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/conversation_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/error_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/error_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_append_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_append_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_append_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_append_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_clear_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_clear_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_clear_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_clear_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_cleared_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_cleared_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_commit_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_commit_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_commit_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_commit_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_committed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_committed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_speech_started_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_speech_started_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_speech_stopped_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/input_audio_buffer_speech_stopped_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/rate_limits_updated_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/rate_limits_updated_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_client_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_client_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_client_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_client_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_connect_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_connect_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_response_status.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_response_status.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_response_usage.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_response_usage.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_server_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/realtime_server_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_audio_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_audio_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_audio_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_audio_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_audio_transcript_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_audio_transcript_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_audio_transcript_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_audio_transcript_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_cancel_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_cancel_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_cancel_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_cancel_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_content_part_added_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_content_part_added_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_content_part_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_content_part_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_create_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_create_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_create_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_create_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_created_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_created_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_function_call_arguments_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_function_call_arguments_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_function_call_arguments_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_function_call_arguments_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_output_item_added_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_output_item_added_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_output_item_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_output_item_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_text_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_text_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_text_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/response_text_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_created_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_created_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_update_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_update_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_update_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_update_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_updated_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session_updated_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/session.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session_update_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session_update_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session_update.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session_update.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session_updated_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session_updated_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/__pycache__/transcription_session.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_created_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_created_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_create_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_create_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_create_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_create_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_created_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_created_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_delete_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_delete_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_delete_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_delete_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_deleted_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_deleted_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_input_audio_transcription_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_input_audio_transcription_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_input_audio_transcription_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_input_audio_transcription_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_input_audio_transcription_failed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_input_audio_transcription_failed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_retrieve_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_retrieve_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_retrieve_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_retrieve_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_truncate_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_truncate_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_truncate_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_truncate_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_truncated_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_truncated_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_with_reference_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_with_reference_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_with_reference.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item_with_reference.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/conversation_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/error_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/error_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_append_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_append_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_append_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_append_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_clear_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_clear_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_clear_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_clear_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_cleared_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_cleared_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_commit_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_commit_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_commit_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_commit_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_committed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_committed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_speech_started_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_speech_started_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_speech_stopped_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/input_audio_buffer_speech_stopped_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/rate_limits_updated_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/rate_limits_updated_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_client_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_client_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_client_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_client_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_connect_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_connect_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_response_status.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_response_status.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_response_usage.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_response_usage.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_server_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/realtime_server_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_audio_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_audio_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_audio_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_audio_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_audio_transcript_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_audio_transcript_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_audio_transcript_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_audio_transcript_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_cancel_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_cancel_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_cancel_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_cancel_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_content_part_added_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_content_part_added_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_content_part_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_content_part_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_create_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_create_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_create_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_create_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_created_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_created_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_function_call_arguments_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_function_call_arguments_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_function_call_arguments_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_function_call_arguments_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_output_item_added_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_output_item_added_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_output_item_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_output_item_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_text_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_text_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_text_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/response_text_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_created_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_created_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_update_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_update_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_update_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_update_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_updated_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session_updated_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/session.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session_update_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session_update_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session_update.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session_update.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session_updated_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session_updated_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/realtime/transcription_session.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread_create_and_run_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread_create_and_run_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread_deleted.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread_deleted.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread_update_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread_update_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/thread.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/annotation_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/annotation_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/annotation.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/annotation.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/file_citation_annotation.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/file_citation_annotation.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/file_citation_delta_annotation.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/file_citation_delta_annotation.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/file_path_annotation.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/file_path_annotation.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/file_path_delta_annotation.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/file_path_delta_annotation.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_content_block_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_content_block_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_content_block.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_content_block.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_delta_block.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_delta_block.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_file.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_content_block_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_content_block_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_content_block.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_content_block.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_delta_block.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_delta_block.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/image_url.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_content_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_content_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_content_part_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_content_part_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_deleted.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_deleted.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_update_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message_update_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/message.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/refusal_content_block.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/refusal_content_block.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/refusal_delta_block.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/refusal_delta_block.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/required_action_function_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/required_action_function_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_status.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_status.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_submit_tool_outputs_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_submit_tool_outputs_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_update_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run_update_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/run.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text_content_block_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text_content_block_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text_content_block.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text_content_block.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text_delta_block.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text_delta_block.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/__pycache__/text.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/annotation_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/annotation_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/annotation.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/annotation.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/file_citation_annotation.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/file_citation_annotation.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/file_citation_delta_annotation.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/file_citation_delta_annotation.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/file_path_annotation.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/file_path_annotation.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/file_path_delta_annotation.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/file_path_delta_annotation.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_content_block_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_content_block_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_content_block.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_content_block.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_delta_block.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_delta_block.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_file.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_content_block_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_content_block_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_content_block.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_content_block.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_delta_block.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_delta_block.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/image_url.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_content_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_content_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_content_part_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_content_part_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_deleted.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_deleted.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_update_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message_update_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/message.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/refusal_content_block.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/refusal_content_block.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/refusal_delta_block.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/refusal_delta_block.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/required_action_function_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/required_action_function_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_status.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_status.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_submit_tool_outputs_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_submit_tool_outputs_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_update_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run_update_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/run.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/code_interpreter_logs.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/code_interpreter_logs.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/code_interpreter_output_image.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/code_interpreter_output_image.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/code_interpreter_tool_call_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/code_interpreter_tool_call_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/code_interpreter_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/code_interpreter_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/file_search_tool_call_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/file_search_tool_call_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/file_search_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/file_search_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/function_tool_call_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/function_tool_call_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/function_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/function_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/message_creation_step_details.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/message_creation_step_details.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step_delta_message_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step_delta_message_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step_include.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step_include.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/run_step.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/step_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/step_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/step_retrieve_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/step_retrieve_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/tool_call_delta_object.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/tool_call_delta_object.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/tool_call_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/tool_call_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/tool_calls_step_details.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/__pycache__/tool_calls_step_details.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/code_interpreter_logs.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/code_interpreter_logs.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/code_interpreter_output_image.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/code_interpreter_output_image.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/code_interpreter_tool_call_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/code_interpreter_tool_call_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/code_interpreter_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/code_interpreter_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/file_search_tool_call_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/file_search_tool_call_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/file_search_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/file_search_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/function_tool_call_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/function_tool_call_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/function_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/function_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/message_creation_step_details.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/message_creation_step_details.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step_delta_message_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step_delta_message_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step_include.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step_include.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/run_step.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/step_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/step_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/step_retrieve_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/step_retrieve_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/tool_call_delta_object.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/tool_call_delta_object.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/tool_call_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/tool_call_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/tool_calls_step_details.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/runs/tool_calls_step_details.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text_content_block_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text_content_block_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text_content_block.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text_content_block.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text_delta_block.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text_delta_block.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/beta/threads/text.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_allowed_tool_choice_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_allowed_tool_choice_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_allowed_tools_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_allowed_tools_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_assistant_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_assistant_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_audio_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_audio_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_audio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_audio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_chunk.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_chunk.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_image_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_image_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_image.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_image.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_input_audio_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_input_audio_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_refusal_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_refusal_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_text_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_text_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_text.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_content_part_text.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_custom_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_custom_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_deleted.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_deleted.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_developer_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_developer_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_function_call_option_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_function_call_option_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_function_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_function_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_function_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_function_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_function_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_function_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_custom_tool_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_custom_tool_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_custom_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_custom_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_function_tool_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_function_tool_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_function_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_function_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_tool_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_tool_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_tool_call_union_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_tool_call_union_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_message.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_modality.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_modality.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_named_tool_choice_custom_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_named_tool_choice_custom_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_named_tool_choice_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_named_tool_choice_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_prediction_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_prediction_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_reasoning_effort.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_reasoning_effort.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_role.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_role.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_store_message.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_store_message.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_stream_options_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_stream_options_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_system_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_system_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_token_logprob.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_token_logprob.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_tool_choice_option_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_tool_choice_option_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_tool_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_tool_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_tool_union_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_tool_union_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_user_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion_user_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/chat_completion.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/completion_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/completion_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/completion_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/completion_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/completion_update_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/completion_update_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/parsed_chat_completion.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/parsed_chat_completion.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/parsed_function_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/__pycache__/parsed_function_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_allowed_tool_choice_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_allowed_tool_choice_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_allowed_tools_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_allowed_tools_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_assistant_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_assistant_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_audio_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_audio_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_audio.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_audio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_chunk.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_chunk.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_image_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_image_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_image.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_image.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_input_audio_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_input_audio_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_refusal_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_refusal_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_text_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_text_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_text.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_content_part_text.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_custom_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_custom_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_deleted.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_deleted.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_developer_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_developer_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_function_call_option_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_function_call_option_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_function_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_function_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_function_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_function_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_function_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_function_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_custom_tool_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_custom_tool_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_custom_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_custom_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_function_tool_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_function_tool_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_function_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_function_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_tool_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_tool_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_tool_call_union_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_tool_call_union_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_message.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_modality.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_modality.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_named_tool_choice_custom_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_named_tool_choice_custom_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_named_tool_choice_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_named_tool_choice_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_prediction_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_prediction_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_reasoning_effort.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_reasoning_effort.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_role.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_role.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_store_message.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_store_message.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_stream_options_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_stream_options_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_system_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_system_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_token_logprob.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_token_logprob.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_tool_choice_option_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_tool_choice_option_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_tool_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_tool_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_tool_union_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_tool_union_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_user_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion_user_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/chat_completion.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completion_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completion_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completion_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completion_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completion_update_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completion_update_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completions/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completions/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completions/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completions/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completions/__pycache__/message_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completions/__pycache__/message_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completions/message_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/completions/message_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/parsed_chat_completion.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/parsed_chat_completion.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/chat/parsed_function_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/chat/parsed_function_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/completion_choice.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/completion_choice.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/completion_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/completion_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/completion_usage.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/completion_usage.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/completion.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/completion.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/container_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/container_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/container_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/container_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/container_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/container_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/container_list_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/container_list_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/container_retrieve_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/container_retrieve_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_list_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_list_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_retrieve_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/__pycache__/file_retrieve_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_list_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_list_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_retrieve_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/file_retrieve_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/files/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/files/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/containers/files/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/containers/files/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/computer_screenshot_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/computer_screenshot_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_deleted_resource.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_deleted_resource.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_item_list.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_item_list.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_update_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation_update_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/conversation.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_file_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_file_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_file_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_file_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_image_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_image_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_image_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_image_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_text_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_text_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_text_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/input_text_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/item_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/item_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/item_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/item_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/item_retrieve_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/item_retrieve_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/message.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/message.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/output_text_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/output_text_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/output_text_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/output_text_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/refusal_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/refusal_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/refusal_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/refusal_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/summary_text_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/summary_text_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/text_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/__pycache__/text_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/computer_screenshot_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/computer_screenshot_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_deleted_resource.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_deleted_resource.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_item_list.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_item_list.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_update_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation_update_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/conversation.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_file_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_file_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_file_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_file_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_image_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_image_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_image_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_image_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_text_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_text_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_text_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/input_text_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/item_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/item_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/item_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/item_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/item_retrieve_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/item_retrieve_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/message.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/message.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/output_text_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/output_text_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/output_text_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/output_text_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/refusal_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/refusal_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/refusal_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/refusal_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/summary_text_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/summary_text_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/text_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/conversations/text_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/create_embedding_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/create_embedding_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/embedding_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/embedding_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/embedding_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/embedding_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/embedding.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/embedding.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_custom_data_source_config.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_custom_data_source_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_delete_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_delete_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_list_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_list_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_retrieve_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_retrieve_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_stored_completions_data_source_config.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_stored_completions_data_source_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_update_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_update_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/eval_update_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/eval_update_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/create_eval_completions_run_data_source_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/create_eval_completions_run_data_source_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/create_eval_completions_run_data_source.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/create_eval_completions_run_data_source.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/create_eval_jsonl_run_data_source_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/create_eval_jsonl_run_data_source_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/create_eval_jsonl_run_data_source.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/create_eval_jsonl_run_data_source.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/eval_api_error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/eval_api_error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_cancel_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_cancel_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_delete_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_delete_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_list_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_list_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_retrieve_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/__pycache__/run_retrieve_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/create_eval_completions_run_data_source_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/create_eval_completions_run_data_source_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/create_eval_completions_run_data_source.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/create_eval_completions_run_data_source.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/create_eval_jsonl_run_data_source_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/create_eval_jsonl_run_data_source_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/create_eval_jsonl_run_data_source.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/create_eval_jsonl_run_data_source.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/eval_api_error.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/eval_api_error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_cancel_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_cancel_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_delete_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_delete_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_list_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_list_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_retrieve_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/run_retrieve_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__pycache__/output_item_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__pycache__/output_item_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__pycache__/output_item_list_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__pycache__/output_item_list_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__pycache__/output_item_retrieve_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/__pycache__/output_item_retrieve_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/output_item_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/output_item_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/output_item_list_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/output_item_list_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/output_item_retrieve_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/evals/runs/output_item_retrieve_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/file_chunking_strategy_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/file_chunking_strategy_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/file_chunking_strategy.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/file_chunking_strategy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/file_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/file_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/file_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/file_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/file_deleted.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/file_deleted.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/file_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/file_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/file_object.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/file_object.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/file_purpose.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/file_purpose.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/dpo_hyperparameters_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/dpo_hyperparameters_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/dpo_hyperparameters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/dpo_hyperparameters.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/dpo_method_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/dpo_method_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/dpo_method.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/dpo_method.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job_integration.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job_integration.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job_wandb_integration_object.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job_wandb_integration_object.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job_wandb_integration.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job_wandb_integration.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/fine_tuning_job.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/job_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/job_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/job_list_events_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/job_list_events_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/job_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/job_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/reinforcement_hyperparameters_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/reinforcement_hyperparameters_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/reinforcement_hyperparameters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/reinforcement_hyperparameters.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/reinforcement_method_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/reinforcement_method_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/reinforcement_method.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/reinforcement_method.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/supervised_hyperparameters_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/supervised_hyperparameters_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/supervised_hyperparameters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/supervised_hyperparameters.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/supervised_method_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/supervised_method_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/supervised_method.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/__pycache__/supervised_method.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/grader_run_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/grader_run_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/grader_run_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/grader_run_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/grader_validate_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/grader_validate_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/grader_validate_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/__pycache__/grader_validate_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/grader_run_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/grader_run_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/grader_run_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/grader_run_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/grader_validate_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/grader_validate_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/grader_validate_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/alpha/grader_validate_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_delete_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_delete_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_retrieve_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_retrieve_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_retrieve_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/__pycache__/permission_retrieve_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_delete_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_delete_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_retrieve_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_retrieve_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_retrieve_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/checkpoints/permission_retrieve_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/dpo_hyperparameters_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/dpo_hyperparameters_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/dpo_hyperparameters.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/dpo_hyperparameters.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/dpo_method_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/dpo_method_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/dpo_method.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/dpo_method.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job_integration.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job_integration.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job_wandb_integration_object.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job_wandb_integration_object.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job_wandb_integration.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job_wandb_integration.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/fine_tuning_job.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/job_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/job_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/job_list_events_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/job_list_events_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/job_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/job_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/__pycache__/checkpoint_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/__pycache__/checkpoint_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/__pycache__/fine_tuning_job_checkpoint.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/__pycache__/fine_tuning_job_checkpoint.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/checkpoint_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/checkpoint_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/fine_tuning_job_checkpoint.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/jobs/fine_tuning_job_checkpoint.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/reinforcement_hyperparameters_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/reinforcement_hyperparameters_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/reinforcement_hyperparameters.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/reinforcement_hyperparameters.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/reinforcement_method_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/reinforcement_method_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/reinforcement_method.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/reinforcement_method.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/supervised_hyperparameters_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/supervised_hyperparameters_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/supervised_hyperparameters.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/supervised_hyperparameters.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/supervised_method_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/supervised_method_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/supervised_method.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/fine_tuning/supervised_method.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/label_model_grader_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/label_model_grader_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/label_model_grader.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/label_model_grader.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/multi_grader_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/multi_grader_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/multi_grader.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/multi_grader.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/python_grader_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/python_grader_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/python_grader.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/python_grader.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/score_model_grader_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/score_model_grader_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/score_model_grader.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/score_model_grader.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/string_check_grader_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/string_check_grader_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/string_check_grader.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/string_check_grader.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/text_similarity_grader_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/text_similarity_grader_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/text_similarity_grader.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/__pycache__/text_similarity_grader.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/label_model_grader_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/label_model_grader_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/label_model_grader.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/label_model_grader.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/multi_grader_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/multi_grader_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/multi_grader.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/multi_grader.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/python_grader_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/python_grader_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/python_grader.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/python_grader.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/score_model_grader_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/score_model_grader_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/score_model_grader.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/score_model_grader.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/string_check_grader_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/string_check_grader_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/string_check_grader.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/string_check_grader.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/text_similarity_grader_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/text_similarity_grader_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/graders/text_similarity_grader.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/graders/text_similarity_grader.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_create_variation_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_create_variation_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_edit_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_edit_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_edit_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_edit_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_edit_partial_image_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_edit_partial_image_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_edit_stream_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_edit_stream_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_gen_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_gen_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_gen_partial_image_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_gen_partial_image_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_gen_stream_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_gen_stream_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_generate_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_generate_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/image.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/image.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/images_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/images_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/model_deleted.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/model_deleted.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_image_url_input_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_image_url_input_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_multi_modal_input_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_multi_modal_input_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_text_input_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/moderation_text_input_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/moderation.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/moderation.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/other_file_chunking_strategy_object.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/other_file_chunking_strategy_object.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/audio_transcription_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/audio_transcription_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/audio_transcription.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/audio_transcription.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/call_accept_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/call_accept_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/call_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/call_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/call_refer_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/call_refer_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/call_reject_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/call_reject_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/client_secret_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/client_secret_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/client_secret_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/client_secret_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_created_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_created_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_added.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_added.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_create_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_create_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_create_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_create_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_created_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_created_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_delete_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_delete_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_delete_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_delete_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_deleted_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_deleted_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_done.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_done.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_input_audio_transcription_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_input_audio_transcription_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_input_audio_transcription_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_input_audio_transcription_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_input_audio_transcription_failed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_input_audio_transcription_failed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_input_audio_transcription_segment.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_input_audio_transcription_segment.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_retrieve_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_retrieve_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_retrieve_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_retrieve_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_truncate_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_truncate_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_truncate_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_truncate_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_truncated_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item_truncated_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/conversation_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_append_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_append_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_append_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_append_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_clear_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_clear_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_clear_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_clear_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_cleared_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_cleared_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_commit_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_commit_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_commit_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_commit_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_committed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_committed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_speech_started_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_speech_started_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_speech_stopped_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_speech_stopped_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_timeout_triggered.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/input_audio_buffer_timeout_triggered.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/log_prob_properties.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/log_prob_properties.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/mcp_list_tools_completed.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/mcp_list_tools_completed.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/mcp_list_tools_failed.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/mcp_list_tools_failed.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/mcp_list_tools_in_progress.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/mcp_list_tools_in_progress.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/noise_reduction_type.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/noise_reduction_type.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/output_audio_buffer_clear_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/output_audio_buffer_clear_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/output_audio_buffer_clear_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/output_audio_buffer_clear_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/rate_limits_updated_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/rate_limits_updated_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_input_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_input_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_input.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_input.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_output_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_output_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_output.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_output.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_formats_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_formats_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_formats.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_formats.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_input_turn_detection_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_input_turn_detection_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_input_turn_detection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_audio_input_turn_detection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_client_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_client_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_client_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_client_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_connect_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_connect_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_assistant_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_assistant_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_assistant_message.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_assistant_message.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_function_call_output_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_function_call_output_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_function_call_output.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_function_call_output.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_function_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_function_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_function_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_function_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_system_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_system_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_system_message.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_system_message.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_user_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_user_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_user_message.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_conversation_item_user_message.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_error_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_error_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_function_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_function_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_function_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_function_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_approval_request_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_approval_request_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_approval_request.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_approval_request.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_approval_response_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_approval_response_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_approval_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_approval_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_list_tools_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_list_tools_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_list_tools.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_list_tools.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_protocol_error_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_protocol_error_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_protocol_error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_protocol_error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_tool_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_tool_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_tool_execution_error_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_tool_execution_error_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_tool_execution_error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcp_tool_execution_error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcphttp_error_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcphttp_error_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcphttp_error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_mcphttp_error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_audio_output_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_audio_output_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_audio_output.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_audio_output.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_mcp_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_mcp_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_mcp_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_mcp_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_params_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_params_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_status.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_status.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_usage_input_token_details.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_usage_input_token_details.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_usage_output_token_details.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_usage_output_token_details.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_usage.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response_usage.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_server_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_server_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_session_client_secret.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_session_client_secret.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_session_create_request_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_session_create_request_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_session_create_request.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_session_create_request.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_session_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_session_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tool_choice_config_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tool_choice_config_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tool_choice_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tool_choice_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tools_config_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tools_config_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tools_config_union_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tools_config_union_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tools_config_union.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tools_config_union.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tools_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tools_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tracing_config_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tracing_config_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tracing_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_tracing_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_input_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_input_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_input_turn_detection_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_input_turn_detection_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_input_turn_detection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_input_turn_detection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_input.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_input.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_audio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_create_request_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_create_request_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_create_request.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_create_request.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_create_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_create_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_turn_detection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_transcription_session_turn_detection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_truncation_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_truncation_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_truncation_retention_ratio_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_truncation_retention_ratio_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_truncation_retention_ratio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_truncation_retention_ratio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_truncation.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/realtime_truncation.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_audio_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_audio_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_audio_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_audio_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_audio_transcript_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_audio_transcript_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_audio_transcript_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_audio_transcript_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_cancel_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_cancel_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_cancel_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_cancel_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_content_part_added_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_content_part_added_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_content_part_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_content_part_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_create_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_create_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_create_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_create_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_created_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_created_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_function_call_arguments_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_function_call_arguments_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_function_call_arguments_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_function_call_arguments_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_arguments_delta.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_arguments_delta.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_arguments_done.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_arguments_done.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_completed.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_completed.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_failed.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_failed.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_in_progress.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_mcp_call_in_progress.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_output_item_added_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_output_item_added_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_output_item_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_output_item_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_text_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_text_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_text_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/response_text_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/session_created_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/session_created_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/session_update_event_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/session_update_event_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/session_update_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/session_update_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/session_updated_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/__pycache__/session_updated_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/audio_transcription_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/audio_transcription_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/audio_transcription.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/audio_transcription.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/call_accept_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/call_accept_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/call_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/call_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/call_refer_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/call_refer_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/call_reject_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/call_reject_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/client_secret_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/client_secret_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/client_secret_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/client_secret_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_created_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_created_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_added.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_added.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_create_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_create_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_create_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_create_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_created_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_created_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_delete_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_delete_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_delete_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_delete_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_deleted_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_deleted_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_done.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_done.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_input_audio_transcription_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_input_audio_transcription_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_input_audio_transcription_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_input_audio_transcription_failed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_input_audio_transcription_failed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_input_audio_transcription_segment.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_input_audio_transcription_segment.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_retrieve_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_retrieve_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_retrieve_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_retrieve_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_truncate_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_truncate_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_truncate_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_truncate_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_truncated_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item_truncated_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/conversation_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_append_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_append_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_append_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_append_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_clear_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_clear_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_clear_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_clear_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_cleared_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_cleared_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_commit_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_commit_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_commit_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_commit_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_committed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_committed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_speech_started_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_speech_started_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_speech_stopped_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_speech_stopped_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_timeout_triggered.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/input_audio_buffer_timeout_triggered.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/log_prob_properties.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/log_prob_properties.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/mcp_list_tools_completed.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/mcp_list_tools_completed.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/mcp_list_tools_failed.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/mcp_list_tools_failed.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/mcp_list_tools_in_progress.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/mcp_list_tools_in_progress.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/noise_reduction_type.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/noise_reduction_type.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/output_audio_buffer_clear_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/output_audio_buffer_clear_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/output_audio_buffer_clear_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/output_audio_buffer_clear_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/rate_limits_updated_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/rate_limits_updated_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_input_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_input_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_input.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_input.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_output_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_output_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_output.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_output.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_formats_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_formats_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_formats.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_formats.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_input_turn_detection_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_input_turn_detection_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_input_turn_detection.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_audio_input_turn_detection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_client_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_client_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_client_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_client_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_connect_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_connect_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_assistant_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_assistant_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_assistant_message.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_assistant_message.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_function_call_output_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_function_call_output_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_function_call_output.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_function_call_output.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_function_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_function_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_function_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_function_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_system_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_system_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_system_message.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_system_message.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_user_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_user_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_user_message.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_conversation_item_user_message.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_error_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_error_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_error.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_function_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_function_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_function_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_function_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_approval_request_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_approval_request_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_approval_request.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_approval_request.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_approval_response_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_approval_response_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_approval_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_approval_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_list_tools_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_list_tools_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_list_tools.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_list_tools.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_protocol_error_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_protocol_error_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_protocol_error.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_protocol_error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_tool_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_tool_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_tool_execution_error_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_tool_execution_error_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_tool_execution_error.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcp_tool_execution_error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcphttp_error_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcphttp_error_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcphttp_error.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_mcphttp_error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_audio_output_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_audio_output_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_audio_output.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_audio_output.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_mcp_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_mcp_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_mcp_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_mcp_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_params_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_params_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_status.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_status.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_usage_input_token_details.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_usage_input_token_details.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_usage_output_token_details.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_usage_output_token_details.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_usage.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response_usage.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_server_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_server_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_session_client_secret.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_session_client_secret.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_session_create_request_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_session_create_request_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_session_create_request.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_session_create_request.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_session_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_session_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tool_choice_config_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tool_choice_config_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tool_choice_config.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tool_choice_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tools_config_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tools_config_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tools_config_union_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tools_config_union_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tools_config_union.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tools_config_union.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tools_config.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tools_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tracing_config_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tracing_config_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tracing_config.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_tracing_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_input_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_input_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_input_turn_detection_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_input_turn_detection_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_input.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_input.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_audio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_create_request_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_create_request_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_create_request.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_create_request.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_create_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_create_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_turn_detection.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_transcription_session_turn_detection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_truncation_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_truncation_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_truncation_retention_ratio_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_truncation_retention_ratio_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_truncation_retention_ratio.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_truncation_retention_ratio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_truncation.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/realtime_truncation.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_audio_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_audio_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_audio_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_audio_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_audio_transcript_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_audio_transcript_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_audio_transcript_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_audio_transcript_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_cancel_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_cancel_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_cancel_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_cancel_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_content_part_added_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_content_part_added_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_content_part_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_content_part_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_create_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_create_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_create_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_create_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_created_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_created_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_function_call_arguments_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_function_call_arguments_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_function_call_arguments_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_function_call_arguments_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_arguments_delta.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_arguments_delta.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_arguments_done.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_arguments_done.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_completed.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_completed.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_failed.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_failed.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_in_progress.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_mcp_call_in_progress.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_output_item_added_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_output_item_added_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_output_item_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_output_item_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_text_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_text_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_text_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/response_text_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/session_created_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/session_created_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/session_update_event_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/session_update_event_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/session_update_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/session_update_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/session_updated_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/realtime/session_updated_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/apply_patch_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/apply_patch_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/apply_patch_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/apply_patch_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/computer_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/computer_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/computer_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/computer_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/custom_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/custom_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/custom_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/custom_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/easy_input_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/easy_input_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/easy_input_message.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/easy_input_message.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/file_search_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/file_search_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/file_search_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/file_search_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/function_shell_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/function_shell_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/function_shell_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/function_shell_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/function_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/function_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/function_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/function_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/input_item_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/input_item_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/input_token_count_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/input_token_count_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/input_token_count_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/input_token_count_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/parsed_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/parsed_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_apply_patch_tool_call_output.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_apply_patch_tool_call_output.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_apply_patch_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_apply_patch_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_audio_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_audio_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_audio_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_audio_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_audio_transcript_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_audio_transcript_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_audio_transcript_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_audio_transcript_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_code_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_code_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_code_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_code_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_in_progress_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_in_progress_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_interpreting_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_call_interpreting_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_tool_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_tool_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_code_interpreter_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call_output_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call_output_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call_output_screenshot_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call_output_screenshot_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call_output_screenshot.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call_output_screenshot.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_computer_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_content_part_added_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_content_part_added_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_content_part_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_content_part_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_conversation_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_conversation_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_created_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_created_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_input_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_input_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_input_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_input_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_output_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_output_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_output.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_output.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_custom_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_error_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_error_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_failed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_failed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_call_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_call_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_call_in_progress_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_call_in_progress_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_call_searching_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_call_searching_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_tool_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_tool_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_file_search_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_format_text_config_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_format_text_config_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_format_text_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_format_text_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_format_text_json_schema_config_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_format_text_json_schema_config_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_format_text_json_schema_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_format_text_json_schema_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_arguments_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_arguments_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_arguments_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_arguments_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_output_item_list_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_output_item_list_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_output_item_list.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_output_item_list.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_output_item_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_output_item_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_output_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_call_output_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_shell_call_output_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_shell_call_output_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_shell_call_output_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_shell_call_output_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_shell_tool_call_output.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_shell_tool_call_output.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_shell_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_shell_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_tool_call_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_tool_call_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_tool_call_output_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_tool_call_output_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_tool_call_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_tool_call_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_tool_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_tool_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_web_search_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_web_search_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_web_search.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_function_web_search.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_image_gen_call_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_image_gen_call_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_image_gen_call_generating_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_image_gen_call_generating_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_image_gen_call_in_progress_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_image_gen_call_in_progress_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_image_gen_call_partial_image_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_image_gen_call_partial_image_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_in_progress_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_in_progress_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_includable.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_includable.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_incomplete_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_incomplete_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_audio_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_audio_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_audio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_audio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_file_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_file_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_file_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_file_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_file_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_file_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_file.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_file.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_image_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_image_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_image_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_image_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_image_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_image_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_image.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_image.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_item_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_item_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_message_content_list_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_message_content_list_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_message_content_list.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_message_content_list.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_message_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_message_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_text_content_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_text_content_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_text_content.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_text_content.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_text_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_text_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_text.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_input_text.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_item_list.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_item_list.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_arguments_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_arguments_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_arguments_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_arguments_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_failed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_failed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_in_progress_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_call_in_progress_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_list_tools_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_list_tools_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_list_tools_failed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_list_tools_failed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_list_tools_in_progress_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_mcp_list_tools_in_progress_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_item_added_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_item_added_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_item_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_item_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_message_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_message_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_message.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_message.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_refusal_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_refusal_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_refusal.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_refusal.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_text_annotation_added_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_text_annotation_added_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_text_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_text_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_text.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_output_text.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_prompt_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_prompt_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_prompt.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_prompt.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_queued_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_queued_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_item_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_item_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_item.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_item.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_summary_part_added_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_summary_part_added_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_summary_part_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_summary_part_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_summary_text_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_summary_text_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_summary_text_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_summary_text_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_text_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_text_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_text_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_reasoning_text_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_refusal_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_refusal_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_refusal_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_refusal_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_retrieve_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_retrieve_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_status.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_status.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_stream_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_stream_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_text_config_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_text_config_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_text_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_text_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_text_delta_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_text_delta_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_text_done_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_text_done_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_usage.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_usage.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_web_search_call_completed_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_web_search_call_completed_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_web_search_call_in_progress_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_web_search_call_in_progress_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_web_search_call_searching_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response_web_search_call_searching_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_allowed_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_allowed_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_allowed.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_allowed.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_apply_patch_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_apply_patch_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_apply_patch.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_apply_patch.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_custom_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_custom_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_custom.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_custom.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_function_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_function_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_function.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_function.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_mcp_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_mcp_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_mcp.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_mcp.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_options.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_options.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_shell_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_shell_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_shell.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_shell.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_types_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_types_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_choice_types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/web_search_preview_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/web_search_preview_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/web_search_preview_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/web_search_preview_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/web_search_tool_param.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/web_search_tool_param.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/web_search_tool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/__pycache__/web_search_tool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/apply_patch_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/apply_patch_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/apply_patch_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/apply_patch_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/computer_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/computer_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/computer_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/computer_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/custom_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/custom_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/custom_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/custom_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/easy_input_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/easy_input_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/easy_input_message.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/easy_input_message.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/file_search_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/file_search_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/file_search_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/file_search_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/function_shell_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/function_shell_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/function_shell_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/function_shell_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/function_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/function_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/function_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/function_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/input_item_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/input_item_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/input_token_count_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/input_token_count_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/input_token_count_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/input_token_count_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/parsed_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/parsed_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_apply_patch_tool_call_output.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_apply_patch_tool_call_output.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_apply_patch_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_apply_patch_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_audio_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_audio_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_audio_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_audio_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_audio_transcript_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_audio_transcript_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_audio_transcript_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_audio_transcript_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_code_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_code_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_code_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_code_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_in_progress_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_in_progress_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_interpreting_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_call_interpreting_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_tool_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_tool_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_code_interpreter_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call_output_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call_output_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call_output_screenshot_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call_output_screenshot_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call_output_screenshot.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call_output_screenshot.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_computer_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_content_part_added_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_content_part_added_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_content_part_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_content_part_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_conversation_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_conversation_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_created_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_created_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_input_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_input_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_input_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_input_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_output_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_output_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_output.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_output.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_custom_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_error_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_error_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_error.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_failed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_failed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_call_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_call_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_call_in_progress_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_call_in_progress_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_call_searching_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_call_searching_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_tool_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_tool_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_file_search_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_format_text_config_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_format_text_config_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_format_text_config.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_format_text_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_format_text_json_schema_config_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_format_text_json_schema_config_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_format_text_json_schema_config.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_format_text_json_schema_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_arguments_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_arguments_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_arguments_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_arguments_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_output_item_list_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_output_item_list_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_output_item_list.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_output_item_list.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_output_item_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_output_item_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_output_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_call_output_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_shell_call_output_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_shell_call_output_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_shell_call_output_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_shell_call_output_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_shell_tool_call_output.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_shell_tool_call_output.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_shell_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_shell_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_tool_call_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_tool_call_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_tool_call_output_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_tool_call_output_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_tool_call_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_tool_call_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_tool_call.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_tool_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_web_search_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_web_search_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_web_search.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_function_web_search.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_image_gen_call_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_image_gen_call_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_image_gen_call_generating_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_image_gen_call_generating_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_image_gen_call_in_progress_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_image_gen_call_in_progress_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_image_gen_call_partial_image_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_image_gen_call_partial_image_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_in_progress_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_in_progress_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_includable.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_includable.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_incomplete_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_incomplete_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_audio_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_audio_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_audio.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_audio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_file_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_file_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_file_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_file_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_file_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_file_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_file.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_file.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_image_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_image_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_image_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_image_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_image_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_image_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_image.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_image.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_item_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_item_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_message_content_list_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_message_content_list_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_message_content_list.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_message_content_list.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_message_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_message_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_text_content_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_text_content_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_text_content.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_text_content.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_text_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_text_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_text.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_input_text.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_item_list.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_item_list.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_arguments_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_arguments_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_arguments_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_arguments_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_failed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_failed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_in_progress_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_call_in_progress_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_list_tools_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_list_tools_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_list_tools_failed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_list_tools_failed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_list_tools_in_progress_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_mcp_list_tools_in_progress_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_item_added_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_item_added_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_item_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_item_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_message_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_message_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_message.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_message.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_refusal_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_refusal_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_refusal.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_refusal.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_text_annotation_added_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_text_annotation_added_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_text_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_text_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_text.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_output_text.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_prompt_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_prompt_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_prompt.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_prompt.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_queued_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_queued_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_item_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_item_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_item.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_item.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_summary_part_added_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_summary_part_added_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_summary_part_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_summary_part_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_summary_text_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_summary_text_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_summary_text_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_summary_text_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_text_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_text_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_text_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_reasoning_text_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_refusal_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_refusal_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_refusal_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_refusal_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_retrieve_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_retrieve_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_status.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_status.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_stream_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_stream_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_text_config_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_text_config_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_text_config.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_text_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_text_delta_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_text_delta_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_text_done_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_text_done_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_usage.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_usage.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_web_search_call_completed_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_web_search_call_completed_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_web_search_call_in_progress_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_web_search_call_in_progress_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_web_search_call_searching_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response_web_search_call_searching_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_allowed_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_allowed_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_allowed.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_allowed.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_apply_patch_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_apply_patch_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_apply_patch.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_apply_patch.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_custom_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_custom_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_custom.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_custom.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_function_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_function_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_function.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_function.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_mcp_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_mcp_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_mcp.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_mcp.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_options.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_options.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_shell_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_shell_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_shell.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_shell.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_types_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_types_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_types.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_choice_types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/web_search_preview_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/web_search_preview_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/web_search_preview_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/web_search_preview_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/web_search_tool_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/web_search_tool_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/responses/web_search_tool.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/responses/web_search_tool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/chat_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/chat_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/comparison_filter.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/comparison_filter.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/compound_filter.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/compound_filter.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/custom_tool_input_format.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/custom_tool_input_format.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/function_definition.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/function_definition.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/function_parameters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/function_parameters.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/metadata.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/metadata.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/reasoning_effort.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/reasoning_effort.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/reasoning.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/reasoning.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/response_format_json_object.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/response_format_json_object.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/response_format_json_schema.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/response_format_json_schema.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/response_format_text.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/response_format_text.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/responses_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/__pycache__/responses_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/chat_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/chat_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/comparison_filter.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/comparison_filter.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/compound_filter.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/compound_filter.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/custom_tool_input_format.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/custom_tool_input_format.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/function_definition.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/function_definition.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/function_parameters.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/function_parameters.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/metadata.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/metadata.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/reasoning_effort.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/reasoning_effort.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/reasoning.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/reasoning.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/response_format_json_object.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/response_format_json_object.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/response_format_json_schema.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/response_format_json_schema.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/response_format_text.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/response_format_text.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/responses_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared_params/responses_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__init__.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/__init__.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/all_models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/all_models.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/chat_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/chat_model.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/comparison_filter.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/comparison_filter.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/compound_filter.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/compound_filter.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/custom_tool_input_format.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/custom_tool_input_format.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/error_object.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/error_object.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/function_definition.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/function_definition.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/function_parameters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/function_parameters.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/metadata.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/metadata.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/reasoning_effort.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/reasoning_effort.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/reasoning.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/reasoning.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_json_object.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_json_object.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_json_schema.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_json_schema.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_text_grammar.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_text_grammar.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_text_python.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_text_python.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_text.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/response_format_text.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/responses_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/__pycache__/responses_model.cpython-311.pyc) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/all_models.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/all_models.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/chat_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/chat_model.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/comparison_filter.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/comparison_filter.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/compound_filter.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/compound_filter.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/custom_tool_input_format.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/custom_tool_input_format.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/error_object.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/error_object.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/function_definition.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/function_definition.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/function_parameters.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/function_parameters.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/metadata.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/metadata.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/reasoning_effort.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/reasoning_effort.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/reasoning.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/reasoning.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_json_object.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_json_object.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_json_schema.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_json_schema.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_text_grammar.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_text_grammar.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_text_python.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_text_python.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_text.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/response_format_text.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/shared/responses_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/shared/responses_model.py) (active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/static_file_chunking_strategy_object_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/static_file_chunking_strategy_object_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/static_file_chunking_strategy_object.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/static_file_chunking_strategy_object.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/static_file_chunking_strategy_param.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/static_file_chunking_strategy_param.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/static_file_chunking_strategy.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/static_file_chunking_strategy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/upload_complete_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/upload_complete_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/upload_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/upload_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/upload.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/upload.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/__pycache__/part_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/__pycache__/part_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/__pycache__/upload_part.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/__pycache__/upload_part.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/part_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/part_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/upload_part.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/uploads/upload_part.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_deleted.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_deleted.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_search_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_search_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_search_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_search_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_update_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store_update_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_store.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_batch_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_batch_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_batch_list_files_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_batch_list_files_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_content_response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_content_response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_create_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_create_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_list_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_list_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_update_params.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/file_update_params.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/vector_store_file_batch.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/vector_store_file_batch.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/vector_store_file_deleted.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/vector_store_file_deleted.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/vector_store_file.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/__pycache__/vector_store_file.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_batch_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_batch_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_batch_list_files_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_batch_list_files_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_content_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_content_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_update_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/file_update_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/vector_store_file_batch.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/vector_store_file_batch.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/vector_store_file_deleted.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/vector_store_file_deleted.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/vector_store_file.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/vector_stores/vector_store_file.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video_create_error.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video_create_error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video_create_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video_create_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video_delete_response.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video_delete_response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video_download_content_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video_download_content_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video_list_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video_list_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video_model.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video_remix_params.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video_remix_params.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video_seconds.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video_seconds.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video_size.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video_size.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/video.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/video.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__init__.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/batch_cancelled_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/batch_cancelled_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/batch_completed_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/batch_completed_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/batch_expired_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/batch_expired_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/batch_failed_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/batch_failed_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/eval_run_canceled_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/eval_run_canceled_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/eval_run_failed_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/eval_run_failed_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/eval_run_succeeded_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/eval_run_succeeded_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/fine_tuning_job_cancelled_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/fine_tuning_job_cancelled_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/fine_tuning_job_failed_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/fine_tuning_job_failed_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/fine_tuning_job_succeeded_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/fine_tuning_job_succeeded_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/realtime_call_incoming_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/realtime_call_incoming_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/response_cancelled_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/response_cancelled_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/response_completed_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/response_completed_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/response_failed_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/response_failed_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/response_incomplete_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/response_incomplete_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/unwrap_webhook_event.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/__pycache__/unwrap_webhook_event.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/batch_cancelled_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/batch_cancelled_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/batch_completed_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/batch_completed_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/batch_expired_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/batch_expired_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/batch_failed_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/batch_failed_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/eval_run_canceled_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/eval_run_canceled_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/eval_run_failed_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/eval_run_failed_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/eval_run_succeeded_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/eval_run_succeeded_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/fine_tuning_job_cancelled_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/fine_tuning_job_cancelled_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/fine_tuning_job_failed_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/fine_tuning_job_failed_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/fine_tuning_job_succeeded_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/fine_tuning_job_succeeded_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/realtime_call_incoming_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/realtime_call_incoming_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/response_cancelled_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/response_cancelled_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/response_completed_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/response_completed_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/response_failed_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/response_failed_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/response_incomplete_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/response_incomplete_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/unwrap_webhook_event.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/webhooks/unwrap_webhook_event.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/types/websocket_connection_options.py](./.pythonlibs/lib/python3.11/site-packages/openai/types/websocket_connection_options.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/openai/version.py](./.pythonlibs/lib/python3.11/site-packages/openai/version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/licenses/LICENSE.txt](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/licenses/LICENSE.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/zip-safe](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules-0.4.2.dist-info/zip-safe) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/pem.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/pem.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1155.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1155.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1157.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1157.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1901.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1901.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1902.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1902.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1905.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc1905.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2251.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2251.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2314.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2314.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2315.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2315.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2437.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2437.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2459.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2459.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2511.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2511.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2560.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2560.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2631.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2631.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2634.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2634.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2876.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2876.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2985.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2985.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2986.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc2986.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3058.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3058.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3114.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3114.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3125.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3125.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3161.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3161.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3274.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3274.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3279.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3279.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3280.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3280.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3281.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3281.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3370.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3370.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3412.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3412.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3414.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3414.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3447.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3447.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3537.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3537.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3560.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3560.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3565.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3565.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3657.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3657.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3709.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3709.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3739.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3739.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3770.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3770.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3779.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3779.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3820.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3820.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3852.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc3852.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4010.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4010.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4043.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4043.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4055.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4055.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4073.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4073.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4108.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4108.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4210.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4210.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4211.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4211.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4334.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4334.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4357.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4357.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4387.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4387.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4476.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4476.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4490.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4490.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4491.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4491.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4683.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4683.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4985.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc4985.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5035.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5035.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5083.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5083.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5084.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5084.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5126.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5126.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5208.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5208.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5275.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5275.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5280.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5280.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5480.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5480.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5636.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5636.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5639.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5639.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5649.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5649.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5652.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5652.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5697.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5697.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5751.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5751.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5752.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5752.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5753.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5753.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5755.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5755.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5913.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5913.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5914.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5914.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5915.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5915.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5916.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5916.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5917.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5917.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5924.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5924.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5934.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5934.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5940.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5940.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5958.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5958.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5990.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc5990.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6010.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6010.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6019.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6019.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6031.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6031.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6032.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6032.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6120.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6120.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6170.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6170.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6187.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6187.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6210.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6210.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6211.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6211.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6402.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6402.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6482.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6482.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6486.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6486.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6487.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6487.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6664.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6664.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6955.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6955.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6960.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc6960.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7030.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7030.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7191.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7191.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7229.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7229.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7292.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7292.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7296.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7296.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7508.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7508.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7585.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7585.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7633.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7633.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7773.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7773.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7894.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7894.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7906.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7906.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7914.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc7914.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8017.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8017.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8018.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8018.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8103.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8103.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8209.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8209.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8226.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8226.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8358.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8358.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8360.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8360.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8398.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8398.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8410.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8410.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8418.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8418.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8419.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8419.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8479.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8479.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8494.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8494.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8520.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8520.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8619.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8619.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8649.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8649.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8692.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8692.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8696.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8696.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8702.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8702.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8708.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8708.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8769.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/__pycache__/rfc8769.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/pem.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/pem.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1155.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1155.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1157.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1157.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1901.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1901.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1902.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1902.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1905.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc1905.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2251.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2251.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2314.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2314.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2315.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2315.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2437.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2437.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2459.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2459.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2511.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2511.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2560.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2560.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2631.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2631.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2634.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2634.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2876.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2876.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2985.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2985.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2986.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc2986.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3058.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3058.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3114.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3114.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3125.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3125.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3161.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3161.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3274.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3274.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3279.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3279.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3280.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3280.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3281.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3281.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3370.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3370.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3412.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3412.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3414.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3414.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3447.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3447.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3537.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3537.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3560.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3560.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3565.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3565.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3657.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3657.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3709.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3709.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3739.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3739.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3770.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3770.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3779.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3779.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3820.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3820.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3852.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc3852.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4010.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4010.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4043.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4043.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4055.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4055.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4073.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4073.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4108.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4108.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4210.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4210.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4211.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4211.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4334.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4334.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4357.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4357.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4387.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4387.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4476.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4476.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4490.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4490.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4491.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4491.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4683.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4683.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4985.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc4985.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5035.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5035.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5083.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5083.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5084.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5084.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5126.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5126.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5208.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5208.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5275.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5275.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5280.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5280.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5480.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5480.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5636.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5636.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5639.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5639.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5649.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5649.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5652.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5652.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5697.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5697.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5751.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5751.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5752.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5752.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5753.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5753.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5755.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5755.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5913.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5913.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5914.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5914.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5915.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5915.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5916.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5916.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5917.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5917.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5924.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5924.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5934.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5934.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5940.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5940.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5958.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5958.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5990.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc5990.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6010.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6010.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6019.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6019.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6031.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6031.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6032.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6032.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6120.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6120.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6170.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6170.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6187.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6187.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6210.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6210.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6211.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6211.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6402.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6402.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6482.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6482.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6486.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6486.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6487.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6487.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6664.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6664.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6955.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6955.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6960.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc6960.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7030.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7030.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7191.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7191.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7229.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7229.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7292.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7292.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7296.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7296.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7508.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7508.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7585.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7585.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7633.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7633.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7773.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7773.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7894.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7894.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7906.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7906.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7914.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc7914.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8017.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8017.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8018.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8018.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8103.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8103.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8209.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8209.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8226.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8226.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8358.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8358.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8360.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8360.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8398.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8398.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8410.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8410.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8418.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8418.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8419.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8419.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8479.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8479.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8494.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8494.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8520.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8520.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8619.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8619.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8649.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8649.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8692.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8692.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8696.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8696.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8702.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8702.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8708.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8708.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8769.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1_modules/rfc8769.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/LICENSE.rst](./.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/LICENSE.rst) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/zip-safe](./.pythonlibs/lib/python3.11/site-packages/pyasn1-0.6.1.dist-info/zip-safe) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/__pycache__/debug.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/__pycache__/debug.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/__pycache__/error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/__pycache__/error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/__pycache__/streaming.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/__pycache__/streaming.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__pycache__/decoder.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__pycache__/decoder.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__pycache__/encoder.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__pycache__/encoder.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__pycache__/eoo.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/__pycache__/eoo.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/decoder.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/decoder.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/encoder.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/encoder.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/eoo.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/ber/eoo.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/__pycache__/decoder.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/__pycache__/decoder.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/__pycache__/encoder.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/__pycache__/encoder.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/decoder.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/decoder.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/encoder.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/cer/encoder.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/__pycache__/decoder.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/__pycache__/decoder.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/__pycache__/encoder.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/__pycache__/encoder.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/decoder.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/decoder.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/encoder.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/der/encoder.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/__pycache__/decoder.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/__pycache__/decoder.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/__pycache__/encoder.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/__pycache__/encoder.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/decoder.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/decoder.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/encoder.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/native/encoder.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/streaming.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/codec/streaming.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/compat/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/compat/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/compat/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/compat/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/compat/__pycache__/integer.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/compat/__pycache__/integer.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/compat/integer.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/compat/integer.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/debug.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/debug.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/error.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/base.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/base.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/char.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/char.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/constraint.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/constraint.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/error.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/error.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/namedtype.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/namedtype.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/namedval.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/namedval.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/opentype.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/opentype.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/tag.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/tag.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/tagmap.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/tagmap.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/univ.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/univ.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/useful.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/__pycache__/useful.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/base.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/base.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/char.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/char.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/constraint.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/constraint.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/error.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/error.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/namedtype.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/namedtype.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/namedval.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/namedval.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/opentype.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/opentype.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/tag.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/tag.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/tagmap.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/tagmap.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/univ.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/univ.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pyasn1/type/useful.py](./.pythonlibs/lib/python3.11/site-packages/pyasn1/type/useful.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/pydantic_core-2.41.5.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pydantic_core/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic_core/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core/__pycache__/core_schema.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic_core/__pycache__/core_schema.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core/_pydantic_core.cpython-311-x86_64-linux-gnu.so](./.pythonlibs/lib/python3.11/site-packages/pydantic_core/_pydantic_core.cpython-311-x86_64-linux-gnu.so) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core/_pydantic_core.pyi](./.pythonlibs/lib/python3.11/site-packages/pydantic_core/_pydantic_core.pyi) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core/core_schema.py](./.pythonlibs/lib/python3.11/site-packages/pydantic_core/core_schema.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic_core/py.typed](./.pythonlibs/lib/python3.11/site-packages/pydantic_core/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/pydantic-2.12.5.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/_migration.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/_migration.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/alias_generators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/alias_generators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/aliases.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/aliases.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/annotated_handlers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/annotated_handlers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/class_validators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/class_validators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/color.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/color.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/dataclasses.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/dataclasses.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/datetime_parse.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/datetime_parse.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/decorator.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/decorator.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/env_settings.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/env_settings.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/error_wrappers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/error_wrappers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/errors.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/errors.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/fields.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/fields.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/functional_serializers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/functional_serializers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/functional_validators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/functional_validators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/generics.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/generics.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/json_schema.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/json_schema.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/json.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/json.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/main.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/main.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/mypy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/mypy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/networks.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/networks.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/parse.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/parse.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/root_model.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/root_model.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/schema.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/schema.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/tools.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/tools.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/type_adapter.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/type_adapter.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/typing.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/typing.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/validate_call_decorator.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/validate_call_decorator.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/validators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/validators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/warnings.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/__pycache__/warnings.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_core_metadata.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_core_metadata.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_core_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_core_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_dataclasses.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_dataclasses.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_decorators_v1.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_decorators_v1.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_decorators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_decorators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_discriminated_union.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_discriminated_union.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_docs_extraction.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_docs_extraction.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_fields.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_fields.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_forward_ref.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_forward_ref.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_generate_schema.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_generate_schema.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_generics.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_generics.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_git.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_git.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_import_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_import_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_internal_dataclass.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_internal_dataclass.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_known_annotated_metadata.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_known_annotated_metadata.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_mock_val_ser.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_mock_val_ser.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_model_construction.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_model_construction.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_namespace_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_namespace_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_repr.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_repr.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_schema_gather.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_schema_gather.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_schema_generation_shared.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_schema_generation_shared.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_serializers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_serializers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_signature.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_signature.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_typing_extra.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_typing_extra.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_validate_call.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_validate_call.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_validators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/__pycache__/_validators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_config.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_core_metadata.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_core_metadata.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_core_utils.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_core_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_dataclasses.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_dataclasses.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_decorators_v1.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_decorators_v1.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_decorators.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_decorators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_discriminated_union.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_discriminated_union.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_docs_extraction.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_docs_extraction.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_fields.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_fields.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_forward_ref.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_forward_ref.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_generics.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_generics.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_git.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_git.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_import_utils.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_import_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_internal_dataclass.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_internal_dataclass.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_known_annotated_metadata.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_known_annotated_metadata.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_mock_val_ser.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_mock_val_ser.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_model_construction.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_model_construction.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_namespace_utils.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_namespace_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_repr.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_repr.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_schema_gather.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_schema_gather.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_schema_generation_shared.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_schema_generation_shared.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_serializers.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_serializers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_signature.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_signature.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_typing_extra.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_typing_extra.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_utils.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_validate_call.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_validate_call.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_validators.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_internal/_validators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/_migration.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/_migration.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/alias_generators.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/alias_generators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/aliases.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/aliases.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/annotated_handlers.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/annotated_handlers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/class_validators.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/class_validators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/color.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/color.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/config.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/dataclasses.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/dataclasses.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/datetime_parse.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/datetime_parse.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/decorator.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/decorator.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/class_validators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/class_validators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/copy_internals.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/copy_internals.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/decorator.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/decorator.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/json.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/json.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/parse.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/parse.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/tools.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/__pycache__/tools.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/class_validators.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/class_validators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/config.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/copy_internals.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/copy_internals.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/decorator.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/decorator.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/json.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/json.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/parse.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/parse.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/tools.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/deprecated/tools.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/env_settings.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/env_settings.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/error_wrappers.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/error_wrappers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/errors.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/errors.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/fields.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/fields.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/functional_serializers.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/functional_serializers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/functional_validators.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/functional_validators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/generics.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/generics.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/json_schema.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/json_schema.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/json.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/json.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/main.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/main.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/mypy.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/mypy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/networks.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/networks.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/parse.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/parse.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/__pycache__/_loader.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/__pycache__/_loader.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/__pycache__/_schema_validator.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/__pycache__/_schema_validator.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/_loader.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/_loader.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/_schema_validator.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/plugin/_schema_validator.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/py.typed](./.pythonlibs/lib/python3.11/site-packages/pydantic/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/root_model.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/root_model.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/schema.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/schema.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/tools.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/tools.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/type_adapter.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/type_adapter.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/types.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/typing.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/typing.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/utils.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__init__.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/_hypothesis_plugin.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/_hypothesis_plugin.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/annotated_types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/annotated_types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/class_validators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/class_validators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/color.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/color.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/config.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/config.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/dataclasses.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/dataclasses.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/datetime_parse.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/datetime_parse.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/decorator.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/decorator.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/env_settings.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/env_settings.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/error_wrappers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/error_wrappers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/errors.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/errors.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/fields.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/fields.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/generics.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/generics.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/json.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/json.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/main.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/main.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/mypy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/mypy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/networks.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/networks.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/parse.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/parse.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/schema.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/schema.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/tools.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/tools.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/types.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/types.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/typing.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/typing.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/validators.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/validators.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/__pycache__/version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/_hypothesis_plugin.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/_hypothesis_plugin.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/annotated_types.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/annotated_types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/class_validators.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/class_validators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/color.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/color.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/config.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/config.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/dataclasses.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/dataclasses.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/datetime_parse.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/datetime_parse.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/decorator.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/decorator.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/env_settings.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/env_settings.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/error_wrappers.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/error_wrappers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/errors.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/errors.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/fields.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/fields.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/generics.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/generics.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/json.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/json.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/main.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/main.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/mypy.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/mypy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/networks.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/networks.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/parse.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/parse.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/py.typed](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/schema.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/schema.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/tools.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/tools.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/types.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/types.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/typing.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/typing.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/utils.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/validators.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/validators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/v1/version.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/v1/version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/validate_call_decorator.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/validate_call_decorator.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/validators.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/validators.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/version.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/pydantic/warnings.py](./.pythonlibs/lib/python3.11/site-packages/pydantic/warnings.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/requests-2.32.5.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__init__.py](./.pythonlibs/lib/python3.11/site-packages/requests/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/__version__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/__version__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/_internal_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/_internal_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/adapters.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/adapters.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/api.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/api.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/auth.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/auth.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/certs.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/certs.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/compat.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/compat.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/cookies.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/cookies.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/exceptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/exceptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/help.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/help.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/hooks.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/hooks.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/models.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/models.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/packages.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/packages.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/sessions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/sessions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/status_codes.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/status_codes.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/structures.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/structures.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/requests/__pycache__/utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/__version__.py](./.pythonlibs/lib/python3.11/site-packages/requests/__version__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/_internal_utils.py](./.pythonlibs/lib/python3.11/site-packages/requests/_internal_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/adapters.py](./.pythonlibs/lib/python3.11/site-packages/requests/adapters.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/api.py](./.pythonlibs/lib/python3.11/site-packages/requests/api.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/auth.py](./.pythonlibs/lib/python3.11/site-packages/requests/auth.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/certs.py](./.pythonlibs/lib/python3.11/site-packages/requests/certs.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/compat.py](./.pythonlibs/lib/python3.11/site-packages/requests/compat.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/cookies.py](./.pythonlibs/lib/python3.11/site-packages/requests/cookies.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/exceptions.py](./.pythonlibs/lib/python3.11/site-packages/requests/exceptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/help.py](./.pythonlibs/lib/python3.11/site-packages/requests/help.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/hooks.py](./.pythonlibs/lib/python3.11/site-packages/requests/hooks.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/models.py](./.pythonlibs/lib/python3.11/site-packages/requests/models.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/packages.py](./.pythonlibs/lib/python3.11/site-packages/requests/packages.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/sessions.py](./.pythonlibs/lib/python3.11/site-packages/requests/sessions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/status_codes.py](./.pythonlibs/lib/python3.11/site-packages/requests/status_codes.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/structures.py](./.pythonlibs/lib/python3.11/site-packages/requests/structures.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/requests/utils.py](./.pythonlibs/lib/python3.11/site-packages/requests/utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/entry_points.txt](./.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/entry_points.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/LICENSE](./.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/rsa-4.9.1.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__init__.py](./.pythonlibs/lib/python3.11/site-packages/rsa/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/asn1.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/asn1.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/cli.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/cli.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/common.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/common.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/core.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/core.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/key.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/key.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/parallel.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/parallel.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/pem.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/pem.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/pkcs1_v2.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/pkcs1_v2.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/pkcs1.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/pkcs1.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/prime.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/prime.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/randnum.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/randnum.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/transform.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/transform.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/util.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/rsa/__pycache__/util.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/asn1.py](./.pythonlibs/lib/python3.11/site-packages/rsa/asn1.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/cli.py](./.pythonlibs/lib/python3.11/site-packages/rsa/cli.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/common.py](./.pythonlibs/lib/python3.11/site-packages/rsa/common.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/core.py](./.pythonlibs/lib/python3.11/site-packages/rsa/core.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/key.py](./.pythonlibs/lib/python3.11/site-packages/rsa/key.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/parallel.py](./.pythonlibs/lib/python3.11/site-packages/rsa/parallel.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/pem.py](./.pythonlibs/lib/python3.11/site-packages/rsa/pem.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/pkcs1_v2.py](./.pythonlibs/lib/python3.11/site-packages/rsa/pkcs1_v2.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/pkcs1.py](./.pythonlibs/lib/python3.11/site-packages/rsa/pkcs1.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/prime.py](./.pythonlibs/lib/python3.11/site-packages/rsa/prime.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/py.typed](./.pythonlibs/lib/python3.11/site-packages/rsa/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/randnum.py](./.pythonlibs/lib/python3.11/site-packages/rsa/randnum.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/transform.py](./.pythonlibs/lib/python3.11/site-packages/rsa/transform.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/rsa/util.py](./.pythonlibs/lib/python3.11/site-packages/rsa/util.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/LICENSE](./.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/LICENSE.APACHE2](./.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/LICENSE.APACHE2) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/LICENSE.MIT](./.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/LICENSE.MIT) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/sniffio-1.3.1.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/__init__.py](./.pythonlibs/lib/python3.11/site-packages/sniffio/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/sniffio/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/__pycache__/_impl.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/sniffio/__pycache__/_impl.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/__pycache__/_version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/sniffio/__pycache__/_version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/_impl.py](./.pythonlibs/lib/python3.11/site-packages/sniffio/_impl.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/_tests/__init__.py](./.pythonlibs/lib/python3.11/site-packages/sniffio/_tests/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/_tests/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/sniffio/_tests/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/_tests/__pycache__/test_sniffio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/sniffio/_tests/__pycache__/test_sniffio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/_tests/test_sniffio.py](./.pythonlibs/lib/python3.11/site-packages/sniffio/_tests/test_sniffio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/_version.py](./.pythonlibs/lib/python3.11/site-packages/sniffio/_version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/sniffio/py.typed](./.pythonlibs/lib/python3.11/site-packages/sniffio/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/tenacity-9.1.2.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__init__.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/after.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/after.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/before_sleep.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/before_sleep.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/before.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/before.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/nap.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/nap.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/retry.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/retry.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/stop.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/stop.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/tornadoweb.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/tornadoweb.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/wait.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/__pycache__/wait.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/_utils.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/after.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/after.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/asyncio/__init__.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/asyncio/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/asyncio/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/asyncio/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/asyncio/__pycache__/retry.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tenacity/asyncio/__pycache__/retry.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/asyncio/retry.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/asyncio/retry.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/before_sleep.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/before_sleep.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/before.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/before.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/nap.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/nap.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/py.typed](./.pythonlibs/lib/python3.11/site-packages/tenacity/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/retry.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/retry.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/stop.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/stop.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/tornadoweb.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/tornadoweb.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tenacity/wait.py](./.pythonlibs/lib/python3.11/site-packages/tenacity/wait.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/entry_points.txt](./.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/entry_points.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/LICENCE](./.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/LICENCE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/tqdm-4.67.1.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__init__.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__main__.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/__main__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/__main__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/__main__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_dist_ver.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_dist_ver.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_main.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_main.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_monitor.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_monitor.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_tqdm_gui.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_tqdm_gui.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_tqdm_notebook.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_tqdm_notebook.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_tqdm_pandas.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_tqdm_pandas.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_tqdm.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_tqdm.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/_utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/asyncio.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/asyncio.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/auto.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/auto.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/autonotebook.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/autonotebook.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/cli.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/cli.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/dask.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/dask.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/gui.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/gui.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/keras.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/keras.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/notebook.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/notebook.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/rich.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/rich.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/std.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/std.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/tk.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/tk.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/__pycache__/version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/_dist_ver.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/_dist_ver.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/_main.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/_main.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/_monitor.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/_monitor.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/_tqdm_gui.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/_tqdm_gui.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/_tqdm_notebook.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/_tqdm_notebook.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/_tqdm_pandas.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/_tqdm_pandas.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/_tqdm.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/_tqdm.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/_utils.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/_utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/asyncio.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/asyncio.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/auto.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/auto.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/autonotebook.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/autonotebook.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/cli.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/cli.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/completion.sh](./.pythonlibs/lib/python3.11/site-packages/tqdm/completion.sh) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__init__.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/bells.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/bells.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/concurrent.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/concurrent.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/discord.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/discord.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/itertools.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/itertools.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/logging.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/logging.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/slack.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/slack.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/telegram.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/telegram.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/utils_worker.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/__pycache__/utils_worker.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/bells.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/bells.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/concurrent.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/concurrent.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/discord.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/discord.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/itertools.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/itertools.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/logging.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/logging.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/slack.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/slack.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/telegram.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/telegram.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/utils_worker.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/contrib/utils_worker.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/dask.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/dask.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/gui.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/gui.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/keras.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/keras.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/notebook.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/notebook.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/rich.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/rich.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/std.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/std.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/tk.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/tk.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/tqdm.1](./.pythonlibs/lib/python3.11/site-packages/tqdm/tqdm.1) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/utils.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/tqdm/version.py](./.pythonlibs/lib/python3.11/site-packages/tqdm/version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/typing_extensions-4.15.0.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_extensions.py](./.pythonlibs/lib/python3.11/site-packages/typing_extensions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/licenses/LICENSE](./.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/licenses/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/typing_inspection-0.4.2.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection/__init__.py](./.pythonlibs/lib/python3.11/site-packages/typing_inspection/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/typing_inspection/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection/__pycache__/introspection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/typing_inspection/__pycache__/introspection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection/__pycache__/typing_objects.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/typing_inspection/__pycache__/typing_objects.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection/introspection.py](./.pythonlibs/lib/python3.11/site-packages/typing_inspection/introspection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection/py.typed](./.pythonlibs/lib/python3.11/site-packages/typing_inspection/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection/typing_objects.py](./.pythonlibs/lib/python3.11/site-packages/typing_inspection/typing_objects.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/typing_inspection/typing_objects.pyi](./.pythonlibs/lib/python3.11/site-packages/typing_inspection/typing_objects.pyi) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/licenses/LICENSE.txt](./.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/licenses/LICENSE.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/urllib3-2.5.0.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__init__.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/_base_connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/_base_connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/_collections.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/_collections.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/_request_methods.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/_request_methods.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/_version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/_version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/connectionpool.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/connectionpool.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/exceptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/exceptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/fields.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/fields.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/filepost.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/filepost.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/poolmanager.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/poolmanager.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/__pycache__/response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/_base_connection.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/_base_connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/_collections.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/_collections.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/_request_methods.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/_request_methods.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/_version.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/_version.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/connection.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/connectionpool.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/connectionpool.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/__init__.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/__pycache__/pyopenssl.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/__pycache__/pyopenssl.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/__pycache__/socks.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/__pycache__/socks.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__init__.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/fetch.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/fetch.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/request.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/request.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/__pycache__/response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/connection.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/emscripten_fetch_worker.js](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/emscripten_fetch_worker.js) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/fetch.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/fetch.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/request.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/request.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/response.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/pyopenssl.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/pyopenssl.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/socks.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/contrib/socks.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/exceptions.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/exceptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/fields.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/fields.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/filepost.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/filepost.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/http2/__init__.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/http2/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/http2/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/http2/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/http2/__pycache__/connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/http2/__pycache__/connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/http2/__pycache__/probe.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/http2/__pycache__/probe.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/http2/connection.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/http2/connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/http2/probe.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/http2/probe.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/poolmanager.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/poolmanager.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/py.typed](./.pythonlibs/lib/python3.11/site-packages/urllib3/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/response.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__init__.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/proxy.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/proxy.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/request.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/request.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/response.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/response.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/retry.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/retry.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/ssl_.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/ssl_.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/ssl_match_hostname.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/ssl_match_hostname.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/ssltransport.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/ssltransport.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/timeout.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/timeout.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/url.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/url.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/util.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/util.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/wait.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/__pycache__/wait.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/connection.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/proxy.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/proxy.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/request.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/request.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/response.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/response.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/retry.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/retry.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/ssl_.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/ssl_.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/ssl_match_hostname.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/ssl_match_hostname.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/ssltransport.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/ssltransport.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/timeout.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/timeout.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/url.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/url.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/util.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/util.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/urllib3/util/wait.py](./.pythonlibs/lib/python3.11/site-packages/urllib3/util/wait.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/entry_points.txt](./.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/entry_points.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/INSTALLER](./.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/INSTALLER) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/LICENSE](./.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/LICENSE) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/METADATA](./.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/METADATA) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/RECORD](./.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/RECORD) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/top_level.txt](./.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/top_level.txt) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/WHEEL](./.pythonlibs/lib/python3.11/site-packages/websockets-15.0.1.dist-info/WHEEL) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__init__.py](./.pythonlibs/lib/python3.11/site-packages/websockets/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__main__.py](./.pythonlibs/lib/python3.11/site-packages/websockets/__main__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/__main__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/__main__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/auth.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/auth.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/cli.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/cli.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/datastructures.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/datastructures.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/exceptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/exceptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/frames.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/frames.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/headers.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/headers.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/http.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/http.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/http11.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/http11.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/imports.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/imports.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/protocol.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/protocol.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/server.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/server.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/streams.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/streams.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/typing.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/typing.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/uri.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/uri.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/version.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/__pycache__/version.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__init__.py](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/async_timeout.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/async_timeout.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/compatibility.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/compatibility.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/messages.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/messages.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/router.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/router.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/server.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/__pycache__/server.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/async_timeout.py](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/async_timeout.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/client.py](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/compatibility.py](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/compatibility.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/connection.py](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/messages.py](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/messages.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/router.py](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/router.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/server.py](./.pythonlibs/lib/python3.11/site-packages/websockets/asyncio/server.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/auth.py](./.pythonlibs/lib/python3.11/site-packages/websockets/auth.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/cli.py](./.pythonlibs/lib/python3.11/site-packages/websockets/cli.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/client.py](./.pythonlibs/lib/python3.11/site-packages/websockets/client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/connection.py](./.pythonlibs/lib/python3.11/site-packages/websockets/connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/datastructures.py](./.pythonlibs/lib/python3.11/site-packages/websockets/datastructures.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/exceptions.py](./.pythonlibs/lib/python3.11/site-packages/websockets/exceptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/extensions/__init__.py](./.pythonlibs/lib/python3.11/site-packages/websockets/extensions/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/extensions/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/extensions/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/extensions/__pycache__/base.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/extensions/__pycache__/base.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/extensions/__pycache__/permessage_deflate.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/extensions/__pycache__/permessage_deflate.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/extensions/base.py](./.pythonlibs/lib/python3.11/site-packages/websockets/extensions/base.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/extensions/permessage_deflate.py](./.pythonlibs/lib/python3.11/site-packages/websockets/extensions/permessage_deflate.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/frames.py](./.pythonlibs/lib/python3.11/site-packages/websockets/frames.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/headers.py](./.pythonlibs/lib/python3.11/site-packages/websockets/headers.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/http.py](./.pythonlibs/lib/python3.11/site-packages/websockets/http.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/http11.py](./.pythonlibs/lib/python3.11/site-packages/websockets/http11.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/imports.py](./.pythonlibs/lib/python3.11/site-packages/websockets/imports.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__init__.py](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/auth.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/auth.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/exceptions.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/exceptions.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/framing.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/framing.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/handshake.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/handshake.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/http.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/http.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/protocol.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/protocol.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/server.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/__pycache__/server.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/auth.py](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/auth.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/client.py](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/exceptions.py](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/exceptions.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/framing.py](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/framing.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/handshake.py](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/handshake.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/http.py](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/http.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/protocol.py](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/protocol.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/legacy/server.py](./.pythonlibs/lib/python3.11/site-packages/websockets/legacy/server.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/protocol.py](./.pythonlibs/lib/python3.11/site-packages/websockets/protocol.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/py.typed](./.pythonlibs/lib/python3.11/site-packages/websockets/py.typed) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/server.py](./.pythonlibs/lib/python3.11/site-packages/websockets/server.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/speedups.c](./.pythonlibs/lib/python3.11/site-packages/websockets/speedups.c) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/speedups.cpython-311-x86_64-linux-gnu.so](./.pythonlibs/lib/python3.11/site-packages/websockets/speedups.cpython-311-x86_64-linux-gnu.so) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/speedups.pyi](./.pythonlibs/lib/python3.11/site-packages/websockets/speedups.pyi) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/streams.py](./.pythonlibs/lib/python3.11/site-packages/websockets/streams.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/__init__.py](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/__init__.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/__init__.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/__init__.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/client.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/client.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/connection.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/connection.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/messages.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/messages.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/router.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/router.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/server.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/server.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/utils.cpython-311.pyc](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/__pycache__/utils.cpython-311.pyc) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/client.py](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/client.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/connection.py](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/connection.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/messages.py](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/messages.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/router.py](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/router.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/server.py](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/server.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/sync/utils.py](./.pythonlibs/lib/python3.11/site-packages/websockets/sync/utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/typing.py](./.pythonlibs/lib/python3.11/site-packages/websockets/typing.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/uri.py](./.pythonlibs/lib/python3.11/site-packages/websockets/uri.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/utils.py](./.pythonlibs/lib/python3.11/site-packages/websockets/utils.py) (not active)
+- [.pythonlibs/lib/python3.11/site-packages/websockets/version.py](./.pythonlibs/lib/python3.11/site-packages/websockets/version.py) (not active)
+- [.pythonlibs/lib64](./.pythonlibs/lib64) (not active)
+- [.pythonlibs/pyvenv.cfg](./.pythonlibs/pyvenv.cfg) (not active)
+- [.upm/store.json](./.upm/store.json) (not active)
+- [.upm/store.json4158403882](./.upm/store.json4158403882) (not active)
+- [agent-ai-config.js](./agent-ai-config.js) (not active)
+- [attached_assets/image_1765397745330.png](./attached_assets/image_1765397745330.png) (not active)
+- [attached_assets/image_1765398897698.png](./attached_assets/image_1765398897698.png) (not active)
+- [attached_assets/Pasted-First-let-me-try-using-web-search-through-the-Anthropic_1765396332105.txt](./attached_assets/Pasted-First-let-me-try-using-web-search-through-the-Anthropic_1765396332105.txt) (not active)
+- [attached_assets/Pasted-Here-s-the-corrected-version-using-Claude-Opus-4-5-java_1765399665725.txt](./attached_assets/Pasted-Here-s-the-corrected-version-using-Claude-Opus-4-5-java_1765399665725.txt) (not active)
+- [attached_assets/Pasted-Here-s-the-corrected-version-with-the-beta-header-inclu_1765399534568.txt](./attached_assets/Pasted-Here-s-the-corrected-version-with-the-beta-header-inclu_1765399534568.txt) (not active)
+- [attached_assets/Pasted-I-ll-fetch-the-Anthropic-API-documentation-to-get-you-t_1765256276479.txt](./attached_assets/Pasted-I-ll-fetch-the-Anthropic-API-documentation-to-get-you-t_1765256276479.txt) (not active)
+- [AUTOSCALE_HARDENING_VERIFICATION.md](./AUTOSCALE_HARDENING_VERIFICATION.md) (not active)
+- [BUSINESS_HOURS_DEBUG.md](./BUSINESS_HOURS_DEBUG.md) (not active)
+- [check-api.js](./check-api.js) (not active)
+- [COACH_DATA_ACCESS.md](./COACH_DATA_ACCESS.md) (not active)
+- [DATABASE_CONNECTION_GUIDE.md](./DATABASE_CONNECTION_GUIDE.md) (not active)
+- [DEPLOYMENT_READY.md](./DEPLOYMENT_READY.md) (not active)
+- [dist/agent/actions.d.ts](./dist/agent/actions.d.ts) (not active)
+- [dist/agent/actions.d.ts.map](./dist/agent/actions.d.ts.map) (not active)
+- [dist/agent/actions.js](./dist/agent/actions.js) (not active)
+- [dist/agent/actions.js.map](./dist/agent/actions.js.map) (not active)
+- [dist/agent/core.d.ts](./dist/agent/core.d.ts) (not active)
+- [dist/agent/core.d.ts.map](./dist/agent/core.d.ts.map) (not active)
+- [dist/agent/core.js](./dist/agent/core.js) (not active)
+- [dist/agent/core.js.map](./dist/agent/core.js.map) (not active)
+- [dist/agent/memory.d.ts](./dist/agent/memory.d.ts) (not active)
+- [dist/agent/memory.d.ts.map](./dist/agent/memory.d.ts.map) (not active)
+- [dist/agent/memory.js](./dist/agent/memory.js) (not active)
+- [dist/agent/memory.js.map](./dist/agent/memory.js.map) (not active)
+- [dist/index.d.ts](./dist/index.d.ts) (not active)
+- [dist/index.d.ts.map](./dist/index.d.ts.map) (not active)
+- [docs/AGENT_BUILD_COMPLETE.md](./docs/AGENT_BUILD_COMPLETE.md) (not active)
+- [docs/AGENT_OVERRIDE_FIXES.md](./docs/AGENT_OVERRIDE_FIXES.md) (not active)
+- [docs/AGENT_OVERRIDE_REVIEW_ANALYSIS.md](./docs/AGENT_OVERRIDE_REVIEW_ANALYSIS.md) (not active)
+- [docs/AGENT_SETUP_STATUS.md](./docs/AGENT_SETUP_STATUS.md) (not active)
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) (not active)
+- [docs/architecture/COMPONENT_ORGANIZATION.md](./docs/architecture/COMPONENT_ORGANIZATION.md) (not active)
+- [docs/architecture/EIDOLON_ARCHITECTURE.md](./docs/architecture/EIDOLON_ARCHITECTURE.md) (not active)
+- [docs/architecture/VECTO_BUILD_DOCUMENTATION.md](./docs/architecture/VECTO_BUILD_DOCUMENTATION.md) (not active)
+- [docs/ARCHITECTUREV2.md](./docs/ARCHITECTUREV2.md) (not active)
+- [docs/ASSISTANT-OVERRIDE-README.md](./docs/ASSISTANT-OVERRIDE-README.md) (not active)
+- [docs/BUSINESS_HOURS_ARCHITECTURE.md](./docs/BUSINESS_HOURS_ARCHITECTURE.md) (not active)
+- [docs/DATABASE_SCHEMA_MAP.md](./docs/DATABASE_SCHEMA_MAP.md) (not active)
+- [docs/DB_VERIFICATION_REPORT.md](./docs/DB_VERIFICATION_REPORT.md) (not active)
+- [docs/DEPLOYMENT_CHECKLIST.md](./docs/DEPLOYMENT_CHECKLIST.md) (not active)
+- [docs/DEPLOYMENT_FIX_MIGRATIONS.md](./docs/DEPLOYMENT_FIX_MIGRATIONS.md) (not active)
+- [docs/DEPLOYMENT_FIXES_APPLIED.md](./docs/DEPLOYMENT_FIXES_APPLIED.md) (not active)
+- [docs/DEPLOYMENT_READY.md](./docs/DEPLOYMENT_READY.md) (not active)
+- [docs/DEPLOYMENT-README.md](./docs/DEPLOYMENT-README.md) (not active)
+- [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) (not active)
+- [docs/design_guidelines.md](./docs/design_guidelines.md) (not active)
+- [docs/EVENT_FRESHNESS_AND_TTL.md](./docs/EVENT_FRESHNESS_AND_TTL.md) (not active)
+- [docs/EXTENSION_ACTIVATION_GUIDE.md](./docs/EXTENSION_ACTIVATION_GUIDE.md) (not active)
+- [docs/FINAL_AGENT_OVERRIDE_STATUS.md](./docs/FINAL_AGENT_OVERRIDE_STATUS.md) (not active)
+- [docs/FINAL_SOLUTION.md](./docs/FINAL_SOLUTION.md) (not active)
+- [docs/FIXES_SUMMARY.md](./docs/FIXES_SUMMARY.md) (not active)
+- [docs/GITHUB_EXPORT.md](./docs/GITHUB_EXPORT.md) (not active)
+- [docs/GLOBAL_SYSTEM_VALIDATION_REPORT.md](./docs/GLOBAL_SYSTEM_VALIDATION_REPORT.md) (not active)
+- [docs/global-test-results-1760028145551.md](./docs/global-test-results-1760028145551.md) (not active)
+- [docs/global-test-results-1760028240766.md](./docs/global-test-results-1760028240766.md) (not active)
+- [docs/global-test-results-1760028274201.md](./docs/global-test-results-1760028274201.md) (not active)
+- [docs/global-test-results-1761272378800.md](./docs/global-test-results-1761272378800.md) (not active)
+- [docs/global-test-results-1761272414666.md](./docs/global-test-results-1761272414666.md) (not active)
+- [docs/global-test-results-1761272438612.md](./docs/global-test-results-1761272438612.md) (not active)
+- [docs/global-test-results-1761272474488.md](./docs/global-test-results-1761272474488.md) (not active)
+- [docs/global-test-results-1761272638092.md](./docs/global-test-results-1761272638092.md) (not active)
+- [docs/global-test-results-1761272675811.md](./docs/global-test-results-1761272675811.md) (not active)
+- [docs/global-test-results-1761273157010.md](./docs/global-test-results-1761273157010.md) (not active)
+- [docs/global-test-results-1761273239105.md](./docs/global-test-results-1761273239105.md) (not active)
+- [docs/global-test-results-1761273560443.md](./docs/global-test-results-1761273560443.md) (not active)
+- [docs/global-test-results-1761273685427.md](./docs/global-test-results-1761273685427.md) (not active)
+- [docs/global-test-results-1761273752536.md](./docs/global-test-results-1761273752536.md) (not active)
+- [docs/global-test-results-1761273839096.md](./docs/global-test-results-1761273839096.md) (not active)
+- [docs/global-test-results-1761275714641.md](./docs/global-test-results-1761275714641.md) (not active)
+- [docs/GOOGLE_PLACES_NEW_API_FIELDS.md](./docs/GOOGLE_PLACES_NEW_API_FIELDS.md) (not active)
+- [docs/google-api-endpoints.md](./docs/google-api-endpoints.md) (not active)
+- [docs/HANDOFF_SUMMARY.md](./docs/HANDOFF_SUMMARY.md) (not active)
+- [docs/ISSUES.md](./docs/ISSUES.md) (not active)
+- [docs/JWKS_QUICK_START.md](./docs/JWKS_QUICK_START.md) (not active)
+- [docs/JWKS_SETUP_GUIDE.md](./docs/JWKS_SETUP_GUIDE.md) (not active)
+- [docs/LINKEDIN_POST.md](./docs/LINKEDIN_POST.md) (not active)
+- [docs/LINKEDIN_RESPONSE_GLOBAL_HARDENING.md](./docs/LINKEDIN_RESPONSE_GLOBAL_HARDENING.md) (not active)
+- [docs/ML_AND_PORT_STATUS.md](./docs/ML_AND_PORT_STATUS.md) (not active)
+- [docs/ML_LEARNING_COMPLETE.md](./docs/ML_LEARNING_COMPLETE.md) (not active)
+- [docs/MODEL.md](./docs/MODEL.md) (not active)
+- [docs/package.json.notes](./docs/package.json.notes) (active)
+- [docs/POST_RESTART_INSTRUCTIONS.md](./docs/POST_RESTART_INSTRUCTIONS.md) (not active)
+- [docs/PREFLIGHT_FIX_NOTES.md](./docs/PREFLIGHT_FIX_NOTES.md) (not active)
+- [docs/PROJECT_STRUCTURE.md](./docs/PROJECT_STRUCTURE.md) (not active)
+- [docs/README_REPLIT_RESTORE.md](./docs/README_REPLIT_RESTORE.md) (not active)
+- [docs/README.md](./docs/README.md) (not active)
+- [docs/reference/DESIGN-AUDIT-2025-10-03.md](./docs/reference/DESIGN-AUDIT-2025-10-03.md) (not active)
+- [docs/reference/LEXICON.md](./docs/reference/LEXICON.md) (not active)
+- [docs/reference/LLM_MODELS_REFERENCE.md](./docs/reference/LLM_MODELS_REFERENCE.md) (not active)
+- [docs/reference/V2-ROUTER-INTEGRATION.md](./docs/reference/V2-ROUTER-INTEGRATION.md) (not active)
+- [docs/replit.md](./docs/replit.md) (not active)
+- [docs/RLS_SECURITY_IMPLEMENTATION.md](./docs/RLS_SECURITY_IMPLEMENTATION.md) (not active)
+- [docs/RLS_TOGGLE_GUIDE.md](./docs/RLS_TOGGLE_GUIDE.md) (not active)
+- [docs/ROOT_CAUSES_FIXED.md](./docs/ROOT_CAUSES_FIXED.md) (not active)
+- [docs/SCHEMA.md](./docs/SCHEMA.md) (not active)
+- [docs/SOLUTION_IMPLEMENTED.md](./docs/SOLUTION_IMPLEMENTED.md) (not active)
+- [docs/START_HERE.md](./docs/START_HERE.md) (not active)
+- [docs/STARTUP_SOLUTION.md](./docs/STARTUP_SOLUTION.md) (not active)
+- [docs/VECTOR_DB_SETUP.md](./docs/VECTOR_DB_SETUP.md) (not active)
+- [docs/VERIFICATION_COMPLETE.md](./docs/VERIFICATION_COMPLETE.md) (not active)
+- [docs/VERIFICATION-REPORT.md](./docs/VERIFICATION-REPORT.md) (not active)
+- [docs/WORKFLOW_STATUS.md](./docs/WORKFLOW_STATUS.md) (not active)
+- [eslint-unused-imports-policy.md](./eslint-unused-imports-policy.md) (not active)
+- [EVENT_DISPLAY_DEBUG.md](./EVENT_DISPLAY_DEBUG.md) (not active)
+- [EVENT_ENRICHMENT_INTEGRATION.md](./EVENT_ENRICHMENT_INTEGRATION.md) (not active)
+- [EVENT_PROXIMITY_STAGING_INTEGRATION.md](./EVENT_PROXIMITY_STAGING_INTEGRATION.md) (not active)
+- [gpt5-agent-package/.env.example](./gpt5-agent-package/.env.example) (active)
+- [gpt5-agent-package/auto-fix-build.sh](./gpt5-agent-package/auto-fix-build.sh) (not active)
+- [gpt5-agent-package/build.sh](./gpt5-agent-package/build.sh) (not active)
+- [gpt5-agent-package/docs/AGENT_BUILD_COMPLETE.md](./gpt5-agent-package/docs/AGENT_BUILD_COMPLETE.md) (not active)
+- [gpt5-agent-package/docs/AGENT_SETUP_STATUS.md](./gpt5-agent-package/docs/AGENT_SETUP_STATUS.md) (not active)
+- [gpt5-agent-package/docs/EXTENSION_ACTIVATION_GUIDE.md](./gpt5-agent-package/docs/EXTENSION_ACTIVATION_GUIDE.md) (not active)
+- [gpt5-agent-package/EXPORT_CHECKLIST.md](./gpt5-agent-package/EXPORT_CHECKLIST.md) (not active)
+- [gpt5-agent-package/EXPORT_READY.txt](./gpt5-agent-package/EXPORT_READY.txt) (not active)
+- [gpt5-agent-package/extension.json](./gpt5-agent-package/extension.json) (not active)
+- [gpt5-agent-package/INSTALL.md](./gpt5-agent-package/INSTALL.md) (not active)
+- [gpt5-agent-package/MANIFEST.md](./gpt5-agent-package/MANIFEST.md) (not active)
+- [gpt5-agent-package/package.json](./gpt5-agent-package/package.json) (active)
+- [gpt5-agent-package/README.md](./gpt5-agent-package/README.md) (not active)
+- [gpt5-agent-package/src/agent/actions.ts](./gpt5-agent-package/src/agent/actions.ts) (not active)
+- [gpt5-agent-package/src/agent/core.ts](./gpt5-agent-package/src/agent/core.ts) (not active)
+- [gpt5-agent-package/src/agent/memory.ts](./gpt5-agent-package/src/agent/memory.ts) (not active)
+- [gpt5-agent-package/src/index.ts](./gpt5-agent-package/src/index.ts) (not active)
+- [gpt5-agent-package/src/panel.html](./gpt5-agent-package/src/panel.html) (not active)
+- [gpt5-agent-package/tsconfig.agent.json](./gpt5-agent-package/tsconfig.agent.json) (not active)
+- [HEALTH_CHECK_DEPLOYMENT.md](./HEALTH_CHECK_DEPLOYMENT.md) (not active)
+- [HEALTH_CHECK_FIX_VERIFIED.md](./HEALTH_CHECK_FIX_VERIFIED.md) (not active)
+- [HEALTH_CHECK_VERIFICATION.md](./HEALTH_CHECK_VERIFICATION.md) (not active)
+- [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md) (not active)
+- [INTEGRATION_COMPLETE_SUMMARY.md](./INTEGRATION_COMPLETE_SUMMARY.md) (not active)
+- [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md) (not active)
+- [INTERACTIVE_REPO.md](./INTERACTIVE_REPO.md) (not active)
+- [JWKS_SUMMARY.txt](./JWKS_SUMMARY.txt) (not active)
+- [keys/private.pem](./keys/private.pem) (not active)
+- [keys/public.pem](./keys/public.pem) (not active)
+- [list-repo-files.js](./list-repo-files.js) (not active)
+- [LOCATION_AGNOSTIC_VERIFIED.md](./LOCATION_AGNOSTIC_VERIFIED.md) (not active)
+- [Node.js](./Node.js) (not active)
+- [note.txt](./note.txt) (not active)
+- [Other/ARCHITECTURE_PROFESSIONAL_PRINT.html](./Other/ARCHITECTURE_PROFESSIONAL_PRINT.html) (not active)
+- [Other/ARCHITECTURE_PROFESSIONAL.docx](./Other/ARCHITECTURE_PROFESSIONAL.docx) (not active)
+- [Other/ARCHITECTURE_PROFESSIONAL.html](./Other/ARCHITECTURE_PROFESSIONAL.html) (not active)
+- [Other/ARCHITECTURE_PROFESSIONAL.pdf](./Other/ARCHITECTURE_PROFESSIONAL.pdf) (not active)
+- [Other/ARCHITECTURE.docx](./Other/ARCHITECTURE.docx) (not active)
+- [Other/ARCHITECTUREV2.pdf](./Other/ARCHITECTUREV2.pdf) (not active)
+- [Other/GLOBAL_VALIDATION_PROFESSIONAL.html](./Other/GLOBAL_VALIDATION_PROFESSIONAL.html) (not active)
+- [Other/GLOBAL_VALIDATION_PROFESSIONAL.pdf](./Other/GLOBAL_VALIDATION_PROFESSIONAL.pdf) (not active)
+- [Other/LINKEDIN_RESPONSE_PROFESSIONAL.html](./Other/LINKEDIN_RESPONSE_PROFESSIONAL.html) (not active)
+- [Other/LINKEDIN_RESPONSE_PROFESSIONAL.pdf](./Other/LINKEDIN_RESPONSE_PROFESSIONAL.pdf) (not active)
+- [Other/MODEL_PROFESSIONAL.html](./Other/MODEL_PROFESSIONAL.html) (not active)
+- [Other/MODEL_PROFESSIONAL.pdf](./Other/MODEL_PROFESSIONAL.pdf) (not active)
+- [Other/README_PROFESSIONAL.html](./Other/README_PROFESSIONAL.html) (not active)
+- [PERFORMANCE_OPTIMIZATIONS.md](./PERFORMANCE_OPTIMIZATIONS.md) (not active)
+- [PREVIEW_FIX_STATUS.md](./PREVIEW_FIX_STATUS.md) (not active)
+- [PREVIEW_RELIABILITY.md](./PREVIEW_RELIABILITY.md) (not active)
+- [PRODUCTION_DB_DEPLOYMENT_SUCCESS.md](./PRODUCTION_DB_DEPLOYMENT_SUCCESS.md) (not active)
+- [public/.well-known/jwks.json](./public/.well-known/jwks.json) (not active)
+- [pyproject.toml](./pyproject.toml) (not active)
+- [README_PROFESSIONAL.pdf](./README_PROFESSIONAL.pdf) (not active)
+- [replit-mcp-server.zip](./replit-mcp-server.zip) (not active)
+- [replit.md](./replit.md) (not active)
+- [REPO_FILE_LISTING.md](./REPO_FILE_LISTING.md) (not active)
+- [run-all.sh](./run-all.sh) (not active)
+- [run-full-validation.sh](./run-full-validation.sh) (not active)
+- [RUNTIME_FRESH_IMPLEMENTATION.md](./RUNTIME_FRESH_IMPLEMENTATION.md) (not active)
+- [schema/plan.schema.json](./schema/plan.schema.json) (not active)
+- [sdk-embed.js](./sdk-embed.js) (not active)
+- [server/eidolon/tools/mcp-diagnostics.js](./server/eidolon/tools/mcp-diagnostics.js) (active)
+- [server/eidolon/tools/sql-client.ts](./server/eidolon/tools/sql-client.ts) (active)
+- [snapshots/AGENT-REPORT.txt](./snapshots/AGENT-REPORT.txt) (not active)
+- [snapshots/deployment-report-1761877512.md](./snapshots/deployment-report-1761877512.md) (not active)
+- [snapshots/DEPLOYMENT-SUMMARY.txt](./snapshots/DEPLOYMENT-SUMMARY.txt) (not active)
+- [snapshots/EVENT-MATCHING-TEST.txt](./snapshots/EVENT-MATCHING-TEST.txt) (not active)
+- [snapshots/FINAL-AGENT-REPORT.txt](./snapshots/FINAL-AGENT-REPORT.txt) (not active)
+- [snapshots/FINAL-DEPLOYMENT-REPORT.txt](./snapshots/FINAL-DEPLOYMENT-REPORT.txt) (not active)
+- [snapshots/IMPLEMENTATION-STATUS.txt](./snapshots/IMPLEMENTATION-STATUS.txt) (not active)
+- [snapshots/ready-probe.json](./snapshots/ready-probe.json) (not active)
+- [snapshots/SELFTEST-REPORT.txt](./snapshots/SELFTEST-REPORT.txt) (not active)
+- [snapshots/snap1.json](./snapshots/snap1.json) (not active)
+- [snapshots/snap2.json](./snapshots/snap2.json) (not active)
+- [snapshots/snap3.json](./snapshots/snap3.json) (not active)
+- [snapshots/snapshot1-get-test.txt](./snapshots/snapshot1-get-test.txt) (not active)
+- [snapshots/snapshot1-response.json](./snapshots/snapshot1-response.json) (not active)
+- [snapshots/snapshot2-response.json](./snapshots/snapshot2-response.json) (not active)
+- [snapshots/snapshot3-response.json](./snapshots/snapshot3-response.json) (not active)
+- [snapshots/suburban-eventtest.json](./snapshots/suburban-eventtest.json) (not active)
+- [snapshots/suburban-selftest.json](./snapshots/suburban-selftest.json) (not active)
+- [snapshots/urban-eventtest.json](./snapshots/urban-eventtest.json) (not active)
+- [snapshots/urban-selftest.json](./snapshots/urban-selftest.json) (not active)
+- [snapshots/venue-heavy-eventtest.json](./snapshots/venue-heavy-eventtest.json) (not active)
+- [snapshots/venue-heavy-selftest.json](./snapshots/venue-heavy-selftest.json) (not active)
+- [src/agent/actions.ts](./src/agent/actions.ts) (not active)
+- [src/agent/core.ts](./src/agent/core.ts) (not active)
+- [src/agent/memory.ts](./src/agent/memory.ts) (not active)
+- [src/index.ts](./src/index.ts) (not active)
+- [src/panel.html](./src/panel.html) (not active)
+- [start-clean.sh](./start-clean.sh) (not active)
+- [start-mono-fixed.sh](./start-mono-fixed.sh) (not active)
+- [start-mono.sh](./start-mono.sh) (not active)
+- [start-vecto.sh](./start-vecto.sh) (not active)
+- [start-workflow.sh](./start-workflow.sh) (not active)
+- [STATUS_REPORT.md](./STATUS_REPORT.md) (not active)
+- [strategy-generator.js](./strategy-generator.js) (not active)
+- [tools/actions.ts](./tools/actions.ts) (not active)
+- [tools/debug/cleanup-ports.sh](./tools/debug/cleanup-ports.sh) (not active)
+- [tools/debug/client-override-userscript.js](./tools/debug/client-override-userscript.js) (not active)
+- [tools/debug/create-audit-export.sh](./tools/debug/create-audit-export.sh) (not active)
+- [tools/debug/create-evidence-pack.mjs](./tools/debug/create-evidence-pack.mjs) (not active)
+- [tools/debug/eidolon-recovery.sh](./tools/debug/eidolon-recovery.sh) (not active)
+- [tools/debug/emergency-eidolon.js](./tools/debug/emergency-eidolon.js) (not active)
+- [tools/debug/export-clean-repo.mjs](./tools/debug/export-clean-repo.mjs) (not active)
+- [tools/debug/generate-repo-structure.sh](./tools/debug/generate-repo-structure.sh) (not active)
+- [tools/debug/hedge-burst-v2.mjs](./tools/debug/hedge-burst-v2.mjs) (not active)
+- [tools/debug/pack-evidence.mjs](./tools/debug/pack-evidence.mjs) (not active)
+- [tools/debug/test-assistant-interception.js](./tools/debug/test-assistant-interception.js) (not active)
+- [tools/debug/test-assistant-override.sh](./tools/debug/test-assistant-override.sh) (not active)
+- [tools/debug/test-gateway.sh](./tools/debug/test-gateway.sh) (not active)
+- [tools/debug/test-llm-router.mjs](./tools/debug/test-llm-router.mjs) (not active)
+- [tools/debug/test-v2-router.mjs](./tools/debug/test-v2-router.mjs) (not active)
+- [tools/debug/vecto-repair-tools.js](./tools/debug/vecto-repair-tools.js) (not active)
+- [tools/debug/verify-phase-a-bundle.sh](./tools/debug/verify-phase-a-bundle.sh) (not active)
+- [tools/README.md](./tools/README.md) (not active)
+- [tools/research/MODEL_UPDATE_TEMPLATE.md](./tools/research/MODEL_UPDATE_TEMPLATE.md) (not active)
+- [tools/research/model-discovery.mjs](./tools/research/model-discovery.mjs) (not active)
+- [tools/research/model-research-2025-10-08.json](./tools/research/model-research-2025-10-08.json) (not active)
+- [tools/research/model-research-2025-10-09.json](./tools/research/model-research-2025-10-09.json) (not active)
+- [tools/research/model-research-2025-10-26.json](./tools/research/model-research-2025-10-26.json) (not active)
+- [tools/research/README.md](./tools/research/README.md) (not active)
+- [tools/research/THREAD_AWARENESS_README.md](./tools/research/THREAD_AWARENESS_README.md) (not active)
+- [tools/testing/HANDOFF_SUMMARY.txt](./tools/testing/HANDOFF_SUMMARY.txt) (not active)
+- [tools/testing/PACKAGE_MANIFEST.md](./tools/testing/PACKAGE_MANIFEST.md) (not active)
+- [tools/testing/TEST_BLOCKS_README.md](./tools/testing/TEST_BLOCKS_README.md) (not active)
+- [tools/testing/test-blocks-analysis.md](./tools/testing/test-blocks-analysis.md) (not active)
+- [tools/testing/test-blocks-examples.txt](./tools/testing/test-blocks-examples.txt) (not active)
+- [uv.lock](./uv.lock) (not active)
+- [validate-system.sh](./validate-system.sh) (not active)
+- [vecto-pilot-audit.tar.gz](./vecto-pilot-audit.tar.gz) (not active)
+- [vecto-pilot-audit.zip](./vecto-pilot-audit.zip) (not active)
+- [vecto-start.sh](./vecto-start.sh) (not active)
+- [VICTORY_REPORT.md](./VICTORY_REPORT.md) (not active)
+
+### 2. API Call
+
+#### 2.1 Resolved in memory
+
+- `.map(` - dist/agent/core.js:17
+- `.map(` - gpt5-agent-package/src/agent/core.ts:20
+- `.map(` - list-repo-files.js:391
+- `.map(` - list-repo-files.js:403
+- `.map(` - list-repo-files.js:417
+- `memoryCache` - list-repo-files.js:221
+- `.filter(` - list-repo-files.js:437
+- `.filter(` - list-repo-files.js:438
+- `new Map(` - server/eidolon/tools/mcp-diagnostics.js:13
+- `new Map(` - server/eidolon/tools/mcp-diagnostics.js:14
+- `.filter(` - server/eidolon/tools/mcp-diagnostics.js:125
+- `.filter(` - server/eidolon/tools/mcp-diagnostics.js:126
+- `.map(` - server/eidolon/tools/sql-client.ts:79
+- `.map(` - src/agent/core.ts:20
+- `.filter(` - tools/debug/test-assistant-interception.js:101
+- `new Map(` - tools/debug/vecto-repair-tools.js:13
+- `.filter(` - tools/debug/vecto-repair-tools.js:70
+- `.filter(` - tools/debug/vecto-repair-tools.js:71
+- `.filter(` - tools/debug/vecto-repair-tools.js:72
+- `.filter(` - tools/debug/vecto-repair-tools.js:98
+- `.filter(` - tools/debug/vecto-repair-tools.js:99
+- `.filter(` - tools/debug/vecto-repair-tools.js:100
+- `.filter(` - tools/debug/vecto-repair-tools.js:122
+- `.filter(` - tools/debug/vecto-repair-tools.js:123
+- `.map(` - tools/debug/vecto-repair-tools.js:145
+- `.reduce(` - tools/research/model-discovery.mjs:265
+
+#### 2.2 Resolved in db
+
+- `await client.query(` - server/eidolon/tools/sql-client.ts:28
+- `await db.execute(` - strategy-generator.js:17
+
+### 3. Console log
+
+- `console.log("Request exception:", error)` - .pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/emscripten_fetch_worker.js:40
+- `console.log("Request exception:", error)` - .pythonlibs/lib/python3.11/site-packages/urllib3/contrib/emscripten/emscripten_fetch_worker.js:100
+- `console.log('[ai-config] Loaded unified AI parameters:', {   t...)` - agent-ai-config.js:36
+- `console.log("Available exports:", Object.keys(replit)` - check-api.js:2
+- `console.log("GPT-5 Agent initialized")` - gpt5-agent-package/src/index.ts:8
+- `console.log("Agent response:", msg)` - gpt5-agent-package/src/index.ts:15
+- `console.log("Terminal command:", cmd)` - gpt5-agent-package/src/index.ts:33
+- `console.log("GPT-5 Agent ready - context configured")` - gpt5-agent-package/src/index.ts:44
+- `console.error("Agent initialization failed:", error)` - gpt5-agent-package/src/index.ts:47
+- `console.log('Scanning repository...')` - list-repo-files.js:453
+- `console.log(`Found ${files.length} files`)` - list-repo-files.js:456
+- `console.log('Analyzing files...')` - list-repo-files.js:458
+- `console.log('Generating output...')` - list-repo-files.js:463
+- `console.log(`\nOutput written to: ${outputPath}`)` - list-repo-files.js:472
+- `console.log('\n' + output)` - list-repo-files.js:473
+- `console.error('[SDK embed] Context enrichment failed:', err.mess...)` - sdk-embed.js:67
+- `console.log('[mcp] Scanning MCP server configuration...')` - server/eidolon/tools/mcp-diagnostics.js:18
+- `console.error('[mcp] Configuration scan failed:', err.message)` - server/eidolon/tools/mcp-diagnostics.js:60
+- `console.log('[mcp] Testing MCP server connections...')` - server/eidolon/tools/mcp-diagnostics.js:70
+- `console.log('[mcp] Executing MCP server repairs...')` - server/eidolon/tools/mcp-diagnostics.js:132
+- `console.log("GPT-5 Agent initialized")` - src/index.ts:8
+- `console.log("Agent response:", msg)` - src/index.ts:15
+- `console.log("Terminal command:", cmd)` - src/index.ts:33
+- `console.log("GPT-5 Agent ready - context configured")` - src/index.ts:44
+- `console.error("Agent initialization failed:", error)` - src/index.ts:47
+- `console.log('[strategy-generator] 🚀 Triad worker starting (LI...)` - strategy-generator.js:5
+- `console.log('[strategy-generator] Environment:')` - strategy-generator.js:6
+- `console.log(`  NODE_ENV=${process.env.NODE_ENV}`)` - strategy-generator.js:7
+- `console.log(`  DATABASE_URL=${process.env.DATABASE_URL ? '***c...)` - strategy-generator.js:8
+- `console.log(`  ENABLE_BACKGROUND_WORKER=${process.env.ENABLE_B...)` - strategy-generator.js:9
+- `console.log('[strategy-generator] Testing database connection....)` - strategy-generator.js:15
+- `console.log('[strategy-generator] ✅ Database connection OK')` - strategy-generator.js:18
+- `console.error('[strategy-generator] ❌ Database connection FAILED...)` - strategy-generator.js:20
+- `console.log('[strategy-generator] ✅ Starting consolidation lis...)` - strategy-generator.js:27
+- `console.log('[strategy-generator] ✅ Consolidation listener sta...)` - strategy-generator.js:31
+- `console.error('[strategy-generator] ❌ Consolidation listener err...)` - strategy-generator.js:33
+- `console.error(err.stack)` - strategy-generator.js:34
+- `console.log('[strategy-generator] 🛑 SIGTERM received, shuttin...)` - strategy-generator.js:40
+- `console.log('[strategy-generator] 🛑 SIGINT received, shutting...)` - strategy-generator.js:45
+- `console.log('[strategy-generator] ❤️ Listener heartbeat - stil...)` - strategy-generator.js:51
+- `console.log('[assistant-override] redirecting:', url, '→', tar...)` - tools/debug/client-override-userscript.js:20
+- `console.warn('[assistant-override] error:', e)` - tools/debug/client-override-userscript.js:24
+- `console.log('[assistant-override] routing /assistant/* →', GAT...)` - tools/debug/client-override-userscript.js:28
+- `console.log(JSON.stringify({ out_zip: "vecto-evidence.zip", fi...)` - tools/debug/create-evidence-pack.mjs:46
+- `console.log('🚨 Emergency Eidolon Mode Starting...')` - tools/debug/emergency-eidolon.js:18
+- `console.log(`🧠 Eidolon (Claude Opus 4.1 Enhanced SDK)` - tools/debug/emergency-eidolon.js:19
+- `console.log(`[emergency] Port: ${PORT}`)` - tools/debug/emergency-eidolon.js:20
+- `console.log(`[emergency] Assistant Override: ACTIVE`)` - tools/debug/emergency-eidolon.js:21
+- `console.log(`🧠 Eidolon Emergency Server running on 0.0.0.0:${...)` - tools/debug/emergency-eidolon.js:183
+- `console.log(`[emergency] Preview: Available in Replit`)` - tools/debug/emergency-eidolon.js:184
+- _... and 120 more_
+
+---
+
+## Summary
+
+| Category | Files | Active | Not Active | Schemas | API Calls | Console Logs |
+|----------|-------|--------|------------|---------|-----------|-------------|
+| config | 138 | 13 | 125 | 0 | 0 | 0 |
+| tests | 30 | 3 | 27 | 0 | 40 | 338 |
+| workflow | 222 | 179 | 43 | 25 | 552 | 1293 |
+| future | 13 | 0 | 13 | 0 | 27 | 60 |
+| UI Adapter | 111 | 107 | 4 | 0 | 212 | 346 |
+| Other | 3940 | 41 | 3899 | 0 | 34 | 170 |
