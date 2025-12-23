@@ -9,8 +9,8 @@
 
 ### 1. Location Capture & Anchoring
 - ✅ GPS acquisition via browser geolocation API
-- ✅ Reverse geocoding to street-level address (rooftop precision)
-- ✅ Snapshot creation with `(lat, lng, formatted_address, timestamp) **need to verify table fields` tuple
+- ✅ Reverse geocoding to street-level address (rooftop precision) **Note from Melody (Every time the end user choses allow, the first thing that should happen is that exact highest precision coords should hit the snapshot.coords field)
+- ✅ Snapshot creation with `(lat, lng, formatted_address, timestamp) **Note from Melody need to verify table fields to verify these are the only fields in the snapshot table
 - ✅ Address propagation through entire pipeline unchanged
 - ✅ No hardcoded locations/regions - all coordinate-driven
 
