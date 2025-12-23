@@ -6,10 +6,34 @@
  */
 
 import { readdir, readFile, stat } from 'fs/promises';
-import { join, relative, extname, basename } from 'path';
+import { join, relative, extname, basename, dirname } from 'path';
 import { existsSync } from 'fs';
 
 const REPO_ROOT = process.cwd();
+
+// Workflow subcategories in order of event flow
+const WORKFLOW_SUBCATEGORIES = {
+  '1. Entry Points': [], // Only exact matches - handled specially below
+  '2. Bootstrap & Init': ['bootstrap/', 'server/bootstrap'],
+  '3. Middleware': ['middleware/'],
+  '4. Routes & API': ['routes/', 'server/routes'],
+  '5. Core Logic': ['server/lib/', 'lib/'],
+  '6. LLM Adapters': ['adapters/', 'llm-router', 'anthropic', 'openai', 'gemini'],
+  '7. Database': ['server/db/', 'db/', 'drizzle/', 'migrations/'],
+  '8. Background Jobs': ['jobs/', 'worker', 'queue'],
+  '9. Eidolon SDK': ['eidolon/', 'server/eidolon'],
+  '10. Gateway': ['gateway/', 'server/gateway'],
+  '11. Scripts & Utils': ['scripts/', 'server/scripts'],
+  '12. Shared': ['shared/'],
+  '13. Other Workflow': []  // catch-all for workflow
+};
+
+// True server entry points (files that create HTTP servers/listen on ports)
+const TRUE_ENTRY_POINTS = [
+  'gateway-server.js',
+  'agent-server.js',
+  'index.js'  // root index.js only, not nested ones
+];
 
 // Files/patterns that are part of the active workflow
 const ACTIVE_WORKFLOW_PATTERNS = [
@@ -56,11 +80,63 @@ const CATEGORIES = {
 const results = {
   config: { files: [], schemas: {}, apiCalls: { memory: [], db: [] }, consoleLogs: [] },
   tests: { files: [], schemas: {}, apiCalls: { memory: [], db: [] }, consoleLogs: [] },
-  workflow: { files: [], schemas: {}, apiCalls: { memory: [], db: [] }, consoleLogs: [] },
+  workflow: { files: [], schemas: {}, apiCalls: { memory: [], db: [] }, consoleLogs: [], subcategories: {} },
   future: { files: [], schemas: {}, apiCalls: { memory: [], db: [] }, consoleLogs: [] },
   'UI Adapter': { files: [], schemas: {}, apiCalls: { memory: [], db: [] }, consoleLogs: [] },
   Other: { files: [], schemas: {}, apiCalls: { memory: [], db: [] }, consoleLogs: [] }
 };
+
+// Initialize workflow subcategories
+for (const subcat of Object.keys(WORKFLOW_SUBCATEGORIES)) {
+  results.workflow.subcategories[subcat] = { files: [], schemas: {}, apiCalls: { memory: [], db: [] }, consoleLogs: [] };
+}
+
+// UI file mapping (workflow file -> corresponding UI file)
+const uiFileMap = new Map();
+
+// All UI files for linking
+const allUiFiles = [];
+
+/**
+ * Determine workflow subcategory for a file
+ */
+function getWorkflowSubcategory(filePath) {
+  const relPath = relative(REPO_ROOT, filePath);
+  const relPathLower = relPath.toLowerCase();
+  const fileName = basename(filePath);
+
+  // Check for true entry points first (root-level server files only)
+  if (TRUE_ENTRY_POINTS.includes(fileName) && !relPath.includes('/')) {
+    return '1. Entry Points';
+  }
+
+  for (const [subcat, patterns] of Object.entries(WORKFLOW_SUBCATEGORIES)) {
+    if (patterns.length === 0) continue; // Skip empty patterns
+    for (const pattern of patterns) {
+      if (relPathLower.includes(pattern.toLowerCase())) {
+        return subcat;
+      }
+    }
+  }
+  return '13. Other Workflow';
+}
+
+/**
+ * Find corresponding UI file for a workflow file
+ */
+function findCorrespondingUiFile(workflowFilePath) {
+  const workflowName = basename(workflowFilePath, extname(workflowFilePath)).toLowerCase();
+
+  // Look for UI files with similar names
+  for (const uiFile of allUiFiles) {
+    const uiName = basename(uiFile, extname(uiFile)).toLowerCase();
+    // Match by name similarity (e.g., blocks.js -> Blocks.tsx, chat.js -> Chat.tsx)
+    if (uiName.includes(workflowName) || workflowName.includes(uiName)) {
+      return uiFile;
+    }
+  }
+  return null;
+}
 
 /**
  * Check if a file/path should be excluded
@@ -307,8 +383,19 @@ async function analyzeFile(filePath) {
   const active = isActive(filePath);
   const relPath = relative(REPO_ROOT, filePath);
 
+  // Collect UI files for later linking
+  if (category === 'UI Adapter') {
+    allUiFiles.push(relPath);
+  }
+
   // Add file to category
   results[category].files.push({ path: relPath, active });
+
+  // For workflow files, also add to subcategory
+  if (category === 'workflow') {
+    const subcat = getWorkflowSubcategory(filePath);
+    results.workflow.subcategories[subcat].files.push({ path: relPath, active });
+  }
 
   // Only analyze code files
   if (!analyzableExts.includes(ext)) return;
@@ -327,6 +414,14 @@ async function analyzeFile(filePath) {
           ...new Set([...results[category].schemas[table].fields, ...data.fields])
         ];
       }
+
+      // Also add to workflow subcategory
+      if (category === 'workflow') {
+        const subcat = getWorkflowSubcategory(filePath);
+        if (!results.workflow.subcategories[subcat].schemas[table]) {
+          results.workflow.subcategories[subcat].schemas[table] = data;
+        }
+      }
     }
 
     // Extract API calls
@@ -334,9 +429,22 @@ async function analyzeFile(filePath) {
     results[category].apiCalls.memory.push(...apiCalls.memory);
     results[category].apiCalls.db.push(...apiCalls.db);
 
+    // Also add to workflow subcategory
+    if (category === 'workflow') {
+      const subcat = getWorkflowSubcategory(filePath);
+      results.workflow.subcategories[subcat].apiCalls.memory.push(...apiCalls.memory);
+      results.workflow.subcategories[subcat].apiCalls.db.push(...apiCalls.db);
+    }
+
     // Extract console logs
     const consoleLogs = extractConsoleLogs(content, filePath);
     results[category].consoleLogs.push(...consoleLogs);
+
+    // Also add to workflow subcategory
+    if (category === 'workflow') {
+      const subcat = getWorkflowSubcategory(filePath);
+      results.workflow.subcategories[subcat].consoleLogs.push(...consoleLogs);
+    }
 
   } catch (err) {
     // Skip files we can't read
@@ -344,31 +452,43 @@ async function analyzeFile(filePath) {
 }
 
 /**
- * Generate markdown output
+ * Generate workflow-specific markdown output
  */
-function generateOutput() {
-  let output = '# Repository File Listing\n\n';
+function generateWorkflowOutput() {
+  let output = '# Workflow File Listing\n\n';
   output += `Generated: ${new Date().toISOString()}\n\n`;
+  output += 'Workflow files organized by event flow order. Non-active files appear at the end of each category.\n\n';
   output += '---\n\n';
 
-  const categoryOrder = ['config', 'tests', 'workflow', 'future', 'UI Adapter', 'Other'];
+  // Sort subcategories by their number prefix
+  const subcatOrder = Object.keys(WORKFLOW_SUBCATEGORIES).sort();
 
-  for (const category of categoryOrder) {
-    const data = results[category];
+  for (const subcat of subcatOrder) {
+    const data = results.workflow.subcategories[subcat];
+    if (data.files.length === 0) continue;
 
-    output += `## ${category}\n\n`;
+    output += `## ${subcat}\n\n`;
 
-    // List files
-    if (data.files.length > 0) {
-      output += '### Files\n\n';
-      for (const file of data.files.sort((a, b) => a.path.localeCompare(b.path))) {
-        const status = file.active ? '(active)' : '(not active)';
-        output += `- [${file.path}](./${file.path}) ${status}\n`;
-      }
-      output += '\n';
+    // Sort files: active first, then non-active, alphabetically within each group
+    const sortedFiles = [...data.files].sort((a, b) => {
+      if (a.active && !b.active) return -1;
+      if (!a.active && b.active) return 1;
+      return a.path.localeCompare(b.path);
+    });
+
+    output += '### Files\n\n';
+    for (const file of sortedFiles) {
+      const status = file.active ? '(active)' : '(not active)';
+
+      // Find corresponding UI file
+      const uiFile = findCorrespondingUiFile(file.path);
+      const uiLink = uiFile ? ` → UI: [${basename(uiFile)}](./${uiFile})` : '';
+
+      output += `- [${file.path}](./${file.path}) ${status}${uiLink}\n`;
     }
+    output += '\n';
 
-    // List schemas
+    // List schemas for this subcategory
     if (Object.keys(data.schemas).length > 0) {
       output += '### 1. Schema\n\n';
       for (const [tableName, tableData] of Object.entries(data.schemas).sort()) {
@@ -382,18 +502,18 @@ function generateOutput() {
       }
     }
 
-    // List API calls
+    // List API calls for this subcategory
     if (data.apiCalls.memory.length > 0 || data.apiCalls.db.length > 0) {
       output += '### 2. API Call\n\n';
 
       if (data.apiCalls.memory.length > 0) {
         output += '#### 2.1 Resolved in memory\n\n';
         const uniqueMemory = [...new Map(data.apiCalls.memory.map(c => [`${c.file}:${c.line}`, c])).values()];
-        for (const call of uniqueMemory.slice(0, 50)) { // Limit to 50
+        for (const call of uniqueMemory.slice(0, 30)) {
           output += `- \`${call.call}\` - ${call.file}:${call.line}\n`;
         }
-        if (uniqueMemory.length > 50) {
-          output += `- _... and ${uniqueMemory.length - 50} more_\n`;
+        if (uniqueMemory.length > 30) {
+          output += `- _... and ${uniqueMemory.length - 30} more_\n`;
         }
         output += '\n';
       }
@@ -401,25 +521,25 @@ function generateOutput() {
       if (data.apiCalls.db.length > 0) {
         output += '#### 2.2 Resolved in db\n\n';
         const uniqueDb = [...new Map(data.apiCalls.db.map(c => [`${c.file}:${c.line}`, c])).values()];
-        for (const call of uniqueDb.slice(0, 50)) { // Limit to 50
+        for (const call of uniqueDb.slice(0, 30)) {
           output += `- \`${call.call}\` - ${call.file}:${call.line}\n`;
         }
-        if (uniqueDb.length > 50) {
-          output += `- _... and ${uniqueDb.length - 50} more_\n`;
+        if (uniqueDb.length > 30) {
+          output += `- _... and ${uniqueDb.length - 30} more_\n`;
         }
         output += '\n';
       }
     }
 
-    // List console logs
+    // List console logs for this subcategory
     if (data.consoleLogs.length > 0) {
       output += '### 3. Console log\n\n';
       const uniqueLogs = [...new Map(data.consoleLogs.map(l => [`${l.file}:${l.line}`, l])).values()];
-      for (const log of uniqueLogs.slice(0, 50)) { // Limit to 50
+      for (const log of uniqueLogs.slice(0, 30)) {
         output += `- \`console.${log.type}(${log.preview})\` - ${log.file}:${log.line}\n`;
       }
-      if (uniqueLogs.length > 50) {
-        output += `- _... and ${uniqueLogs.length - 50} more_\n`;
+      if (uniqueLogs.length > 30) {
+        output += `- _... and ${uniqueLogs.length - 30} more_\n`;
       }
       output += '\n';
     }
@@ -427,20 +547,22 @@ function generateOutput() {
     output += '---\n\n';
   }
 
-  // Summary
-  output += '## Summary\n\n';
-  output += '| Category | Files | Active | Not Active | Schemas | API Calls | Console Logs |\n';
-  output += '|----------|-------|--------|------------|---------|-----------|-------------|\n';
+  // Workflow Summary
+  output += '## Workflow Summary\n\n';
+  output += '| Subcategory | Files | Active | Not Active | Schemas | API Calls | Console Logs |\n';
+  output += '|-------------|-------|--------|------------|---------|-----------|-------------|\n';
 
-  for (const category of categoryOrder) {
-    const data = results[category];
+  for (const subcat of subcatOrder) {
+    const data = results.workflow.subcategories[subcat];
+    if (data.files.length === 0) continue;
+
     const activeCount = data.files.filter(f => f.active).length;
     const notActiveCount = data.files.filter(f => !f.active).length;
     const schemaCount = Object.keys(data.schemas).length;
     const apiCount = data.apiCalls.memory.length + data.apiCalls.db.length;
     const logCount = data.consoleLogs.length;
 
-    output += `| ${category} | ${data.files.length} | ${activeCount} | ${notActiveCount} | ${schemaCount} | ${apiCount} | ${logCount} |\n`;
+    output += `| ${subcat} | ${data.files.length} | ${activeCount} | ${notActiveCount} | ${schemaCount} | ${apiCount} | ${logCount} |\n`;
   }
 
   return output;
@@ -461,16 +583,17 @@ async function main() {
   }
 
   console.log('Generating output...');
-  const output = generateOutput();
+  const workflowOutput = generateWorkflowOutput();
 
-  // Write to file
-  const outputPath = join(REPO_ROOT, 'REPO_FILE_LISTING.md');
+  // Write workflow-specific output only
+  const workflowOutputPath = join(REPO_ROOT, 'WORKFLOW_FILE_LISTING.md');
   await import('fs').then(fs => {
-    fs.writeFileSync(outputPath, output);
+    fs.writeFileSync(workflowOutputPath, workflowOutput);
   });
 
-  console.log(`\nOutput written to: ${outputPath}`);
-  console.log('\n' + output);
+  console.log(`\nOutput written to: ${workflowOutputPath}`);
+  console.log('\n--- WORKFLOW FILE LISTING ---\n');
+  console.log(workflowOutput);
 }
 
 main().catch(console.error);

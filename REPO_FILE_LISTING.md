@@ -1,6 +1,6 @@
 # Repository File Listing
 
-Generated: 2025-12-22T21:32:35.118Z
+Generated: 2025-12-22T22:11:23.264Z
 
 ---
 
@@ -5525,12 +5525,18 @@ _Source: drizzle/0000_overjoyed_human_torch.sql_
 
 - `.map(` - dist/agent/core.js:17
 - `.map(` - gpt5-agent-package/src/agent/core.ts:20
-- `.map(` - list-repo-files.js:391
-- `.map(` - list-repo-files.js:403
-- `.map(` - list-repo-files.js:417
-- `memoryCache` - list-repo-files.js:221
-- `.filter(` - list-repo-files.js:437
-- `.filter(` - list-repo-files.js:438
+- `new Map(` - list-repo-files.js:88
+- `.map(` - list-repo-files.js:485
+- `.map(` - list-repo-files.js:497
+- `.map(` - list-repo-files.js:511
+- `.map(` - list-repo-files.js:600
+- `.map(` - list-repo-files.js:612
+- `.map(` - list-repo-files.js:626
+- `memoryCache` - list-repo-files.js:283
+- `.filter(` - list-repo-files.js:531
+- `.filter(` - list-repo-files.js:532
+- `.filter(` - list-repo-files.js:648
+- `.filter(` - list-repo-files.js:649
 - `new Map(` - server/eidolon/tools/mcp-diagnostics.js:13
 - `new Map(` - server/eidolon/tools/mcp-diagnostics.js:14
 - `.filter(` - server/eidolon/tools/mcp-diagnostics.js:125
@@ -5566,12 +5572,14 @@ _Source: drizzle/0000_overjoyed_human_torch.sql_
 - `console.log("Terminal command:", cmd)` - gpt5-agent-package/src/index.ts:33
 - `console.log("GPT-5 Agent ready - context configured")` - gpt5-agent-package/src/index.ts:44
 - `console.error("Agent initialization failed:", error)` - gpt5-agent-package/src/index.ts:47
-- `console.log('Scanning repository...')` - list-repo-files.js:453
-- `console.log(`Found ${files.length} files`)` - list-repo-files.js:456
-- `console.log('Analyzing files...')` - list-repo-files.js:458
-- `console.log('Generating output...')` - list-repo-files.js:463
-- `console.log(`\nOutput written to: ${outputPath}`)` - list-repo-files.js:472
-- `console.log('\n' + output)` - list-repo-files.js:473
+- `console.log('Scanning repository...')` - list-repo-files.js:664
+- `console.log(`Found ${files.length} files`)` - list-repo-files.js:667
+- `console.log('Analyzing files...')` - list-repo-files.js:669
+- `console.log('Generating output...')` - list-repo-files.js:674
+- `console.log(`\nMain output written to: ${outputPath}`)` - list-repo-files.js:690
+- `console.log(`Workflow output written to: ${workflowOutputPath}...)` - list-repo-files.js:691
+- `console.log('\n--- WORKFLOW FILE LISTING ---\n')` - list-repo-files.js:692
+- `console.log(workflowOutput)` - list-repo-files.js:693
 - `console.error('[SDK embed] Context enrichment failed:', err.mess...)` - sdk-embed.js:67
 - `console.log('[mcp] Scanning MCP server configuration...')` - server/eidolon/tools/mcp-diagnostics.js:18
 - `console.error('[mcp] Configuration scan failed:', err.message)` - server/eidolon/tools/mcp-diagnostics.js:60
@@ -5605,9 +5613,7 @@ _Source: drizzle/0000_overjoyed_human_torch.sql_
 - `console.log(`🧠 Eidolon (Claude Opus 4.1 Enhanced SDK)` - tools/debug/emergency-eidolon.js:19
 - `console.log(`[emergency] Port: ${PORT}`)` - tools/debug/emergency-eidolon.js:20
 - `console.log(`[emergency] Assistant Override: ACTIVE`)` - tools/debug/emergency-eidolon.js:21
-- `console.log(`🧠 Eidolon Emergency Server running on 0.0.0.0:${...)` - tools/debug/emergency-eidolon.js:183
-- `console.log(`[emergency] Preview: Available in Replit`)` - tools/debug/emergency-eidolon.js:184
-- _... and 120 more_
+- _... and 122 more_
 
 ---
 
@@ -5620,4 +5626,4 @@ _Source: drizzle/0000_overjoyed_human_torch.sql_
 | workflow | 222 | 179 | 43 | 25 | 552 | 1293 |
 | future | 13 | 0 | 13 | 0 | 27 | 60 |
 | UI Adapter | 111 | 107 | 4 | 0 | 212 | 346 |
-| Other | 3940 | 41 | 3899 | 0 | 34 | 170 |
+| Other | 3940 | 41 | 3899 | 0 | 44 | 172 |

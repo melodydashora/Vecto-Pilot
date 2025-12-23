@@ -41,6 +41,7 @@
 ---
 
 ## UI Components & Architecture
+-Header Resolution
 
 ### **Global Header**
 - **Component**: `GlobalHeader.tsx`
