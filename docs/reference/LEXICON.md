@@ -37,6 +37,7 @@
   - `rankings` - Recommendation sets from Claude
   - `ranking_candidates` - Individual block recommendations
   - `actions` - User interactions (view, dwell, click, dismiss)
+  - ''
 
 ---
 
