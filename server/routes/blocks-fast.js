@@ -6,12 +6,12 @@ import { randomUUID } from 'crypto';
 import { db } from '../db/drizzle.js';
 import { venue_catalog, venue_metrics, snapshots, rankings, ranking_candidates, strategies, venue_events } from '../../shared/schema.js';
 import { eq, sql, and, lte, gte, or, isNotNull } from 'drizzle-orm';
-import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring-engine.js';
-import { predictDriveMinutes } from '../lib/driveTime.js';
-import { rerankCandidates } from '../lib/fast-tactical-reranker.js';
-import { persistRankingTx } from '../lib/persist-ranking.js';
-import { generateVenueCoordinates } from '../lib/gpt5-venue-generator.js';
-import { isStrategyReady, filterFreshEvents } from '../lib/strategy-utils.js';
+import { scoreCandidate, applyDiversityGuardrails } from '../lib/scoring/scoring-engine.js';
+import { predictDriveMinutes } from '../lib/geo/driveTime.js';
+import { rerankCandidates } from '../lib/scoring/fast-tactical-reranker.js';
+import { persistRankingTx } from '../lib/scoring/persist-ranking.js';
+import { generateVenueCoordinates } from '../lib/venues/gpt5-venue-generator.js';
+import { isStrategyReady, filterFreshEvents } from '../lib/strategies/strategy-utils.js';
 
 const router = Router();
 
@@ -748,8 +748,7 @@ export async function getStrategyFast({ snapshotId }) {
     status: 'ok',
     snapshot_id: snapshotId,
     strategy: {
-      min: row.minstrategy || '',
-      consolidated: row.consolidated_strategy || '',
+      strategy_for_now: row.strategy_for_now || '',
       holiday: holidayData,
       briefing: {
         news: briefing.news ?? [],
