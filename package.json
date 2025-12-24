@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "prestart:replit": "npm run build:client && npm run agent:build",
-    "start:replit": "node scripts/start-replit.js",
+    "start:replit": "node scripts/startup/start-replit.js",
     "build:client": "cd client && npm install && npm run build",
     "start": "NODE_ENV=production node gateway-server.js",
     "dev": "NODE_ENV=development node gateway-server.js",
@@ -44,10 +44,10 @@
     "agent:build": "tsc -p tsconfig.agent.json",
     "agent:start": "node dist/index.js",
     "agent:dev": "ts-node src/index.ts",
-    "rls:enable": "node scripts/toggle-rls.js enable",
-    "rls:disable": "node scripts/toggle-rls.js disable",
-    "rls:status": "node scripts/toggle-rls.js status",
-    "start:mono": "./start-mono.sh"
+    "rls:enable": "node tests/scripts/toggle-rls.js enable",
+    "rls:disable": "node tests/scripts/toggle-rls.js disable",
+    "rls:status": "node tests/scripts/toggle-rls.js status",
+    "start:mono": "./scripts/startup/start-mono.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
