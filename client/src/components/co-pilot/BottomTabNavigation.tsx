@@ -7,7 +7,8 @@ import {
   TrendingUp,
   MessageSquare,
   Map as MapIcon,
-  Heart
+  Heart,
+  Target
 } from 'lucide-react';
 import type { TabType } from '@/types/co-pilot';
 
@@ -54,6 +55,13 @@ const tabs: TabConfig[] = [
     icon: MapIcon,
     activeColor: 'text-green-600',
     activeBg: 'bg-green-50'
+  },
+  {
+    id: 'rideshare',
+    label: 'Intel',
+    icon: Target,
+    activeColor: 'text-amber-600',
+    activeBg: 'bg-amber-50'
   },
   {
     id: 'donation',

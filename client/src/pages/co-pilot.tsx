@@ -34,6 +34,7 @@ import BarTab from '@/components/BarTab';
 import BriefingTab from '@/components/BriefingTab';
 import MapTab from '@/components/MapTab';
 import { DonationTab } from '@/components/DonationTab';
+import RideshareIntelTab from '@/components/RideshareIntelTab';
 
 // Shared types and utilities
 import type { SmartBlock, BlocksResponse, StrategyData } from '@/types/co-pilot';
@@ -85,7 +86,7 @@ const CoPilot: React.FC = () => {
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
 
   // Bottom tab navigation
-  const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing' | 'map' | 'donation'>('strategy');
+  const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing' | 'map' | 'rideshare' | 'donation'>('strategy');
 
   // Ref to track polling status changes (reduces console spam by only logging transitions)
   const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
@@ -1718,6 +1719,13 @@ const CoPilot: React.FC = () => {
                 <p className="text-gray-500 mt-2">Generate recommendations to view them on the map</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Rideshare Intelligence Tab Content */}
+        {activeTab === 'rideshare' && (
+          <div data-testid="rideshare-section">
+            <RideshareIntelTab />
           </div>
         )}
 
