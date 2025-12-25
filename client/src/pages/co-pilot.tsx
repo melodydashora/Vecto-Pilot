@@ -21,8 +21,7 @@ import {
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
-  MessageSquare,
-  Wine
+  MessageSquare
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/useToast';
@@ -30,11 +29,7 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 import BarsTable from '@/components/BarsTable';
-import BarTab from '@/components/BarTab';
-import BriefingTab from '@/components/BriefingTab';
-import MapTab from '@/components/MapTab';
-import { DonationTab } from '@/components/DonationTab';
-import RideshareIntelTab from '@/components/RideshareIntelTab';
+import { TabContent } from '@/components/co-pilot/TabContent';
 
 // Shared types and utilities
 import type { SmartBlock, BlocksResponse, StrategyData } from '@/types/co-pilot';
@@ -1663,101 +1658,25 @@ const CoPilot: React.FC = () => {
           </>
         )}
 
-        {/* Briefing Tab Content - Data persists across tab switches */}
-        {activeTab === 'briefing' && (
-          <div data-testid="briefing-section" className="mb-24">
-            <BriefingTab
-              snapshotId={lastSnapshotId || undefined}
-              weatherData={weatherData}
-              trafficData={trafficData}
-              newsData={newsData}
-              eventsData={eventsData}
-              schoolClosuresData={schoolClosuresData}
-              airportData={airportData}
-              consolidatedStrategy={persistentStrategy}
-            />
-          </div>
-        )}
-
-        {/* Map Tab Content - Interactive venue map with traffic */}
-        {activeTab === 'map' && (
-          <div data-testid="map-section" className="mb-24">
-            {coords && lastSnapshotId ? (
-              <MapTab
-                driverLat={coords.latitude}
-                driverLng={coords.longitude}
-                venues={blocks.map((block, idx) => ({
-                  id: `${idx}`,
-                  name: block.name,
-                  lat: block.coordinates.lat,
-                  lng: block.coordinates.lng,
-                  distance_miles: block.estimated_distance_miles,
-                  drive_time_min: block.driveTimeMinutes || block.estimatedWaitTime,
-                  est_earnings_per_ride: block.estimated_earnings,
-                  rank: idx + 1,
-                  value_grade: block.value_grade,
-                }))}
-                events={eventsData?.events?.map((e: Record<string, unknown>) => ({
-                  title: e.title as string,
-                  venue: e.venue as string | undefined,
-                  address: e.address as string | undefined,
-                  event_date: e.event_date as string | undefined,
-                  event_time: e.event_time as string | undefined,
-                  event_end_time: e.event_end_time as string | undefined,
-                  latitude: e.latitude as number | undefined,
-                  longitude: e.longitude as number | undefined,
-                  impact: e.impact as 'high' | 'medium' | 'low' | undefined,
-                  subtype: e.subtype as string | undefined,
-                })) || []}
-                snapshotId={lastSnapshotId}
-                isLoading={isLoading}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <MapPin className="w-12 h-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-700">Map & Venues</h3>
-                <p className="text-gray-500 mt-2">Generate recommendations to view them on the map</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Rideshare Intelligence Tab Content */}
-        {activeTab === 'rideshare' && (
-          <div data-testid="rideshare-section">
-            <RideshareIntelTab />
-          </div>
-        )}
-
-        {/* Donation/About Tab Content */}
-        {activeTab === 'donation' && (
-          <div data-testid="donation-section" className="mb-24">
-            <DonationTab userId={localStorage.getItem('vecto_user_id') || 'default'} />
-          </div>
-        )}
-
-        {/* Bar Tab - Premium Venues (Independent of Strategy Pipeline) */}
-        {activeTab === 'venues' && coords && (
-          <div data-testid="bar-tab-section">
-            <BarTab
-              latitude={coords.latitude}
-              longitude={coords.longitude}
-              city={locationContext?.city || null}
-              state={locationContext?.state || null}
-              timezone={locationContext?.timeZone || null}
-              isLocationResolved={locationContext?.isLocationResolved || false}
-              getAuthHeader={getAuthHeader}
-            />
-          </div>
-        )}
-
-        {activeTab === 'venues' && !coords && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Wine className="w-12 h-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-700">Location Required</h3>
-            <p className="text-gray-500 mt-2">Enable location services to discover nearby bars and venues</p>
-          </div>
-        )}
+        {/* All other tabs - rendered via TabContent component */}
+        <TabContent
+          activeTab={activeTab}
+          coords={coords}
+          city={locationContext?.city || null}
+          state={locationContext?.state || null}
+          timezone={locationContext?.timeZone || null}
+          isLocationResolved={locationContext?.isLocationResolved || false}
+          snapshotId={lastSnapshotId}
+          blocks={blocks}
+          isLoading={isLoading}
+          persistentStrategy={persistentStrategy}
+          weatherData={weatherData}
+          trafficData={trafficData}
+          newsData={newsData}
+          eventsData={eventsData}
+          schoolClosuresData={schoolClosuresData}
+          airportData={airportData}
+        />
 
       </div>
 
