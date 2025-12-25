@@ -86,7 +86,7 @@ export interface FeedbackModalState {
   blockIndex: number | null;
 }
 
-export type TabType = 'strategy' | 'venues' | 'briefing' | 'map' | 'donation';
+export type TabType = 'strategy' | 'venues' | 'briefing' | 'map' | 'rideshare' | 'donation';
 
 // Backend pipeline phases (from strategies.phase column)
 // Strategy phases: starting → resolving → analyzing → immediate
