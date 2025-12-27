@@ -1734,6 +1734,93 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
   }
 });
 
+// GET /api/location/ip
+// IP-based geolocation fallback for embedded previews/iframes without GPS access
+// Uses ip-api.com (free, no key required, 45 req/min limit)
+router.get('/ip', async (req, res) => {
+  try {
+    // Get client IP from various headers (Cloudflare, proxy, direct)
+    const clientIp = req.headers['cf-connecting-ip'] ||
+                     req.headers['x-real-ip'] ||
+                     req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                     req.ip ||
+                     req.connection?.remoteAddress;
+
+    console.log('[IP Geolocation] Client IP:', clientIp);
+
+    // Skip localhost/private IPs - they won't geolocate
+    const isPrivate = !clientIp ||
+                      clientIp === '127.0.0.1' ||
+                      clientIp === '::1' ||
+                      clientIp.startsWith('192.168.') ||
+                      clientIp.startsWith('10.') ||
+                      clientIp.startsWith('172.');
+
+    if (isPrivate) {
+      console.log('[IP Geolocation] Private/localhost IP detected, using default location');
+      // Return Dallas, TX as default for development/preview
+      return res.json({
+        latitude: 32.7767,
+        longitude: -96.7970,
+        city: 'Dallas',
+        state: 'TX',
+        country: 'United States',
+        accuracy: 10000,
+        source: 'default'
+      });
+    }
+
+    // Call ip-api.com for geolocation (free, no API key required)
+    const ipApiUrl = `http://ip-api.com/json/${clientIp}?fields=status,message,country,regionName,city,lat,lon,timezone`;
+    const response = await fetch(ipApiUrl, { timeout: 5000 });
+
+    if (!response.ok) {
+      throw new Error(`IP API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.status !== 'success') {
+      console.warn('[IP Geolocation] IP API failed:', data.message);
+      // Fallback to default
+      return res.json({
+        latitude: 32.7767,
+        longitude: -96.7970,
+        city: 'Dallas',
+        state: 'TX',
+        country: 'United States',
+        accuracy: 10000,
+        source: 'default'
+      });
+    }
+
+    console.log('[IP Geolocation] Success:', data.city, data.regionName);
+
+    res.json({
+      latitude: data.lat,
+      longitude: data.lon,
+      city: data.city,
+      state: data.regionName,
+      country: data.country,
+      timezone: data.timezone,
+      accuracy: 5000, // IP geolocation typically accurate to city level (~5km)
+      source: 'ip-api'
+    });
+  } catch (err) {
+    console.error('[IP Geolocation] Error:', err.message);
+    // Return default location on any error
+    res.json({
+      latitude: 32.7767,
+      longitude: -96.7970,
+      city: 'Dallas',
+      state: 'TX',
+      country: 'United States',
+      accuracy: 10000,
+      source: 'default'
+    });
+  }
+});
+
 // GET /api/users/me
 // CRITICAL FIX Issue #5: Fetch current user's latest location directly from users table
 // Header can call this instead of relying on cached context state

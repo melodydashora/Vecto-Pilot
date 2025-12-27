@@ -1,10 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from 'react-router-dom';
 import { LocationProvider } from '@/contexts/location-context-clean';
-import { Toaster } from '@/components/ui/toaster';
-import GlobalHeader from './components/GlobalHeader';
 import ErrorBoundary from './components/ErrorBoundary';
-import CoPilot from './pages/co-pilot';
 import SafeScaffold from './pages/SafeScaffold';
+import { router } from './routes';
 
 import './index.css';
 
@@ -18,20 +17,12 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  console.log('[App] Rendering App component');
+  console.log('[App] Rendering App component with React Router');
   return (
     <ErrorBoundary fallback={<SafeScaffold />}>
       <QueryClientProvider client={queryClient}>
         <LocationProvider>
-          <div className="App min-h-screen bg-gray-50">
-            <GlobalHeader />
-
-            <main className="main-content-with-header">
-              <CoPilot />
-            </main>
-
-            <Toaster />
-          </div>
+          <RouterProvider router={router} />
         </LocationProvider>
       </QueryClientProvider>
     </ErrorBoundary>

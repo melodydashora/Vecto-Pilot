@@ -1,16 +1,54 @@
 
 import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
 
-// Inline geolocation helper (previously in utils/getGeoPosition.ts)
+// Inline geolocation helper with manual timeout fallback
+// Browser's geolocation timeout can hang in some environments (previews, permission blocked)
 function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
+    let resolved = false;
+
+    // Check permission state first (if available)
+    let permissionState = 'unknown';
+    try {
+      if (navigator.permissions) {
+        const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+        permissionState = result.state; // 'granted', 'denied', or 'prompt'
+      }
+    } catch (e) {
+      permissionState = 'query-failed';
+    }
+
+    // Debug: Log environment info
+    console.log('[getGeoPosition] Starting...', {
+      hasNavigator: typeof navigator !== 'undefined',
+      hasGeolocation: typeof navigator !== 'undefined' && !!navigator.geolocation,
+      isSecureContext: typeof window !== 'undefined' && window.isSecureContext,
+      protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
+      hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+      permissionState
+    });
+
     if (!navigator.geolocation) {
       console.warn('[getGeoPosition] Geolocation not supported');
       resolve(null);
       return;
     }
+
+    // Manual timeout - browser's timeout can hang in previews
+    const manualTimeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        console.warn('[getGeoPosition] Manual timeout (5s) - browser geolocation hung. Try opening in new tab.');
+        resolve(null);
+      }
+    }, 5000);
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(manualTimeout);
+        console.log('[getGeoPosition] Success:', position.coords.latitude, position.coords.longitude);
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -18,7 +56,11 @@ function getGeoPosition(): Promise<{ latitude: number; longitude: number; accura
         });
       },
       (error) => {
-        console.warn('[getGeoPosition] Failed:', error.message);
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(manualTimeout);
+        console.warn('[getGeoPosition] Failed:', error.code, error.message);
+        // Error codes: 1=PERMISSION_DENIED, 2=POSITION_UNAVAILABLE, 3=TIMEOUT
         resolve(null);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }

@@ -1,0 +1,57 @@
+// client/src/routes.tsx
+// React Router configuration for co-pilot pages
+
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import CoPilotLayout from '@/layouts/CoPilotLayout';
+import StrategyPage from '@/pages/co-pilot/StrategyPage';
+import BarsPage from '@/pages/co-pilot/BarsPage';
+import BriefingPage from '@/pages/co-pilot/BriefingPage';
+import MapPage from '@/pages/co-pilot/MapPage';
+import IntelPage from '@/pages/co-pilot/IntelPage';
+import AboutPage from '@/pages/co-pilot/AboutPage';
+
+export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <CoPilotLayout />,
+    children: [
+      {
+        index: true,
+        element: <Navigate to="/co-pilot/strategy" replace />,
+      },
+      {
+        path: 'co-pilot',
+        children: [
+          {
+            index: true,
+            element: <Navigate to="/co-pilot/strategy" replace />,
+          },
+          {
+            path: 'strategy',
+            element: <StrategyPage />,
+          },
+          {
+            path: 'bars',
+            element: <BarsPage />,
+          },
+          {
+            path: 'briefing',
+            element: <BriefingPage />,
+          },
+          {
+            path: 'map',
+            element: <MapPage />,
+          },
+          {
+            path: 'intel',
+            element: <IntelPage />,
+          },
+          {
+            path: 'about',
+            element: <AboutPage />,
+          },
+        ],
+      },
+    ],
+  },
+]);

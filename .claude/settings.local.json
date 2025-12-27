@@ -61,7 +61,10 @@
       "Bash(scripts/ )",
       "Bash(.claude/settings.local.json )",
       "Bash(tar:*)",
-      "Bash(REPO_ROOT=/home/runner/workspace MCP_PORT=3001 npm start:*)"
+      "Bash(REPO_ROOT=/home/runner/workspace MCP_PORT=3001 npm start:*)",
+      "Bash(npx vite build)",
+      "Bash(npm run build:client:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

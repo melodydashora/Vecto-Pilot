@@ -6,6 +6,7 @@ export { default as snapshotRouter } from './snapshot.js';
 
 // Route summary:
 // GET  /api/location/resolve - GPS → Address resolution
+// GET  /api/location/ip - IP-based geolocation fallback (for previews/iframes)
 // GET  /api/location/weather - Current weather + forecast
 // GET  /api/location/airquality - AQI data
 // POST /api/location/snapshot - Save location snapshot
