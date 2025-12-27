@@ -13,11 +13,13 @@
   - `https://maps.googleapis.com/maps/api/geocode/json` (reverse geocoding)
   - `https://maps.googleapis.com/maps/api/geocode/json` (forward geocoding)
 - **Purpose**: Convert coordinates to addresses and vice versa
+- **UI Location**: GlobalHeader (displays city name like "Frisco, TX"), Manual city search input
 
 #### Google Maps Timezone API
 - **Files**: [server/routes/location.js](/server/routes/location.js)
 - **Endpoints**: `https://maps.googleapis.com/maps/api/timezone/json`
 - **Purpose**: Get timezone information for coordinates
+- **UI Location**: Used internally for time-based calculations, not directly displayed
 
 #### Google Places API (New)
 - **Files**: 
@@ -27,6 +29,7 @@
   - `https://places.googleapis.com/v1/places:searchNearby`
   - `https://places.googleapis.com/v1/places/{placeId}`
 - **Purpose**: Get place details, business hours, and venue information
+- **UI Location**: SmartBlocks venue cards (hours, status), BarsTable, MapTab venue details
 
 #### Google Routes API
 - **Files**: [server/lib/routes/routes-api.js](/server/lib/routes/routes-api.js)
@@ -34,16 +37,19 @@
   - `https://routes.googleapis.com/directions/v2:computeRoutes`
   - `https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix`
 - **Purpose**: Calculate traffic-aware distances and ETAs
+- **UI Location**: SmartBlocks venue cards (drive time display), MapTab route visualization
 
 #### Google Air Quality API
 - **Files**: [server/routes/location.js](/server/routes/location.js)
 - **Endpoints**: `https://airquality.googleapis.com/v1/currentConditions:lookup`
 - **Purpose**: Get current air quality index
+- **UI Location**: GlobalHeader (displays "AQI 83"), BriefingTab air quality section
 
 #### Google Geolocation API
 - **Files**: [client/src/hooks/useGeoPosition.tsx](/client/src/hooks/useGeoPosition.tsx)
 - **Endpoints**: `https://www.googleapis.com/geolocation/v1/geolocate`
 - **Purpose**: Browser fallback for GPS coordinates
+- **UI Location**: Triggers GlobalHeader location update when browser GPS unavailable
 
 ### Weather API
 
@@ -51,6 +57,7 @@
 - **Files**: [server/routes/location.js](/server/routes/location.js)
 - **Endpoints**: `https://api.openweathermap.org/data/2.5/weather`
 - **Purpose**: Get current weather conditions
+- **UI Location**: GlobalHeader (displays "69°F"), BriefingTab weather section
 
 ### LLM APIs
 
@@ -63,6 +70,7 @@
 - **Models**: 
   - `claude-sonnet-4-5-20250929` (primary)
 - **Purpose**: Strategic analysis, chat responses, code assistance
+- **UI Location**: StrategyCoach chat interface, StrategyPage strategy display
 
 #### OpenAI (GPT-5)
 - **Files**: 
@@ -74,6 +82,7 @@
   - `gpt-5` (tactical planning)
   - `o1-*` (reasoning models)
 - **Purpose**: Tactical venue planning, coordinate generation
+- **UI Location**: SmartBlocks venue recommendations, BarsTable venue list
 
 #### Google Gemini
 - **Files**: 
@@ -85,6 +94,7 @@
   - `gemini-2.5-pro` (primary)
   - `gemini-2.0-flash-exp` (discovery)
 - **Purpose**: News briefing, venue validation, earnings estimation
+- **UI Location**: BriefingTab (news, traffic, events sections), SmartBlocks earnings estimates
 
 #### Perplexity API
 - **Files**: 
@@ -94,6 +104,7 @@
 - **Endpoints**: `https://api.perplexity.ai/chat/completions`
 - **Models**: `sonar-pro`
 - **Purpose**: Real-time event research, internet-powered search
+- **UI Location**: BriefingTab events section, EventsComponent event details
 
 ### Aviation APIs
 
@@ -103,6 +114,7 @@
   - `https://nasstatus.faa.gov/api/airport-status-information` (public)
   - `https://external-api.faa.gov/asws/api/airport/status/{code}` (authenticated)
 - **Purpose**: Flight delays, ground stops, weather at airports
+- **UI Location**: BriefingTab airport conditions section (shows DFW/DAL status)
 
 ---
 
