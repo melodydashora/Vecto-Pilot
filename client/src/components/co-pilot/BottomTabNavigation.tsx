@@ -1,24 +1,20 @@
 // client/src/components/co-pilot/BottomTabNavigation.tsx
-// Bottom navigation tabs for Co-Pilot page
+// Bottom navigation tabs for Co-Pilot pages using React Router
 
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sparkles,
-  TrendingUp,
+  Wine,
   MessageSquare,
   Map as MapIcon,
   Heart,
   Target
 } from 'lucide-react';
-import type { TabType } from '@/types/co-pilot';
-
-interface BottomTabNavigationProps {
-  activeTab: TabType;
-  onTabChange: (tab: TabType) => void;
-}
 
 interface TabConfig {
-  id: TabType;
+  id: string;
+  path: string;
   label: string;
   icon: typeof Sparkles;
   activeColor: string;
@@ -29,21 +25,24 @@ interface TabConfig {
 const tabs: TabConfig[] = [
   {
     id: 'strategy',
+    path: '/co-pilot/strategy',
     label: 'Strategy',
     icon: Sparkles,
     activeColor: 'text-blue-600',
     activeBg: 'bg-blue-50'
   },
   {
-    id: 'venues',
-    label: 'Venues',
-    icon: TrendingUp,
-    activeColor: 'text-blue-600',
-    activeBg: 'bg-blue-50',
+    id: 'bars',
+    path: '/co-pilot/bars',
+    label: 'Bars',
+    icon: Wine,
+    activeColor: 'text-purple-600',
+    activeBg: 'bg-purple-50',
     showPulse: true
   },
   {
     id: 'briefing',
+    path: '/co-pilot/briefing',
     label: 'Briefing',
     icon: MessageSquare,
     activeColor: 'text-indigo-600',
@@ -51,20 +50,23 @@ const tabs: TabConfig[] = [
   },
   {
     id: 'map',
+    path: '/co-pilot/map',
     label: 'Map',
     icon: MapIcon,
     activeColor: 'text-green-600',
     activeBg: 'bg-green-50'
   },
   {
-    id: 'rideshare',
+    id: 'intel',
+    path: '/co-pilot/intel',
     label: 'Intel',
     icon: Target,
     activeColor: 'text-amber-600',
     activeBg: 'bg-amber-50'
   },
   {
-    id: 'donation',
+    id: 'about',
+    path: '/co-pilot/about',
     label: 'About',
     icon: Heart,
     activeColor: 'text-rose-600',
@@ -72,7 +74,13 @@ const tabs: TabConfig[] = [
   }
 ];
 
-export function BottomTabNavigation({ activeTab, onTabChange }: BottomTabNavigationProps) {
+export function BottomTabNavigation() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Determine active tab from current path
+  const activeTab = tabs.find(tab => location.pathname === tab.path)?.id || 'strategy';
+
   return (
     <div
       className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50"
@@ -87,7 +95,7 @@ export function BottomTabNavigation({ activeTab, onTabChange }: BottomTabNavigat
             return (
               <button
                 key={tab.id}
-                onClick={() => onTabChange(tab.id)}
+                onClick={() => navigate(tab.path)}
                 className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
                   isActive
                     ? `${tab.activeColor} ${tab.activeBg}`

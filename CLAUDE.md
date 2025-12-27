@@ -316,7 +316,9 @@ STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
 | `gateway-server.js` | Main Express server |
 | `shared/schema.js` | Drizzle ORM schema |
 | `server/lib/ai/adapters/index.js` | Model adapter dispatcher |
-| `client/src/pages/co-pilot.tsx` | Main dashboard (1700+ LOC) |
+| `client/src/routes.tsx` | React Router configuration |
+| `client/src/layouts/CoPilotLayout.tsx` | Shared layout with GlobalHeader |
+| `client/src/contexts/co-pilot-context.tsx` | Shared state for co-pilot pages |
 | `client/src/contexts/location-context-clean.tsx` | Location provider |
 
 ## AI Pipeline Summary
@@ -387,13 +389,26 @@ server/
 ### Client Structure
 ```
 client/src/
-├── pages/                  # Route pages (co-pilot.tsx is main)
+├── routes.tsx              # React Router configuration
+├── layouts/                # Layout components
+│   └── CoPilotLayout.tsx   # Shared layout with GlobalHeader + BottomNav
+├── pages/                  # Route pages
+│   └── co-pilot/           # Co-pilot pages (router-based)
+│       ├── StrategyPage.tsx    # AI strategy + smart blocks + coach
+│       ├── BarsPage.tsx        # Premium venue listings
+│       ├── BriefingPage.tsx    # Weather, traffic, news, events
+│       ├── MapPage.tsx         # Venue + event map
+│       ├── IntelPage.tsx       # Rideshare intel
+│       ├── AboutPage.tsx       # About/donation (no header)
+│       └── index.tsx           # Barrel export
 ├── components/             # UI components
-│   ├── co-pilot/           # Co-pilot specific (tabs, greeting)
+│   ├── co-pilot/           # Co-pilot specific (BottomTabNavigation, greeting)
 │   ├── strategy/           # Strategy display components
 │   ├── ui/                 # shadcn/ui primitives (46 components)
 │   └── _future/            # Staged components
-├── contexts/               # React contexts (location-context-clean.tsx)
+├── contexts/               # React contexts
+│   ├── co-pilot-context.tsx    # Shared state for co-pilot pages
+│   └── location-context-clean.tsx # Location provider (GPS, weather)
 ├── hooks/                  # Custom hooks
 │   ├── useBriefingQueries.ts   # Fetches weather, traffic, news
 │   ├── useEnrichmentProgress.ts # Tracks briefing progress
@@ -411,6 +426,18 @@ client/src/
 └── _future/                # Staged future features
     ├── engine/             # Reflection engine (Phase 17)
     └── user-settings/      # User profile types
+```
+
+### Co-Pilot Route Structure
+```
+/                         → Redirects to /co-pilot/strategy
+/co-pilot                 → Redirects to /co-pilot/strategy
+/co-pilot/strategy        → StrategyPage (AI + blocks + coach)
+/co-pilot/bars            → BarsPage (venue listings)
+/co-pilot/briefing        → BriefingPage (weather, traffic, news)
+/co-pilot/map             → MapPage (interactive map)
+/co-pilot/intel           → IntelPage (rideshare intel)
+/co-pilot/about           → AboutPage (no GlobalHeader)
 ```
 
 ### Root Structure
