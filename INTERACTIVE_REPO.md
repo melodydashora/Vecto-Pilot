@@ -1,4 +1,3 @@
-
 # 🗂️ Interactive Repository Map - Vecto Pilot™
 
 <details>
