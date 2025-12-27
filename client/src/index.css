@@ -1,7 +1,5 @@
-/* Tailwind v3 imports */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4 imports */
+@import "tailwindcss";
 
 @keyframes progressBar {
   from {
@@ -12,10 +10,24 @@
   }
 }
 
-/* ---- Utilities / aliases ---- */
-@layer utilities {
-  /* shadcn-style alias */
-  .border-border { @apply border-gray-200 dark:border-gray-800; }
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
 }
 
 /* ---- Design tokens ---- */
@@ -75,7 +87,7 @@
 /* ---- Base layer ---- */
 @layer base {
   *, ::before, ::after {
-    @apply border-border;
+    @apply border-gray-200 dark:border-gray-800;
   }
   html, body, #root { 
     height: auto;
@@ -107,6 +119,9 @@
   .alert-card.warning { @apply bg-yellow-50 dark:bg-yellow-950 border-yellow-500; }
   .alert-card.success { @apply bg-green-50 dark:bg-green-950 border-green-500; }
   .alert-card.info { @apply bg-blue-50 dark:bg-blue-950 border-blue-500; }
+
+  .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+  .pulse-glow { animation: pulseGlow 2s infinite; }
 }
 
 /* ---- Header stack tweaks ---- */

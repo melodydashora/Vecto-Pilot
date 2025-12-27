@@ -1,987 +1,325 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useRef,
-  ReactNode,
-} from "react";
-import { useGeoPosition } from "@/hooks/useGeoPosition";
-import type { DriverSettings } from "@/types/driver";
-import { buildTimeContext } from "@/lib/daypart";
-import { createSnapshot } from "@/lib/snapshot";
 
-// Simple type for no-go zones (for future implementation)
-type NoGoZone = {
-  id: string;
-  name: string;
-  reason: string;
-  enabled: boolean;
-};
+import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
 
-// Simple helper - returns empty array (no default zones in clean build)
-const getDefaultNoGoZones = (): NoGoZone[] => [];
-
-interface LocationState {
-  currentLocation: string;
-  latitude?: number;
-  longitude?: number;
-  lastUpdated: Date;
-  isUpdating: boolean;
-  vehicleTypes: string[];
-  minEarningsPerHour: number;
-  noGoZones: NoGoZone[];
+// Inline geolocation helper (previously in utils/getGeoPosition.ts)
+function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      console.warn('[getGeoPosition] Geolocation not supported');
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        });
+      },
+      (error) => {
+        console.warn('[getGeoPosition] Failed:', error.message);
+        resolve(null);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
 }
 
 interface LocationContextType {
-  location: LocationState;
-  updateLocation: (newLocation: string, lat?: number, lon?: number) => void;
-  refreshGPS: () => Promise<void>;
-  clearLocation: () => void;
-  updateVehicleTypes: (types: string[]) => void;
-  updateMinEarnings: (amount: number) => void;
-}
-
-// Override coordinates for manual city search
-export interface OverrideCoordinates {
-  latitude: number;
-  longitude: number;
-  city: string;
-  source: 'manual_city_search';
-}
-
-// Updated interface for LocationContext to properly type it
-export interface LocationContextValue {
-  isLoading: boolean;
-  error: string | null;
-  hasPermission: boolean | null;
-  requestPermission: () => Promise<void>;
-
-  // GPS and location data
-  currentCoords: GeolocationCoordinates | null;
+  currentCoords: { latitude: number; longitude: number } | null;
   currentLocationString: string;
-  lastUpdated: Date | null;
-  accuracy: number | null;
-  location: GeolocationPosition | null;
+  city: string | null;
+  state: string | null;
   timeZone: string | null;
-
-  // Override coordinates (for manual city search)
-  overrideCoords: OverrideCoordinates | null;
-  setOverrideCoords: (coords: OverrideCoordinates | null) => void;
-
-  // Location session tracking
-  locationSessionId: number;
-
-  // User preferences and settings
-  manualLocationOverride: string | null;
-  settings: DriverSettings;
-  updateSettings: (newSettings: Partial<DriverSettings>) => Promise<void>;
-
-  // Location management
-  refreshLocation: () => Promise<void>;
+  isUpdating: boolean;
+  lastUpdated: string | null;
   refreshGPS: () => Promise<void>;
-  setManualLocation: (location: string) => void;
-  clearManualLocation: () => void;
-  updateLocation: (location: any) => void;
-  updateVehicleTypes: (types: string[]) => void;
-  updateMinEarnings: (amount: number) => void;
+  overrideCoords: { latitude: number; longitude: number; city?: string } | null;
+  // Weather and air quality - fetched once during enrichment, shared via context
+  weather: { temp: number; conditions: string; description?: string } | null;
+  airQuality: { aqi: number; category: string } | null;
+  // Location resolution gate - true when city/formattedAddress are available
+  // Use this to gate downstream queries (Bar Tab, Strategy) to prevent race conditions
+  isLocationResolved: boolean;
+  // Last snapshot ID created - fallback for co-pilot if event is missed
+  lastSnapshotId: string | null;
+  isLoading: boolean;
+  setOverrideCoords: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
 }
 
-const LocationContext = createContext<LocationContextValue | null>({
-  // Provide default values to prevent errors during initialization
-  isLoading: false,
-  error: null,
-  hasPermission: null,
-  requestPermission: () => Promise.resolve(),
-  
-  // GPS and location data
-  currentCoords: null,
-  currentLocationString: "Getting location...",
-  lastUpdated: null,
-  accuracy: null,
-  location: null, // GeolocationPosition | null
-  timeZone: null,
-  
-  // Override coordinates (for manual city search)
-  overrideCoords: null,
-  setOverrideCoords: () => {},
-  
-  // Location session tracking
-  locationSessionId: 0,
-  
-  // User preferences and settings
-  manualLocationOverride: null,
-  settings: {
-    vehicleTypes: ["Standard"],
-    minEarningsPerHour: 25,
-  },
-  
-  // Location management functions
-  refreshLocation: () => Promise.resolve(),
-  refreshGPS: () => Promise.resolve(),
-  setManualLocation: () => {},
-  clearManualLocation: () => {},
-  updateLocation: () => {},
-  updateSettings: () => Promise.resolve(), // Fixed to return Promise<void>
-  updateVehicleTypes: () => {},
-  updateMinEarnings: () => {},
-});
+export const LocationContext = createContext<LocationContextType | null>(null);
 
-interface LocationProviderProps {
-  children: ReactNode;
-}
-
-// Simple GPS function from attachment
-const sendGPSLocation = async (): Promise<{
-  success: boolean;
-  data?: any;
-  error?: string;
-}> => {
-  console.log("🎯 GPS: Starting location request...");
-
-  if (!navigator.geolocation) {
-    console.warn("Geolocation not supported");
-    return { success: false, error: "Geolocation not supported" };
+// Custom hook to consume location context
+export const useLocation = () => {
+  const context = React.useContext(LocationContext);
+  if (!context) {
+    throw new Error('useLocation must be used within LocationProvider');
   }
-
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        console.log(
-          `✅ GPS coordinates obtained: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-        );
-
-        // Use Google Maps API to resolve precise city name
-        try {
-          const response = await fetch(
-            `/api/location/resolve?lat=${latitude}&lng=${longitude}`,
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            const cityName =
-              data.city || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-            console.log(`✅ Location resolved via Google Maps: ${cityName}`);
-            console.log(`🌍 Timezone received: ${data.timeZone}`);
-
-            resolve({
-              success: true,
-              data: {
-                city: cityName,
-                latitude,
-                longitude,
-                timeZone: data.timeZone,
-              },
-            });
-          } else {
-            console.warn("⚠️ Google Maps API unavailable, using coordinates");
-            resolve({
-              success: true,
-              data: {
-                city: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-                latitude,
-                longitude,
-              },
-            });
-          }
-        } catch (error) {
-          console.warn(
-            "⚠️ Location resolution failed, using coordinates:",
-            error,
-          );
-          resolve({
-            success: true,
-            data: {
-              city: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-              latitude,
-              longitude,
-            },
-          });
-        }
-      },
-      (error) => {
-        console.error("GPS Error:", error);
-        let errorMsg = "GPS permission required";
-
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMsg = "GPS blocked - please allow location access";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMsg = "GPS unavailable - check device settings";
-            break;
-          case error.TIMEOUT:
-            errorMsg = "GPS timeout - try again";
-            break;
-        }
-
-        resolve({ success: false, error: errorMsg });
-      },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 },
-    );
-  });
+  return context;
 };
 
-export function LocationProvider({ children }: LocationProviderProps) {
-  const [locationState, setLocationState] = useState<any>({
-    // Changed to any to accommodate new structure from context value
-    currentLocation: "Getting location...",
-    latitude: undefined,
-    longitude: undefined,
-    lastUpdated: new Date(),
-    isUpdating: false,
-    vehicleTypes: ["Standard"],
-    minEarningsPerHour: 25,
-    noGoZones: getDefaultNoGoZones(),
-    manualLocation: null, // Added manualLocation
-    settings: {
-      // Added settings object
-      vehicleTypes: ["Standard"],
-      minEarningsPerHour: 25,
-    },
-    coords: null, // Added coords
-    accuracy: null, // Added accuracy
-    error: null, // Added error
-    isLoading: false, // Added isLoading
-    hasPermission: null, // Added hasPermission
-  });
+export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [currentLocationString, setCurrentLocationString] = useState('Getting location...');
+  const [city, setCity] = useState<string | null>(null);
+  const [state, setState] = useState<string | null>(null);
+  const [timeZone, setTimeZone] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [overrideCoords, setOverrideCoords] = useState<{ latitude: number; longitude: number; city?: string } | null>(null);
+  // Weather and air quality state - fetched once during enrichment, exposed via context
+  const [weather, setWeather] = useState<{ temp: number; conditions: string; description?: string } | null>(null);
+  const [airQuality, setAirQuality] = useState<{ aqi: number; category: string } | null>(null);
+  // Location resolution gate - prevents race conditions by gating downstream queries
+  const [isLocationResolved, setIsLocationResolved] = useState(false);
+  // Expose snapshot ID directly so co-pilot can access it as fallback if event is missed
+  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
+  const generationCounterRef = useRef(0);
+  const isInitialMountRef = useRef(true);
+  const lastEnrichmentCoordsRef = useRef<string | null>(null);
 
-  // Override coordinates state (for manual city search)
-  const [overrideCoords, setOverrideCoords] = useState<OverrideCoordinates | null>(null);
-
-  // Session ID to invalidate queries when location changes (GPS refresh or city search)
-  const [locationSessionId, setLocationSessionId] = useState(0);
-
-  // AbortController to cancel stale enrichment requests
-  const enrichmentControllerRef = useRef<AbortController | null>(null);
-
-  // Use the GPS hook without automatic refresh (0 = no interval)
-  const { coords, loading, error: gpsError, refresh } = useGeoPosition(0);
-
-  // Simplified GPS refresh function using the hook
-  const refreshLocation = async () => {
-    // Renamed from refreshGPS to refreshLocation for consistency
-    console.log("🌐 Starting GPS refresh using useGeoPosition hook...");
-    
-    // GPS refresh clears override - this is the source of truth
-    setOverrideCoords(null);
-    console.log("🔄 GPS refresh - override coordinates cleared");
-    
-    setLocationState((prev: any) => ({
-      ...prev,
-      isUpdating: true,
-      isLoading: true,
-    }));
-
-    // Use the refresh function from useGeoPosition hook
-    await refresh();
-
-    // The useEffect will handle updating the location when coords change
-    console.log("✅ GPS refresh completed");
-  };
-
-  // Update location when GPS coordinates are received
-  useEffect(() => {
-    // Set isUpdating and isLoading to true when GPS is loading
-    if (loading) {
-      setLocationState((prev: any) => ({
-        ...prev,
-        isUpdating: true,
-        isLoading: true,
-        error: null, // Clear previous errors when starting a new load
-      }));
+  const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number) => {
+    // Prevent duplicate enrichment for same coordinates (debounce)
+    const coordKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+    if (lastEnrichmentCoordsRef.current === coordKey) {
+      console.log('⏭️ Skipping duplicate enrichment for same coordinates:', coordKey);
       return;
     }
+    lastEnrichmentCoordsRef.current = coordKey;
 
-    if (coords) {
-      console.log("[Global App] GPS coordinates received:", coords);
-      
-      // CLEAR OLD STRATEGY: We have new coords, about to create new snapshot
-      console.log("🧹 Clearing old strategy before creating new snapshot");
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
-      window.dispatchEvent(new CustomEvent("vecto-strategy-cleared"));
-      
-      // Increment session ID to invalidate cached queries
-      setLocationSessionId(prev => prev + 1);
-      
-      // Cancel any in-flight enrichment requests from previous GPS position
-      if (enrichmentControllerRef.current) {
-        console.log("🚫 Aborting stale enrichment request");
-        enrichmentControllerRef.current.abort();
+    const deviceId = localStorage.getItem('vecto_device_id') || crypto.randomUUID();
+    localStorage.setItem('vecto_device_id', deviceId);
+
+    const currentGeneration = ++generationCounterRef.current;
+    console.log(`🔢 Generation #${currentGeneration} starting for GPS update`);
+
+    try {
+      const [locationRes, weatherRes, airRes] = await Promise.all([
+        fetch(`/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${encodeURIComponent(deviceId)}&accuracy=${accuracy}&coord_source=gps`),
+        fetch(`/api/location/weather?lat=${lat}&lng=${lng}`),
+        fetch(`/api/location/airquality?lat=${lat}&lng=${lng}`)
+      ]);
+
+      if (currentGeneration !== generationCounterRef.current) {
+        console.log(`⏭️ Generation #${currentGeneration} superseded - ignoring results`);
+        return;
       }
-      
-      // Create new AbortController for this GPS position
-      enrichmentControllerRef.current = new AbortController();
-      const signal = enrichmentControllerRef.current.signal;
-      
-      // DON'T update state yet - keep spinner active until location fully resolves
-      // We'll update after we get city, state, and formattedAddress
 
-      // Resolve ALL context data in parallel: location, weather, and air quality
-      Promise.all([
-        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()),
-        fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()).catch(() => null),
-        fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()).catch(() => null),
-      ])
-        .then(async ([locationData, weatherData, airQualityData]) => {
-          // NOW update state - location is fully resolved
-          setLocationState((prev: any) => ({
-            ...prev,
-            coords: { ...coords },
-            accuracy: coords.accuracy,
-            isLoading: false, // NOW stop spinner - we have complete data
-            isUpdating: false,
-            error: null,
-          }));
+      const locationData = await locationRes.json();
+      const weatherData = weatherRes.ok ? await weatherRes.json() : null;
+      const airQualityData = airRes.ok ? await airRes.json() : null;
 
-          // Format as "City, ST" if we have both city and state
-          let locationName;
-          if (locationData.city && locationData.state) {
-            locationName = `${locationData.city}, ${locationData.state}`;
-          } else if (locationData.city) {
-            locationName = locationData.city;
-          } else {
-            locationName = `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
-          }
-          console.log("[Global App] Location resolved to:", locationName);
-          console.log("[Global App] Weather:", weatherData?.available ? `${weatherData.temperature}°F` : 'unavailable');
-          console.log("[Global App] Air Quality:", airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'unavailable');
+      // Set weather state for context consumers (prevents duplicate API calls in GlobalHeader)
+      if (weatherData?.available) {
+        setWeather({
+          temp: weatherData.temperature,
+          conditions: weatherData.conditions,
+          description: weatherData.description
+        });
+      }
 
-          // Build time context with timezone
-          const timeContext = buildTimeContext(locationData.timeZone);
-          
-          // Build baseline context for snapshot
-          const baselineContext = {
-            reason: "app_open" as const,
-            timestampIso: new Date().toISOString(),
-            coords: { lat: coords.latitude, lng: coords.longitude },
-            geo: {
-              city: locationData.city,
-              state: locationData.state,
-              country: locationData.country,
-              formattedAddress: locationData.formattedAddress,
-            },
-            time: timeContext,
-            weather: weatherData?.available ? {
-              temperature: weatherData.temperature,
-              feelsLike: weatherData.feelsLike,
-              conditions: weatherData.conditions,
-              description: weatherData.description,
-              humidity: weatherData.humidity,
-              windSpeed: weatherData.windSpeed,
-              precipitation: weatherData.precipitation,
-            } : undefined,
-            airQuality: airQualityData?.available ? {
-              aqi: airQualityData.aqi,
-              category: airQualityData.category,
-              dominantPollutant: airQualityData.dominantPollutant,
-              healthRecommendations: airQualityData.healthRecommendations,
-            } : undefined,
-          };
+      // Set air quality state for context consumers
+      if (airQualityData?.available) {
+        setAirQuality({
+          aqi: airQualityData.aqi,
+          category: airQualityData.category
+        });
+      }
 
-          // Build SnapshotV1 format for backend with ALL data
-          const snapshotV1 = createSnapshot({
-            coord: {
-              lat: coords.latitude,
-              lng: coords.longitude,
-              accuracyMeters: coords.accuracy,
-              source: 'gps' as const
-            },
-            resolved: {
-              city: locationData.city,
-              state: locationData.state,
-              country: locationData.country,
-              timezone: locationData.timeZone,
-              formattedAddress: locationData.formattedAddress,
-            },
-            timeContext: (() => {
-              const tz = locationData.timeZone || 'America/Chicago';
-              const now = new Date();
-              
-              // Get day of week (0=Sunday, 6=Saturday) in the user's timezone
-              const dowFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' });
-              const dayName = dowFormatter.format(now);
-              const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-              const dow = dowMap[dayName] ?? 0;
-              
-              // Get hour (0-23) in the user's timezone
-              const hourFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false });
-              const hourStr = hourFormatter.format(now);
-              const hour = parseInt(hourStr, 10) || 0;
-              
-              return {
-                local_iso: now.toISOString(),
-                dow,
-                hour,
-                is_weekend: timeContext.isWeekend,
-                day_part_key: timeContext.dayPartKey
-              };
-            })(),
-            weather: weatherData?.available ? {
-              tempF: weatherData.temperature,
-              conditions: weatherData.conditions,
-              description: weatherData.description,
-            } : undefined,
-            air: airQualityData?.available ? {
-              aqi: airQualityData.aqi,
-              category: airQualityData.category,
-            } : undefined,
-          });
+      setCity(locationData.city);
+      setState(locationData.state);
+      setTimeZone(locationData.timeZone);
+      setCurrentLocationString(`${locationData.city}, ${locationData.state}`);
+      setLastUpdated(new Date().toISOString());
 
-          // Save context snapshot for ML/analytics
+      // Mark location as resolved - gates downstream queries (Bar Tab, Strategy)
+      if (locationData.city && locationData.formattedAddress) {
+        setIsLocationResolved(true);
+        console.log('✅ [LocationContext] Location resolved - downstream queries enabled');
+      }
+
+      // Store JWT token if returned
+      if (locationData.user_id) {
+        const tokenRes = await fetch('/api/auth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: locationData.user_id })
+        });
+        if (tokenRes.ok) {
+          const { token } = await tokenRes.json();
+          localStorage.setItem('vecto_auth_token', token);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // SNAPSHOT: Server creates snapshot during resolve, returns snapshot_id
+      // We just need to enrich it with weather/air and dispatch the event
+      // ═══════════════════════════════════════════════════════════════════════════
+      const snapshotId = locationData.snapshot_id;
+
+      if (snapshotId) {
+        console.log(`📸 [LocationContext] Using server-created snapshot: ${snapshotId.slice(0, 8)}...`);
+
+        // Enrich snapshot with weather/air if available
+        if (weatherData?.available || airQualityData?.available) {
           try {
-            const snapshotResponse = await fetch("/api/location/snapshot", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(snapshotV1),
-              signal, // Use same AbortController to prevent stale snapshot saves
-            });
-            
-            if (snapshotResponse.ok) {
-              const snapshotData = await snapshotResponse.json();
-              const snapshotId = snapshotData.snapshot_id || snapshotV1.snapshot_id;
-              
-              // CRITICAL: Create triad_job to start the strategy pipeline
-              try {
-                const jobResponse = await fetch("/api/blocks", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ snapshot_id: snapshotId }),
-                  signal,
-                });
-                
-                if (jobResponse.ok) {
-                  const jobData = await jobResponse.json();
-                  console.log("🎯 Co-Pilot: Strategy pipeline started for snapshot:", snapshotId);
-                  console.log("📋 Job status:", jobData.status);
-                } else {
-                  console.warn("⚠️ Failed to start strategy pipeline:", jobResponse.status);
-                }
-              } catch (jobErr) {
-                console.warn("⚠️ Error starting strategy pipeline:", jobErr);
-              }
-              
-              // Dispatch event to notify UI that snapshot is complete and ready
-              window.dispatchEvent(
-                new CustomEvent("vecto-snapshot-saved", {
-                  detail: {
-                    snapshotId,
-                    lat: coords.latitude,
-                    lng: coords.longitude,
-                  },
-                })
-              );
-              console.log("✅ Snapshot complete and ready! ID:", snapshotId);
-            }
-            
-            // Broadcast snapshot event for other components
-            window.dispatchEvent(
-              new CustomEvent("vecto-context-snapshot", {
-                detail: baselineContext,
+            await fetch(`/api/location/snapshot/${snapshotId}/enrich`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                weather: weatherData?.available ? {
+                  tempF: weatherData.temperature,
+                  conditions: weatherData.conditions,
+                  description: weatherData.description
+                } : undefined,
+                air: airQualityData?.available ? {
+                  aqi: airQualityData.aqi,
+                  category: airQualityData.category
+                } : undefined
               })
-            );
-            
-            console.log("📸 Context snapshot saved:", {
-              city: locationData.city,
-              dayPart: timeContext.dayPartLabel,
-              isWeekend: timeContext.isWeekend,
-              weather: weatherData?.available ? `${weatherData.temperature}°F` : 'none',
-              airQuality: airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'none',
             });
-          } catch (err) {
-            console.warn("Failed to save context snapshot:", err);
+            console.log(`📸 [LocationContext] Snapshot enriched with weather/air`);
+          } catch (enrichErr) {
+            console.warn('[LocationContext] Failed to enrich snapshot:', enrichErr);
           }
+        }
 
-          // Update location state ONCE with both coordinates and resolved name
-          setLocationState((prev: any) => ({
-            ...prev,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            currentLocation: locationName,
-            lastUpdated: new Date(),
+        // Set snapshot ID in state (fallback for co-pilot if event is missed)
+        setLastSnapshotId(snapshotId);
+
+        // Dispatch event - snapshot is ready
+        window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
+          detail: { snapshotId, holiday: null, is_holiday: false }
+        }));
+      } else {
+        // Fallback: Server didn't return snapshot_id, create one client-side (legacy path)
+        console.warn('⚠️ [LocationContext] No snapshot_id from server - using legacy client creation');
+        const fallbackSnapshotId = crypto.randomUUID();
+        const now = new Date();
+        const hour = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getHours();
+        const dow = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getDay();
+
+        const snapshot = {
+          snapshot_id: fallbackSnapshotId,
+          user_id: locationData.user_id,
+          device_id: deviceId,
+          session_id: crypto.randomUUID(),
+          created_at: now.toISOString(),
+          coord: { lat, lng, source: 'gps' },
+          resolved: {
             city: locationData.city,
             state: locationData.state,
             country: locationData.country,
-            timeZone: locationData.timeZone,
-            dayPart: timeContext.dayPartLabel,
-          }));
-        })
-        .catch((err) => {
-          // Don't log errors for intentional aborts (new GPS position arrived)
-          if (err.name === 'AbortError') {
-            console.log("⏭️ Enrichment aborted - new GPS position received");
-            return;
-          }
-          
-          console.error("[Global App] Location resolve error:", err);
-          // Fall back to coordinates if resolution fails
-          setLocationState((prev: any) => ({
-            ...prev,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            currentLocation: `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`,
-            lastUpdated: new Date(),
-          }));
-        });
-    } else if (gpsError) {
-      console.error("[Global App] GPS error:", gpsError);
-      setLocationState((prev: any) => ({
-        ...prev,
-        currentLocation: "GPS unavailable - use Edit button",
-        isUpdating: false,
-        isLoading: false,
-        error: gpsError, // Store the GPS error
-        latitude: undefined, // Clear coordinates on error
-        longitude: undefined, // Clear coordinates on error
-      }));
-    }
-  }, [coords, loading, gpsError]); // Depend on gpsError as well
-
-  // Load saved location from localStorage and setup GPS detection
-  useEffect(() => {
-    const savedLocation = localStorage.getItem("rideshare-location");
-    const savedNoGoZones = localStorage.getItem("driver-no-go-zones");
-
-    let noGoZones: NoGoZone[] = getDefaultNoGoZones();
-    if (savedNoGoZones) {
-      try {
-        const parsedZones = JSON.parse(savedNoGoZones);
-        if (Array.isArray(parsedZones)) {
-          if (parsedZones.length > 0 && typeof parsedZones[0] === "string") {
-            noGoZones = parsedZones.map((zone: string, index: number) => ({
-              id: `zone-${index}`,
-              name: zone,
-              reason: "User defined",
-              enabled: true,
-            }));
-          } else if (
-            parsedZones.length > 0 &&
-            typeof parsedZones[0] === "object"
-          ) {
-            noGoZones = parsedZones;
-          }
-        }
-      } catch (error) {
-        console.error("Failed to parse saved no-go zones:", error);
-      }
-    }
-
-    let initialLocationState = {
-      currentLocation: "Getting location...",
-      latitude: undefined,
-      longitude: undefined,
-      vehicleTypes: ["Standard"],
-      minEarningsPerHour: 25,
-      noGoZones,
-      manualLocation: null,
-      settings: {
-        // Initialize settings
-        vehicleTypes: ["Standard"],
-        minEarningsPerHour: 25,
-      },
-      // Initialize other state properties from the context value interface
-      coords: null,
-      accuracy: null,
-      error: null,
-      isLoading: true, // Start as loading
-      hasPermission: null,
-    };
-
-    if (savedLocation) {
-      try {
-        const parsed = JSON.parse(savedLocation);
-        initialLocationState = {
-          ...initialLocationState,
-          vehicleTypes: parsed.vehicleTypes || ["Standard"],
-          minEarningsPerHour: parsed.minEarningsPerHour || 25,
-          currentLocation: parsed.currentLocation || "Getting location...",
-          latitude: parsed.latitude,
-          longitude: parsed.longitude,
-          manualLocation: parsed.manualLocation || null,
-          settings: {
-            // Merge saved settings
-            vehicleTypes: parsed.vehicleTypes || ["Standard"],
-            minEarningsPerHour: parsed.minEarningsPerHour || 25,
+            timezone: locationData.timeZone,
+            formattedAddress: locationData.formattedAddress
           },
+          time_context: {
+            local_iso: now.toISOString(),
+            dow,
+            hour,
+            is_weekend: dow === 0 || dow === 6,
+            day_part_key: hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+          },
+          weather: weatherData?.available ? {
+            tempF: weatherData.temperature,
+            conditions: weatherData.conditions,
+            description: weatherData.description
+          } : undefined,
+          air: airQualityData?.available ? {
+            aqi: airQualityData.aqi,
+            category: airQualityData.category
+          } : undefined,
+          device: { platform: 'web' },
+          permissions: { geolocation: 'granted' }
         };
-      } catch (error) {
-        console.error("Failed to parse saved location:", error);
-      }
-    }
 
-    setLocationState(initialLocationState);
-    refreshLocation(); // Trigger initial GPS fetch
-    console.log(
-      "📍 Location context initialized - Initial GPS fetch triggered",
-    );
+        const snapshotRes = await fetch('/api/location/snapshot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(snapshot)
+        });
 
-    const handleManualLocationUpdate = async (event: Event) => {
-      const { location: manualLocation } = (event as CustomEvent).detail;
-      console.log("📍 Manual location update received:", manualLocation);
+        if (snapshotRes.ok) {
+          // Set snapshot ID in state (fallback for co-pilot if event is missed)
+          setLastSnapshotId(fallbackSnapshotId);
 
-      if (!manualLocation?.trim()) return;
-
-      try {
-        // Forward-geocode to coords
-        const res = await fetch(`/api/location/resolve?query=${encodeURIComponent(manualLocation.trim())}`);
-        const data = await res.json();
-
-        // Increment session ID to invalidate cached queries
-        setLocationSessionId(prev => prev + 1);
-        
-        // Cancel any in-flight enrichment from GPS
-        if (enrichmentControllerRef.current) {
-          console.log("🚫 Aborting stale enrichment request");
-          enrichmentControllerRef.current.abort();
+          window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
+            detail: { snapshotId: fallbackSnapshotId, holiday: null, is_holiday: false }
+          }));
         }
-
-        // Source of truth for override used by Header & Co-Pilot
-        setOverrideCoords({
-          latitude: data.latitude,
-          longitude: data.longitude,
-          city: data.city || manualLocation.trim(),
-          source: 'manual_city_search',
-        });
-
-        // Reflect in human string for display/localStorage
-        updateLocation({
-          currentLocation: data.city || manualLocation.trim(),
-          latitude: undefined,
-          longitude: undefined,
-          manualLocation: manualLocation.trim(),
-        });
-        console.log("✅ Manual city search - overrideCoords set:", data.city);
-      } catch (error) {
-        console.error("❌ Manual location geocoding failed:", error);
       }
-    };
-
-    const handleGPSPermissionGranted = (event: Event) => {
-      const { latitude, longitude } = (event as CustomEvent).detail;
-      console.log(
-        "🎯 GPS permission granted event received:",
-        latitude,
-        longitude,
-      );
-      console.log("🔄 Updating location context with GPS coordinates...");
-
-      // Cancel stale enrichment and create new AbortController
-      if (enrichmentControllerRef.current) {
-        enrichmentControllerRef.current.abort();
-      }
-      enrichmentControllerRef.current = new AbortController();
-      const { signal } = enrichmentControllerRef.current;
-
-      fetch(`/api/location/resolve?lat=${latitude}&lng=${longitude}`, { signal })
-        .then((response) => response.json())
-        .then((data) => {
-          console.log("📍 Location resolved to:", data);
-          const locationName =
-            data.city ||
-            data.address ||
-            `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-          updateLocation({
-            currentLocation: locationName,
-            latitude,
-            longitude,
-            manualLocation: null,
-          }); // Clear manual location on GPS update
-        })
-        .catch((err) => {
-          console.error("Failed to resolve location name:", err);
-          updateLocation({
-            currentLocation: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-            latitude,
-            longitude,
-            manualLocation: null,
-          });
-        });
-    };
-
-    console.log("🔌 Setting up event listeners for location updates...");
-    window.addEventListener(
-      "manual-location-update",
-      handleManualLocationUpdate,
-    );
-    window.addEventListener(
-      "gps-permission-granted",
-      handleGPSPermissionGranted,
-    );
-    console.log("✅ Event listeners registered successfully");
-
-    return () => {
-      window.removeEventListener(
-        "manual-location-update",
-        handleManualLocationUpdate,
-      );
-      window.removeEventListener(
-        "gps-permission-granted",
-        handleGPSPermissionGranted,
-      );
-    };
+    } catch (error) {
+      console.error('[LocationContext] Enrichment failed:', error);
+    }
   }, []);
 
-  // Save location to localStorage whenever relevant parts of locationState change
-  useEffect(() => {
-    localStorage.setItem(
-      "rideshare-location",
-      JSON.stringify({
-        currentLocation: locationState.currentLocation,
-        latitude: locationState.latitude,
-        longitude: locationState.longitude,
-        lastUpdated: locationState.lastUpdated?.toISOString() || new Date().toISOString(),
-        vehicleTypes: locationState.vehicleTypes,
-        minEarningsPerHour: locationState.minEarningsPerHour,
-        manualLocation: locationState.manualLocation,
-      }),
-    );
+  const refreshGPS = useCallback(async () => {
+    setIsUpdating(true);
+    setOverrideCoords(null);
+    setIsLocationResolved(false); // Reset - gates queries until new location resolves
 
-    // Dispatch custom event to notify other components
-    window.dispatchEvent(
-      new CustomEvent("location-changed", {
-        detail: locationState,
-      }),
-    );
-  }, [
-    locationState.currentLocation,
-    locationState.latitude,
-    locationState.longitude,
-    locationState.lastUpdated,
-    locationState.vehicleTypes,
-    locationState.minEarningsPerHour,
-    locationState.manualLocation,
-  ]);
+    // Clear old strategy
+    localStorage.removeItem('vecto_persistent_strategy');
+    localStorage.removeItem('vecto_strategy_snapshot_id');
+    window.dispatchEvent(new CustomEvent('vecto-strategy-cleared'));
 
-  const updateSettings = async (newSettings: Partial<DriverSettings>) => {
-    console.log("Updating settings:", newSettings);
-    setLocationState((prev: any) => {
-      const updatedSettings = { ...prev.settings, ...newSettings };
-      // Also update the top-level location state properties if they exist in newSettings
-      const updatedLocationState = { ...prev };
-      if (newSettings.vehicleTypes !== undefined) {
-        updatedLocationState.vehicleTypes = newSettings.vehicleTypes;
-      }
-      if (newSettings.minEarningsPerHour !== undefined) {
-        updatedLocationState.minEarningsPerHour =
-          newSettings.minEarningsPerHour;
-      }
-      return {
-        ...updatedLocationState,
-        settings: updatedSettings,
-        lastUpdated: new Date(),
-      };
-    });
-  };
-
-  const setManualLocation = (location: string) => {
-    console.log(`📍 Setting manual location: ${location}`);
-    setLocationState((prev: any) => ({
-      ...prev,
-      manualLocation: location,
-      currentLocation: location, // Update currentLocation as well
-      latitude: undefined, // Clear GPS coordinates
-      longitude: undefined,
-      lastUpdated: new Date(),
-      isUpdating: false,
-    }));
-  };
-
-  const clearManualLocation = () => {
-    console.log("📍 Clearing manual location override.");
-    setLocationState((prev: any) => ({
-      ...prev,
-      manualLocation: null,
-      // Reset currentLocation to something indicative of GPS detection, or keep as is if GPS is already active
-      // For now, let's keep it as is and rely on refreshLocation to get actual GPS data if available.
-      lastUpdated: new Date(),
-      isUpdating: false, // Ensure isUpdating is false
-    }));
-    refreshLocation(); // Attempt to refresh GPS after clearing manual location
-  };
-
-  const clearLocation = () => {
-    console.log("Clearing location state.");
-    setLocationState({
-      currentLocation: "Location detection required",
-      latitude: undefined,
-      longitude: undefined,
-      lastUpdated: new Date(),
-      isUpdating: false,
-      vehicleTypes: ["Standard"],
-      minEarningsPerHour: 25,
-      noGoZones: getDefaultNoGoZones(),
-      manualLocation: null,
-      settings: {
-        vehicleTypes: ["Standard"],
-        minEarningsPerHour: 25,
-      },
-      coords: null,
-      accuracy: null,
-      error: null,
-      isLoading: false,
-      hasPermission: null,
-    });
-  };
-
-  const updateLocation = (locationData: any) => {
-    // Accepts partial updates
-    console.log("Updating location state with:", locationData);
-    setLocationState((prev: any) => ({
-      ...prev,
-      ...locationData,
-      lastUpdated: new Date(),
-      isUpdating: false, // Assume update is complete
-    }));
-  };
-
-  const updateVehicleTypes = (types: string[]) => {
-    console.log(`🚗 Updating vehicle types: ${types.join(", ")}`);
-    updateSettings({ vehicleTypes: types });
-  };
-
-  const updateMinEarnings = (amount: number) => {
-    console.log(`💰 Updating minimum earnings per hour: $${amount}`);
-    updateSettings({ minEarningsPerHour: amount });
-  };
-
-  const requestPermission = async () => {
-    console.log("Requesting location permission...");
-    setLocationState((prev: any) => ({ ...prev, isLoading: true, error: null }));
     try {
-      const permissionStatus = await navigator.permissions.query({
-        name: "geolocation",
-      });
-      if (
-        permissionStatus.state === "granted" ||
-        permissionStatus.state === "prompt"
-      ) {
-        // If granted or prompt, try to get position
-        await refreshLocation();
-        setLocationState((prev: any) => ({
-          ...prev,
-          hasPermission: permissionStatus.state === "granted",
-          isLoading: false,
-        }));
-      } else if (permissionStatus.state === "denied") {
-        console.error("Geolocation permission denied by user.");
-        setLocationState((prev: any) => ({
-          ...prev,
-          error: "Location permission denied.",
-          hasPermission: false,
-          isLoading: false,
-        }));
-      }
-      permissionStatus.onchange = async () => {
-        console.log(
-          `Geolocation permission state changed to: ${permissionStatus.state}`,
-        );
-        if (permissionStatus.state === "granted") {
-          await refreshLocation();
-          setLocationState((prev: any) => ({
-            ...prev,
-            hasPermission: true,
-            isLoading: false,
-          }));
-        } else if (permissionStatus.state === "denied") {
-          setLocationState((prev: any) => ({
-            ...prev,
-            error: "Location permission denied.",
-            hasPermission: false,
-            isLoading: false,
-          }));
-        }
-      };
-    } catch (err) {
-      console.error("Error requesting location permission:", err);
-      setLocationState((prev: any) => ({
-        ...prev,
-        error: "Failed to request location permission.",
-        hasPermission: false,
-        isLoading: false,
-      }));
-    }
-  };
-
-  const value: LocationContextValue = {
-    isLoading: locationState.isLoading,
-    error: locationState.error,
-    hasPermission: locationState.hasPermission,
-    requestPermission,
-
-    // GPS and location data
-    currentCoords: locationState.coords,
-    currentLocationString: locationState.currentLocation,
-    lastUpdated: locationState.lastUpdated,
-    accuracy: locationState.accuracy,
-    location: locationState as any,
-    timeZone: locationState.timeZone,
-
-    // Location session tracking (increments on GPS refresh or city search)
-    locationSessionId,
-
-    // Override coordinates (for manual city search)
-    overrideCoords,
-    setOverrideCoords: (coords: OverrideCoordinates | null) => {
-      setOverrideCoords(coords);
-      // Increment session ID when city search happens
+      const coords = await getGeoPosition();
       if (coords) {
-        setLocationSessionId(prev => prev + 1);
+        setCurrentCoords({ latitude: coords.latitude, longitude: coords.longitude });
+        await enrichLocation(coords.latitude, coords.longitude, coords.accuracy);
+      } else {
+        // No fallback - GPS-first global app. User must enable location services.
+        console.warn('[LocationContext] Browser geolocation failed - no fallback');
+        setCurrentLocationString('Location unavailable - enable GPS');
       }
-    },
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [enrichLocation]);
 
-    // User preferences and settings
-    manualLocationOverride: locationState.manualLocation,
-    settings: locationState.settings,
-    updateSettings,
+  // Initial GPS fetch on mount
+  useEffect(() => {
+    refreshGPS();
+  }, []);
 
-    // Location management
-    refreshLocation,
-    refreshGPS: refreshLocation,
-    setManualLocation,
-    clearManualLocation,
-    updateLocation: (location: any) => {
-      setLocationState((prev: any) => ({ ...prev, ...location }));
-    },
-    updateVehicleTypes: (types: string[]) => {
-      updateSettings({ vehicleTypes: types });
-    },
-    updateMinEarnings: (amount: number) => {
-      updateSettings({ minEarningsPerHour: amount });
-    },
-  };
+  // Auto-enrich when coords change (but skip initial mount to avoid duplicate)
+  useEffect(() => {
+    // Skip on initial mount - refreshGPS() already handles enrichment
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    // Only enrich if we have valid coords and they've changed
+    if (currentCoords) {
+      console.log('📍 Coordinates changed - triggering enrichment');
+      enrichLocation(currentCoords.latitude, currentCoords.longitude, 10);
+    }
+  }, [currentCoords?.latitude, currentCoords?.longitude, enrichLocation]);
 
   return (
-    <LocationContext.Provider value={value}>
+    <LocationContext.Provider
+      value={{
+        currentCoords,
+        currentLocationString,
+        city,
+        state,
+        timeZone,
+        isUpdating,
+        lastUpdated,
+        refreshGPS,
+        overrideCoords,
+        weather,
+        airQuality,
+        isLocationResolved,
+        lastSnapshotId,
+        isLoading: isUpdating,
+        setOverrideCoords
+      }}
+    >
       {children}
     </LocationContext.Provider>
   );
-}
-
-export function useLocation(): any {
-  const context = useContext(LocationContext);
-  if (context === undefined) {
-    throw new Error("useLocation must be used within a LocationProvider");
-  }
-  return context as any;
-}
-
-// Custom hook for components that need to react to location changes
-export function useLocationUpdates() {
-  const locationContext = useLocation();
-  const location = locationContext?.location;
-  const [updateKey, setUpdateKey] = useState(0);
-
-  useEffect(() => {
-    const handleLocationChange = () => {
-      setUpdateKey((prev) => prev + 1);
-    };
-
-    window.addEventListener("location-changed", handleLocationChange);
-    return () =>
-      window.removeEventListener("location-changed", handleLocationChange);
-  }, []);
-
-  return { location, updateKey };
-}
+};

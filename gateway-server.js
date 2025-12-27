@@ -1,132 +1,215 @@
-// gateway-server.js - MONO + SPLIT capable
-import http from "node:http";
-import { spawn } from "node:child_process";
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import httpProxy from "http-proxy";
-import path from "path";
-import { fileURLToPath } from "url";
-import fs from "fs";
+// gateway-server.js - Main application entry point
+// Refactored: Bootstrap modules handle routes, middleware, workers, health
+import http from 'node:http';
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const { createProxyServer } = httpProxy;
-import { GATEWAY_CONFIG } from "./agent-ai-config.js";
-import { startConsolidationListener } from "./server/jobs/triad-worker.js";
-import { startCleanupLoop } from "./server/jobs/event-cleanup.js";
+import { loadEnvironment } from './server/config/load-env.js';
+import { validateOrExit } from './server/config/validate-env.js';
+import { unifiedAI, UNIFIED_CAPABILITIES } from './server/lib/ai/unified-ai-capabilities.js';
 
-// Mode detection
-const MODE = (process.env.APP_MODE || "mono").toLowerCase();
-const env = (process.env.NODE_ENV || "").toLowerCase();
-const isDev =
-  env === "development" ||
-  (env === "" && process.env.REPLIT_DEV === "1") ||
-  process.env.FORCE_DEV === "1";
+// Load and validate environment
+loadEnvironment();
+validateOrExit();
 
-const DISABLE_SPAWN_SDK = process.env.DISABLE_SPAWN_SDK === "1";
-const DISABLE_SPAWN_AGENT = process.env.DISABLE_SPAWN_AGENT === "1";
-
+// Configuration
+const MODE = (process.env.APP_MODE || 'mono').toLowerCase();
 const PORT = Number(process.env.PORT || 5000);
-const AGENT_PORT = Number(process.env.AGENT_PORT || 43717);
-const SDK_PORT = Number(process.env.EIDOLON_PORT || process.env.SDK_PORT || 5000);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distDir = path.join(__dirname, 'client', 'dist');
 
-console.log(`[gateway] PID: ${process.pid}`);
-console.log(`[gateway] Mode: ${MODE.toUpperCase()}`);
-console.log("[gateway] AI Config:", GATEWAY_CONFIG);
+// Deployment detection
+const isDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
+const isAutoscaleMode = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === '1';
 
-const children = new Map();
-function spawnChild(name, command, args, env) {
-  console.log(`🐕 [gateway] Starting ${name}...`);
-  const child = spawn(command, args, {
-    env: { ...process.env, ...env },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  child.stdout.on("data", (data) => console.log(`[${name}] ${data.toString().trim()}`));
-  child.stderr.on("data", (data) => console.error(`[${name}] ${data.toString().trim()}`));
-  child.on("exit", (code) => {
-    console.error(`❌ [gateway] ${name} exited with code ${code}, restarting...`);
-    children.delete(name);
-    setTimeout(() => spawnChild(name, command, args, env), 2000);
-  });
-  children.set(name, child);
-  return child;
-}
+// Global error handlers
+process.on('uncaughtException', (err) => {
+  console.error('[gateway] ❌ Uncaught exception:', err);
+  if (process.env.NODE_ENV !== 'production') process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[gateway] ❌ Unhandled rejection at:', promise, 'reason:', reason);
+});
 
 // Main bootstrap
 (async function main() {
-  const app = express();
-  app.set("trust proxy", 1);
+  try {
+    const startTime = Date.now();
+    console.log(`[gateway] Starting bootstrap (PID: ${process.pid})`);
+    console.log(`[gateway] Mode: ${MODE.toUpperCase()}, Port: ${PORT}`);
+    console.log(`[gateway] Deployment: ${isDeployment}, Autoscale: ${isAutoscaleMode}`);
 
-  // Serve SPA early
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const distDir = path.join(__dirname, "client", "dist");
+    // Create Express app
+    const app = express();
+    app.set('trust proxy', 1);
 
-  app.use("/app", express.static(distDir));
-  app.get("/", (_req, res) => res.redirect("/app"));
-  app.get("/app/*", (_req, res) => res.sendFile(path.join(distDir, "index.html")));
+    // Import bootstrap modules
+    const { configureHealthEndpoints, mountHealthRouter } = await import('./server/bootstrap/health.js');
+    const { configureMiddleware, configureErrorHandler } = await import('./server/bootstrap/middleware.js');
+    const { mountRoutes, mountSSE, mountUnifiedCapabilities } = await import('./server/bootstrap/routes.js');
+    const { startStrategyWorker, shouldStartWorker, killAllChildren, startEventSyncJob } = await import('./server/bootstrap/workers.js');
 
-  // Health endpoints
-  app.get("/health", (_req, res) => res.status(200).send("OK"));
-  app.get("/healthz", (_req, res) => {
-    const indexPath = path.join(distDir, "index.html");
-    if (fs.existsSync(indexPath)) {
-      return res.json({ ok: true, spa: "ready", mode: isDev ? "dev" : "prod", ts: Date.now() });
+    // Health endpoints FIRST (before any heavy imports)
+    configureHealthEndpoints(app, distDir, MODE);
+    await mountHealthRouter(app);
+
+    // Start HTTP server immediately
+    const server = http.createServer(app);
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 66000;
+    server.requestTimeout = 5000;
+
+    server.on('error', (err) => {
+      console.error('[gateway] ❌ Server error:', err);
+      process.exit(1);
+    });
+
+    // Listen
+    if (import.meta.url === `file://${process.argv[1]}`) {
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`🌐 [gateway] HTTP listening on 0.0.0.0:${PORT}`);
+        console.log(`[gateway] Bootstrap completed in ${Date.now() - startTime}ms`);
+
+        // Start unified AI health monitoring
+        startUnifiedAIMonitoring();
+      });
     }
-    return res.status(503).json({ ok: false, spa: "missing", mode: isDev ? "dev" : "prod", ts: Date.now() });
-  });
 
-  // Start HTTP server
-  const server = http.createServer(app);
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`[ready] Server listening on 0.0.0.0:${PORT}`);
-  });
+    // Export for testing
+    globalThis.testApp = app;
 
-  // Start LISTEN-only consolidation listener
-  if (!global.__CONSOLIDATION_LISTENER_STARTED__) {
-    global.__CONSOLIDATION_LISTENER_STARTED__ = true;
-    startConsolidationListener()
-      .then(() => console.log("[gateway] 🎧 Consolidation listener started"))
-      .catch((err) => console.error("[gateway] ❌ Listener failed:", err?.message || err));
-  }
+    // Load heavy modules after server is listening
+    setImmediate(async () => {
+      console.log('[gateway] Loading modules and mounting routes...');
 
-  // Start event cleanup job (removes expired events from events_facts table)
-  if (!global.__EVENT_CLEANUP_STARTED__) {
-    global.__EVENT_CLEANUP_STARTED__ = true;
-    startCleanupLoop();
-    console.log("[gateway] 🧹 Event cleanup job started");
-  }
+      // Load AI config
+      const { GATEWAY_CONFIG } = await import('./agent-ai-config.js');
+      console.log('[gateway] AI Config loaded');
 
-  // Mount middleware and routes after server is listening
-  setImmediate(async () => {
-    app.use(helmet({ contentSecurityPolicy: false }));
-    app.use(cors({ origin: true, credentials: true }));
-    app.use("/api", express.json({ limit: "1mb" }));
-    app.use("/agent", express.json({ limit: "1mb" }));
+      // Static assets
+      app.use(express.static(distDir));
 
-    if (MODE === "mono") {
-      try {
-        const createSdkRouter = (await import("./sdk-embed.js")).default;
-        app.use(process.env.API_PREFIX || "/api", createSdkRouter({}));
-      } catch (e) {
-        console.error("[mono] SDK embed failed:", e?.message);
+      // Middleware
+      await configureMiddleware(app);
+
+      // Diagnostic endpoint
+      app.get('/api/diagnostic/db-info', (_req, res) => {
+        const dbUrl = process.env.DATABASE_URL;
+        const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@').split('@')[1] : 'NOT_SET';
+        res.json({
+          environment_detection: {
+            REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT || 'not set',
+            NODE_ENV: process.env.NODE_ENV || 'not set',
+            mode: MODE,
+          },
+          database_target: 'REPLIT_POSTGRES',
+          database_host: maskedUrl,
+          has_database_url: !!process.env.DATABASE_URL,
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      // SSE (not in autoscale mode)
+      if (!isAutoscaleMode) {
+        await mountSSE(app);
+      } else {
+        console.log('[gateway] ⏩ SSE disabled (autoscale mode)');
       }
-      try {
-        const { mountAgent } = await import("./server/agent/embed.js");
-        mountAgent({ app, basePath: process.env.AGENT_PREFIX || "/agent", wsPath: "/agent/ws", server });
-      } catch (e) {
-        console.error("[mono] Agent embed failed:", e?.message);
-      }
-    }
-  });
 
-  // Graceful shutdown
-  process.on("SIGINT", () => {
-    console.log("[signal] SIGINT received, shutting down...");
-    children.forEach((c) => c.kill("SIGINT"));
-    server.close(() => process.exit(0));
-  });
-  process.on("SIGTERM", () => {
-    console.log("[signal] SIGTERM received, shutting down...");
-    children.forEach((c) => c.kill("SIGTERM"));
-    server.close(() => process.exit(0));
-  });
+      // Mount all routes (mono mode)
+      if (MODE === 'mono') {
+        await mountRoutes(app, server);
+      }
+
+      // Error handler (after all routes)
+      await configureErrorHandler(app);
+
+      // Unified capabilities
+      await mountUnifiedCapabilities(app);
+
+      // Unified capabilities API endpoint
+      app.get('/api/unified/capabilities', (_req, res) => {
+        res.json({
+          ok: true,
+          system: 'Unified AI (Eidolon/Assistant/Atlas)',
+          model: UNIFIED_CAPABILITIES.model,
+          context_window: UNIFIED_CAPABILITIES.context_window,
+          thinking_mode: UNIFIED_CAPABILITIES.thinking_mode,
+          capabilities: unifiedAI.getCapabilities()
+        });
+      });
+
+      // SPA catch-all (must be LAST)
+      app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api/') || req.path.startsWith('/agent/')) {
+          return next();
+        }
+        res.sendFile(path.join(distDir, 'index.html'));
+      });
+
+      // Start background worker if needed
+      const workerConfig = shouldStartWorker({ mode: MODE, isAutoscaleMode });
+      if (workerConfig.shouldStart) {
+        console.log(`[gateway] ${workerConfig.reason}`);
+        startStrategyWorker({ useLogFile: workerConfig.useLogFile });
+      } else {
+        console.log(`[gateway] ⏸️ Worker not started: ${workerConfig.reason}`);
+      }
+
+      // Start daily event sync job (runs at 6 AM daily)
+      if (!isAutoscaleMode) {
+        startEventSyncJob();
+      }
+
+      // Start change analyzer job (runs on startup, flags doc updates needed)
+      if (!isAutoscaleMode) {
+        const { startChangeAnalyzerJob } = await import('./server/jobs/change-analyzer-job.js');
+        startChangeAnalyzerJob();
+      }
+
+      console.log('[gateway] ✅ All routes and middleware loaded');
+    });
+
+    // Graceful shutdown
+    const shutdown = (signal) => {
+      console.log(`[signal] ${signal} received, shutting down...`);
+      killAllChildren(signal);
+      server.close(() => process.exit(0));
+    };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+  } catch (err) {
+    console.error('[gateway] ❌ Fatal startup error:', err);
+    process.exit(1);
+  }
 })();
+
+/**
+ * Start unified AI health monitoring
+ */
+function startUnifiedAIMonitoring() {
+  console.log('[Unified AI] Starting health monitoring...');
+
+  // Check every 30 seconds
+  setInterval(async () => {
+    try {
+      await unifiedAI.checkHealth();
+    } catch (err) {
+      console.error('❌ [Unified AI] Health check failed:', err.message);
+    }
+  }, 30000);
+
+  // Initial health check
+  unifiedAI.checkHealth().then(health => {
+    console.log(`[Unified AI] Initial health: ${health.healthy ? '✅ Healthy' : '⚠️ Issues detected'}`);
+    if (!health.healthy) {
+      console.log('[Unified AI] Issues:', health.issues);
+    }
+  });
+}
+
+export default globalThis.testApp;

@@ -1,6 +1,6 @@
 {
-  "id": "42fbed5e-4d9a-4d2e-aec0-f5739e377c11",
-  "prevId": "ad6d93e7-9e13-4302-b3db-f74b9e6e01ec",
+  "id": "d117115d-f9fb-495a-968c-906adf8becdd",
+  "prevId": "3a512c1a-6086-48e7-8873-99d8de5898d0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -98,6 +98,57 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_changes": {
+      "name": "agent_changes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "change_type": {
+          "name": "change_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_path": {
+          "name": "file_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "details": {
+          "name": "details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -344,6 +395,203 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.briefings": {
+      "name": "briefings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "snapshot_id": {
+          "name": "snapshot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "global_travel": {
+          "name": "global_travel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "domestic_travel": {
+          "name": "domestic_travel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "local_traffic": {
+          "name": "local_traffic",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "weather_impacts": {
+          "name": "weather_impacts",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "events_nearby": {
+          "name": "events_nearby",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "holidays": {
+          "name": "holidays",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rideshare_intel": {
+          "name": "rideshare_intel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "citations": {
+          "name": "citations",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tactical_traffic": {
+          "name": "tactical_traffic",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tactical_closures": {
+          "name": "tactical_closures",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tactical_enforcement": {
+          "name": "tactical_enforcement",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tactical_sources": {
+          "name": "tactical_sources",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "briefings_snapshot_id_snapshots_snapshot_id_fk": {
+          "name": "briefings_snapshot_id_snapshots_snapshot_id_fk",
+          "tableFrom": "briefings",
+          "tableTo": "snapshots",
+          "columnsFrom": [
+            "snapshot_id"
+          ],
+          "columnsTo": [
+            "snapshot_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "briefings_snapshot_id_unique": {
+          "name": "briefings_snapshot_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "snapshot_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.connection_audit": {
+      "name": "connection_audit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "event": {
+          "name": "event",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "backend_pid": {
+          "name": "backend_pid",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "application_name": {
+          "name": "application_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deploy_mode": {
+          "name": "deploy_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "details": {
+          "name": "details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -910,6 +1158,30 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "event_badge_missing": {
+          "name": "event_badge_missing",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "node_type": {
+          "name": "node_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "access_status": {
+          "name": "access_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aliases": {
+          "name": "aliases",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -948,7 +1220,8 @@
           "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "now()"
         },
         "snapshot_id": {
           "name": "snapshot_id",
@@ -1060,7 +1333,7 @@
           "name": "user_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "device_id": {
           "name": "device_id",
@@ -1078,25 +1351,13 @@
           "name": "lat",
           "type": "double precision",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "lng": {
           "name": "lng",
           "type": "double precision",
           "primaryKey": false,
-          "notNull": true
-        },
-        "accuracy_m": {
-          "name": "accuracy_m",
-          "type": "double precision",
-          "primaryKey": false,
           "notNull": false
-        },
-        "coord_source": {
-          "name": "coord_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
         },
         "city": {
           "name": "city",
@@ -1219,10 +1480,37 @@
           "primaryKey": false,
           "notNull": false,
           "default": null
+        },
+        "holiday": {
+          "name": "holiday",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_holiday": {
+          "name": "is_holiday",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "snapshots_user_id_users_user_id_fk": {
+          "name": "snapshots_user_id_users_user_id_fk",
+          "tableFrom": "snapshots",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "user_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -1239,6 +1527,12 @@
           "primaryKey": true,
           "notNull": true,
           "default": "gen_random_uuid()"
+        },
+        "strategy_id": {
+          "name": "strategy_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "snapshot_id": {
           "name": "snapshot_id",
@@ -1358,6 +1652,45 @@
           "primaryKey": false,
           "notNull": false
         },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_address": {
+          "name": "user_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "events": {
+          "name": "events",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
+        "news": {
+          "name": "news",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
+        "traffic": {
+          "name": "traffic",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'[]'::jsonb"
+        },
         "valid_window_start": {
           "name": "valid_window_start",
           "type": "timestamp with time zone",
@@ -1373,6 +1706,60 @@
         "strategy_timestamp": {
           "name": "strategy_timestamp",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_resolved_address": {
+          "name": "user_resolved_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_resolved_city": {
+          "name": "user_resolved_city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_resolved_state": {
+          "name": "user_resolved_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "minstrategy": {
+          "name": "minstrategy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consolidated_strategy": {
+          "name": "consolidated_strategy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "holiday": {
+          "name": "holiday",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "briefing_news": {
+          "name": "briefing_news",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "briefing_events": {
+          "name": "briefing_events",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "briefing_traffic": {
+          "name": "briefing_traffic",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         }
@@ -1652,6 +2039,133 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "triad_jobs_snapshot_id_unique": {
+          "name": "triad_jobs_snapshot_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "snapshot_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lng": {
+          "name": "lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accuracy_m": {
+          "name": "accuracy_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "coord_source": {
+          "name": "coord_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'gps'"
+        },
+        "new_lat": {
+          "name": "new_lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_lng": {
+          "name": "new_lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_accuracy_m": {
+          "name": "new_accuracy_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "formatted_address": {
+          "name": "formatted_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

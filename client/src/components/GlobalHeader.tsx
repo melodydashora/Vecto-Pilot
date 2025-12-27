@@ -1,42 +1,82 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { MapPin, Clock, Settings, RefreshCw, Car, Droplet, Thermometer, CloudRain, Cloud, Sun, CloudSnow, CheckCircle2 } from "lucide-react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
+import {
+  MapPin,
+  Clock,
+  Settings,
+  RefreshCw,
+  Car,
+  CloudRain,
+  Cloud,
+  Sun,
+  CloudSnow,
+  CheckCircle2,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
-import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "@/contexts/location-context-clean";
+import { useToast } from "@/hooks/useToast";
+import { LocationContext } from "@/contexts/location-context-clean";
+import { useQuery } from "@tanstack/react-query";
 
 // helpers (add these files from sections 2 and 3 below)
-import { classifyDayPart, buildTimeContext } from "@/lib/daypart";
-import {
-  buildBaselinePrompt,
-  type BaselineContext,
-} from "@/lib/prompt/baseline";
-import { createSnapshot, persistSnapshot as saveSnapshotToDB } from "@/lib/snapshot";
+import { classifyDayPart } from "@/lib/daypart";
 
 // Optional server endpoints this file calls:
 //   POST /api/context/snapshot      -> store the snapshot (db learning)
 //   GET  /api/geocode/reverse?lat=..&lng=..  -> { city, state, country }
 //   GET  /api/timezone?lat=..&lng=.. -> { timeZone }  (fallbacks included)
 
-const GlobalHeader: React.FC = () => {
-  const loc = useLocation() as any;
+/**
+ * GlobalHeader - Real-time driver location and context display
+ * - Polls fresh location from users table every 2 seconds
+ * - Displays resolved address, time, weather, air quality
+ * - Handles snapshot creation with validation gates
+ * Memoized to prevent unnecessary re-renders from parent context updates
+ */
+const GlobalHeaderComponent: React.FC = () => {
+  // CRITICAL FIX Issue #3: Removed incorrect useLocation hook and used useContext for LocationContext
+  const loc = useContext(LocationContext);
   const { toast } = useToast();
 
   // state for display
   const [now, setNow] = useState<Date>(new Date());
   const [timeString, setTimeString] = useState<string>("");
+  const [dateString, setDateString] = useState<string>("");
   const [dayOfWeek, setDayOfWeek] = useState<string>("");
   const [timeContextLabel, setTimeContextLabel] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
-  const [weather, setWeather] = useState<{temp: number; conditions: string; description?: string} | null>(null);
-  const [weatherLoading, setWeatherLoading] = useState(false);
-  const [airQuality, setAirQuality] = useState<{aqi: number; category: string} | null>(null);
-  const [aqLoading, setAqLoading] = useState(false);
-  const [snapshotReady, setSnapshotReady] = useState(false);
-  const [latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
-  const [strategyStatus, setStrategyStatus] = useState<'idle' | 'pending' | 'ok'>('idle');
-  const [strategyProgress, setStrategyProgress] = useState<{ timeElapsedMs: number; waitFor?: string[] } | null>(null);
+  // Weather and air quality from context (fetched once in LocationContext, no duplicate calls)
+  const weather = loc?.weather ?? null;
+  const airQuality = loc?.airQuality ?? null;
+  const [holiday, setHoliday] = useState<string | null>(null);
+  const [isHoliday, setIsHoliday] = useState(false);
+
+  // CRITICAL FIX Issue #5: Get device_id from localStorage for database query
+  const deviceId =
+    typeof window !== "undefined"
+      ? localStorage.getItem("vecto_device_id")
+      : null;
+
+  // CRITICAL FIX Issue #5 & #3: Query /api/users/me directly for fresh location from database
+  // This bypasses context state lag and ensures header always shows current location
+  // CRITICAL FIX Finding #3: Reduced polling from 5s to 2s for faster header updates
+  // CRITICAL FIX Production Issue #1 (Dec 1): Disabled aggressive polling (2s) causing 1643 req/6h
+  // Root cause: 30 reqs/min per user × 50 concurrent users = production spike
+  // Solution: Fetch on app init only, refetch on location change via context
+  const { data: dbUserLocation } = useQuery({
+    queryKey: ["/api/users/me", deviceId],
+    queryFn: async () => {
+      if (!deviceId) return null;
+      const res = await fetch(
+        `/api/users/me?device_id=${encodeURIComponent(deviceId)}`,
+      );
+      if (!res.ok) return null;
+      return res.json();
+    },
+    staleTime: 60000, // Keep data fresh for 1 minute
+    refetchInterval: false, // DISABLED: No polling. Location updates flow through context.
+    enabled: !!deviceId,
+  });
 
   // location from context, supporting both shapes
   // PRIORITY: Use override coords if available (manual city search), otherwise use GPS
@@ -47,20 +87,50 @@ const GlobalHeader: React.FC = () => {
     (loc?.latitude && loc?.longitude
       ? { latitude: loc.latitude, longitude: loc.longitude }
       : null);
-  
+
   const coords = overrideCoords || gpsCoords;
 
+  // CRITICAL FIX Issue #5 & #8: PRIORITY - Use database location, then override city, then context city/state
   const currentLocationString =
-    overrideCoords?.city ?? loc?.currentLocationString ?? loc?.location?.currentLocationString ?? "";
+    overrideCoords?.city ??
+    (dbUserLocation?.ok && dbUserLocation?.city ? dbUserLocation.city : null) ??
+    (loc?.city && loc?.state ? `${loc.city}, ${loc.state}` : null) ??
+    (loc?.location?.city && loc?.location?.state
+      ? `${loc.location.city}, ${loc.location.state}`
+      : null) ??
+    loc?.currentLocationString ??
+    loc?.location?.currentLocation ?? // Try currentLocation (the actual state key)
+    loc?.location?.currentLocationString ??
+    "";
+
+  // Debug: Log what we're reading - PRIORITY database location
+  useEffect(() => {
+    console.log(
+      "[GlobalHeader] CRITICAL FIX Issue #5 - Location source hierarchy:",
+      {
+        dbLocation: dbUserLocation?.ok
+          ? {
+              city: dbUserLocation.city,
+              state: dbUserLocation.state,
+              updated_at: dbUserLocation.updated_at,
+            }
+          : null,
+        overrideCoords: overrideCoords?.city,
+        contextLocationString: loc?.currentLocationString,
+        finalDisplayValue: currentLocationString,
+      },
+    );
+  }, [currentLocationString, dbUserLocation, loc]);
 
   // Header is "resolved" as soon as we have coords + city (don't wait for weather/AQ/events)
   const isLocationResolved = Boolean(
-    coords?.latitude && 
-    coords?.longitude && 
-    currentLocationString && 
-    currentLocationString !== "Getting location..." && 
-    currentLocationString !== "Detecting..."
+    coords?.latitude &&
+      coords?.longitude &&
+      currentLocationString &&
+      currentLocationString !== "Getting location..." &&
+      currentLocationString !== "Detecting...",
   );
+  // CRITICAL FIX Issue #3: Get refreshGPS from the correctly imported context
   const refreshGPS: undefined | (() => Promise<void>) =
     loc?.refreshGPS ?? loc?.location?.refreshGPS;
 
@@ -80,61 +150,40 @@ const GlobalHeader: React.FC = () => {
     return () => clearInterval(id);
   }, []);
 
-  // Listen for snapshot saved event to update indicator and start strategy polling
+  // Listen for snapshot saved event to update indicator (and holiday info)
   useEffect(() => {
     const handleSnapshotSaved = (e: Event) => {
       const customEvent = e as CustomEvent;
-      const snapshotId = customEvent.detail?.snapshotId;
-      if (snapshotId) {
-        setSnapshotReady(true);
-        setLatestSnapshotId(snapshotId);
-        setStrategyStatus('pending');
-        // Initialize progress immediately so bar shows right away (sync with strategy spinner)
-        setStrategyProgress({
-          timeElapsedMs: 0,
-          waitFor: ['strategist', 'briefer', 'consolidator']
-        });
+      const holidayName = customEvent.detail?.holiday;
+      const holidayFlag = customEvent.detail?.is_holiday;
+      // Update holiday state if provided (exclude 'none' as it means no holiday)
+      if (holidayName && holidayName !== 'none') {
+        setHoliday(holidayName);
+        setIsHoliday(true);
+      } else if (holidayFlag === false || holidayName === 'none') {
+        setHoliday(null);
+        setIsHoliday(false);
       }
     };
-    window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
-    return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
+    window.addEventListener(
+      "vecto-snapshot-saved",
+      handleSnapshotSaved as EventListener,
+    );
+    return () =>
+      window.removeEventListener(
+        "vecto-snapshot-saved",
+        handleSnapshotSaved as EventListener,
+      );
   }, []);
 
-  // Poll strategy status when snapshot is ready
-  useEffect(() => {
-    if (!latestSnapshotId || strategyStatus === 'ok') return;
-
-    const pollStrategy = async () => {
-      try {
-        const response = await fetch(`/api/blocks/strategy/${latestSnapshotId}`);
-        if (!response.ok) return;
-        
-        const data = await response.json();
-        if (data.status === 'ok' || data.status === 'ok_partial') {
-          setStrategyStatus('ok');
-          setStrategyProgress(null);
-        } else {
-          setStrategyStatus('pending');
-          setStrategyProgress({
-            timeElapsedMs: data.timeElapsedMs || 0,
-            waitFor: data.waitFor
-          });
-        }
-      } catch (err) {
-        console.warn('Failed to poll strategy status:', err);
-      }
-    };
-
-    // Poll immediately then every 2 seconds
-    pollStrategy();
-    const intervalId = setInterval(pollStrategy, 2000);
-    return () => clearInterval(intervalId);
-  }, [latestSnapshotId, strategyStatus]);
-
   // Compute local time fields for display with timezone
+  // CRITICAL FIX Issue #5: PRIORITY database timezone over context
   useEffect(() => {
-    const tz = loc?.timeZone || loc?.location?.timeZone;
-    
+    const tz =
+      dbUserLocation?.ok && dbUserLocation?.timezone
+        ? dbUserLocation.timezone
+        : loc?.timeZone || loc?.location?.timeZone;
+
     // Only pass timeZone if we have it, otherwise use browser's local timezone
     const formatter = new Intl.DateTimeFormat("en-US", {
       hour: "2-digit",
@@ -143,19 +192,27 @@ const GlobalHeader: React.FC = () => {
       hour12: true,
       ...(tz && { timeZone: tz }),
     });
-    const dayFmt = new Intl.DateTimeFormat("en-US", { 
+    const dayFmt = new Intl.DateTimeFormat("en-US", {
       weekday: "long",
       ...(tz && { timeZone: tz }),
     });
 
+    // Format date with timezone awareness (e.g., "Dec 17")
+    const dateFmt = new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      ...(tz && { timeZone: tz }),
+    });
+
     setTimeString(formatter.format(now));
+    setDateString(dateFmt.format(now));
     const day = dayFmt.format(now);
     const { label } = classifyDayPart(now, tz);
-    
+
     // Just show day and context label separately (avoid duplicate)
     setDayOfWeek(day);
     setTimeContextLabel(label);
-  }, [now, loc?.timeZone, loc?.location?.timeZone]);
+  }, [now, dbUserLocation, loc?.timeZone, loc?.location?.timeZone]);
 
   // ---- helpers -------------------------------------------------------------
 
@@ -169,8 +226,16 @@ const GlobalHeader: React.FC = () => {
   };
 
   const formatLocation = () => {
-    // Prioritize showing the resolved city name over coordinates
-    if (currentLocationString && currentLocationString !== "Getting location..." && currentLocationString !== "Detecting...") {
+    // CRITICAL FIX Issue #5: Show resolved city from database (freshest source)
+    if (
+      currentLocationString &&
+      currentLocationString !== "Getting location..." &&
+      currentLocationString !== "Detecting..."
+    ) {
+      // If database location, show with formatted_address for precision
+      if (dbUserLocation?.ok && dbUserLocation?.formatted_address) {
+        return `📍 ${dbUserLocation.formatted_address}`;
+      }
       return currentLocationString;
     }
     // Fall back to coordinates if city name not yet resolved
@@ -184,255 +249,30 @@ const GlobalHeader: React.FC = () => {
 
   const getAqiIndicator = (aqi: number) => {
     // EPA Air Quality Index colors
-    if (aqi <= 50) return { emoji: '🟢', color: 'text-green-300', label: 'Good' };
-    if (aqi <= 100) return { emoji: '🟡', color: 'text-yellow-300', label: 'Moderate' };
-    if (aqi <= 150) return { emoji: '🟠', color: 'text-orange-300', label: 'Unhealthy for Sensitive' };
-    if (aqi <= 200) return { emoji: '🔴', color: 'text-red-300', label: 'Unhealthy' };
-    if (aqi <= 300) return { emoji: '🟣', color: 'text-purple-300', label: 'Very Unhealthy' };
-    return { emoji: '🟤', color: 'text-red-500', label: 'Hazardous' };
-  };
-
-  // Reverse geocode and timezone fetch (server preferred; fallbacks included)
-  const reverseGeocode = async (lat: number, lng: number) => {
-    try {
-      const res = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}`, {
-        credentials: "include",
-      });
-      if (res.ok)
-        return (await res.json()) as {
-          city?: string;
-          state?: string;
-          country?: string;
-          formattedAddress?: string;  // Full street address
-        };
-    } catch (err) {
-      console.error('[GlobalHeader] Reverse geocode failed:', err);
-    }
-    return {};
-  };
-
-  const getTimezone = async (lat: number, lng: number) => {
-    try {
-      const res = await fetch(`/api/timezone?lat=${lat}&lng=${lng}`, {
-        credentials: "include",
-      });
-      if (res.ok) return (await res.json()) as { timeZone?: string };
-    } catch (err) {
-      console.error('[GlobalHeader] Timezone fetch failed:', err);
-    }
-    return { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
-  };
-
-  const getWeather = async (lat: number, lng: number) => {
-    setWeatherLoading(true);
-    try {
-      const res = await fetch(`/api/location/weather?lat=${lat}&lng=${lng}`, {
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.available) {
-          setWeather({ 
-            temp: data.temperature, 
-            conditions: data.conditions,
-            description: data.description 
-          });
-          return data;
-        }
-      }
-    } catch {
-      // Weather is optional, don't fail the snapshot
-    } finally {
-      setWeatherLoading(false);
-    }
-    return null;
-  };
-
-  const getAirQuality = async (lat: number, lng: number) => {
-    setAqLoading(true);
-    try {
-      const res = await fetch(`/api/location/airquality?lat=${lat}&lng=${lng}`, {
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.available) {
-          setAirQuality({ 
-            aqi: data.aqi, 
-            category: data.category 
-          });
-          return {
-            aqi: data.aqi,
-            category: data.category,
-            dominantPollutant: data.dominantPollutant,
-            healthRecommendations: data.healthRecommendations,
-          };
-        }
-      }
-    } catch {
-      // Air quality is optional, don't fail the snapshot
-    } finally {
-      setAqLoading(false);
-    }
-    return null;
-  };
-
-  const persistSnapshot = async (payload: BaselineContext) => {
-    // CRITICAL: Only persist snapshot if city is resolved (prevents "Unknown" city drift)
-    if (!payload.geo.city || payload.geo.city === 'Unknown') {
-      console.log('⏳ Skipping snapshot - waiting for city to resolve');
-      return;
-    }
-    
-    // Debug: Check dayPartKey
-    console.log('🔍 payload.time:', payload.time);
-    
-    // Save snapshot in new ML format (SnapshotV1)
-    try {
-      const snapshotV1 = createSnapshot({
-        coord: {
-          lat: payload.coords.lat,
-          lng: payload.coords.lng,
-          accuracyMeters: null,
-          source: overrideCoords ? 'manual_city_search' : 'gps',
-        },
-        resolved: {
-          city: payload.geo.city,
-          state: payload.geo.state,
-          country: payload.geo.country,
-          timezone: payload.time.timeZone,
-          formattedAddress: payload.geo.formattedAddress,  // Full street address
-        },
-        timeContext: {
-          local_iso: new Date().toISOString(),
-          dow: new Date(new Date().toLocaleString('en-US', { timeZone: payload.time.timeZone })).getDay(),
-          hour: new Date(new Date().toLocaleString('en-US', { timeZone: payload.time.timeZone })).getHours(),
-          is_weekend: payload.time.isWeekend,
-          day_part_key: payload.time.dayPartKey as any,
-        },
-        weather: payload.weather ? {
-          tempF: payload.weather.temperature,
-          conditions: payload.weather.conditions,
-          description: payload.weather.description ?? null,
-        } : undefined,
-        air: payload.airQuality ? {
-          aqi: payload.airQuality.aqi,
-          category: payload.airQuality.category,
-        } : undefined,
-      });
-
-      // Save to database and get snapshot_id
-      const resp = await saveSnapshotToDB(snapshotV1);
-      const snapshotId = resp?.snapshot_id ?? null;
-      
-      // Emit event for Co-Pilot to gate /api/blocks query
-      if (snapshotId) {
-        window.dispatchEvent(
-          new CustomEvent("vecto-snapshot-saved", {
-            detail: {
-              snapshotId,
-              lat: payload.coords.lat,
-              lng: payload.coords.lng,
-            },
-          })
-        );
-        console.log("📸 Snapshot saved with ID:", snapshotId);
-      }
-      
-      // Emit legacy event for downstream components (Smart Blocks, etc.)
-      window.dispatchEvent(
-        new CustomEvent("vecto-context-updated", {
-          detail: {
-            lat: payload.coords.lat,
-            lng: payload.coords.lng,
-            city: payload.geo.city,
-            state: payload.geo.state,
-            timeZone: payload.time.timeZone,
-            dayPartKey: payload.time.dayPartKey,
-            weekday: payload.time.dayOfWeek,
-          },
-        })
-      );
-    } catch {
-      // ignore; keep app snappy
-    }
-  };
-
-  const buildAndSaveSnapshot = useCallback(
-    async (reason: "app_open" | "manual_refresh") => {
-      // Use freshest coords we have (context already handles the GNSS permission flow)
-      const lat =
-        coords?.latitude ??
-        loc?.latitude ??
-        loc?.location?.currentCoords?.latitude;
-      const lng =
-        coords?.longitude ??
-        loc?.longitude ??
-        loc?.location?.currentCoords?.longitude;
-
-      if (lat == null || lng == null) return;
-
-      const [{ city, state, country, formattedAddress }, { timeZone }, weather, airQualityData] = await Promise.all([
-        reverseGeocode(lat, lng),
-        getTimezone(lat, lng),
-        getWeather(lat, lng),
-        getAirQuality(lat, lng),
-      ]);
-
-      // Compute *local* time context using the tz we just looked up
-      const tCtx = buildTimeContext(timeZone);
-
-      const snapshot: BaselineContext = {
-        reason, // "app_open" | "manual_refresh"
-        timestampIso: new Date().toISOString(),
-        coords: { lat, lng },
-        geo: { city, state, country, formattedAddress },
-        time: tCtx,
-        weather: weather ? {
-          temperature: weather.temperature,
-          feelsLike: weather.feelsLike,
-          conditions: weather.conditions,
-          description: weather.description,
-          humidity: weather.humidity,
-          windSpeed: weather.windSpeed,
-          precipitation: weather.precipitation,
-        } : undefined,
-        airQuality: airQualityData ? {
-          aqi: airQualityData.aqi,
-          category: airQualityData.category,
-          dominantPollutant: airQualityData.dominantPollutant,
-          healthRecommendations: airQualityData.healthRecommendations,
-        } : undefined,
-        // room for header-level profile details if you fetch them here:
-        driver: undefined, // fill from /api/me if you want greeting in header
+    if (aqi <= 50)
+      return { emoji: "🟢", color: "text-green-300", label: "Good" };
+    if (aqi <= 100)
+      return { emoji: "🟡", color: "text-yellow-300", label: "Moderate" };
+    if (aqi <= 150)
+      return {
+        emoji: "🟠",
+        color: "text-orange-300",
+        label: "Unhealthy for Sensitive",
       };
+    if (aqi <= 200)
+      return { emoji: "🔴", color: "text-red-300", label: "Unhealthy" };
+    if (aqi <= 300)
+      return { emoji: "🟣", color: "text-purple-300", label: "Very Unhealthy" };
+    return { emoji: "🟤", color: "text-red-500", label: "Hazardous" };
+  };
 
-      // Broadcast for any listeners (Smart Blocks, Smart Shift, etc.)
-      window.dispatchEvent(
-        new CustomEvent("vecto-context-snapshot", { detail: snapshot }),
-      );
-
-      // Persist for learning (future density, ML/AI, user behavior)
-      persistSnapshot(snapshot);
-    },
-    [coords, loc],
-  );
-
-  // NOTE: Snapshot creation is now handled by location-context-clean.tsx
-  // which fetches ALL data (location, weather, air quality) in parallel
-  // and saves a complete snapshot to the DB. This prevents duplicate API calls.
-  
-  // Fetch weather and air quality for header display only (not for snapshot)
-  useEffect(() => {
-    if (coords?.latitude && coords?.longitude) {
-      getWeather(coords.latitude, coords.longitude);
-      getAirQuality(coords.latitude, coords.longitude);
-    }
-  }, [coords?.latitude, coords?.longitude]);
+  // NOTE: Weather and air quality are fetched ONCE in location-context-clean.tsx
+  // during enrichment and exposed via context. GlobalHeader reads from context only.
+  // This prevents duplicate API calls and billing.
 
   const handleRefreshLocation = useCallback(async () => {
     if (!refreshGPS) return;
-    
+
     // Throttle: ignore clicks within 10 seconds of last refresh
     const now = Date.now();
     if (now - lastRefreshTime < 10000) {
@@ -443,7 +283,7 @@ const GlobalHeader: React.FC = () => {
       });
       return;
     }
-    
+
     setIsRefreshing(true);
     setLastRefreshTime(now);
 
@@ -460,7 +300,7 @@ const GlobalHeader: React.FC = () => {
         title: "Location updated",
         description: "Your current location has been refreshed.",
       });
-    } catch (err) {
+    } catch (_err) {
       toast({
         title: "Location update failed",
         description: "Unable to update your location. Please try again.",
@@ -470,6 +310,24 @@ const GlobalHeader: React.FC = () => {
       setIsRefreshing(false);
     }
   }, [refreshGPS, toast, lastRefreshTime]);
+
+  // DEV ONLY: Force fresh session for testing
+  const handleForceFreshSession = useCallback(() => {
+    console.log("🧹 [DEV] Forcing fresh session - clearing all localStorage");
+
+    // Clear all localStorage
+    localStorage.clear();
+
+    toast({
+      title: "Fresh session initiated",
+      description: "All data cleared. Reloading...",
+    });
+
+    // Reload page to trigger fresh location request
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  }, [toast]);
 
   return (
     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
@@ -494,9 +352,9 @@ const GlobalHeader: React.FC = () => {
           {/* Time + Settings */}
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <div 
-                className="text-lg font-bold font-mono tabular-nums" 
-                aria-live="off" 
+              <div
+                className="text-lg font-bold font-mono tabular-nums"
+                aria-live="off"
                 aria-hidden="true"
               >
                 {timeString}
@@ -504,41 +362,53 @@ const GlobalHeader: React.FC = () => {
               <div className="text-xs text-white/80 flex items-center gap-2">
                 <span>
                   <Clock className="inline mr-1 h-3 w-3" />
-                  {dayOfWeek} {timeContextLabel}
+                  {/* Prioritize holiday name over day part label when available */}
+                  {isHoliday && holiday ? (
+                    <span className="text-amber-300 font-semibold">
+                      {dayOfWeek}, {dateString} • {holiday}
+                    </span>
+                  ) : (
+                    <>
+                      {dayOfWeek}, {dateString} • {timeContextLabel}
+                    </>
+                  )}
                 </span>
-                {weatherLoading ? (
-                  <div className="h-5 w-14 rounded-full bg-white/10 animate-pulse" aria-hidden="true" />
-                ) : weather ? (
-                  <span 
+                {weather ? (
+                  <span
                     className="flex items-center gap-1 bg-white/15 rounded-full px-2 py-0.5 transition-opacity"
-                    title={weather.description || `${weather.conditions}, ${weather.temp}°`}
+                    title={
+                      weather.description ||
+                      `${weather.conditions}, ${weather.temp}°`
+                    }
                   >
-                    {weather.conditions.toLowerCase().includes('rain') ? (
+                    {weather.conditions.toLowerCase().includes("rain") ? (
                       <CloudRain className="h-3.5 w-3.5" />
-                    ) : weather.conditions.toLowerCase().includes('cloud') ? (
+                    ) : weather.conditions.toLowerCase().includes("cloud") ? (
                       <Cloud className="h-3.5 w-3.5" />
-                    ) : weather.conditions.toLowerCase().includes('snow') ? (
+                    ) : weather.conditions.toLowerCase().includes("snow") ? (
                       <CloudSnow className="h-3.5 w-3.5" />
                     ) : (
                       <Sun className="h-3.5 w-3.5" />
                     )}
-                    <span className="font-semibold">{Math.round(weather.temp)}°</span>
+                    <span className="font-semibold">
+                      {Math.round(weather.temp)}°
+                    </span>
                   </span>
                 ) : null}
-                {aqLoading ? (
-                  <div className="h-5 w-16 rounded-full bg-white/10 animate-pulse" aria-hidden="true" />
-                ) : airQuality ? (
-                  <span 
+                {airQuality ? (
+                  <span
                     className="flex items-center gap-1 bg-white/15 rounded-full px-2 py-0.5 transition-opacity"
                     title={`Air Quality: ${airQuality.category} (AQI ${airQuality.aqi})`}
                   >
                     <span>{getAqiIndicator(airQuality.aqi).emoji}</span>
-                    <span className="font-semibold text-xs">AQI {airQuality.aqi}</span>
+                    <span className="font-semibold text-xs">
+                      AQI {airQuality.aqi}
+                    </span>
                   </span>
                 ) : null}
               </div>
             </div>
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -565,19 +435,19 @@ const GlobalHeader: React.FC = () => {
               </span>
             </div>
             <div className="flex items-center gap-3">
-              {/* Location Resolution Indicator - shows "complete" as soon as coords + city are available */}
+              {/* Location Resolution Indicator - shows when coords + city are available */}
               {!isLocationResolved ? (
                 <div className="flex items-center gap-1.5 text-xs text-white/70">
                   <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
-                  <span>resolving location info...</span>
+                  <span>getting location...</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>complete</span>
+                  <span>location ready</span>
                 </div>
               )}
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -592,6 +462,7 @@ const GlobalHeader: React.FC = () => {
                       ? "Updating..."
                       : "Refresh location"
                 }
+                data-testid="button-refresh-location"
               >
                 <RefreshCw
                   className={`h-4 w-4 ${
@@ -599,44 +470,28 @@ const GlobalHeader: React.FC = () => {
                   }`}
                 />
               </Button>
+
+              {/* DEV ONLY: Force fresh session button */}
+              {import.meta.env.DEV && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleForceFreshSession}
+                  className="text-white hover:bg-red-500/30 p-1 border border-white/20"
+                  aria-label="Force fresh session (clear all data)"
+                  title="DEV: Clear all localStorage and reload (simulates new user)"
+                  data-testid="button-force-fresh-session"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Strategy Progress Bar - Shows when strategy is being generated */}
-      {strategyStatus === 'pending' && (
-        <div className="bg-black/20 backdrop-blur-sm border-t border-white/10">
-          <div className="max-w-7xl mx-auto px-4 py-2">
-            <div className="flex items-center gap-3">
-              <RefreshCw className="h-3.5 w-3.5 animate-spin flex-shrink-0" />
-              <div className="flex-1">
-                <div className="flex items-center justify-between text-xs text-white/90 mb-1">
-                  <span className="font-medium">AI Strategy Generating...</span>
-                  <span className="font-mono">
-                    {Math.round((strategyProgress?.timeElapsedMs || 0) / 1000)}s / 60s
-                  </span>
-                </div>
-                <div className="w-full bg-white/20 rounded-full h-1.5 overflow-hidden">
-                  <div 
-                    className="bg-white h-1.5 rounded-full transition-all duration-500 ease-out"
-                    style={{ 
-                      width: `${Math.min(((strategyProgress?.timeElapsedMs || 0) / 60000) * 100, 100)}%`
-                    }}
-                  />
-                </div>
-                {strategyProgress?.waitFor && strategyProgress.waitFor.length > 0 && (
-                  <p className="text-[10px] text-white/70 mt-1">
-                    Waiting for: {strategyProgress.waitFor.join(', ')}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default GlobalHeader;
+// Memoize to prevent unnecessary re-renders when parent context updates
+export default React.memo(GlobalHeaderComponent);

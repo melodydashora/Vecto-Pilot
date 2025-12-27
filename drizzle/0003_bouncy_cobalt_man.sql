@@ -1,0 +1,23 @@
+CREATE TABLE "users" (
+	"user_id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"device_id" uuid NOT NULL,
+	"session_id" uuid,
+	"lat" double precision NOT NULL,
+	"lng" double precision NOT NULL,
+	"accuracy_m" double precision,
+	"coord_source" text DEFAULT 'gps' NOT NULL,
+	"new_lat" double precision,
+	"new_lng" double precision,
+	"new_accuracy_m" double precision,
+	"formatted_address" text,
+	"city" text,
+	"state" text,
+	"country" text,
+	"timezone" text,
+	"local_iso" timestamp,
+	"dow" integer,
+	"hour" integer,
+	"day_part_key" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);

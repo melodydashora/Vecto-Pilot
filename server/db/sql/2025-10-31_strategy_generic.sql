@@ -43,7 +43,8 @@ WHERE snapshot_id IS NOT NULL
 -- Event trigger: notify when any provider field or consolidated changes
 CREATE OR REPLACE FUNCTION notify_strategy_update() RETURNS trigger AS $$
 BEGIN
-  PERFORM pg_notify('strategy_update', NEW.snapshot_id::text);
+  -- Send notification on strategy_ready channel (used by SSE)
+  PERFORM pg_notify('strategy_ready', json_build_object('snapshot_id', NEW.snapshot_id, 'status', NEW.status)::text);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -51,6 +52,6 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_strategy_update ON strategies;
 CREATE TRIGGER trg_strategy_update
 AFTER INSERT OR UPDATE OF
-  minstrategy, briefing_news, briefing_events, briefing_traffic, consolidated_strategy
+  minstrategy, briefing_news, briefing_events, briefing_traffic, consolidated_strategy, status
 ON strategies
 FOR EACH ROW EXECUTE FUNCTION notify_strategy_update();

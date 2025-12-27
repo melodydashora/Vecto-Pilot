@@ -40,9 +40,19 @@ echo "[start] ✅ Gateway server started (PID: $SERVER_PID)"
 # Start triad worker (only if enabled)
 if [ "$ENABLE_BACKGROUND_WORKER" = "true" ]; then
   echo "[start] ⚡ Starting triad worker..."
-  node strategy-generator.js &
+  # Redirect worker output to log file for debugging
+  node strategy-generator.js > /tmp/worker-startup.log 2>&1 &
   WORKER_PID=$!
   echo "[start] ✅ Triad worker started (PID: $WORKER_PID)"
+  echo "[start] 📋 Worker logs: /tmp/worker-startup.log"
+  sleep 2  # Give worker time to connect
+  if ps -p $WORKER_PID > /dev/null; then
+    echo "[start] ✅ Worker process alive"
+  else
+    echo "[start] ❌ Worker process died! Check /tmp/worker-startup.log"
+    cat /tmp/worker-startup.log
+    exit 1
+  fi
 else
   echo "[start] ⏸️  Background worker disabled"
   WORKER_PID=""

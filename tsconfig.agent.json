@@ -2,7 +2,7 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./server/agent",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -11,6 +11,6 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*"],
+  "include": ["server/agent/**/*"],
   "exclude": ["node_modules", "dist"]
 }

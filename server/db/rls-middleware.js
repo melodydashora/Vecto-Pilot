@@ -23,6 +23,12 @@ export async function queryWithRLS({ userId = null, sessionId = null, query, val
 
   const client = await pool.connect();
   
+  // Add error handler to prevent unhandled errors crashing the process
+  const errorHandler = (err) => {
+    console.error('[RLS] Client error:', err.message);
+  };
+  client.on('error', errorHandler);
+  
   try {
     // Set RLS session variables
     if (userId) {
@@ -45,6 +51,9 @@ export async function queryWithRLS({ userId = null, sessionId = null, query, val
     } catch (err) {
       console.warn('[RLS] Failed to reset session variables:', err.message);
     }
+    
+    // Remove error listener before releasing client to pool
+    client.removeListener('error', errorHandler);
     client.release();
   }
 }
@@ -65,6 +74,12 @@ export async function transactionWithRLS({ userId = null, sessionId = null, call
   }
 
   const client = await pool.connect();
+  
+  // Add error handler to prevent unhandled errors crashing the process
+  const errorHandler = (err) => {
+    console.error('[RLS] Transaction client error:', err.message);
+  };
+  client.on('error', errorHandler);
   
   try {
     await client.query('BEGIN');
@@ -88,6 +103,8 @@ export async function transactionWithRLS({ userId = null, sessionId = null, call
     await client.query('ROLLBACK');
     throw err;
   } finally {
+    // Remove error listener before releasing client to pool
+    client.removeListener('error', errorHandler);
     client.release();
   }
 }
