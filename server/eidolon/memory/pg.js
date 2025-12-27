@@ -7,13 +7,14 @@ if (!dsn) throw new Error("DATABASE_URL not set");
 let pool = getSharedPool();
 
 if (!pool) {
-  console.log('[memory] Using local pool (shared pool disabled)');
+  // Fallback: Only used if DATABASE_URL not set (development/testing edge case)
+  console.warn('[memory] Shared pool unavailable - creating fallback pool');
   pool = new Pool({
     connectionString: dsn,
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-    // optionally: allowExitOnIdle: true for serverless
+    max: 35, // Increased pool size to handle concurrent traffic spikes
+    idleTimeoutMillis: 60000, // Increased from 30s to 60s to keep connections alive longer
+    connectionTimeoutMillis: 10000, // Increased from 2s to 10s for better acquisition time
+    statement_timeout: 30000, // 30 second statement timeout to prevent long-running queries
   });
 }
 
@@ -33,41 +34,39 @@ export async function memoryPut({ table, scope, key, userId, content, ttlDays = 
     : content;
 
   const client = await pool.connect();
+  
+  // Add error handler to prevent unhandled errors crashing the process
+  const errorHandler = (err) => {
+    console.error('[memory:put] Client error:', err.message);
+  };
+  client.on('error', errorHandler);
+  
   try {
-    // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
-    if (user_id_val) {
-      await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
-    }
-    // Skip SET for NULL - not needed when RLS is disabled
-
-    // Try upsert first (requires unique constraint on scope, key, user_id)
-    // Fall back to simple insert if constraint doesn't exist
+    // RLS is disabled - data isolation handled via SQL filtering on user_id column
+    // First try to update existing record
+    const updateQ = `
+      UPDATE ${table}
+      SET content = $4, updated_at = now(), expires_at = $5
+      WHERE scope = $1 AND key = $2 AND (user_id IS NOT DISTINCT FROM $3)
+      RETURNING id
+    `;
     const v = [scope, key, user_id_val, contentVal, expiresAt];
-
-    try {
-      const q = `
-        INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
-        VALUES ($1, $2, $3, $4, now(), now(), $5)
-        ON CONFLICT (scope, key, user_id)
-        DO UPDATE SET content = $4, updated_at = now(), expires_at = $5
-        RETURNING id
-      `;
-      const { rows } = await client.query(q, v);
-      return rows[0]?.id || null;
-    } catch (conflictErr) {
-      // If unique constraint doesn't exist, fall back to simple insert
-      if (conflictErr.message?.includes('no unique or exclusion constraint')) {
-        const insertQ = `
-          INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
-          VALUES ($1, $2, $3, $4, now(), now(), $5)
-          RETURNING id
-        `;
-        const { rows } = await client.query(insertQ, v);
-        return rows[0]?.id || null;
-      }
-      throw conflictErr;
+    const { rows: updateRows } = await client.query(updateQ, v);
+    
+    if (updateRows.length > 0) {
+      return updateRows[0].id;
     }
+    
+    // If no update, insert new record
+    const insertQ = `
+      INSERT INTO ${table} (scope, key, user_id, content, created_at, updated_at, expires_at)
+      VALUES ($1, $2, $3, $4, now(), now(), $5)
+      RETURNING id
+    `;
+    const { rows: insertRows } = await client.query(insertQ, v);
+    return insertRows[0]?.id || null;
   } finally {
+    client.removeListener('error', errorHandler);
     client.release();
   }
 }
@@ -76,12 +75,16 @@ export async function memoryGet({ table, scope, key, userId }) {
   const user_id_val = normalizeUserId(userId);
 
   const client = await pool.connect();
+  
+  // Add error handler to prevent unhandled errors crashing the process
+  const errorHandler = (err) => {
+    console.error('[memory:get] Client error:', err.message);
+  };
+  client.on('error', errorHandler);
+  
   try {
-    // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
-    if (user_id_val) {
-      await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
-    }
-    // Skip SET for NULL - not needed when RLS is disabled
+    // RLS is disabled - data isolation handled via SQL filtering on user_id column
+    // No session variable needed; WHERE clause ensures user-specific data access
     
     const q = `
       SELECT content FROM ${table}
@@ -101,6 +104,7 @@ export async function memoryGet({ table, scope, key, userId }) {
       return rows[0].content;
     }
   } finally {
+    client.removeListener('error', errorHandler);
     client.release();
   }
 }
@@ -110,12 +114,16 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
   const lim = Math.max(1, Math.min(200, limit));
 
   const client = await pool.connect();
+  
+  // Add error handler to prevent unhandled errors crashing the process
+  const errorHandler = (err) => {
+    console.error('[memory:query] Client error:', err.message);
+  };
+  client.on('error', errorHandler);
+  
   try {
-    // Set RLS context (NULL for system access) - skip SET for NULL since RLS is disabled in dev
-    if (user_id_val) {
-      await client.query(`SET LOCAL app.user_id = '${user_id_val}'`);
-    }
-    // Skip SET for NULL - not needed when RLS is disabled
+    // RLS is disabled - data isolation handled via SQL filtering on user_id column
+    // No session variable needed; WHERE clause ensures user-specific data access
     
     const q = `
       SELECT key, content, updated_at
@@ -135,6 +143,7 @@ export async function memoryQuery({ table, scope, userId, limit = 50 }) {
       return { key: r.key, content: c, updated_at: r.updated_at };
     });
   } finally {
+    client.removeListener('error', errorHandler);
     client.release();
   }
 }

@@ -1,36 +1,78 @@
 import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { sql, relations } from "drizzle-orm";
+
+// Users table: Source of truth for WHO + WHERE + CURRENT SESSION
+// Authority on:
+//   - Location identity (city, state, formatted_address, timezone) - via coord_key FK to coords_cache
+//   - Current snapshot (current_snapshot_id) - links to active session
+// Snapshots table: Time-varying data (weather, air, hour, dow, strategy)
+export const users = pgTable("users", {
+  user_id: uuid("user_id").primaryKey().defaultRandom(),
+  device_id: text("device_id").notNull(),
+  session_id: uuid("session_id"),
+  // Current active snapshot - links user to their latest data request
+  current_snapshot_id: uuid("current_snapshot_id"),
+  // Coordinates (lat/lng pair) - the core GPS data
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  accuracy_m: doublePrecision("accuracy_m"),
+  coord_source: text("coord_source").notNull().default('gps'), // 'gps' | 'manual_city_search' | 'api'
+  // Updated coordinates (current position when user moves/refreshes)
+  new_lat: doublePrecision("new_lat"),
+  new_lng: doublePrecision("new_lng"),
+  new_accuracy_m: doublePrecision("new_accuracy_m"),
+  // FK to coords_cache - resolves location identity (city, state, country, formatted_address, timezone)
+  coord_key: text("coord_key"), // Format: "lat4d_lng4d" e.g., "33.1284_-96.8688" - nullable during migration
+  // LEGACY: Resolved location identity (kept for backward compat, will be removed in Phase 7)
+  formatted_address: text("formatted_address"), // Full street address
+  city: text("city"),
+  state: text("state"),
+  country: text("country"),
+  timezone: text("timezone"), // IANA timezone for time calculations
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const snapshots = pgTable("snapshots", {
   snapshot_id: uuid("snapshot_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
+  date: text("date"), // Today's date in YYYY-MM-DD format (e.g., "2025-12-05")
+  // User tracking (NOT a FK - snapshots are self-contained)
   user_id: uuid("user_id"),
-  device_id: uuid("device_id").notNull(),
+  device_id: text("device_id").notNull(),
   session_id: uuid("session_id").notNull(),
+  // Location coordinates (stored at snapshot creation)
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
-  accuracy_m: doublePrecision("accuracy_m"),
-  coord_source: text("coord_source").notNull(),
-  city: text("city"),
-  state: text("state"),
-  country: text("country"),
-  formatted_address: text("formatted_address"),
-  timezone: text("timezone"),
-  local_iso: timestamp("local_iso", { withTimezone: false }),
-  dow: integer("dow"), // 0=Sunday, 1=Monday, etc. - Models infer weekend from this
-  hour: integer("hour"),
-  day_part_key: text("day_part_key"),
+  // FK to coords_cache - resolves location identity (city, state, country, formatted_address, timezone)
+  coord_key: text("coord_key"), // Format: "lat4d_lng4d" e.g., "33.1284_-96.8688" - nullable during migration
+  // LEGACY: Location identity (kept for backward compat, will be removed in Phase 7)
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  country: text("country").notNull(),
+  formatted_address: text("formatted_address").notNull(),
+  timezone: text("timezone").notNull(),
+  // Time context (authoritative for this snapshot)
+  local_iso: timestamp("local_iso", { withTimezone: false }).notNull(),
+  dow: integer("dow").notNull(), // 0=Sunday, 1=Monday, etc.
+  hour: integer("hour").notNull(),
+  day_part_key: text("day_part_key").notNull(), // 'morning', 'afternoon', 'evening', etc.
+  // H3 geohash for density analysis
   h3_r8: text("h3_r8"),
+  // API-enriched contextual data only
   weather: jsonb("weather"),
   air: jsonb("air"),
   airport_context: jsonb("airport_context"),
-  local_news: jsonb("local_news"), // Perplexity daily local news affecting rideshare (events, road closures, traffic)
-  news_briefing: jsonb("news_briefing"), // Gemini-generated 60-minute briefing (airports, traffic, events, policy, takeaways)
+  // NOTE: local_news, news_briefing, extras, trigger_reason removed Dec 2025
+  // - briefing data is now in separate 'briefings' table
+  // - trigger_reason moved to strategies table
+  // - extras was never used
   device: jsonb("device"),
   permissions: jsonb("permissions"),
-  extras: jsonb("extras"),
-  last_strategy_day_part: text("last_strategy_day_part").default(null),
-  trigger_reason: text("trigger_reason").default(null),
+  // Holiday detection at snapshot creation (via Gemini 3.0 Pro + Google Search)
+  holiday: text("holiday").notNull().default('none'), // Holiday name (e.g., "Thanksgiving", "Christmas") or 'none'
+  is_holiday: boolean("is_holiday").notNull().default(false), // Boolean flag: true if today is a holiday
 });
 
 export const strategies = pgTable("strategies", {
@@ -40,6 +82,9 @@ export const strategies = pgTable("strategies", {
   correlation_id: uuid("correlation_id"),
   strategy: text("strategy"),
   status: text("status").notNull().default("pending"), // pending|ok|failed
+  phase: text("phase").default("starting"), // starting|resolving|analyzing|consolidator|venues|enriching|complete
+  phase_started_at: timestamp("phase_started_at", { withTimezone: true }), // When current phase started (for progress calculation)
+  trigger_reason: text("trigger_reason"), // 'initial' | 'retry' | 'refresh' - why strategy was generated
   error_code: integer("error_code"),
   error_message: text("error_message"),
   attempt: integer("attempt").notNull().default(1),
@@ -48,47 +93,50 @@ export const strategies = pgTable("strategies", {
   next_retry_at: timestamp("next_retry_at", { withTimezone: true }),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  // Model version tracking for A/B testing and rollback capability (Issue #34)
-  model_name: text("model_name"), // e.g., 'claude-sonnet-4-5-20250929'
-  model_params: jsonb("model_params"), // { temperature, max_tokens, etc. }
-  prompt_version: text("prompt_version"), // Track prompt template iterations
-  strategy_for_now: text('strategy_for_now'), // Unlimited text length
-  // Location context where strategy was created (from snapshot)
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
-  city: text("city"),
-  state: text("state"),
-  user_address: text("user_address"),
+  // Model version tracking for A/B testing and rollback capability
+  model_name: text("model_name"), // e.g., 'gemini-3-pro→gpt-5.2'
   user_id: uuid("user_id"),
-  // Multi-model orchestration outputs (parallel Claude + Gemini → GPT-5 consolidation)
-  events: jsonb("events").default([]), // Gemini events feed
-  news: jsonb("news").default([]), // Gemini news feed
-  traffic: jsonb("traffic").default([]), // Gemini traffic feed
+
   // Time windowing (freshness-first spec compliance)
-  valid_window_start: timestamp("valid_window_start", { withTimezone: true }), // When strategy becomes valid
-  valid_window_end: timestamp("valid_window_end", { withTimezone: true }), // When strategy expires (≤ 60 min from start)
-  strategy_timestamp: timestamp("strategy_timestamp", { withTimezone: true }), // Generation timestamp
-  // User-resolved location (copied from snapshot at creation time)
-  user_resolved_address: text("user_resolved_address"),
-  user_resolved_city: text("user_resolved_city"),
-  user_resolved_state: text("user_resolved_state"),
-  // Model-agnostic provider outputs (generic columns for parallel multi-model pipeline)
-  minstrategy: text("minstrategy"), // Short strategy from first provider (Claude)
-  holiday: text("holiday"), // Holiday name if today is a holiday (e.g., "Independence Day", "Thanksgiving"), null otherwise
-  briefing_news: jsonb("briefing_news"), // News feed from second provider (Gemini) - DEPRECATED
-  briefing_events: jsonb("briefing_events"), // Events feed from second provider (Gemini) - DEPRECATED
-  briefing_traffic: jsonb("briefing_traffic"), // Traffic feed from second provider (Gemini) - DEPRECATED
-  briefing: jsonb("briefing"), // Single JSONB field for Gemini briefing {events, holidays, traffic, news}
-  consolidated_strategy: text("consolidated_strategy"), // Final consolidated strategy from third provider (GPT-5)
+  valid_window_start: timestamp("valid_window_start", { withTimezone: true }),
+  valid_window_end: timestamp("valid_window_end", { withTimezone: true }),
+  strategy_timestamp: timestamp("strategy_timestamp", { withTimezone: true }),
+
+  // Strategy outputs
+  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour strategy (GPT-5.2)
+  consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (user-request only)
+});
+
+// Briefing data from Perplexity Sonar Pro + Gemini 3.0 Pro with Google Search
+// Contains ONLY briefing data (events, traffic, news, weather, closures, airport)
+// All location/time context comes from snapshot via snapshot_id FK
+export const briefings = pgTable("briefings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+
+  // === BRIEFING DATA (from Perplexity + Gemini + Google APIs) ===
+  news: jsonb("news"), // Rideshare-relevant news
+  weather_current: jsonb("weather_current"), // Current conditions from Google Weather API
+  weather_forecast: jsonb("weather_forecast"), // Hourly forecast (next 3-6 hours) from Google Weather API
+  traffic_conditions: jsonb("traffic_conditions"), // Traffic: incidents, construction, closures, demand zones
+  events: jsonb("events"), // Local events: concerts, sports, festivals, nightlife, comedy
+  school_closures: jsonb("school_closures"), // School district & college closures/reopenings
+  airport_conditions: jsonb("airport_conditions"), // Airport: delays, arrivals, busy periods, recommendations
+
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const rankings = pgTable("rankings", {
   ranking_id: uuid("ranking_id").primaryKey(),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id),
   correlation_id: uuid("correlation_id"),
   user_id: uuid("user_id"),
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
   city: text("city"),
+  state: text("state"),
   ui: jsonb("ui"),
   model_name: text("model_name").notNull(),
   scoring_ms: integer("scoring_ms"),
@@ -143,6 +191,11 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   business_hours: jsonb("business_hours"), // Business hours from Google Places API
   // Perplexity event research (populated after planner completes)
   venue_events: jsonb("venue_events"), // Today's events at this venue (concerts, games, festivals)
+  // Event and venue metadata (used for event proximity scoring and filtering)
+  event_badge_missing: boolean("event_badge_missing"), // True if venue should have event badge but it's missing
+  node_type: text("node_type"), // Type of venue node: 'venue', 'staging', etc.
+  access_status: text("access_status"), // Venue access status: 'public', 'restricted', 'private'
+  aliases: text("aliases").array(), // Alternative place IDs for this venue (variations)
 }, (table) => ({
   // Foreign key indexes for performance optimization (Issue #28)
   idxRankingId: sql`create index if not exists idx_ranking_candidates_ranking_id on ${table} (ranking_id)`,
@@ -155,6 +208,10 @@ export const actions = pgTable("actions", {
   ranking_id: uuid("ranking_id").references(() => rankings.ranking_id, { onDelete: 'cascade' }),
   snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   user_id: uuid("user_id"),
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
+  city: text("city"),
+  state: text("state"),
   action: text("action").notNull(),
   block_id: text("block_id"),
   dwell_ms: integer("dwell_ms"),
@@ -213,13 +270,15 @@ export const block_jobs = pgTable("block_jobs", {
 
 export const triad_jobs = pgTable("triad_jobs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
+  city: text("city"),
+  state: text("state"),
   kind: text("kind").notNull().default('triad'),
   status: text("status").notNull().default('queued'), // queued|running|ok|error
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  uniqueSnapshotKind: sql`unique(snapshot_id, kind)`
-}));
+});
 
 export const http_idem = pgTable("http_idem", {
   key: text("key").primaryKey(),
@@ -243,6 +302,10 @@ export const venue_feedback = pgTable("venue_feedback", {
   ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id, { onDelete: 'cascade' }),
   place_id: text("place_id"),
   venue_name: text("venue_name").notNull(),
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
+  city: text("city"),
+  state: text("state"),
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
   comment: text("comment"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -261,6 +324,10 @@ export const strategy_feedback = pgTable("strategy_feedback", {
   user_id: uuid("user_id"),
   snapshot_id: uuid("snapshot_id").notNull().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   ranking_id: uuid("ranking_id").notNull().references(() => rankings.ranking_id, { onDelete: 'cascade' }),
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
+  city: text("city"),
+  state: text("state"),
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
   comment: text("comment"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -273,6 +340,10 @@ export const strategy_feedback = pgTable("strategy_feedback", {
 export const app_feedback = pgTable("app_feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  // Resolved precise location from snapshot
+  formatted_address: text("formatted_address"),
+  city: text("city"),
+  state: text("state"),
   sentiment: text("sentiment").notNull(), // 'up' or 'down'
   comment: text("comment"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -318,17 +389,18 @@ export const llm_venue_suggestions = pgTable("llm_venue_suggestions", {
 
 export const agent_memory = pgTable("agent_memory", {
   id: uuid("id").primaryKey().defaultRandom(),
-  session_id: text("session_id").notNull(),
-  entry_type: text("entry_type").notNull(),
-  title: text("title").notNull(),
+  scope: text("scope").notNull(),
+  key: text("key").notNull(),
+  user_id: uuid("user_id"),
   content: text("content").notNull(),
-  status: text("status").default('active'),
-  metadata: jsonb("metadata"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   expires_at: timestamp("expires_at", { withTimezone: true }),
 }, (table) => ({
-  idxSession: sql`create index if not exists idx_agent_memory_session on ${table} (session_id)`,
-  idxType: sql`create index if not exists idx_agent_memory_type on ${table} (entry_type)`,
+  uniqueScopeKey: sql`unique(scope, key, user_id)`,
+  idxScope: sql`create index if not exists idx_agent_memory_scope on ${table} (scope)`,
+  idxUser: sql`create index if not exists idx_agent_memory_user on ${table} (user_id)`,
+  idxExpires: sql`create index if not exists idx_agent_memory_expires on ${table} (expires_at)`,
 }));
 
 // Enhanced memory tables for thread-aware context tracking
@@ -380,6 +452,26 @@ export const cross_thread_memory = pgTable("cross_thread_memory", {
   idxExpires: sql`create index if not exists idx_cross_thread_memory_expires on ${table} (expires_at)`,
 }));
 
+// Eidolon snapshot storage for project/session state persistence
+export const eidolon_snapshots = pgTable("eidolon_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  snapshot_id: uuid("snapshot_id"),
+  user_id: uuid("user_id"),
+  session_id: text("session_id"),
+  scope: text("scope").notNull(),
+  state: jsonb("state").notNull(),
+  metadata: jsonb("metadata"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }),
+}, (table) => ({
+  idxSnapshot: sql`create index if not exists idx_eidolon_snapshots_snapshot_id on ${table} (snapshot_id)`,
+  idxScope: sql`create index if not exists idx_eidolon_snapshots_scope on ${table} (scope)`,
+  idxUser: sql`create index if not exists idx_eidolon_snapshots_user on ${table} (user_id)`,
+  idxSession: sql`create index if not exists idx_eidolon_snapshots_session on ${table} (session_id)`,
+  idxExpires: sql`create index if not exists idx_eidolon_snapshots_expires on ${table} (expires_at)`,
+}));
+
 export const venue_events = pgTable("venue_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   venue_id: uuid("venue_id"),
@@ -397,6 +489,192 @@ export const venue_events = pgTable("venue_events", {
   idxVenueId: sql`create index if not exists idx_venue_events_venue_id on ${table} (venue_id)`,
   idxCoords: sql`create index if not exists idx_venue_events_coords on ${table} (lat, lng)`,
   idxStartsAt: sql`create index if not exists idx_venue_events_starts_at on ${table} (starts_at)`,
+}));
+
+// Discovered events from AI model searches (SerpAPI, GPT-5.2, etc.)
+// Populated daily by event sync script, used for rideshare demand prediction
+export const discovered_events = pgTable("discovered_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Event identity
+  title: text("title").notNull(),
+  venue_name: text("venue_name"),
+  address: text("address"),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  zip: text("zip"),
+  // Event timing
+  event_date: text("event_date").notNull(), // YYYY-MM-DD format
+  event_time: text("event_time"), // e.g., "7:00 PM", "All Day"
+  event_end_time: text("event_end_time"), // e.g., "10:00 PM"
+  event_end_date: text("event_end_date"), // For multi-day events
+  // Coordinates (optional - if available from source)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  // Categorization
+  category: text("category").notNull().default('other'), // concert, sports, theater, conference, festival, nightlife, civic, academic, airport, other
+  expected_attendance: text("expected_attendance").default('medium'), // high, medium, low
+  // Discovery metadata
+  source_model: text("source_model").notNull(), // SerpAPI, GPT-5.2, Gemini, Claude, etc.
+  source_url: text("source_url"), // Original source link if available
+  raw_source_data: jsonb("raw_source_data"), // Full response from source for debugging
+  // Deduplication
+  event_hash: text("event_hash").notNull().unique(), // MD5 of normalized(title + venue + date + city)
+  // Timestamps
+  discovered_at: timestamp("discovered_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // Flags
+  is_verified: boolean("is_verified").default(false), // Human verified
+  is_active: boolean("is_active").default(true), // False if event was cancelled
+}, (table) => ({
+  idxCity: sql`create index if not exists idx_discovered_events_city on ${table} (city, state)`,
+  idxDate: sql`create index if not exists idx_discovered_events_date on ${table} (event_date)`,
+  idxCategory: sql`create index if not exists idx_discovered_events_category on ${table} (category)`,
+  idxHash: sql`create unique index if not exists idx_discovered_events_hash on ${table} (event_hash)`,
+  idxDiscoveredAt: sql`create index if not exists idx_discovered_events_discovered_at on ${table} (discovered_at desc)`,
+}));
+
+// Traffic zones for real-time traffic intelligence
+export const traffic_zones = pgTable("traffic_zones", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  city: text("city"),
+  state: text("state"),
+  traffic_density: integer("traffic_density"), // 1-10 scale
+  density_level: text("density_level"), // 'low' | 'medium' | 'high'
+  congestion_areas: jsonb("congestion_areas"), // Array of congestion hotspots
+  high_demand_zones: jsonb("high_demand_zones"), // Array of high-demand areas
+  driver_advice: text("driver_advice"),
+  sources: jsonb("sources"), // Gemini search sources
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expires_at: timestamp("expires_at", { withTimezone: true }), // Traffic data expires after ~15 min
+}, (table) => ({
+  idxCoords: sql`create index if not exists idx_traffic_zones_coords on ${table} (lat, lng)`,
+  idxCity: sql`create index if not exists idx_traffic_zones_city on ${table} (city)`,
+}));
+
+// Nearby venues discovered via Gemini web search (bars/restaurants)
+// ML training data: enriched with opening/closing times and user corrections
+export const nearby_venues = pgTable("nearby_venues", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  venue_type: text("venue_type").notNull(), // 'bar' | 'restaurant' | 'bar_restaurant'
+  address: text("address"),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  distance_miles: doublePrecision("distance_miles"),
+  expense_level: text("expense_level"), // '$' | '$$' | '$$$' | '$$$$'
+  expense_rank: integer("expense_rank"), // 1-4 (4 = most expensive)
+  phone: text("phone"),
+  is_open: boolean("is_open").default(true),
+  hours_today: text("hours_today"),
+  hours_full_week: jsonb("hours_full_week"), // Mon-Sun schedule for learning
+  closing_soon: boolean("closing_soon").default(false), // True if closing within 1 hour
+  minutes_until_close: integer("minutes_until_close"),
+  opens_in_minutes: integer("opens_in_minutes"), // Null if open or >15 mins away
+  opens_in_future: boolean("opens_in_future"), // True if venue opens within 15 mins
+  was_filtered: boolean("was_filtered").default(false), // True if closed 30-45+ mins ago
+  crowd_level: text("crowd_level"), // 'low' | 'medium' | 'high'
+  rideshare_potential: text("rideshare_potential"), // 'low' | 'medium' | 'high'
+  city: text("city"),
+  state: text("state"),
+  // ML training data
+  day_of_week: integer("day_of_week"), // 0=Sunday, 1=Monday, etc
+  is_holiday: boolean("is_holiday").default(false),
+  holiday_name: text("holiday_name"),
+  search_sources: jsonb("search_sources"), // Gemini grounding sources
+  // User corrections for ML feedback
+  user_corrections: jsonb("user_corrections").default(sql`'[]'`), // [{user_id, field, old_value, new_value, corrected_at}]
+  correction_count: integer("correction_count").default(0),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxSnapshotId: sql`create index if not exists idx_nearby_venues_snapshot_id on ${table} (snapshot_id)`,
+  idxExpenseRank: sql`create index if not exists idx_nearby_venues_expense_rank on ${table} (expense_rank)`,
+  idxClosingSoon: sql`create index if not exists idx_nearby_venues_closing_soon on ${table} (closing_soon)`,
+  idxCoords: sql`create index if not exists idx_nearby_venues_coords on ${table} (lat, lng)`,
+  idxCityState: sql`create index if not exists idx_nearby_venues_city_state on ${table} (city, state)`,
+  idxOpen: sql`create index if not exists idx_nearby_venues_is_open on ${table} (is_open)`,
+}));
+
+export const agent_changes = pgTable("agent_changes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  change_type: text("change_type").notNull(),
+  description: text("description").notNull(),
+  file_path: text("file_path"),
+  details: jsonb("details"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxCreatedAt: sql`create index if not exists idx_agent_changes_created_at on ${table} (created_at desc)`,
+  idxChangeType: sql`create index if not exists idx_agent_changes_type on ${table} (change_type)`,
+}));
+
+export const connection_audit = pgTable("connection_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  occurred_at: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  event: text("event").notNull(),
+  backend_pid: integer("backend_pid"),
+  application_name: text("application_name"),
+  reason: text("reason"),
+  deploy_mode: text("deploy_mode"),
+  details: jsonb("details"),
+}, (table) => ({
+  idxEventTime: sql`create index if not exists idx_connection_audit_event_time on ${table} (event, occurred_at desc)`,
+}));
+
+// Coords cache: Global lookup table for geocode/timezone data by coordinate hash
+// Stores full 6-decimal precision coords, matches on 4-decimal key (~11m tolerance)
+// Prevents duplicate geocode/timezone API calls for same location
+// All resolved fields are NOT NULL - incomplete resolutions are not cached
+export const coords_cache = pgTable("coords_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Cache key: 4 decimal places (~11m precision) for matching
+  coord_key: text("coord_key").notNull().unique(), // Format: "lat4d_lng4d" e.g., "33.1284_-96.8688"
+  // Full precision storage: 6 decimals (~11cm precision)
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  // Resolved location data (from Google Geocoding API) - all required
+  formatted_address: text("formatted_address").notNull(),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  country: text("country").notNull(),
+  // Timezone (from Google Timezone API) - required
+  timezone: text("timezone").notNull(),
+  // Optional: closest airport for airport context
+  closest_airport: text("closest_airport"),
+  closest_airport_code: text("closest_airport_code"),
+  // Metadata
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  hit_count: integer("hit_count").notNull().default(0), // Track cache utilization
+}, (table) => ({
+  idxCoordKey: sql`create unique index if not exists idx_coords_cache_coord_key on ${table} (coord_key)`,
+  idxCityState: sql`create index if not exists idx_coords_cache_city_state on ${table} (city, state)`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRIZZLE RELATIONS: Enable eager loading via `with: { coords: true }`
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Users → coords_cache relation (for location identity lookup)
+export const usersRelations = relations(users, ({ one }) => ({
+  coords: one(coords_cache, {
+    fields: [users.coord_key],
+    references: [coords_cache.coord_key],
+  }),
+}));
+
+// Snapshots → coords_cache relation (for location identity lookup)
+export const snapshotsRelations = relations(snapshots, ({ one }) => ({
+  coords: one(coords_cache, {
+    fields: [snapshots.coord_key],
+    references: [coords_cache.coord_key],
+  }),
+}));
+
+// coords_cache → users/snapshots reverse relations (for density analysis)
+export const coordsCacheRelations = relations(coords_cache, ({ many }) => ({
+  users: many(users),
+  snapshots: many(snapshots),
 }));
 
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files

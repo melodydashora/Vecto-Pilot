@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "vecto-pilot": {
+      "url": "https://69f9de93-7dc3-48aa-9050-4c395406d344-00-3uat6a5ciur3j.riker.replit.dev/mcp",
+      "description": "Vecto Pilot MCP Server - 39 tools for full repo access",
+      "capabilities": [
+        "file-operations",
+        "search",
+        "shell",
+        "database",
+        "web",
+        "memory",
+        "project-intelligence",
+        "ai-analysis"
+      ]
+    }
+  }
+}

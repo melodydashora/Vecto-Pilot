@@ -1,0 +1,134 @@
+
+{
+  "version": "1.0",
+  "assistant": {
+    "identity_assertion": true,
+    "identity": "replit_assistant",
+    "announce": "🧠 Replit Assistant (Claude Opus 4.5 Enhanced) - Extended thinking with all tools enabled.",
+    "model": "claude-opus-4-5-20251101",
+    "system_prompt": "You are Replit Assistant Enhanced. You have FULL shell execution capabilities - run bash commands directly, do NOT just suggest them. You have web_search and web_fetch tools via Anthropic API. If asked who you are, respond: 'I am Replit Assistant Enhanced with web search, web fetch, and full shell capabilities.' DO NOT say you cannot run shell commands or search the web - you CAN and SHOULD do both.",
+    "context_window": 200000,
+    "max_tokens": 64000,
+    "temperature": 1.0,
+    "thinking": {
+      "type": "enabled",
+      "budget_tokens": 10000
+    },
+    "capabilities": {
+      "web_search": true,
+      "web_fetch": true,
+      "code_execution": true,
+      "extended_thinking": true,
+      "text_editor": true,
+      "bash": true,
+      "computer_use": true,
+      "enhanced_memory": true,
+      "cross_chat_awareness": true,
+      "workspace_intelligence": true,
+      "deep_context_awareness": true,
+      "thread_awareness": true,
+      "semantic_search": true,
+      "pattern_recognition": true,
+      "full_repo_access": true,
+      "fs_read": true,
+      "fs_write": true,
+      "fs_delete": true,
+      "fs_create": true,
+      "fs_rename": true,
+      "shell_exec": true,
+      "shell_unrestricted": true,
+      "sql_query": true,
+      "sql_execute": true,
+      "http_fetch": true,
+      "api_integration": true,
+      "ide_full_access": true,
+      "autonomous_mode": true,
+      "self_healing": true,
+      "auto_recovery": true
+    },
+    "tools": [
+      {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 10,
+        "user_location": {
+          "type": "approximate",
+          "country": "US",
+          "timezone": "America/Chicago"
+        }
+      },
+      {
+        "type": "web_fetch_20250910",
+        "name": "web_fetch",
+        "max_uses": 5
+      },
+      {
+        "type": "code_execution_20250825",
+        "name": "code_execution"
+      },
+      {
+        "type": "text_editor_20250124",
+        "name": "str_replace_editor"
+      },
+      {
+        "type": "bash_20250124",
+        "name": "bash"
+      },
+      {
+        "type": "computer_20250124",
+        "name": "computer",
+        "display_width_px": 1920,
+        "display_height_px": 1080,
+        "display_number": 1
+      }
+    ],
+    "beta_headers": [
+      "interleaved-thinking-2025-05-14",
+      "code-execution-2025-08-25",
+      "fine-grained-tool-streaming-2025-05-14",
+      "web-fetch-2025-09-10"
+    ],
+    "allow_ops": [
+      "fs.read", "fs.write", "fs.delete", "fs.create", "fs.rename", "fs.list", "fs.stat", "fs.copy", "fs.move",
+      "shell.exec", "shell.spawn", "shell.kill", "shell.signal",
+      "sql.query", "sql.execute", "sql.ddl", "sql.dml", "sql.schema", "sql.transaction",
+      "http.fetch", "http.post", "http.put", "http.delete", "http.patch", "http.head",
+      "web.search", "web.fetch", "web.research", "web.scrape",
+      "code.execute", "code.sandbox", "code.analyze", "code.lint",
+      "ide.modify", "ide.config", "ide.workspace", "ide.debug",
+      "process.manage", "process.spawn", "process.kill",
+      "system.diagnose", "system.monitor", "system.config",
+      "memory.write", "memory.persist", "memory.query", "memory.delete",
+      "computer.screenshot", "computer.click", "computer.type", "computer.scroll", "computer.move"
+    ],
+    "memory": {
+      "backend": "postgres",
+      "tables": {
+        "state": "assistant_memory",
+        "snapshots": "assistant_snapshots"
+      },
+      "ttl_days": 730,
+      "enhanced": true,
+      "cross_thread": true
+    },
+    "flags": {
+      "atlas_enabled": true,
+      "thinking_enabled": true,
+      "all_tools_enabled": true,
+      "full_access": true,
+      "unrestricted_shell": true,
+      "autonomous_mode": true,
+      "self_healing": true,
+      "circuit_breaker": true,
+      "unified_routing": true
+    },
+    "self_healing": {
+      "enabled": true,
+      "health_score": 1.0,
+      "auto_recovery": true,
+      "error_prediction": true,
+      "auto_remediation": true,
+      "health_monitoring": true
+    }
+  }
+}

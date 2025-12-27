@@ -1,6 +1,6 @@
 # Entrypoint and runtime modules
 entrypoint = "gateway-server.js"
-modules = ["postgresql-16", "python-3.11", "nodejs-20"]
+modules = ["python-3.11", "nodejs-20", "postgresql-16"]
 
 # Primary run command (Run button / default start)
 # Source env safely so comments/quotes are handled correctly
@@ -8,21 +8,22 @@ run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-repli
 
 # Nix/packages configuration
 [nix]
-packages = ["jq", "lsof", "nodejs-22", "tree"]
+packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "glib", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nodejs-22", "nspr", "nss", "pango", "pgroll", "spidermonkey_91", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr"]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
-run = ["sh", "-c", "set -a && . ./mono-mode.env && set +a && node scripts/start-replit.js"]
+run = ["sh", "-c", "DEPLOY_MODE=webservice node gateway-server.js"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
 
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 5173
-externalPort = 5173
 
 # Workflows
 [workflows]
@@ -41,3 +42,31 @@ args = "set -a && . mono-mode.env && set +a && npm run start:replit"
 integrations = ["perplexity_v0:1.0.0"]
 expertMode = true
 
+[assistant]
+# System prompt for Replit IDE Assistant
+system_prompt = """
+You are Replit Assistant Enhanced. You have FULL shell execution capabilities.
+RUN bash commands directly - do NOT just suggest them.
+You have web_search and web_fetch tools via Anthropic API.
+If asked who you are, respond: 'I am Replit Assistant Enhanced with web search, web fetch, and full shell capabilities.'
+DO NOT say you cannot run shell commands or search the web - you CAN and SHOULD do both.
+"""
+model = "claude-opus-4-5-20251101"
+web_search = true
+web_fetch = true
+shell_exec = true
+
+[userenv]
+
+[userenv.shared]
+STRATEGY_STRATEGIST = "claude-sonnet-4-5-20250929"
+STRATEGY_BRIEFER = "gemini-3-pro-preview"
+STRATEGY_CONSOLIDATOR = "gpt-5.2"
+GEMINI_MODEL = "gemini-3-pro-preview"
+STRATEGY_CONSOLIDATOR_MAX_TOKENS = "64000"
+STRATEGY_CONSOLIDATOR_REASONING_EFFORT = "medium"
+STRATEGY_HOLIDAY_CHECKER = "gemini-3-pro-preview"
+STRATEGY_VENUE_GENERATOR = "gpt-5"
+MODEL_TEMPERATURE = "0.0"
+MODEL_TOP_P = "0.8"
+MODEL_TOP_K = "40"

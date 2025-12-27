@@ -1,26 +1,25 @@
 import express from "express";
-import healthRoutes from "./server/routes/health.js";
-import blocksRoutes from "./server/routes/blocks.js";
-import blocksFastRoutes from "./server/routes/blocks-fast.js";
-import blocksDiscoveryRoutes from "./server/routes/blocks-discovery.js";
-import locationRoutes from "./server/routes/location.js";
-import actionsRoutes from "./server/routes/actions.js";
-import researchRoutes from "./server/routes/research.js";
-import feedbackRoutes from "./server/routes/feedback.js";
-import diagnosticsRoutes from "./server/routes/diagnostics.js";
-import venueEventsRoutes from "./server/routes/venue-events.js";
-import snapshotRoutes from "./server/routes/snapshot.js";
-import jobMetricsRoutes from "./server/routes/job-metrics.js";
-import mlHealthRoutes from "./server/routes/ml-health.js";
-import chatRoutes from "./server/routes/chat.js";
-import chatContextRoutes from "./server/routes/chat-context.js";
-import closedVenueReasoningRoutes from "./server/routes/closed-venue-reasoning.js";
-import strategyRoutes from "./server/routes/strategy.js";
-import diagnosticsStrategyRoutes from "./server/routes/diagnostics-strategy.js";
+// Routes organized by domain in server/api/
+import healthRoutes from "./server/api/health/health.js";
+import blocksFastRoutes from "./server/api/strategy/blocks-fast.js";
+import locationRoutes from "./server/api/location/location.js";
+import actionsRoutes from "./server/api/feedback/actions.js";
+import researchRoutes from "./server/api/research/research.js";
+import feedbackRoutes from "./server/api/feedback/feedback.js";
+import diagnosticsRoutes from "./server/api/health/diagnostics.js";
+import venueEventsRoutes from "./server/api/venue/venue-events.js";
+import snapshotRoutes from "./server/api/location/snapshot.js";
+import jobMetricsRoutes from "./server/api/health/job-metrics.js";
+import mlHealthRoutes from "./server/api/health/ml-health.js";
+import chatRoutes from "./server/api/chat/chat.js";
+import chatContextRoutes from "./server/api/chat/chat-context.js";
+import closedVenueReasoningRoutes from "./server/api/venue/closed-venue-reasoning.js";
+import strategyRoutes from "./server/api/strategy/strategy.js";
+import diagnosticsStrategyRoutes from "./server/api/health/diagnostics-strategy.js";
+import contentBlocksRoutes from "./server/api/strategy/content-blocks.js";
 // Legacy processor retired — do not import
-// Fast path is mounted via the gateway (server/routes/blocks.js -> blocks-fast)
-import { loggingMiddleware } from "./server/middleware/logging.js";
-import { securityMiddleware } from "./server/middleware/security.js";
+// Fast path is mounted via the gateway (server/api/strategy/blocks-fast.js)
+// Logging and security handled by gateway middleware - not duplicated here
 import { 
   getEnhancedProjectContext,
   storeCrossThreadMemory,
@@ -38,10 +37,8 @@ export default function createSdkRouter(opts = {}) {
 
   // JSON parsing for SDK routes
   r.use(express.json({ limit: '1mb' }));
-  r.use(loggingMiddleware);
-  r.use(securityMiddleware);
 
-  // Enhanced context middleware
+  // Enhanced context middleware (logging/security handled by gateway)
   r.use(async (req, res, next) => {
     try {
       const ctx = await getEnhancedProjectContext({
@@ -73,25 +70,9 @@ export default function createSdkRouter(opts = {}) {
   // Mount all SDK routes
   r.use('/health', healthRoutes);
   r.use('/healthz', healthRoutes);
-  r.use('/blocks/fast', blocksFastRoutes); // Fast tactical path (mounted before generic blocks)
-  // Async blocks retired - all blocks use fast synchronous path now
-  
-  // Force async blocks redirect (until client fully migrated to fast path)
-  r.post('/blocks', (req, res, next) => {
-    if (process.env.FORCE_ASYNC_BLOCKS === '1') {
-      return res.redirect(307, '/api/blocks/async');
-    }
-    next();
-  });
-  
-  r.use('/blocks', blocksRoutes); // Original synchronous POST /blocks (backward compat)
-  r.use('/blocks/discovery', blocksDiscoveryRoutes);
-  r.use('/location', locationRoutes);
-  r.use('/resolve', locationRoutes);
-  r.use('/geocode', locationRoutes);
-  r.use('/timezone', locationRoutes);
-  r.use('/weather', locationRoutes);
-  r.use('/airquality', locationRoutes);
+  r.use('/blocks-fast', blocksFastRoutes); // Fast tactical path (synchronous waterfall)
+  r.use('/blocks', contentBlocksRoutes); // Structured content blocks (GET /blocks/strategy/:snapshotId)
+  r.use('/location', locationRoutes); // All location endpoints: /api/location/resolve, /api/location/geocode, etc.
   r.use('/actions', actionsRoutes);
   r.use('/research', researchRoutes);
   r.use('/feedback', feedbackRoutes);
@@ -115,16 +96,8 @@ export default function createSdkRouter(opts = {}) {
     });
   });
   
-  // Strategy and ranking stubs (from attached doc requirements)
-  r.post('/strategy', express.json(), (req, res) => {
-    const { snapshotId } = req.query;
-    res.json({ ok: true, snapshotId, strategy: 'Generated via MONO mode', timestamp: new Date().toISOString() });
-  });
-
-  r.get('/strategy/:snapshotId', (req, res) => {
-    const { snapshotId } = req.params;
-    res.json({ ok: true, snapshotId, strategy: 'Retrieved via MONO mode', timestamp: new Date().toISOString() });
-  });
+  // Strategy routes handled by server/api/strategy/strategy.js
+  // Removed stub routes that were blocking real strategy data
 
   r.get('/ranking', (req, res) => {
     const { snapshotId } = req.query;

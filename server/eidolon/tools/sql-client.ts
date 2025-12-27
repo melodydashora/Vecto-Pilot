@@ -1,3 +1,4 @@
+import { getSharedPool } from '../../db/pool.js';
 import pkg from 'pg';
 const { Pool } = pkg;
 
@@ -16,14 +17,28 @@ export class SQLClient {
       throw new Error('DATABASE_URL environment variable not set');
     }
     
-    this.pool = new Pool({
-      connectionString: databaseUrl,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-    });
+    // Use shared pool for connection pooling efficiency
+    this.pool = getSharedPool();
+    
+    if (!this.pool) {
+      // Fallback: Only used if shared pool unavailable
+      console.warn('[sql-client] Shared pool unavailable - creating fallback pool');
+      this.pool = new Pool({
+        connectionString: databaseUrl,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+      });
+    }
   }
 
   async query(sql: string, params?: any[]): Promise<QueryResult> {
     const client = await this.pool.connect();
+    
+    // Add error handler to prevent unhandled errors crashing the process
+    const errorHandler = (err: Error) => {
+      console.error('[sql-client] Client error:', err.message);
+    };
+    client.on('error', errorHandler);
+    
     try {
       const result = await client.query(sql, params);
       return {
@@ -32,6 +47,7 @@ export class SQLClient {
         command: result.command
       };
     } finally {
+      client.removeListener('error', errorHandler);
       client.release();
     }
   }

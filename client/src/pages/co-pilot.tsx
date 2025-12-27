@@ -5,134 +5,65 @@
  * Integrates with smart-blocks-enhanced API for time-aware zone suggestions.
  */
 
-import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import React, { useState, useEffect, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  MapPin, 
-  Navigation, 
-  TrendingUp, 
-  Clock, 
+import {
+  MapPin,
+  Navigation,
+  TrendingUp,
+  Clock,
   Sparkles,
-  Activity,
-  CheckCircle2,
   Zap,
   AlertCircle,
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
-  MessageSquare,
-  Info,
-  PartyPopper,
-  Sun,
-  Moon
+  MessageSquare
 } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context-clean';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
+import BarsTable from '@/components/BarsTable';
+import { TabContent } from '@/components/co-pilot/TabContent';
 
-interface SmartBlock {
-  name: string;
-  description?: string;
-  address?: string;
-  coordinates: {
-    lat: number;
-    lng: number;
-  };
-  estimatedWaitTime?: number;
-  estimatedEarningsPerRide?: number;
-  estimated_earnings?: number;
-  potential?: number;
-  estimated_distance_miles?: number;
-  distanceSource?: string;
-  driveTimeMinutes?: number;
-  surge?: number;
-  type?: string;
-  // Value per minute fields
-  value_per_min?: number;
-  value_grade?: string;
-  not_worth?: boolean;
-  demandLevel?: string;
-  category?: string;
-  businessHours?: string;
-  isOpen?: boolean;
-  businessStatus?: string;
-  placeId?: string;
-  closedButStillGood?: string;
-  closed_venue_reasoning?: string;
-  hasEvent?: boolean;
-  eventBadge?: string;
-  eventSummary?: string;
-  eventImpact?: string;
-  stagingArea?: {
-    type: string;
-    name: string;
-    address: string;
-    walkTime: string;
-    parkingTip: string;
-  };
-  proTips?: string[];
-  up_count?: number;
-  down_count?: number;
-}
+// Shared types and utilities
+import type { SmartBlock, BlocksResponse, StrategyData } from '@/types/co-pilot';
+import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady, logAction as logActionHelper } from '@/utils/co-pilot-helpers';
+import { BottomTabNavigation } from '@/components/co-pilot/BottomTabNavigation';
+import { GreetingBanner } from '@/components/co-pilot/GreetingBanner';
+import { useBriefingQueries } from '@/hooks/useBriefingQueries';
+import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
+import { useStrategyLoadingMessages } from '@/hooks/useStrategyLoadingMessages';
 
-interface BlocksResponse {
-  now: string;
-  timezone: string;
-  strategy?: string;
-  blocks: SmartBlock[];
-  ranking_id?: string;
-  path_taken?: string;
-  refined?: boolean;
-  timing?: {
-    scoring_ms?: number;
-    planner_ms?: number;
-    total_ms?: number;
-    timed_out?: boolean;
-    budget_ms?: number;
-  };
-  metadata: {
-    totalBlocks: number;
-    processingTimeMs: number;
-    modelRoute?: string;
-    validation?: {
-      status: string;
-      flags?: string[];
-    };
-  };
-}
+// Types are now imported from @/types/co-pilot
 
+/**
+ * CoPilot - AI-powered venue recommendations and strategy optimization
+ * - Displays real-time smart blocks (staging areas) with demand/earnings insights
+ * - Polls for AI-generated recommendations every 5 seconds until blocks arrive
+ * - Integrates feedback system for continuous ML model improvement
+ */
 const CoPilot: React.FC = () => {
   const locationContext = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
-  const [showOffPeak, setShowOffPeak] = useState(false);
-  const [distanceFilter, setDistanceFilter] = useState<'auto' | 'near' | 'far'>('auto');
+  const [distanceFilter, _setDistanceFilter] = useState<'auto' | 'near' | 'far'>('auto');
   const [selectedModel, setSelectedModel] = useState<'gemini' | 'gpt-5' | 'claude' | null>(null);
   const [modelParameter, setModelParameter] = useState<string>('0.7');
   const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
-  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
-  const [testMode, setTestMode] = useState(false); // Manual test trigger
-  const [fastTacticalMode, setFastTacticalMode] = useState<boolean>(() => {
-    return localStorage.getItem('vecto_fast_tactical_mode') === 'true';
-  });
-  const [persistentStrategy, setPersistentStrategy] = useState<string | null>(() => {
-    return localStorage.getItem('vecto_persistent_strategy');
-  });
-  const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(() => {
-    return localStorage.getItem('vecto_strategy_snapshot_id');
-  });
+  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null); // Start empty for fresh load
+  const [persistentStrategy, setPersistentStrategy] = useState<string | null>(null); // Start empty for fresh load (consolidated daily strategy)
+  const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null); // Strategy for right now (GPT-5.2 generated)
+  const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null); // Start empty for fresh load
+  const [_strategyReadyTime, _setStrategyReadyTime] = useState<number | null>(null); // Track when strategy became ready
   const [enrichedReasonings, setEnrichedReasonings] = useState<Map<string, string>>(new Map());
-  
+
   // Feedback modal state
   const [feedbackModal, setFeedbackModal] = useState<{
     isOpen: boolean;
@@ -145,100 +76,110 @@ const CoPilot: React.FC = () => {
     block: null,
     blockIndex: null,
   });
-  
+
   // Strategy feedback modal state  
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
+
+  // Bottom tab navigation
+  const [activeTab, setActiveTab] = useState<'strategy' | 'venues' | 'briefing' | 'map' | 'rideshare' | 'donation'>('strategy');
+
+  // Ref to track polling status changes (reduces console spam by only logging transitions)
+  const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
+
+  // Text-to-speech state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Get coords from shared location context (same as GlobalHeader)
   const gpsCoords = locationContext?.currentCoords;
   const refreshGPS = locationContext?.refreshGPS;
   const isUpdating = locationContext?.isLoading || false;
-  
+
   // Get override coords from shared context (synced with GlobalHeader)
   const overrideCoords = locationContext?.overrideCoords;
   const setOverrideCoords = locationContext?.setOverrideCoords;
-  
+
   // Use override coords if available, otherwise GPS
   const coords = overrideCoords || gpsCoords;
-  
-  // Listen for snapshot-saved event to gate blocks query
+
+  // getAuthHeader is now imported from @/utils/co-pilot-helpers
+
+  // Fallback: If location context has a snapshot ID and we don't, use it
+  // This handles the case where the event was dispatched before co-pilot mounted
   useEffect(() => {
-    const handleSnapshotSaved = (e: any) => {
+    const contextSnapshotId = locationContext?.lastSnapshotId;
+    if (contextSnapshotId && !lastSnapshotId) {
+      console.log("🔄 Co-Pilot: Using snapshot from context (event may have been missed):", contextSnapshotId);
+      setLastSnapshotId(contextSnapshotId);
+
+      // Trigger waterfall for this snapshot
+      (async () => {
+        try {
+          console.log("🚀 Triggering POST /api/blocks-fast waterfall (from context fallback)...");
+          const response = await fetch('/api/blocks-fast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+            body: JSON.stringify({ snapshotId: contextSnapshotId })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error("❌ Waterfall failed:", error);
+          } else {
+            const result = await response.json();
+            console.log("✅ Waterfall complete:", result);
+          }
+        } catch (err) {
+          console.error("❌ Waterfall error:", err);
+        }
+      })();
+    }
+  }, [locationContext?.lastSnapshotId, lastSnapshotId]);
+
+  // Listen for snapshot-saved event to trigger waterfall and load all tabs
+  useEffect(() => {
+    const handleSnapshotSaved = async (e: any) => {
       const snapshotId = e.detail?.snapshotId;
       if (snapshotId) {
-        console.log("🎯 Co-Pilot: Snapshot ready, enabling blocks query:", snapshotId);
+        console.log("🎯 Co-Pilot: Snapshot ready, triggering all tabs + waterfall:", snapshotId);
         setLastSnapshotId(snapshotId);
+
+        // Trigger synchronous waterfall: providers → consolidation → blocks
+        // This POST blocks until all steps complete (35-50s total)
+        try {
+          console.log("🚀 Triggering POST /api/blocks-fast waterfall...");
+          const response = await fetch('/api/blocks-fast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+            body: JSON.stringify({ snapshotId })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            console.error("❌ Waterfall failed:", error);
+          } else {
+            const result = await response.json();
+            console.log("✅ Waterfall complete:", result);
+          }
+        } catch (err) {
+          console.error("❌ Waterfall error:", err);
+        }
       }
     };
     window.addEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
-    
-    return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
-  }, [coords, lastSnapshotId]);
 
-  // Clear persistent strategy when new coords received (before snapshot creation)
-  useEffect(() => {
-    const handleStrategyCleared = () => {
-      console.log("🧹 Strategy cleared event received - updating UI state");
-      setPersistentStrategy(null);
-      setStrategySnapshotId(null);
-    };
-    
-    const handleManualRefresh = () => {
-      console.log("🔄 Manual refresh triggered");
-      // Location context will clear strategy when coords arrive
-    };
-    
-    const handleLocationPermission = () => {
-      console.log("📍 Location permission granted");
-      setPersistentStrategy(null);
-      setStrategySnapshotId(null);
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
-    };
-    
-    window.addEventListener("vecto-strategy-cleared", handleStrategyCleared);
-    window.addEventListener("vecto-manual-refresh", handleManualRefresh);
-    window.addEventListener("vecto-location-permission", handleLocationPermission);
-    
-    return () => {
-      window.removeEventListener("vecto-strategy-cleared", handleStrategyCleared);
-      window.removeEventListener("vecto-manual-refresh", handleManualRefresh);
-      window.removeEventListener("vecto-location-permission", handleLocationPermission);
-    };
+    return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
   }, []);
 
-  // Fetch strategy from database when we have a new snapshot
-  const { data: strategyData, isFetching: isStrategyFetching } = useQuery({
-    queryKey: ['/api/blocks/strategy', lastSnapshotId],
-    queryFn: async () => {
-      if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
-      
-      const response = await fetch(`/api/blocks/strategy/${lastSnapshotId}`);
-      if (!response.ok) return null;
-      
-      const data = await response.json();
-      console.log(`[strategy-poll] Status: ${data.status}, Time elapsed: ${data.timeElapsedMs}ms`);
-      // Attach the snapshot ID to the response for validation
-      return { ...data, _snapshotId: lastSnapshotId };
-    },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
-    refetchInterval: (query) => {
-      // Poll every 2 seconds if strategy is still pending (was checking wrong field!)
-      const status = query.state.data?.status;
-      const isReady = status === 'ok' || status === 'ok_partial';
-      
-      if (isReady) {
-        console.log('[strategy-poll] ✅ Strategy ready, stopping poll');
-        return false; // Stop polling
-      }
-      
-      console.log(`[strategy-poll] ⏳ Status: ${status}, continuing poll...`);
-      return 2000; // Poll every 2 seconds
-    },
-    // Critical: Prevent stale data from previous snapshots
-    staleTime: 0,
-    gcTime: 0,
-  });
+  // Clear persistent strategy on mount to force fresh generation
+  useEffect(() => {
+    console.log("🧹 Clearing persistent strategy on app mount");
+    localStorage.removeItem('vecto_persistent_strategy');
+    localStorage.removeItem('vecto_strategy_snapshot_id');
+    setPersistentStrategy(null);
+    setImmediateStrategy(null);
+    setStrategySnapshotId(null);
+  }, []);
 
   // Clear strategy if snapshot ID changes
   useEffect(() => {
@@ -247,29 +188,141 @@ const CoPilot: React.FC = () => {
       localStorage.removeItem('vecto_persistent_strategy');
       localStorage.removeItem('vecto_strategy_snapshot_id');
       setPersistentStrategy(null);
+      setImmediateStrategy(null);
       setStrategySnapshotId(null);
+      // Force immediate query restart for new snapshot (ensures progress bar starts fresh)
+      queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
     }
   }, [lastSnapshotId, strategySnapshotId]);
 
-  // Update persistent strategy when new strategy arrives
+  // Subscribe to SSE strategy_ready events
+  useEffect(() => {
+    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
+
+    console.log('[SSE] Subscribing to strategy_ready events for snapshot:', lastSnapshotId);
+    const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
+      if (readySnapshotId === lastSnapshotId) {
+        console.log('[SSE] Strategy ready for current snapshot, fetching data');
+        // Refetch the strategy query
+        queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
+      }
+    });
+
+    return unsubscribe;
+  }, [lastSnapshotId, queryClient]);
+
+  // Subscribe to SSE blocks_ready events
+  useEffect(() => {
+    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
+
+    console.log('[SSE] Subscribing to blocks_ready events for snapshot:', lastSnapshotId);
+    const unsubscribe = subscribeBlocksReady((data) => {
+      if (data.snapshot_id === lastSnapshotId) {
+        console.log('[SSE] Blocks ready for current snapshot, fetching data');
+        // Refetch the blocks query
+        queryClient.invalidateQueries({ queryKey: ['/api/blocks-fast', lastSnapshotId] });
+      }
+    });
+
+    return unsubscribe;
+  }, [lastSnapshotId, queryClient]);
+
+  // Fetch snapshot data early for Coach context (backup while strategy generates)
+  const { data: snapshotData } = useQuery({
+    queryKey: ['/api/snapshot', lastSnapshotId],
+    queryFn: async () => {
+      if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
+
+      const response = await fetch(`/api/snapshot/${lastSnapshotId}`);
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      console.log('[snapshot-fetch]', {
+        city: data.city,
+        state: data.state,
+        weather: data.weather,
+        air: data.air,
+        hour: data.hour,
+        dayPart: data.day_part_key,
+        holiday: data.holiday
+      });
+      return data;
+    },
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+    gcTime: 20 * 60 * 1000,
+  });
+
+  // Fetch strategy from database when we have a new snapshot (polling fallback if SSE fails)
+  const { data: strategyData, isFetching: isStrategyFetching } = useQuery({
+    queryKey: ['/api/blocks/strategy', lastSnapshotId],
+    queryFn: async () => {
+      if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
+
+      const response = await fetch(`/api/blocks/strategy/${lastSnapshotId}`, {
+        headers: getAuthHeader()
+      });
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      console.log(`[strategy-fetch] Status: ${data.status}, Phase: ${data.phase || 'none'}, Time: ${data.timeElapsedMs}ms`);
+      // Attach the snapshot ID to the response for validation
+      return { ...data, _snapshotId: lastSnapshotId };
+    },
+    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+    // Poll every 3 seconds while pending/missing to show phase progress, stop when complete
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      // Stop polling only when we have a definitive completion status
+      if (status === 'ok' || status === 'error') {
+        return false;
+      }
+      // Poll while: no data yet (undefined), missing, pending, or pending_blocks
+      return 3000;
+    },
+    // Cache for 5 minutes to avoid refetching
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  // ===== BRIEFING TAB QUERIES (using extracted hook) =====
+  // Note: pipelinePhase is used to delay queries until briefing data is ready
+  // Get phase directly from strategyData since useEnrichmentProgress is called later
+  const currentPipelinePhase = (strategyData?.phase as import('@/types/co-pilot').PipelinePhase) || 'starting';
+  const {
+    weatherData,
+    trafficData,
+    newsData,
+    eventsData,
+    schoolClosuresData,
+    airportData,
+    isLoading: _briefingLoading
+  } = useBriefingQueries({ snapshotId: lastSnapshotId, pipelinePhase: currentPipelinePhase });
+
+  // NOTE: Enrichment progress state is tracked via useEnrichmentProgress hook
+  // (called after blocksData query below)
+
+  // Update persistent strategy and immediate strategy when new strategy arrives
   useEffect(() => {
     const consolidatedStrategy = strategyData?.strategy?.consolidated;
+    const strategyForNow = strategyData?.strategy?.strategy_for_now;
+    
     if (consolidatedStrategy && consolidatedStrategy !== persistentStrategy) {
-      console.log("📝 New strategy received, persisting to localStorage");
+      console.log("📝 New consolidated strategy received, persisting to localStorage");
       localStorage.setItem('vecto_persistent_strategy', consolidatedStrategy);
       localStorage.setItem('vecto_strategy_snapshot_id', lastSnapshotId || '');
       setPersistentStrategy(consolidatedStrategy);
       setStrategySnapshotId(lastSnapshotId);
     }
-  }, [strategyData, lastSnapshotId, persistentStrategy]);
+    
+    if (strategyForNow && strategyForNow !== immediateStrategy) {
+      console.log("🎯 New immediate strategy received for right now");
+      setImmediateStrategy(strategyForNow);
+    }
+  }, [strategyData, lastSnapshotId, persistentStrategy, immediateStrategy]);
 
-  // NEW DIRECTIVE: 0-15 min base band, expand to 20-30 if needed for Top6
-  // Auto mode: Server decides based on expand policy
-  // Near/Far modes: User explicitly locks to band
-  const distanceRange = {
-    min: distanceFilter === 'near' ? 0 : distanceFilter === 'far' ? 20 : 0,
-    max: distanceFilter === 'near' ? 15 : distanceFilter === 'far' ? 30 : 30
-  };
+  // Distance filtering is handled server-side via snapshot-scoped blocks
+  // Client distanceFilter state retained for potential future UI filters
 
   // Fetch smart blocks - server returns Top6 based on staging coordinate
   // GATED on snapshot ready to prevent "Unknown city" race condition
@@ -277,16 +330,15 @@ const CoPilot: React.FC = () => {
     // Note: selectedModel and modelParameter NOT in queryKey to avoid cancelling previous requests during testing
     queryKey: ['/api/blocks', coords?.latitude, coords?.longitude, distanceFilter, locationContext.locationSessionId, lastSnapshotId],
     queryFn: async () => {
-      console.log('[blocks-query] Starting blocks fetch for snapshot:', lastSnapshotId);
       if (!coords) throw new Error('No GPS coordinates');
-      
+
       // 3min 50s timeout for Triad orchestrator (AI processing with buffer)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 230000); // 230s = 3min 50s with buffer
-      
+
       try {
         const headers: HeadersInit = lastSnapshotId ? { 'X-Snapshot-Id': lastSnapshotId } : {};
-        
+
         // PRODUCTION AUTO-ROUTER: Use merged strategy from configured AI models
         // TEST MODE: Use manual model selection
         if (selectedModel) {
@@ -296,73 +348,65 @@ const CoPilot: React.FC = () => {
             headers
           });
           clearTimeout(timeoutId);
-          
+
           if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`Failed to fetch blocks: ${errorText}`);
           }
           return response.json();
         } else {
-          // Production: Choose between Fast Tactical Path or Full Triad
-          const useFastPath = fastTacticalMode;
-          const endpoint = useFastPath ? '/api/blocks/fast' : '/api/blocks';
-          
-          // Deterministic idempotency key per snapshot to collapse duplicate requests
-          const idemKey = lastSnapshotId ? `POST:${endpoint}:${lastSnapshotId}` : undefined;
-          
-          // Uses fetch for AbortController timeout + custom headers (x-idempotency-key, X-Snapshot-Id)
-          const response = await fetch(endpoint, {
-            method: 'POST',
+          // Production: Use Fast Tactical Path with GET to retrieve existing blocks
+          // POST would trigger regeneration, GET retrieves snapshot-scoped blocks
+          const endpoint = '/api/blocks-fast';
+
+          // First try GET to retrieve existing blocks (snapshot-first pattern)
+          const response = await fetch(`${endpoint}?snapshotId=${lastSnapshotId}`, {
+            method: 'GET',
             signal: controller.signal,
-            headers: {
-              'Content-Type': 'application/json',
-              ...(idemKey ? { 'x-idempotency-key': idemKey } : {}),
-              ...headers
-            },
-            body: JSON.stringify({
-              userId: localStorage.getItem('vecto_user_id') || 'default',
-              origin: {
-                lat: coords.latitude,
-                lng: coords.longitude
-              }
-            })
+            headers: { ...headers, ...getAuthHeader() }
           });
           clearTimeout(timeoutId);
-          
-          if (!response.ok) {
+
+          // Handle 202 Accepted as success (blocks still generating)
+          if (!response.ok && response.status !== 202) {
             const errorText = await response.text();
             throw new Error(`Failed to fetch strategy: ${errorText}`);
           }
-          
+
           // Transform response to match existing interface
           const data = await response.json();
-          console.log('🔍 Raw API response:', data);
-          console.log('🔍 First block raw:', data.blocks?.[0]);
-          
+          // Debug: Full API response for troubleshooting
+          console.log('[blocks-query] 📦 Raw API response:', {
+            status: response.status,
+            ok: data.ok,
+            reason: data.reason,
+            dataStatus: data.status,
+            blocksCount: data.blocks?.length,
+            hasRankingId: !!data.ranking_id,
+            hasBriefing: !!data.briefing,
+            keys: Object.keys(data)
+          });
+
+          // Track if blocks are still being generated (202 response)
+          const isGenerating = data.status === 'pending_blocks' || data.reason === 'blocks_generating' || data.reason === 'briefing_pending';
+
           const transformed = {
             now: data.generatedAt || new Date().toISOString(),
             timezone: 'America/Chicago',
-            strategy: data.strategy_for_now,
+            strategy: data.strategy_for_now || data.briefing?.strategy_for_now || data.strategy?.strategy_for_now,
             path_taken: data.path_taken,
             refined: data.refined,
             timing: data.timing,
+            isBlocksGenerating: isGenerating,
             blocks: data.blocks?.map((v: any) => {
-              console.log('🔄 Transforming block:', v.name, {
-                estimated_distance_miles: v.estimated_distance_miles,
-                driveTimeMinutes: v.driveTimeMinutes,
-                distanceSource: v.distanceSource,
-                value_per_min: v.value_per_min,
-                value_grade: v.value_grade
-              });
-              
               return {
                 name: v.name,
                 address: v.address,
                 category: v.category,
                 placeId: v.placeId,
-                coordinates: { 
-                  lat: v.coordinates?.lat ?? v.lat, 
-                  lng: v.coordinates?.lng ?? v.lng 
+                coordinates: {
+                  lat: v.coordinates?.lat ?? v.lat,
+                  lng: v.coordinates?.lng ?? v.lng
                 },
                 estimated_distance_miles: Number(v.estimated_distance_miles ?? v.distance ?? 0),
                 driveTimeMinutes: Number(v.driveTimeMinutes ?? v.drive_time ?? 0),
@@ -380,7 +424,11 @@ const CoPilot: React.FC = () => {
                 businessStatus: v.businessStatus,
                 closed_venue_reasoning: v.closed_venue_reasoning,
                 stagingArea: v.stagingArea,
-                proTips: v.proTips || v.pro_tips || []
+                proTips: v.proTips || v.pro_tips || [],
+                streetViewUrl: v.streetViewUrl,
+                // Event flags from discovered_events matching
+                hasEvent: v.hasEvent ?? v.features?.hasEvent ?? false,
+                eventBadge: v.eventBadge ?? v.features?.eventBadge ?? null
               };
             }) || [],
             ranking_id: data.ranking_id || data.correlationId,  // Use actual ranking_id from DB
@@ -391,8 +439,13 @@ const CoPilot: React.FC = () => {
               validation: data.validation
             }
           };
-          
-          console.log('✅ Transformed blocks:', transformed.blocks);
+
+          // Log the result
+          if (isGenerating) {
+            console.log('[blocks-query] 🔄 Blocks generating:', { status: data.status, reason: data.reason });
+          } else {
+            console.log('[blocks-query] ✅ Blocks fetched successfully:', { count: transformed.blocks?.length, blocks: transformed.blocks?.slice(0, 2) });
+          }
           return transformed;
         }
       } catch (err: any) {
@@ -403,47 +456,70 @@ const CoPilot: React.FC = () => {
         throw err;
       }
     },
-    // AUTO-RUN when GPS + snapshot ready + strategy ready - keep spinning until success
-    // CRITICAL GATING:
-    // 1. Strategy must be written to DB with status='ok' (not 'pending', 'failed', etc.)
-    // 2. Strategy must be for the CURRENT snapshot ID (prevent stale data races)
-    // 3. Don't run while strategy is fetching (initial load OR polling)
-    // This ensures blocks query ONLY runs after strategy is persisted in DB with proper foreign key
+    // SIMPLIFIED POLLING: Start when AI Coach (strategy) is visible
+    // No SSE, no complex gating - just poll after strategy shows
     enabled: (() => {
       const hasCoords = !!coords;
-      const hasSnapshot = !!lastSnapshotId;
-      const strategyReady = strategyData?.status === 'ok';
+      const hasSnapshot = !!lastSnapshotId && lastSnapshotId !== 'live-snapshot';
+      const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks';
       const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
-      
-      const shouldEnable = hasCoords && hasSnapshot && !isStrategyFetching && strategyReady && snapshotMatches;
-      
-      console.log('[blocks-query] 🔍 GATING CHECK:', {
-        hasCoords,
-        hasSnapshot,
-        lastSnapshotId,
-        isStrategyFetching,
-        strategyStatus: strategyData?.status,
-        strategyReady,
-        strategySnapshotId: strategyData?._snapshotId,
-        snapshotMatches,
-        '⚠️ BLOCKED_REASON': !shouldEnable ? (!hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : isStrategyFetching ? 'STRATEGY_FETCHING' : !strategyReady ? 'STRATEGY_NOT_READY' : !snapshotMatches ? 'SNAPSHOT_MISMATCH' : 'UNKNOWN') : 'NONE',
-        shouldEnable
-      });
-      
+
+      // SIMPLE GATE: Only start polling when AI Coach is visible
+      const shouldEnable = hasCoords && hasSnapshot && strategyReady && snapshotMatches;
+
+      // Debug: Only log gating status changes to reduce console spam
+      if (shouldEnable && lastStatusRef.current !== 'ready') {
+        console.log('[blocks-query] ✅ Ready to fetch blocks (strategy-driven polling)');
+        lastStatusRef.current = 'ready';
+      } else if (!shouldEnable && lastStatusRef.current === 'ready') {
+        const reason = !hasCoords ? 'NO_COORDS' : !hasSnapshot ? 'NO_SNAPSHOT' : !strategyReady ? 'STRATEGY_PENDING' : 'SNAPSHOT_MISMATCH';
+        console.log('[blocks-query] ⏸️ Polling paused -', reason);
+        lastStatusRef.current = 'paused';
+      }
+
       return shouldEnable;
-    })(), // Auto-start when coordinates, snapshot, and DB-confirmed strategy are available
-    refetchInterval: false, // No periodic auto-refresh (only on demand)
+    })(),
+    // Reduced polling - SSE is primary mechanism, this is just a safety fallback
+    // Poll every 15s until blocks arrive, then stop
+    refetchInterval: (query) => {
+      const blocks = query.state.data?.blocks;
+      const hasBlocks = blocks && blocks.length > 0;
+      // Stop polling once we have blocks
+      if (hasBlocks) {
+        return false;
+      }
+      return 15000; // Poll every 15 seconds (SSE handles immediate updates)
+    },
     retry: (failureCount, error: any) => {
       // Stop retrying if we got a timeout (504)
       if (error?.message?.includes('504') || error?.message?.includes('timeout')) {
         console.error('[co-pilot] Strategy generation timed out, stopping retries');
         return false;
       }
-      // Otherwise retry up to 12 times (max ~60 seconds total with backoff)
-      return failureCount < 12;
+      // Stop retrying if blocks aren't ready yet (NOT_FOUND) - refetchInterval will handle periodic checks
+      if (error?.message?.includes('NOT_FOUND')) {
+        return false;
+      }
+      // Otherwise retry up to 6 times (max ~30 seconds with backoff)
+      return failureCount < 6;
     },
-    retryDelay: (attemptIndex) => Math.min(2000 * 2 ** attemptIndex, 10000), // Exponential backoff: 2s, 4s, 8s, 10s max
+    retryDelay: (attemptIndex) => Math.min(3000 * 2 ** attemptIndex, 10000), // Exponential backoff: 3s, 6s, 10s max
   });
+
+  // NOTE: Bar Tab data fetching moved to BarTab.tsx component
+  // The BarTab component handles its own independent data flow
+
+  // Enrichment progress tracking (using extracted hook)
+  const hasBlocks = (blocksData?.blocks?.length ?? 0) > 0;
+  const { progress: enrichmentProgress, strategyProgress, phase: enrichmentPhase, pipelinePhase, timeRemainingText } = useEnrichmentProgress({
+    coords: coords ? { latitude: coords.latitude, longitude: coords.longitude } : null,
+    strategyData: strategyData as StrategyData | null,
+    lastSnapshotId,
+    hasBlocks
+  });
+
+  // Cycling loading messages for strategy generation (with time remaining)
+  const loadingMessages = useStrategyLoadingMessages({ pipelinePhase, timeRemainingText });
 
   useEffect(() => {
     if (error) {
@@ -455,32 +531,63 @@ const CoPilot: React.FC = () => {
     }
   }, [error, toast]);
 
-  // Log action to backend with idempotency key
-  const logAction = async (action: string, blockId?: string, dwellMs?: number, fromRank?: number) => {
+  // Retry strategy generation with same location context
+  const [_isRetrying, setIsRetrying] = useState(false);
+  const _retryStrategy = async () => {
+    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') {
+      toast({
+        title: 'Cannot Retry',
+        description: 'No strategy to retry. Please wait for initial strategy to generate.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsRetrying(true);
     try {
-      const ranking_id = blocksData?.ranking_id || 'unknown';
-      const timestamp = new Date().toISOString();
-      const idempotencyKey = `${ranking_id}:${action}:${blockId || 'na'}:${timestamp}`;
-      
-      // Uses fetch for custom X-Idempotency-Key header
-      await fetch('/api/actions', {
+      console.log(`[retry] Retrying strategy for snapshot ${lastSnapshotId}`);
+      const response = await fetch(`/api/strategy/${lastSnapshotId}/retry`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify({
-          ranking_id: ranking_id !== 'unknown' ? ranking_id : null,
-          action,
-          block_id: blockId || null,
-          dwell_ms: dwellMs || null,
-          from_rank: fromRank || null,
-          user_id: localStorage.getItem('vecto_user_id') || 'default',
-        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Retry failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[retry] New snapshot created: ${data.new_snapshot_id}`);
+
+      // Update to new snapshot
+      setLastSnapshotId(data.new_snapshot_id);
+      setPersistentStrategy(null);
+      setStrategySnapshotId(null);
+      localStorage.removeItem('vecto_persistent_strategy');
+      localStorage.removeItem('vecto_strategy_snapshot_id');
+
+      // Invalidate queries to trigger refresh
+      queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/strategy/history'] });
+
+      toast({
+        title: 'Strategy Retry Started',
+        description: 'Generating a new strategy with updated AI analysis...',
       });
     } catch (err) {
-      console.warn('[Co-Pilot] Failed to log action:', err);
+      console.error('[retry] Failed:', err);
+      toast({
+        title: 'Retry Failed',
+        description: err instanceof Error ? err.message : 'Unable to retry strategy',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRetrying(false);
     }
+  };
+
+  // Log action wrapper using imported helper (provides rankingId from blocksData context)
+  const logAction = (action: string, blockId?: string, dwellMs?: number, fromRank?: number) => {
+    logActionHelper(blocksData?.ranking_id, action, blockId, dwellMs, fromRank);
   };
 
   // Server now returns Top6 pre-ranked by earnings per mile
@@ -496,10 +603,15 @@ const CoPilot: React.FC = () => {
     }
     return block;
   });
-  
+
+  // Log blocks for debugging
+  if (blocks.length > 0) {
+    console.log('✅ SmartBlocks rendering:', { count: blocks.length, firstBlock: blocks[0]?.name });
+  }
+
   const metadata = blocksData?.metadata;
-  const tacticalSummary = (blocksData as any)?.tactical_summary;
-  const bestStagingLocation = (blocksData as any)?.best_staging_location;
+  const _tacticalSummary = (blocksData as BlocksResponse | undefined)?.tactical_summary;
+  const _bestStagingLocation = (blocksData as BlocksResponse | undefined)?.best_staging_location;
 
   // Log view action when blocks are loaded
   useEffect(() => {
@@ -514,7 +626,7 @@ const CoPilot: React.FC = () => {
     if (!blocks.length) return;
 
     const observers = new Map<number, IntersectionObserver>();
-    
+
     blocks.forEach((block, index) => {
       const blockElement = document.querySelector(`[data-block-index="${index}"]`);
       if (!blockElement) return;
@@ -560,24 +672,24 @@ const CoPilot: React.FC = () => {
   // Parallel enrichment: fetch "why go when closed" reasoning for closed venues
   useEffect(() => {
     if (!blocksData?.blocks || blocksData.blocks.length === 0) return;
-    
+
     const closedVenues = blocksData.blocks.filter(block => 
       !block.isOpen && 
       !block.closed_venue_reasoning &&
       block.businessStatus
     );
-    
+
     if (closedVenues.length === 0) return;
-    
+
     console.log(`[Closed Venue Enrichment] Found ${closedVenues.length} closed venues, fetching reasoning in parallel...`);
-    
+
     // Call API for each closed venue in parallel
     closedVenues.forEach(async (block) => {
       const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
-      
+
       // Skip if we already have reasoning for this venue
       if (enrichedReasonings.has(key)) return;
-      
+
       try {
         const response = await fetch('/api/closed-venue-reasoning', {
           method: 'POST',
@@ -590,11 +702,11 @@ const CoPilot: React.FC = () => {
             strategyContext: persistentStrategy?.slice(0, 500) || 'none'
           })
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           console.log(`[Closed Venue Enrichment] ✅ Got reasoning for ${block.name}: "${data.reasoning.slice(0, 60)}..."`);
-          
+
           // Update state with new reasoning - this triggers a re-render
           setEnrichedReasonings(prev => new Map(prev).set(key, data.reasoning));
         }
@@ -605,7 +717,7 @@ const CoPilot: React.FC = () => {
   }, [blocksData?.blocks, persistentStrategy]);
 
   // City search mutation
-  const citySearchMutation = useMutation({
+  const _citySearchMutation = useMutation({
     mutationFn: async (city: string) => {
       const response = await fetch(`/api/location/geocode/forward?city=${encodeURIComponent(city)}`);
       if (!response.ok) {
@@ -638,7 +750,7 @@ const CoPilot: React.FC = () => {
     }
   });
 
-  const handleModelChange = (model: 'gemini' | 'gpt-5' | 'claude') => {
+  const _handleModelChange = (model: 'gemini' | 'gpt-5' | 'claude') => {
     setSelectedModel(model);
     // Set default parameter for each model
     if (model === 'gpt-5') {
@@ -648,7 +760,7 @@ const CoPilot: React.FC = () => {
     }
   };
 
-  const clearManualCity = () => {
+  const _clearManualCity = () => {
     if (setOverrideCoords) {
       setOverrideCoords(null);
     }
@@ -658,7 +770,7 @@ const CoPilot: React.FC = () => {
     });
   };
 
-  const toggleBlockSelection = (blockIndex: number) => {
+  const _toggleBlockSelection = (blockIndex: number) => {
     const block = blocks[blockIndex];
     if (!block) return;
 
@@ -712,8 +824,78 @@ const CoPilot: React.FC = () => {
     });
   };
 
+  // Text-to-speech handler - uses OpenAI natural voice (currently disabled in UI)
+  const _handleReadStrategy = async () => {
+    if (!persistentStrategy) return;
+
+    if (isSpeaking) {
+      // Stop playing
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setIsSpeaking(false);
+      return;
+    }
+
+    try {
+      setIsSpeaking(true);
+      console.log('[TTS] Requesting audio synthesis for strategy...');
+
+      // Call backend TTS endpoint
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: persistentStrategy })
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS failed: ${response.statusText}`);
+      }
+
+      // Get audio blob
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // Create or reuse audio element
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+      }
+
+      const audio = audioRef.current;
+      audio.src = audioUrl;
+
+      audio.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+        toast({
+          title: 'Playback Failed',
+          description: 'Unable to play audio.',
+          variant: 'destructive',
+        });
+      };
+
+      // Play audio
+      await audio.play();
+      console.log('[TTS] ✅ Playing audio');
+    } catch (err) {
+      setIsSpeaking(false);
+      console.error('[TTS] Error:', err);
+      toast({
+        title: 'Text-to-Speech Failed',
+        description: err instanceof Error ? err.message : 'Unable to read strategy aloud.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Get demand level badge
-  const getDemandBadge = (level?: string) => {
+  const _getDemandBadge = (level?: string) => {
     if (level === 'high') {
       return (
         <Badge className="bg-green-100 text-green-700 border-0 text-xs">
@@ -743,109 +925,12 @@ const CoPilot: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-24" data-testid="copilot-page">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pt-6 pb-6">
-        {/* Live Status Banner */}
-        <div className="mb-6 flex items-center gap-3 flex-wrap justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-800">Top Earning Spots</h2>
-            <Badge variant="outline" className="border-green-500 text-green-600">
-              <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
-              Live · Ranked by $/Mile
-            </Badge>
-            {blocksData?.path_taken && (
-              <Badge 
-                variant="outline" 
-                className={blocksData.path_taken === 'refined' 
-                  ? "border-purple-500 text-purple-600 bg-purple-50" 
-                  : "border-blue-500 text-blue-600 bg-blue-50"}
-              >
-                <Zap className="w-3 h-3 mr-1" />
-                {blocksData.path_taken === 'refined' ? 'AI Refined' : 'Quick Picks'}
-              </Badge>
-            )}
-            {blocksData?.timing && (
-              <span className="text-xs text-gray-500">
-                {blocksData.timing.total_ms}ms
-              </span>
-            )}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const newMode = !fastTacticalMode;
-              setFastTacticalMode(newMode);
-              localStorage.setItem('vecto_fast_tactical_mode', String(newMode));
-              toast({
-                title: newMode ? 'Fast Tactical Mode Enabled' : 'Full Triad Mode Enabled',
-                description: newMode ? 'Using Quick Picks with AI reranking (sub-7s)' : 'Using full AI strategic pipeline',
-              });
-            }}
-            data-testid="button-toggle-fast-mode"
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            {fastTacticalMode ? 'Fast Mode' : 'Full Mode'}
-          </Button>
-        </div>
 
-        {/* Greeting/Holiday Banner - Always visible with fallback */}
-        {(() => {
-          // Check for holiday from strategy data (always preserve holiday if found)
-          const hasHoliday = strategyData?.strategy?.holiday;
-          const hour = new Date().getHours();
-          const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-          const greetingIcon = hour < 12 ? '☀️' : hour < 18 ? '🌅' : '🌙';
-          
-          // Always show holiday banner if we have holiday data
-          if (hasHoliday) {
-            return (
-              <Card className="mb-6 border-2 border-amber-400 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 shadow-lg" data-testid="holiday-banner">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-amber-100">
-                      <PartyPopper className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-amber-900 text-lg">
-                        🎉 Happy {strategyData.strategy.holiday}!
-                      </p>
-                      <p className="text-sm text-amber-800">
-                        Holiday demand patterns in effect - expect increased airport traffic and surge pricing opportunities
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          }
-          
-          // Fallback to time-based greeting (always visible)
-          return (
-            <Card className="mb-6 border-2 border-blue-300 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 shadow-md" data-testid="greeting-banner">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-blue-100">
-                    {hour < 12 ? (
-                      <Sun className="w-6 h-6 text-blue-600" />
-                    ) : hour < 18 ? (
-                      <Sun className="w-6 h-6 text-orange-500" />
-                    ) : (
-                      <Moon className="w-6 h-6 text-indigo-600" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-gray-900 text-lg">
-                      {greetingIcon} {greeting}, driver!
-                    </p>
-                    <p className="text-sm text-gray-700">
-                      Your AI strategy is analyzing real-time conditions to maximize your earnings
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
+        {/* Strategy Tab Content */}
+        {activeTab === 'strategy' && (
+          <>
+        {/* Greeting/Holiday Banner - Using extracted component */}
+        <GreetingBanner holiday={strategyData?.strategy?.holiday} />
 
         {/* Selection Controls */}
         {selectedBlocks.size > 0 && (
@@ -887,7 +972,7 @@ const CoPilot: React.FC = () => {
           <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">Strategy</h2>
+              <h2 className="text-lg font-semibold text-gray-800">Current Strategy</h2>
             </div>
             {/* Static Feedback Button - Always Visible & Clickable */}
             <Button
@@ -901,6 +986,8 @@ const CoPilot: React.FC = () => {
               Give Feedback
             </Button>
           </div>
+
+          {/* Current Strategy Card */}
           {!coords ? (
             <Card className="bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 border-gray-300 shadow-md" data-testid="strategy-needs-gps">
               <CardContent className="p-5">
@@ -913,23 +1000,37 @@ const CoPilot: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-          ) : persistentStrategy ? (
-            <Card className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-purple-300 shadow-md" data-testid="persistent-strategy-card">
+          ) : immediateStrategy ? (
+            <Card className="bg-gradient-to-br from-orange-50 via-yellow-50 to-orange-50 border-orange-300 shadow-md" data-testid="immediate-strategy-card">
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100">
-                    <Sparkles className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                  <div className="p-2 rounded-lg bg-orange-100">
+                    <Zap className="w-5 h-5 text-orange-600 flex-shrink-0" />
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold text-purple-900">Strategic Overview</p>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
-                          Auto-Generated
-                        </Badge>
-                      </div>
-                    </div>
-                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">{persistentStrategy}</p>
+                    <p className="text-sm font-semibold text-orange-900 mb-2">🎯 Where to Go NOW</p>
+                    <p
+                      className="text-sm text-gray-800 leading-relaxed"
+                      dangerouslySetInnerHTML={{
+                        __html: immediateStrategy
+                          .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-orange-800 font-semibold">$1</strong>')
+                          .replace(/\n/g, '<br />')
+                      }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : strategyData?.status === 'failed' ? (
+            <Card className="bg-gradient-to-br from-red-50 via-pink-50 to-red-50 border-red-300 shadow-md" data-testid="strategy-failed-card">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-red-100">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-900 mb-1">❌ Strategy Generation Failed</p>
+                    <p className="text-xs text-red-700">We couldn't generate a strategy this time. Please try again.</p>
                   </div>
                 </div>
               </CardContent>
@@ -938,29 +1039,57 @@ const CoPilot: React.FC = () => {
             <Card className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-300 shadow-md" data-testid="strategy-pending-card">
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
-                  <RefreshCw className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0 mt-0.5" />
+                  <Clock className="w-5 h-5 text-blue-600 animate-pulse flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-blue-900 mb-1">AI Strategy Generating...</p>
-                    <p className="text-xs text-blue-700 mb-3">analyzing your location and conditions</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-semibold text-blue-900">⏳ Generating your strategy...</p>
+                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                        {loadingMessages.badge}
+                      </Badge>
+                    </div>
+                    {/* Cycling detailed message */}
+                    <p className="text-xs text-blue-700 mb-3 transition-opacity duration-300">
+                      {loadingMessages.icon} {loadingMessages.text}
+                    </p>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs text-blue-700">
-                        <span>Time Elapsed</span>
-                        <span className="font-mono">{strategyData?.timeElapsedMs ? Math.round(strategyData.timeElapsedMs / 1000) : 0}s / 60s</span>
+                        <span>Progress</span>
+                        <span className="font-mono">{strategyProgress}%</span>
                       </div>
                       <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
-                          style={{ 
-                            width: strategyData?.timeElapsedMs ? `${Math.min((strategyData.timeElapsedMs / 60000) * 100, 100)}%` : '0%'
+                        <div
+                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+                          style={{
+                            width: `${Math.min(strategyProgress, 100)}%`
                           }}
                         />
                       </div>
-                      <p className="text-xs text-blue-600 italic">
-                        {strategyData?.waitFor && strategyData.waitFor.length > 0 
-                          ? `Waiting for: ${strategyData.waitFor.join(', ')}`
-                          : 'Processing...'
-                        }
-                      </p>
+                      <div className="space-y-1 mt-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-blue-600 italic">
+                            {loadingMessages.step}
+                          </p>
+                          {/* Time remaining estimate */}
+                          {loadingMessages.timeRemaining && (
+                            <p className="text-xs text-blue-500">
+                              {loadingMessages.timeRemaining}
+                            </p>
+                          )}
+                        </div>
+                        {/* Sub-message dots indicator */}
+                        <div className="flex gap-1 justify-center mt-1">
+                          {Array.from({ length: loadingMessages.messageCount }).map((_, i) => (
+                            <span
+                              key={i}
+                              className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                                i === loadingMessages.currentIndex
+                                  ? 'bg-blue-600 scale-125'
+                                  : 'bg-blue-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -968,29 +1097,6 @@ const CoPilot: React.FC = () => {
             </Card>
           )}
         </div>
-
-        {/* AI Strategy Coach - GPT-5 Chat Interface */}
-        {coords && persistentStrategy && (
-          <div className="mb-6" data-testid="ai-coach-section">
-            <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-purple-600" />
-                <h2 className="text-lg font-semibold text-gray-800">AI Strategy Coach</h2>
-              </div>
-              <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
-                Live Chat
-              </Badge>
-            </div>
-            <div className="mt-4">
-              <CoachChat 
-                userId={localStorage.getItem('vecto_user_id') || 'default'}
-                snapshotId={lastSnapshotId || undefined}
-                strategy={persistentStrategy}
-                blocks={blocks}
-              />
-            </div>
-          </div>
-        )}
 
         {/* Smart Blocks - Only render when we have data */}
         {blocks.length > 0 && (
@@ -1037,16 +1143,59 @@ const CoPilot: React.FC = () => {
                 <div className="flex items-center gap-3 mb-4">
                   <RefreshCw className="w-6 h-6 text-blue-600 animate-spin flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="text-gray-800 font-semibold">AI is analyzing your area...</p>
-                    <p className="text-gray-600 text-sm mb-3">Finding optimal venues with real-time data · This may take up to 3 minutes</p>
+                    <p className="text-gray-800 font-semibold">
+                      {pipelinePhase === 'starting' && 'Starting...'}
+                      {pipelinePhase === 'resolving' && 'Examining location...'}
+                      {pipelinePhase === 'analyzing' && 'Analyzing area...'}
+                      {pipelinePhase === 'immediate' && 'Building strategy...'}
+                      {pipelinePhase === 'venues' && 'AI finding venues...'}
+                      {pipelinePhase === 'routing' && 'Calculating routes...'}
+                      {pipelinePhase === 'places' && 'Fetching venue details...'}
+                      {pipelinePhase === 'verifying' && 'Verifying events...'}
+                      {pipelinePhase === 'enriching' && 'Enriching venue data...'}
+                      {pipelinePhase === 'complete' && 'Loading venues and map...'}
+                    </p>
+                    <p className="text-gray-600 text-sm mb-3">
+                      {pipelinePhase === 'starting' && 'Initializing AI pipeline...'}
+                      {pipelinePhase === 'resolving' && 'Resolving your location and examining the area...'}
+                      {pipelinePhase === 'analyzing' && 'Examining late night venues and evaluating conditions...'}
+                      {pipelinePhase === 'immediate' && 'AI processing your area intel...'}
+                      {pipelinePhase === 'venues' && 'GPT-5.2 selecting optimal venues near you...'}
+                      {pipelinePhase === 'routing' && 'Google Routes API calculating drive times...'}
+                      {pipelinePhase === 'places' && 'Google Places API fetching business hours...'}
+                      {pipelinePhase === 'verifying' && 'Gemini AI verifying venue events...'}
+                      {pipelinePhase === 'enriching' && 'Calculating distances, drive times, and rankings...'}
+                      {pipelinePhase === 'complete' && 'Almost done! Loading venue cards and map...'}
+                    </p>
+                    <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                      <span>
+                        {pipelinePhase === 'starting' && 'Step 1/9: Starting'}
+                        {pipelinePhase === 'resolving' && 'Step 2/9: Location'}
+                        {pipelinePhase === 'analyzing' && 'Step 3/9: Research'}
+                        {pipelinePhase === 'immediate' && 'Step 4/9: Strategy'}
+                        {pipelinePhase === 'venues' && 'Step 5/9: Venue AI'}
+                        {pipelinePhase === 'routing' && 'Step 6/9: Routes'}
+                        {pipelinePhase === 'places' && 'Step 7/9: Details'}
+                        {pipelinePhase === 'verifying' && 'Step 8/9: Verify'}
+                        {pipelinePhase === 'enriching' && 'Step 6/9: Enrichment'}
+                        {pipelinePhase === 'complete' && 'Step 9/9: Complete!'}
+                      </span>
+                      <span className="font-mono">{enrichmentProgress}%</span>
+                    </div>
                     <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 rounded-full"
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 rounded-full transition-all duration-500 ease-out"
                         style={{
-                          animation: 'progressBar 180s linear forwards',
+                          width: `${enrichmentProgress}%`
                         }}
                       />
                     </div>
+                    {/* Time remaining estimate */}
+                    {timeRemainingText && pipelinePhase !== 'complete' && (
+                      <p className="text-xs text-gray-500 text-center mt-2">
+                        {timeRemainingText} remaining
+                      </p>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -1106,20 +1255,30 @@ const CoPilot: React.FC = () => {
             </Card>
           )}
 
+            {/* Bars Table - ML Training Data */}
+            {blocks.length > 0 && <BarsTable blocks={blocks} />}
+
             {/* Blocks List */}
             {blocks.length > 0 && (
             <div className="space-y-4" data-testid="blocks-list">
               {blocks.map((block, index) => {
-                const isSelected = selectedBlocks.has(index);
+                const _isSelected = selectedBlocks.has(index);
 
-                // Determine card gradient based on value grade
-                const cardGradient = block.value_grade === 'A' 
-                  ? 'bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 border-emerald-300' 
-                  : block.value_grade === 'B'
-                  ? 'bg-gradient-to-br from-blue-50 via-indigo-50 to-sky-50 border-blue-300'
-                  : block.value_grade === 'C'
-                  ? 'bg-gradient-to-br from-purple-50 via-violet-50 to-fuchsia-50 border-purple-300'
-                  : 'bg-gradient-to-br from-gray-50 via-slate-50 to-zinc-50 border-gray-300';
+                // Gradient colors based on ranking icons
+                let cardGradient = 'bg-white border-gray-200';
+                if (index <= 1) {
+                  // 🔥 HIGH VALUE - Red/Orange gradient
+                  cardGradient = 'bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 border-orange-300';
+                } else if (index <= 3) {
+                  // ⭐ GOOD OPPORTUNITY - Yellow/Gold gradient
+                  cardGradient = 'bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 border-yellow-300';
+                } else if (Number(block.estimated_distance_miles ?? 0) <= 5) {
+                  // 📍 NEARBY OPTION - Blue gradient
+                  cardGradient = 'bg-gradient-to-br from-blue-50 via-cyan-50 to-sky-50 border-blue-300';
+                } else {
+                  // 💡 STRATEGIC - Purple gradient
+                  cardGradient = 'bg-gradient-to-br from-purple-50 via-violet-50 to-fuchsia-50 border-purple-300';
+                }
 
                 return (
                   <Card
@@ -1153,14 +1312,9 @@ const CoPilot: React.FC = () => {
                                   Staging (open curb)
                                 </Badge>
                               )}
-                              {block.isOpen !== true && block.isOpen !== false && block.type !== 'staging' && (
-                                <Badge className="bg-gray-100 text-gray-700 border-gray-300 text-xs">
-                                  Unknown
-                                </Badge>
-                              )}
                               {block.hasEvent && block.eventBadge && (
-                                <Badge className="bg-purple-100 text-purple-700 border-purple-300 text-xs">
-                                  {block.eventBadge}
+                                <Badge className="bg-gradient-to-r from-pink-100 to-purple-200 text-purple-700 border-purple-300 text-xs font-normal">
+                                  <span className="text-xs">🎫 Event: {block.eventBadge}</span>
                                 </Badge>
                               )}
                             </div>
@@ -1176,13 +1330,47 @@ const CoPilot: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Metrics Row */}
+                      {/* Priority Badge & Metrics Row */}
                       <div className="grid grid-cols-3 gap-4 mb-3">
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-green-600">
-                            ${Number(block.estimatedEarningsPerRide ?? block.estimated_earnings ?? block.potential ?? 0).toFixed(2)}/ride
-                          </div>
-                          <div className="text-xs text-gray-500">Potential</div>
+                          {(() => {
+                            const distance = Number(block.estimated_distance_miles ?? 0);
+                            const isNearby = distance <= 5;
+
+                            if (index <= 1) {
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <div className="text-2xl mb-1">🔥</div>
+                                  <div className="text-sm font-bold text-orange-600">HIGH VALUE</div>
+                                  <div className="text-xs text-gray-500">Top ranked</div>
+                                </div>
+                              );
+                            } else if (index <= 3) {
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <div className="text-2xl mb-1">⭐</div>
+                                  <div className="text-sm font-bold text-yellow-600">GOOD OPPORTUNITY</div>
+                                  <div className="text-xs text-gray-500">Recommended</div>
+                                </div>
+                              );
+                            } else if (isNearby) {
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <div className="text-2xl mb-1">📍</div>
+                                  <div className="text-sm font-bold text-blue-600">NEARBY OPTION</div>
+                                  <div className="text-xs text-gray-500">Close proximity</div>
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <div className="flex flex-col items-center">
+                                  <div className="text-2xl mb-1">💡</div>
+                                  <div className="text-sm font-bold text-purple-600">STRATEGIC</div>
+                                  <div className="text-xs text-gray-500">Consider timing</div>
+                                </div>
+                              );
+                            }
+                          })()}
                         </div>
                         <div className="text-center">
                           <div className="text-2xl font-bold text-gray-700">
@@ -1222,51 +1410,6 @@ const CoPilot: React.FC = () => {
                         </Badge>
                         <span className="text-xs text-gray-500">Live recommendation</span>
                       </div>
-
-                      {/* Event Badge - High Priority Display with Full Details Tooltip */}
-                      {block.hasEvent && block.eventBadge && (
-                        <div className="bg-indigo-50 border-2 border-indigo-400 rounded-lg px-3 py-2 mb-3" data-testid={`event-badge-${index}`}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">{block.eventBadge.split(' ')[0]}</span>
-                            <p className="text-sm font-bold text-indigo-900 flex-1">
-                              {block.eventBadge.split(' ').slice(1).join(' ')}
-                            </p>
-                            {block.eventSummary && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button 
-                                      className="p-1 hover:bg-indigo-100 rounded-full transition-colors"
-                                      data-testid={`event-info-${index}`}
-                                    >
-                                      <Info className="w-4 h-4 text-indigo-600" />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent 
-                                    className="max-w-md p-4 bg-white border-2 border-indigo-200"
-                                    side="left"
-                                    data-testid={`event-tooltip-${index}`}
-                                  >
-                                    <div className="space-y-2">
-                                      <h4 className="font-semibold text-indigo-900 text-sm">Event Details</h4>
-                                      <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                        {block.eventSummary}
-                                      </p>
-                                      {block.eventImpact && (
-                                        <div className="pt-2 border-t border-indigo-100">
-                                          <span className="text-xs font-semibold text-indigo-700">
-                                            Impact: <span className="capitalize">{block.eventImpact}</span> demand expected
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                          </div>
-                        </div>
-                      )}
 
                       {/* Business Hours */}
                       {block.businessHours && (
@@ -1309,12 +1452,29 @@ const CoPilot: React.FC = () => {
                       {/* Staging Area */}
                       {block.stagingArea && (
                         <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <MapPin className="w-4 h-4 text-gray-600" />
-                            <h4 className="text-sm font-semibold text-gray-900">Staging Area</h4>
-                            <Badge className="bg-yellow-400 text-yellow-900 border-0 text-xs px-2 py-0">
-                              {block.stagingArea.type}
-                            </Badge>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-gray-600" />
+                              <h4 className="text-sm font-semibold text-gray-900">Staging Area</h4>
+                              <Badge className="bg-yellow-400 text-yellow-900 border-0 text-xs px-2 py-0">
+                                {block.stagingArea.type}
+                              </Badge>
+                            </div>
+                            {block.stagingArea.lat && block.stagingArea.lng && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-blue-400 text-blue-600 hover:bg-blue-50"
+                                onClick={() => {
+                                  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${block.stagingArea.lat},${block.stagingArea.lng}`;
+                                  window.open(mapsUrl, '_blank');
+                                }}
+                                data-testid="button-navigate-staging"
+                              >
+                                <Navigation className="w-4 h-4 mr-1" />
+                                Navigate
+                              </Button>
+                            )}
                           </div>
                           <div className="ml-6 space-y-1">
                             <p className="text-sm font-medium text-gray-900">{block.stagingArea.name}</p>
@@ -1343,10 +1503,10 @@ const CoPilot: React.FC = () => {
                                 { regex: /^Routing Tip:/i, label: 'Routing Tip:' },
                                 { regex: /^Positioning Tip:/i, label: 'Positioning Tip:' }
                               ];
-                              
+
                               let formattedTip = tip;
                               let label = '';
-                              
+
                               for (const pattern of patterns) {
                                 const match = tip.match(pattern.regex);
                                 if (match) {
@@ -1355,7 +1515,7 @@ const CoPilot: React.FC = () => {
                                   break;
                                 }
                               }
-                              
+
                               return (
                                 <li key={tipIndex} className="text-sm text-gray-600 flex items-start gap-2">
                                   <span className="text-gray-400 mt-0.5">•</span>
@@ -1447,8 +1607,82 @@ const CoPilot: React.FC = () => {
           </div>
         )}
 
+        {/* AI Strategy Coach - Shows whenever we have coords (early engagement, doesn't require snapshotData) */}
+        {coords && (
+          <div className="mb-6" data-testid="ai-coach-section">
+            <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-purple-600" />
+                <h2 className="text-lg font-semibold text-gray-800">AI Strategy Coach</h2>
+                {!persistentStrategy && (
+                  <Badge variant="secondary" className="text-xs">
+                    Strategy Generating...
+                  </Badge>
+                )}
+              </div>
+              <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">
+                Live Chat
+              </Badge>
+            </div>
+            <div className="mt-4">
+              <CoachChat 
+                userId={localStorage.getItem('vecto_user_id') || 'default'}
+                snapshotId={lastSnapshotId || undefined}
+                strategyId={strategyData?.strategy_id || undefined}
+                strategy={persistentStrategy}
+                snapshot={snapshotData}
+                blocks={blocks}
+                strategyReady={!!persistentStrategy}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Smart Blocks Pipeline Status - Shows after Coach */}
+        {coords && (
+          <div className="mb-6">
+            <SmartBlocksStatus
+              strategyReady={strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks'}
+              isStrategyFetching={isStrategyFetching}
+              hasBlocks={blocks.length > 0}
+              isBlocksLoading={isLoading || !!blocksData?.isBlocksGenerating}
+              blocksError={error as Error | null}
+              timeElapsedMs={strategyData?.timeElapsedMs}
+              snapshotId={lastSnapshotId}
+              enrichmentProgress={enrichmentProgress}
+              enrichmentPhase={enrichmentPhase}
+              pipelinePhase={pipelinePhase}
+            />
+          </div>
+        )}
+          </>
+        )}
+
+        {/* All other tabs - rendered via TabContent component */}
+        <TabContent
+          activeTab={activeTab}
+          coords={coords}
+          city={locationContext?.city || null}
+          state={locationContext?.state || null}
+          timezone={locationContext?.timeZone || null}
+          isLocationResolved={locationContext?.isLocationResolved || false}
+          snapshotId={lastSnapshotId}
+          blocks={blocks}
+          isLoading={isLoading}
+          persistentStrategy={persistentStrategy}
+          weatherData={weatherData}
+          trafficData={trafficData}
+          newsData={newsData}
+          eventsData={eventsData}
+          schoolClosuresData={schoolClosuresData}
+          airportData={airportData}
+        />
+
       </div>
-      
+
+      {/* Bottom Tab Navigation - Using extracted component */}
+      <BottomTabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
       {/* Venue Feedback Modal */}
       <FeedbackModal
         isOpen={feedbackModal.isOpen}
@@ -1473,7 +1707,7 @@ const CoPilot: React.FC = () => {
           }
         }}
       />
-      
+
       {/* App Feedback Modal */}
       <FeedbackModal
         isOpen={strategyFeedbackOpen}

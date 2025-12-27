@@ -1,0 +1,19 @@
+{
+  "name": "vecto-pilot-mcp-server",
+  "version": "1.0.0",
+  "description": "Full-featured MCP server for Vecto Pilot with 36+ tools",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "glob": "^10.3.10",
+    "pg": "^8.11.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

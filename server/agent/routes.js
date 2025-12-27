@@ -6,7 +6,7 @@ import { getEnhancedProjectContext, performInternetSearch, analyzeWorkspaceDeep 
 import { getThreadManager, getThreadAwareContext } from "./thread-context.js";
 import { listConfigFiles, readConfigFile, updateEnvFile, createBackup } from "./config-manager.js";
 import { memoryPut, memoryGet, memoryQuery } from "../eidolon/memory/pg.js";
-import { storeCrossThreadMemory, getCrossThreadMemory, storeAgentMemory, getAgentMemory } from "./memory-manager.js"; // Assuming these functions exist
+import { storeCrossThreadMemory, getCrossThreadMemory, storeAgentMemory, getAgentMemory } from "./enhanced-context.js";
 
 const router = express.Router();
 

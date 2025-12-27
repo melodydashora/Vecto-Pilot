@@ -1,46 +1,26 @@
-# Vecto Pilot™ Development Tools
+# Tools (`tools/`)
 
-This directory contains debugging tools, test scripts, and archived files.
+## Purpose
 
-## 📁 Directory Structure
+Development and debugging utilities.
 
-### `/debug/`
-Development and debugging utilities:
-- **test-v2-router.mjs** - Test LLM router with small prompts
-- **hedge-burst-v2.mjs** - Load test router with burst requests
-- **test-llm-router.mjs** - Original router test script
-- Emergency recovery scripts (eidolon-recovery.sh, cleanup-ports.sh, etc.)
-- Port/server debugging tools
+## Structure
 
-### `/archive/`
-Archived exports and old versions:
-- **vecto-pilot-final.tar.gz** - Project snapshot
-- **warehouse/** - Legacy SQL verification queries
+| Path | Purpose |
+|------|---------|
+| `query-briefing.js` | Query and inspect briefing database records |
+| `research/` | AI model research and discovery tools |
 
-## 🧪 Testing LLM Router
+## Query Briefing
 
-**Quick test** (small prompt):
+Debug tool to inspect the last briefing record:
+
 ```bash
-node tools/debug/test-v2-router.mjs
+node tools/query-briefing.js
 ```
 
-**Load test** (60 concurrent requests):
-```bash
-node tools/debug/hedge-burst-v2.mjs 60
-```
+Outputs all fields from the most recent briefing to console and file.
 
-## 🚨 Emergency Recovery
+## Research Subfolder
 
-If the Eidolon SDK crashes:
-```bash
-bash tools/debug/eidolon-recovery.sh
-```
-
-If ports are stuck:
-```bash
-bash tools/debug/cleanup-ports.sh
-```
-
-## 📦 Archive
-
-Old exports and legacy code kept for reference only. Not used in production.
+See `tools/research/README.md` for AI model research tools.

@@ -5,15 +5,17 @@ import type { Request, Response } from "express";
 const app = express();
 app.use(express.json({ limit: "5mb" }));
 
+// Fast-path health probes
+app.get('/health', (_req: Request, res: Response) => res.status(200).send('OK'));
+app.get('/ready', (_req: Request, res: Response) => res.status(200).send('READY'));
+
 const {
-  CLAUDE_MODEL = "claude-sonnet-4-5-20250929",
+  CLAUDE_MODEL = "claude-opus-4-5-20251101",
   ANTHROPIC_API_KEY = "",
   ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1",
   ANTHROPIC_VERSION = "2023-06-01",
-  OPENAI_MODEL = "gpt-5",
+  OPENAI_MODEL = "gpt-5.2",
   OPENAI_API_KEY = "",
-  GEMINI_MODEL = "gemini-2.5-pro",
-  GEMINI_API_KEY = "",
   PERPLEXITY_API_KEY = "",
   PERPLEXITY_MODEL = "sonar-pro",
   EIDOLON_TOKEN = "",
@@ -24,6 +26,10 @@ const {
   REPL_OWNER = "",
   REPL_ID = "",
 } = process.env;
+
+// Gemini: Always use gemini-3-pro-preview (not 2.5), read API key at runtime
+const GEMINI_MODEL = "gemini-3-pro-preview";
+const getGeminiApiKey = () => process.env.GEMINI_API_KEY || "";
 
 const FAIL = (res: Response, code: number, msg: string) =>
   res.status(code).json({ ok: false, error: msg });
@@ -62,19 +68,28 @@ const eidolonReply = async (payload: any) => {
     }),
   }).then(r => r.json());
 
-  const validator = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent?key=" + GEMINI_API_KEY, {
+  const validator = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { 
+      "content-type": "application/json",
+      "x-goog-api-key": getGeminiApiKey()
+    },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: validatePrompt(planner) }]}],
       generationConfig: { temperature: 0.2, maxOutputTokens: 2048, responseMimeType: "application/json" },
-      safetySettings: [{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }],
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" }
+      ]
     }),
   }).then(r => r.json());
 
   const result = finalize(validator);
   return {
-    identity: `🧠 Eidolon (Claude Sonnet 4.5 Enhanced SDK) • slug=${REPL_SLUG} owner=${REPL_OWNER}`,
+    identity: `🧠 Eidolon (Claude Opus 4.5 Enhanced) • slug=${REPL_SLUG} owner=${REPL_OWNER}`,
     triad: { strategist, planner, validator },
     result,
   };
@@ -107,7 +122,7 @@ app.post("/assistant/*", async (req: Request, res: Response) => {
 });
 
 // Operational verbs redirected to Agent (kept separate so we never blur "brain" and "hands")
-app.post("/ops/:verb", async (req, res) => {
+app.post("/ops/:verb", async (req: Request, res: Response) => {
   if (req.headers.authorization !== `Bearer ${AGENT_TOKEN}`) return FAIL(res, 401, "UNAUTHORIZED");
   const verb = req.params.verb;
   const allow = new Set(["fs.read", "fs.write", "shell.exec", "sql.query"]);
@@ -121,4 +136,12 @@ app.post("/ops/:verb", async (req, res) => {
 });
 
 const port = Number(process.env.GATEWAY_PORT || 5000);
-app.listen(port, () => console.log(`[gateway] assistant override on :${port}`));
+const host = process.env.HOST || '0.0.0.0';
+const server = app.listen(port, host, () =>
+  console.log(`[gateway] assistant listening on ${host}:${port}`)
+);
+
+// Tighten timeouts to prevent hung probes
+(server as any).requestTimeout = 5000;
+(server as any).headersTimeout = 6000;
+(server as any).keepAliveTimeout = 5000;

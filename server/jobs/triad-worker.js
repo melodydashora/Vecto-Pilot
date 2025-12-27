@@ -1,14 +1,11 @@
 // server/jobs/triad-worker.js
-// LISTEN-only background worker: reacts to Postgres NOTIFY events and triggers consolidation.
+// LISTEN-only background worker: reacts to Postgres NOTIFY events and generates SmartBlocks.
+// Strategy generation now happens synchronously in blocks-fast.js - this worker only handles SmartBlocks.
 // Removes hot polling, infinite loops, and adds graceful shutdown.
 
 import { db } from '../db/drizzle.js';
-import { strategies, snapshots } from '../../shared/schema.js';
+import { strategies, snapshots, briefings } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-
-// Optional: environment flags (kept for consistency, not used for polling anymore)
-const LOCK_TTL_MS = Number(process.env.LOCK_TTL_MS || 9000);
-const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 3000);
 
 // Single-process guard
 if (global.__TRIAD_WORKER_STARTED__) {
@@ -21,17 +18,17 @@ let pgClient = null;
 let shuttingDown = false;
 
 /**
- * Start LISTEN-only consolidation listener.
+ * Start LISTEN-only SmartBlocks listener.
  * Subscribes to channel `strategy_ready`. When a notification with snapshotId arrives:
- * - Verify all provider fields present (minstrategy + briefing)
- * - Trigger consolidation
- * - Generate enhanced smart blocks on success
+ * - Verify strategy_for_now exists (from GPT-5.2)
+ * - Verify briefing exists
+ * - Generate enhanced smart blocks
+ *
+ * NOTE: This worker does NOT do consolidation - that's handled synchronously by blocks-fast.js
  */
 export async function startConsolidationListener() {
-  const { getListenClient } = await import('../lib/db-client.js');
-  const { consolidateStrategy } = await import('../lib/strategy-generator-parallel.js');
-  const { generateEnhancedSmartBlocks } = await import('../lib/enhanced-smart-blocks.js');
-  const { hasRenderableBriefing } = await import('../lib/strategy-utils.js');
+  const { getListenClient } = await import('../db/db-client.js');
+  const { generateEnhancedSmartBlocks } = await import('../lib/venue/enhanced-smart-blocks.js');
 
   try {
     pgClient = await getListenClient();
@@ -60,7 +57,17 @@ export async function startConsolidationListener() {
     // Notification handler
     pgClient.on('notification', async (msg) => {
       if (msg.channel !== 'strategy_ready' || !msg.payload) return;
-      const snapshotId = msg.payload;
+
+      // Parse JSON payload from trigger
+      let snapshotId;
+      try {
+        const payload = JSON.parse(msg.payload);
+        snapshotId = payload.snapshot_id;
+      } catch (e) {
+        // Fallback to raw string if not JSON
+        snapshotId = msg.payload;
+      }
+
       console.log(`[consolidation-listener] 📢 Notification: strategy_ready -> ${snapshotId}`);
 
       try {
@@ -75,84 +82,64 @@ export async function startConsolidationListener() {
           return;
         }
 
-        // Gate: all GENERIC provider fields present AND not already consolidated
-        const hasStrategy = row.minstrategy != null && row.minstrategy.length > 0;
-        const hasBriefing = hasRenderableBriefing(row.briefing);
-        const alreadyConsolidated = row.consolidated_strategy != null;
-        const ready = hasStrategy && hasBriefing && !alreadyConsolidated;
-
-        console.log(`[consolidation-listener] Gate for ${snapshotId}:`, {
-          hasStrategy,
-          hasBriefing,
-          briefingData: hasBriefing ? {
-            events: row.briefing?.events?.length || 0,
-            holidays: row.briefing?.holidays?.length || 0,
-            traffic: row.briefing?.traffic?.length || 0,
-            news: row.briefing?.news?.length || 0
-          } : null,
-          alreadyConsolidated,
-          ready
-        });
-
-        if (!ready) return;
-
-        // Consolidate
-        const result = await consolidateStrategy({
-          snapshotId,
-          claudeStrategy: row.minstrategy,
-          briefing: row.briefing,
-          user: {
-            lat: row.lat,
-            lng: row.lng,
-            user_address: row.user_resolved_address || row.user_address || '',
-            city: row.user_resolved_city || row.city || '',
-            state: row.user_resolved_state || row.state || ''
-          }
-        });
-
-        if (!result.ok) {
-          console.error(`[consolidation-listener] ❌ Consolidation failed for ${snapshotId}:`, result.reason);
-          return;
-        }
-
-        console.log(`[consolidation-listener] ✅ Consolidation complete for ${snapshotId}`);
-
-        // Fetch updated strategy and snapshot
-        const [updatedRow] = await db.select()
-          .from(strategies)
-          .where(eq(strategies.snapshot_id, snapshotId))
+        // Fetch briefing from separate table
+        const [briefingRow] = await db.select()
+          .from(briefings)
+          .where(eq(briefings.snapshot_id, snapshotId))
           .limit(1);
 
-        if (!updatedRow?.consolidated_strategy) {
-          console.warn(`[consolidation-listener] ⚠️ No consolidated_strategy present after consolidation for ${snapshotId}`);
+        // Check if data is ready - need strategy_for_now (not minstrategy)
+        const hasStrategyForNow = row.strategy_for_now != null && row.strategy_for_now.length > 0;
+        const hasBriefing = briefingRow != null;
+
+        console.log(`[consolidation-listener] Status for ${snapshotId}:`, {
+          hasStrategyForNow,
+          hasBriefing,
+          status: row.status
+        });
+
+        // Early exit if data isn't ready
+        if (!hasStrategyForNow || !hasBriefing) {
+          console.log(`[consolidation-listener] ⏭️ Skipping ${snapshotId} - missing strategy_for_now or briefing`);
           return;
         }
 
+        // Fetch snapshot for context
         const [snap] = await db.select()
           .from(snapshots)
           .where(eq(snapshots.snapshot_id, snapshotId))
           .limit(1);
 
-        // Generate enhanced smart blocks
+        if (!snap) {
+          console.warn(`[consolidation-listener] ⚠️ No snapshot for ${snapshotId}`);
+          return;
+        }
+
+        // Generate enhanced smart blocks using IMMEDIATE strategy for "where to go NOW"
         try {
           console.log(`[consolidation-listener] 🎯 Generating enhanced smart blocks for ${snapshotId}...`);
+          console.log(`[consolidation-listener] Using strategy_for_now: "${row.strategy_for_now?.slice(0, 80)}..."`);
           await generateEnhancedSmartBlocks({
             snapshotId,
-            strategy: updatedRow.consolidated_strategy,
-            snapshot: {
-              ...snap,
-              formatted_address: updatedRow.user_address || snap?.formatted_address,
-              city: updatedRow.city || snap?.city,
-              state: updatedRow.state || snap?.state,
-              lat: updatedRow.lat || snap?.lat,
-              lng: updatedRow.lng || snap?.lng,
-              created_at: snap?.created_at,
-              timezone: snap?.timezone,
-              dow: snap?.dow
-            },
-            user_id: updatedRow.user_id || snap?.user_id
+            immediateStrategy: row.strategy_for_now,
+            briefing: briefingRow || { events: [], traffic_conditions: {}, news: {} },
+            snapshot: snap,
+            user_id: row.user_id || snap?.user_id
           });
           console.log(`[consolidation-listener] ✅ Enhanced smart blocks generated for ${snapshotId}`);
+
+          // CRITICAL: Notify SSE listeners that blocks are ready
+          try {
+            const payload = JSON.stringify({
+              snapshot_id: snapshotId,
+              ranking_id: null,
+              timestamp: new Date().toISOString()
+            });
+            await pgClient.query(`NOTIFY blocks_ready, '${payload}'`);
+            console.log(`[consolidation-listener] 📢 NOTIFY blocks_ready sent for ${snapshotId}`);
+          } catch (notifyErr) {
+            console.error(`[consolidation-listener] ⚠️ Failed to send NOTIFY:`, notifyErr.message);
+          }
         } catch (blocksErr) {
           console.error(`[consolidation-listener] ⚠️ Blocks generation failed (non-blocking):`, blocksErr.message);
         }
