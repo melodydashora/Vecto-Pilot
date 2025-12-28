@@ -7,6 +7,7 @@
 // New location = new snapshotId = new fetch.
 
 import { useQuery } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import type { PipelinePhase } from '@/types/co-pilot';
 
@@ -14,6 +15,9 @@ interface BriefingQueriesOptions {
   snapshotId: string | null;
   pipelinePhase?: PipelinePhase;
 }
+
+// Maximum retry attempts before giving up (6 attempts × 5 seconds = 30 seconds)
+const MAX_RETRY_ATTEMPTS = 6;
 
 // Check if traffic data is still loading/placeholder
 function isTrafficLoading(data: any): boolean {
@@ -40,6 +44,19 @@ function isNewsLoading(data: any): boolean {
 export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }: BriefingQueriesOptions) {
   // Enable queries as soon as we have a valid snapshotId
   const isEnabled = !!snapshotId && snapshotId !== 'live-snapshot';
+
+  // Track retry attempts per query type (reset when snapshotId changes)
+  const retryCountsRef = useRef<{ traffic: number; news: number; airport: number; snapshotId: string | null }>({
+    traffic: 0,
+    news: 0,
+    airport: 0,
+    snapshotId: null
+  });
+
+  // Reset retry counts when snapshotId changes
+  if (retryCountsRef.current.snapshotId !== snapshotId) {
+    retryCountsRef.current = { traffic: 0, news: 0, airport: 0, snapshotId };
+  }
 
   // Base config - cache forever once we have real data
   const baseConfig = {
@@ -85,14 +102,21 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       }
       const data = await response.json();
       const isLoading = isTrafficLoading(data);
-      console.log(`[BriefingQuery] ${isLoading ? '⏳' : '✅'} Traffic ${isLoading ? 'still loading...' : 'received'}`);
+      if (isLoading) {
+        retryCountsRef.current.traffic++;
+        console.log(`[BriefingQuery] ⏳ Traffic still loading... (attempt ${retryCountsRef.current.traffic}/${MAX_RETRY_ATTEMPTS})`);
+      } else {
+        console.log('[BriefingQuery] ✅ Traffic received');
+      }
       return data;
     },
     enabled: isEnabled,
     ...baseConfig,
-    // Retry every 5 seconds if data is still loading, stop once we have real data
+    // Retry every 5 seconds if data is still loading, stop after MAX_RETRY_ATTEMPTS
     refetchInterval: (query) => {
-      if (isTrafficLoading(query.state.data)) {
+      const stillLoading = isTrafficLoading(query.state.data);
+      const hasRetriesLeft = retryCountsRef.current.traffic < MAX_RETRY_ATTEMPTS;
+      if (stillLoading && hasRetriesLeft) {
         return 5000; // Keep polling
       }
       return false; // Stop polling, cache forever
@@ -111,13 +135,20 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       if (!response.ok) return { news: null };
       const data = await response.json();
       const isLoading = isNewsLoading(data);
-      console.log(`[BriefingQuery] ${isLoading ? '⏳' : '✅'} News ${isLoading ? 'still loading...' : 'received'}`);
+      if (isLoading) {
+        retryCountsRef.current.news++;
+        console.log(`[BriefingQuery] ⏳ News still loading... (attempt ${retryCountsRef.current.news}/${MAX_RETRY_ATTEMPTS})`);
+      } else {
+        console.log('[BriefingQuery] ✅ News received');
+      }
       return data;
     },
     enabled: isEnabled,
     ...baseConfig,
     refetchInterval: (query) => {
-      if (isNewsLoading(query.state.data)) {
+      const stillLoading = isNewsLoading(query.state.data);
+      const hasRetriesLeft = retryCountsRef.current.news < MAX_RETRY_ATTEMPTS;
+      if (stillLoading && hasRetriesLeft) {
         return 5000;
       }
       return false;
@@ -178,13 +209,20 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       }
       const data = await response.json();
       const isLoading = isAirportLoading(data);
-      console.log(`[BriefingQuery] ${isLoading ? '⏳' : '✅'} Airport ${isLoading ? 'still loading...' : 'received'}`);
+      if (isLoading) {
+        retryCountsRef.current.airport++;
+        console.log(`[BriefingQuery] ⏳ Airport still loading... (attempt ${retryCountsRef.current.airport}/${MAX_RETRY_ATTEMPTS})`);
+      } else {
+        console.log('[BriefingQuery] ✅ Airport received');
+      }
       return data;
     },
     enabled: isEnabled,
     ...baseConfig,
     refetchInterval: (query) => {
-      if (isAirportLoading(query.state.data)) {
+      const stillLoading = isAirportLoading(query.state.data);
+      const hasRetriesLeft = retryCountsRef.current.airport < MAX_RETRY_ATTEMPTS;
+      if (stillLoading && hasRetriesLeft) {
         return 5000;
       }
       return false;
