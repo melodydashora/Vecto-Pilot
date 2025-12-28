@@ -6,12 +6,14 @@
  * - Platform-specific rules (Uber vs Lyft)
  * - Dallas Strategy integration with Vectopilot coordinates
  * - Comparative analytics across markets
+ * - API-powered market search and city counts
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -28,7 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis } from 'recharts';
 import {
   Target,
   Car,
@@ -40,8 +42,13 @@ import {
   Zap,
   Navigation,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Search,
+  Globe,
+  Building2,
+  Loader2
 } from 'lucide-react';
+import { useMarkets, usePlatformStats, useCitySearch } from '@/hooks/usePlatformData';
 
 // --- MARKET DATA ---
 type MarketKey = 'dallas' | 'nyc' | 'los_angeles' | 'chicago' | 'miami' | 'sf';
@@ -215,17 +222,36 @@ export default function RideshareIntelTab() {
   const [copied, setCopied] = useState(false);
   const [expandedDallas, setExpandedDallas] = useState(true);
   const [expandedAnalytics, setExpandedAnalytics] = useState(true);
+  const [expandedAllMarkets, setExpandedAllMarkets] = useState(true);
+  const [marketSearch, setMarketSearch] = useState('');
+  const [citySearch, setCitySearch] = useState('');
+
+  // Fetch platform data from API
+  const { data: marketsData, isLoading: marketsLoading } = useMarkets('uber');
+  const { data: statsData, isLoading: statsLoading } = usePlatformStats('uber');
+  const { data: citySearchData, isLoading: citySearchLoading } = useCitySearch(citySearch, 'uber', 10);
 
   const market = marketData[currentMarket];
+
+  // Filter markets based on search
+  const filteredMarkets = useMemo(() => {
+    if (!marketsData?.markets) return [];
+    if (!marketSearch) return marketsData.markets.slice(0, 20); // Show top 20 by default
+    const search = marketSearch.toLowerCase();
+    return marketsData.markets.filter(m =>
+      m.market.toLowerCase().includes(search) ||
+      m.country.toLowerCase().includes(search)
+    );
+  }, [marketsData?.markets, marketSearch]);
   const platformRules = market.platforms[currentPlatform];
 
   // Prepare chart data
-  const ageChartData = Object.entries(marketData).map(([key, data]) => ({
+  const ageChartData = Object.entries(marketData).map(([_key, data]) => ({
     name: data.name.split(' ')[0],
     age: data.platforms.uber.vehicle_age,
   }));
 
-  const densityChartData = Object.entries(marketData).map(([key, data]) => ({
+  const densityChartData = Object.entries(marketData).map(([_key, data]) => ({
     name: data.name.split(' ')[0],
     density: data.stats.density,
   }));
@@ -404,6 +430,221 @@ export default function RideshareIntelTab() {
             </div>
           </div>
         </CardContent>
+      </Card>
+
+      {/* Platform Coverage - API-Powered */}
+      <Card className="shadow-lg border-emerald-200 overflow-hidden">
+        <CardHeader
+          className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100 cursor-pointer"
+          onClick={() => setExpandedAllMarkets(!expandedAllMarkets)}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Globe className="w-5 h-5 text-emerald-600" />
+              Platform Coverage
+              {statsData && (
+                <Badge variant="outline" className="ml-2 bg-emerald-100 text-emerald-700 border-emerald-300">
+                  {statsData.stats.total_cities.toLocaleString()} cities
+                </Badge>
+              )}
+            </CardTitle>
+            {expandedAllMarkets ? <ChevronUp className="w-5 h-5 text-emerald-600" /> : <ChevronDown className="w-5 h-5 text-emerald-600" />}
+          </div>
+        </CardHeader>
+
+        {expandedAllMarkets && (
+          <CardContent className="p-6">
+            {/* Stats Overview */}
+            {statsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                <span className="ml-2 text-gray-500">Loading platform data...</span>
+              </div>
+            ) : statsData && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100 text-center">
+                  <div className="text-2xl font-bold text-emerald-700">{statsData.stats.total_cities.toLocaleString()}</div>
+                  <div className="text-xs text-emerald-600">Total Cities</div>
+                </div>
+                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100 text-center">
+                  <div className="text-2xl font-bold text-teal-700">{statsData.stats.total_countries}</div>
+                  <div className="text-xs text-teal-600">Countries</div>
+                </div>
+                <div className="bg-cyan-50 p-4 rounded-lg border border-cyan-100 text-center">
+                  <div className="text-2xl font-bold text-cyan-700">{statsData.stats.total_markets}</div>
+                  <div className="text-xs text-cyan-600">Markets</div>
+                </div>
+                <div className="bg-sky-50 p-4 rounded-lg border border-sky-100 text-center">
+                  <div className="text-2xl font-bold text-sky-700">{statsData.stats.cities_with_timezone.toLocaleString()}</div>
+                  <div className="text-xs text-sky-600">With Timezone</div>
+                </div>
+              </div>
+            )}
+
+            {/* Search Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {/* Market Search */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-emerald-600" />
+                  Search Markets
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by market or country..."
+                    value={marketSearch}
+                    onChange={(e) => setMarketSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              {/* City Search */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-emerald-600" />
+                  Search Cities
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Type city name (min 2 chars)..."
+                    value={citySearch}
+                    onChange={(e) => setCitySearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* City Search Results */}
+            {citySearch.length >= 2 && (
+              <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <Search className="w-4 h-4" />
+                  City Search Results
+                  {citySearchLoading && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
+                </h4>
+                {citySearchData?.cities && citySearchData.cities.length > 0 ? (
+                  <div className="space-y-2">
+                    {citySearchData.cities.map((city, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-white p-3 rounded border border-gray-100">
+                        <div>
+                          <span className="font-medium text-gray-800">{city.city}</span>
+                          <span className="text-gray-400 mx-2">•</span>
+                          <span className="text-gray-600">{city.region || city.country}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {city.market && (
+                            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                              {city.market}
+                            </Badge>
+                          )}
+                          {city.timezone && (
+                            <span className="text-xs text-gray-400">{city.timezone}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {citySearchData.result_count > 10 && (
+                      <p className="text-xs text-gray-400 text-center pt-2">
+                        Showing 10 of {citySearchData.result_count} results
+                      </p>
+                    )}
+                  </div>
+                ) : citySearchData?.result_count === 0 ? (
+                  <p className="text-gray-500 text-sm">No cities found matching "{citySearch}"</p>
+                ) : null}
+              </div>
+            )}
+
+            {/* Markets Table */}
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead>Market</TableHead>
+                    <TableHead>Country</TableHead>
+                    <TableHead className="text-right">Cities</TableHead>
+                    <TableHead className="text-right">Timezone</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {marketsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto text-emerald-600" />
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredMarkets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                        No markets found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredMarkets.map((m, idx) => (
+                      <TableRow key={idx} className="hover:bg-gray-50">
+                        <TableCell className="font-medium text-gray-800">{m.market}</TableCell>
+                        <TableCell className="text-gray-600">{m.country}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-700">
+                            {m.city_count}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-gray-500">
+                          {m.timezone || '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              {!marketSearch && marketsData && marketsData.markets.length > 20 && (
+                <div className="p-3 bg-gray-50 border-t border-gray-200 text-center">
+                  <span className="text-xs text-gray-500">
+                    Showing top 20 markets. Use search to find more.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Top Countries/Markets from stats */}
+            {statsData && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-emerald-600" />
+                    Top Countries
+                  </h4>
+                  <div className="space-y-2">
+                    {statsData.top_countries.slice(0, 5).map((c, idx) => (
+                      <div key={idx} className="flex justify-between items-center">
+                        <span className="text-sm text-gray-700">{c.country}</span>
+                        <Badge variant="outline" className="text-xs">{c.city_count} cities</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-emerald-600" />
+                    Top Markets
+                  </h4>
+                  <div className="space-y-2">
+                    {statsData.top_markets.slice(0, 5).map((m, idx) => (
+                      <div key={idx} className="flex justify-between items-center">
+                        <span className="text-sm text-gray-700">{m.market}</span>
+                        <Badge variant="outline" className="text-xs">{m.city_count} cities</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        )}
       </Card>
 
       {/* Dallas Strategy Section */}

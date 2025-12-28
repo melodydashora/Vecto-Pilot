@@ -25,6 +25,40 @@ import { classifyDayPart } from "@/lib/daypart";
 //   GET  /api/geocode/reverse?lat=..&lng=..  -> { city, state, country }
 //   GET  /api/timezone?lat=..&lng=.. -> { timeZone }  (fallbacks included)
 
+// Extended type to support legacy location context shapes (backwards compatibility)
+type ExtendedLocationContext = {
+  currentCoords?: { latitude: number; longitude: number } | null;
+  currentLocationString?: string;
+  city?: string | null;
+  state?: string | null;
+  timeZone?: string | null;
+  isUpdating?: boolean;
+  lastUpdated?: string | null;
+  refreshGPS?: () => Promise<void>;
+  overrideCoords?: { latitude: number; longitude: number; city?: string } | null;
+  weather?: { temp: number; conditions: string; description?: string } | null;
+  airQuality?: { aqi: number; category: string } | null;
+  isLocationResolved?: boolean;
+  lastSnapshotId?: string | null;
+  isLoading?: boolean;
+  setOverrideCoords?: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
+  // Legacy nested location shape
+  location?: {
+    currentCoords?: { latitude: number; longitude: number } | null;
+    currentLocation?: string;
+    currentLocationString?: string;
+    city?: string | null;
+    state?: string | null;
+    timeZone?: string | null;
+    isUpdating?: boolean;
+    lastUpdated?: string | null;
+    refreshGPS?: () => Promise<void>;
+  };
+  // Direct coordinate properties (another legacy shape)
+  latitude?: number;
+  longitude?: number;
+};
+
 /**
  * GlobalHeader - Real-time driver location and context display
  * - Polls fresh location from users table every 2 seconds
@@ -34,7 +68,7 @@ import { classifyDayPart } from "@/lib/daypart";
  */
 const GlobalHeaderComponent: React.FC = () => {
   // CRITICAL FIX Issue #3: Removed incorrect useLocation hook and used useContext for LocationContext
-  const loc = useContext(LocationContext);
+  const loc = useContext(LocationContext) as ExtendedLocationContext | null;
   const { toast } = useToast();
 
   // state for display

@@ -87,24 +87,38 @@ const openNavigation = (event: Event) => {
 };
 ```
 
-### MapTab.tsx - Interactive Map with Event Markers
+### MapTab.tsx - Interactive Map with Venue, Bar & Event Markers
 
-Google Maps integration with:
+Google Maps integration with multiple marker layers:
 
+**Marker Layers:**
 - **Driver location** (blue marker)
-- **Venue recommendations** (red/orange/yellow by grade)
-- **Event markers** (purple) with click popups showing:
-  - Event title with category icon
-  - Venue name
-  - Start/End times
-  - Impact badge
-  - Navigate to Event button
+- **Strategy venues** (red/orange/yellow by value grade A/B/C)
+- **Bar markers** ($$+ only, color-coded by status):
+  - 🟢 Green = Open bar
+  - 🔴 Red = Closing soon (last call opportunity!)
+  - ⚫ Gray = Closed
+- **Event markers** (purple) - today's events only
+
+**Bar Filtering:**
+- Only shows bars with $$ and above (expense_rank >= 2)
+- Fetched from `/api/venues/nearby` endpoint
+- Separate from strategy blocks
+
+**Event Filtering:**
+- Only shows events happening TODAY with valid times
+- Supports multi-day events (checks if today is within date range)
 
 ```typescript
+// Bar markers with open/closing status
+bars={filteredBars}  // $$+ only
+
 // Events with coordinates appear as purple markers
 events={eventsData?.events?.map(e => ({
   title: e.title,
   venue: e.venue,
+  event_date: e.event_date,
+  event_end_date: e.event_end_date,  // Multi-day support
   event_time: e.event_time,
   event_end_time: e.event_end_time,
   latitude: e.latitude,

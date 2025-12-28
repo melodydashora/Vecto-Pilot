@@ -169,6 +169,6 @@ grep -r "server/routes/" --include="*.js" .
 ## Future Considerations
 
 If needed, additional work could include:
-- Extract more logic from `co-pilot.tsx` (1700+ LOC) into features/
+- ✅ ~~Extract more logic from `co-pilot.tsx` (1700+ LOC) into features/~~ **DONE** - Refactored into `pages/co-pilot/*.tsx` with router-based navigation (Dec 2025)
 - Move staged `_future/` components when ready for integration
 - Add feature-level index.ts files for cleaner imports

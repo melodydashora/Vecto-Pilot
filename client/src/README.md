@@ -8,11 +8,23 @@ React frontend for Vecto Pilot. TypeScript, TailwindCSS, Radix UI components.
 
 ```
 src/
-├── App.tsx              # App root with routing
+├── App.tsx              # App root with RouterProvider
+├── routes.tsx           # React Router configuration
 ├── main.tsx             # Entry point
+├── layouts/             # Layout components
+│   └── CoPilotLayout.tsx    # Shared layout with conditional GlobalHeader
+├── pages/co-pilot/      # Route-based page components
+│   ├── StrategyPage.tsx     # AI strategy + Smart Blocks (~600 LOC)
+│   ├── BarsPage.tsx         # Premium venue listings
+│   ├── BriefingPage.tsx     # Weather, traffic, news, events
+│   ├── MapPage.tsx          # Venue + event map
+│   ├── IntelPage.tsx        # Rideshare intel
+│   ├── AboutPage.tsx        # Donation/about (no GlobalHeader)
+│   └── PolicyPage.tsx       # Privacy policy (linked from About)
+├── contexts/            # React contexts
+│   ├── location-context-clean.tsx   # GPS, weather, snapshots
+│   └── co-pilot-context.tsx         # Shared strategy/blocks state
 ├── components/          # UI components (includes ui/ with shadcn primitives)
-├── pages/               # Page components
-├── contexts/            # React contexts (location)
 ├── hooks/               # Custom React hooks
 ├── lib/                 # Utilities
 ├── types/               # TypeScript types
@@ -21,11 +33,24 @@ src/
 └── _future/             # Staging for future features
 ```
 
+## Route Structure
+
+| Route | Page | Purpose |
+|-------|------|---------|
+| `/co-pilot/strategy` | StrategyPage | AI strategy + Smart Blocks + Coach |
+| `/co-pilot/bars` | BarsPage | Premium venue listings |
+| `/co-pilot/briefing` | BriefingPage | Weather, traffic, news, events |
+| `/co-pilot/map` | MapPage | Interactive venue map |
+| `/co-pilot/intel` | IntelPage | Rideshare intel |
+| `/co-pilot/about` | AboutPage | Donation/about (no header) |
+| `/co-pilot/policy` | PolicyPage | Privacy policy |
+
 ## Key Components
 
 | File | Purpose |
 |------|---------|
-| `pages/co-pilot.tsx` | Main dashboard (1700+ LOC) |
+| `layouts/CoPilotLayout.tsx` | Shared layout with conditional GlobalHeader |
+| `contexts/co-pilot-context.tsx` | Strategy, blocks, SSE state |
 | `components/GlobalHeader.tsx` | Weather, location, time |
 | `components/CoachChat.tsx` | AI chat + voice |
 | `components/BriefingTab.tsx` | Events, traffic, news |
@@ -37,13 +62,18 @@ src/
 ```
 LocationContext (GPS, weather, AQ)
     ↓
-App.tsx (routing)
+App.tsx (RouterProvider)
     ↓
-co-pilot.tsx (main dashboard)
-    ├── GlobalHeader (location display)
-    ├── BriefingTab (briefing data)
-    ├── CoachChat (AI interaction)
-    └── Smart Blocks (venue recommendations)
+CoPilotLayout (shared layout + CoPilotContext)
+    ├── GlobalHeader (conditional - hidden on /about)
+    ├── <Outlet /> (renders current route page)
+    └── BottomTabNavigation (uses React Router)
+
+CoPilotContext (shared state)
+    ├── strategyData, blocksData (React Query)
+    ├── persistentStrategy, immediateStrategy
+    ├── SSE subscriptions
+    └── enrichmentProgress
 ```
 
 ## Entry Point

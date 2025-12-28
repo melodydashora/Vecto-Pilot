@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Send, Loader, Zap, Paperclip, X } from "lucide-react";
+import { useMemory } from "@/hooks/useMemory";
 
 interface Message {
   role: "user" | "assistant";
@@ -38,14 +39,14 @@ interface CoachChatProps {
   strategyReady?: boolean; // Indicates if strategy is still generating or complete
 }
 
-export default function CoachChat({ 
-  userId, 
+export default function CoachChat({
+  userId,
   snapshotId,
   strategyId,
-  strategy, 
-  snapshot, 
+  strategy,
+  snapshot,
   blocks = [],
-  strategyReady = false 
+  strategyReady = false
 }: CoachChatProps) {
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -58,6 +59,94 @@ export default function CoachChat({
   const realtimeRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const _audioContextRef = useRef<AudioContext | null>(null);
+
+  // Memory integration for persistent context
+  const { logConversation, summarizeConversation, context } = useMemory({
+    userId,
+    loadOnMount: true
+  });
+
+  // Handle event deactivation commands from AI Coach
+  const handleEventDeactivation = useCallback(async (content: string) => {
+    const deactivatePattern = /\[DEACTIVATE_EVENT:\s*({[^}]+})\]/g;
+    const matches = content.matchAll(deactivatePattern);
+
+    for (const match of matches) {
+      try {
+        const data = JSON.parse(match[1]);
+        const { event_title, reason, notes } = data;
+
+        if (!event_title || !reason) {
+          console.warn('[CoachChat] Invalid deactivation command:', data);
+          continue;
+        }
+
+        console.log('[CoachChat] Processing event deactivation:', event_title, reason);
+
+        // First, find the event by title (search in discovered events)
+        const token = localStorage.getItem('vecto_auth_token');
+        const searchRes = await fetch(`/api/briefing/discovered-events/${snapshotId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!searchRes.ok) {
+          console.error('[CoachChat] Failed to search for events');
+          continue;
+        }
+
+        const searchData = await searchRes.json();
+        const eventToDeactivate = searchData.events?.find(
+          (e: any) => e.title.toLowerCase().includes(event_title.toLowerCase())
+        );
+
+        if (!eventToDeactivate) {
+          console.warn('[CoachChat] Event not found:', event_title);
+          continue;
+        }
+
+        // Deactivate the event
+        const deactivateRes = await fetch(`/api/briefing/event/${eventToDeactivate.id}/deactivate`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ reason, notes })
+        });
+
+        if (deactivateRes.ok) {
+          const result = await deactivateRes.json();
+          console.log('[CoachChat] ✅ Event deactivated:', result.title);
+        } else {
+          console.error('[CoachChat] Failed to deactivate event:', await deactivateRes.text());
+        }
+      } catch (err) {
+        console.error('[CoachChat] Error processing deactivation:', err);
+      }
+    }
+  }, [snapshotId]);
+
+  // Log conversation when it ends (after assistant response completes)
+  const logCurrentConversation = useCallback(async () => {
+    if (msgs.length < 2) return; // Need at least one exchange
+
+    const { topic, summary } = summarizeConversation(msgs);
+    if (topic && summary) {
+      await logConversation(topic, summary);
+      console.log('[CoachChat] Conversation logged to memory');
+    }
+  }, [msgs, logConversation, summarizeConversation]);
+
+  // Log conversation when streaming ends
+  useEffect(() => {
+    if (!isStreaming && msgs.length >= 2) {
+      // Small delay to ensure last message is complete
+      const timer = setTimeout(() => {
+        logCurrentConversation();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isStreaming, msgs.length, logCurrentConversation]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -378,6 +467,15 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       }
     } finally {
       setIsStreaming(false);
+
+      // Check for event deactivation commands in the last assistant message
+      setMsgs((currentMsgs) => {
+        const lastMsg = currentMsgs[currentMsgs.length - 1];
+        if (lastMsg?.role === 'assistant' && lastMsg.content.includes('[DEACTIVATE_EVENT:')) {
+          handleEventDeactivation(lastMsg.content);
+        }
+        return currentMsgs;
+      });
     }
   }
 

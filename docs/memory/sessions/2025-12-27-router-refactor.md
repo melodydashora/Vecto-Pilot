@@ -98,13 +98,26 @@ The branch `copilot/improve-slow-code-efficiency` was 200+ commits behind main. 
 
 ---
 
-## Documentation Updates Needed
+## Documentation Updates Completed
 
-| Document | Update Required |
-|----------|-----------------|
-| `CLAUDE.md` | Line 319: `co-pilot.tsx` reference is outdated - now uses router |
-| `CLAUDE.md` | Line 390-391: Client structure needs updating for new pages folder |
-| `docs/architecture/client-structure.md` | Add new pages and context structure |
+All READMEs have been updated to reflect the React Router refactor:
+
+| Document | Update Made |
+|----------|-------------|
+| `README.md` (root) | Updated file structure to show router-based pages |
+| `client/README.md` | Added routes.tsx, layouts/, pages/co-pilot/ structure |
+| `client/src/README.md` | Complete rewrite with Route Structure table and new Data Flow |
+| `scripts/README.md` | Updated script listing with current files |
+| `docs/README.md` | Added route pages and layouts to Client section |
+| `docs/architecture/README.md` | Added Route pages and Layouts to folder index |
+| `docs/architecture/client-structure.md` | Added PolicyPage, fixed Wouter → React Router v6 |
+
+### Route Added: PolicyPage
+
+A Privacy Policy page was added (`/co-pilot/policy`) accessible via link from AboutPage:
+- `client/src/pages/co-pilot/PolicyPage.tsx` - Privacy policy content
+- Not a tab in navigation - only linked from About page footer
+- Fixed malformed JSX issues (duplicate closing tags)
 
 ---
 
@@ -118,7 +131,7 @@ The branch `copilot/improve-slow-code-efficiency` was 200+ commits behind main. 
 
 ## Next Session Recommendations
 
-1. Update CLAUDE.md with new client architecture
+1. ~~Update CLAUDE.md with new client architecture~~ ✅ Done
 2. Add route-based code splitting for performance
 3. Consider adding error boundaries per-route
 4. Review and clean up old documentation in `docs/melswork/needs-updating/`

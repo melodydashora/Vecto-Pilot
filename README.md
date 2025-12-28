@@ -206,12 +206,21 @@ users
 vecto-pilot/
 ├── client/                    # React Frontend
 │   └── src/
-│       ├── pages/            # Route pages (co-pilot.tsx is main dashboard)
+│       ├── routes.tsx        # React Router configuration
+│       ├── layouts/          # Layout components (CoPilotLayout)
+│       ├── pages/co-pilot/   # Route-based pages (7 pages, ~600 LOC each)
+│       │   ├── StrategyPage.tsx   # AI strategy + Smart Blocks
+│       │   ├── BarsPage.tsx       # Premium venue listings
+│       │   ├── BriefingPage.tsx   # Weather, traffic, news, events
+│       │   ├── MapPage.tsx        # Venue + event map
+│       │   ├── IntelPage.tsx      # Rideshare intel
+│       │   ├── AboutPage.tsx      # Donation/about (no header)
+│       │   └── PolicyPage.tsx     # Privacy policy
 │       ├── components/       # React components
 │       ├── hooks/            # Custom hooks (TTS, strategy polling)
-│       ├── contexts/         # React contexts (location, auth)
+│       ├── contexts/         # React contexts (location, co-pilot)
 │       ├── features/         # Feature modules
-│       └── App.tsx           # Root component
+│       └── App.tsx           # Root component with RouterProvider
 │
 ├── server/                    # Node.js Backend
 │   ├── api/                  # API routes (domain-organized)
@@ -324,5 +333,5 @@ npm run db:push    # Push schema to database
 
 ---
 
-**Last Updated**: December 10, 2025
+**Last Updated**: December 27, 2025
 **Status**: Production Ready

@@ -30,7 +30,8 @@ All requests scoped to authenticated user_id
 | `server/api/auth/auth.js` | `/api/auth/token` endpoint |
 | `server/middleware/auth.js` | `requireAuth` middleware |
 | `client/src/components/CoachChat.tsx` | Authorization header on /api/chat |
-| `client/src/pages/co-pilot.tsx` | Authorization header on briefing calls |
+| `client/src/contexts/co-pilot-context.tsx` | Authorization header on briefing calls |
+| `client/src/pages/co-pilot/*.tsx` | Individual page components using shared context |
 
 ## Authentication Flow
 

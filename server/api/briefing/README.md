@@ -38,6 +38,12 @@ GET  /api/briefing/discovered-events/:snapshotId - Raw discovered_events data
 POST /api/briefing/confirm-event-details        - Confirm TBD event details
 ```
 
+### Event Management (AI Coach)
+```
+PATCH /api/briefing/event/:eventId/deactivate   - Mark event as inactive
+PATCH /api/briefing/event/:eventId/reactivate   - Reactivate an event
+```
+
 ### Real-time
 ```
 GET  /api/briefing/traffic/realtime   - Fresh traffic (requires lat, lng)
@@ -107,6 +113,52 @@ Direct access to `discovered_events` table rows.
   "events": [...]
 }
 ```
+
+### PATCH /api/briefing/event/:eventId/deactivate
+Mark an event as inactive (hides from Map tab). Used by AI Coach when driver reports event is over/cancelled/incorrect.
+
+**Request Body:**
+```json
+{
+  "reason": "event_ended",  // Required: event_ended | incorrect_time | no_longer_relevant | cancelled | duplicate | other
+  "notes": "Ended early",   // Optional: Additional context
+  "correctedTime": "8:00 PM",     // Optional: If reason is incorrect_time
+  "correctedEndTime": "11:00 PM"  // Optional: If reason is incorrect_time
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "event_id": "uuid",
+  "title": "Taylor Swift - Eras Tour",
+  "reason": "event_ended",
+  "deactivated_at": "2024-12-14T20:30:00Z",
+  "message": "Event \"Taylor Swift - Eras Tour\" has been marked as inactive..."
+}
+```
+
+### PATCH /api/briefing/event/:eventId/reactivate
+Reactivate a previously deactivated event (shows on Map again).
+
+**Response:**
+```json
+{
+  "ok": true,
+  "event_id": "uuid",
+  "title": "Taylor Swift - Eras Tour",
+  "message": "Event \"Taylor Swift - Eras Tour\" has been reactivated..."
+}
+```
+
+### AI Coach Integration
+The AI Coach can deactivate events using a special format in responses:
+```
+[DEACTIVATE_EVENT: {"event_title": "Event Name", "reason": "event_ended", "notes": "Ended early"}]
+```
+
+The client-side CoachChat component parses this format and calls the deactivation API automatically.
 
 ## Data Flow
 

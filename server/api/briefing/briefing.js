@@ -311,6 +311,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       event_type: e.category,
       subtype: e.category, // For EventsComponent category grouping
       event_date: e.event_date,
+      event_end_date: e.event_end_date, // For multi-day events (e.g., holiday lights Dec 1 - Jan 4)
       event_time: e.event_time,
       event_end_time: e.event_end_time,
       address: e.address,
@@ -480,6 +481,119 @@ router.post('/discover-events/:snapshotId', expensiveEndpointLimiter, requireAut
  *
  * Returns events within same city/state, for next 7 days
  */
+/**
+ * PATCH /api/briefing/event/:eventId/deactivate
+ * Deactivate an event (hide from Map tab)
+ *
+ * Used by AI Coach when driver reports event is over, cancelled, or incorrect.
+ * Body: { reason: 'event_ended' | 'incorrect_time' | 'no_longer_relevant' | 'cancelled' | 'duplicate' | 'other', notes?: string }
+ */
+router.patch('/event/:eventId/deactivate', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { reason, notes, correctedTime, correctedEndTime } = req.body;
+
+    if (!eventId) {
+      return res.status(400).json({ error: 'eventId is required' });
+    }
+
+    const validReasons = ['event_ended', 'incorrect_time', 'no_longer_relevant', 'cancelled', 'duplicate', 'other'];
+    if (!reason || !validReasons.includes(reason)) {
+      return res.status(400).json({
+        error: 'Valid reason required',
+        validReasons
+      });
+    }
+
+    // Find the event
+    const [event] = await db.select()
+      .from(discovered_events)
+      .where(eq(discovered_events.id, eventId))
+      .limit(1);
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Build update payload
+    const updatePayload = {
+      is_active: false,
+      deactivation_reason: notes ? `${reason}: ${notes}` : reason,
+      deactivated_at: new Date(),
+      deactivated_by: req.auth?.userId || 'ai_coach',
+      updated_at: new Date()
+    };
+
+    // If correcting time data, update those fields too
+    if (reason === 'incorrect_time') {
+      if (correctedTime) updatePayload.event_time = correctedTime;
+      if (correctedEndTime) updatePayload.event_end_time = correctedEndTime;
+    }
+
+    // Deactivate the event
+    await db.update(discovered_events)
+      .set(updatePayload)
+      .where(eq(discovered_events.id, eventId));
+
+    console.log(`[BriefingRoute] ✅ Event deactivated: ${event.title} (${reason})`);
+
+    res.json({
+      ok: true,
+      event_id: eventId,
+      title: event.title,
+      reason,
+      deactivated_at: updatePayload.deactivated_at,
+      message: `Event "${event.title}" has been marked as inactive and will no longer appear on the map.`
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error deactivating event:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PATCH /api/briefing/event/:eventId/reactivate
+ * Reactivate a previously deactivated event
+ */
+router.patch('/event/:eventId/reactivate', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Find the event
+    const [event] = await db.select()
+      .from(discovered_events)
+      .where(eq(discovered_events.id, eventId))
+      .limit(1);
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Reactivate the event
+    await db.update(discovered_events)
+      .set({
+        is_active: true,
+        deactivation_reason: null,
+        deactivated_at: null,
+        deactivated_by: null,
+        updated_at: new Date()
+      })
+      .where(eq(discovered_events.id, eventId));
+
+    console.log(`[BriefingRoute] ✅ Event reactivated: ${event.title}`);
+
+    res.json({
+      ok: true,
+      event_id: eventId,
+      title: event.title,
+      message: `Event "${event.title}" has been reactivated and will appear on the map again.`
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error reactivating event:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     const snapshot = req.snapshot;

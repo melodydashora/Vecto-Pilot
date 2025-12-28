@@ -22,7 +22,7 @@ export const users = pgTable("users", {
   new_lng: doublePrecision("new_lng"),
   new_accuracy_m: doublePrecision("new_accuracy_m"),
   // FK to coords_cache - resolves location identity (city, state, country, formatted_address, timezone)
-  coord_key: text("coord_key"), // Format: "lat4d_lng4d" e.g., "33.1284_-96.8688" - nullable during migration
+  coord_key: text("coord_key"), // Format: "lat6d_lng6d" e.g., "33.128400_-96.868800" - 6 decimal precision
   // LEGACY: Resolved location identity (kept for backward compat, will be removed in Phase 7)
   formatted_address: text("formatted_address"), // Full street address
   city: text("city"),
@@ -46,7 +46,7 @@ export const snapshots = pgTable("snapshots", {
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
   // FK to coords_cache - resolves location identity (city, state, country, formatted_address, timezone)
-  coord_key: text("coord_key"), // Format: "lat4d_lng4d" e.g., "33.1284_-96.8688" - nullable during migration
+  coord_key: text("coord_key"), // Format: "lat6d_lng6d" e.g., "33.128400_-96.868800" - 6 decimal precision
   // LEGACY: Location identity (kept for backward compat, will be removed in Phase 7)
   city: text("city").notNull(),
   state: text("state").notNull(),
@@ -524,7 +524,11 @@ export const discovered_events = pgTable("discovered_events", {
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   // Flags
   is_verified: boolean("is_verified").default(false), // Human verified
-  is_active: boolean("is_active").default(true), // False if event was cancelled
+  is_active: boolean("is_active").default(true), // False if event was cancelled or deactivated
+  // Deactivation tracking (populated when AI Coach or user marks event inactive)
+  deactivation_reason: text("deactivation_reason"), // 'event_ended' | 'incorrect_time' | 'no_longer_relevant' | 'cancelled' | 'duplicate' | 'other'
+  deactivated_at: timestamp("deactivated_at", { withTimezone: true }),
+  deactivated_by: text("deactivated_by"), // 'ai_coach' | user_id
 }, (table) => ({
   idxCity: sql`create index if not exists idx_discovered_events_city on ${table} (city, state)`,
   idxDate: sql`create index if not exists idx_discovered_events_date on ${table} (event_date)`,
@@ -623,13 +627,16 @@ export const connection_audit = pgTable("connection_audit", {
 }));
 
 // Coords cache: Global lookup table for geocode/timezone data by coordinate hash
-// Stores full 6-decimal precision coords, matches on 4-decimal key (~11m tolerance)
-// Prevents duplicate geocode/timezone API calls for same location
+// Uses 6-decimal precision for coord_key (~11cm) - EXACT location matching only
+// This ensures each driver's precise position is tracked for:
+//   - Density analysis (directing drivers to different areas)
+//   - Historical patterns per location
+//   - Multi-driver coordination
 // All resolved fields are NOT NULL - incomplete resolutions are not cached
 export const coords_cache = pgTable("coords_cache", {
   id: uuid("id").primaryKey().defaultRandom(),
-  // Cache key: 4 decimal places (~11m precision) for matching
-  coord_key: text("coord_key").notNull().unique(), // Format: "lat4d_lng4d" e.g., "33.1284_-96.8688"
+  // Cache key: 6 decimal places (~11cm precision) for EXACT matching
+  coord_key: text("coord_key").notNull().unique(), // Format: "lat6d_lng6d" e.g., "33.128400_-96.868800"
   // Full precision storage: 6 decimals (~11cm precision)
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
@@ -649,6 +656,43 @@ export const coords_cache = pgTable("coords_cache", {
 }, (table) => ({
   idxCoordKey: sql`create unique index if not exists idx_coords_cache_coord_key on ${table} (coord_key)`,
   idxCityState: sql`create index if not exists idx_coords_cache_city_state on ${table} (city, state)`,
+}));
+
+// Platform data: Rideshare platform coverage by city/market
+// Stores which rideshare platforms (Uber, Lyft, etc.) operate in each city
+// coord_boundary stores polygon coordinates for service area boundaries
+export const platform_data = pgTable("platform_data", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Platform identification
+  platform: text("platform").notNull(), // 'uber', 'lyft', etc.
+  // Location hierarchy
+  country: text("country").notNull(),
+  country_code: text("country_code"), // ISO 2-letter code (e.g., 'US', 'CA', 'GB')
+  region: text("region"), // State/province/region (nullable - not all entries have this)
+  city: text("city").notNull(),
+  market: text("market"), // Market name (e.g., 'Dallas-Fort Worth' may cover multiple cities)
+  // Timezone (IANA format, e.g., 'America/Chicago')
+  timezone: text("timezone"),
+  // Service area boundary (GeoJSON polygon or null if not yet available)
+  coord_boundary: jsonb("coord_boundary"),
+  // Center point for the city/market (optional - can be populated later via geocoding)
+  center_lat: doublePrecision("center_lat"),
+  center_lng: doublePrecision("center_lng"),
+  // Service status
+  is_active: boolean("is_active").notNull().default(true), // Whether service is currently active
+  // Metadata
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxPlatform: sql`create index if not exists idx_platform_data_platform on ${table} (platform)`,
+  idxCountry: sql`create index if not exists idx_platform_data_country on ${table} (country)`,
+  idxCountryCode: sql`create index if not exists idx_platform_data_country_code on ${table} (country_code)`,
+  idxCityRegion: sql`create index if not exists idx_platform_data_city_region on ${table} (city, region)`,
+  idxMarket: sql`create index if not exists idx_platform_data_market on ${table} (market)`,
+  // Composite index for common queries (platform + location)
+  idxPlatformCountry: sql`create index if not exists idx_platform_data_platform_country on ${table} (platform, country)`,
+  // Unique constraint: one entry per platform + country + region + city
+  uniquePlatformLocation: sql`create unique index if not exists idx_platform_data_unique_location on ${table} (platform, country, COALESCE(region, ''), city)`,
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════

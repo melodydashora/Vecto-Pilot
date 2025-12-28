@@ -1,6 +1,6 @@
 # UI_FILE_MAP.md - Component, API, and Event Mapping
 
-**Last Updated:** 2025-12-14 UTC
+**Last Updated:** 2025-12-27 UTC
 
 This document provides a complete mapping of UI components to their source files, API calls, events, and identifies orphaned/redundant files.
 
@@ -25,27 +25,41 @@ This document provides a complete mapping of UI components to their source files
 | File | Purpose | Status |
 |------|---------|--------|
 | `client/src/main.tsx` | React app entry point | ✅ Active |
-| `client/src/App.tsx` | Root component with providers | ✅ Active |
+| `client/src/App.tsx` | Root component with RouterProvider | ✅ Active |
+| `client/src/routes.tsx` | React Router configuration | ✅ Active |
 
-### Pages
+### Layouts
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `client/src/layouts/CoPilotLayout.tsx` | Shared layout with conditional GlobalHeader | ✅ Active |
+
+### Pages (Route-Based)
 
 | File | Purpose | Route | Status |
 |------|---------|-------|--------|
-| `client/src/pages/co-pilot.tsx` | Main Co-Pilot dashboard | `/` | ✅ Active |
+| `client/src/pages/co-pilot/StrategyPage.tsx` | AI strategy + Smart Blocks + Coach | `/co-pilot/strategy` | ✅ Active |
+| `client/src/pages/co-pilot/BarsPage.tsx` | Premium venue listings | `/co-pilot/bars` | ✅ Active |
+| `client/src/pages/co-pilot/BriefingPage.tsx` | Weather, traffic, news, events | `/co-pilot/briefing` | ✅ Active |
+| `client/src/pages/co-pilot/MapPage.tsx` | Interactive venue map | `/co-pilot/map` | ✅ Active |
+| `client/src/pages/co-pilot/IntelPage.tsx` | Rideshare intelligence | `/co-pilot/intel` | ✅ Active |
+| `client/src/pages/co-pilot/AboutPage.tsx` | Donation/about (no GlobalHeader) | `/co-pilot/about` | ✅ Active |
+| `client/src/pages/co-pilot/PolicyPage.tsx` | Privacy policy | `/co-pilot/policy` | ✅ Active |
+| `client/src/pages/co-pilot/index.tsx` | Barrel export | N/A | ✅ Active |
 | `client/src/pages/SafeScaffold.tsx` | Fallback error scaffold | N/A | ✅ Active |
 
 ### Core Components
 
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
-| `GlobalHeader.tsx` | Location, time, weather display | App.tsx | ✅ Active |
-| `CoachChat.tsx` | AI chat + voice interface | co-pilot.tsx | ✅ Active |
-| `BriefingTab.tsx` | Weather, traffic, news, events | co-pilot.tsx | ✅ Active |
-| `FeedbackModal.tsx` | Venue/strategy feedback dialogs | co-pilot.tsx | ✅ Active |
-| `SmartBlocksStatus.tsx` | Pipeline loading status | co-pilot.tsx | ✅ Active |
-| `BarsTable.tsx` | Venue table display | co-pilot.tsx | ✅ Active |
-| `MapTab.tsx` | Interactive map view | co-pilot.tsx | ✅ Active |
-| `DonationTab.tsx` | Donation/support section | co-pilot.tsx | ✅ Active |
+| `GlobalHeader.tsx` | Location, time, weather display | CoPilotLayout.tsx | ✅ Active |
+| `CoachChat.tsx` | AI chat + voice interface | StrategyPage.tsx | ✅ Active |
+| `BriefingTab.tsx` | Weather, traffic, news, events | BriefingPage.tsx | ✅ Active |
+| `FeedbackModal.tsx` | Venue/strategy feedback dialogs | StrategyPage.tsx | ✅ Active |
+| `SmartBlocksStatus.tsx` | Pipeline loading status | StrategyPage.tsx | ✅ Active |
+| `BarsTable.tsx` | Venue table display | BarsPage.tsx | ✅ Active |
+| `MapTab.tsx` | Interactive map view | MapPage.tsx | ✅ Active |
+| `DonationTab.tsx` | Donation/support section | AboutPage.tsx | ✅ Active |
 | `InstructionsTab.tsx` | How-to instructions | DonationTab.tsx | ✅ Active |
 | `EventsComponent.tsx` | Event cards display | BriefingTab.tsx | ✅ Active |
 | `ErrorBoundary.tsx` | React error boundary | App.tsx | ✅ Active |
@@ -54,8 +68,8 @@ This document provides a complete mapping of UI components to their source files
 
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
-| `co-pilot/BottomTabNavigation.tsx` | Tab navigation bar | co-pilot.tsx | ✅ Active |
-| `co-pilot/GreetingBanner.tsx` | Welcome/holiday greeting | co-pilot.tsx | ✅ Active |
+| `co-pilot/BottomTabNavigation.tsx` | Tab navigation bar (React Router) | CoPilotLayout.tsx | ✅ Active |
+| `co-pilot/GreetingBanner.tsx` | Welcome/holiday greeting | StrategyPage.tsx | ✅ Active |
 
 ### Strategy Components
 
@@ -70,6 +84,7 @@ Note: Legacy strategy components (SmartBlocks.tsx, StrategyCoach.tsx, Consolidat
 | File | Purpose | Status |
 |------|---------|--------|
 | `contexts/location-context-clean.tsx` | GPS, weather, AQ, snapshot management | ✅ Active (Core) |
+| `contexts/co-pilot-context.tsx` | Shared strategy, blocks, SSE state for all pages | ✅ Active (Core) |
 
 ### Hooks
 
@@ -77,11 +92,11 @@ Note: Legacy strategy components (SmartBlocks.tsx, StrategyCoach.tsx, Consolidat
 |------|---------|---------|--------|
 | `hooks/use-toast.ts` | Toast notifications | Multiple components | ✅ Active |
 | `hooks/use-mobile.tsx` | Mobile detection | UI sidebar | ✅ Active |
-| `hooks/useBriefingQueries.ts` | Briefing data queries | co-pilot.tsx | ✅ Active |
-| `hooks/useEnrichmentProgress.ts` | Dynamic progress tracking with timing | co-pilot.tsx | ✅ Active |
-| `hooks/useStrategyPolling.ts` | Strategy fetching with SSE + caching | co-pilot.tsx | ✅ Active |
-| `hooks/useStrategyLoadingMessages.ts` | Rotating loading messages + time remaining | co-pilot.tsx | ✅ Active |
-| `hooks/useVenueLoadingMessages.ts` | Venue enrichment loading messages | co-pilot.tsx | ✅ Active |
+| `hooks/useBriefingQueries.ts` | Briefing data queries | BriefingPage.tsx | ✅ Active |
+| `hooks/useEnrichmentProgress.ts` | Dynamic progress tracking with timing | StrategyPage.tsx | ✅ Active |
+| `hooks/useStrategyPolling.ts` | Strategy fetching with SSE + caching | co-pilot-context.tsx | ✅ Active |
+| `hooks/useStrategyLoadingMessages.ts` | Rotating loading messages + time remaining | StrategyPage.tsx | ✅ Active |
+| `hooks/useVenueLoadingMessages.ts` | Venue enrichment loading messages | StrategyPage.tsx | ✅ Active |
 | `hooks/useTTS.ts` | Text-to-speech with OpenAI | CoachChat.tsx | ✅ Active |
 | `hooks/useStrategy.ts` | Legacy strategy hook | ⚠️ Review - may be unused |
 
@@ -146,11 +161,11 @@ See `client/src/_future/README.md` for activation instructions.
 
 | Endpoint | Method | Called By | Purpose |
 |----------|--------|-----------|---------|
-| `/api/blocks-fast` | POST | co-pilot.tsx | Trigger TRIAD pipeline |
-| `/api/blocks-fast` | GET | co-pilot.tsx | Fetch generated blocks |
-| `/api/blocks/strategy/:id` | GET | co-pilot.tsx | Fetch strategy content |
-| `/api/strategy/:snapshotId` | GET | co-pilot.tsx | Fetch strategy status |
-| `/api/snapshot/:id` | GET | co-pilot.tsx | Fetch snapshot data |
+| `/api/blocks-fast` | POST | co-pilot-context.tsx | Trigger TRIAD pipeline |
+| `/api/blocks-fast` | GET | co-pilot-context.tsx | Fetch generated blocks |
+| `/api/blocks/strategy/:id` | GET | co-pilot-context.tsx | Fetch strategy content |
+| `/api/strategy/:snapshotId` | GET | co-pilot-context.tsx | Fetch strategy status |
+| `/api/snapshot/:id` | GET | co-pilot-context.tsx | Fetch snapshot data |
 
 ### Briefing APIs
 
@@ -203,7 +218,7 @@ See `client/src/_future/README.md` for activation instructions.
 │       │         ├──► GlobalHeader (listens)                      │
 │       │         │         └── Updates holiday display            │
 │       │         │                                                │
-│       │         └──► co-pilot (listens)                          │
+│       │         └──► CoPilotContext (listens)                    │
 │       │                   └── Triggers POST /api/blocks-fast     │
 │       │                                                          │
 │       └──► dispatch: vecto-strategy-cleared                      │
@@ -224,7 +239,7 @@ See `client/src/_future/README.md` for activation instructions.
 
 | Event Name | Dispatched By | Listeners | Payload |
 |------------|---------------|-----------|---------|
-| `vecto-snapshot-saved` | location-context-clean.tsx | GlobalHeader, co-pilot | `{ snapshotId, holiday, is_holiday }` |
+| `vecto-snapshot-saved` | location-context-clean.tsx | GlobalHeader, CoPilotContext | `{ snapshotId, holiday, is_holiday }` |
 | `vecto-strategy-cleared` | location-context-clean.tsx | (internal) | `{}` |
 | `vecto-manual-refresh` | GlobalHeader.tsx | location-context-clean | `{}` |
 | `vecto-location-refreshed` | GlobalHeader.tsx | (none) | `{}` |
@@ -236,33 +251,39 @@ See `client/src/_future/README.md` for activation instructions.
 ```
 main.tsx
 └── App.tsx
-    ├── LocationProvider (location-context-clean.tsx)
-    ├── Toaster (ui/toaster.tsx)
-    ├── GlobalHeader.tsx
-    │   ├── LocationContext
-    │   ├── use-toast.ts
-    │   └── lib/daypart.ts
-    ├── ErrorBoundary.tsx
-    └── CoPilot (co-pilot.tsx)
-        ├── useLocation (location-context-clean)
-        ├── useBriefingQueries.ts
-        ├── useEnrichmentProgress.ts (dynamic progress + timing)
-        ├── useStrategyPolling.ts (SSE + caching)
-        ├── useStrategyLoadingMessages.ts (rotating messages + time remaining)
-        ├── useVenueLoadingMessages.ts
-        ├── co-pilot-helpers.ts
-        ├── FeedbackModal.tsx
-        ├── CoachChat.tsx
-        │   └── useTTS.ts
-        ├── SmartBlocksStatus.tsx
-        ├── BarsTable.tsx
-        ├── BriefingTab.tsx
-        │   └── EventsComponent.tsx
-        ├── MapTab.tsx
-        ├── DonationTab.tsx
-        │   └── InstructionsTab.tsx
-        ├── BottomTabNavigation.tsx
-        └── GreetingBanner.tsx
+    ├── RouterProvider (routes.tsx)
+    └── routes.tsx
+        └── CoPilotLayout.tsx (shared layout)
+            ├── LocationProvider (location-context-clean.tsx)
+            ├── CoPilotProvider (co-pilot-context.tsx)
+            │   ├── useStrategyPolling.ts (SSE + caching)
+            │   └── Strategy/Blocks queries
+            ├── GlobalHeader.tsx (conditional - hidden on /about)
+            │   ├── LocationContext
+            │   ├── use-toast.ts
+            │   └── lib/daypart.ts
+            ├── <Outlet /> (renders current page)
+            │   ├── StrategyPage.tsx (/co-pilot/strategy)
+            │   │   ├── CoPilotContext (strategy, blocks)
+            │   │   ├── useEnrichmentProgress.ts
+            │   │   ├── useStrategyLoadingMessages.ts
+            │   │   ├── useVenueLoadingMessages.ts
+            │   │   ├── FeedbackModal.tsx
+            │   │   ├── CoachChat.tsx → useTTS.ts
+            │   │   ├── SmartBlocksStatus.tsx
+            │   │   └── GreetingBanner.tsx
+            │   ├── BarsPage.tsx (/co-pilot/bars)
+            │   │   └── BarsTable.tsx
+            │   ├── BriefingPage.tsx (/co-pilot/briefing)
+            │   │   ├── useBriefingQueries.ts
+            │   │   └── BriefingTab.tsx → EventsComponent.tsx
+            │   ├── MapPage.tsx (/co-pilot/map)
+            │   │   └── MapTab.tsx
+            │   ├── IntelPage.tsx (/co-pilot/intel)
+            │   ├── AboutPage.tsx (/co-pilot/about)
+            │   │   └── DonationTab.tsx → InstructionsTab.tsx
+            │   └── PolicyPage.tsx (/co-pilot/policy)
+            └── BottomTabNavigation.tsx (React Router navigation)
 ```
 
 ---
@@ -317,14 +338,15 @@ The following orphaned files have been removed:
 |---------|-------|
 | **GPS & Location** | `location-context-clean.tsx`, `GlobalHeader.tsx` |
 | **Weather Display** | `GlobalHeader.tsx` (reads from context), `BriefingTab.tsx` |
-| **Strategy Generation** | `co-pilot.tsx` (triggers), blocks-fast API |
-| **Venue Blocks** | `co-pilot.tsx`, `BarsTable.tsx`, `SmartBlocksStatus.tsx` |
+| **Strategy Generation** | `co-pilot-context.tsx` (triggers), blocks-fast API |
+| **Venue Blocks** | `StrategyPage.tsx`, `BarsTable.tsx`, `SmartBlocksStatus.tsx` |
 | **AI Chat** | `CoachChat.tsx` |
 | **Voice Chat** | `CoachChat.tsx` (OpenAI Realtime) |
-| **Briefing Tab** | `BriefingTab.tsx`, `EventsComponent.tsx` |
+| **Briefing Tab** | `BriefingPage.tsx`, `BriefingTab.tsx`, `EventsComponent.tsx` |
 | **Feedback** | `FeedbackModal.tsx` |
 | **Holiday Banner** | `GreetingBanner.tsx`, `GlobalHeader.tsx` |
-| **Tab Navigation** | `BottomTabNavigation.tsx` |
+| **Tab Navigation** | `BottomTabNavigation.tsx` (React Router) |
+| **Route Layout** | `CoPilotLayout.tsx`, `routes.tsx` |
 
 ### API Routes → Backend Files
 
@@ -346,12 +368,14 @@ The following orphaned files have been removed:
 ## SUMMARY
 
 ### Active Files Count
-- **Pages**: 2
-- **Core Components**: 12
+- **Entry Points**: 3 (main.tsx, App.tsx, routes.tsx)
+- **Layouts**: 1 (CoPilotLayout.tsx)
+- **Pages**: 8 (7 co-pilot pages + SafeScaffold)
+- **Core Components**: 11
 - **Sub-Components**: 2
 - **Strategy Components**: 0 active (legacy moved to _future)
 - **Hooks**: 9 active, 1 review
-- **Contexts**: 1
+- **Contexts**: 2 (location-context-clean, co-pilot-context)
 - **Libraries**: 3 active
 - **Types**: 3 active
 - **Utilities**: 1

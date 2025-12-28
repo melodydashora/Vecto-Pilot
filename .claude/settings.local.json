@@ -67,7 +67,10 @@
       "Bash(rm:*)",
       "Bash(git worktree:*)",
       "Bash(git fetch:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx drizzle-kit generate:*)"
     ],
     "deny": [],
     "ask": []

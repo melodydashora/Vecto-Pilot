@@ -1,7 +1,7 @@
 // client/src/pages/co-pilot/StrategyPage.tsx
 // Strategy page with AI recommendations, smart blocks, and coach chat
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,8 @@ import {
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
-  MessageSquare
+  MessageSquare,
+  Filter
 } from 'lucide-react';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/useToast';
@@ -28,7 +29,7 @@ import BarsTable from '@/components/BarsTable';
 import { GreetingBanner } from '@/components/co-pilot/GreetingBanner';
 import { useCoPilot } from '@/contexts/co-pilot-context';
 import { useStrategyLoadingMessages } from '@/hooks/useStrategyLoadingMessages';
-import { logAction as logActionHelper } from '@/utils/co-pilot-helpers';
+import { logAction as logActionHelper, filterHighValueSpacedBlocks } from '@/utils/co-pilot-helpers';
 import type { SmartBlock } from '@/types/co-pilot';
 
 export default function StrategyPage() {
@@ -55,6 +56,19 @@ export default function StrategyPage() {
     pipelinePhase,
     timeRemainingText
   } = useCoPilot();
+
+  // Filter blocks to show only top 3 Grade A venues that are >= 1 mile apart
+  // This is the "NOW strategy" - focused, actionable recommendations
+  const filteredBlocks = useMemo(() => {
+    if (!blocks || blocks.length === 0) return [];
+
+    const filtered = filterHighValueSpacedBlocks(blocks, 1.0, 3); // 1 mile minimum, max 3 venues
+    console.log(`[StrategyPage] NOW Strategy: ${filtered.length} Grade A venues (>= 1mi apart, max 3)`);
+    return filtered;
+  }, [blocks]);
+
+  // Track how many blocks were filtered out
+  const filteredOutCount = blocks.length - filteredBlocks.length;
 
   // Local state for this page only
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
@@ -354,47 +368,69 @@ export default function StrategyPage() {
       </div>
 
       {/* Smart Blocks Section */}
-      {blocks.length > 0 && (
+      {filteredBlocks.length > 0 && (
         <div className="mb-6" id="blocks-section">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 flex-wrap">
               <Sparkles className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">Closest High-Earning Spots</h2>
+              <h2 className="text-lg font-semibold text-gray-800">High-Value Venues</h2>
               <Badge className="bg-purple-100 text-purple-700 border-0">Smart Blocks</Badge>
-              {metadata && (
-                <>
-                  <span className="text-sm text-gray-500">
-                    {metadata.totalBlocks} location{metadata.totalBlocks !== 1 ? 's' : ''}
-                  </span>
-                  {metadata.validation?.status && (
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${
-                        metadata.validation.status === 'ok'
-                          ? 'border-green-500 text-green-700 bg-green-50'
-                          : 'border-yellow-500 text-yellow-700 bg-yellow-50'
-                      }`}
-                      data-testid="validation-badge"
-                    >
-                      {metadata.validation.status === 'ok' ? '✓ Validated' : '⚠ Validation Issues'}
-                    </Badge>
-                  )}
-                  {metadata.processingTimeMs && (
-                    <span className="text-xs text-gray-400">
-                      {(metadata.processingTimeMs / 1000).toFixed(1)}s
-                    </span>
-                  )}
-                </>
+              <span className="text-sm text-gray-500">
+                {filteredBlocks.length} location{filteredBlocks.length !== 1 ? 's' : ''}
+              </span>
+              {filteredOutCount > 0 && (
+                <Badge
+                  variant="outline"
+                  className="text-xs border-emerald-300 text-emerald-600 bg-emerald-50 gap-1"
+                  data-testid="filter-badge"
+                >
+                  <Zap className="w-3 h-3" />
+                  Grade A only
+                </Badge>
+              )}
+              {metadata?.validation?.status && (
+                <Badge
+                  variant="outline"
+                  className={`text-xs ${
+                    metadata.validation.status === 'ok'
+                      ? 'border-green-500 text-green-700 bg-green-50'
+                      : 'border-yellow-500 text-yellow-700 bg-yellow-50'
+                  }`}
+                  data-testid="validation-badge"
+                >
+                  {metadata.validation.status === 'ok' ? '✓ Validated' : '⚠ Validation Issues'}
+                </Badge>
+              )}
+              {metadata?.processingTimeMs && (
+                <span className="text-xs text-gray-400">
+                  {(metadata.processingTimeMs / 1000).toFixed(1)}s
+                </span>
               )}
             </div>
           </div>
 
+          {/* Filter Info Banner */}
+          {filteredOutCount > 0 && (
+            <div className="mb-4 p-3 bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-lg">
+              <div className="flex items-center gap-2 text-sm text-emerald-700">
+                <Zap className="w-4 h-4 text-emerald-500" />
+                <span>
+                  <strong className="text-emerald-800">NOW Strategy:</strong> Top {filteredBlocks.length} Grade A venue{filteredBlocks.length !== 1 ? 's' : ''}
+                  {' '}(≥1 mile apart).
+                  <span className="text-emerald-500 ml-1">
+                    {filteredOutCount} lower-value venue{filteredOutCount !== 1 ? 's' : ''} hidden.
+                  </span>
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Bars Table */}
-          <BarsTable blocks={blocks} />
+          <BarsTable blocks={filteredBlocks} />
 
           {/* Blocks List */}
           <div className="space-y-4 mt-4" data-testid="blocks-list">
-            {blocks.map((block, index) => {
+            {filteredBlocks.map((block, index) => {
               let cardGradient = 'bg-white border-gray-200';
               if (index <= 1) {
                 cardGradient = 'bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 border-orange-300';
@@ -801,7 +837,7 @@ export default function StrategyPage() {
             timeElapsedMs={strategyData?.timeElapsedMs}
             snapshotId={lastSnapshotId}
             enrichmentProgress={enrichmentProgress}
-            enrichmentPhase={''}
+            enrichmentPhase={'idle'}
             pipelinePhase={pipelinePhase}
           />
         </div>

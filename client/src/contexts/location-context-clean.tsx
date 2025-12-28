@@ -1,6 +1,18 @@
 
 import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
 
+// SessionStorage persistence for snapshot data
+// Prevents data loss when switching between apps (Uber ↔ Vecto)
+const SNAPSHOT_STORAGE_KEY = 'vecto_snapshot';
+const SNAPSHOT_TTL_MS = 60 * 60 * 1000; // 1 hour TTL
+
+// Clear sessionStorage - called when driver clicks GPS refresh button
+// Driver does this when returning to staging area to get fresh data
+function clearSnapshotStorage(): void {
+  sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+  console.log('🔄 [LocationContext] Cleared sessionStorage - fresh data requested');
+}
+
 // Inline geolocation helper with manual timeout fallback
 // Browser's geolocation timeout can hang in some environments (previews, permission blocked)
 function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
@@ -120,6 +132,74 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const generationCounterRef = useRef(0);
   const isInitialMountRef = useRef(true);
   const lastEnrichmentCoordsRef = useRef<string | null>(null);
+  const sessionRestoreAttemptedRef = useRef(false);
+
+  // Restore snapshot data from sessionStorage on mount
+  // This preserves data when user switches between apps (Uber ↔ Vecto)
+  // GPS refresh button clears storage via refreshGPS() - not browser refresh
+  useEffect(() => {
+    if (sessionRestoreAttemptedRef.current) return;
+    sessionRestoreAttemptedRef.current = true;
+
+    try {
+      const stored = sessionStorage.getItem(SNAPSHOT_STORAGE_KEY);
+      if (!stored) return;
+
+      const data = JSON.parse(stored);
+
+      // Check TTL - don't restore stale data
+      if (Date.now() - data.timestamp > SNAPSHOT_TTL_MS) {
+        console.log('📦 [LocationContext] Stored snapshot expired (>1hr), starting fresh');
+        sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+        return;
+      }
+
+      console.log('📦 [LocationContext] Restoring snapshot from sessionStorage:', data.snapshotId?.slice(0, 8));
+
+      // Restore all snapshot data
+      if (data.snapshotId) setLastSnapshotId(data.snapshotId);
+      if (data.coords) setCurrentCoords(data.coords);
+      if (data.city) setCity(data.city);
+      if (data.state) setState(data.state);
+      if (data.timeZone) setTimeZone(data.timeZone);
+      if (data.locationString) setCurrentLocationString(data.locationString);
+      if (data.weather) setWeather(data.weather);
+      if (data.airQuality) setAirQuality(data.airQuality);
+      if (data.isLocationResolved) setIsLocationResolved(true);
+      if (data.lastUpdated) setLastUpdated(data.lastUpdated);
+
+      // If we restored valid data, skip the initial GPS fetch
+      if (data.snapshotId && data.coords) {
+        isInitialMountRef.current = false;
+        lastEnrichmentCoordsRef.current = `${data.coords.latitude.toFixed(6)},${data.coords.longitude.toFixed(6)}`;
+      }
+    } catch (e) {
+      console.warn('[LocationContext] Failed to restore from sessionStorage:', e);
+    }
+  }, []);
+
+  // Persist snapshot data to sessionStorage when it changes
+  // This enables persistence across app switches
+  useEffect(() => {
+    if (!lastSnapshotId) return;
+
+    const dataToStore = {
+      snapshotId: lastSnapshotId,
+      coords: currentCoords,
+      city,
+      state,
+      timeZone,
+      locationString: currentLocationString,
+      weather,
+      airQuality,
+      isLocationResolved,
+      lastUpdated,
+      timestamp: Date.now(),
+    };
+
+    sessionStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(dataToStore));
+    console.log('💾 [LocationContext] Persisted snapshot to sessionStorage:', lastSnapshotId.slice(0, 8));
+  }, [lastSnapshotId, currentCoords, city, state, timeZone, currentLocationString, weather, airQuality, isLocationResolved, lastUpdated]);
 
   const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number) => {
     // Prevent duplicate enrichment for same coordinates (debounce)
@@ -301,6 +381,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setOverrideCoords(null);
     setIsLocationResolved(false); // Reset - gates queries until new location resolves
 
+    // Clear sessionStorage - driver clicked refresh to get fresh data at staging area
+    clearSnapshotStorage();
+
     // Clear old strategy
     localStorage.removeItem('vecto_persistent_strategy');
     localStorage.removeItem('vecto_strategy_snapshot_id');
@@ -321,9 +404,18 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [enrichLocation]);
 
-  // Initial GPS fetch on mount
+  // Initial GPS fetch on mount - but skip if we restored from sessionStorage
   useEffect(() => {
-    refreshGPS();
+    // Wait a tick to allow sessionStorage restore to complete first
+    const timer = setTimeout(() => {
+      // If we restored valid data from sessionStorage, skip GPS fetch
+      if (lastSnapshotId && currentCoords) {
+        console.log('📦 [LocationContext] Skipping GPS fetch - restored from sessionStorage');
+        return;
+      }
+      refreshGPS();
+    }, 50);
+    return () => clearTimeout(timer);
   }, []);
 
   // Auto-enrich when coords change (but skip initial mount to avoid duplicate)

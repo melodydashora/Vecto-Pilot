@@ -94,6 +94,9 @@ The codebase has **68 folder README files**. Key entry points:
 | API routes | [server/api/README.md](../../server/api/README.md) |
 | AI layer | [server/lib/ai/README.md](../../server/lib/ai/README.md) |
 | Client overview | [client/src/README.md](../../client/src/README.md) |
+| Route pages | [client/src/pages/co-pilot/](../../client/src/pages/co-pilot/) |
+| Layouts | [client/src/layouts/](../../client/src/layouts/) |
+| Contexts | [client/src/contexts/README.md](../../client/src/contexts/README.md) |
 | Hooks | [client/src/hooks/README.md](../../client/src/hooks/README.md) |
 | Components | [client/src/components/README.md](../../client/src/components/README.md) |
 | Database | [server/db/README.md](../../server/db/README.md) |

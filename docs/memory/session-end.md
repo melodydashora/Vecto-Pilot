@@ -2,90 +2,114 @@
 
 What to save at the end of a Claude session.
 
-## Quick End
+**Last Updated:** 2025-12-27
+
+## Quick End (CLI)
 
 Before ending a session, persist important learnings:
 
+```bash
+# Log what was accomplished
+node scripts/memory-cli.mjs log "Session Topic" "Summary of what was done"
+
+# Store a decision for future sessions
+node scripts/memory-cli.mjs pref "decision_xyz" '{"content":"Decision details","reason":"Why"}'
+
+# Store current task state (auto-expires in 7 days)
+node scripts/memory-cli.mjs session "current_task" '{"task":"Feature X","status":"in_progress"}'
+
+# Store project learning (auto-expires in 30 days)
+node scripts/memory-cli.mjs project "pattern_xyz" "Discovered pattern for handling..."
+```
+
+## Quick End (API)
+
+From code, use the memory endpoints:
+
 ```javascript
-// 1. Store session learnings
-memory_store({
-  key: `session_${YYYY_MM_DD}_learnings`,
-  content: "Summary of what was learned, fixed, or discovered",
-  tags: ["session", "learning"],
-  ttl_hours: 720  // 30 days
-})
+// Log conversation summary
+await fetch('/agent/memory/conversation', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    topic: 'React Router Refactor',
+    summary: 'Completed migration from monolithic co-pilot.tsx to route-based pages',
+    userId: 'system'
+  })
+});
 
-// 2. Update any changed decisions
-memory_store({
-  key: "decision_xyz",
-  content: "Updated decision content",
-  tags: ["decision", "updated"],
-  metadata: { updated_on: "2024-12-15", reason: "..." }
-})
+// Store a preference (365 day TTL)
+await fetch('/agent/memory/preference', {
+  method: 'POST',
+  body: JSON.stringify({
+    key: 'commit_style',
+    value: { format: 'conventional', emoji: false },
+    userId: 'system'
+  })
+});
 
-// 3. Flag documentation needing updates
-memory_store({
-  key: `doc_update_${YYYY_MM_DD}`,
-  content: "List of docs that need updating",
-  tags: ["documentation", "todo"],
-  ttl_hours: 168  // 1 week
-})
+// Store session state (7 day TTL)
+await fetch('/agent/memory/session', {
+  method: 'POST',
+  body: JSON.stringify({
+    key: 'wip_feature',
+    data: { branch: 'feature/xyz', status: 'testing' },
+    userId: 'system'
+  })
+});
 ```
 
 ## What to Store
 
-### Always Store
+### Always Store (via `log` command)
 
-- **Bugs fixed**: Root cause and solution
-- **New patterns discovered**: Code patterns that worked
-- **User preferences learned**: Communication style, commit format
-- **Things that broke**: What failed and why
+| What | Example |
+|------|---------|
+| Bugs fixed | "Fixed timezone calculation in BarsTable" |
+| New patterns | "Discovered pattern for SSE progress tracking" |
+| User preferences | "User prefers detailed commit messages" |
+| Things that broke | "GPT-5.2 400 error with nested params" |
 
-### Store If Changed
+### Store If Changed (via `pref` command)
 
-- **Architecture decisions**: If something was decided differently
-- **Model parameters**: If correct params were discovered
-- **API behaviors**: New API quirks discovered
+| What | TTL |
+|------|-----|
+| Architecture decisions | 365 days |
+| Model parameters | 365 days |
+| API behaviors | 365 days |
 
-### Flag for Later
+### Flag for Later (via `project` command)
 
-- **Documentation updates**: Docs that need changing
-- **Refactoring opportunities**: Code that should be cleaned up
-- **Feature ideas**: User-requested features
+| What | TTL |
+|------|-----|
+| Documentation updates | 30 days |
+| Refactoring opportunities | 30 days |
+| Feature ideas | 30 days |
 
 ## Example Session End
 
-```javascript
-// Session learnings
-memory_store({
-  key: "session_2024_12_15_learnings",
-  content: `
-    1. Fixed: BarsTable was showing wrong isOpen for venues in other timezones
-       - Solution: Server calculates with venue timezone, client trusts server
-    2. Discovered: Routes API needs departureTime 30s in future
-    3. User prefers: Detailed commit messages with bullet points
-    4. Warning: Don't use temperature param with GPT-5.2
-  `,
-  tags: ["session", "learning", "december"],
-  ttl_hours: 720
-})
+```bash
+# Log the session summary
+node scripts/memory-cli.mjs log \
+  "Router Refactor Complete" \
+  "Migrated co-pilot.tsx to 7 route-based pages. Added CoPilotLayout, co-pilot-context. Updated all docs."
 
-// Decision update
-memory_store({
-  key: "decision_venue_isopen",
-  content: "Server calculates isOpen using venue's timezone via Intl.DateTimeFormat. Client trusts server value. Client-side recalculation removed due to timezone bugs.",
-  tags: ["decision", "venue", "client"],
-  metadata: { decided_on: "2024-12-15" }
-})
+# Store a decision discovered
+node scripts/memory-cli.mjs pref \
+  "decision_router" \
+  '{"pattern":"route-based","reason":"Better code splitting and maintainability"}'
 
-// Documentation flag
-memory_store({
-  key: "doc_update_2024_12_15",
-  content: "Update client-structure.md to document BarsTable isOpen behavior",
-  tags: ["documentation", "todo"],
-  ttl_hours: 168
-})
+# Note pending work
+node scripts/memory-cli.mjs session \
+  "next_session" \
+  '{"todo":"Test memory integration with AI Coach","priority":"high"}'
 ```
+
+## AI Coach Auto-Logging
+
+The AI Coach (`client/src/components/CoachChat.tsx`) now **automatically logs conversations** to memory after each exchange. This happens via the `useMemory` hook.
+
+No manual action needed for Coach conversations - they're persisted automatically.
 
 ## When to Skip
 
@@ -94,12 +118,14 @@ Skip for:
 - Pure research/reading sessions
 - Already documented work
 
-## Cleanup
+## Memory Cleanup
 
-Periodically clear expired memories:
+Expired memories are automatically excluded from queries. To compact the database:
 
 ```javascript
-memory_clear({ clear_expired: true })
+// Server-side only
+import { memoryCompact } from '../eidolon/memory/pg.js';
+await memoryCompact({ table: 'agent_memory' });
 ```
 
 ## See Also

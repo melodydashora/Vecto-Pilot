@@ -1,6 +1,15 @@
 # Workflow File Listing
 
 Generated: 2025-12-23T02:52:02.413Z
+**Last Review:** 2025-12-27 UTC
+
+> ⚠️ **Note:** This file was auto-generated. Since December 23, significant reorganization has occurred:
+> - Scripts moved to categorized subdirectories (`scripts/analysis/`, `scripts/testing/`, etc.)
+> - Server lib files reorganized into domain folders (`server/lib/auth/`, `server/lib/core/`, etc.)
+> - Client refactored from monolithic `co-pilot.tsx` to 7 route-based pages
+> - Many files marked as deleted in git status may need removal from this listing
+>
+> Consider regenerating this file to reflect current structure.
 
 Workflow files organized by event flow order. Non-active files appear at the end of each category.
 
