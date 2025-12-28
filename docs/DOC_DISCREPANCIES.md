@@ -9,42 +9,6 @@ This file tracks discrepancies between documentation and actual codebase state.
 
 ## Active Discrepancies
 
-### 🔴 CLAUDE.md - Client Structure Outdated
-
-| Field | Value |
-|-------|-------|
-| **File Path** | `/home/runner/workspace/CLAUDE.md` |
-| **Line(s)** | 319, 390-391 |
-| **Issue** | References `client/src/pages/co-pilot.tsx` as main dashboard - file no longer exists |
-| **Reality** | Co-pilot is now router-based with pages in `client/src/pages/co-pilot/` |
-| **Date Found** | 2025-12-27 |
-| **Session** | Router refactor session |
-| **Priority** | Critical - misleads new contributors |
-
-**Notes:**
-- Line 319: "co-pilot.tsx is main dashboard (1700+ LOC)" - WRONG
-- Line 390: Shows old structure without router
-- Need to document: routes.tsx, CoPilotLayout.tsx, co-pilot-context.tsx
-
----
-
-### 🟡 Memory Table MCP Tools
-
-| Field | Value |
-|-------|-------|
-| **File Path** | `/home/runner/workspace/docs/memory/README.md` |
-| **Line(s)** | 15-21 |
-| **Issue** | References MCP memory tools that may not be configured |
-| **Reality** | Need to verify MCP server has these tools available |
-| **Date Found** | 2025-12-27 |
-| **Priority** | Medium - affects session workflows |
-
-**Notes:**
-- Tools listed: memory_store, memory_retrieve, memory_search, memory_clear, context_get
-- Question: Are these actually available in current MCP setup?
-
----
-
 ### 🟡 Old Replit Documents
 
 | Field | Value |
@@ -75,6 +39,26 @@ This file tracks discrepancies between documentation and actual codebase state.
 ---
 
 ## Resolved Discrepancies
+
+### ✅ Memory Table MCP Tools (2025-12-27)
+
+| Field | Value |
+|-------|-------|
+| **Issue** | docs/memory/README.md referenced MCP tools that no longer exist |
+| **Resolution** | Updated README with REST API endpoints (`/agent/memory/*`), 4 memory tables, and architecture diagram |
+| **Session** | Review queue processing |
+
+---
+
+### ✅ CLAUDE.md - Client Structure (2025-12-27)
+
+| Field | Value |
+|-------|-------|
+| **Issue** | Referenced deleted `co-pilot.tsx` |
+| **Resolution** | Already updated with router-based pages, routes.tsx, CoPilotLayout.tsx, co-pilot-context.tsx |
+| **Session** | Review queue processing |
+
+---
 
 ### ✅ co-pilot.tsx Missing Modern Features (2025-12-27)
 

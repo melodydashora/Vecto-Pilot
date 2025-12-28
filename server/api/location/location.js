@@ -7,11 +7,13 @@ import { snapshots, strategies, users, coords_cache } from '../../../shared/sche
 import { sql, eq } from 'drizzle-orm';
 import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
 
-// Helper: Generate cache key from coordinates (4 decimal places = ~11m precision)
+// Helper: Generate cache key from coordinates (6 decimal places = ~11cm precision)
+// Full precision ensures each unique location gets its own cache entry
+// This supports multi-driver density analysis and historical tracking
 function makeCoordsKey(lat, lng) {
-  const lat4d = lat.toFixed(4);
-  const lng4d = lng.toFixed(4);
-  return `${lat4d}_${lng4d}`;
+  const lat6d = lat.toFixed(6);
+  const lng6d = lng.toFixed(6);
+  return `${lat6d}_${lng6d}`;
 }
 import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
 import { validateSnapshotV1 } from '../../util/validate-snapshot.js';
@@ -416,148 +418,9 @@ router.get('/resolve', async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // USERS TABLE: Check if same device has resolved location nearby (~100m)
-    // This is the FIRST check - reuse resolved addresses when device hasn't moved
-    // ═══════════════════════════════════════════════════════════════════════════
-    if (deviceId) {
-      try {
-        const existingUser = await db.query.users.findFirst({
-          where: eq(users.device_id, deviceId),
-        });
-
-        if (existingUser?.city && existingUser?.formatted_address) {
-          // Check if coords are within ~100m (reuse threshold)
-          const existingLat = existingUser.new_lat || existingUser.lat;
-          const existingLng = existingUser.new_lng || existingUser.lng;
-
-          if (existingLat && existingLng) {
-            const distance = haversineDistanceMeters(lat, lng, existingLat, existingLng);
-
-            if (distance < 100) {
-              locationLog.done(1, `Users cache hit (${distance.toFixed(0)}m away)`, OP.CACHE);
-
-              // Update coords but reuse resolved address data
-              const now = new Date();
-              const tz = existingUser.timezone || 'America/Chicago';
-              const hour = new Date(now.toLocaleString('en-US', { timeZone: tz })).getHours();
-              const dow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
-              const dayPartKey = getDayPartKey(hour);
-
-              // ═══════════════════════════════════════════════════════════════════════
-              // CREATE SNAPSHOT: Even when reusing location, create NEW snapshot
-              // User is requesting fresh data (new session)
-              // ═══════════════════════════════════════════════════════════════════════
-              const snapshotId = crypto.randomUUID();
-              snapshotLog.phase(1, `Creating for ${existingUser.city}, ${existingUser.state}`, OP.DB);
-
-              try {
-                // Calculate date in user's timezone
-                const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-                  timeZone: tz,
-                  year: 'numeric',
-                  month: '2-digit',
-                  day: '2-digit'
-                });
-                const localDate = dateFormatter.format(now);
-
-                // Create snapshot pulling location identity from users table
-                const snapshotRecord = {
-                  snapshot_id: snapshotId,
-                  created_at: now,
-                  date: localDate,
-                  user_id: existingUser.user_id,
-                  device_id: deviceId,
-                  session_id: sessionId || crypto.randomUUID(),
-                  // Location coordinates
-                  lat,
-                  lng,
-                  // FK to coords_cache for location identity (from users table)
-                  coord_key: existingUser.coord_key,
-                  // LEGACY: Location identity (from users table - cached, reused)
-                  city: existingUser.city,
-                  state: existingUser.state,
-                  country: existingUser.country,
-                  formatted_address: existingUser.formatted_address,
-                  timezone: tz,
-                  // Time context (calculated fresh for THIS request)
-                  local_iso: now,
-                  dow,
-                  hour,
-                  day_part_key: dayPartKey,
-                  // H3 geohash
-                  h3_r8: latLngToCell(lat, lng, 8),
-                  // Weather/air will be enriched separately
-                  weather: null,
-                  air: null,
-                  device: { platform: 'web' },
-                  permissions: { geolocation: 'granted' }
-                };
-
-                // Validate all required fields are present before INSERT (schema has NOT NULL constraints)
-                validateSnapshotFields(snapshotRecord);
-
-                await db.insert(snapshots).values(snapshotRecord);
-                snapshotLog.done(1, `${snapshotId.slice(0, 8)}`, OP.DB);
-
-                // Update users table: coords + current_snapshot_id + location fields (ensure they stay populated)
-                await db.update(users)
-                  .set({
-                    new_lat: lat,
-                    new_lng: lng,
-                    accuracy_m: accuracy,
-                    local_iso: now,
-                    dow,
-                    hour,
-                    day_part_key: dayPartKey,
-                    current_snapshot_id: snapshotId,
-                    updated_at: now,
-                    // CRITICAL: Preserve location fields from existing user (ensures /api/users/me returns them)
-                    city: existingUser.city,
-                    state: existingUser.state,
-                    country: existingUser.country,
-                    formatted_address: existingUser.formatted_address,
-                    timezone: tz,
-                    coord_key: existingUser.coord_key,
-                  })
-                  .where(eq(users.device_id, deviceId));
-
-              } catch (snapshotErr) {
-                snapshotLog.error(1, `Failed to create`, snapshotErr, OP.DB);
-                // Update coords anyway (non-blocking)
-                db.update(users)
-                  .set({
-                    new_lat: lat,
-                    new_lng: lng,
-                    accuracy_m: accuracy,
-                    updated_at: now,
-                  })
-                  .where(eq(users.device_id, deviceId))
-                  .catch(() => {});
-              }
-
-              // Return cached user data + new snapshot_id
-              return res.json({
-                city: existingUser.city,
-                state: existingUser.state,
-                country: existingUser.country,
-                timeZone: existingUser.timezone,
-                formattedAddress: existingUser.formatted_address,
-                user_id: existingUser.user_id,
-                snapshot_id: snapshotId,
-                source: 'users_table'
-              });
-            } else {
-              locationLog.phase(1, `Device moved ${distance.toFixed(0)}m - re-geocoding`, OP.API);
-            }
-          }
-        }
-      } catch (userLookupErr) {
-        console.warn(`[LOCATION] Users table lookup failed (continuing):`, userLookupErr.message);
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // COORDS CACHE: Check if we've resolved these coordinates before (~11m match)
+    // COORDS CACHE: Check if we've resolved these EXACT coordinates before
+    // 6-decimal precision (~11cm) - only cache hits for identical locations
+    // Each driver gets precise tracking for density analysis and historical data
     // ═══════════════════════════════════════════════════════════════════════════
     const coordKey = makeCoordsKey(lat, lng);
     let cacheHit = null;

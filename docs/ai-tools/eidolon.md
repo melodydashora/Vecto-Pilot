@@ -55,7 +55,7 @@ const snapshot = await engine.captureSnapshot();
 {
   timestamp: '2025-12-15T...',
   codeMap: [...],
-  activeComponents: ['co-pilot.tsx', 'BarsTable.tsx'],
+  activeComponents: ['StrategyPage.tsx', 'BarsTable.tsx'],
   deploymentState: 'prod',
   componentLocations: { 'BarsTable': 'client/src/components/BarsTable.tsx' },
   recentChanges: ['Modified BarsTable.tsx'],

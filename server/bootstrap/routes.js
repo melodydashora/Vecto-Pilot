@@ -84,6 +84,9 @@ export async function mountRoutes(app, server) {
     { path: '/api/research', module: './server/api/research/research.js', desc: 'Research' },
     { path: '/api/vector-search', module: './server/api/research/vector-search.js', desc: 'Vector Search' },
 
+    // Platform Data (server/api/platform/)
+    { path: '/api/platform', module: './server/api/platform/index.js', desc: 'Platform Data' },
+
     // SSE/Events (server/api/briefing/)
     { path: '/events', module: './server/api/briefing/events.js', desc: 'Events SSE' },
   ];

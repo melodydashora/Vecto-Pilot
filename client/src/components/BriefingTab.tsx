@@ -21,9 +21,18 @@ interface SchoolClosure {
 }
 
 interface BriefingEvent {
+  title?: string;
+  venue?: string;
+  location?: string;
+  address?: string;
   event_date?: string;
+  event_time?: string;
+  event_end_time?: string;
   event_type?: string;
   subtype?: string;
+  latitude?: number;
+  longitude?: number;
+  impact?: 'high' | 'medium' | 'low';
   [key: string]: unknown;
 }
 
@@ -60,11 +69,73 @@ interface AirportConditions {
   provider?: string;
 }
 
+interface ForecastItem {
+  day?: string;
+  time?: string;
+  high?: number;
+  low?: number;
+  tempF?: number;
+  conditions?: string;
+  conditionType?: string;
+  isDaytime?: boolean;
+  precipitationProbability?: number;
+}
+
+interface WeatherData {
+  weather?: {
+    current?: {
+      tempF?: number;
+      conditions?: string;
+      humidity?: number;
+      windDirection?: string;
+      isDaytime?: boolean;
+    };
+    forecast?: ForecastItem[];
+  };
+}
+
+interface TrafficIncident {
+  title?: string;
+  severity?: string;
+  location?: string;
+  description?: string;
+}
+
+interface TrafficData {
+  traffic?: {
+    summary?: string;
+    briefing?: string;
+    incidents?: TrafficIncident[];
+    incidentsCount?: number;
+    congestionLevel?: 'low' | 'medium' | 'high';
+    keyIssues?: string[];
+    driverImpact?: string;
+  };
+}
+
+interface NewsItem {
+  title?: string;
+  source?: string;
+  url?: string;
+  link?: string;
+  snippet?: string;
+  summary?: string;
+  impact?: 'high' | 'medium' | 'low';
+}
+
+interface NewsData {
+  news?: {
+    items?: NewsItem[];
+    filtered?: NewsItem[];
+    reason?: string;
+  };
+}
+
 interface BriefingTabProps {
   snapshotId?: string;
-  weatherData?: unknown;
-  trafficData?: unknown;
-  newsData?: unknown;
+  weatherData?: WeatherData;
+  trafficData?: TrafficData;
+  newsData?: NewsData;
   eventsData?: { events?: BriefingEvent[]; reason?: string };
   schoolClosuresData?: { school_closures?: SchoolClosure[]; reason?: string };
   airportData?: { airport_conditions?: AirportConditions };
@@ -308,6 +379,8 @@ export default function BriefingTab({
   const news = newsData?.news;
   const allEvents = (eventsData?.events || []).map((event: BriefingEvent) => ({
     ...event,
+    // Ensure title exists (required by EventsComponent)
+    title: event.title || 'Untitled Event',
     // Map event_type to subtype for EventsComponent compatibility
     subtype: event.event_type || event.subtype,
     // Map location to venue for EventsComponent compatibility

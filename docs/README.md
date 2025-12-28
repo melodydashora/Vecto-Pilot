@@ -28,9 +28,11 @@ Every folder has a README explaining its purpose. Start here:
 
 **Client:**
 - [client/src/](../client/src/README.md) - Frontend overview
+- [client/src/pages/co-pilot/](../client/src/pages/co-pilot/) - Route-based pages (7 pages)
+- [client/src/layouts/](../client/src/layouts/) - Layout components (CoPilotLayout)
+- [client/src/contexts/](../client/src/contexts/README.md) - React contexts (location, co-pilot)
 - [client/src/components/](../client/src/components/README.md) - UI components
 - [client/src/hooks/](../client/src/hooks/README.md) - Custom hooks
-- [client/src/contexts/](../client/src/contexts/README.md) - React contexts
 
 ### Key Files
 

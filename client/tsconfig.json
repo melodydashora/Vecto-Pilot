@@ -15,5 +15,5 @@
     "paths": { "@/*": ["src/*"] }
   },
   "include": ["src", "vite.config.*", "vitest.config.*"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules", "src/components/strategy/_future"]
 }

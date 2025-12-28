@@ -2,67 +2,83 @@
 
 What to load at the beginning of a Claude session.
 
-## Quick Start
+**Last Updated:** 2025-12-27
 
-When starting work on this codebase, load context from memory:
+## Quick Start (CLI)
+
+When starting work on this codebase, use the memory CLI:
+
+```bash
+# Get full context (preferences, history, DB stats)
+node scripts/memory-cli.mjs context
+
+# Get workspace statistics
+node scripts/memory-cli.mjs stats
+
+# List recent conversations
+node scripts/memory-cli.mjs list 10
+```
+
+## Quick Start (API)
+
+From code, call the `/agent/context` endpoint:
 
 ```javascript
-// 1. Load architecture decisions
-memory_search({ tags: ["decision"], limit: 20 })
+// Load full context
+const res = await fetch('/agent/context');
+const { context } = await res.json();
 
-// 2. Load recent learnings (last 5 sessions)
-memory_search({ tags: ["learning"], limit: 5 })
-
-// 3. Load user preferences
-memory_retrieve({ key: "user_preferences" })
-
-// 4. Check for pending documentation updates
-memory_search({ tags: ["documentation", "todo"], limit: 10 })
+// context includes:
+// - recentSnapshots, recentStrategies, recentActions (DB)
+// - agentPreferences, sessionHistory, projectState (memory)
+// - conversationHistory (past conversations)
+// - capabilities (what's enabled)
 ```
 
 ## What You'll Learn
 
-### From Decisions
+### From Context
 
-- Which AI models to use and their correct parameters
-- Location/GPS rules
-- Database conventions
-- Code style preferences
+| Source | Contains |
+|--------|----------|
+| `agentPreferences` | AI models, code style, user preferences |
+| `sessionHistory` | Current task, recent work |
+| `projectState` | Architecture decisions, patterns |
+| `conversationHistory` | Past AI Coach conversations |
+| `recentSnapshots` | Recent locations, weather |
+| `recentStrategies` | Recent strategy outputs |
 
-### From Recent Learnings
+### From Past Conversations
 
-- Bugs fixed in past sessions
-- Patterns discovered
-- User feedback received
-- Things that broke and why
-
-### From User Preferences
-
-- Commit message style
-- Documentation preferences
-- Testing expectations
-- Communication style
+The AI Coach logs conversations automatically. Review them to understand:
+- Recent user questions and concerns
+- Patterns in strategy requests
+- Frequently asked topics
 
 ## Example Session Start
 
 ```
-Claude Session Start - December 15, 2024
+$ node scripts/memory-cli.mjs context
 
-Loading context from memory...
+=== Memory Context ===
 
-Decisions loaded (5):
-- decision_ai_models: Use callModel() adapter...
-- decision_location: GPS-first, no IP fallback...
-- decision_database: All data links to snapshot_id...
-- decision_logging: Use workflow logger, not console.log...
-- decision_testing: Run typecheck before commits...
+📊 Database Stats:
+   Snapshots: 10 recent
+   Strategies: 5 recent
+   Actions: 20 recent
 
-Recent learnings (3):
-- session_2024_12_14: Fixed BarsTable isOpen calculation...
-- session_2024_12_13: Routes API requires future timestamp...
-- session_2024_12_12: User prefers detailed commits...
+🧠 Memory Stats:
+   Preferences: 3 entries
+   Session History: 2 entries
+   Project State: 5 entries
+   Conversations: 15 logged
 
-Context loaded. Ready to work.
+⚙️ Capabilities:
+   42/42 capabilities enabled
+
+🔄 Self-Healing:
+   Enabled: true
+   Health Score: 1.0
 ```
 
 ## When to Skip
@@ -71,6 +87,14 @@ Skip the full ritual for:
 - Quick one-liner fixes
 - Documentation-only changes
 - When continuing an existing session
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `scripts/memory-cli.mjs` | CLI for memory operations |
+| `server/agent/routes.js` | API endpoints |
+| `client/src/hooks/useMemory.ts` | React hook for memory |
 
 ## See Also
 

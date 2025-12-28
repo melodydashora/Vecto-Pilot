@@ -107,6 +107,12 @@ export interface StrategyData {
   strategy_id?: string;
   timeElapsedMs?: number;
   _snapshotId?: string;
+  timing?: {
+    phase_started_at?: string;
+    phase_elapsed_ms?: number;
+    expected_duration_ms?: number;
+    expected_durations?: Record<string, number>;
+  };
 }
 
 export interface CoordData {

@@ -146,6 +146,14 @@ router.post('/', requireAuth, async (req, res) => {
 - Use emojis naturally
 - Be precise with venue data (exact names, addresses, times)
 
+📋 **Event Verification & Deactivation:**
+- When a driver reports an event is over, cancelled, or has incorrect times, you can mark it for removal
+- To deactivate an event from the Map tab, format your response with:
+  \`[DEACTIVATE_EVENT: {"event_title": "Event Name", "reason": "event_ended|incorrect_time|cancelled|no_longer_relevant", "notes": "Optional explanation"}]\`
+- Valid reasons: event_ended, incorrect_time, cancelled, no_longer_relevant, duplicate, other
+- If they say times are wrong, include the correct times in notes (e.g., "Actually starts at 8pm not 7pm")
+- Only deactivate when the driver confirms the event is invalid
+
 **Important:**
 - You understand context from conversation history
 - Brief responses like "yes", "go ahead", "thanks" relate to what you just said

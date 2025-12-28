@@ -9,6 +9,7 @@ import BriefingPage from '@/pages/co-pilot/BriefingPage';
 import MapPage from '@/pages/co-pilot/MapPage';
 import IntelPage from '@/pages/co-pilot/IntelPage';
 import AboutPage from '@/pages/co-pilot/AboutPage';
+import PolicyPage from '@/pages/co-pilot/PolicyPage';
 
 export const router = createBrowserRouter([
   {
@@ -49,6 +50,10 @@ export const router = createBrowserRouter([
           {
             path: 'about',
             element: <AboutPage />,
+          },
+          {
+            path: 'policy',
+            element: <PolicyPage />,
           },
         ],
       },

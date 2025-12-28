@@ -1,7 +1,7 @@
 // client/src/contexts/co-pilot-context.tsx
 // Shared state and queries for all co-pilot pages
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
@@ -131,20 +131,33 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("vecto-snapshot-saved", handleSnapshotSaved as EventListener);
   }, []);
 
-  // Clear persistent strategy on mount
-  useEffect(() => {
-    console.log("🧹 Clearing persistent strategy on mount");
-    localStorage.removeItem('vecto_persistent_strategy');
-    localStorage.removeItem('vecto_strategy_snapshot_id');
-    setPersistentStrategy(null);
-    setImmediateStrategy(null);
-    setStrategySnapshotId(null);
-  }, []);
+  // Track previous snapshot ID to detect actual changes
+  const prevSnapshotIdRef = useRef<string | null>(null);
 
-  // Clear strategy if snapshot ID changes
+  // Clear strategy ONLY when snapshot ID actually changes (not on mount)
+  // This preserves data when switching between apps or route changes
   useEffect(() => {
-    if (lastSnapshotId && lastSnapshotId !== 'live-snapshot' && strategySnapshotId && lastSnapshotId !== strategySnapshotId) {
-      console.log(`🔄 New snapshot detected, clearing old strategy`);
+    // Skip if no snapshot yet
+    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
+
+    // On first mount with a snapshot, try to restore from localStorage
+    if (prevSnapshotIdRef.current === null) {
+      const storedStrategy = localStorage.getItem('vecto_persistent_strategy');
+      const storedSnapshotId = localStorage.getItem('vecto_strategy_snapshot_id');
+
+      if (storedStrategy && storedSnapshotId === lastSnapshotId) {
+        console.log('📦 [CoPilotContext] Restoring strategy from localStorage:', storedSnapshotId?.slice(0, 8));
+        setPersistentStrategy(storedStrategy);
+        setStrategySnapshotId(storedSnapshotId);
+      }
+
+      prevSnapshotIdRef.current = lastSnapshotId;
+      return;
+    }
+
+    // Only clear if snapshot actually changed
+    if (prevSnapshotIdRef.current !== lastSnapshotId) {
+      console.log(`🔄 [CoPilotContext] Snapshot changed from ${prevSnapshotIdRef.current?.slice(0, 8)} to ${lastSnapshotId.slice(0, 8)}, clearing old strategy`);
       localStorage.removeItem('vecto_persistent_strategy');
       localStorage.removeItem('vecto_strategy_snapshot_id');
       setPersistentStrategy(null);
@@ -152,7 +165,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       setStrategySnapshotId(null);
       queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
     }
-  }, [lastSnapshotId, strategySnapshotId, queryClient]);
+
+    prevSnapshotIdRef.current = lastSnapshotId;
+  }, [lastSnapshotId, queryClient]);
 
   // Subscribe to SSE strategy_ready events
   useEffect(() => {

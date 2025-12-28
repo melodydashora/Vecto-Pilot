@@ -1,10 +1,68 @@
 /**
  * MapTab - Interactive Google Map with live traffic overlay and venue pins
  * Displays SmartBlocks venues as markers with drive time and earnings info
+ * Events are filtered to show only TODAY's events with valid start/end times
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Loader } from 'lucide-react';
+import { filterTodayEvents, formatEventDate, formatEventTimeRange } from '@/utils/co-pilot-helpers';
+
+// Google Maps type declarations (loaded dynamically via script)
+declare global {
+  interface Window {
+    google: typeof google;
+  }
+}
+
+declare namespace google.maps {
+  class Map {
+    constructor(element: HTMLElement, options: MapOptions);
+    fitBounds(bounds: LatLngBounds, padding?: number | { top?: number; right?: number; bottom?: number; left?: number; padding?: number }): void;
+  }
+  class Marker {
+    constructor(options: MarkerOptions);
+    setMap(map: Map | null): void;
+    getPosition(): LatLng | null;
+    addListener(event: string, handler: () => void): void;
+  }
+  class InfoWindow {
+    constructor();
+    setContent(content: string): void;
+    open(map: Map, marker: Marker): void;
+    close(): void;
+  }
+  class LatLngBounds {
+    constructor();
+    extend(point: LatLng): void;
+  }
+  class LatLng {
+    constructor(lat: number, lng: number);
+    lat(): number;
+    lng(): number;
+  }
+  class TrafficLayer {
+    constructor();
+    setMap(map: Map): void;
+  }
+  interface MapOptions {
+    center: { lat: number; lng: number };
+    zoom: number;
+    mapTypeControl?: boolean;
+    fullscreenControl?: boolean;
+    zoomControl?: boolean;
+    streetViewControl?: boolean;
+    minZoom?: number;
+    maxZoom?: number;
+  }
+  interface MarkerOptions {
+    position: { lat: number; lng: number };
+    map: Map;
+    title?: string;
+    icon?: string;
+    zIndex?: number;
+  }
+}
 
 interface Venue {
   id: string;
@@ -23,6 +81,7 @@ interface MapEvent {
   venue?: string;
   address?: string;
   event_date?: string;
+  event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
   event_time?: string;
   event_end_time?: string;
   latitude?: number;
@@ -31,10 +90,28 @@ interface MapEvent {
   subtype?: string;
 }
 
+// Bar type for map markers (green=open, red=closing soon)
+// Only shows $$ and above (expense_rank >= 2)
+interface MapBar {
+  name: string;
+  type: string;
+  address: string;
+  expense_level: string;
+  expense_rank: number;
+  is_open: boolean;
+  closing_soon: boolean;
+  minutes_until_close: number | null;
+  lat: number;
+  lng: number;
+  place_id?: string;
+  rating?: number | null;
+}
+
 interface MapTabProps {
   driverLat: number;
   driverLng: number;
   venues: Venue[];
+  bars?: MapBar[];  // Premium bars ($$+) with open/closing status
   events?: MapEvent[];
   snapshotId?: string;
   isLoading?: boolean;
@@ -44,6 +121,7 @@ const MapTab: React.FC<MapTabProps> = ({
   driverLat,
   driverLng,
   venues,
+  bars = [],
   events = [],
   snapshotId: _snapshotId,
   isLoading = false
@@ -51,9 +129,17 @@ const MapTab: React.FC<MapTabProps> = ({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const barMarkersRef = useRef<google.maps.Marker[]>([]);  // Bar markers (green/red)
   const eventMarkersRef = useRef<google.maps.Marker[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [mapReady, setMapReady] = useState(false);
+
+  // Filter events to only show TODAY's events with valid start/end times
+  const todayEvents = useMemo(() => {
+    const filtered = filterTodayEvents(events);
+    console.log(`[MapTab] Showing ${filtered.length} of ${events.length} events (today only with valid times)`);
+    return filtered;
+  }, [events]);
 
   // Initialize Google Map
   useEffect(() => {
@@ -149,28 +235,61 @@ const MapTab: React.FC<MapTabProps> = ({
           infoWindowRef.current.close();
         }
 
+        // Get grade badge color
+        const getGradeBadgeStyle = (grade?: string) => {
+          switch (grade?.toUpperCase()) {
+            case 'A': return 'background: #dcfce7; color: #166534; border: 1px solid #86efac;';
+            case 'B': return 'background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;';
+            default: return 'background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;';
+          }
+        };
+
         const content = `
-          <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 220px;">
-            <div style="font-weight: 600; margin-bottom: 8px; font-size: 14px; color: #1f2937;">
-              ${venue.name}
+          <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 260px;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px;">
+              <div style="font-weight: 600; font-size: 14px; color: #1f2937; line-height: 1.3;">
+                ${venue.name}
+              </div>
+              ${venue.value_grade ? `
+                <span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; ${getGradeBadgeStyle(venue.value_grade)}">
+                  Grade ${venue.value_grade}
+                </span>
+              ` : ''}
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; font-size: 13px;">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; padding: 10px; background: #f8fafc; border-radius: 6px;">
               <div>
-                <span style="color: #6b7280; display: block; font-size: 11px; text-transform: uppercase; margin-bottom: 2px;">Distance</span>
-                <span style="font-weight: 500; color: #1f2937;">${venue.distance_miles?.toFixed(1) || 'N/A'} mi</span>
+                <span style="color: #6b7280; display: block; font-size: 10px; text-transform: uppercase; margin-bottom: 2px;">Distance</span>
+                <span style="font-weight: 600; color: #1f2937; font-size: 14px;">${venue.distance_miles?.toFixed(1) || 'N/A'} mi</span>
               </div>
               <div>
-                <span style="color: #6b7280; display: block; font-size: 11px; text-transform: uppercase; margin-bottom: 2px;">Drive Time</span>
-                <span style="font-weight: 500; color: #1f2937;">${venue.drive_time_min || 'N/A'} min</span>
+                <span style="color: #6b7280; display: block; font-size: 10px; text-transform: uppercase; margin-bottom: 2px;">Drive Time</span>
+                <span style="font-weight: 600; color: #1f2937; font-size: 14px;">${venue.drive_time_min || 'N/A'} min</span>
               </div>
             </div>
+
             ${venue.est_earnings_per_ride ? `
-              <div style="background: #f3f4f6; padding: 8px; border-radius: 4px; font-size: 13px; color: #059669; font-weight: 500;">
-                Est. Earnings: $${venue.est_earnings_per_ride.toFixed(2)}/ride
+              <div style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); padding: 10px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #a7f3d0;">
+                <span style="color: #047857; font-size: 11px; display: block; margin-bottom: 2px;">Est. Earnings</span>
+                <span style="font-size: 16px; font-weight: 700; color: #059669;">$${venue.est_earnings_per_ride.toFixed(2)}/ride</span>
               </div>
             ` : ''}
-            <div style="margin-top: 10px; font-size: 12px; color: #6b7280;">
-              Rank: #${venue.rank || index + 1} | Grade: ${venue.value_grade || 'N/A'}
+
+            <div style="font-size: 11px; color: #9ca3af; margin-bottom: 10px;">
+              Rank: #${venue.rank || index + 1}
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+              <a href="https://maps.google.com/maps?daddr=${venue.lat},${venue.lng}&directionsmode=driving"
+                 target="_blank"
+                 style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);">
+                🧭 Navigate
+              </a>
+              <a href="https://maps.apple.com/?daddr=${venue.lat},${venue.lng}&dirflg=d"
+                 target="_blank"
+                 style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px 12px; background: #f1f5f9; color: #475569; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid #e2e8f0;">
+                🍎
+              </a>
             </div>
           </div>
         `;
@@ -195,7 +314,7 @@ const MapTab: React.FC<MapTabProps> = ({
     }
   }, [mapReady, venues, driverLat, driverLng]);
 
-  // Add event markers with flag icons
+  // Add event markers with flag icons (TODAY'S EVENTS ONLY)
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !window.google) return;
 
@@ -203,8 +322,8 @@ const MapTab: React.FC<MapTabProps> = ({
     eventMarkersRef.current.forEach(marker => marker.setMap(null));
     eventMarkersRef.current = [];
 
-    // Filter events with valid coordinates
-    const eventsWithCoords = events.filter(e => e.latitude && e.longitude);
+    // Use filtered today events with valid coordinates
+    const eventsWithCoords = todayEvents.filter(e => e.latitude && e.longitude);
 
     eventsWithCoords.forEach((event) => {
       // Use purple marker for events (distinct from venue colors)
@@ -218,14 +337,9 @@ const MapTab: React.FC<MapTabProps> = ({
         zIndex: 800, // Below top venues but visible
       });
 
-      // Build time display
-      let timeDisplay = '';
-      if (event.event_time) {
-        timeDisplay = event.event_time;
-        if (event.event_end_time) {
-          timeDisplay += ` - ${event.event_end_time}`;
-        }
-      }
+      // Build date and time display
+      const dateDisplay = formatEventDate(event.event_date);
+      const timeDisplay = formatEventTimeRange(event.event_time, event.event_end_time);
 
       // Get event category icon
       const getCategoryIcon = (subtype?: string) => {
@@ -256,7 +370,7 @@ const MapTab: React.FC<MapTabProps> = ({
         }
 
         const content = `
-          <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 260px;">
+          <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 280px;">
             <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
               <span style="font-size: 20px;">${getCategoryIcon(event.subtype)}</span>
               <div style="flex: 1;">
@@ -267,12 +381,19 @@ const MapTab: React.FC<MapTabProps> = ({
               </div>
             </div>
 
-            ${timeDisplay ? `
-              <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 8px; background: #f3e8ff; border-radius: 6px;">
-                <span style="font-size: 14px;">🕐</span>
-                <span style="font-weight: 600; color: #7c3aed; font-size: 13px;">${timeDisplay}</span>
+            <!-- Date & Time Section (Required for all displayed events) -->
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; padding: 10px; background: linear-gradient(135deg, #f3e8ff, #e0f2fe); border-radius: 8px;">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="font-size: 14px;">📅</span>
+                <span style="font-weight: 600; color: ${dateDisplay === 'Today' ? '#059669' : '#7c3aed'}; font-size: 13px;">${dateDisplay}</span>
               </div>
-            ` : ''}
+              ${timeDisplay ? `
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="font-size: 14px;">🕐</span>
+                  <span style="font-weight: 600; color: #7c3aed; font-size: 13px;">${timeDisplay}</span>
+                </div>
+              ` : ''}
+            </div>
 
             ${event.address ? `
               <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
@@ -286,11 +407,16 @@ const MapTab: React.FC<MapTabProps> = ({
               </div>
             ` : ''}
 
-            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
-              <a href="https://www.google.com/maps/dir/?api=1&destination=${event.latitude},${event.longitude}"
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px;">
+              <a href="https://maps.google.com/maps?daddr=${event.latitude},${event.longitude}&directionsmode=driving"
                  target="_blank"
-                 style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; background: #8b5cf6; color: white; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;">
-                🧭 Navigate to Event
+                 style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; background: #8b5cf6; color: white; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;">
+                🧭 Navigate
+              </a>
+              <a href="https://maps.apple.com/?daddr=${event.latitude},${event.longitude}&dirflg=d"
+                 target="_blank"
+                 style="display: flex; align-items: center; justify-content: center; padding: 8px 12px; background: #f3e8ff; color: #7c3aed; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid #ddd6fe;">
+                🍎
               </a>
             </div>
           </div>
@@ -303,8 +429,107 @@ const MapTab: React.FC<MapTabProps> = ({
       eventMarkersRef.current.push(marker);
     });
 
-    console.log(`✅ Added ${eventsWithCoords.length} event markers to map`);
-  }, [mapReady, events]);
+    console.log(`✅ Added ${eventsWithCoords.length} TODAY's event markers to map (filtered from ${events.length} total)`);
+  }, [mapReady, todayEvents, events.length]);
+
+  // Add bar markers with color coding (green=open, red=closing soon)
+  // Bars are $$+ venues separate from strategy blocks
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !window.google) return;
+
+    // Clear existing bar markers
+    barMarkersRef.current.forEach(marker => marker.setMap(null));
+    barMarkersRef.current = [];
+
+    bars.forEach((bar) => {
+      // Color coding: green = open, red = closing soon (only open bars are passed)
+      const isClosingSoon = bar.closing_soon;
+      const color = isClosingSoon ? 'red' : 'green';
+      const statusLabel = isClosingSoon
+        ? (bar.minutes_until_close ? `Closing in ${bar.minutes_until_close}min` : 'Closing soon')
+        : 'Open';
+
+      const icon = `http://maps.google.com/mapfiles/ms/icons/${color}-dot.png`;
+
+      const marker = new window.google.maps.Marker({
+        position: { lat: bar.lat, lng: bar.lng },
+        map: mapInstanceRef.current,
+        title: `${bar.name} (${bar.expense_level})`,
+        icon: icon,
+        zIndex: 600, // Below venues and events
+      });
+
+      // Get venue type icon
+      const getTypeIcon = (type: string) => {
+        switch (type) {
+          case 'nightclub': return '🎉';
+          case 'wine_bar': return '🍷';
+          case 'lounge': return '🍸';
+          default: return '🍺';
+        }
+      };
+
+      // Info window on click
+      marker.addListener('click', () => {
+        if (infoWindowRef.current) {
+          infoWindowRef.current.close();
+        }
+
+        // Status style: green for open, red for closing soon
+        const statusStyle = isClosingSoon
+          ? 'background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5;'
+          : 'background: #dcfce7; color: #166534; border: 1px solid #86efac;';
+
+        const content = `
+          <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 260px;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
+              <div style="font-weight: 600; font-size: 14px; color: #1f2937; line-height: 1.3;">
+                ${getTypeIcon(bar.type)} ${bar.name}
+              </div>
+              <span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; ${statusStyle}">
+                ${statusLabel}
+              </span>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+              <span style="padding: 2px 8px; background: #fef3c7; color: #92400e; border-radius: 4px; font-size: 11px; font-weight: 600;">
+                ${bar.expense_level}
+              </span>
+              ${bar.rating ? `
+                <span style="padding: 2px 8px; background: #e0f2fe; color: #0369a1; border-radius: 4px; font-size: 11px;">
+                  ⭐ ${bar.rating.toFixed(1)}
+                </span>
+              ` : ''}
+            </div>
+
+            <div style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">
+              📍 ${bar.address}
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+              <a href="https://maps.google.com/maps?daddr=${bar.lat},${bar.lng}&directionsmode=driving"
+                 target="_blank"
+                 style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; background: linear-gradient(135deg, #10b981, #059669); color: white; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;">
+                🧭 Navigate
+              </a>
+              <a href="https://maps.apple.com/?daddr=${bar.lat},${bar.lng}&dirflg=d"
+                 target="_blank"
+                 style="display: flex; align-items: center; justify-content: center; padding: 8px 12px; background: #f1f5f9; color: #475569; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid #e2e8f0;">
+                🍎
+              </a>
+            </div>
+          </div>
+        `;
+
+        infoWindowRef.current?.setContent(content);
+        infoWindowRef.current?.open(mapInstanceRef.current, marker);
+      });
+
+      barMarkersRef.current.push(marker);
+    });
+
+    console.log(`✅ Added ${bars.length} open bar markers ($$+): ${bars.filter(b => !b.closing_soon).length} open (green), ${bars.filter(b => b.closing_soon).length} closing soon (red)`);
+  }, [mapReady, bars]);
 
   return (
     <div className="mb-24" data-testid="map-tab">
@@ -331,31 +556,52 @@ const MapTab: React.FC<MapTabProps> = ({
       {/* Legend */}
       <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
         <h3 className="font-semibold text-gray-800 mb-3">Map Legend</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-blue-400 border border-blue-500" />
-            <span className="text-gray-700">Your location</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          {/* Strategy Venues Column */}
+          <div className="space-y-2">
+            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Strategy Venues</div>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-blue-400 border border-blue-500" />
+              <span className="text-gray-700">Your location</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-red-400 border border-red-500" />
+              <span className="text-gray-700">Top venue (Grade A)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-orange-400 border border-orange-500" />
+              <span className="text-gray-700">Good venue (Grade B)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-yellow-400 border border-yellow-500" />
+              <span className="text-gray-700">Standard venue (Grade C+)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-purple-400 border border-purple-500" />
+              <span className="text-gray-700">Event (today only)</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-red-400 border border-red-500" />
-            <span className="text-gray-700">Top venue (Grade A)</span>
+
+          {/* Bars Column */}
+          <div className="space-y-2">
+            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Bars & Lounges ($$+)</div>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-green-500 border border-green-600" />
+              <span className="text-gray-700">Open bar</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-red-500 border border-red-600" />
+              <span className="text-gray-700">Closing soon (last call!)</span>
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              Only shows open $$ and above venues
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-orange-400 border border-orange-500" />
-            <span className="text-gray-700">Good venue (Grade B)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-yellow-400 border border-yellow-500" />
-            <span className="text-gray-700">Standard venue (Grade C+)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-purple-400 border border-purple-500" />
-            <span className="text-gray-700">Event (click for times & navigation)</span>
-          </div>
-          <div className="mt-3 text-xs text-gray-500 flex items-start gap-2">
-            <span className="mt-0.5">🚦</span>
-            <span>Traffic overlay shows real-time road conditions (green=flowing, yellow=slow, red=congested)</span>
-          </div>
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 flex items-start gap-2">
+          <span className="mt-0.5">🚦</span>
+          <span>Traffic overlay shows real-time road conditions (green=flowing, yellow=slow, red=congested)</span>
         </div>
       </div>
 

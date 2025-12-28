@@ -7,12 +7,25 @@ Frontend organization for Vecto Pilot. React 18 + TypeScript + Vite.
 ```
 client/
 ├── src/
+│   ├── routes.tsx              # React Router configuration
+│   ├── layouts/                # Layout components
+│   │   └── CoPilotLayout.tsx   # Shared layout with GlobalHeader + BottomNav
 │   ├── pages/                  # Route pages
+│   │   └── co-pilot/           # Co-pilot pages (router-based)
+│   │       ├── StrategyPage.tsx
+│   │       ├── BarsPage.tsx
+│   │       ├── BriefingPage.tsx
+│   │       ├── MapPage.tsx
+│   │       ├── IntelPage.tsx
+│   │       ├── AboutPage.tsx
+│   │       └── PolicyPage.tsx
 │   ├── components/             # UI components
-│   │   ├── co-pilot/           # Co-pilot specific
+│   │   ├── co-pilot/           # Co-pilot specific (BottomTabNavigation)
 │   │   ├── strategy/           # Strategy display
 │   │   └── ui/                 # shadcn/ui primitives (46 components)
 │   ├── contexts/               # React contexts
+│   │   ├── co-pilot-context.tsx    # Shared state for co-pilot pages
+│   │   └── location-context-clean.tsx
 │   ├── hooks/                  # Custom hooks
 │   ├── features/               # Feature modules
 │   │   └── strategy/           # Strategy feature
@@ -66,13 +79,31 @@ Every folder has a README.md explaining its purpose.
 
 ## Key Pages (`client/src/pages/`)
 
-| Page | Route | Purpose |
-|------|-------|---------|
-| `co-pilot.tsx` | `/` | Main dashboard (1700+ LOC) |
-| `history.tsx` | `/history` | Strategy history |
-| `settings.tsx` | `/settings` | User settings |
+The co-pilot pages use React Router with a shared layout (`CoPilotLayout.tsx`).
 
-**Note:** `co-pilot.tsx` is the main page containing tabs for Strategy, Venues, Briefing, and Chat.
+### Route Structure
+
+| Route | Page | Purpose |
+|-------|------|---------|
+| `/` | Redirect | → `/co-pilot/strategy` |
+| `/co-pilot` | Redirect | → `/co-pilot/strategy` |
+| `/co-pilot/strategy` | `StrategyPage.tsx` | AI strategy + smart blocks + coach |
+| `/co-pilot/bars` | `BarsPage.tsx` | Premium venue listings |
+| `/co-pilot/briefing` | `BriefingPage.tsx` | Weather, traffic, news, events |
+| `/co-pilot/map` | `MapPage.tsx` | Interactive venue + event map |
+| `/co-pilot/intel` | `IntelPage.tsx` | Rideshare intelligence |
+| `/co-pilot/about` | `AboutPage.tsx` | About/donation (no header) |
+| `/co-pilot/policy` | `PolicyPage.tsx` | Privacy policy (linked from About) |
+
+### Shared Components
+
+| File | Purpose |
+|------|---------|
+| `routes.tsx` | React Router configuration |
+| `layouts/CoPilotLayout.tsx` | Shared layout with GlobalHeader + BottomNav |
+| `contexts/co-pilot-context.tsx` | Shared state across co-pilot pages |
+
+**Note:** The old monolithic `co-pilot.tsx` (1700+ LOC) was refactored into individual page components for better maintainability.
 
 ## Components (`client/src/components/`)
 
@@ -207,7 +238,7 @@ import { formatTime, getDaypartGreeting } from '@/utils/co-pilot-helpers';
 - **TypeScript** - Type safety
 - **Vite** - Build tool
 - **TanStack Query v5** - Data fetching
-- **Wouter** - Routing
+- **React Router v6** - Routing
 - **shadcn/ui** - Component library
 - **Tailwind CSS** - Styling
 

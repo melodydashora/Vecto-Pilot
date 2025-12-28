@@ -1,7 +1,7 @@
 
 # VECTO PILOT™ - COMPLETE SYSTEM MAP
 
-**Last Updated:** 2025-12-09 UTC
+**Last Updated:** 2025-12-27 UTC
 
 This document provides a complete visual mapping of the Vecto Pilot system, showing how every component connects from UI to database and back.
 
@@ -30,10 +30,18 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  └────────────────────┬─────────────────────────────────────────────┘  │
 │                       ↓                                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  co-pilot.tsx (Main UI)                                          │  │
-│  │  ┌────────────────┬────────────────┬────────────────┬──────────┐ │  │
-│  │  │ Strategy Tab   │ Venues Tab     │ Briefing Tab   │ Map Tab  │ │  │
-│  │  └────────────────┴────────────────┴────────────────┴──────────┘ │  │
+│  │  CoPilotLayout.tsx (Shared Layout) + React Router                │  │
+│  │  ┌────────────────────────────────────────────────────────────┐  │  │
+│  │  │ pages/co-pilot/ (7 route-based pages)                      │  │  │
+│  │  │ ├── StrategyPage   /co-pilot/strategy                      │  │  │
+│  │  │ ├── BarsPage       /co-pilot/bars                          │  │  │
+│  │  │ ├── BriefingPage   /co-pilot/briefing                      │  │  │
+│  │  │ ├── MapPage        /co-pilot/map                           │  │  │
+│  │  │ ├── IntelPage      /co-pilot/intel                         │  │  │
+│  │  │ ├── AboutPage      /co-pilot/about (no GlobalHeader)       │  │  │
+│  │  │ └── PolicyPage     /co-pilot/policy                        │  │  │
+│  │  └────────────────────────────────────────────────────────────┘  │  │
+│  │  CoPilotContext: strategy, blocks, SSE subscriptions             │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │         ↓                  ↓                  ↓                         │
 │  [useQuery hooks with Authorization: Bearer {token} headers]            │
@@ -229,31 +237,33 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 
 ---
 
-### co-pilot.tsx (Main UI)
-**Tabs:**
-1. **Strategy Tab**
-   - Data: `strategies.consolidated_strategy`
-   - Query: `GET /api/strategy/:snapshotId`
-   - Component: Text display with markdown
+### Route-Based Pages (client/src/pages/co-pilot/)
 
-2. **Venues Tab**
-   - Data: `ranking_candidates.*`
-   - Query: `GET /api/blocks?snapshotId=X`
-   - Component: `SmartBlocks.tsx` (venue cards)
+The UI uses React Router with 7 route-based pages sharing `CoPilotContext`:
 
-3. **Briefing Tab**
-   - Data: `briefings.*`
-   - Queries:
-     - `GET /api/briefing/weather/:snapshotId`
-     - `GET /api/briefing/traffic/:snapshotId`
-     - `GET /api/briefing/news/:snapshotId`
-     - `GET /api/briefing/events/:snapshotId`
-     - `GET /api/briefing/closures/:snapshotId`
-   - Component: `BriefingTab.tsx`
+| Route | Page | Data Source | Key Query |
+|-------|------|-------------|-----------|
+| `/co-pilot/strategy` | StrategyPage | `strategies.*`, `ranking_candidates.*` | `GET /api/strategy/:snapshotId`, `GET /api/blocks` |
+| `/co-pilot/bars` | BarsPage | `ranking_candidates.*` | `GET /api/blocks?snapshotId=X` |
+| `/co-pilot/briefing` | BriefingPage | `briefings.*` | `GET /api/briefing/*/:snapshotId` |
+| `/co-pilot/map` | MapPage | `ranking_candidates.{lat, lng}` | via CoPilotContext |
+| `/co-pilot/intel` | IntelPage | Rideshare intelligence | External APIs |
+| `/co-pilot/about` | AboutPage | Static | None (no GlobalHeader) |
+| `/co-pilot/policy` | PolicyPage | Static | None |
 
-4. **Map Tab**
-   - Data: `ranking_candidates.{lat, lng, name}`
-   - Component: `MapTab.tsx`
+**Shared State (CoPilotContext):**
+- `strategyData` - Strategy queries (React Query)
+- `blocksData` - Blocks/venues queries (React Query)
+- `persistentStrategy`, `immediateStrategy` - Cached strategy
+- SSE subscriptions for `strategy_ready` events
+- `enrichmentProgress` - Pipeline progress tracking
+
+**Briefing Queries (BriefingPage):**
+- `GET /api/briefing/weather/:snapshotId`
+- `GET /api/briefing/traffic/:snapshotId`
+- `GET /api/briefing/news/:snapshotId`
+- `GET /api/briefing/events/:snapshotId`
+- `GET /api/briefing/closures/:snapshotId`
 
 ---
 
@@ -399,12 +409,13 @@ snapshots (point-in-time context)
 ## 🎯 KEY TAKEAWAYS
 
 1. **Single Source of Truth:** PostgreSQL database is authoritative for all data
-2. **Model-Agnostic Providers:** Each AI role (strategist, briefer, consolidator) is pluggable
-3. **Enrichment Pipeline:** Google APIs provide verified data (coords, hours, distance)
-4. **JWT Authentication:** User isolation at every layer (middleware, RLS, queries)
-5. **Snapshot-Centric:** All data scoped to snapshot_id for ML traceability
-6. **Real-Time Updates:** SSE for strategy_ready, polling for blocks
-7. **Fail-Closed:** Missing data returns null/404, never hallucinated defaults
+2. **Route-Based UI:** React Router with 7 pages sharing CoPilotContext (replaced monolithic co-pilot.tsx)
+3. **Model-Agnostic Providers:** Each AI role (strategist, briefer, consolidator) is pluggable
+4. **Enrichment Pipeline:** Google APIs provide verified data (coords, hours, distance)
+5. **JWT Authentication:** User isolation at every layer (middleware, RLS, queries)
+6. **Snapshot-Centric:** All data scoped to snapshot_id for ML traceability
+7. **Real-Time Updates:** SSE for strategy_ready, polling for blocks
+8. **Fail-Closed:** Missing data returns null/404, never hallucinated defaults
 
 ---
 

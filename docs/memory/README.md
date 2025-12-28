@@ -1,24 +1,43 @@
 # Memory Layer
 
-Persistent memory system for Claude to maintain context across sessions.
+Persistent memory system for AI assistants to maintain context across sessions.
+
+**Last Updated:** 2025-12-27
 
 ## Overview
 
-The memory layer uses the `mcp_memory` table to store key-value pairs with tags and optional TTL. This allows Claude to:
-- Remember decisions made in past sessions
-- Store learnings from debugging sessions
-- Track user preferences
-- Maintain project context
+The memory layer uses **4 PostgreSQL tables** to store context for different AI systems:
 
-## Memory Tools (MCP)
+| Table | Purpose | Used By |
+|-------|---------|---------|
+| `agent_memory` | Workspace agent context | Agent |
+| `assistant_memory` | User preferences, conversations | Assistant, AI Coach |
+| `eidolon_memory` | Session/project state | Eidolon framework |
+| `cross_thread_memory` | Shared context across threads | All |
 
-| Tool | Purpose |
-|------|---------|
-| `memory_store` | Store a memory with key, content, tags, optional TTL |
-| `memory_retrieve` | Get a specific memory by key |
-| `memory_search` | Search by tags or content keywords |
-| `memory_clear` | Clear memories by pattern or tags |
-| `context_get` | Get session context and memory stats |
+## Memory API Endpoints
+
+The MCP server was removed. Memory is now accessed via REST API at `/agent/*`:
+
+| Endpoint | Method | Purpose | TTL |
+|----------|--------|---------|-----|
+| `/agent/memory/preference` | POST | Store user preferences | 365 days |
+| `/agent/memory/session` | POST | Store session state | 7 days |
+| `/agent/memory/project` | POST | Store project state | 30 days |
+| `/agent/memory/conversation` | POST | Log conversations | 30 days |
+| `/agent/memory/conversations` | GET | Retrieve conversations | - |
+| `/agent/context` | GET | Full context with memory | - |
+| `/agent/context/summary` | GET | Workspace analysis | - |
+
+### Thread Management
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/agent/thread/init` | POST | Initialize a new thread |
+| `/agent/thread/:threadId` | GET | Get thread context |
+| `/agent/thread/:threadId/message` | POST | Add message to thread |
+| `/agent/thread/:threadId/decision` | POST | Track decision |
+| `/agent/threads/recent` | GET | Get recent threads |
 
 ## Key Naming Conventions
 
@@ -47,85 +66,104 @@ Use consistent tags for searchability:
 
 ## Usage Patterns
 
-### Store a Decision
+### Store a Preference (via API)
 
 ```javascript
-memory_store({
-  key: "decision_ai_models",
-  content: "GPT-5.2 for consolidation (reasoning_effort flat), Gemini 3 Pro for briefing, Claude Opus 4.5 for strategy. Always use callModel() adapter.",
-  tags: ["decision", "ai", "models"],
-  metadata: { decided_on: "2024-12-15", reason: "GPT-5.2 400 errors with nested params" }
-})
+// POST /agent/memory/preference
+fetch('/agent/memory/preference', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    key: 'ai_model_preferences',
+    value: {
+      strategist: 'claude-opus-4-5-20251101',
+      briefer: 'gemini-3-pro-preview',
+      consolidator: 'gpt-5.2'
+    },
+    userId: 'system'
+  })
+});
 ```
 
-### Store a Session Learning
+### Store Session State
 
 ```javascript
-memory_store({
-  key: "session_2024_12_15_learnings",
-  content: "1. BarsTable needs real-time isOpen calculation. 2. Routes API requires 30s future timestamp. 3. User prefers detailed commit messages.",
-  tags: ["session", "learning", "december"],
-  ttl_hours: 720  // 30 days
-})
+// POST /agent/memory/session
+fetch('/agent/memory/session', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    key: 'current_task',
+    data: {
+      task: 'Refactoring co-pilot pages',
+      started: '2025-12-27T10:00:00Z',
+      files_modified: ['routes.tsx', 'CoPilotLayout.tsx']
+    },
+    userId: 'system'
+  })
+});
 ```
 
-### Retrieve Relevant Context
+### Log a Conversation
 
 ```javascript
-// Get specific decision
-memory_retrieve({ key: "decision_ai_models" })
-
-// Search for all AI-related decisions
-memory_search({ tags: ["decision", "ai"] })
-
-// Search for recent learnings
-memory_search({ tags: ["learning"], limit: 10 })
+// POST /agent/memory/conversation
+fetch('/agent/memory/conversation', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    topic: 'React Router refactor',
+    summary: 'Discussed breaking co-pilot.tsx into route-based pages',
+    userId: 'system'
+  })
+});
 ```
 
-## Session Rituals
-
-### Session Start
-
-At the beginning of a session, load relevant context:
+### Get Full Context (AI Coach / Agent)
 
 ```javascript
-// 1. Load key decisions
-memory_search({ tags: ["decision"], limit: 20 })
+// GET /agent/context - Returns everything
+const response = await fetch('/agent/context?threadId=xxx');
+const { context } = await response.json();
 
-// 2. Load recent session learnings
-memory_search({ tags: ["learning"], limit: 5 })
-
-// 3. Load user preferences
-memory_retrieve({ key: "user_preferences" })
+// context includes:
+// - recentSnapshots, recentStrategies, recentActions (from DB)
+// - agentPreferences, sessionHistory, projectState (from memory)
+// - conversationHistory, capabilities, selfHealing status
 ```
 
-### Session End
+## Internal Usage (Server-Side)
 
-Before ending a session, store learnings:
+For server-side code, use the memory functions directly:
 
 ```javascript
-// 1. Store session learnings
-memory_store({
-  key: `session_${date}_learnings`,
-  content: "Summary of what was learned/fixed/discovered",
-  tags: ["session", "learning"],
-  ttl_hours: 720
-})
+import { memoryPut, memoryGet, memoryQuery } from '../eidolon/memory/pg.js';
 
-// 2. Update any decisions that changed
-memory_store({
-  key: "decision_xyz",
-  content: "Updated decision...",
-  tags: ["decision", "updated"]
-})
+// Store
+await memoryPut({
+  table: 'agent_memory',
+  scope: 'decisions',
+  key: 'ai_models',
+  userId: null,
+  content: { strategist: 'claude-opus-4-5' },
+  ttlDays: 365
+});
 
-// 3. Note any documentation that needs updating
-memory_store({
-  key: `doc_update_${date}`,
-  content: "ARCHITECTURE.md needs update for new API endpoint",
-  tags: ["documentation", "todo"],
-  ttl_hours: 168  // 1 week
-})
+// Retrieve
+const data = await memoryGet({
+  table: 'agent_memory',
+  scope: 'decisions',
+  key: 'ai_models',
+  userId: null
+});
+
+// Query scope
+const items = await memoryQuery({
+  table: 'agent_memory',
+  scope: 'decisions',
+  userId: null,
+  limit: 50
+});
 ```
 
 ## Pre-populated Decisions
@@ -156,23 +194,72 @@ Content: All data links to snapshot_id. Sort by created_at DESC. Use Drizzle ORM
 Tags: [decision, database]
 ```
 
-## Table Schema
+## Table Schemas
+
+All four memory tables share the same structure (defined in `shared/schema.js`):
 
 ```sql
-CREATE TABLE mcp_memory (
-  key VARCHAR(255) PRIMARY KEY,
+-- agent_memory, assistant_memory, eidolon_memory, cross_thread_memory
+CREATE TABLE {table_name} (
+  id SERIAL PRIMARY KEY,
+  scope VARCHAR(255) NOT NULL,
+  key VARCHAR(255) NOT NULL,
+  user_id UUID,  -- NULL for system-wide entries
   content TEXT NOT NULL,
-  metadata JSONB DEFAULT '{}',
-  tags TEXT[] DEFAULT '{}',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   expires_at TIMESTAMP
 );
 
-CREATE INDEX idx_mcp_memory_tags ON mcp_memory USING GIN (tags);
+CREATE INDEX idx_{table}_scope ON {table} (scope);
+CREATE INDEX idx_{table}_user ON {table} (user_id);
+CREATE INDEX idx_{table}_expires ON {table} (expires_at);
+```
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `shared/schema.js` | Drizzle table definitions (lines 390-452) |
+| `server/eidolon/memory/pg.js` | Memory operations (`memoryPut`, `memoryGet`, `memoryQuery`) |
+| `server/agent/routes.js` | API endpoints (`/agent/memory/*`) |
+| `server/agent/enhanced-context.js` | Context gathering with memory |
+| `server/eidolon/memory/compactor.js` | Expired entry cleanup |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      AI Systems                                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
+│  │  Claude  │  │ AI Coach │  │  Agent   │  │ Eidolon  │        │
+│  │  Code    │  │ (client) │  │ (server) │  │ (server) │        │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘        │
+│       │             │             │             │               │
+│       ▼             ▼             ▼             ▼               │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │                   /agent/* API Endpoints                    │ │
+│  │  POST /memory/preference  POST /memory/session              │ │
+│  │  POST /memory/project     GET /context                      │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              │                                   │
+│                              ▼                                   │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │             server/eidolon/memory/pg.js                     │ │
+│  │    memoryPut()  memoryGet()  memoryQuery()  memoryCompact() │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              │                                   │
+│                              ▼                                   │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │                    PostgreSQL                               │ │
+│  │  agent_memory | assistant_memory | eidolon_memory | cross_  │ │
+│  └────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## See Also
 
-- [mcp-server/README.md](../../mcp-server/README.md) - MCP server documentation
+- [server/agent/README.md](../../server/agent/README.md) - Agent server
+- [server/eidolon/README.md](../../server/eidolon/README.md) - Eidolon framework
 - [CLAUDE.md](../../CLAUDE.md) - Project guidelines
+- [docs/architecture/database-schema.md](../architecture/database-schema.md) - Full schema docs

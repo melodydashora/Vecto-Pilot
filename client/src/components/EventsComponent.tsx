@@ -2,13 +2,15 @@ import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp, Navigation } from "lucide-react";
+import { MapPin, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp, Navigation, Calendar } from "lucide-react";
+import { filterValidEvents, formatEventDate, formatEventTimeRange } from "@/utils/co-pilot-helpers";
 
 interface Event {
   title: string;
   venue?: string;
   address?: string;
   event_date?: string;
+  event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
   event_time?: string;
   event_end_time?: string;
   type?: string;
@@ -29,12 +31,23 @@ interface EventsComponentProps {
 
 export default function EventsComponent({ events, isLoading: _isLoading }: EventsComponentProps) {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    today: true,
+    upcoming: true,
     concerts: true,
     sports: true,
     festivals: true,
     conventions: true,
     other: true,
   });
+
+  // Filter events - only show events with valid times
+  const { todayEvents, upcomingEvents, invalidEvents } = filterValidEvents(events);
+  const validEvents = [...todayEvents, ...upcomingEvents];
+
+  // Log filtering results for debugging
+  if (invalidEvents.length > 0) {
+    console.log(`[EventsComponent] Filtered out ${invalidEvents.length} events without valid times`);
+  }
 
   // Open navigation to event location
   const openNavigation = (event: Event) => {
@@ -93,8 +106,8 @@ export default function EventsComponent({ events, isLoading: _isLoading }: Event
     return "other";
   };
 
-  // Group events by category
-  const groupedEvents = events.reduce((acc, event) => {
+  // Group events by category (using only valid events)
+  const groupedEvents = validEvents.reduce((acc, event) => {
     const category = getCategoryName(event.subtype);
     if (!acc[category]) acc[category] = [];
     acc[category].push(event);
@@ -124,14 +137,19 @@ export default function EventsComponent({ events, isLoading: _isLoading }: Event
     other: "from-gray-50 to-slate-50 border-gray-200",
   };
 
-  if (!events || events.length === 0) {
+  if (!events || events.length === 0 || validEvents.length === 0) {
     return (
       <Card className="bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200">
         <CardContent className="p-6">
           <div className="flex items-center justify-center py-8 text-gray-500">
             <AlertCircle className="w-5 h-5 mr-2" />
-            <span>No events found for today</span>
+            <span>No events found with valid times</span>
           </div>
+          {invalidEvents.length > 0 && (
+            <p className="text-xs text-center text-gray-400 mt-2">
+              ({invalidEvents.length} events rejected - missing start/end times)
+            </p>
+          )}
         </CardContent>
       </Card>
     );
@@ -193,20 +211,28 @@ export default function EventsComponent({ events, isLoading: _isLoading }: Event
                       </div>
 
                       <div className="space-y-1.5 text-xs text-gray-600">
+                        {/* Date and Time - Always show for valid events */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {event.event_date && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-indigo-500 flex-shrink-0" />
+                              <span className={`font-medium ${formatEventDate(event.event_date) === 'Today' ? 'text-green-600' : 'text-indigo-600'}`}>
+                                {formatEventDate(event.event_date)}
+                              </span>
+                            </div>
+                          )}
+                          {event.event_time && (
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                              <span>{formatEventTimeRange(event.event_time, event.event_end_time)}</span>
+                            </div>
+                          )}
+                        </div>
+
                         {event.address && (
                           <div className="flex items-start gap-2">
                             <MapPin className="w-3 h-3 text-gray-500 mt-0.5 flex-shrink-0" />
                             <span>{event.address}</span>
-                          </div>
-                        )}
-
-                        {(event.event_time || event.event_end_time) && (
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                            <span>
-                              {event.event_time}
-                              {event.event_end_time && event.event_time ? ` - ${event.event_end_time}` : event.event_end_time ? event.event_end_time : ""}
-                            </span>
                           </div>
                         )}
 

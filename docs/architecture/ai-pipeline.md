@@ -8,7 +8,7 @@ Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligenc
 
 | Role | Model | Provider | Purpose |
 |------|-------|----------|---------|
-| Strategist | Claude Opus 4.5 | Anthropic | Generate minstrategy |
+| Strategist | Claude Opus 4.5 | Anthropic | Generate strategic overview |
 | Briefer (Primary) | Gemini 3.0 Pro | Google | Events, traffic, news, airport (with Google Search grounding) |
 | Briefer (Fallback) | Claude Opus 4.5 | Anthropic | Web search fallback when Gemini fails |
 | Traffic (Primary) | TomTom | TomTom | Real-time traffic data |
@@ -35,7 +35,7 @@ POST /api/blocks-fast (triggers waterfall)
 │  └──────┬──────┘  └──────┬──────┘  └──┬─┘ │
 │         │                │            │   │
 │         ▼                ▼            ▼   │
-│   minstrategy      events,news    holiday │
+│   strategy         events,news    holiday │
 └───────────────────────────────────────────┘
         │
         ▼
@@ -88,14 +88,30 @@ POST /api/blocks-fast (triggers waterfall)
 
 ## Timing
 
-Total pipeline: ~35-50 seconds
+Total pipeline: ~90-130 seconds (updated Dec 2025)
 
 | Phase | Duration | Notes |
 |-------|----------|-------|
-| Phase 1 | 10-15s | All three run in parallel |
-| Phase 2 | 8-12s | Both consolidators run in parallel |
-| Phase 3 | 15-20s | Venue planning + enrichment |
-| Phase 4 | 3-5s | Optional event validation |
+| Phase 1 | 25-30s | Strategist + Briefer + Holiday in parallel |
+| Phase 2 | 8-12s | Daily + Immediate consolidators in parallel |
+| Phase 3 | 60-90s | Venue planning (GPT-5.2) is the slowest phase |
+| Phase 4 | 3-5s | Event validation + Places/Routes enrichment |
+
+### Detailed Phase Timing
+
+Progress is tracked via SSE with these expected durations (from `server/lib/strategies/strategy-utils.js`):
+
+| Phase | Expected (ms) | Description |
+|-------|--------------|-------------|
+| `starting` | 500 | Strategy row creation |
+| `resolving` | 2,000 | Location resolution |
+| `analyzing` | 25,000 | Briefing (Gemini + traffic) |
+| `immediate` | 8,000 | GPT-5.2 immediate strategy |
+| `venues` | 90,000 | GPT-5.2 tactical planner (**slowest**) |
+| `routing` | 2,000 | Google Routes API batch |
+| `places` | 2,000 | Event matching + Places lookup |
+| `verifying` | 1,000 | Event verification |
+| `complete` | 0 | Done |
 
 ## Model Adapter Pattern
 
@@ -203,21 +219,39 @@ GEMINI_API_KEY=...
 | `server/lib/ai/adapters/anthropic-adapter.js` | Claude adapter |
 | `server/lib/ai/adapters/openai-adapter.js` | GPT-5.2 adapter |
 | `server/lib/ai/adapters/gemini-adapter.js` | Gemini adapter |
-| `server/lib/ai/providers/minstrategy.js` | Strategist provider |
-| `server/lib/ai/providers/briefing.js` | Briefer provider |
-| `server/lib/ai/providers/consolidator.js` | Consolidator provider |
-| `server/lib/strategy/tactical-planner.js` | Venue planner |
+| `server/lib/ai/providers/briefing.js` | Briefer provider (events, news, traffic) |
+| `server/lib/ai/providers/consolidator.js` | Strategy consolidator (daily + immediate) |
+| `server/lib/strategies/strategy-utils.js` | Phase timing, strategy row management |
+| `server/lib/strategy/tactical-planner.js` | Venue planner (GPT-5.2) |
 | `server/lib/briefing/event-schedule-validator.js` | Event validator |
+
+**Note:** The minstrategy table and provider were removed in Dec 2025. Strategies are now written directly to the `strategies` table via `briefing` table data.
 
 ## SSE Events
 
 Strategy status updates are sent via Server-Sent Events:
 
 ```javascript
-// Subscribe to strategy_ready
-const eventSource = new EventSource('/api/events');
+// Subscribe to strategy updates
+const eventSource = new EventSource('/api/strategy/subscribe?snapshotId=xxx');
+
+// Phase changes (for progress bar)
+eventSource.addEventListener('phase_change', (event) => {
+  const { snapshot_id, phase, phase_started_at, expected_duration_ms } = JSON.parse(event.data);
+  // Update progress bar
+});
+
+// Strategy ready
 eventSource.addEventListener('strategy_ready', (event) => {
   const { snapshot_id } = JSON.parse(event.data);
   // Refetch strategy data
 });
+
+// Blocks ready
+eventSource.addEventListener('blocks_ready', (event) => {
+  const { snapshot_id, blocks } = JSON.parse(event.data);
+  // Display Smart Blocks
+});
 ```
+
+**Last Updated:** 2025-12-27

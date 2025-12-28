@@ -362,7 +362,7 @@ server/
 ├── lib/                    # Business logic
 │   ├── ai/                 # AI layer
 │   │   ├── adapters/       # Model adapters (anthropic, openai, gemini)
-│   │   └── providers/      # AI providers (minstrategy, briefing, etc.)
+│   │   └── providers/      # AI providers (briefing, consolidator)
 │   ├── briefing/           # Briefing service
 │   ├── external/           # Third-party APIs (Perplexity, FAA)
 │   ├── infrastructure/     # Job queue

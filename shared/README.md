@@ -52,11 +52,17 @@ export const discovered_events = pgTable("discovered_events", {
   expected_attendance: text("expected_attendance").default('medium'),
   source_model: text("source_model").notNull(),  // SerpAPI, GPT-5.2, etc.
   event_hash: text("event_hash").notNull().unique(),  // Deduplication key
+  is_active: boolean("is_active").default(true),      // False if deactivated
+  deactivation_reason: text("deactivation_reason"),   // event_ended, incorrect_time, etc.
+  deactivated_at: timestamp("deactivated_at"),        // When deactivated
+  deactivated_by: text("deactivated_by"),             // ai_coach or user_id
   // ...
 });
 ```
 
 **Deduplication**: Uses MD5 hash of `normalize(title + venue + date + city)` to prevent duplicates across sources.
+
+**Deactivation**: Events can be marked inactive by AI Coach or users. Deactivated events are filtered out of Map tab displays but kept in database for audit.
 
 See [Event Discovery Architecture](../docs/architecture/event-discovery.md) for full documentation.
 
