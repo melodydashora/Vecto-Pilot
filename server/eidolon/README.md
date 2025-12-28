@@ -10,7 +10,7 @@ Eidolon framework integration for AI agent orchestration and enhanced context ma
 eidolon/
 ├── core/           # Core Eidolon components
 ├── memory/         # Memory management (PostgreSQL, compaction)
-├── tools/          # Eidolon tools (MCP diagnostics, SQL client)
+├── tools/          # Eidolon tools (SQL client)
 ├── config.ts       # Eidolon configuration
 ├── index.ts        # Entry point
 ├── enhanced-context.js  # Context enrichment
@@ -50,7 +50,6 @@ eidolon/
 ### tools/
 | File | Purpose |
 |------|---------|
-| `mcp-diagnostics.js` | MCP diagnostics tool |
 | `sql-client.ts` | SQL client for database operations |
 
 ## Connections

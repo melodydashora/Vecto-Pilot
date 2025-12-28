@@ -133,11 +133,6 @@ export function botBlocker(req, res, next) {
     return next();
   }
 
-  // Allow MCP routes (Claude Desktop integration)
-  if (path.startsWith('/mcp')) {
-    return next();
-  }
-
   // Allow health checks
   if (path === '/health' || path === '/api/health') {
     return next();

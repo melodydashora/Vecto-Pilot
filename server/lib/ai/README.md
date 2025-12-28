@@ -14,7 +14,9 @@ ai/
 │   ├── briefing.js     # Events, traffic, news (Gemini + Search)
 │   └── consolidator.js # Strategy generation (GPT-5.2 + Gemini)
 ├── coach-dal.js        # Data access layer for AI Coach chat
+├── index.js            # Barrel exports for ai module
 ├── llm-router-v2.js    # LLM status/routing (used by health endpoint)
+├── model-registry.js   # Model configuration registry
 ├── models-dictionary.js # Model metadata registry
 └── unified-ai-capabilities.js # AI capability manager
 ```
@@ -39,7 +41,9 @@ const result = await callModel('strategist', { system, user });
 | `providers/briefing.js` | Events/traffic/news research | `runBriefing(snapshotId, { snapshot })` |
 | `providers/consolidator.js` | Strategy generation | `runImmediateStrategy()`, `runConsolidator()` |
 | `coach-dal.js` | Chat data access layer | `CoachDAL` class |
+| `index.js` | Barrel exports for ai module | Module re-exports |
 | `llm-router-v2.js` | LLM status for health checks | `getLLMStatus()` |
+| `model-registry.js` | Model configuration registry | Model config lookup |
 | `models-dictionary.js` | Model metadata registry | `MODELS` dictionary |
 | `unified-ai-capabilities.js` | AI capability manager | `unifiedCapabilities` |
 

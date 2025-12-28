@@ -9,13 +9,19 @@ Core business logic organized by domain. Each subfolder is self-contained with i
 ```
 lib/
 ├── ai/              # AI model adapters and providers
-├── strategy/        # Strategy generation pipeline
-├── venue/           # Venue intelligence and enrichment
-├── location/        # Location services (geocoding, holidays)
 ├── briefing/        # Real-time briefing service
+├── change-analyzer/ # Documentation maintenance system
 ├── external/        # Third-party API integrations
 ├── infrastructure/  # Logging, job queues
+├── location/        # Location services (geocoding, holidays)
+├── notifications/   # Alert and notification system
+├── strategy/        # Strategy generation pipeline
+├── subagents/       # Specialized AI subagents
+├── venue/           # Venue intelligence and enrichment
+├── ability-routes.js # Ability route definitions
 ├── auth.js          # Bearer token authentication
+├── capabilities.js  # AI capability definitions
+├── index.js         # Module exports
 └── jwt.ts           # JWT token utilities
 ```
 
@@ -24,12 +30,15 @@ lib/
 | Folder | Purpose | Key Export |
 |--------|---------|------------|
 | `ai/` | Model dispatching, adapters, providers | `callModel(role, {system, user})` |
-| `strategy/` | Strategy waterfall orchestration | `generateStrategyParallel()` |
-| `venue/` | Venue discovery and enrichment | `generateEnhancedSmartBlocks()` |
-| `location/` | Geocoding, holidays, validation | `detectHoliday()`, `validateConditions()` |
 | `briefing/` | Events, traffic, weather, news | `getOrGenerateBriefing()` |
+| `change-analyzer/` | Documentation maintenance | `findAffectedDocs()` |
 | `external/` | FAA, TTS, semantic search | `fetchFAAStatus()`, `synthesizeSpeech()` |
 | `infrastructure/` | Cross-cutting concerns | `enqueue()`, logging |
+| `location/` | Geocoding, holidays, validation | `detectHoliday()`, `validateConditions()` |
+| `notifications/` | Email alerts, notifications | `sendAlert()` |
+| `strategy/` | Strategy waterfall orchestration | `generateStrategyParallel()` |
+| `subagents/` | Specialized AI subagents | `verifyEvent()` |
+| `venue/` | Venue discovery and enrichment | `generateEnhancedSmartBlocks()` |
 
 ## Data Flow
 
@@ -78,7 +87,10 @@ import { detectHoliday } from './location/holiday-detector.js';
 
 | File | Purpose |
 |------|---------|
+| `ability-routes.js` | Ability route definitions for AI capabilities |
 | `auth.js` | Bearer token extraction from Authorization header |
+| `capabilities.js` | AI capability definitions and registry |
+| `index.js` | Barrel exports for lib modules |
 | `jwt.ts` | JWT token verification, phantom user detection |
 | `anthropic-extended.d.ts` | TypeScript definitions for Anthropic extended features |
 

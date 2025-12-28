@@ -31,11 +31,6 @@ export const FILE_TO_DOC_MAP = {
     priority: 'medium',
     reason: 'Briefing API changes'
   },
-  'server/api/mcp/': {
-    docs: ['docs/ai-tools/mcp.md', 'mcp-server/README.md'],
-    priority: 'high',
-    reason: 'MCP tool changes'
-  },
 
   // AI Layer
   'server/lib/ai/': {
@@ -117,13 +112,6 @@ export const FILE_TO_DOC_MAP = {
     docs: ['docs/ai-tools/assistant.md', 'server/assistant/README.md'],
     priority: 'medium',
     reason: 'Assistant changes'
-  },
-
-  // MCP Server
-  'mcp-server/': {
-    docs: ['docs/ai-tools/mcp.md', 'mcp-server/README.md'],
-    priority: 'high',
-    reason: 'MCP server changes'
   },
 
   // Configuration

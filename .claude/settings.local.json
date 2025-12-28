@@ -70,7 +70,13 @@
       "Bash(git branch:*)",
       "Bash(git push:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx drizzle-kit generate:*)"
+      "Bash(npx drizzle-kit generate:*)",
+      "Bash(while read dir)",
+      "Bash(do if ! test -f \"$dir/README.md\")",
+      "Bash(then echo \"MISSING: server/$dir\")",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(then echo \"MISSING: client/$dir\")"
     ],
     "deny": [],
     "ask": []
