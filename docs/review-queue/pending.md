@@ -101,8 +101,142 @@ Refactored the monolithic co-pilot.tsx (1700+ lines) into a router-based archite
 | `docs/preflight/database.md` | Schema changes | DEFERRED |
 | `docs/architecture/client-structure.md` | Router refactor | DEFERRED |
 
+## 2025-12-28 Analysis
+
+**Generated:** 2025-12-28T03:04:53.219Z
+**Branch:** main
+**Last Commit:** 09c20d8 fix: Allow briefing queries as soon as snapshot exists
+
+### Recent Commit Changes (3)
+| File | Status |
+|------|--------|
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `package-lock.json` | Modified |
+
+### Documentation Review Needed
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/GlobalHeader.tsx)
+
+### Status: PENDING
+
 ---
 
-## Resolved Items
+## 2025-12-28 Analysis
 
-All items from previous sessions have been consolidated. See daily logs in `docs/review-queue/YYYY-MM-DD.md` for historical details.
+**Generated:** 2025-12-28T03:08:40.021Z
+**Branch:** main
+**Last Commit:** 09c20d8 fix: Allow briefing queries as soon as snapshot exists
+
+### Uncommitted Changes (3)
+| File | Status |
+|------|--------|
+| `lient/src/hooks/useBriefingQueries.ts` | Modified |
+| `docs/review-queue/2025-12-28.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+
+### Recent Commit Changes (3)
+| File | Status |
+|------|--------|
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `package-lock.json` | Modified |
+
+### Documentation Review Needed
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/GlobalHeader.tsx)
+
+### Status: PENDING
+
+---
+
+## 2025-12-28 Analysis
+
+**Generated:** 2025-12-28T03:09:21.271Z
+**Branch:** main
+**Last Commit:** 09c20d8 fix: Allow briefing queries as soon as snapshot exists
+
+### Uncommitted Changes (3)
+| File | Status |
+|------|--------|
+| `lient/src/hooks/useBriefingQueries.ts` | Modified |
+| `docs/review-queue/2025-12-28.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+
+### Recent Commit Changes (3)
+| File | Status |
+|------|--------|
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `package-lock.json` | Modified |
+
+### Documentation Review Needed
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/GlobalHeader.tsx)
+
+### Status: PENDING
+
+---
+
+## 2025-12-28 Analysis
+
+**Generated:** 2025-12-28T03:10:14.795Z
+**Branch:** main
+**Last Commit:** 4a857af fix: Add smart retry logic for briefing data placeholders
+
+### Uncommitted Changes (2)
+| File | Status |
+|------|--------|
+| `ocs/review-queue/2025-12-28.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+
+### Recent Commit Changes (3)
+| File | Status |
+|------|--------|
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `package-lock.json` | Added |
+
+### Documentation Review Needed
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/GlobalHeader.tsx)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (package-lock.json)
+
+### Status: PENDING
+
+---
+
+## 2025-12-28 Analysis
+
+**Generated:** 2025-12-28T03:14:09.544Z
+**Branch:** main
+**Last Commit:** fb3683f fix: Add retry count limit to prevent infinite polling
+
+### Uncommitted Changes (2)
+| File | Status |
+|------|--------|
+| `ocs/review-queue/2025-12-28.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+
+### Recent Commit Changes (2)
+| File | Status |
+|------|--------|
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+
+### Documentation Review Needed
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/GlobalHeader.tsx)
+
+### Status: PENDING
+
+---
+
+---
