@@ -2,7 +2,9 @@
 // Consolidated briefing data queries for Co-Pilot
 //
 // FETCH-ONCE PATTERN: Like location-context, briefing data is fetched exactly ONCE
-// per snapshot when the pipeline reaches 'immediate' phase (briefing data saved), then cached forever.
+// per snapshot as soon as the snapshot exists, then cached forever.
+// Briefing data (weather, traffic, news) is saved to DB during location enrichment,
+// so it's available immediately - no need to wait for strategy pipeline.
 // New location = new snapshotId = new fetch. No polling, no refetching.
 
 import { useQuery } from '@tanstack/react-query';
@@ -14,15 +16,14 @@ interface BriefingQueriesOptions {
   pipelinePhase?: PipelinePhase;
 }
 
-// Phases where briefing data is definitely in the database (after 'analyzing' completes)
-const BRIEFING_READY_PHASES: PipelinePhase[] = ['immediate', 'venues', 'enriching', 'complete'];
+// Note: Briefing data (weather, traffic, news) is saved to DB during location enrichment,
+// BEFORE strategy generation. We don't need to wait for pipeline phases.
 
-export function useBriefingQueries({ snapshotId, pipelinePhase }: BriefingQueriesOptions) {
-  // Only enable queries when:
-  // 1. We have a valid snapshotId
-  // 2. Pipeline has reached at least 'immediate' phase (briefing data is saved)
-  const briefingReady = pipelinePhase && BRIEFING_READY_PHASES.includes(pipelinePhase);
-  const isEnabled = !!snapshotId && snapshotId !== 'live-snapshot' && briefingReady;
+export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }: BriefingQueriesOptions) {
+  // Enable queries as soon as we have a valid snapshotId
+  // Briefing data is available immediately after snapshot creation (from enrichLocation)
+  // No need to wait for strategy pipeline - that was causing briefing tab to never load!
+  const isEnabled = !!snapshotId && snapshotId !== 'live-snapshot';
 
   // FETCH-ONCE config: staleTime=Infinity means data never goes stale
   // refetchOnMount/WindowFocus=false prevents re-fetching on component remount
