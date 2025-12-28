@@ -94,16 +94,17 @@ Google Maps integration with multiple marker layers:
 **Marker Layers:**
 - **Driver location** (blue marker)
 - **Strategy venues** (red/orange/yellow by value grade A/B/C)
-- **Bar markers** ($$+ only, color-coded by status):
+- **Bar markers** ($$+ only, open bars only):
   - 🟢 Green = Open bar
   - 🔴 Red = Closing soon (last call opportunity!)
-  - ⚫ Gray = Closed
+  - *(Closed bars are hidden)*
 - **Event markers** (purple) - today's events only
 
-**Bar Filtering:**
-- Only shows bars with $$ and above (expense_rank >= 2)
+**Bar Filtering (MapPage.tsx):**
+- Only shows bars with $$ and above (`expense_rank >= 2`)
+- Only shows OPEN bars (`is_open === true`)
 - Fetched from `/api/venues/nearby` endpoint
-- Separate from strategy blocks
+- Separate from strategy blocks (different data source)
 
 **Event Filtering:**
 - Only shows events happening TODAY with valid times
