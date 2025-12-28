@@ -40,12 +40,18 @@ const client = new Anthropic();
 ## Gemini 3 Pro Parameters
 
 ```javascript
-// CORRECT
+// CORRECT - Gemini 3 Pro only supports LOW or HIGH (not MEDIUM!)
 { generationConfig: { thinkingConfig: { thinkingLevel: "HIGH" } } }
+{ generationConfig: { thinkingConfig: { thinkingLevel: "LOW" } } }
 
-// WRONG
-{ thinking_budget: 8000 }
+// WRONG - causes "thinking level not supported" error
+{ generationConfig: { thinkingConfig: { thinkingLevel: "MEDIUM" } } }  // MEDIUM only for Flash!
+{ thinking_budget: 8000 }  // Deprecated flat format
 ```
+
+**Valid thinkingLevel values:**
+- **Gemini 3 Pro**: `LOW`, `HIGH` only
+- **Gemini 3 Flash**: `minimal`, `low`, `medium`, `high`
 
 ## Check Before Editing
 

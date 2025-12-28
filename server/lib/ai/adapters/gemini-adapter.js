@@ -38,9 +38,10 @@ export async function callGemini({
     };
 
     // ADDED: Support for Gemini 3.0 Thinking (Only for gemini-3-* models)
+    // IMPORTANT: Gemini 3 Pro only supports LOW or HIGH (MEDIUM is Flash-only!)
     if (model.includes('gemini-3')) {
       generationConfig.thinkingConfig = {
-        thinkingLevel: thinkingLevel // "HIGH" or "LOW"
+        thinkingLevel: thinkingLevel // "HIGH" or "LOW" for Pro, +MEDIUM for Flash
       };
     }
 

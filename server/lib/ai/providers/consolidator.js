@@ -170,7 +170,8 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
             ],
             generationConfig: {
               thinkingConfig: {
-                thinkingLevel: "MEDIUM"
+                // Gemini 3 Pro only supports LOW or HIGH (MEDIUM is only for Flash)
+                thinkingLevel: "LOW"
               },
               temperature,
               maxOutputTokens: maxTokens
