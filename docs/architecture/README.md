@@ -19,6 +19,7 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 |----------|-------|---------|--------------|
 | [ai-pipeline.md](ai-pipeline.md) | ~200 | TRIAD pipeline, model configuration | Modifying AI flow |
 | [strategy-framework.md](strategy-framework.md) | ~400 | 13-component recommendation pipeline | Understanding how recommendations work |
+| [driver-intelligence-system.md](driver-intelligence-system.md) | ~800 | Full driver intelligence architecture & vision | Understanding staging recommendations |
 | [event-discovery.md](event-discovery.md) | ~300 | Multi-model AI event search | Modifying event detection |
 | [google-cloud-apis.md](google-cloud-apis.md) | ~250 | Places, Routes, Weather, Geocoding | Using Google APIs |
 
@@ -116,9 +117,9 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the complete folder README inde
 | Category | Count | Total Lines |
 |----------|-------|-------------|
 | Core System | 4 | ~760 |
-| AI System | 4 | ~1150 |
+| AI System | 5 | ~1950 |
 | System Rules | 3 | ~450 |
 | Infrastructure | 2 | ~200 |
-| **Total** | **13** | **~2560** |
+| **Total** | **14** | **~3360** |
 
-All documents are under 400 lines (most under 200), making them readable in a single pass.
+Most documents are under 400 lines (under 200), making them readable in a single pass. The driver-intelligence-system.md is longer (~800 lines) as a comprehensive architecture vision document.
