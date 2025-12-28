@@ -12,10 +12,12 @@ components/
 ├── CoachChat.tsx          # AI Strategy Coach with voice
 ├── BriefingTab.tsx        # Events, traffic, news, weather
 ├── BarsTable.tsx          # Venue table display
+├── BarTab.tsx             # Premium bars sidebar
 ├── MapTab.tsx             # Interactive map
 ├── DonationTab.tsx        # Donation section
 ├── InstructionsTab.tsx    # How-to instructions
 ├── FeedbackModal.tsx      # Feedback dialogs
+├── RideshareIntelTab.tsx  # Rideshare platform intelligence
 ├── SmartBlocksStatus.tsx  # Loading/status display
 ├── EventsComponent.tsx    # Events list
 ├── ErrorBoundary.tsx      # Error boundary wrapper
@@ -29,16 +31,17 @@ components/
 
 | Component | LOC | Used By |
 |-----------|-----|---------|
-| `GlobalHeader.tsx` | 488 | App.tsx |
-| `CoachChat.tsx` | 535 | co-pilot.tsx |
-| `BriefingTab.tsx` | 466 | co-pilot.tsx |
-| `BarsTable.tsx` | 400 | co-pilot.tsx |
-| `BarTab.tsx` | 400 | co-pilot.tsx |
-| `MapTab.tsx` | 237 | co-pilot.tsx |
-| `DonationTab.tsx` | 396 | co-pilot.tsx |
+| `GlobalHeader.tsx` | 488 | CoPilotLayout.tsx |
+| `CoachChat.tsx` | 535 | StrategyPage.tsx |
+| `BriefingTab.tsx` | 466 | BriefingPage.tsx |
+| `BarsTable.tsx` | 400 | BarsPage.tsx |
+| `BarTab.tsx` | 400 | BarsPage.tsx |
+| `MapTab.tsx` | 237 | MapPage.tsx |
+| `DonationTab.tsx` | 396 | AboutPage.tsx |
 | `InstructionsTab.tsx` | 428 | DonationTab.tsx |
-| `FeedbackModal.tsx` | 236 | co-pilot.tsx |
-| `SmartBlocksStatus.tsx` | 158 | co-pilot.tsx |
+| `FeedbackModal.tsx` | 236 | StrategyPage.tsx |
+| `RideshareIntelTab.tsx` | 800 | IntelPage.tsx |
+| `SmartBlocksStatus.tsx` | 158 | StrategyPage.tsx |
 | `EventsComponent.tsx` | 200 | BriefingTab.tsx |
 
 ## Sub-folders
@@ -50,9 +53,9 @@ components/
 
 ## Connections
 
-- **State from:** `../contexts/location-context-clean.tsx`
+- **State from:** `../contexts/location-context-clean.tsx`, `../contexts/co-pilot-context.tsx`
 - **Data from:** `../hooks/useBriefingQueries.ts`, API calls
-- **Rendered by:** `../pages/co-pilot.tsx`
+- **Rendered by:** `../pages/co-pilot/*.tsx`
 
 ## Key Implementation Details
 

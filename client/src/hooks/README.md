@@ -10,13 +10,15 @@ Custom React hooks for data fetching and UI state.
 |------|---------|
 | `useBriefingQueries.ts` | Fetches weather, traffic, news, events |
 | `useEnrichmentProgress.ts` | Tracks briefing enrichment progress |
+| `useMemory.ts` | Cross-session memory management |
+| `useMobile.tsx` | Mobile device detection |
+| `usePlatformData.ts` | Rideshare platform data (Uber/Lyft coverage) |
 | `useStrategyPolling.ts` | Strategy data fetching with SSE and caching |
 | `useStrategy.ts` | Strategy hook for strategy state management |
 | `useStrategyLoadingMessages.ts` | Rotating loading messages during strategy generation |
 | `useVenueLoadingMessages.ts` | Rotating loading messages during venue enrichment |
 | `useTTS.ts` | Text-to-speech with OpenAI |
 | `useToast.ts` | Toast notifications |
-| `useMobile.tsx` | Mobile device detection |
 
 ## Active Hooks
 
@@ -96,7 +98,19 @@ const { message } = useVenueLoadingMessages({ isLoading: true });
 ```
 Returns rotating loading messages during venue enrichment (e.g., "Finding optimal venues...").
 
+### useMemory
+```typescript
+const { memories, storeMemory, retrieveMemory, searchMemories } = useMemory();
+```
+Manages cross-session persistent memory via the Eidolon memory system.
+
+### usePlatformData
+```typescript
+const { markets, stats, searchCities, isLoading } = usePlatformData();
+```
+Fetches rideshare platform coverage data (Uber/Lyft markets, cities).
+
 ## Connections
 
-- **Used by:** `../pages/co-pilot.tsx`, components
-- **Fetches from:** `/api/*` endpoints (briefing, strategy, tts)
+- **Used by:** `../pages/co-pilot/*`, components
+- **Fetches from:** `/api/*` endpoints (briefing, strategy, tts, platform)

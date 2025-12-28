@@ -8,7 +8,34 @@ React context providers for global state management.
 
 | File | Purpose |
 |------|---------|
+| `co-pilot-context.tsx` | Shared state for co-pilot pages (strategy, blocks, SSE) |
 | `location-context-clean.tsx` | GPS, weather, air quality, snapshots |
+
+## CoPilotContext
+
+Provides shared state across all co-pilot pages:
+
+```tsx
+import { CoPilotProvider, useCoPilot } from './contexts/co-pilot-context';
+
+// Wrap pages
+<CoPilotProvider>
+  <CoPilotLayout />
+</CoPilotProvider>
+
+// Use in components
+function MyComponent() {
+  const {
+    strategyData,           // Current strategy from API
+    blocksData,             // Smart blocks from API
+    persistentStrategy,     // Daily strategy
+    immediateStrategy,      // NOW strategy
+    isGenerating,           // Strategy generation in progress
+    enrichmentProgress,     // Enrichment progress percentage
+    refreshStrategy         // Trigger strategy refresh
+  } = useCoPilot();
+}
+```
 
 ## LocationContext
 
