@@ -74,6 +74,7 @@ This document captures historical issues, pitfalls, and best practices discovere
   generationConfig: {
     thinkingConfig: {
       thinkingLevel: "HIGH"    // Must be nested in thinkingConfig
+      // IMPORTANT: Gemini 3 Pro only supports LOW or HIGH (MEDIUM is Flash-only!)
     },
     responseMimeType: "application/json"  // For structured outputs
   },

@@ -93,10 +93,12 @@ See [docs/ai-tools/README.md](docs/ai-tools/README.md) for full documentation.
 
 **Gemini 3 Pro**:
 ```javascript
-// CORRECT
+// CORRECT (Gemini 3 Pro only supports LOW or HIGH)
 { generationConfig: { thinkingConfig: { thinkingLevel: "HIGH" } } }
+{ generationConfig: { thinkingConfig: { thinkingLevel: "LOW" } } }
 // WRONG
-{ thinking_budget: 8000 }
+{ generationConfig: { thinkingConfig: { thinkingLevel: "MEDIUM" } } }  // MEDIUM is Flash-only!
+{ thinking_budget: 8000 }  // Deprecated
 ```
 
 ### Model Adapter Pattern
