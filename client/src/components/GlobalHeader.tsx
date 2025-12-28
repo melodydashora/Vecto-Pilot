@@ -272,11 +272,10 @@ const GlobalHeaderComponent: React.FC = () => {
       }
       return currentLocationString;
     }
-    // Fall back to coordinates if city name not yet resolved
+    // Show "Resolving..." instead of raw coordinates (less scary for users)
+    // Coordinates are available but city/state haven't resolved yet
     if (coords?.latitude != null && coords?.longitude != null) {
-      return `${Number(coords.latitude).toFixed(3)}, ${Number(
-        coords.longitude,
-      ).toFixed(3)}`;
+      return "Resolving location...";
     }
     return "Detecting...";
   };
