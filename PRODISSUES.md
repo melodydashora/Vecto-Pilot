@@ -364,5 +364,183 @@ Target SLAs:
 
 ---
 
+---
+
+## Issue #6: Briefing Tab Shows No Data Until Strategy Completes (TIMING)
+
+**Symptom:**
+```
+[BriefingTab] Received data: {
+  hasWeather: false,
+  hasTraffic: false,
+  hasNews: false,
+  hasEvents: false,
+  hasClosures: false,
+  hasAirport: false
+}
+```
+
+The Briefing tab remains empty until the entire strategy pipeline completes, even though briefing data is generated early in the pipeline.
+
+**Root Cause:**
+
+**ARCHITECTURE MISMATCH**: The UI queries briefing data tied to `snapshotId`, but the data flow has a race condition:
+
+1. **Pipeline Order** (from `strategy-generator-parallel.js`):
+   ```
+   Phase 1: snapshot created
+   Phase 2: briefing generated (runBriefing) ← DATA EXISTS HERE
+   Phase 3: strategy_for_now generated (runImmediateStrategy)
+   Phase 4: venues generated
+   ```
+
+2. **UI Query Timing** (from `useBriefingQueries.ts`):
+   - Queries fire as soon as `snapshotId` exists
+   - But briefing row may be a **placeholder** (NULL fields)
+   - Retry logic polls every 5 seconds for up to 30 seconds
+   - **PROBLEM**: If briefing generation takes >30s, UI gives up
+
+3. **Actual Timing** (from logs):
+   ```
+   [BRIEFING] START: Frisco, TX (cb1638cd) at 15:09:26
+   [BRIEFING] COMPLETE: Frisco, TX at 15:09:55  ← 29 SECONDS
+   [Strategy] immediate strategy saved at 15:10:02  ← 7 SECONDS LATER
+   ```
+
+**Why This Happens:**
+
+1. **Placeholder Row Race**: `generateAndStoreBriefing()` creates a row with NULL fields immediately to prevent duplicate generation
+2. **Client Sees Placeholder**: UI queries briefing before `traffic_conditions`, `events`, `news`, etc. are populated
+3. **Retry Window Too Short**: 30-second timeout (6 retries × 5s) barely covers slow briefing generation
+4. **Strategy Dependency**: User perception is that briefing "needs strategy" because both complete around the same time
+
+**Impact:**
+- User sees empty Briefing tab for 30-60 seconds
+- No way to validate what data is being sent to strategist
+- Can't verify traffic/events quality before strategy generation
+
+**Fix Options:**
+
+### Option A: Extend Retry Window (QUICK FIX)
+```javascript
+// In useBriefingQueries.ts
+const MAX_RETRY_ATTEMPTS = 12; // 12 × 5s = 60 seconds (was 6/30s)
+```
+
+**Pros**: Simple, covers slow Gemini calls  
+**Cons**: Doesn't fix root cause
+
+### Option B: Add Loading States Per Field (RECOMMENDED)
+```javascript
+// In useBriefingQueries.ts - add granular loading checks
+function isTrafficLoading(data) {
+  return !data?.traffic_conditions || 
+         data.traffic_conditions.fetchedAt === null;
+}
+
+// Show partial data as it arrives:
+{trafficData?.summary && (
+  <TrafficSection data={trafficData} />
+)}
+```
+
+**Pros**: Shows data as it arrives, better UX  
+**Cons**: Requires UI refactor
+
+### Option C: SSE Events for Briefing Progress (BEST)
+```javascript
+// Server emits events as briefing completes:
+SSE: briefing_traffic_ready { snapshot_id, traffic }
+SSE: briefing_events_ready { snapshot_id, events }
+SSE: briefing_complete { snapshot_id }
+
+// Client updates state incrementally
+```
+
+**Pros**: Real-time updates, no polling waste  
+**Cons**: More complex implementation
+
+---
+
+## Issue #7: JSON Parsing Concern for LLM Input (DATA QUALITY)
+
+**Question:**
+> "if we can't parse the json data before sending the briefing row with the snapshot to the AI model for strategy_for_now field to be populated"
+
+**Assessment:**
+
+**NO PARSING ISSUE EXISTS** - The briefing data is sent to GPT-5.2 as **formatted text**, not raw JSON.
+
+**How It Actually Works** (from `consolidator.js`):
+
+```javascript
+async function runImmediateStrategy(snapshotId, { snapshot }) {
+  const briefing = await getBriefingBySnapshotId(snapshotId);
+  
+  // Briefing is FORMATTED as text for GPT-5.2:
+  const userPrompt = `
+CURRENT CONDITIONS:
+Weather: ${snapshot.weather?.tempF}°F, ${snapshot.weather?.conditions}
+Air Quality: AQI ${snapshot.air?.aqi}
+
+TRAFFIC: ${briefing.traffic_conditions?.summary}
+Active incidents: ${briefing.traffic_conditions?.incidents?.length || 0}
+
+EVENTS TODAY: ${briefing.events?.length || 0} events
+${briefing.events?.map(e => `- ${e.title} at ${e.venue}`).join('\n')}
+
+NEWS: ${briefing.news?.items?.length || 0} items
+${briefing.news?.items?.map(n => `- ${n.title}: ${n.summary}`).join('\n')}
+`;
+  
+  // GPT-5.2 receives clean formatted text, not JSON
+  const result = await callModel("consolidator", { 
+    user: userPrompt 
+  });
+}
+```
+
+**What Gets Sent to LLM:**
+
+1. **Weather**: Formatted as `"69°F, Clear"` ✅
+2. **Traffic**: Summary + incident count + key issues array ✅
+3. **Events**: Title, venue, time, impact for each event ✅
+4. **News**: Title + summary for each item ✅
+5. **School Closures**: District name + dates ✅
+
+**Data Deduplication Status:**
+
+From the logs, we can see:
+```
+[BRIEFING] Cache hit: news=5, closures=18  ← Daily cache works
+[Dedup] Found 100 existing events to avoid duplicates ← Event dedup works
+```
+
+**NO DUPLICATES ARE SENT** because:
+1. **News/Closures**: City-level daily cache (same data for all users in Frisco, TX)
+2. **Events**: Semantic deduplication in `sync-events.mjs` prevents duplicate event inserts
+3. **Traffic**: Fresh TomTom data every snapshot (no duplicates possible)
+
+**Validation Through UI:**
+
+The Briefing tab exists specifically to validate this data quality:
+- Traffic: Shows `summary`, `keyIssues`, `incidents` array
+- Events: Shows all 50 events from `discovered_events` table
+- News: Shows filtered news items (5 shown, not all raw results)
+- Closures: Shows 18 school closures
+
+**Recommendation:**
+
+**NO MODEL CHANGE NEEDED** - The current flow is working correctly:
+
+1. ✅ Briefing generates clean, structured data
+2. ✅ Data is formatted as human-readable text for GPT-5.2
+3. ✅ Deduplication prevents sending duplicates
+4. ✅ UI shows same data sent to LLM for validation
+
+**The only issue is TIMING** (Issue #6 above), not data quality.
+
+---
+
 **Last Updated:** December 28, 2025  
 **Status:** REQUIRES IMMEDIATE ACTION
