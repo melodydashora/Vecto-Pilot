@@ -43,9 +43,6 @@ export async function mountRoutes(app, server) {
   // Define routes in mount order (specific routes first, catch-all last)
   // Routes organized by domain in server/api/
   const routes = [
-    // MCP Protocol (for Claude Desktop)
-    { path: '/mcp', module: './server/api/mcp/mcp.js', desc: 'MCP Protocol' },
-
     // Health & Diagnostics (server/api/health/)
     { path: '/api/diagnostics', module: './server/api/health/diagnostics.js', desc: 'Diagnostics' },
     { path: '/api/diagnostic', module: './server/api/health/diagnostic-identity.js', desc: 'Diagnostic Identity' },

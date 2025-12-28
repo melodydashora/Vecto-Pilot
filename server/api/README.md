@@ -14,6 +14,7 @@ api/
 ├── feedback/       # User feedback, actions
 ├── health/         # Health checks, diagnostics
 ├── location/       # GPS, geocoding, snapshots
+├── platform/       # Platform data (Uber/Lyft intel)
 ├── research/       # Vector search, research
 ├── strategy/       # Strategy generation
 ├── venue/          # Venue intelligence
@@ -99,6 +100,20 @@ GET  /api/strategy/:snapshotId   - Get strategy for snapshot
 | `venue-intelligence.js` | `/api/venues/*` | Venue recommendations |
 | `venue-events.js` | `/api/venue/events/*` | Venue-specific events |
 | `closed-venue-reasoning.js` | `/api/closed-venue-reasoning` | GPT-5 venue reasoning |
+
+### platform/
+| File | Route | Purpose |
+|------|-------|---------|
+| `index.js` | `/api/platform/*` | Rideshare platform data (Uber/Lyft market coverage) |
+
+Key platform endpoints:
+```
+GET  /api/platform/stats          - Overall statistics
+GET  /api/platform/markets        - List all markets with city counts
+GET  /api/platform/markets/:market - Cities in a specific market
+GET  /api/platform/search?q=      - Search cities by name
+GET  /api/platform/city/:city     - Details for a specific city
+```
 
 ### utils/
 | File | Purpose |

@@ -6,27 +6,12 @@ Index of all AI-powered tools and capabilities available in Vecto Pilot.
 
 | Tool System | Location | Purpose |
 |-------------|----------|---------|
-| [MCP Server](mcp.md) | `mcp-server/` | 39 tools via Model Context Protocol |
 | [Workspace Agent](agent.md) | `server/agent/` | WebSocket-based workspace access |
 | [Eidolon SDK](eidolon.md) | `server/eidolon/` | Enhanced context and deep thinking |
-| [Memory System](memory.md) | `mcp-server/`, `server/eidolon/memory/` | Persistent cross-session memory |
+| [Memory System](memory.md) | `server/eidolon/memory/` | Persistent cross-session memory |
 | [Assistant](assistant.md) | `server/assistant/` | Context enrichment and search |
 
 ## When to Use What
-
-### For Claude Desktop Integration
-Use **MCP Server** - Provides 39 tools via standard Model Context Protocol.
-
-```json
-// Claude Desktop config
-{
-  "mcpServers": {
-    "vecto-pilot": {
-      "url": "https://your-domain/mcp"
-    }
-  }
-}
-```
 
 ### For WebSocket Real-time Access
 Use **Workspace Agent** - Real-time bidirectional communication.
@@ -124,7 +109,6 @@ const existing = await grep_search({
 
 ## See Also
 
-- [mcp.md](mcp.md) - Full MCP tool reference
 - [agent.md](agent.md) - Workspace agent details
 - [eidolon.md](eidolon.md) - Eidolon SDK features
 - [memory.md](memory.md) - Memory system guide

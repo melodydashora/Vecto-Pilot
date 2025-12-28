@@ -297,4 +297,4 @@ node tools/research/parse-flagship-json.mjs
 
 ---
 
-*Auto-generated on 2025-12-28T01:03:51.397Z*
+*Auto-generated on 2025-12-28T14:46:40.160Z*

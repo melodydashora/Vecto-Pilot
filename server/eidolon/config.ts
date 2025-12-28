@@ -24,7 +24,6 @@ export const EIDOLON_CONFIG = {
     assistant_interception: true,
     unified_routing: true,
     predictive_intelligence: true,
-    mcp_diagnostics: true,
     deep_reasoning: true,
     ultra_deep_thinking: true,
     semantic_search: true,

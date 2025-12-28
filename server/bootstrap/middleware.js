@@ -46,10 +46,9 @@ export async function configureMiddleware(app) {
     console.warn('[gateway] Correlation ID middleware not available:', e?.message);
   }
 
-  // JSON body parsing for API, agent, and MCP routes
+  // JSON body parsing for API and agent routes
   app.use('/api', express.json({ limit: '1mb' }));
   app.use('/agent', express.json({ limit: '1mb' }));
-  app.use('/mcp', express.json({ limit: '1mb' }));
 
   console.log('[gateway] ✅ Middleware configured');
 }
