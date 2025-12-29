@@ -10,6 +10,8 @@ import OpenAI from "openai";
 import { briefingLog, OP } from '../../logger/workflow.js';
 // SerpAPI + GPT-5.2 event discovery (replaces Gemini for events)
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
+// Dump last briefing row to file for debugging
+import { dumpLastBriefingRow } from './dump-last-briefing.js';
 
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 import { getTomTomTraffic } from '../external/tomtom-traffic.js';
@@ -1990,6 +1992,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     } catch (notifyErr) {
       console.warn(`[BriefingService] ⚠️ Failed to send NOTIFY: ${notifyErr.message}`);
     }
+
+    // Dump last briefing row to file for debugging
+    dumpLastBriefingRow().catch(err => 
+      console.warn(`[BriefingService] ⚠️ Failed to dump briefing: ${err.message}`)
+    );
 
     return {
       success: true,
