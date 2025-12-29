@@ -16,6 +16,7 @@ function clearSnapshotStorage(): void {
 // Inline geolocation helper with manual timeout fallback
 // Browser's geolocation timeout can hang in some environments (previews, permission blocked)
 function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
+  // eslint-disable-next-line no-async-promise-executor
   return new Promise(async (resolve) => {
     let resolved = false;
 
@@ -26,7 +27,7 @@ function getGeoPosition(): Promise<{ latitude: number; longitude: number; accura
         const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
         permissionState = result.state; // 'granted', 'denied', or 'prompt'
       }
-    } catch (e) {
+    } catch (_e) {
       permissionState = 'query-failed';
     }
 

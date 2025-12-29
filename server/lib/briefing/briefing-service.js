@@ -1982,6 +1982,15 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     }
     briefingLog.complete(`${city}, ${state}`, OP.DB);
 
+    // Notify clients that briefing data is ready (SSE event)
+    try {
+      const payload = JSON.stringify({ snapshot_id: snapshotId });
+      await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
+      briefingLog.info(`📢 NOTIFY briefing_ready sent for ${snapshotId.slice(0, 8)}`, OP.SSE);
+    } catch (notifyErr) {
+      console.warn(`[BriefingService] ⚠️ Failed to send NOTIFY: ${notifyErr.message}`);
+    }
+
     return {
       success: true,
       briefing: briefingData

@@ -5,10 +5,13 @@
 // If data is still generating (placeholder response), we retry every 5 seconds.
 // Once real data arrives, it's cached forever (staleTime: Infinity).
 // New location = new snapshotId = new fetch.
+//
+// SSE INTEGRATION: Subscribes to briefing_ready event to immediately invalidate
+// cache when backend signals data is ready (eliminates polling delay).
 
-import { useQuery } from '@tanstack/react-query';
-import { useRef } from 'react';
-import { getAuthHeader } from '@/utils/co-pilot-helpers';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useEffect } from 'react';
+import { getAuthHeader, subscribeBriefingReady } from '@/utils/co-pilot-helpers';
 import type { PipelinePhase } from '@/types/co-pilot';
 
 interface BriefingQueriesOptions {
@@ -42,8 +45,62 @@ function isNewsLoading(data: any): boolean {
 }
 
 export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }: BriefingQueriesOptions) {
+  const queryClient = useQueryClient();
+
   // Enable queries as soon as we have a valid snapshotId
-  const isEnabled = !!snapshotId && snapshotId !== 'live-snapshot';
+  // Note: 'live-snapshot' is now supported - it represents real-time location data
+  // with briefing generated on-demand. Only disable for null/empty snapshotId.
+  const isEnabled = !!snapshotId;
+
+  // Subscribe to briefing_ready SSE event to immediately invalidate cache
+  // This eliminates the 5-second polling delay when briefing data becomes available
+  useEffect(() => {
+    if (!snapshotId) return;
+
+    // Helper to invalidate all briefing queries
+    const invalidateAllBriefingQueries = () => {
+      console.log('[BriefingQuery] 📢 Invalidating all briefing queries for', snapshotId.slice(0, 8));
+      queryClient.invalidateQueries({ queryKey: ['/api/briefing/weather', snapshotId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/briefing/traffic', snapshotId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/briefing/rideshare-news', snapshotId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/briefing/events', snapshotId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/briefing/school-closures', snapshotId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/briefing/airport', snapshotId] });
+    };
+
+    const unsubscribe = subscribeBriefingReady((readySnapshotId) => {
+      // Only invalidate if this is our snapshot
+      if (readySnapshotId === snapshotId) {
+        console.log('[BriefingQuery] 📢 SSE briefing_ready received');
+        invalidateAllBriefingQueries();
+      }
+    });
+
+    // Also check if we have stale/placeholder data on mount and refetch
+    // This handles the case where SSE event fired before subscription was active
+    const checkAndRefresh = async () => {
+      // Small delay to let initial queries complete
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const trafficData = queryClient.getQueryData(['/api/briefing/traffic', snapshotId]) as any;
+      const airportData = queryClient.getQueryData(['/api/briefing/airport', snapshotId]) as any;
+      const newsData = queryClient.getQueryData(['/api/briefing/rideshare-news', snapshotId]) as any;
+
+      const hasStaleData =
+        isTrafficLoading(trafficData) ||
+        isAirportLoading(airportData) ||
+        isNewsLoading(newsData);
+
+      if (hasStaleData) {
+        console.log('[BriefingQuery] ⚠️ Detected stale/placeholder data, forcing refetch');
+        invalidateAllBriefingQueries();
+      }
+    };
+
+    checkAndRefresh();
+
+    return () => unsubscribe();
+  }, [snapshotId, queryClient]);
 
   // Track retry attempts per query type (reset when snapshotId changes)
   const retryCountsRef = useRef<{ traffic: number; news: number; airport: number; snapshotId: string | null }>({

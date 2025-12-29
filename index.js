@@ -97,6 +97,7 @@ setImmediate(async () => {
       { default: mlHealthRoutes },
       { default: chatRoutes },
       { default: authRoutes },
+      { default: intelligenceRoutes },
     ] = await Promise.all([
       import('cors'),
       import('./server/middleware/logging.js'),
@@ -113,6 +114,7 @@ setImmediate(async () => {
       import('./server/api/health/ml-health.js'),
       import('./server/api/chat/chat.js'),
       import('./server/api/auth/auth.js'),
+      import('./server/api/intelligence/index.js'),
     ]);
     
     // Mount middleware
@@ -133,6 +135,7 @@ setImmediate(async () => {
     app.use('/api/ml-health', mlHealthRoutes);
     app.use('/api/chat', chatRoutes);
     app.use('/api/auth', authRoutes);
+    app.use('/api/intelligence', intelligenceRoutes);
     
     // Quick status endpoint
     app.get("/api/copilot", (_req, res) => {

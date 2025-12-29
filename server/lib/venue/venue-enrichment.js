@@ -6,6 +6,11 @@
  * - Routes API (New): Calculate accurate distances and drive times with traffic
  *
  * Architecture: Separate AI reasoning (GPT-5) from factual lookups (Google)
+ *
+ * District Fallback (Dec 2025):
+ *   When coordinate-based Places API search fails (name match < 20%),
+ *   falls back to text search using: "venue_name district city"
+ *   This handles LLM coordinate imprecision (50-150m off target).
  */
 
 import { getRouteWithTraffic, getRouteMatrix } from "../external/routes-api.js";
@@ -14,9 +19,11 @@ import { venuesLog, OP } from "../../logger/workflow.js";
 import { db } from "../../db/drizzle.js";
 import { places_cache } from "../../../shared/schema.js";
 import { eq } from "drizzle-orm";
+import { extractDistrictFromVenueName, normalizeDistrictSlug } from "./district-detection.js";
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
+const PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
 const GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
 // In-memory cache for places (lasts duration of request batch)
@@ -643,4 +650,158 @@ function calculateNameSimilarity(name1, name2) {
 
   // Similarity = (2 × matches) / (total words in both)
   return (2 * matches) / (words1.length + words2.length);
+}
+
+/**
+ * TEXT SEARCH FALLBACK FOR DISTRICT-BASED MATCHING
+ *
+ * When coordinate-based search fails (name match < 20%), this function
+ * searches by text query: "venue_name district city"
+ *
+ * Example: "Legacy Hall Legacy West Plano TX"
+ *
+ * @param {string} venueName - Venue name from LLM
+ * @param {string} district - District/neighborhood name
+ * @param {string} city - City name
+ * @param {string} state - State abbreviation
+ * @param {string} timezone - IANA timezone for hours calculation
+ * @returns {Promise<Object|null>} Place details or null if not found
+ */
+export async function searchPlaceByText(venueName, district, city, state, timezone = "UTC") {
+  // Build text query: "Legacy Hall Legacy West Plano TX"
+  const queryParts = [venueName];
+  if (district) queryParts.push(district);
+  if (city) queryParts.push(city);
+  if (state) queryParts.push(state);
+
+  const textQuery = queryParts.join(' ');
+
+  venuesLog.info(`[Places Text Search] Trying: "${textQuery}"`, OP.API);
+
+  try {
+    const response = await fetch(PLACES_TEXT_SEARCH_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask":
+          "places.id,places.displayName,places.businessStatus,places.formattedAddress,places.currentOpeningHours,places.regularOpeningHours,places.location",
+      },
+      body: JSON.stringify({
+        textQuery: textQuery,
+        maxResultCount: 3,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      venuesLog.warn(3, `[Places Text Search] HTTP ${response.status}: ${errorText.substring(0, 100)}`, OP.API);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data.places || data.places.length === 0) {
+      venuesLog.warn(3, `[Places Text Search] No results for: "${textQuery}"`, OP.API);
+      return null;
+    }
+
+    // Pick best match by name similarity
+    let bestPlace = data.places[0];
+    let bestSimilarity = 0;
+
+    for (const place of data.places) {
+      const placeName = place.displayName?.text || '';
+      const similarity = calculateNameSimilarity(venueName, placeName);
+      if (similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestPlace = place;
+      }
+    }
+
+    const googleName = bestPlace.displayName?.text || '';
+
+    venuesLog.done(3, `[Places Text Search] Found: "${googleName}" (${(bestSimilarity * 100).toFixed(0)}% match)`, OP.API);
+
+    // Extract business hours
+    const hours = bestPlace.currentOpeningHours || bestPlace.regularOpeningHours;
+    const weekdayTexts = hours?.weekdayDescriptions || [];
+    const isOpen = calculateIsOpen(weekdayTexts, timezone);
+    const condensedHours = condenseWeeklyHours(weekdayTexts);
+
+    return {
+      place_id: bestPlace.id,
+      google_name: googleName,
+      business_status: bestPlace.businessStatus || "OPERATIONAL",
+      formatted_address: bestPlace.formattedAddress,
+      isOpen: isOpen,
+      businessHours: condensedHours || null,
+      allHours: weekdayTexts,
+      similarity: bestSimilarity,
+      matchMethod: 'text_search',
+      google_lat: bestPlace.location?.latitude,
+      google_lng: bestPlace.location?.longitude,
+    };
+
+  } catch (error) {
+    venuesLog.error(3, `[Places Text Search] Error: ${error.message}`, error, OP.API);
+    return null;
+  }
+}
+
+/**
+ * Get place details with district fallback
+ *
+ * Fallback chain:
+ * 1. Coordinate-based searchNearby (current method)
+ * 2. If name match < 20%: Text search with district + city
+ * 3. If still failing: Mark as UNVERIFIED
+ *
+ * @param {number} lat - Venue latitude from LLM
+ * @param {number} lng - Venue longitude from LLM
+ * @param {string} name - Venue name from LLM
+ * @param {string} district - District/neighborhood name (optional)
+ * @param {string} city - City name
+ * @param {string} state - State abbreviation
+ * @param {string} timezone - IANA timezone
+ * @returns {Promise<Object>} Place details with placeVerified flag
+ */
+export async function getPlaceDetailsWithFallback(lat, lng, name, district, city, state, timezone = "UTC") {
+  // 1. Try coordinate-based search first
+  const coordResult = await getPlaceDetails(lat, lng, name, timezone);
+
+  if (coordResult) {
+    // Check name match quality
+    const similarity = coordResult.google_name
+      ? calculateNameSimilarity(name, coordResult.google_name)
+      : 0;
+
+    if (similarity >= 0.20) {
+      // Good match, use coordinate result
+      return { ...coordResult, placeVerified: true, matchMethod: 'coord_search' };
+    }
+
+    venuesLog.warn(3, `[Enrichment] Coord match failed for "${name}" (${(similarity * 100).toFixed(0)}% match), trying text search...`, OP.API);
+  }
+
+  // 2. Coordinate match failed - try text search with district
+  // First, try to extract district from venue name if not provided
+  const effectiveDistrict = district || extractDistrictFromVenueName(name);
+
+  if (effectiveDistrict || city) {
+    const textResult = await searchPlaceByText(name, effectiveDistrict, city, state, timezone);
+
+    if (textResult && textResult.similarity >= 0.40) {
+      venuesLog.done(3, `[Enrichment] Text search succeeded for "${name}" via district "${effectiveDistrict}"`, OP.API);
+      return { ...textResult, placeVerified: true, district: effectiveDistrict };
+    }
+  }
+
+  // 3. Both methods failed - return coord result as unverified (or null)
+  if (coordResult) {
+    venuesLog.warn(3, `[Enrichment] Both coord and text search failed for "${name}" - marking UNVERIFIED`, OP.API);
+    return { ...coordResult, placeVerified: false, matchMethod: 'unverified' };
+  }
+
+  return null;
 }

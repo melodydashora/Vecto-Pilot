@@ -1,14 +1,13 @@
 // client/src/pages/co-pilot/MapPage.tsx
 // Wrapper page for the Map tab showing venues and events on a map
 // Includes: strategy blocks, bar markers (green=open, red=closing soon), and events
+// Uses pre-loaded briefing data from CoPilotContext for instant display
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MapPin } from 'lucide-react';
 import MapTab from '@/components/MapTab';
 import { useCoPilot } from '@/contexts/co-pilot-context';
-import { useBriefingQueries } from '@/hooks/useBriefingQueries';
-import type { PipelinePhase } from '@/types/co-pilot';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 
 // Event type for MapTab
@@ -68,13 +67,7 @@ interface BarsApiResponse {
 }
 
 export default function MapPage() {
-  const { coords, lastSnapshotId, blocks, isBlocksLoading, pipelinePhase, timezone } = useCoPilot();
-
-  // Get events data for map markers
-  const { eventsData } = useBriefingQueries({
-    snapshotId: lastSnapshotId,
-    pipelinePhase: pipelinePhase as PipelinePhase
-  });
+  const { coords, lastSnapshotId, blocks, isBlocksLoading, timezone, briefingData } = useCoPilot();
 
   // Fetch bars for map markers (separate from strategy blocks)
   // Only shows $$ and above (expense_rank >= 2) with open/closing soon status
@@ -156,7 +149,8 @@ export default function MapPage() {
   }));
 
   // Transform events to map format (including event_end_date for multi-day events)
-  const mapEvents: MapEvent[] = (eventsData?.events || []).map((e: BriefingEvent): MapEvent => ({
+  // Uses pre-loaded briefing data from CoPilotContext
+  const mapEvents: MapEvent[] = (briefingData?.events || []).map((e: BriefingEvent): MapEvent => ({
     title: e.title as string,
     venue: e.venue as string | undefined,
     address: e.address as string | undefined,

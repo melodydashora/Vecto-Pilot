@@ -188,10 +188,16 @@ export function useEnrichmentProgress({
   const { progress: targetProgress, strategyProgress: targetStrategyProgress, timeRemainingMs } = useMemo(() => {
     if (hasBlocks) return { progress: 100, strategyProgress: 100, timeRemainingMs: 0 };
     if (!coords) return { progress: 0, strategyProgress: 0, timeRemainingMs: 0 };
-    if (!snapshotMatches) return { progress: 5, strategyProgress: 5, timeRemainingMs: 40000 };
+
+    // Show progress if we have backend phase data, even during snapshot transitions
+    // This allows the progress bar to keep moving while data syncs
+    if (!snapshotMatches && !strategyData?.phase) {
+      // No data yet, waiting for initial strategy fetch
+      return { progress: 5, strategyProgress: 5, timeRemainingMs: 40000 };
+    }
 
     return calculateDynamicProgress(backendPhase, phaseElapsedMs, expectedDurations);
-  }, [hasBlocks, coords, snapshotMatches, backendPhase, phaseElapsedMs, expectedDurations]);
+  }, [hasBlocks, coords, snapshotMatches, strategyData?.phase, backendPhase, phaseElapsedMs, expectedDurations]);
 
   // Format time remaining
   const timeRemainingText = useMemo(() => {

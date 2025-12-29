@@ -21,7 +21,9 @@ components/
 ├── SmartBlocksStatus.tsx  # Loading/status display
 ├── EventsComponent.tsx    # Events list
 ├── ErrorBoundary.tsx      # Error boundary wrapper
+├── auth/                  # Authentication components
 ├── co-pilot/              # Co-pilot sub-components
+├── intel/                 # Market intelligence components
 ├── strategy/              # Strategy display components
 ├── _future/               # Future components (not imported)
 └── ui/                    # shadcn/ui primitives (48 files)
@@ -46,7 +48,9 @@ components/
 
 ## Sub-folders
 
+- [`auth/`](auth/README.md) - Authentication components (ProtectedRoute)
 - [`co-pilot/`](co-pilot/README.md) - Co-pilot page sub-components (tabs, banners)
+- [`intel/`](intel/README.md) - Market intelligence components (DeadheadCalculator, ZoneCards)
 - [`strategy/`](strategy/README.md) - Strategy display (some orphaned)
 - [`_future/`](_future/README.md) - Not imported, waiting for implementation
 - [`ui/`](ui/README.md) - 48 shadcn/ui primitives (button, card, dialog, etc.)

@@ -7,11 +7,15 @@ Detailed technical documentation split by domain:
 | Document | Purpose |
 |----------|---------|
 | [API Reference](architecture/api-reference.md) | Complete API endpoint documentation |
+| [Authentication](architecture/authentication.md) | JWT auth, login, registration flow |
 | [Database Schema](architecture/database-schema.md) | PostgreSQL tables and relationships |
 | [AI Pipeline](architecture/ai-pipeline.md) | TRIAD architecture and model configuration |
 | [Event Discovery](architecture/event-discovery.md) | Multi-model AI event search system |
 | [Constraints](architecture/constraints.md) | Critical rules and limitations |
 | [Google Cloud APIs](architecture/google-cloud-apis.md) | Google APIs reference and usage patterns |
+| [Client Structure](architecture/client-structure.md) | Frontend architecture |
+| [Server Structure](architecture/server-structure.md) | Backend architecture |
+| [Decisions](architecture/decisions.md) | Architecture decision log |
 
 ## Quick Links
 
@@ -28,9 +32,9 @@ Every folder has a README explaining its purpose. Start here:
 
 **Client:**
 - [client/src/](../client/src/README.md) - Frontend overview
-- [client/src/pages/co-pilot/](../client/src/pages/co-pilot/) - Route-based pages (7 pages)
-- [client/src/layouts/](../client/src/layouts/) - Layout components (CoPilotLayout)
-- [client/src/contexts/](../client/src/contexts/README.md) - React contexts (location, co-pilot)
+- [client/src/pages/](../client/src/pages/README.md) - Page components (auth, co-pilot)
+- [client/src/layouts/](../client/src/layouts/README.md) - Layout components (CoPilotLayout)
+- [client/src/contexts/](../client/src/contexts/README.md) - React contexts (auth, location, co-pilot)
 - [client/src/components/](../client/src/components/README.md) - UI components
 - [client/src/hooks/](../client/src/hooks/README.md) - Custom hooks
 

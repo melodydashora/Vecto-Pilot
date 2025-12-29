@@ -8,8 +8,43 @@ React context providers for global state management.
 
 | File | Purpose |
 |------|---------|
+| `auth-context.tsx` | Authentication state (login, register, JWT tokens) |
 | `co-pilot-context.tsx` | Shared state for co-pilot pages (strategy, blocks, SSE) |
 | `location-context-clean.tsx` | GPS, weather, air quality, snapshots |
+
+## AuthContext
+
+Provides authentication state and methods:
+
+```tsx
+import { AuthProvider, useAuth } from './contexts/auth-context';
+
+// Wrap app
+<AuthProvider>
+  <App />
+</AuthProvider>
+
+// Use in components
+function MyComponent() {
+  const {
+    user,               // Current user object
+    profile,            // Driver profile data
+    vehicle,            // Vehicle information
+    token,              // JWT token
+    isAuthenticated,    // Auth status flag
+    isLoading,          // Loading state
+    login,              // Login function
+    register,           // Registration function
+    logout,             // Logout function
+    refreshProfile,     // Refresh profile data
+    updateProfile       // Update profile
+  } = useAuth();
+}
+```
+
+### Token Storage
+
+JWT tokens are stored in localStorage under `vectopilot_auth_token` and automatically restored on app load.
 
 ## CoPilotContext
 

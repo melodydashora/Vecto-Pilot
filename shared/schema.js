@@ -37,9 +37,7 @@ export const users = pgTable("users", {
 export const snapshots = pgTable("snapshots", {
   snapshot_id: uuid("snapshot_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
-  date: text("date"), // Today's date in YYYY-MM-DD format (e.g., "2025-12-05")
-  // User tracking (NOT a FK - snapshots are self-contained)
-  user_id: uuid("user_id"),
+  date: text("date").notNull(), // Today's date in YYYY-MM-DD format (e.g., "2025-12-05")
   device_id: text("device_id").notNull(),
   session_id: uuid("session_id").notNull(),
   // Location coordinates (stored at snapshot creation)
@@ -64,11 +62,10 @@ export const snapshots = pgTable("snapshots", {
   weather: jsonb("weather"),
   air: jsonb("air"),
   airport_context: jsonb("airport_context"),
-  // NOTE: local_news, news_briefing, extras, trigger_reason removed Dec 2025
+  // NOTE: local_news, news_briefing, extras, trigger_reason, device, user_id removed Dec 2025
   // - briefing data is now in separate 'briefings' table
   // - trigger_reason moved to strategies table
-  // - extras was never used
-  device: jsonb("device"),
+  // - extras, device, user_id were never needed
   permissions: jsonb("permissions"),
   // Holiday detection at snapshot creation (via Gemini 3.0 Pro + Google Search)
   holiday: text("holiday").notNull().default('none'), // Holiday name (e.g., "Thanksgiving", "Christmas") or 'none'
@@ -196,6 +193,8 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   node_type: text("node_type"), // Type of venue node: 'venue', 'staging', etc.
   access_status: text("access_status"), // Venue access status: 'public', 'restricted', 'private'
   aliases: text("aliases").array(), // Alternative place IDs for this venue (variations)
+  // District tagging from LLM output (for text search fallback and deduplication)
+  district: text("district"), // District/neighborhood from GPT-5.2: "Legacy West", "Deep Ellum"
 }, (table) => ({
   // Foreign key indexes for performance optimization (Issue #28)
   idxRankingId: sql`create index if not exists idx_ranking_candidates_ranking_id on ${table} (ranking_id)`,
@@ -234,6 +233,12 @@ export const venue_catalog = pgTable("venue_catalog", {
   staging_notes: jsonb("staging_notes"),
   city: text("city"),
   metro: text("metro"),
+  // District tagging for improved Places API matching (Issue: coord imprecision)
+  // When GPT-5.2 coords are off, we fall back to text search: "venue_name district city"
+  district: text("district"), // Human-readable: "Legacy West", "Deep Ellum"
+  district_slug: text("district_slug"), // Normalized: "legacy-west", "deep-ellum"
+  district_centroid_lat: doublePrecision("district_centroid_lat"), // Cluster center lat
+  district_centroid_lng: doublePrecision("district_centroid_lng"), // Cluster center lng
   ai_estimated_hours: text("ai_estimated_hours"),
   business_hours: jsonb("business_hours"),
   discovery_source: text("discovery_source").notNull().default('seed'),
@@ -693,6 +698,276 @@ export const platform_data = pgTable("platform_data", {
   idxPlatformCountry: sql`create index if not exists idx_platform_data_platform_country on ${table} (platform, country)`,
   // Unique constraint: one entry per platform + country + region + city
   uniquePlatformLocation: sql`create unique index if not exists idx_platform_data_unique_location on ${table} (platform, country, COALESCE(region, ''), city)`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTHENTICATION & DRIVER PROFILES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Driver profiles: Extended user information for registered drivers
+// Links to users table via user_id for authenticated users
+export const driver_profiles = pgTable("driver_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'cascade' }),
+
+  // Personal information
+  first_name: text("first_name").notNull(),
+  last_name: text("last_name").notNull(),
+  email: text("email").notNull().unique(),
+  phone: text("phone").notNull(),
+
+  // Address
+  address_1: text("address_1").notNull(),
+  address_2: text("address_2"),
+  city: text("city").notNull(),
+  state_territory: text("state_territory").notNull(),
+  zip_code: text("zip_code"),
+  country: text("country").notNull().default('US'),
+
+  // Geocoded home coordinates (from address via Google Geocoding API)
+  home_lat: doublePrecision("home_lat"),
+  home_lng: doublePrecision("home_lng"),
+  home_formatted_address: text("home_formatted_address"), // Canonical address from Google
+  home_timezone: text("home_timezone"), // IANA timezone for driver's home
+
+  // Market selection (rideshare market area)
+  market: text("market").notNull(),
+
+  // Rideshare platforms used (jsonb array: ['uber', 'lyft', 'private'])
+  rideshare_platforms: jsonb("rideshare_platforms").notNull().default(sql`'["uber"]'`),
+
+  // Uber service tiers (optional - helps provide tailored strategy)
+  uber_black: boolean("uber_black").default(false),
+  uber_xxl: boolean("uber_xxl").default(false),
+  uber_comfort: boolean("uber_comfort").default(false),
+  uber_x: boolean("uber_x").default(false),
+  uber_x_share: boolean("uber_x_share").default(false),
+
+  // Notifications
+  marketing_opt_in: boolean("marketing_opt_in").default(false),
+
+  // Terms & Conditions
+  terms_accepted_at: timestamp("terms_accepted_at", { withTimezone: true }),
+  terms_version: text("terms_version"),
+
+  // Verification status
+  email_verified: boolean("email_verified").default(false),
+  phone_verified: boolean("phone_verified").default(false),
+  profile_complete: boolean("profile_complete").default(false),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxEmail: sql`create unique index if not exists idx_driver_profiles_email on ${table} (email)`,
+  idxPhone: sql`create index if not exists idx_driver_profiles_phone on ${table} (phone)`,
+  idxMarket: sql`create index if not exists idx_driver_profiles_market on ${table} (market)`,
+  idxUserId: sql`create unique index if not exists idx_driver_profiles_user_id on ${table} (user_id)`,
+}));
+
+// Driver vehicles: Vehicle information for each driver
+export const driver_vehicles = pgTable("driver_vehicles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  driver_profile_id: uuid("driver_profile_id").notNull().references(() => driver_profiles.id, { onDelete: 'cascade' }),
+
+  // Vehicle information
+  year: integer("year").notNull(),
+  make: text("make").notNull(),
+  model: text("model").notNull(),
+  color: text("color"),
+  license_plate: text("license_plate"),
+
+  // Capacity
+  seatbelts: integer("seatbelts").notNull().default(4),
+
+  // Status
+  is_primary: boolean("is_primary").default(true),
+  is_active: boolean("is_active").default(true),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxDriverProfileId: sql`create index if not exists idx_driver_vehicles_profile_id on ${table} (driver_profile_id)`,
+}));
+
+// Auth credentials: Password and security information for authenticated users
+export const auth_credentials = pgTable("auth_credentials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'cascade' }),
+
+  // Password (bcrypt hashed)
+  password_hash: text("password_hash").notNull(),
+
+  // Security
+  failed_login_attempts: integer("failed_login_attempts").default(0),
+  locked_until: timestamp("locked_until", { withTimezone: true }),
+  last_login_at: timestamp("last_login_at", { withTimezone: true }),
+  last_login_ip: text("last_login_ip"),
+
+  // Password reset
+  password_reset_token: text("password_reset_token"),
+  password_reset_expires: timestamp("password_reset_expires", { withTimezone: true }),
+  password_changed_at: timestamp("password_changed_at", { withTimezone: true }),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxUserId: sql`create unique index if not exists idx_auth_credentials_user_id on ${table} (user_id)`,
+  idxResetToken: sql`create index if not exists idx_auth_credentials_reset_token on ${table} (password_reset_token)`,
+}));
+
+// Verification codes: Email and SMS verification codes
+export const verification_codes = pgTable("verification_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").references(() => users.user_id, { onDelete: 'cascade' }),
+
+  // Code details
+  code: text("code").notNull(),
+  code_type: text("code_type").notNull(), // 'email_verify' | 'phone_verify' | 'password_reset_email' | 'password_reset_sms'
+  destination: text("destination").notNull(), // email or phone number
+
+  // Status
+  used_at: timestamp("used_at", { withTimezone: true }),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  attempts: integer("attempts").default(0),
+  max_attempts: integer("max_attempts").default(3),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxCode: sql`create index if not exists idx_verification_codes_code on ${table} (code)`,
+  idxDestination: sql`create index if not exists idx_verification_codes_destination on ${table} (destination)`,
+  idxExpires: sql`create index if not exists idx_verification_codes_expires on ${table} (expires_at)`,
+  idxUserId: sql`create index if not exists idx_verification_codes_user_id on ${table} (user_id)`,
+}));
+
+// Vehicle makes cache: NHTSA API cache for vehicle makes
+export const vehicle_makes_cache = pgTable("vehicle_makes_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  make_id: integer("make_id").notNull().unique(),
+  make_name: text("make_name").notNull(),
+  is_common: boolean("is_common").default(false), // Flag top 40 for faster dropdown loads
+  cached_at: timestamp("cached_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxMakeId: sql`create unique index if not exists idx_vehicle_makes_cache_make_id on ${table} (make_id)`,
+  idxMakeName: sql`create index if not exists idx_vehicle_makes_cache_make_name on ${table} (make_name)`,
+  idxCommon: sql`create index if not exists idx_vehicle_makes_cache_common on ${table} (is_common)`,
+}));
+
+// Vehicle models cache: NHTSA API cache for vehicle models by make and year
+export const vehicle_models_cache = pgTable("vehicle_models_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  make_id: integer("make_id").notNull(),
+  make_name: text("make_name").notNull(),
+  model_id: integer("model_id").notNull(),
+  model_name: text("model_name").notNull(),
+  model_year: integer("model_year"),
+  cached_at: timestamp("cached_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxMakeYear: sql`create index if not exists idx_vehicle_models_cache_make_year on ${table} (make_id, model_year)`,
+  idxModelName: sql`create index if not exists idx_vehicle_models_cache_model_name on ${table} (model_name)`,
+  // Unique constraint for make + model + year combination
+  uniqueMakeModelYear: sql`create unique index if not exists idx_vehicle_models_cache_unique on ${table} (make_id, model_id, COALESCE(model_year, 0))`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARKET INTELLIGENCE
+// Research-derived and AI Coach-contributed insights by market
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Market Intelligence Table
+ *
+ * Stores structured intelligence data derived from research documents and AI analysis.
+ * Supports multiple intelligence types per market with versioning and attribution.
+ *
+ * Intelligence Types:
+ * - regulatory: Legal/regulatory context (Prop 22, TLC rules, etc.)
+ * - strategy: Operational doctrine and optimization tactics
+ * - zone: Geographic areas (honey_hole, danger_zone, dead_zone, safe_corridor)
+ * - timing: Time-based patterns (rush hours, seasonality, surge patterns)
+ * - airport: Airport-specific strategies and queue info
+ * - safety: Safety advisories and risk areas
+ * - algorithm: Platform algorithm mechanics (Advantage Mode, etc.)
+ * - vehicle: Vehicle type recommendations (XL, Comfort, etc.)
+ * - general: General tips and advice
+ *
+ * Zone Sub-types (when intel_type = 'zone'):
+ * - honey_hole: High-demand, profitable areas
+ * - danger_zone: Safety risk areas (crime, carjacking)
+ * - dead_zone: Low demand, unprofitable areas
+ * - safe_corridor: Recommended safe operating areas
+ * - caution_zone: Areas requiring situational awareness
+ */
+export const market_intelligence = pgTable("market_intelligence", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Market identification (matches platform_data.market format)
+  market: text("market").notNull(), // e.g., 'Los Angeles', 'New York City', 'Chicago'
+  market_slug: text("market_slug").notNull(), // e.g., 'los-angeles', 'new-york-city', 'chicago'
+
+  // Platform scope
+  platform: text("platform").notNull().default('both'), // 'uber', 'lyft', 'both'
+
+  // Intelligence classification
+  intel_type: text("intel_type").notNull(), // 'regulatory', 'strategy', 'zone', 'timing', 'airport', 'safety', 'algorithm', 'vehicle', 'general'
+  intel_subtype: text("intel_subtype"), // For zones: 'honey_hole', 'danger_zone', 'dead_zone', 'safe_corridor', 'caution_zone'
+
+  // Content
+  title: text("title").notNull(), // Short descriptive title
+  summary: text("summary"), // Brief 1-2 sentence summary
+  content: text("content").notNull(), // Full intelligence content (markdown supported)
+
+  // Geographic context (for zone-type intelligence)
+  neighborhoods: jsonb("neighborhoods"), // Array of neighborhood names
+  boundaries: jsonb("boundaries"), // Geographic boundaries (lat/lng polygon or description)
+
+  // Temporal context (for timing-type intelligence)
+  time_context: jsonb("time_context"), // { days: ['mon','tue'...], hours: [8,9,10...], seasonal: 'high_season' }
+
+  // Categorization
+  tags: jsonb("tags").default(sql`'[]'`), // Array of searchable tags
+  priority: integer("priority").default(50), // 1-100, higher = more important
+
+  // Attribution and quality
+  source: text("source").notNull().default('research'), // 'research', 'ai_coach', 'driver_report', 'official'
+  source_file: text("source_file"), // Original file path (e.g., 'platform-data/uber/research-findings/gemini-findings.txt')
+  source_section: text("source_section"), // Section reference in source (e.g., '3. Market Analysis: Los Angeles')
+  confidence: integer("confidence").default(80), // 1-100, how reliable is this info
+
+  // Versioning
+  version: integer("version").default(1),
+  effective_date: timestamp("effective_date", { withTimezone: true }), // When this intel became valid
+  expiry_date: timestamp("expiry_date", { withTimezone: true }), // When this intel may be outdated
+
+  // Status
+  is_active: boolean("is_active").default(true),
+  is_verified: boolean("is_verified").default(false), // Has been human-verified
+
+  // AI Coach integration
+  coach_can_cite: boolean("coach_can_cite").default(true), // AI Coach can reference this
+  coach_priority: integer("coach_priority").default(50), // Priority for AI Coach retrieval
+
+  // Audit
+  created_by: text("created_by").notNull().default('system'), // 'system', 'ai_coach', user_id
+  updated_by: text("updated_by"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxMarket: sql`create index if not exists idx_market_intelligence_market on ${table} (market)`,
+  idxMarketSlug: sql`create index if not exists idx_market_intelligence_market_slug on ${table} (market_slug)`,
+  idxPlatform: sql`create index if not exists idx_market_intelligence_platform on ${table} (platform)`,
+  idxIntelType: sql`create index if not exists idx_market_intelligence_intel_type on ${table} (intel_type)`,
+  idxIntelSubtype: sql`create index if not exists idx_market_intelligence_intel_subtype on ${table} (intel_subtype)`,
+  idxActive: sql`create index if not exists idx_market_intelligence_active on ${table} (is_active)`,
+  idxSource: sql`create index if not exists idx_market_intelligence_source on ${table} (source)`,
+  idxCoachCite: sql`create index if not exists idx_market_intelligence_coach_cite on ${table} (coach_can_cite, coach_priority)`,
+  // Composite for common queries
+  idxMarketTypeActive: sql`create index if not exists idx_market_intelligence_market_type_active on ${table} (market_slug, intel_type, is_active)`,
+  // GIN index for tags search
+  idxTags: sql`create index if not exists idx_market_intelligence_tags on ${table} using gin (tags)`,
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
