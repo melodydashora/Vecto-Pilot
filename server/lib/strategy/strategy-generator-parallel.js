@@ -7,6 +7,8 @@ import { eq } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
 import { validateConditions } from '../location/weather-traffic-validator.js';
 import { triadLog, aiLog, dbLog, briefingLog, OP } from '../../logger/workflow.js';
+// Dump last strategy row to file for debugging
+import { dumpLastStrategyRow } from './dump-last-strategy.js';
 
 // Feature flag - set to true to enable parallel orchestration
 const MULTI_STRATEGY_ENABLED = process.env.MULTI_STRATEGY_ENABLED === 'true';
@@ -313,7 +315,7 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }
  */
 export async function generateMultiStrategy(ctx) {
   const startTime = Date.now();
-  
+
   // Feature flag check
   if (!MULTI_STRATEGY_ENABLED) {
     triadLog.info(`Multi-strategy feature disabled`);
@@ -406,6 +408,19 @@ export async function generateMultiStrategy(ctx) {
   }
 
   const totalMs = Date.now() - startTime;
+  triadLog.complete(`${snapshot.city}, ${snapshot.state}`, OP.DB);
+
+    // Dump last strategy row to file for debugging
+    dumpLastStrategyRow().catch(err => 
+      console.warn(`[Strategy] ⚠️ Failed to dump strategy: ${err.message}`)
+    );
+
+    return {
+      ok: true,
+      strategy: consolidated.strategy
+    };
+  }
+
   triadLog.complete(`Parallel orchestration complete`, totalMs);
 
   return {
