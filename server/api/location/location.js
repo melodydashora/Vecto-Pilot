@@ -1076,7 +1076,6 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       snapshotV1.created_at = now.toISOString();
       snapshotV1.device_id = snapshotV1.device_id || crypto.randomUUID();
       snapshotV1.session_id = snapshotV1.session_id || crypto.randomUUID();
-      snapshotV1.user_id = validatedUserId;
       snapshotV1.coord = { lat, lng, source: 'manual' };
       snapshotV1.resolved = {
         city: resolved.city,
@@ -1348,7 +1347,6 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       snapshot_id: snapshotV1.snapshot_id,
       created_at: createdAtDate,
       date: today,
-      user_id: (snapshotV1.user_id && snapshotV1.user_id.trim() !== '') ? snapshotV1.user_id : null,
       device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
       // Location coordinates
@@ -1381,7 +1379,6 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       airport_context: airportContext,
       holiday: holidayInfo.holiday,
       is_holiday: holidayInfo.is_holiday,
-      device: snapshotV1.device || null,
       permissions: snapshotV1.permissions || null,
     };
 

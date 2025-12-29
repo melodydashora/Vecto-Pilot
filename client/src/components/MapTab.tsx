@@ -15,6 +15,7 @@ declare global {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 declare namespace google.maps {
   class Map {
     constructor(element: HTMLElement, options: MapOptions);

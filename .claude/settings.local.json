@@ -76,7 +76,14 @@
       "Bash(then echo \"MISSING: server/$dir\")",
       "Bash(fi)",
       "Bash(done)",
-      "Bash(then echo \"MISSING: client/$dir\")"
+      "Bash(then echo \"MISSING: client/$dir\")",
+      "Bash(npm run db:push:*)",
+      "Bash(nslookup:*)",
+      "Bash(host:*)",
+      "Bash(python3:*)",
+      "Bash(timeout 30 node:*)",
+      "Bash(npx eslint:*)",
+      "Bash(timeout 10 npm run dev)"
     ],
     "deny": [],
     "ask": []

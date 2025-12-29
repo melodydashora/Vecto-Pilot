@@ -4,47 +4,77 @@
 
 Page-level components that represent full screens/routes.
 
-## Files
+## Structure
 
-| File | Purpose |
-|------|---------|
-| `co-pilot.tsx` | Main dashboard (1700+ LOC) |
-| `SafeScaffold.tsx` | Safe scaffold wrapper component |
-
-## co-pilot.tsx
-
-The main application page that orchestrates:
-- Strategy display and polling
-- Briefing tab (weather, traffic, events, news)
-- Smart blocks (venue recommendations)
-- AI Coach chat
-- Map view
-- Feedback modals
-- Tab navigation
-
-### Structure
-
-```tsx
-<co-pilot>
-  ├── GreetingBanner      // Holiday/greeting
-  ├── TabContent          // Active tab content
-  │   ├── StrategyTab     // AI strategy
-  │   ├── BriefingTab     // Events, traffic, news
-  │   ├── VenuesTab       // Smart blocks
-  │   ├── MapTab          // Interactive map
-  │   └── DonationTab     // Donations
-  ├── CoachChat           // AI assistant
-  └── BottomTabNavigation // Tab switcher
-</co-pilot>
+```
+pages/
+├── auth/                  # Authentication pages
+│   ├── SignInPage.tsx     # Login form
+│   ├── SignUpPage.tsx     # Multi-step registration (43KB)
+│   ├── ForgotPasswordPage.tsx # Password reset request
+│   ├── ResetPasswordPage.tsx  # Password reset form
+│   ├── TermsPage.tsx      # Terms and conditions
+│   └── index.ts           # Barrel export
+├── co-pilot/              # Main app pages
+│   ├── StrategyPage.tsx   # AI strategy + blocks + coach (40KB)
+│   ├── BarsPage.tsx       # Premium venue listings
+│   ├── BriefingPage.tsx   # Weather, traffic, news
+│   ├── MapPage.tsx        # Interactive map
+│   ├── IntelPage.tsx      # Rideshare intelligence
+│   ├── AboutPage.tsx      # About/donation
+│   ├── PolicyPage.tsx     # Privacy policy
+│   └── index.tsx          # Barrel export
+├── co-pilot.tsx           # Legacy main dashboard (to be deprecated)
+└── SafeScaffold.tsx       # Safe scaffold wrapper
 ```
 
-### Size Note
+## Sub-folders
 
-At 1700+ LOC, this is the largest component. Consider refactoring into smaller feature modules in the future.
+### auth/
+
+Authentication flow pages:
+
+| Page | Route | Purpose |
+|------|-------|---------|
+| `SignInPage.tsx` | `/auth/sign-in` | Email/password login |
+| `SignUpPage.tsx` | `/auth/sign-up` | Multi-step registration |
+| `ForgotPasswordPage.tsx` | `/auth/forgot-password` | Request password reset |
+| `ResetPasswordPage.tsx` | `/auth/reset-password` | Reset with token/code |
+| `TermsPage.tsx` | `/auth/terms` | Terms of service |
+
+See [auth/README.md](auth/README.md) for full documentation.
+
+### co-pilot/
+
+Main application pages (router-based architecture):
+
+| Page | Route | Purpose |
+|------|-------|---------|
+| `StrategyPage.tsx` | `/co-pilot/strategy` | AI recommendations, smart blocks |
+| `BarsPage.tsx` | `/co-pilot/bars` | Premium venue listings |
+| `BriefingPage.tsx` | `/co-pilot/briefing` | Weather, traffic, events |
+| `MapPage.tsx` | `/co-pilot/map` | Interactive venue/event map |
+| `IntelPage.tsx` | `/co-pilot/intel` | Rideshare platform intel |
+| `AboutPage.tsx` | `/co-pilot/about` | About & donations |
+| `PolicyPage.tsx` | `/co-pilot/policy` | Privacy policy |
+
+See [co-pilot/README.md](co-pilot/README.md) for full documentation.
+
+## Route Configuration
+
+Routes defined in [`../routes.tsx`](../routes.tsx):
+
+```
+/                         → Redirect to /co-pilot/strategy
+/co-pilot                 → Redirect to /co-pilot/strategy
+/co-pilot/*               → CoPilotLayout (with auth protection)
+/auth/*                   → Auth pages (no auth required)
+```
 
 ## Connections
 
-- **Uses:** Most components from `../components/`
-- **Hooks:** `useBriefingQueries`, `useEnrichmentProgress`
-- **Context:** LocationContext for GPS data
-- **APIs:** `/api/blocks-fast`, `/api/strategy/*`, `/api/briefing/*`
+- **Layout:** `../layouts/CoPilotLayout.tsx`
+- **Components:** `../components/*`
+- **Hooks:** `../hooks/*`
+- **Context:** `../contexts/co-pilot-context.tsx`, `../contexts/auth-context.tsx`
+- **APIs:** `/api/blocks-fast`, `/api/strategy/*`, `/api/briefing/*`, `/api/auth/*`

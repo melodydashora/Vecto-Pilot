@@ -315,4 +315,117 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/platform/countries-dropdown
+ * Get countries for signup dropdown (simple value/label format)
+ * Returns countries sorted with US first, then alphabetically
+ *
+ * Query params:
+ *   platform - Filter by platform (default: uber)
+ */
+router.get('/countries-dropdown', async (req, res) => {
+  try {
+    const { platform = 'uber' } = req.query;
+
+    const result = await db.execute(sql`
+      SELECT DISTINCT country, country_code
+      FROM platform_data
+      WHERE platform = ${platform}
+        AND country IS NOT NULL
+      ORDER BY
+        CASE WHEN country_code = 'US' THEN 0 ELSE 1 END,
+        country
+    `);
+
+    // Format as value/label pairs for dropdown
+    const countries = result.rows
+      .filter(r => r.country)
+      .map(r => ({
+        value: r.country_code || r.country,
+        label: r.country
+      }));
+
+    res.json({ countries });
+  } catch (error) {
+    console.error('Error fetching countries dropdown:', error);
+    res.status(500).json({ error: 'Failed to fetch countries' });
+  }
+});
+
+/**
+ * GET /api/platform/regions-dropdown
+ * Get regions/states for signup dropdown based on country
+ *
+ * Query params:
+ *   platform - Filter by platform (default: uber)
+ *   country  - Country name or code (required)
+ */
+router.get('/regions-dropdown', async (req, res) => {
+  try {
+    const { platform = 'uber', country } = req.query;
+
+    if (!country) {
+      return res.status(400).json({ error: 'Country is required' });
+    }
+
+    const result = await db.execute(sql`
+      SELECT DISTINCT region
+      FROM platform_data
+      WHERE platform = ${platform}
+        AND (country = ${country} OR country_code = ${country})
+        AND region IS NOT NULL
+      ORDER BY region
+    `);
+
+    // Format as value/label pairs for dropdown
+    const regions = result.rows
+      .filter(r => r.region)
+      .map(r => ({
+        value: r.region,
+        label: r.region
+      }));
+
+    res.json({ regions });
+  } catch (error) {
+    console.error('Error fetching regions dropdown:', error);
+    res.status(500).json({ error: 'Failed to fetch regions' });
+  }
+});
+
+/**
+ * GET /api/platform/markets-dropdown
+ * Get markets for signup dropdown (simple value/label format)
+ *
+ * Query params:
+ *   platform - Filter by platform (default: uber)
+ *   country  - Filter by country (default: United States)
+ */
+router.get('/markets-dropdown', async (req, res) => {
+  try {
+    const { platform = 'uber', country = 'United States' } = req.query;
+
+    const result = await db.execute(sql`
+      SELECT DISTINCT market
+      FROM platform_data
+      WHERE platform = ${platform}
+        AND (country = ${country} OR country_code = ${country})
+        AND market IS NOT NULL
+      ORDER BY market
+    `);
+
+    // Format as value/label pairs for dropdown
+    const markets = result.rows
+      .filter(r => r.market)
+      .map(r => ({
+        value: r.market.toLowerCase().replace(/\s+/g, '-'),
+        label: r.market
+      }));
+
+    res.json({ markets });
+  } catch (error) {
+    console.error('Error fetching markets dropdown:', error);
+    res.status(500).json({ error: 'Failed to fetch markets' });
+  }
+});
+
 export default router;

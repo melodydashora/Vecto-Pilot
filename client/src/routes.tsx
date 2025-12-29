@@ -1,5 +1,5 @@
 // client/src/routes.tsx
-// React Router configuration for co-pilot pages
+// React Router configuration for co-pilot pages and authentication
 
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import CoPilotLayout from '@/layouts/CoPilotLayout';
@@ -10,8 +10,43 @@ import MapPage from '@/pages/co-pilot/MapPage';
 import IntelPage from '@/pages/co-pilot/IntelPage';
 import AboutPage from '@/pages/co-pilot/AboutPage';
 import PolicyPage from '@/pages/co-pilot/PolicyPage';
+import {
+  SignInPage,
+  SignUpPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
+  TermsPage,
+} from '@/pages/auth';
 
 export const router = createBrowserRouter([
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Public Auth Routes (no layout)
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    path: '/auth/sign-in',
+    element: <SignInPage />,
+  },
+  {
+    path: '/auth/sign-up',
+    element: <SignUpPage />,
+  },
+  {
+    path: '/auth/forgot-password',
+    element: <ForgotPasswordPage />,
+  },
+  {
+    path: '/auth/reset-password',
+    element: <ResetPasswordPage />,
+  },
+  {
+    path: '/auth/terms',
+    element: <TermsPage />,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Main App Routes (with CoPilotLayout)
+  // NOTE: Auth protection can be enabled by wrapping children with ProtectedRoute
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     path: '/',
     element: <CoPilotLayout />,

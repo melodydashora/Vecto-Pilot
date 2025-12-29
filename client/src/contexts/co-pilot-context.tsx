@@ -7,6 +7,7 @@ import { useLocation as useLocationContext } from '@/contexts/location-context-c
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
 import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady } from '@/utils/co-pilot-helpers';
 import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
+import { useBriefingQueries } from '@/hooks/useBriefingQueries';
 
 interface CoPilotContextValue {
   // Location (from LocationContext)
@@ -38,6 +39,22 @@ interface CoPilotContextValue {
   strategyProgress: number;
   pipelinePhase: PipelinePhase;
   timeRemainingText: string | null;
+
+  // Pre-loaded briefing data (fetched as soon as snapshot is available)
+  briefingData: {
+    weather: any;
+    traffic: any;
+    news: any;
+    events: any;
+    schoolClosures: any;
+    airport: any;
+    isLoading: {
+      weather: boolean;
+      traffic: boolean;
+      events: boolean;
+      airport: boolean;
+    };
+  };
 }
 
 const CoPilotContext = createContext<CoPilotContextValue | null>(null);
@@ -366,6 +383,18 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     hasBlocks
   });
 
+  // Pre-load briefing data as soon as snapshot is available
+  // This ensures briefing tab has data before user navigates there
+  const {
+    weatherData,
+    trafficData,
+    newsData,
+    eventsData,
+    schoolClosuresData,
+    airportData,
+    isLoading: briefingIsLoading
+  } = useBriefingQueries({ snapshotId: lastSnapshotId, pipelinePhase });
+
   const value: CoPilotContextValue = {
     // Location
     coords,
@@ -396,6 +425,17 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     strategyProgress,
     pipelinePhase: pipelinePhase as PipelinePhase,
     timeRemainingText,
+
+    // Pre-loaded briefing data
+    briefingData: {
+      weather: weatherData?.weather || null,
+      traffic: trafficData?.traffic || null,
+      news: newsData?.news || null,
+      events: eventsData?.events || [],
+      schoolClosures: schoolClosuresData?.school_closures || [],
+      airport: airportData?.airport_conditions || null,
+      isLoading: briefingIsLoading,
+    },
   };
 
   return (

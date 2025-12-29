@@ -2,7 +2,7 @@
 // Two variants: minimal context for strategy prompts, full snapshot for AI providers
 
 import { db } from '../../db/drizzle.js';
-import { snapshots, users } from '../../../shared/schema.js';
+import { snapshots } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
@@ -114,16 +114,13 @@ export async function getFullSnapshot(snapshotId) {
   
   const ctx = {
     snapshot_id: snapshot.snapshot_id,
-    user_id: snapshot.user_id,
     // Location
     formatted_address: snapshot.formatted_address,
-    user_address: snapshot.formatted_address,
     city: snapshot.city,
     state: snapshot.state,
     country: snapshot.country,
     lat: snapshot.lat,
     lng: snapshot.lng,
-    accuracy_m: snapshot.accuracy_m,
     timezone: snapshot.timezone,
 
     // Date/time (read from stored snapshot - NOT computed)
@@ -144,8 +141,7 @@ export async function getFullSnapshot(snapshotId) {
     // Enriched data
     weather: snapshot.weather,
     air: snapshot.air,
-    airport_context: snapshot.airport_context,
-    news_briefing: snapshot.news_briefing
+    airport_context: snapshot.airport_context
   };
   
   console.log('[getFullSnapshot] ✅ Retrieved FULL snapshot:', {

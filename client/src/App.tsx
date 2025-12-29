@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router-dom';
+import { AuthProvider } from '@/contexts/auth-context';
 import { LocationProvider } from '@/contexts/location-context-clean';
 import { CoPilotProvider } from '@/contexts/co-pilot-context';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -26,12 +27,14 @@ function App() {
   return (
     <ErrorBoundary fallback={<SafeScaffold />}>
       <QueryClientProvider client={queryClient}>
-        <LocationProvider>
-          {/* CoPilotProvider wraps router so it persists across route changes */}
-          <CoPilotProvider>
-            <RouterProvider router={router} />
-          </CoPilotProvider>
-        </LocationProvider>
+        <AuthProvider>
+          <LocationProvider>
+            {/* CoPilotProvider wraps router so it persists across route changes */}
+            <CoPilotProvider>
+              <RouterProvider router={router} />
+            </CoPilotProvider>
+          </LocationProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

@@ -3,7 +3,7 @@ import express, { Router } from 'express';
 import crypto from "node:crypto";
 import { db } from "../../db/drizzle.js";
 import { sql, eq } from "drizzle-orm";
-import { snapshots, strategies, users, coords_cache } from "../../../shared/schema.js";
+import { snapshots, strategies, coords_cache } from "../../../shared/schema.js";
 import { generateStrategyForSnapshot } from "../../lib/strategy/strategy-generator.js";
 import { validateIncomingSnapshot } from "../../util/validate-snapshot.js";
 import { uuidOrNull } from "../../util/uuid.js";
@@ -57,9 +57,6 @@ router.post("/", async (req, res) => {
   try {
     const snap = req.body || {};
 
-    // SECURITY FIX: Use authenticated user_id from JWT, NOT from request body
-    const user_id = req.auth?.userId || uuid();
-
     // Direct extraction from request body
     const snapshot_id = snap.snapshot_id || uuid();
     const lat = snap.coord?.lat;
@@ -77,31 +74,7 @@ router.post("/", async (req, res) => {
     let timezone = snap.resolved?.timezone;
     let coordKey = null;
 
-    // If resolved data missing from request, look up users table
-    if (!city || !formatted_address) {
-      console.log(`[snapshot] 🔍 Resolved data missing from request, looking up users table for user_id=${user_id}`);
-      try {
-        const [userRow] = await db.select().from(users).where(eq(users.user_id, user_id)).limit(1);
-        if (userRow) {
-          // Use resolved data from users table (which comes from coords_cache)
-          city = city || userRow.city;
-          state = state || userRow.state;
-          country = country || userRow.country;
-          formatted_address = formatted_address || userRow.formatted_address;
-          timezone = timezone || userRow.timezone;
-          coordKey = userRow.coord_key;
-          console.log(`[snapshot] ✅ Got resolved data from users table:`, {
-            city, state, country, formatted_address, timezone, coordKey
-          });
-        } else {
-          console.warn(`[snapshot] ⚠️ User not found in users table: ${user_id}`);
-        }
-      } catch (userLookupErr) {
-        console.warn(`[snapshot] ⚠️ Users table lookup failed:`, userLookupErr.message);
-      }
-    }
-
-    // If STILL missing resolved data, try coords_cache as last resort
+    // If resolved data missing from request, lookup coords_cache
     if ((!city || !formatted_address) && typeof lat === 'number' && typeof lng === 'number') {
       coordKey = coordKey || makeCoordsKey(lat, lng);
       console.log(`[snapshot] 🔍 Still missing resolved data, checking coords_cache for ${coordKey}`);
@@ -153,7 +126,6 @@ router.post("/", async (req, res) => {
       snapshot_id,
       created_at: createdAtDate,
       date: today,
-      user_id,
       device_id: snap.device_id || uuid(),
       session_id: snap.session_id || uuid(),
       // Location coordinates
@@ -161,7 +133,7 @@ router.post("/", async (req, res) => {
       lng: typeof lng === 'number' ? lng : null,
       // FK to coords_cache for location identity
       coord_key: coordKey,
-      // LEGACY: Resolved address (kept for backward compat)
+      // Resolved address (source of truth from coords_cache)
       city: city || null,
       state: state || null,
       country: country || null,
@@ -175,10 +147,7 @@ router.post("/", async (req, res) => {
       // API data
       weather: snap.weather || null,
       air: snap.air || null,
-      device: snap.device || null,
       permissions: snap.permissions || null,
-      // DEBUG: Store entire raw body to see what was received
-      extras: { raw_body: snap, extracted: { lat, lng, city, state, timezone, hour, dow } },
     };
 
     console.log('[snapshot] 🔥 INSERTING:', {
@@ -277,8 +246,8 @@ router.get("/:snapshotId", requireAuth, async (req, res) => {
       where: (t) => sql`${t.snapshot_id} = ${snapshotId}`,
     });
     
-    if (!snapshot || snapshot.user_id !== req.auth.userId) {
-      return res.status(404).json({ ok: false, error: 'SNAPSHOT_NOT_FOUND' }); // 404 prevents enumeration
+    if (!snapshot) {
+      return res.status(404).json({ ok: false, error: 'SNAPSHOT_NOT_FOUND' });
     }
     
     console.log('[snapshot-get]', {

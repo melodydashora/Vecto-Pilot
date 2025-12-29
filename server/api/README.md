@@ -8,15 +8,17 @@ Express API endpoints organized by domain. Each domain folder contains related r
 
 ```
 api/
-├── auth/           # Authentication
+├── auth/           # Authentication (JWT, login, register)
 ├── briefing/       # Events, traffic, news
 ├── chat/           # AI Coach, voice
 ├── feedback/       # User feedback, actions
 ├── health/         # Health checks, diagnostics
+├── intelligence/   # Market intelligence (zones, strategies)
 ├── location/       # GPS, geocoding, snapshots
 ├── platform/       # Platform data (Uber/Lyft intel)
 ├── research/       # Vector search, research
 ├── strategy/       # Strategy generation
+├── vehicle/        # Vehicle makes/models (NHTSA proxy)
 ├── venue/          # Venue intelligence
 └── utils/          # Shared utilities
 ```
@@ -100,6 +102,35 @@ GET  /api/strategy/:snapshotId   - Get strategy for snapshot
 | `venue-intelligence.js` | `/api/venues/*` | Venue recommendations |
 | `venue-events.js` | `/api/venue/events/*` | Venue-specific events |
 | `closed-venue-reasoning.js` | `/api/closed-venue-reasoning` | GPT-5 venue reasoning |
+
+### intelligence/
+| File | Route | Purpose |
+|------|-------|---------|
+| `index.js` | `/api/intelligence/*` | Market intelligence CRUD |
+
+Key intelligence endpoints:
+```
+GET  /api/intelligence           - List all intelligence with filters
+GET  /api/intelligence/markets   - List markets with intel counts
+GET  /api/intelligence/market/:slug - Get intel for specific market
+GET  /api/intelligence/coach/:market - AI Coach context for market
+```
+
+See [intelligence/README.md](intelligence/README.md) for full documentation.
+
+### vehicle/
+| File | Route | Purpose |
+|------|-------|---------|
+| `vehicle.js` | `/api/vehicle/*` | NHTSA vehicle makes/models proxy |
+
+Key vehicle endpoints:
+```
+GET  /api/vehicle/makes          - All vehicle makes (cached)
+GET  /api/vehicle/models?make=X&year=Y - Models for make/year
+GET  /api/vehicle/years          - Available years (2005-present)
+```
+
+See [vehicle/README.md](vehicle/README.md) for full documentation.
 
 ### platform/
 | File | Route | Purpose |

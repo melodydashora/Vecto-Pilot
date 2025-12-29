@@ -1,9 +1,24 @@
 
 # Production Issues - Root Cause Analysis
 
-**Generated:** December 28, 2025  
-**Environment:** Production deployment on Replit  
+**Generated:** December 28, 2025
+**Last Verified:** December 29, 2025
+**Environment:** Production deployment on Replit
 **Analysis Period:** Recent deployment logs
+
+---
+
+## Verification Summary (December 29, 2025)
+
+| Issue | Status | Notes |
+|-------|--------|-------|
+| #1 Places API Name Matching | ⚠️ **IMPROVED** | Using `searchNearby` with best-match selection, but not `textSearch` |
+| #2 Venues isOpen=null | ⚠️ **DEPENDS ON #1** | Logic is correct, depends on Places API returning valid data |
+| #3 Event Verification | ⚠️ **NEEDS INVESTIGATION** | Verifier exists but may not be called in pipeline |
+| #4 Event Matcher Accuracy | ✅ **ADDRESSED** | Strict matching implemented with street number requirement |
+| #5 DB Connection Pool | ✅ **FIXED** | Keepalive pings + exponential backoff implemented |
+| #6 Briefing Tab Timing | ⚠️ **PARTIALLY FIXED** | 30-second retry window (6×5s), may need extension |
+| #7 JSON Parsing | ✅ **NO ISSUE** | Data is formatted as text for LLM, not raw JSON |
 
 ---
 
@@ -72,6 +87,55 @@ const request = {
 
 **File:** `server/lib/venue/venue-enrichment.js` lines 150-250
 
+#### Verification Status (Dec 29, 2025): ⚠️ IMPROVED
+
+**What's Been Implemented:**
+The code now uses `searchNearby` (Places API New) instead of `findPlace`:
+
+```javascript
+// venue-enrichment.js:472-494 - Current implementation
+const response = await fetch(PLACES_NEW_URL, {
+  method: "POST",
+  body: JSON.stringify({
+    locationRestriction: {
+      circle: {
+        center: { latitude: lat, longitude: lng },
+        radius: 150.0  // 150m radius - wider than original
+      },
+    },
+    maxResultCount: 3,  // Get top 3 and pick closest match
+    rankPreference: "DISTANCE",
+  }),
+});
+
+// Lines 520-532: Best-match selection by name similarity
+for (const place of data.places) {
+  const placeName = place.displayName?.text || place.name || '';
+  const similarity = calculateNameSimilarity(name, placeName);
+  if (similarity > bestSimilarity) {
+    bestSimilarity = similarity;
+    bestPlace = place;
+  }
+}
+```
+
+**What's NOT Been Implemented:**
+- The suggested `textSearch` approach (Option A in original fix) was NOT adopted
+- Current approach still relies on coordinate-based search with name verification
+
+**Remaining Risk:**
+If GPT-5.2 provides coordinates that are 150m+ away from the actual venue, the API will still return wrong businesses. The name similarity check will reject them (20% threshold), but no fallback text search occurs.
+
+**Recommendation:**
+Add Option B (two-pass verification) as a fallback:
+```javascript
+if (bestSimilarity < MIN_SIMILARITY_THRESHOLD) {
+  // Fallback: text search by name + city
+  const textSearchResult = await textSearchFallback(name, city);
+  // Use text search result if better match
+}
+```
+
 ---
 
 ### 2. All Venues Showing `isOpen=null` and `hours=unknown` (CRITICAL)
@@ -115,6 +179,24 @@ Show venues regardless of status but add disclaimer:
   <Badge variant="outline">Status Unknown - Call First</Badge>
 )}
 ```
+
+#### Verification Status (Dec 29, 2025): ⚠️ DEPENDS ON #1
+
+**What's Been Implemented:**
+The `calculateIsOpen()` function in `venue-enrichment.js:283-410` is **fully implemented** and correct:
+
+- Properly parses both 12-hour and 24-hour time formats
+- Handles overnight hours (e.g., 11 PM - 2 AM)
+- Uses venue's timezone via `Intl.DateTimeFormat`
+- Handles "Open 24 hours" and "Closed" days
+
+**Root Cause Confirmed:**
+This issue is a **cascading failure** from Issue #1. When Places API returns wrong venue:
+1. Name match < 20% → `useGoogleDetails = false`
+2. `isOpen` set to `null` (line 141)
+3. `businessHours` set to `null` (line 142)
+
+**The fix for Issue #2 is to fix Issue #1.** The `calculateIsOpen()` logic is sound.
 
 ---
 
@@ -179,6 +261,38 @@ if (!events || events.length === 0) {
 - May include outdated/cancelled events
 - User trust in event data compromised
 
+#### Verification Status (Dec 29, 2025): ⚠️ NEEDS INVESTIGATION
+
+**What Exists:**
+The `venue-event-verifier.js` file contains a fully implemented verifier:
+
+```javascript
+// venue-event-verifier.js:67-76
+export async function verifyVenueEventsBatch(blocks) {
+  const blocksWithEvents = blocks.filter(b => b.eventBadge && b.eventSummary);
+
+  if (blocksWithEvents.length === 0) {
+    console.log('[event-verifier] No events to verify');  // ← This is being hit
+    return results;
+  }
+  // ... verification logic with Gemini 2.5 Pro
+}
+```
+
+**Root Cause Analysis:**
+The verifier is implemented, but it filters blocks by `eventBadge` and `eventSummary` fields. The log "No events to verify" indicates that:
+
+1. Either `verifyVenueEventsBatch()` is being called with blocks that don't have `eventBadge`/`eventSummary`
+2. Or the event-matcher is not populating these fields on the blocks
+
+**Investigation Needed:**
+Check where `verifyVenueEventsBatch()` is called in the pipeline:
+```bash
+grep -r "verifyVenueEventsBatch\|venue-event-verifier" server/
+```
+
+If it's not being called at all, the verifier needs to be wired into the pipeline (likely in `blocks-fast.js` or `enhanced-smart-blocks.js`).
+
 ---
 
 ## Warnings
@@ -224,6 +338,37 @@ Add logging to show WHY match succeeded:
 ```javascript
 console.log(`[event-matcher] MATCH: "${venueName}" ↔ "${eventName}" (${matchReason}: num=${num1}, street=${street1})`);
 ```
+
+#### Verification Status (Dec 29, 2025): ✅ ADDRESSED
+
+**What's Been Implemented:**
+The `event-matcher.js` now uses **strict address matching** (`addressesMatchStrictly()`):
+
+```javascript
+// event-matcher.js:109-125
+function addressesMatchStrictly(addr1, addr2) {
+  const num1 = extractStreetNumber(addr1);
+  const num2 = extractStreetNumber(addr2);
+
+  // Street numbers must BOTH exist and MATCH
+  if (!num1 || !num2 || num1 !== num2) return false;
+
+  const street1 = extractStreetName(addr1);
+  const street2 = extractStreetName(addr2);
+
+  // Street names must match (at least one word)
+  if (!street1 || !street2) return false;
+
+  return street1 === street2 || street1.includes(street2) || street2.includes(street1);
+}
+```
+
+**Why This Fixes the Issue:**
+- Requires BOTH street number AND street name to match
+- "Legacy West" (a district name) would NOT match without a street number
+- Only real address matches like "6991 Main St" ↔ "6991 Main Street" pass
+
+**Additionally:** Venue name matching (`venueNamesMatch()`) requires >50% substring match, not just partial.
 
 ---
 
@@ -280,7 +425,7 @@ PG_IDLE_TIMEOUT_MS=30000  // 30s to reduce churn
    ```javascript
    let reconnectDelay = 1000;  // Start at 1s
    const maxDelay = 30000;     // Max 30s
-   
+
    function reconnect() {
      setTimeout(() => {
        connect();
@@ -288,6 +433,54 @@ PG_IDLE_TIMEOUT_MS=30000  // 30s to reduce churn
      }, reconnectDelay);
    }
    ```
+
+#### Verification Status (Dec 29, 2025): ✅ FIXED
+
+**All Recommended Fixes Have Been Implemented:**
+
+The `db-client.js` file now includes:
+
+1. **Keepalive Pings** (lines 54-58, 137-141):
+```javascript
+// Send keepalive queries every 4 minutes (before 5-min timeout)
+keepaliveInterval = setInterval(() => {
+  if (pgClient && !isReconnecting) {
+    pgClient.query('SELECT 1').catch(() => {});
+  }
+}, 240000); // 4 minutes
+```
+
+2. **Exponential Backoff** (lines 13-69):
+```javascript
+async function reconnectWithBackoff(connectionString, maxRetries = 5) {
+  while (retries < maxRetries) {
+    const backoffMs = Math.min(1000 * Math.pow(2, retries), 10000);  // Max 10s
+    await sleep(backoffMs);
+    // ... reconnection attempt
+  }
+}
+```
+
+3. **TCP Keepalive** (lines 45-46):
+```javascript
+pgClient = new pg.Client({
+  connectionString,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
+});
+```
+
+4. **Single Reconnection Lock** (lines 14-16):
+```javascript
+if (isReconnecting) {
+  return;  // Prevent multiple simultaneous reconnections
+}
+```
+
+**Why This Fixes the Issue:**
+- Keepalive pings every 4 minutes prevent idle timeout disconnects
+- Exponential backoff prevents rapid reconnection spam
+- `isReconnecting` flag prevents duplicate reconnection attempts
 
 ---
 
@@ -457,8 +650,38 @@ SSE: briefing_complete { snapshot_id }
 // Client updates state incrementally
 ```
 
-**Pros**: Real-time updates, no polling waste  
+**Pros**: Real-time updates, no polling waste
 **Cons**: More complex implementation
+
+#### Verification Status (Dec 29, 2025): ⚠️ PARTIALLY FIXED
+
+**What's Been Implemented:**
+The `useBriefingQueries.ts` hook has retry logic:
+
+```typescript
+// Lines 19-20
+const MAX_RETRY_ATTEMPTS = 6;  // 6 × 5 seconds = 30 seconds
+
+// Lines 116-123: Conditional refetch for traffic
+refetchInterval: (query) => {
+  const stillLoading = isTrafficLoading(query.state.data);
+  const hasRetriesLeft = retryCountsRef.current.traffic < MAX_RETRY_ATTEMPTS;
+  if (stillLoading && hasRetriesLeft) {
+    return 5000; // Keep polling every 5s
+  }
+  return false; // Stop polling
+},
+```
+
+**What's Still Needed:**
+- 30-second window (6 retries × 5s) may be **too short** for slow briefing generation
+- Original logs showed briefing taking ~29 seconds to complete
+- Recommendation: Increase to `MAX_RETRY_ATTEMPTS = 12` (60 seconds)
+
+**Also Good:**
+- Separate loading states for each data type (weather, traffic, events, airport)
+- Data is cached forever once received (`staleTime: Infinity`)
+- Loading indicators help user understand what's still pending
 
 ---
 
@@ -542,5 +765,31 @@ The Briefing tab exists specifically to validate this data quality:
 
 ---
 
-**Last Updated:** December 28, 2025  
-**Status:** REQUIRES IMMEDIATE ACTION
+## Updated Action Items (December 29, 2025)
+
+### Remaining Work
+
+| Priority | Issue | Action Required |
+|----------|-------|-----------------|
+| HIGH | #1 | Add text search fallback when name match < 20% |
+| HIGH | #3 | Wire `verifyVenueEventsBatch()` into blocks-fast.js pipeline |
+| MEDIUM | #6 | Increase `MAX_RETRY_ATTEMPTS` from 6 to 12 (60 seconds) |
+
+### Completed
+
+| Issue | Fix |
+|-------|-----|
+| #4 Event Matcher | Strict address matching with street number requirement |
+| #5 DB Connection | Keepalive pings + exponential backoff |
+| #7 JSON Parsing | No issue - data is formatted as text for LLM |
+
+### Blocked
+
+| Issue | Blocker |
+|-------|---------|
+| #2 isOpen=null | Depends on Issue #1 being fixed |
+
+---
+
+**Last Updated:** December 29, 2025
+**Status:** 3 FIXES VERIFIED, 3 ISSUES REMAINING

@@ -30,8 +30,9 @@ import { callModel } from "../ai/adapters/index.js";
 import { z } from "zod";
 import { safeJsonParse } from "../../api/utils/http-helpers.js";
 
-// GPT-5 response schema: venue coords + staging coords + category + pro tips
+// GPT-5 response schema: venue coords + staging coords + category + district + pro tips
 // Addresses, distances, and place details resolved via Google Places API (New) + Routes API (New)
+// District field enables text search fallback when coord-based matching fails
 const VenueRecommendationSchema = z.object({
   name: z.string().min(1).max(200),
   lat: z.number().min(-90).max(90),
@@ -39,6 +40,7 @@ const VenueRecommendationSchema = z.object({
   staging_lat: z.number().min(-90).max(90).optional(),  // Where to park/wait for this venue
   staging_lng: z.number().min(-180).max(180).optional(),
   staging_name: z.string().max(200).optional(),          // Name of staging location
+  district: z.string().max(100).optional(),              // Shopping center, neighborhood, or area name (e.g., "Legacy West", "Deep Ellum")
   category: z.enum(['airport', 'entertainment', 'shopping', 'dining', 'sports_venue', 'transit_hub', 'hotel', 'nightlife', 'event_venue', 'other']).or(z.string()),
   pro_tips: z.array(z.string().max(500)).min(1).max(3),
   strategic_timing: z.string().optional()       // Strategic reason to go (even if Google says closed): "Opens in 30 min", "Event at 7 PM" - no char limit for model-agnostic reasoning
@@ -121,6 +123,9 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "2. Provide 4-6 SPECIFIC venue names (not districts or areas)",
     "3. Include category + 2-3 tactical pro tips per venue (pickup zones, positioning, timing)",
     "4. Focus on venues with ACTIVE demand RIGHT NOW or within the next hour",
+    "5. Include DISTRICT for venues in shopping centers, entertainment districts, or named areas",
+    "   - Use the local district/neighborhood name where the venue is located",
+    "   - This helps accurately locate venues when multiple businesses share similar names",
     "",
     "VENUE SELECTION (RIGHT NOW FOCUS):",
     `- ONLY recommend venues near ${location} with current or imminent demand`,
@@ -150,6 +155,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     '      "staging_lat": 00.0000,',
     '      "staging_lng": -00.0000,',
     '      "staging_name": "Nearby parking lot name",',
+    '      "district": "Shopping center or neighborhood name where venue is located",',
     '      "category": "airport|entertainment|shopping|dining|sports_venue|transit_hub|hotel|nightlife|event_venue|other",',
     '      "pro_tips": ["Pickup zone tip", "Positioning tip", "Timing tip"],',
     '      "strategic_timing": "Why now (if relevant)"',
@@ -227,7 +233,8 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     // Log each venue individually for clear tracing
     console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ ${validated.recommended_venues.length} venues in ${duration}ms:`);
     validated.recommended_venues.forEach((v, i) => {
-      console.log(`   ${i+1}. "${v.name}" (${v.category}) at ${v.lat.toFixed(4)},${v.lng.toFixed(4)}`);
+      const districtInfo = v.district ? ` @ ${v.district}` : '';
+      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category}) at ${v.lat.toFixed(4)},${v.lng.toFixed(4)}`);
     });
 
     // Add rank to each venue and prepare final response

@@ -61,7 +61,7 @@ export default function CoachChat({
   const _audioContextRef = useRef<AudioContext | null>(null);
 
   // Memory integration for persistent context
-  const { logConversation, summarizeConversation, context } = useMemory({
+  const { logConversation, summarizeConversation, context: _context } = useMemory({
     userId,
     loadOnMount: true
   });

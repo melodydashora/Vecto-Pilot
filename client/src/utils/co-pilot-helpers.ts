@@ -100,6 +100,33 @@ export function subscribeBlocksReady(callback: (data: { snapshot_id: string; ran
 }
 
 /**
+ * Subscribe to SSE briefing_ready events
+ * Uses Postgres LISTEN/NOTIFY via /events/briefing endpoint
+ * Fires when briefing data (weather, traffic, events, news) is fully generated
+ */
+export function subscribeBriefingReady(callback: (snapshotId: string) => void): () => void {
+  const eventSource = new EventSource('/events/briefing');
+
+  eventSource.addEventListener('briefing_ready', (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.snapshot_id) {
+        console.log('[SSE] Received briefing_ready for:', data.snapshot_id);
+        callback(data.snapshot_id);
+      }
+    } catch (e) {
+      console.warn('[SSE] Failed to parse briefing_ready event:', e);
+    }
+  });
+
+  eventSource.onerror = () => {
+    console.warn('[SSE] Briefing connection error, will reconnect automatically');
+  };
+
+  return () => eventSource.close();
+}
+
+/**
  * Open Google Maps navigation with smart destination resolution
  * Prefers placeId for accuracy, falls back to coordinates, then address
  */

@@ -22,6 +22,7 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | [driver-intelligence-system.md](driver-intelligence-system.md) | ~800 | Full driver intelligence architecture & vision | Understanding staging recommendations |
 | [event-discovery.md](event-discovery.md) | ~300 | Multi-model AI event search | Modifying event detection |
 | [google-cloud-apis.md](google-cloud-apis.md) | ~250 | Places, Routes, Weather, Geocoding | Using Google APIs |
+| [district-tagging.md](district-tagging.md) | ~280 | District metadata for venue matching | Improving venue accuracy |
 
 ### System Rules
 
@@ -35,7 +36,8 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 
 | Document | Lines | Purpose | Read When... |
 |----------|-------|---------|--------------|
-| [auth-system.md](auth-system.md) | ~100 | JWT authentication, security | Modifying auth |
+| [authentication.md](authentication.md) | ~650 | Full auth system (JWT, login, register) | Modifying auth |
+| [auth-system.md](auth-system.md) | ~100 | Legacy auth overview (see authentication.md) | Quick reference |
 | [logging.md](logging.md) | ~100 | Workflow logging conventions | Adding logging |
 
 ## Quick Reference
@@ -117,9 +119,9 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the complete folder README inde
 | Category | Count | Total Lines |
 |----------|-------|-------------|
 | Core System | 4 | ~760 |
-| AI System | 5 | ~1950 |
+| AI System | 6 | ~2230 |
 | System Rules | 3 | ~450 |
-| Infrastructure | 2 | ~200 |
-| **Total** | **14** | **~3360** |
+| Infrastructure | 3 | ~850 |
+| **Total** | **16** | **~4290** |
 
-Most documents are under 400 lines (under 200), making them readable in a single pass. The driver-intelligence-system.md is longer (~800 lines) as a comprehensive architecture vision document.
+Most documents are under 400 lines, making them readable in a single pass. The driver-intelligence-system.md (~800 lines) and authentication.md (~650 lines) are comprehensive architecture documents.
