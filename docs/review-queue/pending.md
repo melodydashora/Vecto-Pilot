@@ -1031,4 +1031,142 @@ Refactored the monolithic co-pilot.tsx (1700+ lines) into a router-based archite
 
 ---
 
+## 2025-12-29 Analysis
+
+**Generated:** 2025-12-29T22:09:37.628Z
+**Branch:** main
+**Last Commit:** a191bef Assistant checkpoint: Add briefing dump utility to track last row
+
+### Recent Commit Changes (83)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `PRODISSUES.md` | Modified |
+| `client/src/App.tsx` | Modified |
+| `client/src/_future/user-settings/README.md` | Added |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/MapTab.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Added |
+| `client/src/components/auth/README.md` | Added |
+| `client/src/components/intel/DeadheadCalculator.tsx` | Added |
+| `client/src/components/intel/README.md` | Added |
+| `client/src/components/intel/StrategyCards.tsx` | Added |
+| `client/src/components/intel/ZoneCards.tsx` | Added |
+| `client/src/contexts/README.md` | Modified |
+| `client/src/contexts/auth-context.tsx` | Added |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| ... and 63 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/README.md)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/strategy-events.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/geocode.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/geocode.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/tactical-planner.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/sql/README.md)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/sql/README.md)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (client/src/types/auth.ts)
+- [ ] Consider adding documentation - New file added (migrations/20251228_auth_system_tables.sql)
+- [ ] Consider adding documentation - New file added (migrations/20251228_drop_snapshot_user_device.sql)
+- [ ] Consider adding documentation - New file added (migrations/20251229_district_tagging.sql)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/gemini-findings.txt)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/gemini-sample-code.txt)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/gpt-market-city-findings.txt)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/research-intel.txt)
+- [ ] Consider adding documentation - New file added (server/lib/auth/email.js)
+- [ ] Consider adding documentation - New file added (server/lib/auth/index.js)
+- [ ] Consider adding documentation - New file added (server/lib/auth/password.js)
+- [ ] Consider adding documentation - New file added (server/lib/auth/sms.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/dump-last-briefing.js)
+- [ ] Consider adding documentation - New file added (server/scripts/parse-market-research.js)
+
+### Status: PENDING
+
+---
+
+## 2025-12-29 Analysis
+
+**Generated:** 2025-12-29T22:09:50.735Z
+**Branch:** main
+**Last Commit:** a191bef Assistant checkpoint: Add briefing dump utility to track last row
+
+### Uncommitted Changes (2)
+| File | Status |
+|------|--------|
+| `ocs/review-queue/2025-12-29.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+
+### Recent Commit Changes (83)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `PRODISSUES.md` | Modified |
+| `client/src/App.tsx` | Modified |
+| `client/src/_future/user-settings/README.md` | Added |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/MapTab.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Added |
+| `client/src/components/auth/README.md` | Added |
+| `client/src/components/intel/DeadheadCalculator.tsx` | Added |
+| `client/src/components/intel/README.md` | Added |
+| `client/src/components/intel/StrategyCards.tsx` | Added |
+| `client/src/components/intel/ZoneCards.tsx` | Added |
+| `client/src/contexts/README.md` | Modified |
+| `client/src/contexts/auth-context.tsx` | Added |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| ... and 63 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/README.md)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/strategy-events.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/geocode.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/geocode.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/tactical-planner.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/sql/README.md)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/sql/README.md)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (client/src/types/auth.ts)
+- [ ] Consider adding documentation - New file added (migrations/20251228_auth_system_tables.sql)
+- [ ] Consider adding documentation - New file added (migrations/20251228_drop_snapshot_user_device.sql)
+- [ ] Consider adding documentation - New file added (migrations/20251229_district_tagging.sql)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/gemini-findings.txt)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/gemini-sample-code.txt)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/gpt-market-city-findings.txt)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/research-intel.txt)
+- [ ] Consider adding documentation - New file added (server/lib/auth/email.js)
+- [ ] Consider adding documentation - New file added (server/lib/auth/index.js)
+- [ ] Consider adding documentation - New file added (server/lib/auth/password.js)
+- [ ] Consider adding documentation - New file added (server/lib/auth/sms.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/dump-last-briefing.js)
+- [ ] Consider adding documentation - New file added (server/scripts/parse-market-research.js)
+
+### Status: PENDING
+
+---
+
 ---
