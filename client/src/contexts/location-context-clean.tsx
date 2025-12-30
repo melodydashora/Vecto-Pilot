@@ -265,18 +265,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         console.log('✅ [LocationContext] Location resolved - downstream queries enabled');
       }
 
-      // Store JWT token if returned
-      if (locationData.user_id) {
-        const tokenRes = await fetch('/api/auth/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: locationData.user_id })
-        });
-        if (tokenRes.ok) {
-          const { token } = await tokenRes.json();
-          localStorage.setItem('vecto_auth_token', token);
-        }
-      }
+      // NOTE: JWT tokens are only used for registered users who login via /api/auth/login
+      // Anonymous users access data via snapshot ownership (snapshot_id acts as capability token)
+      // The old /api/auth/token endpoint is disabled in production
 
       // ═══════════════════════════════════════════════════════════════════════════
       // SNAPSHOT: Server creates snapshot during resolve, returns snapshot_id

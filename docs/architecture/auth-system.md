@@ -1,89 +1,117 @@
 # Authentication System
 
-JWT-based authentication with user isolation. Production-ready as of December 2025.
+JWT-based authentication with user isolation. Supports both anonymous and registered users.
+
+## Two Authentication Modes
+
+### 1. Anonymous Mode (Default)
+Users can access the app without registration. Access is controlled by **snapshot ownership**:
+- GPS → `/api/location/resolve` → creates snapshot with user_id
+- Snapshot ID acts as capability token (UUID is unguessable)
+- Endpoints use `optionalAuth` + `requireSnapshotOwnership` middleware
+- No JWT token required - snapshot ownership is verified instead
+
+### 2. Registered Mode (Full Features)
+Registered drivers get JWT tokens for authenticated access:
+- Sign up via `/api/auth/register`
+- Login via `/api/auth/login` → returns JWT token
+- Token stored in `localStorage.setItem('vecto_auth_token', token)`
+- Endpoints use `requireAuth` middleware
 
 ## Architecture Overview
 
 ```
-Browser GPS/Geolocation
+ANONYMOUS FLOW (no registration):
+Browser GPS → [LocationContext] → /api/location/resolve
          ↓
-   [LocationContext]
+   Creates snapshot with user_id + snapshot_id
          ↓
-/api/location/resolve → gets user_id from database
+   Snapshot ID stored in context (not localStorage token)
          ↓
-/api/auth/token → generates JWT with user_id
+   Endpoints check snapshot ownership (optionalAuth + requireSnapshotOwnership)
+
+REGISTERED FLOW (with account):
+User registers/logs in → /api/auth/login
          ↓
-localStorage.setItem('token')
+   JWT token returned → localStorage.setItem('vecto_auth_token')
          ↓
-[CoachChat] + [BriefingTab] send Authorization: Bearer ${token}
+   All requests include Authorization: Bearer ${token}
          ↓
-[requireAuth middleware] verifies JWT
-         ↓
-All requests scoped to authenticated user_id
+   [requireAuth middleware] verifies JWT → req.auth.userId
 ```
+
+## IMPORTANT: /api/auth/token is DISABLED in Production
+
+The legacy endpoint `/api/auth/token` that mints tokens from user_id is **disabled in production** (returns 403). This was a dev-only convenience endpoint.
+
+In production, users must either:
+- Use anonymous mode (snapshot ownership)
+- Register and login via `/api/auth/login`
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `client/src/contexts/location-context-clean.tsx` | Token generation with async callback |
-| `server/api/auth/auth.js` | `/api/auth/token` endpoint |
-| `server/middleware/auth.js` | `requireAuth` middleware |
-| `client/src/components/CoachChat.tsx` | Authorization header on /api/chat |
-| `client/src/contexts/co-pilot-context.tsx` | Authorization header on briefing calls |
-| `client/src/pages/co-pilot/*.tsx` | Individual page components using shared context |
+| `server/api/auth/auth.js` | Registration, login, password reset endpoints |
+| `server/middleware/auth.js` | `requireAuth` and `optionalAuth` middleware |
+| `server/middleware/require-snapshot-ownership.js` | Verifies user owns snapshot (anonymous mode) |
+| `client/src/contexts/location-context-clean.tsx` | GPS resolution, snapshot creation |
+| `client/src/utils/co-pilot-helpers.ts` | `getAuthHeader()` helper for API calls |
+| `client/src/hooks/useBriefingQueries.ts` | Briefing data fetches with auth headers |
 
-## Authentication Flow
+## Authentication Flows
 
-### Step 1: Location Resolution
+### Anonymous Flow (Most Users)
+
 ```javascript
+// Step 1: GPS Resolution creates snapshot
 // Client: location-context-clean.tsx
-const response = await fetch('/api/location/resolve', {
-  method: 'POST',
-  body: JSON.stringify({ lat, lng, deviceId })
+const response = await fetch(`/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${deviceId}`);
+const { snapshot_id, user_id } = await response.json();
+// snapshot_id is stored in context state, NOT localStorage
+
+// Step 2: API calls include snapshot_id in URL
+// Client: useBriefingQueries.ts
+const response = await fetch(`/api/briefing/weather/${snapshotId}`, {
+  headers: getAuthHeader() // Returns {} if no token, or { Authorization: Bearer... } if logged in
 });
-const { user_id } = await response.json();
+
+// Step 3: Server verifies snapshot ownership
+// Server: requireSnapshotOwnership middleware
+const snapshot = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId));
+if (snapshot.user_id && req.auth?.userId && snapshot.user_id !== req.auth.userId) {
+  return res.status(404).json({ error: 'snapshot_not_found' }); // Prevents enumeration
+}
+req.snapshot = snapshot;
+next();
 ```
 
-### Step 2: Token Generation
-```javascript
-// Client: location-context-clean.tsx
-const tokenResponse = await fetch('/api/auth/token', {
-  method: 'POST',
-  body: JSON.stringify({ user_id })
-});
-const { token } = await tokenResponse.json();
-localStorage.setItem('token', token);
-```
+### Registered Flow (Logged-in Users)
 
-### Step 3: Authenticated Requests
 ```javascript
-// Client: CoachChat.tsx
+// Step 1: User logs in
+const response = await fetch('/api/auth/login', {
+  method: 'POST',
+  body: JSON.stringify({ email, password })
+});
+const { token } = await response.json();
+localStorage.setItem('vecto_auth_token', token);
+
+// Step 2: All API calls include Authorization header
 const response = await fetch('/api/chat', {
-  method: 'POST',
   headers: {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({ message })
 });
-```
 
-### Step 4: Server Verification
-```javascript
-// Server: middleware/auth.js
-export function requireAuth(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'No token' });
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user_id = decoded.user_id;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-}
+// Step 3: Server verifies JWT
+// Server: requireAuth middleware
+const token = req.headers.authorization?.split(' ')[1];
+const payload = verifyAppToken(token); // HMAC verification
+req.auth = { userId: payload.userId };
+next();
 ```
 
 ## Security Principles
@@ -139,32 +167,49 @@ $$ LANGUAGE SQL;
 
 ## Token Storage
 
+### Anonymous Mode
+No token stored. Snapshot ID is kept in React context state (not localStorage).
+
+### Registered Mode
 | Storage | Key | Value |
 |---------|-----|-------|
-| localStorage | `token` | JWT string |
+| localStorage | `vecto_auth_token` | JWT string |
 
 **Lifecycle:**
-- Created: After successful location resolution
-- Used: Every authenticated API call
+- Created: After successful login via `/api/auth/login`
+- Used: Every authenticated API call (via `getAuthHeader()`)
 - Cleared: Manual logout or token expiry
 
-## Routes Requiring Authentication
+## Routes and Authentication
 
-| Route | Middleware |
-|-------|------------|
-| `POST /api/chat` | `requireAuth` |
-| `POST /api/feedback/*` | `requireAuth` |
-| `POST /api/actions` | `requireAuth` |
-| `GET /api/briefing/*` | `requireAuth` |
+### Anonymous-Compatible Routes (optionalAuth + requireSnapshotOwnership)
+| Route | Description |
+|-------|-------------|
+| `GET /api/briefing/*/:snapshotId` | Weather, traffic, news, events |
+| `GET /api/blocks/*/:snapshotId` | Strategy blocks |
+| `GET /api/venue/*/:snapshotId` | Venue data |
+
+### Registered-Only Routes (requireAuth)
+| Route | Description |
+|-------|-------------|
+| `POST /api/chat` | AI Coach chat |
+| `POST /api/feedback/*` | User feedback |
+| `POST /api/actions` | Action logging |
 
 ## Verification Checklist
 
-- ✅ GPS coordinates obtained (native browser or fallback)
-- ✅ Location resolved and user_id retrieved
-- ✅ JWT token generated and stored in localStorage
-- ✅ All API calls include Authorization header
+### Anonymous Mode
+- ✅ GPS coordinates obtained (native browser)
+- ✅ Location resolved via `/api/location/resolve`
+- ✅ Snapshot created with user_id
+- ✅ Snapshot ID passed in API URLs
+- ✅ Backend verifies snapshot ownership
+
+### Registered Mode
+- ✅ User logs in via `/api/auth/login`
+- ✅ JWT token stored in localStorage (`vecto_auth_token`)
+- ✅ All API calls include `Authorization: Bearer` header
 - ✅ Backend verifies JWT and isolates data
-- ✅ Graceful error handling with console logs
 
 ## See Also
 
