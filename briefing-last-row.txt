@@ -2,10 +2,10 @@
 ================================================================================
 
 id:
-  "e641f0ca-c6b2-480c-b289-7ee5d2021d4e"
+  "c111b7b5-efb3-4c5b-ac15-17a5b1db19ca"
 
 snapshot_id:
-  "a9567586-9148-4aff-8e43-19d0b1a9bee7"
+  "b55a50f9-c4d2-4c5f-9c85-2a57b83b74b8"
 
 news:
   {
@@ -37,7 +37,7 @@ news:
 
 weather_current:
   {
-  "tempF": 39,
+  "tempF": 41,
   "conditions": "Sunny",
   "description": "Sunny"
 }
@@ -47,23 +47,23 @@ weather_forecast:
 
 traffic_conditions:
   {
-  "jams": 20,
+  "jams": 38,
   "stats": {
-    "jams": 20,
-    "major": 16,
-    "total": 100,
+    "jams": 38,
+    "major": 27,
+    "total": 118,
     "closures": 54,
-    "highways": 54,
+    "highways": 63,
     "accidents": 0,
     "construction": 26
   },
-  "summary": "Heavy congestion across the Frisco area with 100 total incidents including 54 road closures and 20 traffic jams. The worst delays are on FM-2170/S Watters Rd with a 4-minute major jam, TX-289C between W Pecan St and FM-455 adding 2 minutes, and the Lewisville-Flower Mound corridor backing up toward Lake Park Rd. Multiple road closures are impacting FM-720 access points and rural county roads to the east, so plan alternate routes around Little Elm and Prosper areas. Construction on US-380 between FM-2931 and US-377 may slow east-west travel through the northern corridor.",
+  "summary": "Heavy congestion across the Frisco-Flower Mound area with 118 total incidents including 38 active traffic jams and 54 road closures. FM-407 (Justin Rd) is severely impacted with back-to-back jams from Briarhill Blvd through FM-2499, causing 2-3 minute delays per segment. FM-2499 corridor is a major chokepoint with multiple jams converging from Northwood Dr, Firewheel Dr, and FM-407. Avoid the Lewisville-Flower Mound area where a 5-minute delay jam is active; consider US-380 as an alternate east-west route despite moderate congestion near FM-2478.",
   "analyzed": true,
-  "briefing": "Heavy congestion across the Frisco area with 100 total incidents including 54 road closures and 20 traffic jams. The worst delays are on FM-2170/S Watters Rd with a 4-minute major jam, TX-289C between W Pecan St and FM-455 adding 2 minutes, and the Lewisville-Flower Mound corridor backing up toward Lake Park Rd. Multiple road closures are impacting FM-720 access points and rural county roads to the east, so plan alternate routes around Little Elm and Prosper areas. Construction on US-380 between FM-2931 and US-377 may slow east-west travel through the northern corridor.",
+  "briefing": "Heavy congestion across the Frisco-Flower Mound area with 118 total incidents including 38 active traffic jams and 54 road closures. FM-407 (Justin Rd) is severely impacted with back-to-back jams from Briarhill Blvd through FM-2499, causing 2-3 minute delays per segment. FM-2499 corridor is a major chokepoint with multiple jams converging from Northwood Dr, Firewheel Dr, and FM-407. Avoid the Lewisville-Flower Mound area where a 5-minute delay jam is active; consider US-380 as an alternate east-west route despite moderate congestion near FM-2478.",
   "closures": [
     {
       "road": "",
-      "location": "FM-1830 to Michael John Rd",
+      "location": "Michael John Rd to FM-1830",
       "severity": "low",
       "isHighway": true
     },
@@ -99,31 +99,31 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "County Road 168 to FM-543",
-      "severity": "low",
-      "isHighway": true
-    },
-    {
-      "road": "",
       "location": "FM-543 to Private Road 5151",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "Lewisville-Flower Mound to Mills Rd",
+      "location": "County Road 168 to FM-543",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "US-377/US-380/E University Dr (Lakeview Blvd) to N Trinity Rd (Lakeview Blvd)",
+      "location": "Mills Rd to Lewisville-Flower Mound",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "US-377 S to Tisdell Ln",
+      "location": "N Trinity Rd (Lakeview Blvd) to US-377/US-380/E University Dr (Lakeview Blvd)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Tisdell Ln to US-377 S",
       "severity": "low",
       "isHighway": true
     },
@@ -140,12 +140,6 @@ traffic_conditions:
       "isHighway": true
     },
     {
-      "road": "FM-1385",
-      "location": "FM-455 (FM-1385) to FM-428 (Pilot Point) (FM-1385)",
-      "severity": "low",
-      "isHighway": true
-    },
-    {
       "road": "US-380 E",
       "location": "US-377 (US-380) to FM-2931 (US-380)",
       "severity": "low",
@@ -154,6 +148,12 @@ traffic_conditions:
     {
       "road": "US-380 E",
       "location": "FM-2931 (US-380) to FM-1385 (US-380)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "FM-1385",
+      "location": "FM-455 (FM-1385) to FM-428 (Pilot Point) (FM-1385)",
       "severity": "low",
       "isHighway": true
     },
@@ -189,7 +189,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
+      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
       "severity": "low",
       "isHighway": true
     },
@@ -231,19 +231,19 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "E Alan Ave to Ryan Ave / Faye St",
-      "severity": "low",
-      "isHighway": false
-    },
-    {
-      "road": "",
       "location": "Ryan Ave / Faye St to Noble Ave",
       "severity": "low",
       "isHighway": false
     },
     {
       "road": "",
-      "location": "Riverpass Dr to Settlers Creek Rd",
+      "location": "E Alan Ave to Ryan Ave / Faye St",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Settlers Creek Rd to Riverpass Dr",
       "severity": "low",
       "isHighway": false
     },
@@ -261,7 +261,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Mill Creek Rd to Twin Post Rd",
+      "location": "Twin Post Rd to Mill Creek Rd",
       "severity": "low",
       "isHighway": false
     },
@@ -273,7 +273,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "KC Robinson Ln to S Coit Rd",
+      "location": "S Coit Rd to KC Robinson Ln",
       "severity": "low",
       "isHighway": false
     },
@@ -357,7 +357,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Copper Ridge Dr to Nantucket Dr",
+      "location": "Nantucket Dr to Copper Ridge Dr",
       "severity": "low",
       "isHighway": false
     },
@@ -386,143 +386,143 @@ traffic_conditions:
       "isHighway": false
     }
   ],
-  "headline": "Heavy congestion across the Frisco area with 100 total incidents including 54 road closures and 20 traffic jams.",
+  "headline": "Heavy congestion across the Frisco-Flower Mound area with 118 total incidents including 38 active traffic jams and 54 road closures.",
   "provider": "tomtom",
-  "fetchedAt": "2025-12-30T16:38:53.574Z",
+  "fetchedAt": "2025-12-30T17:11:06.750Z",
   "incidents": [
     {
-      "road": "",
+      "road": "FM-407",
       "category": "Jam",
-      "location": "FM-2170 / S Watters Rd to S Watters Rd",
-      "priority": 159,
+      "location": "Briarhill Blvd/Country Meadow Dr (Justin Rd/FM-407) to FM-2499/Long Prairie Rd/Village Pkwy (Justin Rd/FM-407)",
+      "priority": 158,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: FM-2170 / S Watters Rd to S Watters Rd",
-      "lengthMiles": 0.1,
-      "delayMinutes": 4
+      "description": "Jam: FM-407 (Briarhill Blvd/Country Meadow Dr (Justin Rd/FM-407) to FM-2499/Long Prairie Rd/Village Pkwy (Justin Rd/FM-407))",
+      "lengthMiles": 0.3,
+      "delayMinutes": 3
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "TX-289C / W Pecan St to FM-455",
+      "location": "Northwood Dr to FM-2499",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Northwood Dr to FM-2499",
+      "lengthMiles": 0.1,
+      "delayMinutes": 3
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-2931 to Blackjack Rd",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-2931 to Blackjack Rd",
+      "lengthMiles": 0.2,
+      "delayMinutes": 3
+    },
+    {
+      "road": "FM-407",
+      "category": "Jam",
+      "location": "Copper Canyon Rd (Justin Rd/FM-407) to FM-2499/Long Prairie Rd/Village Pkwy (Justin Rd/FM-407)",
       "priority": 157,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: TX-289C / W Pecan St to FM-455",
+      "description": "Jam: FM-407 (Copper Canyon Rd (Justin Rd/FM-407) to FM-2499/Long Prairie Rd/Village Pkwy (Justin Rd/FM-407))",
+      "lengthMiles": 0.2,
+      "delayMinutes": 2
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Firewheel Dr to FM-2499",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Firewheel Dr to FM-2499",
       "lengthMiles": 0.1,
       "delayMinutes": 2
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "Lewisville-Flower Mound to Lake Park Rd",
-      "priority": 151,
+      "location": "W Stonebrook Pkwy to FM-423",
+      "priority": 156,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Lewisville-Flower Mound to Lake Park Rd",
+      "description": "Jam: W Stonebrook Pkwy to FM-423",
       "lengthMiles": 0,
       "delayMinutes": 1
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "FM-1830 to Michael John Rd",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "Lewisville-Flower Mound to Lewisville-Flower Mound",
+      "priority": 155,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: FM-1830 to Michael John Rd",
-      "lengthMiles": 0.9,
-      "delayMinutes": 0
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
-      "lengthMiles": 0.2,
-      "delayMinutes": 0
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
+      "description": "Jam: Lewisville-Flower Mound to Lewisville-Flower Mound",
       "lengthMiles": 0.1,
-      "delayMinutes": 0
+      "delayMinutes": 5
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "Lamar Hunt Way to FM-720",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "Blagg Rd to US-377 S",
+      "priority": 146,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: Lamar Hunt Way to FM-720",
-      "lengthMiles": 0.2,
-      "delayMinutes": 0
+      "description": "Jam: Blagg Rd to US-377 S",
+      "lengthMiles": 0.1,
+      "delayMinutes": 1
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "FM-720 to FM-720",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "FM-2478 to US-380 E",
+      "priority": 143,
+      "severity": "medium",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720",
-      "lengthMiles": 0,
-      "delayMinutes": 0
+      "description": "Jam: FM-2478 to US-380 E",
+      "lengthMiles": 0.1,
+      "delayMinutes": 3
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "Timberidge Dr to FM-2478 / County Road 125",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "S Edmonds Ln to S Stemmons Fwy",
+      "priority": 142,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: Timberidge Dr to FM-2478 / County Road 125",
-      "lengthMiles": 0.3,
-      "delayMinutes": 0
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "County Road 168 to FM-543",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: County Road 168 to FM-543",
-      "lengthMiles": 2.7,
-      "delayMinutes": 0
+      "description": "Jam: S Edmonds Ln to S Stemmons Fwy",
+      "lengthMiles": 0.1,
+      "delayMinutes": 2
     }
   ],
   "keyIssues": [
-    "FM-2170/S Watters Rd - Major traffic jam causing 4-minute delays",
-    "TX-289C (Preston Road) - Major jam from W Pecan St to FM-455 with 2-minute delays",
-    "FM-720 corridor - Multiple road closures affecting Little Elm lake area access"
+    "FM-407 (Justin Rd) gridlocked from Briarhill Blvd to FM-2499 - Major severity, 3-min delays stacking",
+    "FM-2499/Long Prairie Rd intersection area - multiple jams converging causing 2-3 min delays each",
+    "Lewisville-Flower Mound corridor experiencing 5-minute Major delay - worst single jam in area"
   ],
   "avoidAreas": [
-    "FM-2170/S Watters Rd intersection: Major jam with 4+ min delays",
-    "TX-289C between Pecan St and FM-455: Congestion adding delays",
-    "FM-720 near Little Elm: Multiple closures blocking through-traffic",
-    "Lewisville-Flower Mound to Lake Park Rd: Active jam"
+    "FM-407 between Copper Canyon Rd and FM-2499: stacked jams adding 5+ min total delay",
+    "FM-2499 corridor near Long Prairie Rd: convergence point for multiple traffic jams",
+    "Lewisville-Flower Mound area: 5-min Major delay active",
+    "FM-720 near Little Elm: multiple road closures blocking access"
   ],
-  "safetyAlert": "20 active traffic jams in the area",
-  "driverImpact": "Expect 5-10 minute delays on pickups near Preston Road and S Watters Rd; avoid routing through Little Elm due to FM-720 closures, and use DNT or US-75 as primary north-south alternatives for faster trip completions.",
+  "safetyAlert": "38 active traffic jams in the area",
+  "driverImpact": "Expect 10-15 minute added trip times for pickups in Flower Mound and along FM-407; prioritize rides in north Frisco near US-380 or east toward McKinney to avoid the FM-2499 bottleneck zone.",
   "surgePricing": true,
   "closuresCount": 54,
   "repositioning": null,
-  "incidentsCount": 100,
-  "totalIncidents": 100,
-  "closuresSummary": "9 road closures active, with heaviest impact on FM-720 (4 separate closure points near Little Elm), FM-543 corridor east of Prosper, and the Lewisville-Flower Mound area limiting lake access routes.",
+  "incidentsCount": 118,
+  "totalIncidents": 118,
+  "closuresSummary": "54 road closures reported; most impactful are near FM-720/Little Elm area (Lighthouse Beach Dr, Lamar Hunt Way) and Trinity Rd near FM-426 - plan alternate routes for lake-area pickups.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "3 major construction zones: US-380 between FM-2931 and US-377 affecting the main east-west artery, FM-407/Justin Rd in Flower Mound, and FM-1171/Cross Timbers Rd approaching I-35E."
+  "constructionSummary": "26 construction zones tracked but none currently causing significant delays; remain alert for lane restrictions throughout the area."
 }
 
 events:
@@ -1483,7 +1483,7 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Moderate delays; Gate hold and taxi delays ~15 minutes, arrival delays ~15 minutes.",
+      "delays": "Recovering from significant disruptions on Dec 29; moderate delays expected today with sunny weather aiding recovery.",
       "status": "delays",
       "busyTimes": [
         "05:00 AM - 08:00 AM",
@@ -1493,26 +1493,28 @@ airport_conditions:
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Major departure delays (31-45 minutes and increasing) due to traffic management initiatives.",
-      "status": "severe_delays",
+      "delays": "Minor delays possible; generally normal operations with good weather conditions.",
+      "status": "normal",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
-        "03:00 PM - 07:00 PM"
+        "06:00 AM - 09:00 AM",
+        "11:00 AM - 02:00 PM",
+        "04:00 PM - 07:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2025-12-30T16:39:37.452Z",
+  "fetchedAt": "2025-12-30T17:11:49.960Z",
   "busyPeriods": [
-    "Morning rush (completed)",
-    "Upcoming evening peak: 3:00 PM - 7:00 PM"
+    "Morning rush hour (6-9 AM) across both airports.",
+    "Evening peak (4-7 PM) for business and holiday travelers.",
+    "Potential surge at DFW due to passengers rebooking from previous day's cancellations."
   ],
-  "recommendations": "At DFW, drivers should wait in the Terminal A staging lot and pick up passengers at the lower-level 'Arrivals' curbside in designated TNC zones. At DAL, pickups are located at Garage C, Level 1 (Valet Pavilion); drivers must use the designated TNC holding lot. Due to severe delays at DAL, expect irregular demand and potential surge pricing."
+  "recommendations": "For DFW, pickups are at the lower level curbside (Arrivals); Terminals B and C often have high volume. For DAL, proceed to the Valet Pavilion / Garage C (Level 1) for rideshare pickups (this location replaced Garage B in early 2025). Tuesday is typically lighter, but expect higher volume due to New Year's holiday travel."
 }
 
 created_at:
-  "Tue Dec 30 2025 16:38:53 GMT+0000 (Coordinated Universal Time)"
+  "Tue Dec 30 2025 17:11:06 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Tue Dec 30 2025 16:39:37 GMT+0000 (Coordinated Universal Time)"
+  "Tue Dec 30 2025 17:11:50 GMT+0000 (Coordinated Universal Time)"
 

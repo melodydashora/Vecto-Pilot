@@ -424,6 +424,25 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => clearTimeout(timer);
   }, []);
 
+  // Listen for snapshot ownership errors (when user changes but stale snapshot ID is used)
+  // This triggers a fresh GPS fetch to create a new snapshot for the current user
+  useEffect(() => {
+    const handleOwnershipError = () => {
+      console.warn('🚨 [LocationContext] Snapshot ownership error - clearing and refreshing');
+      // Clear the stale snapshot ID
+      setLastSnapshotId(null);
+      // Clear sessionStorage to remove any persisted stale data
+      clearSnapshotStorage();
+      // Clear the coord tracking so enrichment can run again
+      lastEnrichmentCoordsRef.current = null;
+      // Trigger fresh GPS fetch → creates new snapshot for current user
+      refreshGPS();
+    };
+
+    window.addEventListener('snapshot-ownership-error', handleOwnershipError);
+    return () => window.removeEventListener('snapshot-ownership-error', handleOwnershipError);
+  }, [refreshGPS]);
+
   // Auto-enrich when coords change (but skip initial mount to avoid duplicate)
   useEffect(() => {
     // Skip on initial mount - refreshGPS() already handles enrichment

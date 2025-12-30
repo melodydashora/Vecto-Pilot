@@ -566,6 +566,126 @@ market_intelligence table
 
 ---
 
+## 9. AI Coach Integration (Extended)
+
+### 9.1 Coach Data Access
+
+The AI Coach now has full access to market intelligence via `CoachDAL`:
+
+```javascript
+// In coach-dal.js
+async getMarketIntelligence(city, state, platform = 'both') {
+  // Returns: { marketPosition, intelligence }
+  // marketPosition: { market_anchor, region_type, deadhead_risk }
+  // intelligence: Array of coach-citable intel items
+}
+
+async getUserNotes(userId, limit = 20) {
+  // Returns: Array of user-specific notes from previous conversations
+}
+
+async saveUserNote(noteData) {
+  // Saves a new note about the user
+}
+```
+
+### 9.2 User Intel Notes Table
+
+```sql
+CREATE TABLE user_intel_notes (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(user_id),
+  snapshot_id UUID REFERENCES snapshots(snapshot_id),
+  note_type TEXT NOT NULL DEFAULT 'insight',  -- preference, insight, tip, feedback, pattern
+  category TEXT,                               -- timing, location, strategy, vehicle, earnings, safety
+  title TEXT,
+  content TEXT NOT NULL,
+  context TEXT,                                -- What prompted this note
+  market_slug TEXT,
+  neighborhoods JSONB,
+  importance INTEGER DEFAULT 50,               -- 1-100
+  confidence INTEGER DEFAULT 80,
+  times_referenced INTEGER DEFAULT 0,
+  valid_from TIMESTAMPTZ,
+  valid_until TIMESTAMPTZ,
+  is_active BOOLEAN DEFAULT true,
+  is_pinned BOOLEAN DEFAULT false,
+  source_message_id TEXT,
+  created_by TEXT DEFAULT 'ai_coach',
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+```
+
+### 9.3 Coach Note Commands
+
+The AI Coach can save notes using a special syntax in its responses:
+
+```
+[SAVE_NOTE: {"type": "preference", "title": "Prefers evening shifts", "content": "Driver mentioned they prefer working 6pm-2am", "importance": 75}]
+```
+
+Note types:
+- `preference`: Driving preferences (times, areas, goals)
+- `insight`: Learned insights about their situation
+- `tip`: Personalized tips discovered during conversation
+- `feedback`: Feedback on coach advice effectiveness
+- `pattern`: Patterns noticed in questions/behavior
+
+### 9.4 Notes API Endpoints
+
+```
+POST /api/chat/notes       - Save a coach note
+GET /api/chat/notes        - Get user's notes
+DELETE /api/chat/notes/:id - Delete a note (soft delete)
+```
+
+### 9.5 Context Flow
+
+```
+User Message
+     │
+     ▼
+┌─────────────────────────────────────────┐
+│         CoachDAL.getCompleteContext()   │
+│                                         │
+│  ┌─────────────────────────────────┐   │
+│  │ Parallel Fetch:                  │   │
+│  │ - getHeaderSnapshot()            │   │
+│  │ - getLatestStrategy()            │   │
+│  │ - getComprehensiveBriefing()     │   │
+│  │ - getSmartBlocks()               │   │
+│  │ - getFeedback()                  │   │
+│  │ - getVenueData()                 │   │
+│  │ - getActions()                   │   │
+│  └─────────────────────────────────┘   │
+│                  │                      │
+│                  ▼                      │
+│  ┌─────────────────────────────────┐   │
+│  │ Second Fetch (needs city/state): │   │
+│  │ - getMarketIntelligence()        │   │
+│  │ - getUserNotes()                 │   │
+│  └─────────────────────────────────┘   │
+└─────────────────────────────────────────┘
+     │
+     ▼
+formatContextForPrompt() → System Prompt with:
+  - Location & Time Context
+  - Strategy
+  - Briefing
+  - Smart Blocks
+  - Market Intelligence ← NEW
+  - User Notes ← NEW
+     │
+     ▼
+Gemini 3.0 Pro with Google Search
+     │
+     ▼
+Response (may include [SAVE_NOTE:...])
+```
+
+---
+
 ## Related Documentation
 
 - [Driver Intelligence System](driver-intelligence-system.md) - 9-second decision problem

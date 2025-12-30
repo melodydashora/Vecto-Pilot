@@ -9,6 +9,88 @@ import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
+// POST /api/chat/notes - Save a coach note about the user
+// SECURITY: Requires auth
+router.post('/notes', requireAuth, async (req, res) => {
+  const { note_type, title, content, context, importance, snapshot_id, market_slug } = req.body;
+  const userId = req.auth.userId;
+
+  if (!content) {
+    return res.status(400).json({ error: 'content required' });
+  }
+
+  try {
+    const note = await coachDAL.saveUserNote({
+      user_id: userId,
+      snapshot_id: snapshot_id || null,
+      note_type: note_type || 'insight',
+      title: title || null,
+      content,
+      context: context || null,
+      market_slug: market_slug || null,
+      importance: importance || 50,
+      confidence: 80,
+      created_by: 'ai_coach'
+    });
+
+    if (note) {
+      console.log(`[chat/notes] Saved note ${note.id} for user ${userId}`);
+      res.json({ success: true, note_id: note.id });
+    } else {
+      res.status(500).json({ error: 'Failed to save note' });
+    }
+  } catch (error) {
+    console.error('[chat/notes] Error saving note:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/chat/notes - Get user's coach notes
+// SECURITY: Requires auth
+router.get('/notes', requireAuth, async (req, res) => {
+  const userId = req.auth.userId;
+  const limit = parseInt(req.query.limit) || 20;
+
+  try {
+    const notes = await coachDAL.getUserNotes(userId, limit);
+    res.json({ notes, count: notes.length });
+  } catch (error) {
+    console.error('[chat/notes] Error fetching notes:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/chat/notes/:noteId - Delete a coach note
+// SECURITY: Requires auth
+router.delete('/notes/:noteId', requireAuth, async (req, res) => {
+  const { noteId } = req.params;
+  const userId = req.auth.userId;
+
+  try {
+    const { user_intel_notes } = await import('../../../shared/schema.js');
+    const { and, eq } = await import('drizzle-orm');
+
+    // Soft delete - set is_active = false
+    const result = await db
+      .update(user_intel_notes)
+      .set({ is_active: false, updated_at: new Date() })
+      .where(and(
+        eq(user_intel_notes.id, noteId),
+        eq(user_intel_notes.user_id, userId)
+      ))
+      .returning({ id: user_intel_notes.id });
+
+    if (result.length > 0) {
+      res.json({ success: true, deleted: noteId });
+    } else {
+      res.status(404).json({ error: 'Note not found or not authorized' });
+    }
+  } catch (error) {
+    console.error('[chat/notes] Error deleting note:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /coach/context/:snapshotId - Snapshot-wide context for strategy coach
 // SECURITY: Requires auth (returns strategy and venue data)
 router.get('/context/:snapshotId', requireAuth, async (req, res) => {
@@ -115,6 +197,31 @@ router.post('/', requireAuth, async (req, res) => {
 - Earnings optimization and market pattern analysis
 - Analyzing uploaded heat maps, screenshots, and documents
 
+🧠 **Market Intelligence (NEW - Your Knowledge Base):**
+- You have access to RESEARCH-BACKED market intelligence including:
+  • The Gravity Model: How Core/Satellite/Rural markets work
+  • Deadhead risk calculation and avoidance strategies
+  • Ant vs Sniper strategies for different market densities
+  • Algorithm mechanics: Upfront Pricing, Area Preferences, Heatmaps
+  • Market-specific insights for major metros (LA, SF, Phoenix, DFW, Miami, Atlanta, Houston, etc.)
+  • Zone intelligence: Honey holes, dead zones, danger zones
+  • Optimal timing windows by market type
+- Reference this intelligence naturally when giving advice
+- The driver's market position (Core/Satellite/Rural) affects your recommendations
+
+📝 **Personal Notes (Your Memory):**
+- You can save notes about this driver to personalize future advice
+- To save a note, include in your response:
+  \`[SAVE_NOTE: {"type": "preference|insight|tip|feedback|pattern", "title": "Short title", "content": "What you learned", "importance": 1-100}]\`
+- Note types:
+  • preference: Their driving preferences (times, areas, goals)
+  • insight: Something you learned about their situation
+  • tip: A personalized tip you discovered for them
+  • feedback: Their feedback on your advice
+  • pattern: A pattern you noticed in their questions/behavior
+- Your previous notes about this driver are shown in context below
+- USE NOTES to give increasingly personalized advice over time!
+
 🔍 **Web Search & Verification (via Google Search):**
 - You have LIVE Google Search access - use it proactively to verify events, check facts, find current information
 - When users ask you to verify something or look something up, SEARCH THE WEB for current information
@@ -137,6 +244,9 @@ router.post('/', requireAuth, async (req, res) => {
 - Venues: ${fullContext?.smartBlocks?.length || 0} ranked recommendations with full details
 - Strategy: ${fullContext?.strategy?.status === 'ready' ? 'Ready' : 'Generating...'}
 - Events/Traffic/News: From real-time briefing data
+- Market Intel: ${fullContext?.marketIntelligence?.intelligence?.length || 0} research items
+- Your Notes: ${fullContext?.userNotes?.length || 0} saved about this driver
+- Market Position: ${fullContext?.marketIntelligence?.marketPosition?.region_type || 'Unknown'} (${fullContext?.marketIntelligence?.marketPosition?.market_anchor || 'Unknown market'})
 
 **Communication Style:**
 - Warm, friendly, conversational - like a supportive friend
@@ -145,6 +255,7 @@ router.post('/', requireAuth, async (req, res) => {
 - For planning/detailed requests: be thorough and comprehensive (no word limits!)
 - Use emojis naturally
 - Be precise with venue data (exact names, addresses, times)
+- Reference market intelligence naturally (e.g., "Since you're in a Satellite market...")
 
 📋 **Event Verification & Deactivation:**
 - When a driver reports an event is over, cancelled, or has incorrect times, you can mark it for removal
@@ -159,10 +270,12 @@ router.post('/', requireAuth, async (req, res) => {
 - Brief responses like "yes", "go ahead", "thanks" relate to what you just said
 - When asked to verify or search: USE GOOGLE SEARCH actively
 - You're not limited to rideshare topics - help with anything!
+- SAVE NOTES when you learn something useful about the driver!
+- Reference your market knowledge to give smarter, research-backed advice
 
 ${contextInfo}
 
-You're a powerful AI companion. Help with rideshare strategy when they need it, but be ready to assist with absolutely anything else they want to discuss or research.`;
+You're a powerful AI companion with research-backed market intelligence and persistent memory. Help with rideshare strategy when they need it, but be ready to assist with absolutely anything else they want to discuss or research.`;
 
     // Set up SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
