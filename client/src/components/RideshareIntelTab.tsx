@@ -29,6 +29,10 @@ import {
   Shield,
   Plane,
   Lightbulb,
+  Building2,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle,
 } from 'lucide-react';
 
 import { useMarketIntelligence } from '@/hooks/useMarketIntelligence';
@@ -61,10 +65,17 @@ export default function RideshareIntelTab() {
     deadZones: _deadZones,
     markets,
     marketsLoading,
+    // NEW: Market structure data
+    marketAnchor,
+    regionType,
+    deadheadRisk,
+    marketStats,
+    marketCities,
   } = useMarketIntelligence();
 
   // Expand/collapse states
   const [expandedSections, setExpandedSections] = useState({
+    marketPosition: true,
     zones: true,
     strategies: true,
     calculator: true,
@@ -72,6 +83,7 @@ export default function RideshareIntelTab() {
     regulatory: false,
     airport: false,
     available: false,
+    marketCities: false,
   });
 
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -174,6 +186,114 @@ export default function RideshareIntelTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Market Position Card - Shows market anchor, region type, and deadhead risk */}
+      {regionType && (
+        <Card className="shadow-lg border-indigo-200 overflow-hidden">
+          <CardHeader
+            className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100 cursor-pointer"
+            onClick={() => toggleSection('marketPosition')}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+                Your Market Position
+              </CardTitle>
+              {expandedSections.marketPosition ? (
+                <ChevronUp className="w-5 h-5 text-indigo-600" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-indigo-600" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.marketPosition && (
+            <CardContent className="p-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Region Type Badge */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      className={`text-sm px-3 py-1 ${
+                        regionType === 'Core'
+                          ? 'bg-green-100 text-green-800 border-green-300'
+                          : regionType === 'Satellite'
+                          ? 'bg-amber-100 text-amber-800 border-amber-300'
+                          : 'bg-red-100 text-red-800 border-red-300'
+                      }`}
+                    >
+                      {regionType === 'Core' && <CheckCircle className="w-3.5 h-3.5 mr-1" />}
+                      {regionType === 'Satellite' && <TrendingUp className="w-3.5 h-3.5 mr-1" />}
+                      {regionType === 'Rural' && <AlertTriangle className="w-3.5 h-3.5 mr-1" />}
+                      {regionType} Market
+                    </Badge>
+                  </div>
+
+                  {marketAnchor && city !== marketAnchor && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">{city}</span> is a {regionType?.toLowerCase()} city within the{' '}
+                      <span className="font-semibold text-indigo-700">{marketAnchor}</span> market.
+                    </p>
+                  )}
+
+                  {marketAnchor && city === marketAnchor && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">{city}</span> is the core anchor of this market.
+                    </p>
+                  )}
+
+                  {/* Market Stats */}
+                  {marketStats && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                        {marketStats.total_cities} cities in market
+                      </span>
+                      <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded">
+                        {marketStats.core_count} core
+                      </span>
+                      <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded">
+                        {marketStats.satellite_count} satellite
+                      </span>
+                      {parseInt(marketStats.rural_count) > 0 && (
+                        <span className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded">
+                          {marketStats.rural_count} rural
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Deadhead Risk */}
+                {deadheadRisk && (
+                  <div className={`p-4 rounded-lg ${
+                    deadheadRisk.level === 'low'
+                      ? 'bg-green-50 border border-green-200'
+                      : deadheadRisk.level === 'medium'
+                      ? 'bg-amber-50 border border-amber-200'
+                      : 'bg-red-50 border border-red-200'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Target className={`w-4 h-4 ${
+                        deadheadRisk.level === 'low'
+                          ? 'text-green-600'
+                          : deadheadRisk.level === 'medium'
+                          ? 'text-amber-600'
+                          : 'text-red-600'
+                      }`} />
+                      <span className="font-semibold text-gray-900">
+                        Deadhead Risk: {deadheadRisk.level.charAt(0).toUpperCase() + deadheadRisk.level.slice(1)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-2">{deadheadRisk.description}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      💡 {deadheadRisk.advice}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* Loading State */}
       {isLoading && (
@@ -420,6 +540,57 @@ export default function RideshareIntelTab() {
                       )}
                     </div>
                     <p className="text-sm text-gray-700">{item.content}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Cities in Your Market */}
+      {marketCities.length > 1 && (
+        <Card className="shadow-lg border-gray-200">
+          <CardHeader
+            className="cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => toggleSection('marketCities')}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-gray-600" />
+                Cities in {marketAnchor || 'Your'} Market
+                <Badge variant="secondary" className="ml-2">
+                  {marketCities.length} cities
+                </Badge>
+              </CardTitle>
+              {expandedSections.marketCities ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.marketCities && (
+            <CardContent>
+              <p className="text-sm text-gray-500 mb-4">
+                These cities share the same rideshare market. Rides between them typically have good return trip opportunities.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                {marketCities.map((mc, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-2 rounded-lg border text-sm ${
+                      mc.city === city
+                        ? 'bg-indigo-50 border-indigo-300 font-medium'
+                        : mc.region_type === 'Core'
+                        ? 'bg-green-50 border-green-200'
+                        : mc.region_type === 'Satellite'
+                        ? 'bg-amber-50 border-amber-200'
+                        : 'bg-red-50 border-red-200'
+                    }`}
+                  >
+                    <div className="font-medium text-gray-900">{mc.city}</div>
+                    <div className="text-xs text-gray-500">{mc.region_type || 'Unknown'}</div>
                   </div>
                 ))}
               </div>

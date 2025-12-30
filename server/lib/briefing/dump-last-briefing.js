@@ -11,9 +11,11 @@ import { join } from 'path';
  */
 export async function dumpLastBriefingRow() {
   try {
+    // Order by updated_at to get the most recently POPULATED briefing
+    // (not just created - briefings are created as placeholders then updated with data)
     const [lastBriefing] = await db.select()
       .from(briefings)
-      .orderBy(desc(briefings.created_at))
+      .orderBy(desc(briefings.updated_at))
       .limit(1);
 
     if (!lastBriefing) {

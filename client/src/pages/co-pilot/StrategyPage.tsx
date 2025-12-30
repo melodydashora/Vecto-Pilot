@@ -53,6 +53,7 @@ export default function StrategyPage() {
     refetchBlocks,
     enrichmentProgress,
     strategyProgress,
+    enrichmentPhase,
     pipelinePhase,
     timeRemainingText
   } = useCoPilot();
@@ -837,7 +838,7 @@ export default function StrategyPage() {
             timeElapsedMs={strategyData?.timeElapsedMs}
             snapshotId={lastSnapshotId}
             enrichmentProgress={enrichmentProgress}
-            enrichmentPhase={'idle'}
+            enrichmentPhase={enrichmentPhase}
             pipelinePhase={pipelinePhase}
           />
         </div>

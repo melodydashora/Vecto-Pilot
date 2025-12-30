@@ -19,8 +19,11 @@ interface BriefingQueriesOptions {
   pipelinePhase?: PipelinePhase;
 }
 
-// Maximum retry attempts before giving up (6 attempts × 5 seconds = 30 seconds)
-const MAX_RETRY_ATTEMPTS = 6;
+// Maximum retry attempts before giving up
+// LESSON LEARNED: Briefing generation can take 40-60 seconds (traffic AI analysis + event discovery).
+// Need enough retries to cover the full generation time until SSE briefing_ready fires.
+const MAX_RETRY_ATTEMPTS = 40; // 40 attempts × 2 seconds = 80 seconds (covers worst case)
+const RETRY_INTERVAL_MS = 2000; // Poll every 2 seconds
 
 // Check if traffic data is still loading/placeholder
 function isTrafficLoading(data: any): boolean {
@@ -52,52 +55,28 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
   // with briefing generated on-demand. Only disable for null/empty snapshotId.
   const isEnabled = !!snapshotId;
 
-  // Subscribe to briefing_ready SSE event to immediately invalidate cache
-  // This eliminates the 5-second polling delay when briefing data becomes available
+  // Subscribe to briefing_ready SSE event to trigger immediate refetch
+  // No caching - always fetch fresh data when briefing is ready
   useEffect(() => {
     if (!snapshotId) return;
 
-    // Helper to invalidate all briefing queries
-    const invalidateAllBriefingQueries = () => {
-      console.log('[BriefingQuery] 📢 Invalidating all briefing queries for', snapshotId.slice(0, 8));
-      queryClient.invalidateQueries({ queryKey: ['/api/briefing/weather', snapshotId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/briefing/traffic', snapshotId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/briefing/rideshare-news', snapshotId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/briefing/events', snapshotId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/briefing/school-closures', snapshotId] });
-      queryClient.invalidateQueries({ queryKey: ['/api/briefing/airport', snapshotId] });
+    console.log('[BriefingQuery] 🔌 Subscribing to SSE briefing_ready for', snapshotId.slice(0, 8));
+
+    const refetchAllBriefingQueries = () => {
+      console.log('[BriefingQuery] 📢 SSE briefing_ready received! Refetching all for', snapshotId.slice(0, 8));
+      queryClient.refetchQueries({ queryKey: ['/api/briefing/weather', snapshotId] });
+      queryClient.refetchQueries({ queryKey: ['/api/briefing/traffic', snapshotId] });
+      queryClient.refetchQueries({ queryKey: ['/api/briefing/rideshare-news', snapshotId] });
+      queryClient.refetchQueries({ queryKey: ['/api/briefing/events', snapshotId] });
+      queryClient.refetchQueries({ queryKey: ['/api/briefing/school-closures', snapshotId] });
+      queryClient.refetchQueries({ queryKey: ['/api/briefing/airport', snapshotId] });
     };
 
     const unsubscribe = subscribeBriefingReady((readySnapshotId) => {
-      // Only invalidate if this is our snapshot
       if (readySnapshotId === snapshotId) {
-        console.log('[BriefingQuery] 📢 SSE briefing_ready received');
-        invalidateAllBriefingQueries();
+        refetchAllBriefingQueries();
       }
     });
-
-    // Also check if we have stale/placeholder data on mount and refetch
-    // This handles the case where SSE event fired before subscription was active
-    const checkAndRefresh = async () => {
-      // Small delay to let initial queries complete
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const trafficData = queryClient.getQueryData(['/api/briefing/traffic', snapshotId]) as any;
-      const airportData = queryClient.getQueryData(['/api/briefing/airport', snapshotId]) as any;
-      const newsData = queryClient.getQueryData(['/api/briefing/rideshare-news', snapshotId]) as any;
-
-      const hasStaleData =
-        isTrafficLoading(trafficData) ||
-        isAirportLoading(airportData) ||
-        isNewsLoading(newsData);
-
-      if (hasStaleData) {
-        console.log('[BriefingQuery] ⚠️ Detected stale/placeholder data, forcing refetch');
-        invalidateAllBriefingQueries();
-      }
-    };
-
-    checkAndRefresh();
 
     return () => unsubscribe();
   }, [snapshotId, queryClient]);
@@ -115,12 +94,29 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     retryCountsRef.current = { traffic: 0, news: 0, airport: 0, snapshotId };
   }
 
-  // Base config - cache forever once we have real data
+  // Force refetch all queries when snapshotId changes
+  // This ensures we don't serve stale data from a previous snapshot
+  useEffect(() => {
+    if (!snapshotId) return;
+
+    console.log('[BriefingQuery] 🔄 SnapshotId changed to', snapshotId.slice(0, 8), '- invalidating all caches');
+
+    // Invalidate all briefing queries for this snapshot to force fresh fetch
+    queryClient.invalidateQueries({ queryKey: ['/api/briefing/weather', snapshotId] });
+    queryClient.invalidateQueries({ queryKey: ['/api/briefing/traffic', snapshotId] });
+    queryClient.invalidateQueries({ queryKey: ['/api/briefing/rideshare-news', snapshotId] });
+    queryClient.invalidateQueries({ queryKey: ['/api/briefing/events', snapshotId] });
+    queryClient.invalidateQueries({ queryKey: ['/api/briefing/school-closures', snapshotId] });
+    queryClient.invalidateQueries({ queryKey: ['/api/briefing/airport', snapshotId] });
+  }, [snapshotId, queryClient]);
+
+  // Base config - no caching, always fetch fresh data
+  // For testing: fail hard, don't mask issues with stale data
   const baseConfig = {
-    staleTime: Infinity,
-    refetchOnMount: false as const,
-    refetchOnWindowFocus: false as const,
-    refetchOnReconnect: false as const,
+    staleTime: 0,
+    refetchOnMount: true as const,
+    refetchOnWindowFocus: true as const,
+    refetchOnReconnect: true as const,
   };
 
   // Weather - usually available immediately, no retry needed
@@ -134,7 +130,8 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       });
       if (!response.ok) {
         console.error('[BriefingQuery] Weather failed:', response.status);
-        return { weather: null };
+        // Return undefined to indicate "still loading" - UI will show spinner
+        return undefined;
       }
       const data = await response.json();
       console.log('[BriefingQuery] ✅ Weather received');
@@ -155,7 +152,8 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       });
       if (!response.ok) {
         console.error('[BriefingQuery] Traffic failed:', response.status);
-        return { traffic: null };
+        // Return undefined to indicate "still loading" - UI will show spinner
+        return undefined;
       }
       const data = await response.json();
       const isLoading = isTrafficLoading(data);
@@ -169,12 +167,12 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     },
     enabled: isEnabled,
     ...baseConfig,
-    // Retry every 5 seconds if data is still loading, stop after MAX_RETRY_ATTEMPTS
+    // Retry every 2 seconds if data is still loading, stop after MAX_RETRY_ATTEMPTS
     refetchInterval: (query) => {
       const stillLoading = isTrafficLoading(query.state.data);
       const hasRetriesLeft = retryCountsRef.current.traffic < MAX_RETRY_ATTEMPTS;
       if (stillLoading && hasRetriesLeft) {
-        return 5000; // Keep polling
+        return RETRY_INTERVAL_MS; // Poll faster for better UX
       }
       return false; // Stop polling, cache forever
     },
@@ -189,7 +187,10 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       const response = await fetch(`/api/briefing/rideshare-news/${snapshotId}`, {
         headers: getAuthHeader()
       });
-      if (!response.ok) return { news: null };
+      if (!response.ok) {
+        // Return undefined to indicate "still loading" - UI will show spinner
+        return undefined;
+      }
       const data = await response.json();
       const isLoading = isNewsLoading(data);
       if (isLoading) {
@@ -206,7 +207,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       const stillLoading = isNewsLoading(query.state.data);
       const hasRetriesLeft = retryCountsRef.current.news < MAX_RETRY_ATTEMPTS;
       if (stillLoading && hasRetriesLeft) {
-        return 5000;
+        return RETRY_INTERVAL_MS;
       }
       return false;
     },
@@ -223,7 +224,9 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       });
       if (!response.ok) {
         console.error('[BriefingQuery] Events failed:', response.status);
-        return { events: [] };
+        // Return undefined to indicate "still loading" - UI will show spinner
+        // Empty array would mean "fetched successfully but no events found"
+        return undefined;
       }
       const data = await response.json();
       console.log('[BriefingQuery] ✅ Events received:', data.events?.length || 0);
@@ -242,7 +245,10 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       const response = await fetch(`/api/briefing/school-closures/${snapshotId}`, {
         headers: getAuthHeader()
       });
-      if (!response.ok) return { school_closures: [] };
+      if (!response.ok) {
+        // Return undefined to indicate "still loading" - UI will show spinner
+        return undefined;
+      }
       const data = await response.json();
       console.log('[BriefingQuery] ✅ School closures received');
       return data;
@@ -262,7 +268,8 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       });
       if (!response.ok) {
         console.error('[BriefingQuery] Airport failed:', response.status);
-        return { airport_conditions: null };
+        // Return undefined to indicate "still loading" - UI will show spinner
+        return undefined;
       }
       const data = await response.json();
       const isLoading = isAirportLoading(data);
@@ -280,7 +287,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       const stillLoading = isAirportLoading(query.state.data);
       const hasRetriesLeft = retryCountsRef.current.airport < MAX_RETRY_ATTEMPTS;
       if (stillLoading && hasRetriesLeft) {
-        return 5000;
+        return RETRY_INTERVAL_MS;
       }
       return false;
     },

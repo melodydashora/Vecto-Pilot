@@ -68,17 +68,25 @@ export function optionalAuth(req, res, next) {
   try {
     const hdr = req.headers.authorization || '';
     const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : '';
-    
+
+    // Debug: log request path and auth status
+    const path = req.path || req.url || 'unknown';
+    console.log(`[optionalAuth] ${path} - token: ${token ? 'present' : 'none'}`);
+
     if (token) {
       // Token provided - verify it
       try {
         const payload = verifyAppToken(token);
         req.auth = { userId: payload.userId, phantom: isPhantom(payload.userId, payload.tetherSig) };
+        console.log(`[optionalAuth] ✅ Token verified for user ${payload.userId.slice(0, 8)}`);
       } catch (e) {
         authLog.warn(1, `Token provided but invalid: ${e?.message}`);
+        console.log(`[optionalAuth] ❌ Token INVALID: ${e?.message} - returning 401`);
         // Token was provided but invalid - reject the request
         return res.status(401).json({ error: 'unauthorized', detail: e?.message });
       }
+    } else {
+      console.log(`[optionalAuth] No token - proceeding as anonymous`);
     }
     // Continue regardless of whether auth was provided or verified
     next();

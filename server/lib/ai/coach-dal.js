@@ -117,19 +117,23 @@ export class CoachDAL {
       const day_of_week = dow != null ? dayNames[dow] : 'Unknown';
       const is_weekend = dow === 0 || dow === 6;
 
+      // NO FALLBACK - timezone is required for accurate coach context
+      if (!snap.timezone) {
+        console.warn('[CoachDAL] Snapshot missing timezone - coach context may be inaccurate');
+      }
       return {
         snapshot_id: snap.snapshot_id,
         user_id: snap.user_id,
         iso_timestamp: snap.created_at?.toISOString() || null,
-        timezone: snap.timezone || 'America/Chicago',
+        timezone: snap.timezone || null,  // NO FALLBACK - let consumer handle missing timezone
         day_of_week,
         is_weekend,
         dow: dow,
         hour: snap.hour ?? 0,
         day_part: snap.day_part_key || 'unknown',
         location_display: snap.formatted_address || `${snap.city || 'Unknown'}, ${snap.state || ''}`,
-        city: snap.city || 'Unknown',
-        state: snap.state || '',
+        city: snap.city || null,
+        state: snap.state || null,
         lat: userData?.new_lat ?? userData?.lat ?? snap.lat,
         lng: userData?.new_lng ?? userData?.lng ?? snap.lng,
         weather: snap.weather,

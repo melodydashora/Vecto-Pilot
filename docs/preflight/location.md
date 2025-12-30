@@ -6,6 +6,24 @@ Quick reference for location handling. Read before modifying any location code.
 
 **No IP fallback. No default locations. GPS or nothing.**
 
+## NO FALLBACKS - CRITICAL
+
+**This is a GLOBAL app. Never add location fallbacks.**
+
+```javascript
+// WRONG - masks bugs, breaks global app
+const city = snapshot?.city || 'Frisco';           // NO!
+const timezone = snapshot?.timezone || 'America/Chicago';  // NO!
+const lat = snapshot?.lat || 33.1285;              // NO!
+
+// CORRECT - fail explicitly
+if (!snapshot?.city) {
+  return { error: 'Location data not available' };
+}
+```
+
+**If location data is missing, that's a bug upstream. Fix the source, don't mask it.**
+
 ## DO: Get Coordinates From
 
 | Source | Use For |
@@ -45,3 +63,5 @@ const coords = aiResponse.venue.coordinates;   // Never trust AI coords
 - [ ] Am I getting venue coords from Google, not AI?
 - [ ] Does my code respect `isLocationResolved` gating?
 - [ ] Am I using `location-context-clean.tsx` for client location?
+- [ ] **NO FALLBACKS**: Am I returning an error if data is missing (not using `|| 'default'`)?
+- [ ] **NO HARDCODED LOCATIONS**: No cities, states, airports, timezones, or coordinates in code?

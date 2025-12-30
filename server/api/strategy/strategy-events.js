@@ -48,6 +48,7 @@ router.get('/events/strategy', async (req, res) => {
 });
 
 router.get('/events/briefing', async (req, res) => {
+  console.log('[SSE-Briefing] Client connected to /events/briefing SSE');
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -62,6 +63,7 @@ router.get('/events/briefing', async (req, res) => {
 
     // Subscribe to briefing_ready channel
     await dbClient.query('LISTEN briefing_ready');
+    console.log('[SSE-Briefing] ✅ Subscribed to briefing_ready channel');
     sseLog.phase(1, `Subscribed: briefing_ready`, OP.SSE);
 
     const onNotify = (msg) => {

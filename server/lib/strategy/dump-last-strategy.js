@@ -11,9 +11,11 @@ import { join } from 'path';
  */
 export async function dumpLastStrategyRow() {
   try {
+    // Order by updated_at to get the most recently POPULATED strategy
+    // (not just created - strategies are created as placeholders then updated with data)
     const [lastStrategy] = await db.select()
       .from(strategies)
-      .orderBy(desc(strategies.created_at))
+      .orderBy(desc(strategies.updated_at))
       .limit(1);
 
     if (!lastStrategy) {

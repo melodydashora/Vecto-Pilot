@@ -27,8 +27,11 @@ export async function sendModelErrorAlert({
   fallbackSucceeded = false,
   fallbackModel = null
 }) {
+  // NOTE: This is an intentional hardcoded timezone for INTERNAL developer alerts.
+  // This is NOT user-facing location data - it's for consistent alert timestamps.
+  // All system alerts use the same timezone for easy comparison in the dev team.
   const timestamp = new Date().toLocaleString('en-US', {
-    timeZone: 'America/Chicago',
+    timeZone: 'America/Chicago', // Internal alert timezone (intentional - not user data)
     dateStyle: 'medium',
     timeStyle: 'medium'
   });
@@ -109,8 +112,9 @@ export async function sendModelErrorAlert({
  * Send a test email to verify the notification system works
  */
 export async function sendTestEmail() {
+  // NOTE: Intentional hardcoded timezone for internal test alerts (not user data)
   const timestamp = new Date().toLocaleString('en-US', {
-    timeZone: 'America/Chicago',
+    timeZone: 'America/Chicago', // Internal alert timezone (intentional - not user data)
     dateStyle: 'medium',
     timeStyle: 'medium'
   });

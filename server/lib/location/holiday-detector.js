@@ -85,12 +85,16 @@ export async function detectHoliday(context) {
     return { holiday: 'none', is_holiday: false };
   }
 
-  // 1. Format date for the user's specific timezone
+  // 1. Format date for the user's specific timezone - NO FALLBACK
   let formattedDate;
   try {
+    if (!context.timezone) {
+      console.warn('[holiday-detector] Missing timezone - cannot accurately detect holidays');
+      return { holiday: 'none', is_holiday: false, reason: 'timezone_missing' };
+    }
     const utcTime = new Date(context.created_at || new Date());
     formattedDate = new Intl.DateTimeFormat('en-US', {
-      timeZone: context.timezone || 'America/Chicago',
+      timeZone: context.timezone,
       weekday: 'long',
       year: 'numeric',
       month: 'long',

@@ -105,13 +105,18 @@ export function subscribeBlocksReady(callback: (data: { snapshot_id: string; ran
  * Fires when briefing data (weather, traffic, events, news) is fully generated
  */
 export function subscribeBriefingReady(callback: (snapshotId: string) => void): () => void {
+  console.log('[SSE] 🔌 Connecting to /events/briefing...');
   const eventSource = new EventSource('/events/briefing');
+
+  eventSource.onopen = () => {
+    console.log('[SSE] ✅ Connected to /events/briefing');
+  };
 
   eventSource.addEventListener('briefing_ready', (event) => {
     try {
       const data = JSON.parse(event.data);
       if (data.snapshot_id) {
-        console.log('[SSE] Received briefing_ready for:', data.snapshot_id);
+        console.log('[SSE] 📢 Received briefing_ready for:', data.snapshot_id.slice(0, 8));
         callback(data.snapshot_id);
       }
     } catch (e) {
@@ -119,8 +124,46 @@ export function subscribeBriefingReady(callback: (snapshotId: string) => void): 
     }
   });
 
+  eventSource.onerror = (e) => {
+    console.warn('[SSE] ⚠️ Briefing connection error:', e);
+  };
+
+  return () => {
+    console.log('[SSE] 🔌 Closing /events/briefing connection');
+    eventSource.close();
+  };
+}
+
+/**
+ * Subscribe to SSE phase_change events for real-time progress tracking
+ * Uses /events/phase endpoint that emits on every pipeline phase transition
+ * Fires with timing metadata for accurate progress bar calculation
+ *
+ * LESSON LEARNED: Without this, progress bar only updates via 3-second polling,
+ * which is too slow to track rapid phase changes (resolving → analyzing → immediate → venues...)
+ */
+export function subscribePhaseChange(callback: (data: {
+  snapshot_id: string;
+  phase: string;
+  phase_started_at: string;
+  expected_duration_ms: number;
+}) => void): () => void {
+  const eventSource = new EventSource('/events/phase');
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.snapshot_id) {
+        console.log('[SSE] Received phase_change:', data.phase, 'for', data.snapshot_id?.slice(0, 8));
+        callback(data);
+      }
+    } catch (e) {
+      console.warn('[SSE] Failed to parse phase_change event:', e);
+    }
+  };
+
   eventSource.onerror = () => {
-    console.warn('[SSE] Briefing connection error, will reconnect automatically');
+    console.warn('[SSE] Phase connection error, will reconnect automatically');
   };
 
   return () => eventSource.close();

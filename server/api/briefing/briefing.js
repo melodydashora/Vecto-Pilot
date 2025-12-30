@@ -3,7 +3,7 @@ import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefin
 import { db } from '../../db/drizzle.js';
 import { snapshots, discovered_events } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireAuth, optionalAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
@@ -98,7 +98,7 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
   }
 });
 
-router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/snapshot/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
@@ -213,7 +213,7 @@ router.get('/weather/realtime', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/weather/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     const freshWeather = await fetchWeatherConditions({ snapshot: req.snapshot });
 
@@ -239,49 +239,70 @@ router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async 
   }
 });
 
-router.get('/traffic/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/traffic/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // FETCH-ONCE: Just read cached data from DB - no refresh, no regeneration
     // Traffic is generated once during pipeline and stays until new snapshot
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
+    // Fail hard if no data - don't mask with placeholder
+    if (!briefing?.traffic_conditions) {
+      return res.status(202).json({
+        success: false,
+        error: 'Traffic data not yet available',
+        traffic: null,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     res.json({
       success: true,
-      traffic: briefing?.traffic_conditions || { summary: 'Loading traffic...', incidents: [], congestionLevel: 'low' },
+      traffic: briefing.traffic_conditions,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching traffic:', error);
-    res.json({
-      success: true,
-      traffic: { summary: 'Loading traffic...', incidents: [], congestionLevel: 'low' },
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      traffic: null,
       timestamp: new Date().toISOString()
     });
   }
 });
 
-router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/rideshare-news/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // FETCH-ONCE: Just read cached data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
-    const newsData = briefing?.news || { items: [], filtered: [] };
+
+    // Fail hard if no data - don't mask with placeholder
+    if (!briefing?.news) {
+      return res.status(202).json({
+        success: false,
+        error: 'News data not yet available',
+        news: null,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     res.json({
       success: true,
-      news: newsData,
+      news: briefing.news,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching rideshare news:', error);
-    res.json({
-      success: true,
-      news: { items: [], filtered: [] },
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      news: null,
       timestamp: new Date().toISOString()
     });
   }
 });
 
-router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/events/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // Read events directly from discovered_events table for this snapshot's location
     const snapshot = req.snapshot;
@@ -338,20 +359,30 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
   }
 });
 
-router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/school-closures/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // FETCH-ONCE: Just read cached data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
+    // Fail hard if no data
+    if (!briefing?.school_closures) {
+      return res.status(202).json({
+        success: false,
+        error: 'School closures data not yet available',
+        school_closures: null,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // Handle both array format and {items: [], reason: string} format
     let closures = [];
     let reason = null;
-    if (Array.isArray(briefing?.school_closures)) {
+    if (Array.isArray(briefing.school_closures)) {
       closures = briefing.school_closures;
-    } else if (briefing?.school_closures?.items && Array.isArray(briefing.school_closures.items)) {
+    } else if (briefing.school_closures?.items && Array.isArray(briefing.school_closures.items)) {
       closures = briefing.school_closures.items;
       reason = briefing.school_closures.reason || null;
-    } else if (briefing?.school_closures?.reason) {
+    } else if (briefing.school_closures?.reason) {
       reason = briefing.school_closures.reason;
     }
 
@@ -363,43 +394,41 @@ router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching school closures:', error);
-    res.json({
-      success: true,
-      school_closures: [],
-      reason: error.message,
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      school_closures: null,
       timestamp: new Date().toISOString()
     });
   }
 });
 
-router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/airport/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // FETCH-ONCE: Just read cached airport data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
-    // Default fallback structure
-    const defaultAirport = {
-      airports: [],
-      busyPeriods: [],
-      recommendations: null,
-      isFallback: true
-    };
+    // Fail hard if no data
+    if (!briefing?.airport_conditions) {
+      return res.status(202).json({
+        success: false,
+        error: 'Airport data not yet available',
+        airport_conditions: null,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     res.json({
       success: true,
-      airport_conditions: briefing?.airport_conditions || defaultAirport,
+      airport_conditions: briefing.airport_conditions,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('[BriefingRoute] Error fetching airport conditions:', error);
-    res.json({
-      success: true,
-      airport_conditions: {
-        airports: [],
-        busyPeriods: [],
-        recommendations: null,
-        isFallback: true
-      },
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      airport_conditions: null,
       timestamp: new Date().toISOString()
     });
   }

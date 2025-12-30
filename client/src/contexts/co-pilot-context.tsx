@@ -5,9 +5,10 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
-import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady } from '@/utils/co-pilot-helpers';
+import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady, subscribePhaseChange } from '@/utils/co-pilot-helpers';
 import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
 import { useBriefingQueries } from '@/hooks/useBriefingQueries';
+import { useBarsQuery, type BarsData } from '@/hooks/useBarsQuery';
 
 interface CoPilotContextValue {
   // Location (from LocationContext)
@@ -37,7 +38,8 @@ interface CoPilotContextValue {
   // Progress
   enrichmentProgress: number;
   strategyProgress: number;
-  pipelinePhase: PipelinePhase;
+  enrichmentPhase: 'idle' | 'strategy' | 'blocks';  // High-level phase for UI progress bars
+  pipelinePhase: PipelinePhase;                      // Detailed pipeline phase for messages
   timeRemainingText: string | null;
 
   // Pre-loaded briefing data (fetched as soon as snapshot is available)
@@ -55,6 +57,11 @@ interface CoPilotContextValue {
       airport: boolean;
     };
   };
+
+  // Pre-loaded bars data (fetched as soon as location resolves)
+  barsData: BarsData | null;
+  isBarsLoading: boolean;
+  refetchBars: () => void;
 }
 
 const CoPilotContext = createContext<CoPilotContextValue | null>(null);
@@ -85,6 +92,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Ref to track polling status
   const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
 
+  // DEDUPLICATION: Track which snapshot IDs have already triggered /api/blocks-fast
+  // Prevents duplicate pipeline runs when both useEffect AND event handler fire
+  const waterfallTriggeredRef = useRef<Set<string>>(new Set());
+
   // Get coords from location context
   const gpsCoords = locationContext?.currentCoords;
   const overrideCoords = locationContext?.overrideCoords;
@@ -97,10 +108,17 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       console.log("🔄 CoPilotContext: Using snapshot from context:", contextSnapshotId);
       setLastSnapshotId(contextSnapshotId);
 
+      // DEDUPLICATION: Skip if already triggered for this snapshot
+      if (waterfallTriggeredRef.current.has(contextSnapshotId)) {
+        console.log("⏭️ CoPilotContext: Skipping duplicate waterfall (already triggered via event):", contextSnapshotId.slice(0, 8));
+        return;
+      }
+      waterfallTriggeredRef.current.add(contextSnapshotId);
+
       // Trigger waterfall for this snapshot
       (async () => {
         try {
-          console.log("🚀 Triggering POST /api/blocks-fast waterfall...");
+          console.log("🚀 Triggering POST /api/blocks-fast waterfall (from useEffect)...", contextSnapshotId.slice(0, 8));
           const response = await fetch('/api/blocks-fast', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
@@ -121,15 +139,23 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     }
   }, [locationContext?.lastSnapshotId, lastSnapshotId]);
 
-  // Listen for snapshot-saved event
+  // Listen for snapshot-saved event (PRIMARY trigger - fires when new snapshot is created)
   useEffect(() => {
     const handleSnapshotSaved = async (e: any) => {
       const snapshotId = e.detail?.snapshotId;
       if (snapshotId) {
-        console.log("🎯 CoPilotContext: Snapshot ready:", snapshotId);
+        console.log("🎯 CoPilotContext: Snapshot ready (via event):", snapshotId.slice(0, 8));
         setLastSnapshotId(snapshotId);
 
+        // DEDUPLICATION: Skip if already triggered for this snapshot
+        if (waterfallTriggeredRef.current.has(snapshotId)) {
+          console.log("⏭️ CoPilotContext: Skipping duplicate waterfall (already triggered via useEffect):", snapshotId.slice(0, 8));
+          return;
+        }
+        waterfallTriggeredRef.current.add(snapshotId);
+
         try {
+          console.log("🚀 Triggering POST /api/blocks-fast waterfall (from event)...", snapshotId.slice(0, 8));
           const response = await fetch('/api/blocks-fast', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
@@ -151,28 +177,24 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Track previous snapshot ID to detect actual changes
   const prevSnapshotIdRef = useRef<string | null>(null);
 
-  // Clear strategy ONLY when snapshot ID actually changes (not on mount)
-  // This preserves data when switching between apps or route changes
+  // Clear strategy when snapshot ID changes
+  // LESSON LEARNED: Never restore cached strategies - this is a real-time app!
+  // A 10-minute-old strategy could cost the driver money (wrong traffic, ended events, missed surge)
   useEffect(() => {
     // Skip if no snapshot yet
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
-    // On first mount with a snapshot, try to restore from localStorage
+    // On first mount, always clear any stale localStorage data
+    // (We used to restore here, but that caused 49-min-old strategies to show)
     if (prevSnapshotIdRef.current === null) {
-      const storedStrategy = localStorage.getItem('vecto_persistent_strategy');
-      const storedSnapshotId = localStorage.getItem('vecto_strategy_snapshot_id');
-
-      if (storedStrategy && storedSnapshotId === lastSnapshotId) {
-        console.log('📦 [CoPilotContext] Restoring strategy from localStorage:', storedSnapshotId?.slice(0, 8));
-        setPersistentStrategy(storedStrategy);
-        setStrategySnapshotId(storedSnapshotId);
-      }
-
+      localStorage.removeItem('vecto_persistent_strategy');
+      localStorage.removeItem('vecto_strategy_snapshot_id');
+      console.log('🔄 [CoPilotContext] First mount - cleared stale localStorage, starting fresh');
       prevSnapshotIdRef.current = lastSnapshotId;
       return;
     }
 
-    // Only clear if snapshot actually changed
+    // Clear if snapshot changed
     if (prevSnapshotIdRef.current !== lastSnapshotId) {
       console.log(`🔄 [CoPilotContext] Snapshot changed from ${prevSnapshotIdRef.current?.slice(0, 8)} to ${lastSnapshotId.slice(0, 8)}, clearing old strategy`);
       localStorage.removeItem('vecto_persistent_strategy');
@@ -206,6 +228,22 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = subscribeBlocksReady((data) => {
       if (data.snapshot_id === lastSnapshotId) {
         queryClient.invalidateQueries({ queryKey: ['/api/blocks-fast', lastSnapshotId] });
+      }
+    });
+
+    return unsubscribe;
+  }, [lastSnapshotId, queryClient]);
+
+  // Subscribe to SSE phase_change events for real-time progress bar updates
+  // LESSON LEARNED: Without this, progress bar only updates via 3-second polling,
+  // which is too slow to track rapid phase transitions (the bar "jumps" or "sticks")
+  useEffect(() => {
+    if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
+
+    const unsubscribe = subscribePhaseChange((data) => {
+      if (data.snapshot_id === lastSnapshotId) {
+        // Immediately invalidate strategy query to get fresh phase/timing data
+        queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
       }
     });
 
@@ -376,7 +414,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
   // Enrichment progress
   const hasBlocks = blocks.length > 0;
-  const { progress: enrichmentProgress, strategyProgress, phase: _enrichmentPhase, pipelinePhase, timeRemainingText } = useEnrichmentProgress({
+  const { progress: enrichmentProgress, strategyProgress, phase: enrichmentPhase, pipelinePhase, timeRemainingText } = useEnrichmentProgress({
     coords: coords ? { latitude: coords.latitude, longitude: coords.longitude } : null,
     strategyData: strategyData as StrategyData | null,
     lastSnapshotId,
@@ -394,6 +432,21 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     airportData,
     isLoading: briefingIsLoading
   } = useBriefingQueries({ snapshotId: lastSnapshotId, pipelinePhase });
+
+  // Pre-load bars data as soon as location resolves (no snapshot needed)
+  // This ensures bars tab has data before user navigates there
+  const {
+    barsData,
+    isBarsLoading,
+    refetchBars
+  } = useBarsQuery({
+    latitude: coords?.latitude || null,
+    longitude: coords?.longitude || null,
+    city: locationContext?.city || null,
+    state: locationContext?.state || null,
+    timezone: locationContext?.timeZone || null,
+    isLocationResolved: locationContext?.isLocationResolved || false
+  });
 
   const value: CoPilotContextValue = {
     // Location
@@ -423,6 +476,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     // Progress
     enrichmentProgress,
     strategyProgress,
+    enrichmentPhase,
     pipelinePhase: pipelinePhase as PipelinePhase,
     timeRemainingText,
 
@@ -436,6 +490,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       airport: airportData?.airport_conditions || null,
       isLoading: briefingIsLoading,
     },
+
+    // Pre-loaded bars data
+    barsData,
+    isBarsLoading,
+    refetchBars,
   };
 
   return (

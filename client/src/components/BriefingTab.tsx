@@ -44,10 +44,16 @@ interface AirportDelay {
 interface Airport {
   code: string;
   name: string;
-  overallStatus: 'normal' | 'delays' | 'severe_delays';
+  // Server may return either 'overallStatus' or 'status'
+  overallStatus?: 'normal' | 'delays' | 'severe_delays';
+  status?: 'normal' | 'delays' | 'severe_delays' | string;
+  // Delay information - may be string description or structured object
+  delays?: string;
   avgDelayMinutes?: number;
   arrivalDelays?: AirportDelay;
   departureDelays?: AirportDelay;
+  // Busy times array (simple strings like "5-8 AM")
+  busyTimes?: string[];
   weather?: string;
   groundStops?: boolean;
   tipsForDrivers?: string;
@@ -838,7 +844,8 @@ export default function BriefingTab({
         </CardHeader>
         {expandedAirport && (
           <CardContent>
-            {!airportData ? (
+            {/* Show loading if: no data yet OR no airport_conditions (API hasn't returned real data) */}
+            {!airportData || !airportData.airport_conditions ? (
               <div className="flex items-center justify-center py-8">
                 <Loader className="w-5 h-5 animate-spin text-sky-600 mr-2" />
                 <span className="text-gray-600">Loading airport data...</span>
@@ -856,7 +863,11 @@ export default function BriefingTab({
                 )}
 
                 {/* Airport Cards */}
-                {airports.map((airport, idx) => (
+                {airports.map((airport, idx) => {
+                  // Normalize status field (server may send 'status' or 'overallStatus')
+                  const airportStatus = airport.overallStatus || airport.status || 'normal';
+
+                  return (
                   <div
                     key={idx}
                     className="p-4 bg-white/60 rounded-lg border border-sky-100 hover:border-sky-300 transition-colors"
@@ -871,12 +882,33 @@ export default function BriefingTab({
                           <p className="text-xs text-gray-500">{airport.name}</p>
                         </div>
                       </div>
-                      <Badge variant="outline" className={getAirportStatusColor(airport.overallStatus)}>
-                        {getAirportStatusLabel(airport.overallStatus)}
+                      <Badge variant="outline" className={getAirportStatusColor(airportStatus)}>
+                        {getAirportStatusLabel(airportStatus)}
                       </Badge>
                     </div>
 
-                    {/* Delay Info */}
+                    {/* Delay Description - show the AI-generated summary */}
+                    {airport.delays && (
+                      <div className="p-3 bg-white/50 rounded-lg border border-sky-100 mb-3">
+                        <p className="text-sm text-gray-700">{airport.delays}</p>
+                      </div>
+                    )}
+
+                    {/* Busy Times for this airport */}
+                    {airport.busyTimes && airport.busyTimes.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap mb-3">
+                        <Clock className="w-4 h-4 text-sky-500" />
+                        <span className="text-xs text-gray-500">Busy:</span>
+                        {airport.busyTimes.map((time, tidx) => (
+                          <Badge key={tidx} variant="outline" className="bg-sky-50 text-sky-700 border-sky-200 text-xs">
+                            {time}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Structured Delay Info - only show if available (FAA API format) */}
+                    {(airport.arrivalDelays || airport.departureDelays) && (
                     <div className="grid grid-cols-2 gap-3 mb-3">
                       {/* Arrivals */}
                       <div className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-100">
@@ -904,6 +936,7 @@ export default function BriefingTab({
                         </div>
                       </div>
                     </div>
+                    )}
 
                     {/* Ground Stops Warning */}
                     {airport.groundStops && (
@@ -930,7 +963,8 @@ export default function BriefingTab({
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* Busy Periods */}
                 {busyPeriods.length > 0 && (
@@ -964,7 +998,7 @@ export default function BriefingTab({
               </div>
             ) : (
               <p className="text-gray-500 text-sm text-center py-4">
-                {airportConditions?.isFallback ? 'Airport data temporarily unavailable' : 'No airports within 40 miles'}
+                {airportConditions?.isFallback ? 'Airport data temporarily unavailable' : 'No nearby airports found'}
               </p>
             )}
           </CardContent>

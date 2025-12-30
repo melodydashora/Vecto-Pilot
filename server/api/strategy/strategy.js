@@ -164,7 +164,15 @@ router.post('/:snapshotId/retry', async (req, res) => {
     
     // Calculate "today" in the driver's local timezone (not server timezone)
     // This ensures Hawaii, Alaska, etc. get the correct date
-    const driverTimezone = originalSnapshot.timezone || 'America/Chicago';
+    // NO FALLBACK - timezone is required from original snapshot
+    if (!originalSnapshot.timezone) {
+      return res.status(400).json({
+        ok: false,
+        error: 'timezone_required',
+        message: 'Original snapshot missing timezone - cannot regenerate strategy'
+      });
+    }
+    const driverTimezone = originalSnapshot.timezone;
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: driverTimezone,
       year: 'numeric',

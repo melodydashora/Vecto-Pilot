@@ -30,6 +30,7 @@ This document captures historical issues, pitfalls, and best practices discovere
 5. **DO NOT use `thinking_budget` for Gemini** - Use `thinkingConfig.thinkingLevel` (nested structure)
 6. **DO NOT skip enrichment steps** - Smart Blocks require Google Places/Routes/Geocoding enrichment
 7. **DO NOT store secrets in code** - Use environment variables only
+8. **DO NOT add location fallbacks** - This is a GLOBAL app. No `|| 'Frisco'`, no `|| 'America/Chicago'`, no hardcoded airports. If data is missing, return an error - don't mask the bug with defaults. See CLAUDE.md "NO FALLBACKS" rule.
 
 ### ALWAYS DO
 
@@ -1087,5 +1088,203 @@ BriefingTab.tsx → Collapsible UI
 
 ---
 
-**Last Updated**: December 13, 2025
+## 15. No Cache for Strategies (December 2025)
+
+### Problem
+The app was restoring 49-minute-old cached strategies from localStorage on app start, making the progress bar run quickly across without actually generating fresh data.
+
+### Root Cause
+This is a **real-time rideshare intelligence app**. Cached strategies are useless for drivers - they need live data about current traffic, events, and surge pricing.
+
+### Critical Rule
+
+**NEVER CACHE STRATEGIES. ALWAYS GENERATE FRESH.**
+
+The entire value proposition of this app is real-time intelligence. A strategy from even 15 minutes ago could have completely wrong traffic conditions, ended events, or missed surge opportunities.
+
+### What Was Wrong
+1. localStorage was persisting `vecto_persistent_strategy` and restoring it on mount
+2. React Query `staleTime` was allowing cached strategy data
+3. Old snapshots were being reused instead of creating fresh ones
+
+### The Fix
+1. Remove localStorage restoration of old strategies in `co-pilot-context.tsx`
+2. Always trigger fresh snapshot creation on app start
+3. Strategy data should never be cached between sessions
+
+### Remember
+- Driver earnings depend on **real-time** data
+- A 10-minute-old strategy could cost the driver money
+- The progress bar should show **actual** pipeline work, not fake animation over cached data
+- Fresh GPS → Fresh Snapshot → Fresh Strategy → Fresh Blocks (every time)
+
+---
+
+## 16. Progress Bar SSE Subscription (December 2025)
+
+### Problem
+Progress bar was stuck at 7 seconds / not progressing in sync with backend logs. Backend showed phases changing rapidly (resolving → analyzing → immediate → venues...) but UI progress bar didn't move.
+
+### Root Cause
+Frontend was only polling `/api/blocks/strategy` every 3 seconds to get phase data. With phases changing faster than 3 seconds, the progress bar couldn't keep up.
+
+### The Fix
+Subscribe to SSE `/events/phase` endpoint for real-time phase_change events:
+
+```typescript
+// co-pilot-helpers.ts
+export function subscribePhaseChange(callback: (data) => void): () => void {
+  const eventSource = new EventSource('/events/phase');
+  eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    callback(data);  // { snapshot_id, phase, phase_started_at, expected_duration_ms }
+  };
+  return () => eventSource.close();
+}
+
+// co-pilot-context.tsx
+useEffect(() => {
+  const unsubscribe = subscribePhaseChange((data) => {
+    if (data.snapshot_id === lastSnapshotId) {
+      queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
+    }
+  });
+  return unsubscribe;
+}, [lastSnapshotId]);
+```
+
+### Remember
+- Backend emits `phase_change` events at `/events/phase` with timing metadata
+- Frontend must subscribe to SSE for real-time progress, polling is too slow
+- Query invalidation on SSE triggers immediate re-fetch with fresh phase data
+
+---
+
+## 17. Duplicate Snapshot Issue (December 2025)
+
+### Problem
+Two snapshots are being created simultaneously, causing race conditions and duplicate pipeline runs.
+
+### Root Cause
+- One snapshot is cached in memory for speed
+- One snapshot lands in the database
+- Both trigger pipeline runs independently
+
+### Correct Flow (TO BE IMPLEMENTED)
+
+```
+GPS → Create ONE snapshot in DB (single insert)
+    → Trigger pipeline with snapshot_id only (no memory data)
+    → Pipeline writes to: strategies, briefings, rankings tables
+    → Frontend WAITS for briefing != null
+    → Frontend FETCHES from DB (single source of truth)
+```
+
+### Key Principles
+1. **Database is the single source of truth** - no memory caching
+2. **One snapshot per GPS update** - not two
+3. **Frontend waits for DB** - doesn't use passed memory data
+4. **Memory caching removed once users sign up** - user_id provides persistence
+
+### Files to Harden
+- `client/src/contexts/location-context-clean.tsx` - Remove memory caching
+- `client/src/contexts/co-pilot-context.tsx` - Fetch from DB only
+- `server/api/location/index.js` - Single snapshot creation point
+
+### Documentation
+See: `docs/architecture/progress-bar-and-snapshot-flow.md`
+
+---
+
+## 18. SSE vs Polling Decision History (December 2025)
+
+### Timeline
+1. **Nov 4**: SSE implemented for real-time updates
+2. **Nov 25**: SSE reverted to polling (undocumented issues)
+3. **Dec 30**: SSE re-implemented with documentation
+
+### The Truth
+SSE is the **correct approach** for real-time progress. The Nov 25 revert was due to implementation bugs, not a fundamental problem with SSE.
+
+### What Was Wrong Before
+- SSE timeouts (connection drops)
+- Race conditions (not SSE's fault - snapshot duplication)
+- Lack of documentation on why it was reverted
+
+### Current Implementation
+```typescript
+// Subscribe to /events/phase SSE endpoint
+subscribePhaseChange((data) => {
+  if (data.snapshot_id === lastSnapshotId) {
+    queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
+  }
+});
+```
+
+### Remember
+- SSE is correct for real-time progress
+- Document WHY before reverting any approach
+- Test in production-like environment, not just dev
+
+---
+
+## 19. Duplicate Snapshot/Pipeline Fix (December 2025)
+
+### The Problem
+Two pipeline runs were occurring for each GPS update:
+1. SessionStorage restored OLD snapshot_id → triggered waterfall for OLD snapshot
+2. GPS fetch created NEW snapshot → triggered SECOND waterfall
+
+### Root Cause Analysis
+
+**Issue 1: Dual Waterfall Triggers**
+`co-pilot-context.tsx` had TWO triggers for `/api/blocks-fast`:
+- `useEffect` watching `locationContext?.lastSnapshotId` (line 95-122)
+- Event handler for `vecto-snapshot-saved` (line 127-150)
+Both could fire for the same snapshot = duplicate pipeline runs.
+
+**Issue 2: SessionStorage Restored Old Snapshot ID**
+`location-context-clean.tsx` restored `lastSnapshotId` from sessionStorage:
+```typescript
+if (data.snapshotId) setLastSnapshotId(data.snapshotId); // PROBLEM!
+```
+This OLD snapshot_id triggered waterfalls for stale data.
+
+### The Fix
+
+**1. Added Waterfall Deduplication**
+```typescript
+// co-pilot-context.tsx
+const waterfallTriggeredRef = useRef<Set<string>>(new Set());
+
+// Before triggering waterfall:
+if (waterfallTriggeredRef.current.has(snapshotId)) {
+  console.log("⏭️ Skipping duplicate waterfall");
+  return;
+}
+waterfallTriggeredRef.current.add(snapshotId);
+```
+
+**2. Removed Snapshot ID Restoration**
+```typescript
+// location-context-clean.tsx - NOW RESTORES DISPLAY DATA ONLY
+// DO NOT restore snapshot_id - always create fresh snapshots!
+// if (data.snapshotId) setLastSnapshotId(data.snapshotId); // REMOVED!
+if (data.city) setCity(data.city);  // Display data OK
+if (data.weather) setWeather(data.weather);  // Display data OK
+```
+
+### Key Principles
+1. **One pipeline run per snapshot** - use deduplication ref
+2. **Never restore snapshot_id from cache** - always create fresh
+3. **Display data can be cached** - city, weather for immediate UX
+4. **GPS always fetches fresh** - don't skip based on cached snapshot_id
+
+### Files Modified
+- `client/src/contexts/co-pilot-context.tsx` - Added `waterfallTriggeredRef` deduplication
+- `client/src/contexts/location-context-clean.tsx` - Removed snapshot_id restoration
+
+---
+
+**Last Updated**: December 30, 2025
 **Maintained By**: Development Team

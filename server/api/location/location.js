@@ -593,7 +593,16 @@ router.get('/resolve', async (req, res) => {
     if (deviceId) {
       try {
         const now = new Date();
-        const tz = timeZone || 'America/Chicago';
+        // NO FALLBACK - timezone is required for accurate time calculations
+        if (!timeZone) {
+          console.error('[location] ❌ Cannot save user data: timezone not resolved');
+          return res.status(400).json({
+            ok: false,
+            error: 'timezone_required',
+            message: 'Timezone could not be determined from location'
+          });
+        }
+        const tz = timeZone;
         const hour = new Date(now.toLocaleString('en-US', { timeZone: tz })).getHours();
         const dow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
         const dayPartKey = getDayPartKey(hour);
@@ -709,9 +718,17 @@ router.get('/resolve', async (req, res) => {
         snapshotLog.phase(1, `Creating for ${city}, ${state}`, OP.DB);
 
         try {
-          // Calculate date in user's timezone
+          // Calculate date in user's timezone - NO FALLBACK
+          if (!timeZone) {
+            console.error('[location] ❌ Cannot create snapshot: timezone not resolved');
+            return res.status(400).json({
+              ok: false,
+              error: 'timezone_required',
+              message: 'Timezone could not be determined from location'
+            });
+          }
           const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-            timeZone: timeZone || 'America/Chicago',
+            timeZone: timeZone,
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'
@@ -1055,7 +1072,12 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
           return await response.json();
         });
         
-        const timeZone = tzRes.status === 'OK' ? tzRes.timeZoneId : 'America/Chicago';
+        // NO FALLBACK - timezone must come from Google API
+        if (tzRes.status !== 'OK' || !tzRes.timeZoneId) {
+          console.error('[location] ❌ Timezone API failed:', tzRes.status, tzRes.errorMessage);
+          return httpError(res, 502, 'timezone_resolution_failed', 'Failed to determine timezone for location', cid);
+        }
+        const timeZone = tzRes.timeZoneId;
         
         resolved = { city, state, country, formattedAddress, timeZone };
         
@@ -1328,7 +1350,12 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     
     // Calculate "today" in the driver's local timezone (not server timezone)
     // This ensures Hawaii, Alaska, etc. get the correct date
-    const driverTimezone = snapshotV1.resolved?.timezone || 'America/Chicago';
+    // NO FALLBACK - timezone is required for accurate date calculation
+    const driverTimezone = snapshotV1.resolved?.timezone;
+    if (!driverTimezone) {
+      console.error('[location] ❌ Cannot convert snapshotV1 to DB: timezone not in resolved data');
+      throw new Error('Timezone required in snapshotV1.resolved.timezone');
+    }
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: driverTimezone,
       year: 'numeric',

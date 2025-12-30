@@ -4,7 +4,10 @@ import React, { createContext, useState, useEffect, useCallback, useRef } from '
 // SessionStorage persistence for snapshot data
 // Prevents data loss when switching between apps (Uber ↔ Vecto)
 const SNAPSHOT_STORAGE_KEY = 'vecto_snapshot';
-const SNAPSHOT_TTL_MS = 60 * 60 * 1000; // 1 hour TTL
+// TTL for session storage - KEEP SHORT for real-time intelligence
+// 2 minutes allows quick app switches (Uber ↔ Vecto) but ensures fresh data otherwise
+// LESSON LEARNED: 1-hour TTL caused 49-minute-old stale strategies to appear
+const SNAPSHOT_TTL_MS = 2 * 60 * 1000; // 2 minutes TTL (was 1 hour - too long!)
 
 // Clear sessionStorage - called when driver clicks GPS refresh button
 // Driver does this when returning to staging area to get fresh data
@@ -135,9 +138,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const lastEnrichmentCoordsRef = useRef<string | null>(null);
   const sessionRestoreAttemptedRef = useRef(false);
 
-  // Restore snapshot data from sessionStorage on mount
-  // This preserves data when user switches between apps (Uber ↔ Vecto)
-  // GPS refresh button clears storage via refreshGPS() - not browser refresh
+  // Restore DISPLAY data from sessionStorage on mount (for immediate UX)
+  // IMPORTANT: Do NOT restore snapshot_id - always create fresh snapshot!
+  // LESSON LEARNED: Restoring old snapshot_id triggers waterfall for stale data,
+  // causing duplicate pipeline runs and showing old strategies
   useEffect(() => {
     if (sessionRestoreAttemptedRef.current) return;
     sessionRestoreAttemptedRef.current = true;
@@ -148,17 +152,18 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       const data = JSON.parse(stored);
 
-      // Check TTL - don't restore stale data
+      // Check TTL - don't restore stale data (real-time app needs fresh intel)
       if (Date.now() - data.timestamp > SNAPSHOT_TTL_MS) {
-        console.log('📦 [LocationContext] Stored snapshot expired (>1hr), starting fresh');
+        console.log('📦 [LocationContext] Stored snapshot expired (>2min), starting fresh');
         sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
         return;
       }
 
-      console.log('📦 [LocationContext] Restoring snapshot from sessionStorage:', data.snapshotId?.slice(0, 8));
+      console.log('📦 [LocationContext] Restoring DISPLAY data only (not snapshot_id):', data.city);
 
-      // Restore all snapshot data
-      if (data.snapshotId) setLastSnapshotId(data.snapshotId);
+      // Restore DISPLAY data only for immediate UX
+      // DO NOT restore snapshot_id - we always want fresh snapshots!
+      // if (data.snapshotId) setLastSnapshotId(data.snapshotId); // REMOVED - causes duplicate waterfalls!
       if (data.coords) setCurrentCoords(data.coords);
       if (data.city) setCity(data.city);
       if (data.state) setState(data.state);
@@ -166,14 +171,12 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (data.locationString) setCurrentLocationString(data.locationString);
       if (data.weather) setWeather(data.weather);
       if (data.airQuality) setAirQuality(data.airQuality);
-      if (data.isLocationResolved) setIsLocationResolved(true);
-      if (data.lastUpdated) setLastUpdated(data.lastUpdated);
+      // Note: Don't set isLocationResolved - GPS fetch will set it properly
 
-      // If we restored valid data, skip the initial GPS fetch
-      if (data.snapshotId && data.coords) {
-        isInitialMountRef.current = false;
-        lastEnrichmentCoordsRef.current = `${data.coords.latitude.toFixed(6)},${data.coords.longitude.toFixed(6)}`;
-      }
+      // IMPORTANT: Do NOT skip GPS fetch!
+      // We restored display data for immediate UX, but still need fresh snapshot
+      // isInitialMountRef.current = false; // REMOVED - always fetch GPS!
+      // lastEnrichmentCoordsRef.current = ...; // REMOVED - always create new snapshot!
     } catch (e) {
       console.warn('[LocationContext] Failed to restore from sessionStorage:', e);
     }
@@ -405,13 +408,15 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [enrichLocation]);
 
-  // Initial GPS fetch on mount - but skip if we restored from sessionStorage
+  // Initial GPS fetch on mount - ALWAYS runs (we never restore snapshot_id)
+  // LESSON LEARNED: We used to skip GPS fetch if snapshot_id was restored from sessionStorage,
+  // but this caused stale data. Now we ALWAYS fetch fresh GPS → create new snapshot.
   useEffect(() => {
     // Wait a tick to allow sessionStorage restore to complete first
     const timer = setTimeout(() => {
-      // If we restored valid data from sessionStorage, skip GPS fetch
+      // Safety check: only skip if somehow we have a fresh snapshot (shouldn't happen now)
       if (lastSnapshotId && currentCoords) {
-        console.log('📦 [LocationContext] Skipping GPS fetch - restored from sessionStorage');
+        console.log('📦 [LocationContext] Skipping GPS fetch - already have snapshot (unexpected)');
         return;
       }
       refreshGPS();
