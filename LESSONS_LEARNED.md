@@ -1395,53 +1395,42 @@ Instead of replacing content with skeleton:
 
 ---
 
-## 21. Snapshot Ownership Mismatch in Production (December 30, 2025)
+## 21. Don't Add Auth to Critical Public Endpoints (December 30, 2025)
 
 ### Problem
-Production logs showed `User mismatch: auth=75a8aa69 vs snapshot=d4606055` - the authenticated user was trying to access a snapshot owned by a different user_id, causing 404 errors and triggering ownership error recovery loops (screen flashing).
+Production screens were flashing. Initial investigation showed "User mismatch" logs, leading to an attempted fix that made things worse.
 
-### Root Cause
-**Two separate user creation paths created the mismatch:**
+### What Went Wrong
 
-1. **Login path** (`/api/auth/login`): Creates/authenticates user via `driver_profiles` table → JWT token contains `user_id_A`
-2. **Location path** (`/api/location/resolve`): Looks up user by `device_id` in `users` table → might find/create `user_id_B`
-3. In **production**, `/api/auth/token` minting is disabled (correctly!)
-4. **Result**: Auth header has `user_id_A`, but snapshot was created with `user_id_B` from device lookup
+**Attempted Fix (WRONG):** Added `optionalAuth` middleware to `/api/location/resolve` to ensure authenticated users get correct user_id on snapshots.
 
-### The Fix
+**Why It Failed:**
+1. `optionalAuth` **rejects requests with invalid tokens** (returns 401)
+2. If browser has stale token in localStorage, location resolution **fails completely**
+3. Location resolution is a **critical path** - must work for ALL users, regardless of auth state
+4. Result: Chrome with stale token couldn't resolve location at all
 
-**Add `optionalAuth` middleware to `/api/location/resolve`:**
+**Additional Issues:**
+- Client-side `useMemo` changes included function references (`refetchBlocks`, `refetchBars`) in dependency array
+- These functions recreate on every render, defeating memoization
+- Could have caused MORE re-renders instead of fewer
 
-```javascript
-// server/api/location/location.js
-import { optionalAuth } from '../../middleware/auth.js';
+### The Real Cause
+The original "flashing" on one specific phone was likely a **browser cache/permission issue**, not a code bug:
+- Phone wasn't prompting for GPS permission (stale permission state)
+- Other devices (iPad) worked fine
+- After clearing cache on phone, it still had issues due to the broken "fix"
 
-router.get('/resolve', optionalAuth, async (req, res) => {
-  // ...
+### Lesson Learned
+1. **Don't add auth checks to critical public endpoints** - Location resolution must work for everyone
+2. **Don't include function references in useMemo deps** unless they're wrapped in useCallback
+3. **When debugging production issues, check the simple things first** - browser cache, permissions, stale data
+4. **If something worked before and broke after changes, revert the changes first**
 
-  // USER LOOKUP PRIORITY: Auth user_id > Device lookup > New user
-  const authUserId = req.auth?.userId; // From JWT if authenticated
-
-  if (authUserId) {
-    userId = authUserId; // Auth user ALWAYS wins
-  } else if (existingUser) {
-    userId = existingUser.user_id; // Anonymous device flow
-  } else {
-    userId = crypto.randomUUID(); // New anonymous user
-  }
-
-  // Snapshot created with correct userId (matches auth token)
-});
-```
-
-### Key Insight
-- When a **registered user** is authenticated, their auth token's `user_id` must be used for snapshot ownership
-- Device-based lookup is only for **anonymous** users without auth tokens
-- The `optionalAuth` middleware allows both authenticated and anonymous flows on the same endpoint
-- Snapshots created with mismatched user_id trigger infinite ownership error recovery loops
-
-### Files Modified
-- `server/api/location/location.js` - Added `optionalAuth` middleware, prioritize auth user_id
+### Files Affected (then reverted)
+- `server/api/location/location.js` - optionalAuth added then reverted
+- `client/src/contexts/co-pilot-context.tsx` - useMemo changes reverted
+- `client/src/hooks/useStrategyPolling.ts` - invalidate→refetch changes reverted
 
 ---
 
