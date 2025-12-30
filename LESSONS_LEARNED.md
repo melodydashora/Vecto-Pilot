@@ -264,47 +264,62 @@ const { data } = useQuery({
 
 ### SSE Duplicate Broadcasts (Issue Dec 2025)
 
-**Problem:** Loading bar keeps flashing, UI receives same SSE event multiple times (18x observed in prod)
+**Problem:** Loading bar keeps flashing, UI receives same SSE event multiple times (23x observed in prod)
 
-**Root Cause:**
-- Each call to `subscribeBriefingReady()` created a NEW `EventSource` connection
-- Each EventSource subscribes to PostgreSQL LISTEN/NOTIFY
-- When NOTIFY fires, ALL connections receive it and broadcast to client
-- Multiple React components using `useBriefingQueries` hook = multiple connections
-- Hot reloading, React StrictMode, multiple tabs compound the issue
+**Root Cause (TWO issues):**
 
-**Fix:** Singleton SSE Connection Manager pattern:
+1. **Client-side:** Each call to `subscribeBriefingReady()` created a NEW `EventSource` connection
+2. **Server-side:** Each SSE endpoint added its own `dbClient.on('notification', handler)` to the SAME shared PostgreSQL client - 23 connections = 23 handlers all firing for ONE notification
+
+**Fix 1 - Client Singleton:**
 ```typescript
-// Global singleton - persists across React renders
+// client/src/utils/co-pilot-helpers.ts
 const sseConnections: Map<string, SSESubscription> = new Map();
 
 function subscribeSSE(endpoint, eventName, callback) {
-  // Check if connection exists
   let sub = sseConnections.get(key);
   if (!sub) {
-    // First subscriber - create connection
     sub = { eventSource: new EventSource(endpoint), subscribers: new Set() };
     sseConnections.set(key, sub);
   }
-  // Add callback to shared connection
   sub.subscribers.add(callback);
-
-  // Return unsubscribe that closes connection when last subscriber leaves
-  return () => {
-    sub.subscribers.delete(callback);
-    if (sub.subscribers.size === 0) {
-      sub.eventSource.close();
-      sseConnections.delete(key);
-    }
-  };
+  return () => { /* unsubscribe logic */ };
 }
 ```
 
-**Key Insight:** SSE connections should be singletons at the application level, not per-component.
+**Fix 2 - Server Notification Dispatcher:**
+```javascript
+// server/db/db-client.js
+const channelSubscribers = new Map(); // channel -> Set of callbacks
+let notificationHandlerAttached = false;
+
+export async function subscribeToChannel(channel, callback) {
+  // ONE LISTEN per channel, ONE notification handler total
+  if (!channelSubscribers.has(channel)) {
+    await client.query(`LISTEN ${channel}`);
+  }
+  channelSubscribers.get(channel).add(callback);
+
+  // Single handler dispatches to all subscribers
+  if (!notificationHandlerAttached) {
+    client.on('notification', (msg) => {
+      channelSubscribers.get(msg.channel)?.forEach(cb => cb(msg.payload));
+    });
+    notificationHandlerAttached = true;
+  }
+  return async () => { /* unsubscribe logic */ };
+}
+```
+
+**Key Insights:**
+1. SSE connections should be singletons at both client AND server levels
+2. PostgreSQL LISTEN/NOTIFY sends ONE notification, but having N handlers on one client = N callbacks
+3. Use a dispatcher pattern: ONE listener, dispatch to N subscribers
 
 **Files Changed:**
-- `client/src/utils/co-pilot-helpers.ts`: Added singleton `subscribeSSE()` manager
-- All SSE subscribe functions now use singleton pattern
+- `client/src/utils/co-pilot-helpers.ts`: Client singleton SSE manager
+- `server/db/db-client.js`: Server notification dispatcher (`subscribeToChannel`)
+- `server/api/strategy/strategy-events.js`: Use dispatcher instead of direct handlers
 
 ---
 

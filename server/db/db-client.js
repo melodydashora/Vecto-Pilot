@@ -163,3 +163,81 @@ export async function closeListenClient() {
     dbLog.info(`LISTEN client closed`, OP.DB);
   }
 }
+
+// ============================================================================
+// NOTIFICATION DISPATCHER - Singleton pattern for PostgreSQL LISTEN/NOTIFY
+// ============================================================================
+// PROBLEM: Each SSE connection was adding its own 'notification' handler to
+// the shared pgClient. With 23 connections, one NOTIFY triggered 23 handlers.
+//
+// SOLUTION: One handler on pgClient, dispatches to subscribers per channel.
+// Each SSE connection subscribes to the dispatcher, not directly to pgClient.
+// ============================================================================
+
+const channelSubscribers = new Map(); // channel -> Set of callbacks
+let notificationHandlerAttached = false;
+
+/**
+ * Subscribe to PostgreSQL NOTIFY events for a specific channel.
+ * Uses shared dispatcher - only one handler on pgClient, many subscribers.
+ *
+ * @param {string} channel - The PostgreSQL channel name (e.g., 'briefing_ready')
+ * @param {Function} callback - Called with (payload) when notification received
+ * @returns {Function} Unsubscribe function
+ */
+export async function subscribeToChannel(channel, callback) {
+  const client = await getListenClient();
+
+  // First subscriber for this channel? Set up LISTEN
+  if (!channelSubscribers.has(channel)) {
+    channelSubscribers.set(channel, new Set());
+    await client.query(`LISTEN ${channel}`);
+    dbLog.phase(1, `LISTEN ${channel} (first subscriber)`, OP.DB);
+  }
+
+  // Add callback to subscribers
+  channelSubscribers.get(channel).add(callback);
+  const subscriberCount = channelSubscribers.get(channel).size;
+  dbLog.info(`Channel ${channel}: ${subscriberCount} subscriber(s)`, OP.DB);
+
+  // Attach single notification handler if not already attached
+  if (!notificationHandlerAttached) {
+    client.on('notification', (msg) => {
+      const subscribers = channelSubscribers.get(msg.channel);
+      if (subscribers && subscribers.size > 0) {
+        // Parse payload once, dispatch to all subscribers
+        dbLog.done(1, `NOTIFY ${msg.channel} → ${subscribers.size} subscriber(s)`, OP.SSE);
+        subscribers.forEach(cb => {
+          try {
+            cb(msg.payload);
+          } catch (err) {
+            console.error(`[NotificationDispatcher] Subscriber error:`, err);
+          }
+        });
+      }
+    });
+    notificationHandlerAttached = true;
+    dbLog.info(`Notification dispatcher attached`, OP.DB);
+  }
+
+  // Return unsubscribe function
+  return async () => {
+    const subs = channelSubscribers.get(channel);
+    if (subs) {
+      subs.delete(callback);
+      dbLog.info(`Channel ${channel}: ${subs.size} subscriber(s) remaining`, OP.DB);
+
+      // Last subscriber? UNLISTEN
+      if (subs.size === 0) {
+        channelSubscribers.delete(channel);
+        try {
+          const cl = await getListenClient();
+          await cl.query(`UNLISTEN ${channel}`);
+          dbLog.phase(1, `UNLISTEN ${channel} (no subscribers)`, OP.DB);
+        } catch (err) {
+          // Connection may be closed
+        }
+      }
+    }
+  };
+}
