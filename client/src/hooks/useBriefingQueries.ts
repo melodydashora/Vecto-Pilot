@@ -25,6 +25,16 @@ interface BriefingQueriesOptions {
 const MAX_RETRY_ATTEMPTS = 40; // 40 attempts × 2 seconds = 80 seconds (covers worst case)
 const RETRY_INTERVAL_MS = 2000; // Poll every 2 seconds
 
+// Special error to indicate snapshot ownership failure (different user)
+// This triggers a GPS refresh to create a new snapshot for the current user
+const SNAPSHOT_OWNERSHIP_ERROR = 'snapshot_ownership_error';
+
+// Dispatch event to clear stale snapshot and request fresh GPS
+function dispatchSnapshotOwnershipError() {
+  console.warn('[BriefingQuery] 🚨 Snapshot ownership error - requesting new snapshot');
+  window.dispatchEvent(new CustomEvent('snapshot-ownership-error'));
+}
+
 // Check if traffic data is still loading/placeholder
 function isTrafficLoading(data: any): boolean {
   if (!data?.traffic) return true;
@@ -151,8 +161,13 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 404 = snapshot not found or ownership mismatch - request new snapshot
+        if (response.status === 404) {
+          console.error('[BriefingQuery] Traffic 404 - snapshot ownership error');
+          dispatchSnapshotOwnershipError();
+          return { traffic: null, _ownershipError: true };
+        }
         console.error('[BriefingQuery] Traffic failed:', response.status);
-        // Return undefined to indicate "still loading" - UI will show spinner
         return undefined;
       }
       const data = await response.json();
@@ -168,7 +183,9 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     enabled: isEnabled,
     ...baseConfig,
     // Retry every 2 seconds if data is still loading, stop after MAX_RETRY_ATTEMPTS
+    // IMPORTANT: Don't retry if we got an ownership error (404)
     refetchInterval: (query) => {
+      if (query.state.data?._ownershipError) return false; // Stop on ownership error
       const stillLoading = isTrafficLoading(query.state.data);
       const hasRetriesLeft = retryCountsRef.current.traffic < MAX_RETRY_ATTEMPTS;
       if (stillLoading && hasRetriesLeft) {
@@ -188,7 +205,12 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
-        // Return undefined to indicate "still loading" - UI will show spinner
+        // 404 = snapshot not found or ownership mismatch - request new snapshot
+        if (response.status === 404) {
+          console.error('[BriefingQuery] News 404 - snapshot ownership error');
+          dispatchSnapshotOwnershipError();
+          return { news: null, _ownershipError: true };
+        }
         return undefined;
       }
       const data = await response.json();
@@ -204,6 +226,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     enabled: isEnabled,
     ...baseConfig,
     refetchInterval: (query) => {
+      if (query.state.data?._ownershipError) return false; // Stop on ownership error
       const stillLoading = isNewsLoading(query.state.data);
       const hasRetriesLeft = retryCountsRef.current.news < MAX_RETRY_ATTEMPTS;
       if (stillLoading && hasRetriesLeft) {
@@ -267,8 +290,13 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 404 = snapshot not found or ownership mismatch - request new snapshot
+        if (response.status === 404) {
+          console.error('[BriefingQuery] Airport 404 - snapshot ownership error');
+          dispatchSnapshotOwnershipError();
+          return { airport_conditions: null, _ownershipError: true };
+        }
         console.error('[BriefingQuery] Airport failed:', response.status);
-        // Return undefined to indicate "still loading" - UI will show spinner
         return undefined;
       }
       const data = await response.json();
@@ -284,6 +312,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     enabled: isEnabled,
     ...baseConfig,
     refetchInterval: (query) => {
+      if (query.state.data?._ownershipError) return false; // Stop on ownership error
       const stillLoading = isAirportLoading(query.state.data);
       const hasRetriesLeft = retryCountsRef.current.airport < MAX_RETRY_ATTEMPTS;
       if (stillLoading && hasRetriesLeft) {

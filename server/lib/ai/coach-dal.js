@@ -12,9 +12,12 @@ import {
   venue_catalog,
   venue_metrics,
   actions,
-  users
+  users,
+  market_intelligence,
+  user_intel_notes,
+  platform_data
 } from '../../../shared/schema.js';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, or, sql, isNull, gte } from 'drizzle-orm';
 
 /**
  * CoachDAL - Full schema read access for AI Strategy Coach
@@ -436,6 +439,209 @@ export class CoachDAL {
   }
 
   /**
+   * Get market intelligence for the user's location
+   * Includes universal intel + market-specific intel
+   * @param {string} city - City name
+   * @param {string} state - State name
+   * @param {string} platform - Platform filter ('uber', 'lyft', 'both')
+   * @returns {Promise<Object>} Market intelligence data
+   */
+  async getMarketIntelligence(city, state, platform = 'both') {
+    try {
+      if (!city || !state) {
+        return { marketPosition: null, intelligence: [], userNotes: [] };
+      }
+
+      // First, look up the market for this city
+      const [cityData] = await db
+        .select({
+          market_anchor: platform_data.market_anchor,
+          region_type: platform_data.region_type,
+          market: platform_data.market,
+        })
+        .from(platform_data)
+        .where(and(
+          eq(platform_data.city, city),
+          eq(platform_data.platform, 'uber')
+        ))
+        .limit(1);
+
+      const marketAnchor = cityData?.market_anchor || null;
+      const regionType = cityData?.region_type || null;
+      const marketSlug = marketAnchor ? marketAnchor.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : null;
+
+      // Build query for intelligence - universal + market-specific
+      const intelligenceQuery = db
+        .select({
+          id: market_intelligence.id,
+          market: market_intelligence.market,
+          market_slug: market_intelligence.market_slug,
+          intel_type: market_intelligence.intel_type,
+          intel_subtype: market_intelligence.intel_subtype,
+          title: market_intelligence.title,
+          summary: market_intelligence.summary,
+          content: market_intelligence.content,
+          neighborhoods: market_intelligence.neighborhoods,
+          tags: market_intelligence.tags,
+          priority: market_intelligence.priority,
+          confidence: market_intelligence.confidence,
+          coach_priority: market_intelligence.coach_priority,
+        })
+        .from(market_intelligence)
+        .where(and(
+          eq(market_intelligence.is_active, true),
+          eq(market_intelligence.coach_can_cite, true),
+          or(
+            eq(market_intelligence.market_slug, 'universal'),
+            marketSlug ? eq(market_intelligence.market_slug, marketSlug) : sql`false`
+          ),
+          or(
+            eq(market_intelligence.platform, 'both'),
+            eq(market_intelligence.platform, platform)
+          )
+        ))
+        .orderBy(desc(market_intelligence.coach_priority), desc(market_intelligence.priority))
+        .limit(25);
+
+      const intelligence = await intelligenceQuery;
+
+      // Calculate deadhead risk
+      let deadheadRisk = null;
+      if (regionType) {
+        const riskMap = {
+          'Core': { level: 'low', score: 20, description: 'Low risk - high demand density, easy return trips' },
+          'Satellite': { level: 'medium', score: 50, description: 'Moderate risk - favor rides toward Core cities' },
+          'Rural': { level: 'high', score: 80, description: 'High risk - expect long unpaid returns' }
+        };
+        deadheadRisk = riskMap[regionType] || null;
+      }
+
+      return {
+        marketPosition: {
+          city,
+          state,
+          market_anchor: marketAnchor,
+          region_type: regionType,
+          market_slug: marketSlug,
+          deadhead_risk: deadheadRisk,
+        },
+        intelligence: intelligence || [],
+      };
+    } catch (error) {
+      console.error('[CoachDAL] getMarketIntelligence error:', error);
+      return { marketPosition: null, intelligence: [] };
+    }
+  }
+
+  /**
+   * Get user-specific intel notes (coach memories about this user)
+   * @param {string} userId - User ID
+   * @param {number} limit - Max notes to retrieve
+   * @returns {Promise<Array>} User intel notes
+   */
+  async getUserNotes(userId, limit = 20) {
+    try {
+      if (!userId) return [];
+
+      const notes = await db
+        .select()
+        .from(user_intel_notes)
+        .where(and(
+          eq(user_intel_notes.user_id, userId),
+          eq(user_intel_notes.is_active, true),
+          or(
+            isNull(user_intel_notes.valid_until),
+            gte(user_intel_notes.valid_until, new Date())
+          )
+        ))
+        .orderBy(
+          desc(user_intel_notes.is_pinned),
+          desc(user_intel_notes.importance),
+          desc(user_intel_notes.created_at)
+        )
+        .limit(limit);
+
+      return notes || [];
+    } catch (error) {
+      console.error('[CoachDAL] getUserNotes error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Save a new intel note from coach interaction
+   * @param {Object} noteData - Note data to save
+   * @returns {Promise<Object|null>} Saved note or null
+   */
+  async saveUserNote(noteData) {
+    try {
+      const {
+        user_id,
+        snapshot_id,
+        note_type = 'insight',
+        category,
+        title,
+        content,
+        context,
+        market_slug,
+        neighborhoods,
+        importance = 50,
+        confidence = 80,
+        source_message_id,
+        created_by = 'ai_coach'
+      } = noteData;
+
+      if (!user_id || !content) {
+        console.warn('[CoachDAL] saveUserNote: missing user_id or content');
+        return null;
+      }
+
+      const [note] = await db
+        .insert(user_intel_notes)
+        .values({
+          user_id,
+          snapshot_id,
+          note_type,
+          category,
+          title,
+          content,
+          context,
+          market_slug,
+          neighborhoods,
+          importance,
+          confidence,
+          source_message_id,
+          created_by,
+        })
+        .returning();
+
+      console.log(`[CoachDAL] Saved user note: ${note.id} (${note_type})`);
+      return note;
+    } catch (error) {
+      console.error('[CoachDAL] saveUserNote error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Increment times_referenced for a note (when coach uses it)
+   * @param {string} noteId - Note ID
+   */
+  async incrementNoteReference(noteId) {
+    try {
+      await db
+        .update(user_intel_notes)
+        .set({
+          times_referenced: sql`${user_intel_notes.times_referenced} + 1`,
+          updated_at: new Date()
+        })
+        .where(eq(user_intel_notes.id, noteId));
+    } catch (error) {
+      console.error('[CoachDAL] incrementNoteReference error:', error);
+    }
+  }
+
+  /**
    * Get complete context for AI Coach - Full schema access
    * Combines snapshot, strategy, briefing, smart blocks, feedback, and venue data
    * 
@@ -469,7 +675,7 @@ export class CoachDAL {
         activeSnapshotId = resolution.snapshot_id;
       }
 
-      // Fetch all schema data in parallel
+      // Fetch all schema data in parallel (first batch)
       const [
         snapshot,
         strategy,
@@ -488,6 +694,19 @@ export class CoachDAL {
         this.getActions(activeSnapshotId),
       ]);
 
+      // Fetch market intelligence and user notes (depends on snapshot for city/state/user_id)
+      let marketIntelligence = { marketPosition: null, intelligence: [] };
+      let userNotes = [];
+
+      if (snapshot) {
+        const [intel, notes] = await Promise.all([
+          this.getMarketIntelligence(snapshot.city, snapshot.state),
+          snapshot.user_id ? this.getUserNotes(snapshot.user_id) : Promise.resolve([])
+        ]);
+        marketIntelligence = intel;
+        userNotes = notes;
+      }
+
       return {
         snapshot,
         strategy,
@@ -496,6 +715,8 @@ export class CoachDAL {
         feedback,
         venueData,
         actions: driverActions,
+        marketIntelligence,
+        userNotes,
         status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
     } catch (error) {
@@ -508,6 +729,8 @@ export class CoachDAL {
         feedback: { venue_feedback: [], strategy_feedback: [] },
         venueData: [],
         actions: [],
+        marketIntelligence: { marketPosition: null, intelligence: [] },
+        userNotes: [],
         status: 'error',
       };
     }
@@ -540,6 +763,8 @@ export class CoachDAL {
       feedback,
       venueData,
       actions,
+      marketIntelligence,
+      userNotes,
       status
     } = context;
 
@@ -695,6 +920,76 @@ export class CoachDAL {
       }
     }
 
+    // ========== MARKET INTELLIGENCE (Research-backed insights) ==========
+    if (marketIntelligence?.marketPosition) {
+      const mp = marketIntelligence.marketPosition;
+      prompt += `\n\n=== MARKET INTELLIGENCE ===`;
+      prompt += `\n🗺️  MARKET POSITION`;
+      prompt += `\n   Market: ${mp.market_anchor || 'Unknown'}`;
+      prompt += `\n   Region Type: ${mp.region_type || 'Unknown'}`;
+      if (mp.deadhead_risk) {
+        prompt += `\n   Deadhead Risk: ${mp.deadhead_risk.level.toUpperCase()} (${mp.deadhead_risk.score}/100)`;
+        prompt += `\n   ${mp.deadhead_risk.description}`;
+      }
+    }
+
+    if (marketIntelligence?.intelligence?.length > 0) {
+      prompt += `\n\n📚 MARKET KNOWLEDGE BASE (${marketIntelligence.intelligence.length} items)`;
+
+      // Group by intel_type for better organization
+      const byType = {};
+      marketIntelligence.intelligence.forEach(intel => {
+        const type = intel.intel_type || 'general';
+        if (!byType[type]) byType[type] = [];
+        byType[type].push(intel);
+      });
+
+      // Format each type
+      const typeLabels = {
+        algorithm: '⚙️ Algorithm Mechanics',
+        strategy: '🎯 Strategy Insights',
+        zone: '📍 Zone Intelligence',
+        timing: '⏰ Timing Patterns',
+        regulatory: '📋 Regulations',
+        airport: '✈️ Airport Tips',
+        safety: '🛡️ Safety Info',
+        general: '📖 General Knowledge'
+      };
+
+      for (const [type, items] of Object.entries(byType)) {
+        prompt += `\n\n${typeLabels[type] || type.toUpperCase()}:`;
+        items.slice(0, 5).forEach(intel => {
+          prompt += `\n   • ${intel.title}`;
+          if (intel.summary) {
+            prompt += `\n     ${intel.summary.substring(0, 120)}`;
+          }
+        });
+      }
+    }
+
+    // ========== USER NOTES (Coach memory about this user) ==========
+    if (userNotes?.length > 0) {
+      prompt += `\n\n=== YOUR NOTES ABOUT THIS DRIVER ===`;
+      prompt += `\n📝 You have ${userNotes.length} saved note(s) about this user:`;
+
+      userNotes.slice(0, 10).forEach((note, i) => {
+        const noteIcon = {
+          preference: '⭐',
+          insight: '💡',
+          tip: '💬',
+          feedback: '👍',
+          pattern: '🔄',
+          market_update: '📰'
+        }[note.note_type] || '📝';
+
+        prompt += `\n   ${noteIcon} [${note.note_type}] ${note.title || 'Note'}`;
+        prompt += `\n      ${note.content.substring(0, 150)}${note.content.length > 150 ? '...' : ''}`;
+        if (note.is_pinned) prompt += ` [PINNED]`;
+      });
+
+      prompt += `\n\n   Use these notes to personalize your advice. You can reference them naturally.`;
+    }
+
     // ========== DATA AVAILABILITY SUMMARY ==========
     prompt += `\n\n📋 DATA ACCESS SUMMARY`;
     prompt += `\n   ✓ Snapshot: ${snapshot ? 'Complete' : 'Unavailable'}`;
@@ -703,6 +998,8 @@ export class CoachDAL {
     prompt += `\n   ✓ Smart Blocks: ${smartBlocks?.length || 0} venues`;
     prompt += `\n   ✓ Feedback: ${feedback?.venue_feedback?.length || 0} venue votes`;
     prompt += `\n   ✓ Actions: ${actions?.length || 0} recorded`;
+    prompt += `\n   ✓ Market Intel: ${marketIntelligence?.intelligence?.length || 0} items`;
+    prompt += `\n   ✓ User Notes: ${userNotes?.length || 0} notes`;
     prompt += `\n   Status: ${status}`;
 
     return prompt;
