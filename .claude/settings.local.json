@@ -101,7 +101,8 @@
       "Bash(SNAPSHOT=\"23f7bf40-4a23-46a0-8126-54fc1dc18856\")",
       "Bash(UA=\"Mozilla/5.0\")",
       "Bash(__NEW_LINE__ echo \"Testing briefing endpoints...\")",
-      "Bash(SNAPSHOT=\"df0afe3f-0efa-4832-97f8-29ccda7c8172\" UA=\"Mozilla/5.0\")"
+      "Bash(SNAPSHOT=\"df0afe3f-0efa-4832-97f8-29ccda7c8172\" UA=\"Mozilla/5.0\")",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

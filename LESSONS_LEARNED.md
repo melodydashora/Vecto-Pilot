@@ -1395,5 +1395,55 @@ Instead of replacing content with skeleton:
 
 ---
 
+## 21. Snapshot Ownership Mismatch in Production (December 30, 2025)
+
+### Problem
+Production logs showed `User mismatch: auth=75a8aa69 vs snapshot=d4606055` - the authenticated user was trying to access a snapshot owned by a different user_id, causing 404 errors and triggering ownership error recovery loops (screen flashing).
+
+### Root Cause
+**Two separate user creation paths created the mismatch:**
+
+1. **Login path** (`/api/auth/login`): Creates/authenticates user via `driver_profiles` table → JWT token contains `user_id_A`
+2. **Location path** (`/api/location/resolve`): Looks up user by `device_id` in `users` table → might find/create `user_id_B`
+3. In **production**, `/api/auth/token` minting is disabled (correctly!)
+4. **Result**: Auth header has `user_id_A`, but snapshot was created with `user_id_B` from device lookup
+
+### The Fix
+
+**Add `optionalAuth` middleware to `/api/location/resolve`:**
+
+```javascript
+// server/api/location/location.js
+import { optionalAuth } from '../../middleware/auth.js';
+
+router.get('/resolve', optionalAuth, async (req, res) => {
+  // ...
+
+  // USER LOOKUP PRIORITY: Auth user_id > Device lookup > New user
+  const authUserId = req.auth?.userId; // From JWT if authenticated
+
+  if (authUserId) {
+    userId = authUserId; // Auth user ALWAYS wins
+  } else if (existingUser) {
+    userId = existingUser.user_id; // Anonymous device flow
+  } else {
+    userId = crypto.randomUUID(); // New anonymous user
+  }
+
+  // Snapshot created with correct userId (matches auth token)
+});
+```
+
+### Key Insight
+- When a **registered user** is authenticated, their auth token's `user_id` must be used for snapshot ownership
+- Device-based lookup is only for **anonymous** users without auth tokens
+- The `optionalAuth` middleware allows both authenticated and anonymous flows on the same endpoint
+- Snapshots created with mismatched user_id trigger infinite ownership error recovery loops
+
+### Files Modified
+- `server/api/location/location.js` - Added `optionalAuth` middleware, prioritize auth user_id
+
+---
+
 **Last Updated**: December 30, 2025
 **Maintained By**: Development Team
