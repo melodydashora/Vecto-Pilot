@@ -1,11 +1,25 @@
 // server/api/strategy/strategy-events.js
+// SSE endpoints for real-time notifications via PostgreSQL LISTEN/NOTIFY
+//
+// ARCHITECTURE: Uses shared notification dispatcher (subscribeToChannel) to ensure
+// ONE notification handler on the database client, regardless of how many SSE
+// connections exist. This prevents duplicate log spam and duplicate processing.
+
 import express from 'express';
-import { getListenClient } from '../../db/db-client.js';
+import { subscribeToChannel } from '../../db/db-client.js';
 import { sseLog, OP } from '../../logger/workflow.js';
 
 const router = express.Router();
 
+// Track active SSE connections for debugging
+let strategyConnections = 0;
+let briefingConnections = 0;
+let blocksConnections = 0;
+
 router.get('/events/strategy', async (req, res) => {
+  strategyConnections++;
+  sseLog.phase(1, `SSE /events/strategy connected (${strategyConnections} active)`, OP.SSE);
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -16,30 +30,16 @@ router.get('/events/strategy', async (req, res) => {
   res.write(': connected\n\n');
 
   try {
-    const dbClient = await getListenClient();
-
-    // Subscribe to strategy_ready channel
-    await dbClient.query('LISTEN strategy_ready');
-    sseLog.phase(1, `Subscribed: strategy_ready`, OP.SSE);
-
-    const onNotify = (msg) => {
-      if (msg.channel !== 'strategy_ready') return;
-      sseLog.done(1, `Broadcasting strategy_ready`, OP.SSE);
+    // Use shared notification dispatcher - ONE handler, many subscribers
+    const unsubscribe = await subscribeToChannel('strategy_ready', (payload) => {
       res.write(`event: strategy_ready\n`);
-      res.write(`data: ${msg.payload}\n\n`);
-    };
-
-    dbClient.on('notification', onNotify);
+      res.write(`data: ${payload}\n\n`);
+    });
 
     req.on('close', async () => {
-      dbClient.off('notification', onNotify);
-      if (dbClient && !dbClient._ending && !dbClient._ended) {
-        try {
-          await dbClient.query('UNLISTEN strategy_ready');
-        } catch (_e) {
-          // Connection may already be closed
-        }
-      }
+      strategyConnections--;
+      sseLog.info(`SSE /events/strategy closed (${strategyConnections} remaining)`, OP.SSE);
+      await unsubscribe();
     });
   } catch (err) {
     sseLog.error(1, `Strategy listener failed`, err, OP.SSE);
@@ -48,7 +48,9 @@ router.get('/events/strategy', async (req, res) => {
 });
 
 router.get('/events/briefing', async (req, res) => {
-  console.log('[SSE-Briefing] Client connected to /events/briefing SSE');
+  briefingConnections++;
+  sseLog.phase(1, `SSE /events/briefing connected (${briefingConnections} active)`, OP.SSE);
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -59,31 +61,16 @@ router.get('/events/briefing', async (req, res) => {
   res.write(': connected\n\n');
 
   try {
-    const dbClient = await getListenClient();
-
-    // Subscribe to briefing_ready channel
-    await dbClient.query('LISTEN briefing_ready');
-    console.log('[SSE-Briefing] ✅ Subscribed to briefing_ready channel');
-    sseLog.phase(1, `Subscribed: briefing_ready`, OP.SSE);
-
-    const onNotify = (msg) => {
-      if (msg.channel !== 'briefing_ready') return;
-      sseLog.done(1, `Broadcasting briefing_ready`, OP.SSE);
+    // Use shared notification dispatcher - ONE handler, many subscribers
+    const unsubscribe = await subscribeToChannel('briefing_ready', (payload) => {
       res.write(`event: briefing_ready\n`);
-      res.write(`data: ${msg.payload}\n\n`);
-    };
-
-    dbClient.on('notification', onNotify);
+      res.write(`data: ${payload}\n\n`);
+    });
 
     req.on('close', async () => {
-      dbClient.off('notification', onNotify);
-      if (dbClient && !dbClient._ending && !dbClient._ended) {
-        try {
-          await dbClient.query('UNLISTEN briefing_ready');
-        } catch (_e) {
-          // Connection may already be closed
-        }
-      }
+      briefingConnections--;
+      sseLog.info(`SSE /events/briefing closed (${briefingConnections} remaining)`, OP.SSE);
+      await unsubscribe();
     });
   } catch (err) {
     sseLog.error(1, `Briefing listener failed`, err, OP.SSE);
@@ -92,6 +79,9 @@ router.get('/events/briefing', async (req, res) => {
 });
 
 router.get('/events/blocks', async (req, res) => {
+  blocksConnections++;
+  sseLog.phase(1, `SSE /events/blocks connected (${blocksConnections} active)`, OP.SSE);
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -102,30 +92,16 @@ router.get('/events/blocks', async (req, res) => {
   res.write(': connected\n\n');
 
   try {
-    const dbClient = await getListenClient();
-    
-    // Subscribe to blocks_ready channel
-    await dbClient.query('LISTEN blocks_ready');
-    sseLog.phase(1, `Subscribed: blocks_ready`, OP.SSE);
-
-    const onNotify = (msg) => {
-      if (msg.channel !== 'blocks_ready') return;
-      sseLog.done(1, `Broadcasting blocks_ready`, OP.SSE);
+    // Use shared notification dispatcher - ONE handler, many subscribers
+    const unsubscribe = await subscribeToChannel('blocks_ready', (payload) => {
       res.write(`event: blocks_ready\n`);
-      res.write(`data: ${msg.payload}\n\n`);
-    };
-
-    dbClient.on('notification', onNotify);
+      res.write(`data: ${payload}\n\n`);
+    });
 
     req.on('close', async () => {
-      dbClient.off('notification', onNotify);
-      if (dbClient && !dbClient._ending && !dbClient._ended) {
-        try {
-          await dbClient.query('UNLISTEN blocks_ready');
-        } catch (_e) {
-          // Connection may already be closed
-        }
-      }
+      blocksConnections--;
+      sseLog.info(`SSE /events/blocks closed (${blocksConnections} remaining)`, OP.SSE);
+      await unsubscribe();
     });
   } catch (err) {
     sseLog.error(1, `Blocks listener failed`, err, OP.SSE);
