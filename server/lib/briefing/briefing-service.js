@@ -931,12 +931,17 @@ async function callGeminiForEvents({ prompt, maxTokens = 4096 }) {
 }
 
 async function fetchEventsWithGemini3ProPreview({ snapshot }) {
-  const city = snapshot?.city || 'Frisco';
-  const state = snapshot?.state || 'TX';
-  const lat = snapshot?.lat || 33.1285;
-  const lng = snapshot?.lng || -96.8756;
+  // Require valid location data - no hardcoded defaults for global app
+  if (!snapshot?.city || !snapshot?.state) {
+    briefingLog.warn(2, 'Missing city/state in snapshot - cannot fetch events', OP.AI);
+    return { items: [], reason: 'Location data not available' };
+  }
+  const city = snapshot.city;
+  const state = snapshot.state;
+  const lat = snapshot.lat;
+  const lng = snapshot.lng;
   const hour = snapshot?.hour ?? new Date().getHours();
-  const timezone = snapshot?.timezone || 'America/Chicago';
+  const timezone = snapshot?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   // Use local_iso if available, otherwise compute local date from timezone
   let date;
@@ -1011,12 +1016,17 @@ async function _fetchEventsWithGemini3ProPreviewLegacy({ snapshot }) {
     return [];
   }
 
-  const city = snapshot?.city || 'Frisco';
-  const state = snapshot?.state || 'TX';
-  const lat = snapshot?.lat || 33.1285;
-  const lng = snapshot?.lng || -96.8756;
+  // Require valid location data - no hardcoded defaults for global app
+  if (!snapshot?.city || !snapshot?.state) {
+    briefingLog.warn(2, 'Missing city/state in snapshot - cannot fetch events (legacy)', OP.AI);
+    return { items: [], reason: 'Location data not available' };
+  }
+  const city = snapshot.city;
+  const state = snapshot.state;
+  const lat = snapshot.lat;
+  const lng = snapshot.lng;
   const hour = snapshot?.hour ?? new Date().getHours();
-  const timezone = snapshot?.timezone || 'America/Chicago';
+  const timezone = snapshot?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   let date;
   if (snapshot?.local_iso) {
@@ -1382,11 +1392,21 @@ Return ONLY valid JSON array:
 }
 
 export async function fetchTrafficConditions({ snapshot }) {
-  const city = snapshot?.city || 'Unknown';
-  const state = snapshot?.state || 'Unknown';
-  const lat = snapshot?.lat;
-  const lng = snapshot?.lng;
-  const timezone = snapshot?.timezone || 'America/Chicago';
+  // Require valid location data - no fallbacks for global app
+  if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
+    briefingLog.warn(2, 'Missing location data in snapshot - cannot fetch traffic', OP.AI);
+    return {
+      summary: null,
+      incidents: [],
+      congestionLevel: null,
+      reason: 'Location data not available'
+    };
+  }
+  const city = snapshot.city;
+  const state = snapshot.state;
+  const lat = snapshot.lat;
+  const lng = snapshot.lng;
+  const timezone = snapshot.timezone;
 
   // Get current date in user's timezone
   let date;
@@ -1572,11 +1592,21 @@ CRITICAL: Include highDemandZones and repositioning.`;
  * @returns {Promise<Object>} Airport conditions data
  */
 async function fetchAirportConditions({ snapshot }) {
-  const city = snapshot?.city || 'Unknown';
-  const state = snapshot?.state || 'Unknown';
-  const timezone = snapshot?.timezone || 'America/Chicago';
-  const lat = snapshot?.lat;
-  const lng = snapshot?.lng;
+  // Require valid location data - no fallbacks for global app
+  if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
+    briefingLog.warn(2, 'Missing location data in snapshot - cannot fetch airport conditions', OP.AI);
+    return {
+      airports: [],
+      busyPeriods: [],
+      recommendations: null,
+      reason: 'Location data not available'
+    };
+  }
+  const city = snapshot.city;
+  const state = snapshot.state;
+  const timezone = snapshot.timezone;
+  const lat = snapshot.lat;
+  const lng = snapshot.lng;
 
   // Get current date in user's timezone
   let date;
@@ -1586,7 +1616,7 @@ async function fetchAirportConditions({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // Default fallback airport data
+  // Fallback for API failures (not missing data)
   const fallbackAirport = {
     airports: [],
     busyPeriods: [],
@@ -1611,19 +1641,19 @@ Find airports within 50 miles and report:
 2. Busy arrival/departure periods today
 3. Recommendations for rideshare drivers (best pickup spots, busy times)
 
-Return JSON:
+Return JSON (use actual airport codes and names for the location):
 {
   "airports": [
     {
-      "code": "DFW",
-      "name": "Dallas/Fort Worth International",
-      "delays": "Minor delays (15-30 min) on arrivals",
+      "code": "<IATA_CODE>",
+      "name": "<Full Airport Name>",
+      "delays": "<description of current delays>",
       "status": "normal" | "delays" | "severe_delays",
-      "busyTimes": ["6-8 AM", "5-7 PM"]
+      "busyTimes": ["<time range>", "<time range>"]
     }
   ],
-  "busyPeriods": ["Morning rush 6-9 AM", "Evening rush 4-8 PM"],
-  "recommendations": "Position near Terminal D for international arrivals after 2 PM"
+  "busyPeriods": ["<description of busy period>"],
+  "recommendations": "<driver tips for airport pickups>"
 }`;
 
     const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
@@ -1650,9 +1680,14 @@ Return JSON:
 }
 
 async function fetchRideshareNews({ snapshot }) {
-  const city = snapshot?.city || 'Frisco';
-  const state = snapshot?.state || 'TX';
-  const timezone = snapshot?.timezone || 'America/Chicago';
+  // Require valid location data - no hardcoded defaults for global app
+  if (!snapshot?.city || !snapshot?.state) {
+    briefingLog.warn(2, 'Missing city/state in snapshot - cannot fetch news', OP.AI);
+    return { items: [], reason: 'Location data not available' };
+  }
+  const city = snapshot.city;
+  const state = snapshot.state;
+  const timezone = snapshot?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   // Get current date in user's timezone
   let date;
@@ -1829,6 +1864,12 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     }
   }
 
+  // Require valid location data - no fallbacks for global app
+  if (!snapshot.city || !snapshot.state || !snapshot.timezone) {
+    console.error(`[BriefingService] ⚠️ Snapshot ${snapshotId} missing required location data (city/state/timezone)`);
+    return { success: false, error: 'Snapshot missing required location data' };
+  }
+
   briefingLog.start(`${snapshot.city}, ${snapshot.state} (${snapshotId.slice(0, 8)})`);
 
   const { city, state } = snapshot;
@@ -1863,7 +1904,8 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
     if (existingBriefings.length > 0) {
       const existing = existingBriefings[0].briefing; // Access briefing from join result
-      const userTimezone = snapshot.timezone || 'America/Chicago';
+      // NO FALLBACK - timezone is required and validated at entry
+      const userTimezone = snapshot.timezone;
 
       // Check if cached data actually has content (not just empty arrays)
       const newsItems = existing.news?.items || [];
@@ -2026,10 +2068,15 @@ export async function getBriefingBySnapshotId(snapshotId) {
  * Check if daily briefing is stale (different calendar day in user's timezone)
  * Daily briefing = news, closures, construction (refreshes at midnight)
  * @param {object} briefing - Briefing row from database
- * @param {string} timezone - User's timezone (e.g., 'America/Chicago')
+ * @param {string} timezone - User's IANA timezone (REQUIRED - no fallback)
  * @returns {boolean} True if briefing is from a different calendar day
  */
-function isDailyBriefingStale(briefing, timezone = 'America/Chicago') {
+function isDailyBriefingStale(briefing, timezone) {
+  // NO FALLBACK - timezone is required for accurate date comparison
+  if (!timezone) {
+    console.warn('[BriefingService] isDailyBriefingStale called without timezone - treating as stale');
+    return true;
+  }
   if (!briefing?.updated_at) return true;
 
   const updatedAt = new Date(briefing.updated_at);

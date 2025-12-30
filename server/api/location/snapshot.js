@@ -112,7 +112,16 @@ router.post("/", async (req, res) => {
     
     // Calculate "today" in the driver's local timezone (not server timezone)
     // This ensures Hawaii, Alaska, etc. get the correct date
-    const driverTimezone = timezone || 'America/Chicago';
+    // NO FALLBACK - timezone is required for accurate date calculation
+    if (!timezone) {
+      console.error('[snapshot] ❌ Cannot create snapshot: timezone is required');
+      return res.status(400).json({
+        ok: false,
+        error: 'timezone_required',
+        message: 'Timezone must be provided in snapshot data'
+      });
+    }
+    const driverTimezone = timezone;
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: driverTimezone,
       year: 'numeric',
@@ -173,15 +182,16 @@ router.post("/", async (req, res) => {
     if (lat && lng) {
       console.log(`[briefing] starting`, { snapshot_id, city, state });
       // Pass the full DB record (not individual fields) so all snapshot context is available
+      // fullSnapshot uses already-validated timezone (validated above)
       const fullSnapshot = {
         snapshot_id,
         lat,
         lng,
-        city: city || 'Unknown',
-        state: state || '',
-        country: country || 'US',
+        city: city || null,
+        state: state || null,
+        country: country || null,
         formatted_address: formatted_address || null,
-        timezone: timezone || 'America/Chicago',
+        timezone: timezone,  // NO FALLBACK - validated above
         date: today,
         hour: hour || null,
         dow: dow || null,

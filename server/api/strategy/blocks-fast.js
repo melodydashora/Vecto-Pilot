@@ -35,7 +35,7 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, rankings, ranking_candidates, strategies, triad_jobs, briefings } from '../../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { isStrategyReady, ensureStrategyRow, updatePhase } from '../../lib/strategy/strategy-utils.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { optionalAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
 import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
@@ -269,7 +269,7 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
 // GET endpoint - return existing blocks for a snapshot
 // STRATEGY-FIRST GATING: Returns 202 until strategy is ready
 // ISSUE #24 FIX: Rate limited to prevent quota exhaustion
-router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
+router.get('/', expensiveEndpointLimiter, optionalAuth, async (req, res) => {
   const snapshotId = req.query.snapshotId || req.query.snapshot_id;
   venuesLog.info(`[blocks-fast] GET request for ${snapshotId?.slice(0, 8) || 'unknown'}`);
 
@@ -359,7 +359,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   }
 });
 
-router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
+router.post('/', optionalAuth, expensiveEndpointLimiter, async (req, res) => {
   triadLog.start(`POST request for ${req.body?.snapshotId?.slice(0, 8) || 'unknown'}`);
 
   const wallClockStart = Date.now();

@@ -37,10 +37,20 @@ function calculateOpenStatus(place, timezone) {
   // Google provides openNow directly
   const is_open = hours.openNow ?? null;
 
-  // Get today's hours
+  // Get today's hours - NO FALLBACK, timezone required for accurate venue status
+  if (!timezone) {
+    barsLog.warn(`"${place.displayName?.text}" - Missing timezone, cannot determine today's hours`);
+    return {
+      is_open,
+      hours_today: null,
+      closing_soon: false,
+      minutes_until_close: null,
+      weekday_descriptions: hours.weekdayDescriptions || []
+    };
+  }
   const now = new Date();
   const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone || 'America/Chicago',
+    timeZone: timezone,
     weekday: 'long'
   });
   const todayName = formatter.format(now);
@@ -67,11 +77,11 @@ function calculateOpenStatus(place, timezone) {
   let closing_soon = false;
   let minutes_until_close = null;
 
-  // If we have periods, calculate closing time
-  if (hours.periods && is_open) {
+  // If we have periods, calculate closing time (only if timezone available)
+  if (hours.periods && is_open && timezone) {
     // Find current period
     const localFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone || 'America/Chicago',
+      timeZone: timezone,
       hour: '2-digit',
       minute: '2-digit',
       hour12: false

@@ -2,35 +2,1517 @@
 ================================================================================
 
 id:
-  "ab6927a3-0d1c-4ba3-a9dc-0b9657e9b81a"
+  "e641f0ca-c6b2-480c-b289-7ee5d2021d4e"
 
 snapshot_id:
-  "721a426e-e429-4cbf-80de-1b41c613b210"
+  "a9567586-9148-4aff-8e43-19d0b1a9bee7"
 
 news:
-  (null)
+  {
+  "items": [
+    {
+      "link": "https://www.txdot.gov",
+      "title": "Major Road Closures on I-35E and Dallas North Tollway",
+      "impact": "high",
+      "source": "Texas Department of Transportation",
+      "summary": "Significant nightly lane closures are scheduled for I-35E and the Dallas North Tollway in Frisco and surrounding areas through December 31, causing potential delays for rideshare trips."
+    },
+    {
+      "link": "https://www.cbsnews.com/texas/",
+      "title": "Driver Safety Alert Following Recent Frisco Incidents",
+      "impact": "medium",
+      "source": "CBS News Texas",
+      "summary": "Local drivers are urged to exercise caution following recent reports of assaults and safety incidents involving rideshare vehicles in the Frisco and North Texas area."
+    },
+    {
+      "link": "https://www.govtech.com",
+      "title": "Gig Economy Oversaturation Impacting Driver Earnings",
+      "impact": "medium",
+      "source": "GovTech / Industry Analysis",
+      "summary": "Reports indicate increased competition and lower per-hour earnings for Texas rideshare drivers in late 2025 due to a surge in new drivers entering the gig economy."
+    }
+  ],
+  "reason": null
+}
 
 weather_current:
-  (null)
+  {
+  "tempF": 39,
+  "conditions": "Sunny",
+  "description": "Sunny"
+}
 
 weather_forecast:
-  (null)
+  []
 
 traffic_conditions:
-  (null)
+  {
+  "jams": 20,
+  "stats": {
+    "jams": 20,
+    "major": 16,
+    "total": 100,
+    "closures": 54,
+    "highways": 54,
+    "accidents": 0,
+    "construction": 26
+  },
+  "summary": "Heavy congestion across the Frisco area with 100 total incidents including 54 road closures and 20 traffic jams. The worst delays are on FM-2170/S Watters Rd with a 4-minute major jam, TX-289C between W Pecan St and FM-455 adding 2 minutes, and the Lewisville-Flower Mound corridor backing up toward Lake Park Rd. Multiple road closures are impacting FM-720 access points and rural county roads to the east, so plan alternate routes around Little Elm and Prosper areas. Construction on US-380 between FM-2931 and US-377 may slow east-west travel through the northern corridor.",
+  "analyzed": true,
+  "briefing": "Heavy congestion across the Frisco area with 100 total incidents including 54 road closures and 20 traffic jams. The worst delays are on FM-2170/S Watters Rd with a 4-minute major jam, TX-289C between W Pecan St and FM-455 adding 2 minutes, and the Lewisville-Flower Mound corridor backing up toward Lake Park Rd. Multiple road closures are impacting FM-720 access points and rural county roads to the east, so plan alternate routes around Little Elm and Prosper areas. Construction on US-380 between FM-2931 and US-377 may slow east-west travel through the northern corridor.",
+  "closures": [
+    {
+      "road": "",
+      "location": "FM-1830 to Michael John Rd",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Lamar Hunt Way to FM-720",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "FM-720 to FM-720",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Timberidge Dr to FM-2478 / County Road 125",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "County Road 168 to FM-543",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "FM-543 to Private Road 5151",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Lewisville-Flower Mound to Mills Rd",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "US-377/US-380/E University Dr (Lakeview Blvd) to N Trinity Rd (Lakeview Blvd)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "US-377 S to Tisdell Ln",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "US-380 W to Paloma Creek Blvd",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "N Interstate 35E to US-77 S",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "FM-1385",
+      "location": "FM-455 (FM-1385) to FM-428 (Pilot Point) (FM-1385)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "US-380 E",
+      "location": "US-377 (US-380) to FM-2931 (US-380)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "US-380 E",
+      "location": "FM-2931 (US-380) to FM-1385 (US-380)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "US-380 E",
+      "location": "FM-1385 (US-380) to Gee Rd (US-380)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "US-380 E",
+      "location": "Doe Creek Rd to Hollyhock Rd",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "US-380 E",
+      "location": "Gee Rd (US-380) to Dallas Pkwy (US-380)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "President George Bush Tpke E to President George Bush Tpke / W President George Bush Hwy",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Bill Moses Pkwy to Valley View Ln",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Waterview Pkwy (Synergy Park Blvd) to N Floyd Rd (Synergy Park Blvd)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Limousine Pkwy to N Hardin Blvd",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "Edgewood Dr to College Park Blvd",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Kas Dr to E Collins Blvd",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "E Collins Blvd to E Arapaho Rd",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "N Cowan Ave to Benjamins Way",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "E Alan Ave to Ryan Ave / Faye St",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Ryan Ave / Faye St to Noble Ave",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Riverpass Dr to Settlers Creek Rd",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "W Jackson Rd to Thirty Five Oaks Mobile Home Park",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Whitlock Ln to W Jackson Rd",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Mill Creek Rd to Twin Post Rd",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "W Belt Line Rd to Cherrywood Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "KC Robinson Ln to S Coit Rd",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "W Campbell Rd to Lilac Ct",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Nantucket Dr to N Floyd Rd",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "W Spring Valley Rd to S Sherman St",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "S Coit Rd to County Road 127",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "E Campbell Rd to Digital Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Private Road 5151 to County Road 168",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "McLarry Dr to Wilmeth Rd",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Naaman School Rd / Berrywood Cir to Bluesage Ln",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Main St / N Hook St to Lakewood Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Pecan St to Ash St",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "S Oklahoma Dr / TX-289C to TX-289",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Lawnmeadow Dr to Nantucket Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Timberlake Cir to Nantucket Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Copper Ridge Dr to Nantucket Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Woodoak Dr to Woodcreek Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Central Expy N to N Allen Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "Phillips Dr / Enchanted Cir to Hazelwood Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
+      "location": "TX-5 to Country View Ln",
+      "severity": "low",
+      "isHighway": false
+    }
+  ],
+  "headline": "Heavy congestion across the Frisco area with 100 total incidents including 54 road closures and 20 traffic jams.",
+  "provider": "tomtom",
+  "fetchedAt": "2025-12-30T16:38:53.574Z",
+  "incidents": [
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-2170 / S Watters Rd to S Watters Rd",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-2170 / S Watters Rd to S Watters Rd",
+      "lengthMiles": 0.1,
+      "delayMinutes": 4
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "TX-289C / W Pecan St to FM-455",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: TX-289C / W Pecan St to FM-455",
+      "lengthMiles": 0.1,
+      "delayMinutes": 2
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Lewisville-Flower Mound to Lake Park Rd",
+      "priority": 151,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Lewisville-Flower Mound to Lake Park Rd",
+      "lengthMiles": 0,
+      "delayMinutes": 1
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "FM-1830 to Michael John Rd",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: FM-1830 to Michael John Rd",
+      "lengthMiles": 0.9,
+      "delayMinutes": 0
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
+      "lengthMiles": 0.2,
+      "delayMinutes": 0
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Lamar Hunt Way to FM-720",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Lamar Hunt Way to FM-720",
+      "lengthMiles": 0.2,
+      "delayMinutes": 0
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "FM-720 to FM-720",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: FM-720 to FM-720",
+      "lengthMiles": 0,
+      "delayMinutes": 0
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Timberidge Dr to FM-2478 / County Road 125",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Timberidge Dr to FM-2478 / County Road 125",
+      "lengthMiles": 0.3,
+      "delayMinutes": 0
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "County Road 168 to FM-543",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: County Road 168 to FM-543",
+      "lengthMiles": 2.7,
+      "delayMinutes": 0
+    }
+  ],
+  "keyIssues": [
+    "FM-2170/S Watters Rd - Major traffic jam causing 4-minute delays",
+    "TX-289C (Preston Road) - Major jam from W Pecan St to FM-455 with 2-minute delays",
+    "FM-720 corridor - Multiple road closures affecting Little Elm lake area access"
+  ],
+  "avoidAreas": [
+    "FM-2170/S Watters Rd intersection: Major jam with 4+ min delays",
+    "TX-289C between Pecan St and FM-455: Congestion adding delays",
+    "FM-720 near Little Elm: Multiple closures blocking through-traffic",
+    "Lewisville-Flower Mound to Lake Park Rd: Active jam"
+  ],
+  "safetyAlert": "20 active traffic jams in the area",
+  "driverImpact": "Expect 5-10 minute delays on pickups near Preston Road and S Watters Rd; avoid routing through Little Elm due to FM-720 closures, and use DNT or US-75 as primary north-south alternatives for faster trip completions.",
+  "surgePricing": true,
+  "closuresCount": 54,
+  "repositioning": null,
+  "incidentsCount": 100,
+  "totalIncidents": 100,
+  "closuresSummary": "9 road closures active, with heaviest impact on FM-720 (4 separate closure points near Little Elm), FM-543 corridor east of Prosper, and the Lewisville-Flower Mound area limiting lake access routes.",
+  "congestionLevel": "high",
+  "highDemandZones": [],
+  "constructionSummary": "3 major construction zones: US-380 between FM-2931 and US-377 affecting the main east-west artery, FM-407/Justin Rd in Flower Mound, and FM-1171/Cross Timbers Rd approaching I-35E."
+}
 
 events:
-  (null)
+  [
+  {
+    "title": "Christmas In The Square 2025 Choreographed Lightshow",
+    "venue": "Frisco Square",
+    "impact": "medium",
+    "source": "SerpAPI",
+    "address": "Frisco Square, 8843 Coleman Blvd, Frisco, TX",
+    "subtype": "other",
+    "summary": "Christmas In The Square 2025 Choreographed Lightshow • Frisco Square • 2025-12-30 • Tue, Dec 30, 6 – 9 PM",
+    "latitude": 33.150907,
+    "location": "Frisco Square, Frisco Square, 8843 Coleman Blvd, Frisco, TX",
+    "longitude": -96.8317501,
+    "event_date": "2025-12-30",
+    "event_time": "Tue, Dec 30, 6 – 9 PM",
+    "event_type": "other",
+    "event_end_time": null
+  },
+  {
+    "title": "Christmas in the Square",
+    "venue": "Frisco Square",
+    "impact": "high",
+    "source": "Gemini-2.5-Pro",
+    "address": "8843 Coleman Blvd, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Christmas in the Square • Frisco Square • 2025-12-30 • 06:00 PM",
+    "latitude": 33.150907,
+    "location": "Frisco Square, 8843 Coleman Blvd, Frisco, TX 75034",
+    "longitude": -96.8317501,
+    "event_date": "2025-12-30",
+    "event_time": "06:00 PM",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "Trivia Night at Grrrowler's",
+    "venue": "Grrrowler's Tap Room & Beer Garden",
+    "impact": "low",
+    "source": "Gemini-3-Pro",
+    "address": "5800 Windhaven Pkwy, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "Trivia Night at Grrrowler's • Grrrowler's Tap Room & Beer Garden • 2025-12-30 • 7:00 PM",
+    "latitude": 33.06,
+    "location": "Grrrowler's Tap Room & Beer Garden, 5800 Windhaven Pkwy, The Colony, TX 75056",
+    "longitude": -96.86,
+    "event_date": "2025-12-30",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Trivia Night at Parry's Pizzeria",
+    "venue": "Parry's Pizzeria & Taphouse",
+    "impact": "low",
+    "source": "Gemini-3-Pro",
+    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "Trivia Night at Parry's Pizzeria • Parry's Pizzeria & Taphouse • 2025-12-30 • 7:30 PM",
+    "latitude": 33.0772,
+    "location": "Parry's Pizzeria & Taphouse, 5752 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8603,
+    "event_date": "2025-12-30",
+    "event_time": "7:30 PM",
+    "event_type": "nightlife",
+    "event_end_time": "9:30 PM"
+  },
+  {
+    "title": "Lights All Night Dance Festival",
+    "venue": "Dallas Market Hall",
+    "impact": "high",
+    "source": "Claude",
+    "address": "2200 Stemmons Freeway, Dallas, TX 75207",
+    "subtype": "festival",
+    "summary": "Lights All Night Dance Festival • Dallas Market Hall • 2025-12-30 • 5:00 PM",
+    "latitude": 32.7873,
+    "location": "Dallas Market Hall, 2200 Stemmons Freeway, Dallas, TX 75207",
+    "longitude": -96.8353,
+    "event_date": "2025-12-30",
+    "event_time": "5:00 PM",
+    "event_type": "festival",
+    "event_end_time": "3:00 AM"
+  },
+  {
+    "title": "Ghostland Observatory",
+    "venue": "The Echo Lounge & Music Hall",
+    "impact": "medium",
+    "source": "Claude",
+    "address": "2620 Commerce St, Dallas, TX 75226",
+    "subtype": "concert",
+    "summary": "Ghostland Observatory • The Echo Lounge & Music Hall • 2025-12-30 • 8:00 PM",
+    "latitude": 32.7793,
+    "location": "The Echo Lounge & Music Hall, 2620 Commerce St, Dallas, TX 75226",
+    "longitude": -96.7803,
+    "event_date": "2025-12-30",
+    "event_time": "8:00 PM",
+    "event_type": "concert",
+    "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "Mau P",
+    "venue": "SILO Dallas",
+    "impact": "high",
+    "source": "Claude",
+    "address": "1340 Manufacturing St, Dallas, TX 75207",
+    "subtype": "concert",
+    "summary": "Mau P • SILO Dallas • 2025-12-30 • 9:00 PM",
+    "latitude": 32.7853,
+    "location": "SILO Dallas, 1340 Manufacturing St, Dallas, TX 75207",
+    "longitude": -96.7872,
+    "event_date": "2025-12-30",
+    "event_time": "9:00 PM",
+    "event_type": "concert",
+    "event_end_time": "1:00 AM"
+  },
+  {
+    "title": "Family Story Time",
+    "venue": "Frisco Public Library",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "8000 Dallas Pkwy, Frisco, TX 75034",
+    "subtype": "civic",
+    "summary": "Family Story Time • Frisco Public Library • 2025-12-30 • 10:00 AM",
+    "latitude": 33.1507,
+    "location": "Frisco Public Library, 8000 Dallas Pkwy, Frisco, TX 75034",
+    "longitude": -96.8268,
+    "event_date": "2025-12-30",
+    "event_time": "10:00 AM",
+    "event_type": "civic",
+    "event_end_time": "10:30 AM"
+  },
+  {
+    "title": "Music Bingo & Street Taco Tuesday",
+    "venue": "The Revel Patio Grill",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "9305 Preston Rd, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Music Bingo & Street Taco Tuesday • The Revel Patio Grill • 2025-12-30 • 7:00 PM",
+    "latitude": 33.1504,
+    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
+    "longitude": -96.8052,
+    "event_date": "2025-12-30",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "The Light Park",
+    "venue": "Little Elm Park",
+    "impact": "high",
+    "source": "Gemini-3-Pro",
+    "address": "701 W Eldorado Pkwy, Little Elm, TX 75068",
+    "subtype": "festival",
+    "summary": "The Light Park • Little Elm Park • 2025-12-30 • 5:30 PM",
+    "latitude": 33.1623,
+    "location": "Little Elm Park, 701 W Eldorado Pkwy, Little Elm, TX 75068",
+    "longitude": -96.9375,
+    "event_date": "2025-12-30",
+    "event_time": "5:30 PM",
+    "event_type": "festival",
+    "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "The Light Park",
+    "venue": "Riders Field",
+    "impact": "high",
+    "source": "Gemini-3-Pro",
+    "address": "7300 RoughRiders Trail, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "The Light Park • Riders Field • 2025-12-30 • 5:30 PM",
+    "latitude": 33.1178,
+    "location": "Riders Field, 7300 RoughRiders Trail, Frisco, TX 75034",
+    "longitude": -96.8217,
+    "event_date": "2025-12-30",
+    "event_time": "5:30 PM",
+    "event_type": "festival",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Blitzen's Bar at Lounge by Topgolf",
+    "venue": "Lounge by Topgolf (Omni PGA Frisco Resort)",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "4341 PGA Pkwy, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Blitzen's Bar at Lounge by Topgolf • Lounge by Topgolf (Omni PGA Frisco Resort) • 2025-12-30 • 4:00 PM",
+    "latitude": 33.195,
+    "location": "Lounge by Topgolf (Omni PGA Frisco Resort), 4341 PGA Pkwy, Frisco, TX 75033",
+    "longitude": -96.84,
+    "event_date": "2025-12-30",
+    "event_time": "4:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "Twist Kids! White Song Birds (Kids Painting Class)",
+    "venue": "Painting with a Twist (Frisco)",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "4112 Legacy Dr Ste 306, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "Twist Kids! White Song Birds (Kids Painting Class) • Painting with a Twist (Frisco) • 2025-12-30 • 2:00 PM",
+    "latitude": 33.1089,
+    "location": "Painting with a Twist (Frisco), 4112 Legacy Dr Ste 306, Frisco, TX 75034",
+    "longitude": -96.8303,
+    "event_date": "2025-12-30",
+    "event_time": "2:00 PM",
+    "event_type": "other",
+    "event_end_time": "3:30 PM"
+  },
+  {
+    "title": "Christmas in the Square (Nightly Lights & Music Show + Skate the Square)",
+    "venue": "Frisco Square",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "8874 Coleman Blvd, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Christmas in the Square (Nightly Lights & Music Show + Skate the Square) • Frisco Square • 2025-12-30 • 6:00 PM",
+    "latitude": 33.1509,
+    "location": "Frisco Square, 8874 Coleman Blvd, Frisco, TX 75034",
+    "longitude": -96.8216,
+    "event_date": "2025-12-30",
+    "event_time": "6:00 PM",
+    "event_type": "festival",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Winter Wonderland (Holiday Public Skating Season)",
+    "venue": "Comerica Center / Children's Health StarCenter Frisco",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "2601 Avenue of the Stars, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Winter Wonderland (Holiday Public Skating Season) • Comerica Center / Children's Health StarCenter Frisco • 2025-12-30",
+    "latitude": 33.1005,
+    "location": "Comerica Center / Children's Health StarCenter Frisco, 2601 Avenue of the Stars, Frisco, TX 75034",
+    "longitude": -96.8186,
+    "event_date": "2025-12-30",
+    "event_time": null,
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "Winter Wonderland Igloo Experience (By Reservation Only)",
+    "venue": "Stonebriar Country Club",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "5050 Country Club Dr, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Winter Wonderland Igloo Experience (By Reservation Only) • Stonebriar Country Club • 2025-12-30 • 10:00 AM",
+    "latitude": 33.099278,
+    "location": "Stonebriar Country Club, 5050 Country Club Dr, Frisco, TX 75034",
+    "longitude": -96.84424,
+    "event_date": "2025-12-30",
+    "event_time": "10:00 AM",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "Music Bingo Night",
+    "venue": "Sidecar Social Frisco",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "6770 Winning Dr, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "Music Bingo Night • Sidecar Social Frisco • 2025-12-30 • 7:00 PM",
+    "latitude": 33.111,
+    "location": "Sidecar Social Frisco, 6770 Winning Dr, Frisco, TX 75034",
+    "longitude": -96.828,
+    "event_date": "2025-12-30",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Winter Highland Calf (Painting Class)",
+    "venue": "Painting with a Twist (Frisco)",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "4112 Legacy Dr Ste 306, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "Winter Highland Calf (Painting Class) • Painting with a Twist (Frisco) • 2025-12-30 • 6:00 PM",
+    "latitude": 33.1089,
+    "location": "Painting with a Twist (Frisco), 4112 Legacy Dr Ste 306, Frisco, TX 75034",
+    "longitude": -96.8303,
+    "event_date": "2025-12-30",
+    "event_time": "6:00 PM",
+    "event_type": "other",
+    "event_end_time": "8:00 PM"
+  },
+  {
+    "title": "Snow Globe Experience (Recurring Daily)",
+    "venue": "The Westin Stonebriar Golf Resort & Spa",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "1549 Legacy Dr, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Snow Globe Experience (Recurring Daily) • The Westin Stonebriar Golf Resort & Spa • 2025-12-30 • Time varies",
+    "latitude": 33.10594,
+    "location": "The Westin Stonebriar Golf Resort & Spa, 1549 Legacy Dr, Frisco, TX 75034",
+    "longitude": -96.82486,
+    "event_date": "2025-12-30",
+    "event_time": "Time varies",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "The Colony Christmas Spectacular",
+    "venue": "Central Fire Station",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "4900 Blair Oaks Dr, The Colony, TX 75056",
+    "subtype": "festival",
+    "summary": "The Colony Christmas Spectacular • Central Fire Station • 2025-12-30 • 5:30 PM",
+    "latitude": 33.0882,
+    "location": "Central Fire Station, 4900 Blair Oaks Dr, The Colony, TX 75056",
+    "longitude": -96.8974,
+    "event_date": "2025-12-30",
+    "event_time": "5:30 PM",
+    "event_type": "festival",
+    "event_end_time": "10:30 PM"
+  },
+  {
+    "title": "Winter Art Show & Boreal: An Indoor Forest",
+    "venue": "Frisco Art Gallery (Frisco Discovery Center)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "8004 Dallas Pkwy #200, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Winter Art Show & Boreal: An Indoor Forest • Frisco Art Gallery (Frisco Discovery Center) • 2025-12-30 • 10:00 AM",
+    "latitude": 33.149555,
+    "location": "Frisco Art Gallery (Frisco Discovery Center), 8004 Dallas Pkwy #200, Frisco, TX 75034",
+    "longitude": -96.82714,
+    "event_date": "2025-12-30",
+    "event_time": "10:00 AM",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "Legacy North Pole Holiday Experience",
+    "venue": "Legacy West",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "7501 Windrose Ave, Plano, TX 75024",
+    "subtype": "festival",
+    "summary": "Legacy North Pole Holiday Experience • Legacy West • 2025-12-30 • 10:00 AM",
+    "latitude": 33.0823,
+    "location": "Legacy West, 7501 Windrose Ave, Plano, TX 75024",
+    "longitude": -96.8256,
+    "event_date": "2025-12-30",
+    "event_time": "10:00 AM",
+    "event_type": "festival",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Winter Art Show & Boreal: An Indoor Forest (daily exhibit)",
+    "venue": "Frisco Art Gallery (Frisco Discovery Center)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "8004 Dallas Pkwy #200, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Winter Art Show & Boreal: An Indoor Forest (daily exhibit) • Frisco Art Gallery (Frisco Discovery Center) • 2025-12-30 • 10:00 AM",
+    "latitude": 33.1046,
+    "location": "Frisco Art Gallery (Frisco Discovery Center), 8004 Dallas Pkwy #200, Frisco, TX 75034",
+    "longitude": -96.8283,
+    "event_date": "2025-12-30",
+    "event_time": "10:00 AM",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "Eddie V's - The V Lounge | Live Music | December",
+    "venue": "Eddie V's Prime Seafood (The V Lounge)",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "5300 State Hwy 121, Plano, TX 75024",
+    "subtype": "concert",
+    "summary": "Eddie V's - The V Lounge | Live Music | December • Eddie V's Prime Seafood (The V Lounge) • 2025-12-30 • 6:30 PM",
+    "latitude": 33.07,
+    "location": "Eddie V's Prime Seafood (The V Lounge), 5300 State Hwy 121, Plano, TX 75024",
+    "longitude": -96.823,
+    "event_date": "2025-12-30",
+    "event_time": "6:30 PM",
+    "event_type": "concert",
+    "event_end_time": "9:30 PM"
+  },
+  {
+    "title": "Deerfield Holiday Lights 2025",
+    "venue": "Deerfield Subdivision (Legacy Dr at Archgate Dr)",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "Legacy Dr & Archgate Dr, Plano, TX 75023",
+    "subtype": "festival",
+    "summary": "Deerfield Holiday Lights 2025 • Deerfield Subdivision (Legacy Dr at Archgate Dr) • 2025-12-30 • 7:00 PM",
+    "latitude": 33.0566,
+    "location": "Deerfield Subdivision (Legacy Dr at Archgate Dr), Legacy Dr & Archgate Dr, Plano, TX 75023",
+    "longitude": -96.7452,
+    "event_date": "2025-12-30",
+    "event_time": "7:00 PM",
+    "event_type": "festival",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Tuesday Trivia Night (Weekly Trivia)",
+    "venue": "The Elwood B.F.D.",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "7550 State Hwy 121, McKinney, TX 75070",
+    "subtype": "nightlife",
+    "summary": "Tuesday Trivia Night (Weekly Trivia) • The Elwood B.F.D. • 2025-12-30 • 8:00 PM",
+    "latitude": 33.1206,
+    "location": "The Elwood B.F.D., 7550 State Hwy 121, McKinney, TX 75070",
+    "longitude": -96.8186,
+    "event_date": "2025-12-30",
+    "event_time": "8:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": null
+  },
+  {
+    "title": "SLEIGH BAR: HOLIDAY POP UP LOUNGE",
+    "venue": "Mic Drop Comedy Plano (Lounge)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "7301 Lone Star Dr, Suite A-110, Plano, TX 75024",
+    "subtype": "nightlife",
+    "summary": "SLEIGH BAR: HOLIDAY POP UP LOUNGE • Mic Drop Comedy Plano (Lounge) • 2025-12-30 • 4:00 PM",
+    "latitude": 33.0819,
+    "location": "Mic Drop Comedy Plano (Lounge), 7301 Lone Star Dr, Suite A-110, Plano, TX 75024",
+    "longitude": -96.8276,
+    "event_date": "2025-12-30",
+    "event_time": "4:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Music Bingo at Sidecar Social",
+    "venue": "Sidecar Social (The Star District)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "6770 Winning Dr, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "Music Bingo at Sidecar Social • Sidecar Social (The Star District) • 2025-12-30 • 7:00 PM",
+    "latitude": 33.1099,
+    "location": "Sidecar Social (The Star District), 6770 Winning Dr, Frisco, TX 75034",
+    "longitude": -96.8299,
+    "event_date": "2025-12-30",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "TGI-Tuesday with Paul Varghese (Comedy Showcase)",
+    "venue": "Mic Drop Comedy Plano",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "7301 Lone Star Dr Suite A120, Plano, TX 75024",
+    "subtype": "theater",
+    "summary": "TGI-Tuesday with Paul Varghese (Comedy Showcase) • Mic Drop Comedy Plano • 2025-12-30 • 7:30 PM",
+    "latitude": 33.0796,
+    "location": "Mic Drop Comedy Plano, 7301 Lone Star Dr Suite A120, Plano, TX 75024",
+    "longitude": -96.8239,
+    "event_date": "2025-12-30",
+    "event_time": "7:30 PM",
+    "event_type": "theater",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Colorful Christmas (Seasonal Event)",
+    "venue": "Crayola Experience Plano",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "6121 W Park Blvd, Plano, TX 75093",
+    "subtype": "festival",
+    "summary": "Colorful Christmas (Seasonal Event) • Crayola Experience Plano • 2025-12-30 • 10:00 AM",
+    "latitude": 33.0288,
+    "location": "Crayola Experience Plano, 6121 W Park Blvd, Plano, TX 75093",
+    "longitude": -96.8274,
+    "event_date": "2025-12-30",
+    "event_time": "10:00 AM",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "Santa’s Last Stop at Truck Yard (Holiday pop-up)",
+    "venue": "Truck Yard (Grandscape)",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "5959 Grove Ln, The Colony, TX 75056",
+    "subtype": "festival",
+    "summary": "Santa’s Last Stop at Truck Yard (Holiday pop-up) • Truck Yard (Grandscape) • 2025-12-30 • All day",
+    "latitude": 33.0816,
+    "location": "Truck Yard (Grandscape), 5959 Grove Ln, The Colony, TX 75056",
+    "longitude": -96.8213,
+    "event_date": "2025-12-30",
+    "event_time": "All day",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "Holiday Lights at Frisco Square",
+    "venue": "Frisco Square",
+    "impact": "medium",
+    "source": "Gemini-2.5-Pro",
+    "address": "Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Holiday Lights at Frisco Square • Frisco Square • 2025-12-30 • 6:00 PM",
+    "latitude": 33.150907,
+    "location": "Frisco Square, Frisco, TX 75034",
+    "longitude": -96.8317501,
+    "event_date": "2025-12-30",
+    "event_time": "6:00 PM",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "The Light Park at Riders Field",
+    "venue": "Riders Field",
+    "impact": "high",
+    "source": "Perplexity-Reasoning",
+    "address": "7300 RoughRiders Drive, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "The Light Park at Riders Field • Riders Field • 2025-12-30 • 5:30 PM",
+    "latitude": 33.1987,
+    "location": "Riders Field, 7300 RoughRiders Drive, Frisco, TX 75034",
+    "longitude": -96.8277,
+    "event_date": "2025-12-30",
+    "event_time": "5:30 PM",
+    "event_type": "festival",
+    "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "Miracle at Puttery (Christmas Pop-Up Cocktail Bar)",
+    "venue": "Puttery (Grandscape)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "5762 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "Miracle at Puttery (Christmas Pop-Up Cocktail Bar) • Puttery (Grandscape) • 2025-12-30 • All day",
+    "latitude": 33.0829,
+    "location": "Puttery (Grandscape), 5762 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8197,
+    "event_date": "2025-12-30",
+    "event_time": "All day",
+    "event_type": "nightlife",
+    "event_end_time": null
+  },
+  {
+    "title": "DIAMONDS AND PEARLS: A NEW YEAR’S EVE AFFAIR",
+    "venue": "HALL Park Hotel, Autograph Collection",
+    "impact": "medium",
+    "source": "SerpAPI",
+    "address": "HALL Park Hotel, Autograph Collection, 3220 Internet Blvd, Frisco, TX",
+    "subtype": "festival",
+    "summary": "DIAMONDS AND PEARLS: A NEW YEAR’S EVE AFFAIR • HALL Park Hotel, Autograph Collection • 2025-12-30 • Dec 31, 2025, 9 PM – Jan 1, 2026, 1 AM CST",
+    "latitude": 33.1053121,
+    "location": "HALL Park Hotel, Autograph Collection, HALL Park Hotel, Autograph Collection, 3220 Internet Blvd, Frisco, TX",
+    "longitude": -96.8287754,
+    "event_date": "2025-12-30",
+    "event_time": "Dec 31, 2025, 9 PM – Jan 1, 2026, 1 AM CST",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "Dinosaurs Live! (Seasonal Exhibit - Open Daily During Museum Hours)",
+    "venue": "Heard Natural Science Museum & Wildlife Sanctuary",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "1 Nature Pl, McKinney, TX 75069",
+    "subtype": "festival",
+    "summary": "Dinosaurs Live! (Seasonal Exhibit - Open Daily During Museum Hours) • Heard Natural Science Museum & Wildlife Sanctuary • 2025-12-30 • Time varies",
+    "latitude": 33.2329,
+    "location": "Heard Natural Science Museum & Wildlife Sanctuary, 1 Nature Pl, McKinney, TX 75069",
+    "longitude": -96.6299,
+    "event_date": "2025-12-30",
+    "event_time": "Time varies",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "New Year's Eve Celebration at Pete's Piano Bar - RING IN 2026",
+    "venue": "Pete's Dueling Piano Bar",
+    "impact": "high",
+    "source": "Gemini-2.5-Pro",
+    "address": "6765 Winning Dr #810, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "New Year's Eve Celebration at Pete's Piano Bar - RING IN 2026 • Pete's Dueling Piano Bar • 2025-12-31 • 07:00 PM",
+    "latitude": 33.1073272,
+    "location": "Pete's Dueling Piano Bar, 6765 Winning Dr #810, Frisco, TX 75034",
+    "longitude": -96.8275077,
+    "event_date": "2025-12-31",
+    "event_time": "07:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": null
+  },
+  {
+    "title": "Christmas in the Square",
+    "venue": "Frisco Square",
+    "impact": "high",
+    "source": "Gemini-2.5-Pro",
+    "address": "8843 Coleman Blvd, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Christmas in the Square • Frisco Square • 2025-12-31 • 06:00 PM",
+    "latitude": 33.150907,
+    "location": "Frisco Square, 8843 Coleman Blvd, Frisco, TX 75034",
+    "longitude": -96.8317501,
+    "event_date": "2025-12-31",
+    "event_time": "06:00 PM",
+    "event_type": "festival",
+    "event_end_time": null
+  },
+  {
+    "title": "2026 NYE BASH! Live 80 Ultimate 80s Party & GNR Trib. - Appetite For GNR",
+    "venue": "The Revel",
+    "impact": "medium",
+    "source": "Gemini-2.5-Pro",
+    "address": "9305 Preston Rd, Frisco, TX 75033",
+    "subtype": "concert",
+    "summary": "2026 NYE BASH! Live 80 Ultimate 80s Party & GNR Trib. - Appetite For GNR • The Revel • 2025-12-31 • 07:00 PM",
+    "latitude": 33.1552065,
+    "location": "The Revel, 9305 Preston Rd, Frisco, TX 75033",
+    "longitude": -96.8044103,
+    "event_date": "2025-12-31",
+    "event_time": "07:00 PM",
+    "event_type": "concert",
+    "event_end_time": null
+  },
+  {
+    "title": "Lights All Night Dance Festival",
+    "venue": "Dallas Market Hall",
+    "impact": "high",
+    "source": "Claude",
+    "address": "2200 Stemmons Freeway, Dallas, TX 75207",
+    "subtype": "festival",
+    "summary": "Lights All Night Dance Festival • Dallas Market Hall • 2025-12-31 • 5:00 PM",
+    "latitude": 32.7873,
+    "location": "Dallas Market Hall, 2200 Stemmons Freeway, Dallas, TX 75207",
+    "longitude": -96.8353,
+    "event_date": "2025-12-31",
+    "event_time": "5:00 PM",
+    "event_type": "festival",
+    "event_end_time": "3:00 AM"
+  },
+  {
+    "title": "Rhinestone Rodeo New Year's Eve Celebration",
+    "venue": "Legacy Hall",
+    "impact": "high",
+    "source": "Gemini-3-Pro",
+    "address": "7800 Windrose Ave, Plano, TX 75024",
+    "subtype": "nightlife",
+    "summary": "Rhinestone Rodeo New Year's Eve Celebration • Legacy Hall • 2025-12-31 • 8:00 PM",
+    "latitude": 33.0832,
+    "location": "Legacy Hall, 7800 Windrose Ave, Plano, TX 75024",
+    "longitude": -96.8259,
+    "event_date": "2025-12-31",
+    "event_time": "8:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "1:00 AM"
+  },
+  {
+    "title": "Pete's Dueling Piano Bar NYE Celebration",
+    "venue": "Pete's Dueling Piano Bar",
+    "impact": "high",
+    "source": "Gemini-3-Pro",
+    "address": "6765 Winning Dr #810, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "Pete's Dueling Piano Bar NYE Celebration • Pete's Dueling Piano Bar • 2025-12-31 • 8:00 PM",
+    "latitude": 33.1106,
+    "location": "Pete's Dueling Piano Bar, 6765 Winning Dr #810, Frisco, TX 75034",
+    "longitude": -96.8284,
+    "event_date": "2025-12-31",
+    "event_time": "8:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "2:00 AM"
+  },
+  {
+    "title": "Parker McCollum Tour",
+    "venue": "Dickies Arena",
+    "impact": "high",
+    "source": "Claude",
+    "address": "1911 Montgomery St, Fort Worth, TX 76107",
+    "subtype": "concert",
+    "summary": "Parker McCollum Tour • Dickies Arena • 2025-12-31 • 8:30 PM",
+    "latitude": 32.7473,
+    "location": "Dickies Arena, 1911 Montgomery St, Fort Worth, TX 76107",
+    "longitude": -97.364,
+    "event_date": "2025-12-31",
+    "event_time": "8:30 PM",
+    "event_type": "concert",
+    "event_end_time": "11:30 PM"
+  },
+  {
+    "title": "Levity B2B Hamdi",
+    "venue": "SILO Dallas",
+    "impact": "high",
+    "source": "Claude",
+    "address": "1340 Manufacturing St, Dallas, TX 75207",
+    "subtype": "concert",
+    "summary": "Levity B2B Hamdi • SILO Dallas • 2025-12-31 • 9:00 PM",
+    "latitude": 32.7853,
+    "location": "SILO Dallas, 1340 Manufacturing St, Dallas, TX 75207",
+    "longitude": -96.7872,
+    "event_date": "2025-12-31",
+    "event_time": "9:00 PM",
+    "event_type": "concert",
+    "event_end_time": "2:00 AM"
+  },
+  {
+    "title": "NYE at JAKO Cocina y Agave",
+    "venue": "JAKO Cocina y Agave",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "5754 Grandscape Blvd Suite 110, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "NYE at JAKO Cocina y Agave • JAKO Cocina y Agave • 2025-12-31 • 9:00 PM",
+    "latitude": 33.0772,
+    "location": "JAKO Cocina y Agave, 5754 Grandscape Blvd Suite 110, The Colony, TX 75056",
+    "longitude": -96.8603,
+    "event_date": "2025-12-31",
+    "event_time": "9:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "1:00 AM"
+  },
+  {
+    "title": "New Year’s Eve at Omni PGA Frisco Resort & Spa (Rockestra Duo at The Lookout Lounge & Bar)",
+    "venue": "Omni PGA Frisco Resort & Spa (The Lookout Lounge & Bar)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "4341 PGA Pkwy, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "New Year’s Eve at Omni PGA Frisco Resort & Spa (Rockestra Duo at The Lookout Lounge & Bar) • Omni PGA Frisco Resort & Spa (The Lookout Lounge & Bar) • 2025-12-31 • 10:00 PM",
+    "latitude": 33.1009,
+    "location": "Omni PGA Frisco Resort & Spa (The Lookout Lounge & Bar), 4341 PGA Pkwy, Frisco, TX 75033",
+    "longitude": -96.8237,
+    "event_date": "2025-12-31",
+    "event_time": "10:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "1:00 AM"
+  },
+  {
+    "title": "New Year's Eve at Pete's",
+    "venue": "Pete's Dueling Piano Bar",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "6765 Winning Dr #810, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "New Year's Eve at Pete's • Pete's Dueling Piano Bar • 2025-12-31 • 7:00 PM",
+    "latitude": 33.1086,
+    "location": "Pete's Dueling Piano Bar, 6765 Winning Dr #810, Frisco, TX 75034",
+    "longitude": -96.8266,
+    "event_date": "2025-12-31",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "2:00 AM"
+  },
+  {
+    "title": "New Year Eve Gala 2026",
+    "venue": "Frisco Hall",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "5353 Independence Pkwy, Frisco, TX 75035",
+    "subtype": "nightlife",
+    "summary": "New Year Eve Gala 2026 • Frisco Hall • 2025-12-31 • 8:00 PM",
+    "latitude": 33.123,
+    "location": "Frisco Hall, 5353 Independence Pkwy, Frisco, TX 75035",
+    "longitude": -96.75,
+    "event_date": "2025-12-31",
+    "event_time": "8:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "1:00 AM"
+  },
+  {
+    "title": "NEW BEGINNINGS 2026 BOLLYWOOD NYE PARTY",
+    "venue": "Prism Bar & Grill",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "6377 Custer Rd, Frisco, TX 75035",
+    "subtype": "nightlife",
+    "summary": "NEW BEGINNINGS 2026 BOLLYWOOD NYE PARTY • Prism Bar & Grill • 2025-12-31 • 9:30 PM",
+    "latitude": 33.13,
+    "location": "Prism Bar & Grill, 6377 Custer Rd, Frisco, TX 75035",
+    "longitude": -96.73,
+    "event_date": "2025-12-31",
+    "event_time": "9:30 PM",
+    "event_type": "nightlife",
+    "event_end_time": "2:00 AM"
+  },
+  {
+    "title": "Music Bingo at Parry's Pizzeria",
+    "venue": "Parry's Pizzeria & Taphouse",
+    "impact": "low",
+    "source": "Gemini-3-Pro",
+    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "Music Bingo at Parry's Pizzeria • Parry's Pizzeria & Taphouse • 2025-12-31 • 7:00 PM",
+    "latitude": 33.0772,
+    "location": "Parry's Pizzeria & Taphouse, 5752 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8603,
+    "event_date": "2025-12-31",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "9:00 PM"
+  }
+]
 
 school_closures:
-  (null)
+  [
+  {
+    "type": "district",
+    "impact": "high",
+    "reason": "Winter Break & Staff Development",
+    "schoolName": "Frisco ISD",
+    "closureStart": "2025-12-22",
+    "reopeningDate": "2026-01-06"
+  },
+  {
+    "type": "district",
+    "impact": "low",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "Frisco ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  },
+  {
+    "type": "district",
+    "impact": "high",
+    "reason": "Winter Break & Professional Learning",
+    "schoolName": "Prosper ISD",
+    "closureStart": "2025-12-22",
+    "reopeningDate": "2026-01-06"
+  },
+  {
+    "type": "district",
+    "impact": "low",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "Prosper ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  },
+  {
+    "type": "district",
+    "impact": "high",
+    "reason": "Winter Break & Staff Development",
+    "schoolName": "Little Elm ISD",
+    "closureStart": "2025-12-22",
+    "reopeningDate": "2026-01-07"
+  },
+  {
+    "type": "district",
+    "impact": "low",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "Little Elm ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  },
+  {
+    "type": "district",
+    "impact": "high",
+    "reason": "Winter Break & Staff Day",
+    "schoolName": "Lewisville ISD",
+    "closureStart": "2025-12-22",
+    "reopeningDate": "2026-01-06"
+  },
+  {
+    "type": "district",
+    "impact": "low",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "Lewisville ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  },
+  {
+    "type": "district",
+    "impact": "high",
+    "reason": "Winter Break & Staff Day",
+    "schoolName": "Plano ISD",
+    "closureStart": "2025-12-22",
+    "reopeningDate": "2026-01-06"
+  },
+  {
+    "type": "district",
+    "impact": "low",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "Plano ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  },
+  {
+    "type": "district",
+    "impact": "high",
+    "reason": "Winter Break & Staff Development",
+    "schoolName": "Allen ISD",
+    "closureStart": "2025-12-22",
+    "reopeningDate": "2026-01-06"
+  },
+  {
+    "type": "district",
+    "impact": "low",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "Allen ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  },
+  {
+    "type": "district",
+    "impact": "high",
+    "reason": "Winter Break & Staff Development",
+    "schoolName": "McKinney ISD",
+    "closureStart": "2025-12-22",
+    "reopeningDate": "2026-01-06"
+  },
+  {
+    "type": "district",
+    "impact": "low",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "McKinney ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  },
+  {
+    "type": "college",
+    "impact": "high",
+    "reason": "Winter Break (Campuses Closed)",
+    "schoolName": "Collin College",
+    "closureStart": "2025-12-24",
+    "reopeningDate": "2026-01-05"
+  },
+  {
+    "type": "college",
+    "impact": "low",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "Collin College",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  },
+  {
+    "type": "college",
+    "impact": "high",
+    "reason": "Winter Break (University Closed)",
+    "schoolName": "University of North Texas (Frisco)",
+    "closureStart": "2025-12-24",
+    "reopeningDate": "2026-01-05"
+  },
+  {
+    "type": "college",
+    "impact": "low",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "University of North Texas (Frisco)",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  }
+]
 
 airport_conditions:
-  (null)
+  {
+  "airports": [
+    {
+      "code": "DFW",
+      "name": "Dallas/Fort Worth International Airport",
+      "delays": "Moderate delays; Gate hold and taxi delays ~15 minutes, arrival delays ~15 minutes.",
+      "status": "delays",
+      "busyTimes": [
+        "05:00 AM - 08:00 AM",
+        "04:00 PM - 07:00 PM"
+      ]
+    },
+    {
+      "code": "DAL",
+      "name": "Dallas Love Field",
+      "delays": "Major departure delays (31-45 minutes and increasing) due to traffic management initiatives.",
+      "status": "severe_delays",
+      "busyTimes": [
+        "05:00 AM - 08:00 AM",
+        "03:00 PM - 07:00 PM"
+      ]
+    }
+  ],
+  "provider": "gemini",
+  "fetchedAt": "2025-12-30T16:39:37.452Z",
+  "busyPeriods": [
+    "Morning rush (completed)",
+    "Upcoming evening peak: 3:00 PM - 7:00 PM"
+  ],
+  "recommendations": "At DFW, drivers should wait in the Terminal A staging lot and pick up passengers at the lower-level 'Arrivals' curbside in designated TNC zones. At DAL, pickups are located at Garage C, Level 1 (Valet Pavilion); drivers must use the designated TNC holding lot. Due to severe delays at DAL, expect irregular demand and potential surge pricing."
+}
 
 created_at:
-  "2025-12-27T20:37:23.937Z"
+  "Tue Dec 30 2025 16:38:53 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "2025-12-27T20:37:23.937Z"
+  "Tue Dec 30 2025 16:39:37 GMT+0000 (Coordinated Universal Time)"
 

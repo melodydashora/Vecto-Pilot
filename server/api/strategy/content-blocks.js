@@ -30,7 +30,7 @@ import {
   briefings,
 } from "../../../shared/schema.js";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "../../middleware/auth.js";
+import { optionalAuth } from "../../middleware/auth.js";
 import { PHASE_EXPECTED_DURATIONS, updatePhase } from "../../lib/strategy/strategy-utils.js";
 
 export const router = Router();
@@ -50,7 +50,7 @@ export const router = Router();
  * @param {string} snapshotId - UUID of the snapshot
  * @returns {Object} { status, snapshot_id, timeElapsedMs, strategy?, blocks?, ranking_id? }
  */
-router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
+router.get("/strategy/:snapshotId", optionalAuth, async (req, res) => {
   const { snapshotId } = req.params;
 
   try {

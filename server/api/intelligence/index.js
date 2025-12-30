@@ -19,7 +19,7 @@
 
 import express from 'express';
 import { db } from '../../db/drizzle.js';
-import { market_intelligence } from '../../../shared/schema.js';
+import { market_intelligence, platform_data } from '../../../shared/schema.js';
 import { eq, and, or, ilike, sql, desc, asc } from 'drizzle-orm';
 
 const router = express.Router();
@@ -518,6 +518,245 @@ router.get('/types', async (_req, res) => {
     intel_types: INTEL_TYPES,
     zone_subtypes: ZONE_SUBTYPES,
   });
+});
+
+/**
+ * GET /api/intelligence/lookup
+ * Lookup market data for a specific city/state
+ *
+ * Query params:
+ *   city  - City name (required)
+ *   state - State name or abbreviation (optional but recommended)
+ *
+ * Returns:
+ *   - market: The operational market this city belongs to
+ *   - market_anchor: The core city that anchors this market
+ *   - region_type: Core, Satellite, or Rural
+ *   - market_cities: Other cities in the same market
+ *   - deadhead_risk: Calculated based on region type
+ */
+router.get('/lookup', async (req, res) => {
+  try {
+    const { city, state } = req.query;
+
+    if (!city) {
+      return res.status(400).json({ error: 'City is required' });
+    }
+
+    // Build query conditions
+    const conditions = [
+      eq(platform_data.platform, 'uber'),
+      ilike(platform_data.city, city.trim())
+    ];
+
+    // Add state filter if provided
+    if (state) {
+      // Handle both abbreviations and full names
+      conditions.push(
+        or(
+          ilike(platform_data.region, state.trim()),
+          ilike(platform_data.region, `%${state.trim()}%`)
+        )
+      );
+    }
+
+    // Find the city
+    const [cityData] = await db
+      .select()
+      .from(platform_data)
+      .where(and(...conditions))
+      .limit(1);
+
+    if (!cityData) {
+      // Try fuzzy match
+      const fuzzyResult = await db
+        .select()
+        .from(platform_data)
+        .where(and(
+          eq(platform_data.platform, 'uber'),
+          ilike(platform_data.city, `%${city.trim()}%`)
+        ))
+        .limit(5);
+
+      if (fuzzyResult.length > 0) {
+        return res.json({
+          found: false,
+          message: `City "${city}" not found exactly. Did you mean one of these?`,
+          suggestions: fuzzyResult.map(r => ({
+            city: r.city,
+            state: r.region,
+            market: r.market
+          }))
+        });
+      }
+
+      return res.status(404).json({
+        found: false,
+        message: `No market data found for ${city}${state ? `, ${state}` : ''}`
+      });
+    }
+
+    // Get other cities in the same market
+    let marketCities = [];
+    if (cityData.market_anchor) {
+      const siblings = await db
+        .select({
+          city: platform_data.city,
+          region: platform_data.region,
+          region_type: platform_data.region_type
+        })
+        .from(platform_data)
+        .where(and(
+          eq(platform_data.platform, 'uber'),
+          eq(platform_data.market_anchor, cityData.market_anchor)
+        ))
+        .orderBy(
+          // Core first, then Satellite, then Rural
+          sql`CASE region_type
+            WHEN 'Core' THEN 1
+            WHEN 'Satellite' THEN 2
+            WHEN 'Rural' THEN 3
+            ELSE 4
+          END`,
+          platform_data.city
+        )
+        .limit(50);
+
+      marketCities = siblings;
+    }
+
+    // Calculate deadhead risk based on region type
+    const deadheadRisk = getDeadheadRisk(cityData.region_type);
+
+    // Get market stats
+    const marketStats = await db.execute(sql`
+      SELECT
+        COUNT(*) as total_cities,
+        COUNT(*) FILTER (WHERE region_type = 'Core') as core_count,
+        COUNT(*) FILTER (WHERE region_type = 'Satellite') as satellite_count,
+        COUNT(*) FILTER (WHERE region_type = 'Rural') as rural_count
+      FROM platform_data
+      WHERE platform = 'uber' AND market_anchor = ${cityData.market_anchor}
+    `);
+
+    res.json({
+      found: true,
+      city: cityData.city,
+      state: cityData.region,
+      country: cityData.country,
+      market: cityData.market,
+      market_anchor: cityData.market_anchor,
+      region_type: cityData.region_type,
+      deadhead_risk: deadheadRisk,
+      market_stats: marketStats.rows[0] || null,
+      market_cities: marketCities,
+      // Generate market slug from anchor
+      market_slug: cityData.market_anchor
+        ? cityData.market_anchor.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        : null
+    });
+  } catch (error) {
+    console.error('Error looking up market:', error);
+    res.status(500).json({ error: 'Failed to lookup market' });
+  }
+});
+
+/**
+ * Calculate deadhead risk based on region type
+ */
+function getDeadheadRisk(regionType) {
+  switch (regionType) {
+    case 'Core':
+      return {
+        level: 'low',
+        score: 20,
+        description: 'Core markets have high density and easy return trips.',
+        advice: 'You can take rides in any direction - plenty of demand for return trips.'
+      };
+    case 'Satellite':
+      return {
+        level: 'medium',
+        score: 50,
+        description: 'Satellite cities have moderate density. Rides to Core are safe; rides away from Core are risky.',
+        advice: 'Favor rides toward the Core city. Be cautious of rides that take you further into rural areas.'
+      };
+    case 'Rural':
+      return {
+        level: 'high',
+        score: 80,
+        description: 'Rural areas have low density. Every ride likely means a long deadhead return.',
+        advice: 'Only take rides if the fare is worth the full round trip. Consider Long Pickup Premium settings.'
+      };
+    default:
+      return {
+        level: 'unknown',
+        score: 50,
+        description: 'Market data not available for this location.',
+        advice: 'Check local demand patterns before accepting long rides.'
+      };
+  }
+}
+
+/**
+ * GET /api/intelligence/market-structure/:anchor
+ * Get detailed market structure for a market anchor
+ */
+router.get('/market-structure/:anchor', async (req, res) => {
+  try {
+    const { anchor } = req.params;
+
+    // Get all cities in this market
+    const cities = await db
+      .select({
+        city: platform_data.city,
+        state: platform_data.region,
+        region_type: platform_data.region_type,
+        timezone: platform_data.timezone
+      })
+      .from(platform_data)
+      .where(and(
+        eq(platform_data.platform, 'uber'),
+        ilike(platform_data.market_anchor, anchor)
+      ))
+      .orderBy(
+        sql`CASE region_type
+          WHEN 'Core' THEN 1
+          WHEN 'Satellite' THEN 2
+          WHEN 'Rural' THEN 3
+          ELSE 4
+        END`,
+        platform_data.city
+      );
+
+    if (cities.length === 0) {
+      return res.status(404).json({ error: 'Market not found' });
+    }
+
+    // Group by region type
+    const structure = {
+      core: cities.filter(c => c.region_type === 'Core'),
+      satellite: cities.filter(c => c.region_type === 'Satellite'),
+      rural: cities.filter(c => c.region_type === 'Rural')
+    };
+
+    // Get states covered
+    const states = [...new Set(cities.map(c => c.state))];
+
+    res.json({
+      market_anchor: anchor,
+      total_cities: cities.length,
+      states_covered: states,
+      structure,
+      summary: {
+        core_count: structure.core.length,
+        satellite_count: structure.satellite.length,
+        rural_count: structure.rural.length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching market structure:', error);
+    res.status(500).json({ error: 'Failed to fetch market structure' });
+  }
 });
 
 export default router;

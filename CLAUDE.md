@@ -80,6 +80,35 @@ See [docs/ai-tools/README.md](docs/ai-tools/README.md) for full documentation.
 
 ## Critical Rules
 
+### NO FALLBACKS - GLOBAL APP RULE
+
+**This is a global application. NEVER add location fallbacks or defaults.**
+
+```javascript
+// WRONG - masks bugs, breaks global app
+const city = snapshot?.city || 'Frisco';           // NO!
+const timezone = snapshot?.timezone || 'America/Chicago';  // NO!
+const airports = data?.airports || [{ code: 'DFW' }];      // NO!
+
+// CORRECT - fail explicitly, let the bug surface
+if (!snapshot?.city) {
+  throw new Error('Missing required location data');
+  // OR return { error: 'Location data not available' };
+}
+const city = snapshot.city;
+```
+
+**Why this matters:**
+- Fallbacks **mask bugs** instead of fixing them
+- Hardcoded locations break the app for users outside that region
+- "Quick fixes" with defaults create technical debt that's hard to find later
+- If data is missing, **that's a bug upstream** - fix the source, not the symptom
+
+**The pattern to follow:**
+1. Required data missing? **Return an error or throw**
+2. Optional data missing? **Omit the feature, don't fake it**
+3. Never hardcode: cities, states, countries, airports, coordinates, or timezones
+
 ### Model Parameters
 
 **GPT-5.2** - Avoid 400 errors:
@@ -124,9 +153,11 @@ const result = await callModel('strategist', { system, user });
 
 ### Location Rules
 
-- GPS-first: no IP fallback, no default locations
+- **GPS-first**: no IP fallback, no default locations, no hardcoded coordinates
+- **No location fallbacks**: if location data is missing, return error (see NO FALLBACKS rule above)
 - Coordinates from Google APIs or DB, never from AI
 - `location-context-clean.tsx` is the single weather source
+- All location data (city, state, timezone, airports) comes from user's actual GPS position
 
 ### Venue Open/Closed Status
 

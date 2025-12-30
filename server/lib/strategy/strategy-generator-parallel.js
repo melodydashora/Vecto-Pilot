@@ -408,20 +408,12 @@ export async function generateMultiStrategy(ctx) {
   }
 
   const totalMs = Date.now() - startTime;
-  triadLog.complete(`${snapshot.city}, ${snapshot.state}`, OP.DB);
+  triadLog.complete(`${snapshot.city}, ${snapshot.state}`, totalMs);
 
-    // Dump last strategy row to file for debugging
-    dumpLastStrategyRow().catch(err => 
-      console.warn(`[Strategy] ⚠️ Failed to dump strategy: ${err.message}`)
-    );
-
-    return {
-      ok: true,
-      strategy: consolidated.strategy
-    };
-  }
-
-  triadLog.complete(`Parallel orchestration complete`, totalMs);
+  // Dump last strategy row to file for debugging
+  dumpLastStrategyRow().catch(err =>
+    console.warn(`[Strategy] ⚠️ Failed to dump strategy: ${err.message}`)
+  );
 
   return {
     ok: true,

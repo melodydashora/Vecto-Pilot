@@ -54,6 +54,41 @@ export interface IntelligenceMarketsResponse {
   }>;
 }
 
+// Market lookup response from /api/intelligence/lookup
+export interface MarketLookupResponse {
+  found: boolean;
+  city?: string;
+  state?: string;
+  country?: string;
+  market?: string;
+  market_anchor?: string;
+  region_type?: 'Core' | 'Satellite' | 'Rural';
+  market_slug?: string;
+  deadhead_risk?: {
+    level: 'low' | 'medium' | 'high' | 'unknown';
+    score: number;
+    description: string;
+    advice: string;
+  };
+  market_stats?: {
+    total_cities: string;
+    core_count: string;
+    satellite_count: string;
+    rural_count: string;
+  };
+  market_cities?: Array<{
+    city: string;
+    region: string;
+    region_type: string;
+  }>;
+  message?: string;
+  suggestions?: Array<{
+    city: string;
+    state: string;
+    market: string;
+  }>;
+}
+
 // Market archetype detection based on city characteristics
 export type MarketArchetype = 'sprawl' | 'dense' | 'party';
 
@@ -333,6 +368,21 @@ async function fetchIntelligenceMarkets(): Promise<IntelligenceMarketsResponse> 
 }
 
 /**
+ * Fetches market lookup data for a city/state
+ */
+async function fetchMarketLookup(city: string, state: string): Promise<MarketLookupResponse> {
+  const params = new URLSearchParams({ city, state });
+  const response = await fetch(`/api/intelligence/lookup?${params}`);
+
+  if (!response.ok) {
+    // Return not found response
+    return { found: false, message: `No market data for ${city}, ${state}` };
+  }
+
+  return response.json();
+}
+
+/**
  * Main hook for fetching market intelligence
  */
 export function useMarketIntelligence() {
@@ -343,11 +393,23 @@ export function useMarketIntelligence() {
   const archetype = detectMarketArchetype(city);
   const archetypeInfo = MARKET_ARCHETYPES[archetype];
 
+  // Fetch market lookup data (includes region type, deadhead risk, etc.)
+  const marketLookupQuery = useQuery({
+    queryKey: ['marketLookup', city, state],
+    queryFn: () => city && state ? fetchMarketLookup(city, state) : Promise.resolve({ found: false }),
+    enabled: !!city && !!state && isLocationResolved,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes
+  });
+
+  // Use market slug from lookup if available, otherwise derive it
+  const effectiveMarketSlug = marketLookupQuery.data?.market_slug || marketSlug;
+
   // Fetch intelligence for the detected market
   const intelligenceQuery = useQuery({
-    queryKey: ['marketIntelligence', marketSlug],
-    queryFn: () => marketSlug ? fetchMarketIntelligence(marketSlug) : Promise.resolve(null),
-    enabled: !!marketSlug && isLocationResolved,
+    queryKey: ['marketIntelligence', effectiveMarketSlug],
+    queryFn: () => effectiveMarketSlug ? fetchMarketIntelligence(effectiveMarketSlug) : Promise.resolve(null),
+    enabled: !!effectiveMarketSlug && isLocationResolved,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
   });
@@ -370,20 +432,31 @@ export function useMarketIntelligence() {
     return zones.filter(z => z.intel_subtype === subtype);
   };
 
+  // Extract market lookup data
+  const marketLookup = marketLookupQuery.data;
+
   return {
     // Location info
     city,
     state,
-    marketSlug,
+    marketSlug: effectiveMarketSlug,
     isLocationResolved,
 
     // Market archetype
     archetype,
     archetypeInfo,
 
+    // NEW: Market structure data from research
+    marketAnchor: marketLookup?.market_anchor || null,
+    regionType: marketLookup?.region_type || null,
+    deadheadRisk: marketLookup?.deadhead_risk || null,
+    marketStats: marketLookup?.market_stats || null,
+    marketCities: marketLookup?.market_cities || [],
+    isMarketLookupLoading: marketLookupQuery.isLoading,
+
     // Intelligence data
     intelligence: intelligenceQuery.data,
-    isLoading: intelligenceQuery.isLoading,
+    isLoading: intelligenceQuery.isLoading || marketLookupQuery.isLoading,
     error: intelligenceQuery.error,
 
     // Markets list

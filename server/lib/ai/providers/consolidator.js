@@ -35,20 +35,27 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
     return { strategy: '' };
   }
 
-  // Format time from snapshot
+  // Format time from snapshot - NO FALLBACK for timezone
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dayOfWeek = snapshot.dow != null ? dayNames[snapshot.dow] : 'Unknown';
   const isWeekend = snapshot.dow === 0 || snapshot.dow === 6;
-  const localTime = snapshot.local_iso ? new Date(snapshot.local_iso).toLocaleString('en-US', {
-    timeZone: snapshot.timezone || 'America/Chicago',
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  }) : 'Unknown time';
+  // Only format localTime if we have timezone, otherwise show raw ISO or Unknown
+  let localTime = 'Unknown time';
+  if (snapshot.local_iso && snapshot.timezone) {
+    localTime = new Date(snapshot.local_iso).toLocaleString('en-US', {
+      timeZone: snapshot.timezone,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  } else if (snapshot.local_iso) {
+    // No timezone - show ISO without formatting
+    localTime = `${snapshot.local_iso} (timezone unknown)`;
+  }
 
   try {
     const prompt = `You are a rideshare strategist. Analyze the briefing data and tell the driver what to do RIGHT NOW.
@@ -311,21 +318,27 @@ export async function runConsolidator(snapshotId, options = {}) {
     const lat = snapshot.lat;
     const lng = snapshot.lng;
 
-    // Format time context from snapshot
+    // Format time context from snapshot - NO FALLBACK for timezone
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dow = snapshot.dow;
     const dayOfWeek = dow != null ? dayNames[dow] : 'Unknown';
     const isWeekend = dow === 0 || dow === 6;
-    const localTime = snapshot.local_iso ? new Date(snapshot.local_iso).toLocaleString('en-US', {
-      timeZone: snapshot.timezone || 'America/Chicago',
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    }) : 'Unknown time';
+    // Only format localTime if we have timezone
+    let localTime = 'Unknown time';
+    if (snapshot.local_iso && snapshot.timezone) {
+      localTime = new Date(snapshot.local_iso).toLocaleString('en-US', {
+        timeZone: snapshot.timezone,
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } else if (snapshot.local_iso) {
+      localTime = `${snapshot.local_iso} (timezone unknown)`;
+    }
     const dayPart = snapshot.day_part_key || 'unknown';
     const isHoliday = snapshot.is_holiday || false;
     const holiday = snapshot.holiday || null;
