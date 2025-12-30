@@ -369,18 +369,8 @@ export default function StrategyPage() {
       </div>
 
       {/* Smart Blocks Section */}
-      {/* ANTI-FLASH: Keep blocks visible during refresh, add subtle loading indicator */}
       {filteredBlocks.length > 0 && (
-        <div className="mb-6 relative" id="blocks-section">
-          {/* Subtle refresh overlay - shown when refetching existing blocks */}
-          {isBlocksLoading && blocks.length > 0 && (
-            <div className="absolute top-0 right-0 z-10">
-              <Badge variant="outline" className="bg-white/90 border-blue-300 text-blue-600 gap-1">
-                <RefreshCw className="w-3 h-3 animate-spin" />
-                Updating...
-              </Badge>
-            </div>
-          )}
+        <div className="mb-6" id="blocks-section">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 flex-wrap">
               <Sparkles className="w-5 h-5 text-purple-600" />
@@ -731,10 +721,9 @@ export default function StrategyPage() {
         </div>
       )}
 
-      {/* Loading State - ANTI-FLASH: Only show skeleton on INITIAL load (no blocks yet) */}
-      {/* Once blocks exist, they remain visible with a subtle overlay during refresh */}
+      {/* Loading State */}
       {isBlocksLoading && blocks.length === 0 && (
-        <div className="space-y-4 transition-opacity duration-300" data-testid="loading-state">
+        <div className="space-y-4" data-testid="loading-state">
           <Card className="p-8 border-blue-100 bg-blue-50/50">
             <div className="flex items-center gap-3 mb-4">
               <RefreshCw className="w-6 h-6 text-blue-600 animate-spin flex-shrink-0" />
@@ -763,7 +752,7 @@ export default function StrategyPage() {
               </div>
             </div>
           </Card>
-          {/* Skeleton Cards - only on initial load */}
+          {/* Skeleton Cards */}
           {[...Array(3)].map((_, i) => (
             <Card key={i} className="p-4 animate-pulse">
               <div className="h-6 bg-gray-200 rounded w-3/4 mb-3"></div>
