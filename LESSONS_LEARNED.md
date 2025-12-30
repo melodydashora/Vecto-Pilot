@@ -262,6 +262,50 @@ const { data } = useQuery({
 
 **Key Insight:** Don't access `coords.city` - it doesn't exist. Use `locationContext.city` instead.
 
+### SSE Duplicate Broadcasts (Issue Dec 2025)
+
+**Problem:** Loading bar keeps flashing, UI receives same SSE event multiple times (18x observed in prod)
+
+**Root Cause:**
+- Each call to `subscribeBriefingReady()` created a NEW `EventSource` connection
+- Each EventSource subscribes to PostgreSQL LISTEN/NOTIFY
+- When NOTIFY fires, ALL connections receive it and broadcast to client
+- Multiple React components using `useBriefingQueries` hook = multiple connections
+- Hot reloading, React StrictMode, multiple tabs compound the issue
+
+**Fix:** Singleton SSE Connection Manager pattern:
+```typescript
+// Global singleton - persists across React renders
+const sseConnections: Map<string, SSESubscription> = new Map();
+
+function subscribeSSE(endpoint, eventName, callback) {
+  // Check if connection exists
+  let sub = sseConnections.get(key);
+  if (!sub) {
+    // First subscriber - create connection
+    sub = { eventSource: new EventSource(endpoint), subscribers: new Set() };
+    sseConnections.set(key, sub);
+  }
+  // Add callback to shared connection
+  sub.subscribers.add(callback);
+
+  // Return unsubscribe that closes connection when last subscriber leaves
+  return () => {
+    sub.subscribers.delete(callback);
+    if (sub.subscribers.size === 0) {
+      sub.eventSource.close();
+      sseConnections.delete(key);
+    }
+  };
+}
+```
+
+**Key Insight:** SSE connections should be singletons at the application level, not per-component.
+
+**Files Changed:**
+- `client/src/utils/co-pilot-helpers.ts`: Added singleton `subscribeSSE()` manager
+- All SSE subscribe functions now use singleton pattern
+
 ---
 
 ## Backend Patterns

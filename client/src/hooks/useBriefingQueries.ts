@@ -66,14 +66,12 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
   const isEnabled = !!snapshotId;
 
   // Subscribe to briefing_ready SSE event to trigger immediate refetch
-  // No caching - always fetch fresh data when briefing is ready
+  // Uses singleton SSE manager - connection is shared across all components
   useEffect(() => {
     if (!snapshotId) return;
 
-    console.log('[BriefingQuery] 🔌 Subscribing to SSE briefing_ready for', snapshotId.slice(0, 8));
-
     const refetchAllBriefingQueries = () => {
-      console.log('[BriefingQuery] 📢 SSE briefing_ready received! Refetching all for', snapshotId.slice(0, 8));
+      console.log('[BriefingQuery] 📢 briefing_ready received, refetching for', snapshotId.slice(0, 8));
       queryClient.refetchQueries({ queryKey: ['/api/briefing/weather', snapshotId] });
       queryClient.refetchQueries({ queryKey: ['/api/briefing/traffic', snapshotId] });
       queryClient.refetchQueries({ queryKey: ['/api/briefing/rideshare-news', snapshotId] });

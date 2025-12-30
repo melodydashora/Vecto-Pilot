@@ -1,6 +1,102 @@
 // client/src/utils/co-pilot-helpers.ts
 // Utility functions for Co-Pilot page
 
+// ============================================================================
+// Singleton SSE Connection Manager
+// ============================================================================
+// LESSON LEARNED: Each EventSource connection creates a separate subscription
+// to PostgreSQL NOTIFY. Multiple components mounting/unmounting created many
+// connections (18 observed in prod!), causing duplicate event broadcasts.
+//
+// This singleton ensures ONE connection per endpoint, shared across all
+// React components. Multiple subscribers share the same connection.
+// ============================================================================
+
+interface SSESubscription {
+  eventSource: EventSource;
+  subscribers: Set<(data: any) => void>;
+  isConnected: boolean;
+}
+
+// Global singleton - persists across React renders
+const sseConnections: Map<string, SSESubscription> = new Map();
+
+/**
+ * Subscribe to an SSE endpoint with singleton connection management.
+ * Multiple calls to the same endpoint share one EventSource connection.
+ *
+ * @param endpoint - The SSE endpoint path (e.g., '/events/briefing')
+ * @param eventName - The event type to listen for (e.g., 'briefing_ready')
+ * @param callback - Function called when event is received
+ * @returns Unsubscribe function that cleans up when last subscriber leaves
+ */
+function subscribeSSE(
+  endpoint: string,
+  eventName: string,
+  callback: (data: any) => void
+): () => void {
+  const key = `${endpoint}:${eventName}`;
+
+  let subscription = sseConnections.get(key);
+
+  if (!subscription) {
+    // Create new connection - first subscriber for this endpoint
+    console.log(`[SSE Manager] 🔌 Creating singleton connection: ${endpoint} (${eventName})`);
+
+    const eventSource = new EventSource(endpoint);
+    subscription = {
+      eventSource,
+      subscribers: new Set(),
+      isConnected: false,
+    };
+
+    eventSource.onopen = () => {
+      console.log(`[SSE Manager] ✅ Connected: ${endpoint}`);
+      subscription!.isConnected = true;
+    };
+
+    eventSource.addEventListener(eventName, (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log(`[SSE Manager] 📢 Event received: ${eventName}`, data.snapshot_id?.slice(0, 8) || 'no-id');
+        // Broadcast to all subscribers
+        subscription!.subscribers.forEach(sub => sub(data));
+      } catch (e) {
+        console.warn(`[SSE Manager] Failed to parse ${eventName} event:`, e);
+      }
+    });
+
+    eventSource.onerror = (e) => {
+      console.warn(`[SSE Manager] ⚠️ Connection error: ${endpoint}`, e);
+      subscription!.isConnected = false;
+    };
+
+    sseConnections.set(key, subscription);
+  } else {
+    console.log(`[SSE Manager] ♻️ Reusing existing connection: ${endpoint} (${subscription.subscribers.size} existing subscribers)`);
+  }
+
+  // Add this callback to subscribers
+  subscription.subscribers.add(callback);
+  console.log(`[SSE Manager] 👥 Subscribers for ${key}: ${subscription.subscribers.size}`);
+
+  // Return unsubscribe function
+  return () => {
+    const sub = sseConnections.get(key);
+    if (sub) {
+      sub.subscribers.delete(callback);
+      console.log(`[SSE Manager] 👤 Unsubscribed from ${key}, ${sub.subscribers.size} remaining`);
+
+      // Close connection when last subscriber leaves
+      if (sub.subscribers.size === 0) {
+        console.log(`[SSE Manager] 🔌 Closing connection: ${endpoint} (no subscribers left)`);
+        sub.eventSource.close();
+        sseConnections.delete(key);
+      }
+    }
+  };
+}
+
 /**
  * Get auth headers with JWT token from localStorage
  */
@@ -50,88 +146,44 @@ export async function logAction(
 /**
  * Subscribe to SSE strategy_ready events
  * Uses Postgres LISTEN/NOTIFY via /events/strategy endpoint
+ *
+ * Uses singleton connection manager - multiple components share one connection
  */
 export function subscribeStrategyReady(callback: (snapshotId: string) => void): () => void {
-  const eventSource = new EventSource('/events/strategy');
-
-  eventSource.addEventListener('strategy_ready', (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.snapshot_id) {
-        console.log('[SSE] Received strategy_ready for:', data.snapshot_id);
-        callback(data.snapshot_id);
-      }
-    } catch (e) {
-      console.warn('[SSE] Failed to parse strategy_ready event:', e);
+  return subscribeSSE('/events/strategy', 'strategy_ready', (data) => {
+    if (data.snapshot_id) {
+      callback(data.snapshot_id);
     }
   });
-
-  eventSource.onerror = () => {
-    console.warn('[SSE] Strategy connection error, will reconnect automatically');
-  };
-
-  return () => eventSource.close();
 }
 
 /**
  * Subscribe to SSE blocks_ready events
  * Uses Postgres LISTEN/NOTIFY via /events/blocks endpoint
+ *
+ * Uses singleton connection manager - multiple components share one connection
  */
 export function subscribeBlocksReady(callback: (data: { snapshot_id: string; ranking_id?: string }) => void): () => void {
-  const eventSource = new EventSource('/events/blocks');
-
-  eventSource.addEventListener('blocks_ready', (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.snapshot_id) {
-        console.log('[SSE] Received blocks_ready for:', data.snapshot_id);
-        callback(data);
-      }
-    } catch (e) {
-      console.warn('[SSE] Failed to parse blocks_ready event:', e);
+  return subscribeSSE('/events/blocks', 'blocks_ready', (data) => {
+    if (data.snapshot_id) {
+      callback(data);
     }
   });
-
-  eventSource.onerror = () => {
-    console.warn('[SSE] Blocks connection error, will reconnect automatically');
-  };
-
-  return () => eventSource.close();
 }
 
 /**
  * Subscribe to SSE briefing_ready events
  * Uses Postgres LISTEN/NOTIFY via /events/briefing endpoint
  * Fires when briefing data (weather, traffic, events, news) is fully generated
+ *
+ * Uses singleton connection manager - multiple components share one connection
  */
 export function subscribeBriefingReady(callback: (snapshotId: string) => void): () => void {
-  console.log('[SSE] 🔌 Connecting to /events/briefing...');
-  const eventSource = new EventSource('/events/briefing');
-
-  eventSource.onopen = () => {
-    console.log('[SSE] ✅ Connected to /events/briefing');
-  };
-
-  eventSource.addEventListener('briefing_ready', (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.snapshot_id) {
-        console.log('[SSE] 📢 Received briefing_ready for:', data.snapshot_id.slice(0, 8));
-        callback(data.snapshot_id);
-      }
-    } catch (e) {
-      console.warn('[SSE] Failed to parse briefing_ready event:', e);
+  return subscribeSSE('/events/briefing', 'briefing_ready', (data) => {
+    if (data.snapshot_id) {
+      callback(data.snapshot_id);
     }
   });
-
-  eventSource.onerror = (e) => {
-    console.warn('[SSE] ⚠️ Briefing connection error:', e);
-  };
-
-  return () => {
-    console.log('[SSE] 🔌 Closing /events/briefing connection');
-    eventSource.close();
-  };
 }
 
 /**
@@ -141,6 +193,8 @@ export function subscribeBriefingReady(callback: (snapshotId: string) => void): 
  *
  * LESSON LEARNED: Without this, progress bar only updates via 3-second polling,
  * which is too slow to track rapid phase changes (resolving → analyzing → immediate → venues...)
+ *
+ * Uses singleton connection manager - multiple components share one connection
  */
 export function subscribePhaseChange(callback: (data: {
   snapshot_id: string;
@@ -148,25 +202,12 @@ export function subscribePhaseChange(callback: (data: {
   phase_started_at: string;
   expected_duration_ms: number;
 }) => void): () => void {
-  const eventSource = new EventSource('/events/phase');
-
-  eventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.snapshot_id) {
-        console.log('[SSE] Received phase_change:', data.phase, 'for', data.snapshot_id?.slice(0, 8));
-        callback(data);
-      }
-    } catch (e) {
-      console.warn('[SSE] Failed to parse phase_change event:', e);
+  // Phase change uses 'message' event type (onmessage), not a named event
+  return subscribeSSE('/events/phase', 'message', (data) => {
+    if (data.snapshot_id) {
+      callback(data);
     }
-  };
-
-  eventSource.onerror = () => {
-    console.warn('[SSE] Phase connection error, will reconnect automatically');
-  };
-
-  return () => eventSource.close();
+  });
 }
 
 /**
