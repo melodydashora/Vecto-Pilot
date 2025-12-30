@@ -2,10 +2,10 @@
 ================================================================================
 
 id:
-  "6c94e2e5-e9f1-493a-8953-a1fa4fd573e1"
+  "00262f48-2ff9-42d1-b9d2-f311b08ec9ec"
 
 snapshot_id:
-  "a96109ce-b2b6-4ec4-ab15-20c2ee22d016"
+  "468781ba-e4a5-4af7-8b49-8a70811e08b7"
 
 news:
   {
@@ -37,7 +37,7 @@ news:
 
 weather_current:
   {
-  "tempF": 41,
+  "tempF": 49,
   "conditions": "Sunny",
   "description": "Sunny"
 }
@@ -47,26 +47,20 @@ weather_forecast:
 
 traffic_conditions:
   {
-  "jams": 32,
+  "jams": 55,
   "stats": {
-    "jams": 32,
-    "major": 19,
-    "total": 112,
+    "jams": 55,
+    "major": 29,
+    "total": 138,
     "closures": 54,
-    "highways": 63,
+    "highways": 89,
     "accidents": 0,
-    "construction": 26
+    "construction": 29
   },
-  "summary": "Heavy congestion across Frisco with 112 total incidents including 32 active traffic jams and 54 road closures requiring significant route planning. Independence Parkway is your worst corridor with a major jam from FM-3537 to Westridge Blvd causing 3-minute delays, while US-380 West has back-to-back major jams adding 3+ minutes combined near Bois D Arc Rd and Paloma Creek Blvd. Multiple FM-720 closures in the Little Elm area and scattered rural road closures will force detours on cross-town trips. Consider using DNT or Preston Road as north-south alternatives and avoid US-380 for east-west travel during this congestion window.",
+  "summary": "Heavy congestion across Frisco with 138 total incidents including 55 active traffic jams and 54 road closures affecting the area. I-35E is severely impacted with major delays both northbound near Valley Ridge Blvd (5 min delay) and southbound from Frankford Rd to Royal Ln, plus significant backup on the frontage roads near FM-407/Justin Rd. US-380 corridor shows moderate to major congestion from FM-1461 through US-75/TX-121, and FM-423 between FM-720 and Lebanon Rd is also experiencing delays. Consider using Preston Rd or Dallas North Tollway as alternatives to I-35E, and avoid the Lewisville-Flower Mound connector where 3-4 minute delays are stacking up.",
   "analyzed": true,
-  "briefing": "Heavy congestion across Frisco with 112 total incidents including 32 active traffic jams and 54 road closures requiring significant route planning. Independence Parkway is your worst corridor with a major jam from FM-3537 to Westridge Blvd causing 3-minute delays, while US-380 West has back-to-back major jams adding 3+ minutes combined near Bois D Arc Rd and Paloma Creek Blvd. Multiple FM-720 closures in the Little Elm area and scattered rural road closures will force detours on cross-town trips. Consider using DNT or Preston Road as north-south alternatives and avoid US-380 for east-west travel during this congestion window.",
+  "briefing": "Heavy congestion across Frisco with 138 total incidents including 55 active traffic jams and 54 road closures affecting the area. I-35E is severely impacted with major delays both northbound near Valley Ridge Blvd (5 min delay) and southbound from Frankford Rd to Royal Ln, plus significant backup on the frontage roads near FM-407/Justin Rd. US-380 corridor shows moderate to major congestion from FM-1461 through US-75/TX-121, and FM-423 between FM-720 and Lebanon Rd is also experiencing delays. Consider using Preston Rd or Dallas North Tollway as alternatives to I-35E, and avoid the Lewisville-Flower Mound connector where 3-4 minute delays are stacking up.",
   "closures": [
-    {
-      "road": "",
-      "location": "Michael John Rd to FM-1830",
-      "severity": "low",
-      "isHighway": true
-    },
     {
       "road": "",
       "location": "Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
@@ -111,19 +105,19 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Mills Rd to Lewisville-Flower Mound",
+      "location": "Lewisville-Flower Mound to Mills Rd",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "N Trinity Rd (Lakeview Blvd) to US-377/US-380/E University Dr (Lakeview Blvd)",
+      "location": "US-377/US-380/E University Dr (Lakeview Blvd) to N Trinity Rd (Lakeview Blvd)",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "Tisdell Ln to US-377 S",
+      "location": "US-377 S to Tisdell Ln",
       "severity": "low",
       "isHighway": true
     },
@@ -140,8 +134,20 @@ traffic_conditions:
       "isHighway": true
     },
     {
-      "road": "FM-1385",
-      "location": "FM-455 (FM-1385) to FM-428 (Pilot Point) (FM-1385)",
+      "road": "FM-2499",
+      "location": "Highland Shores Blvd (Long Prairie Rd/FM-2499) to Justin Rd (Long Prairie Rd/FM-2499)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "FM-407",
+      "location": "Briarhill Blvd/Country Meadow Dr (Justin Rd/FM-407) to FM-2499/Long Prairie Rd/Village Pkwy (Justin Rd/FM-407)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "US-380 E",
+      "location": "US-377 (US-380) to FM-2931 (US-380)",
       "severity": "low",
       "isHighway": true
     },
@@ -152,8 +158,8 @@ traffic_conditions:
       "isHighway": true
     },
     {
-      "road": "US-380 E",
-      "location": "US-377 (US-380) to FM-2931 (US-380)",
+      "road": "FM-1385",
+      "location": "FM-455 (FM-1385) to FM-428 (Pilot Point) (FM-1385)",
       "severity": "low",
       "isHighway": true
     },
@@ -189,7 +195,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
+      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
       "severity": "low",
       "isHighway": true
     },
@@ -207,7 +213,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Edgewood Dr to College Park Blvd",
+      "location": "College Park Blvd to Edgewood Dr",
       "severity": "low",
       "isHighway": false
     },
@@ -231,19 +237,13 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "E Alan Ave to Ryan Ave / Faye St",
-      "severity": "low",
-      "isHighway": false
-    },
-    {
-      "road": "",
       "location": "Ryan Ave / Faye St to Noble Ave",
       "severity": "low",
       "isHighway": false
     },
     {
       "road": "",
-      "location": "Settlers Creek Rd to Riverpass Dr",
+      "location": "E Alan Ave to Ryan Ave / Faye St",
       "severity": "low",
       "isHighway": false
     },
@@ -261,13 +261,13 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Mill Creek Rd to Twin Post Rd",
+      "location": "Twin Post Rd to Mill Creek Rd",
       "severity": "low",
       "isHighway": false
     },
     {
       "road": "",
-      "location": "Cherrywood Dr to W Belt Line Rd",
+      "location": "W Belt Line Rd to Cherrywood Dr",
       "severity": "low",
       "isHighway": false
     },
@@ -321,13 +321,13 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Bluesage Ln to Naaman School Rd / Berrywood Cir",
+      "location": "Naaman School Rd / Berrywood Cir to Bluesage Ln",
       "severity": "low",
       "isHighway": false
     },
     {
       "road": "",
-      "location": "Main St / N Hook St to Lakewood Dr",
+      "location": "Lakewood Dr to Main St / N Hook St",
       "severity": "low",
       "isHighway": false
     },
@@ -345,7 +345,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Lawnmeadow Dr to Nantucket Dr",
+      "location": "Nantucket Dr to Lawnmeadow Dr",
       "severity": "low",
       "isHighway": false
     },
@@ -375,7 +375,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Phillips Dr / Enchanted Cir to Hazelwood Dr",
+      "location": "Hazelwood Dr to Phillips Dr / Enchanted Cir",
       "severity": "low",
       "isHighway": false
     },
@@ -386,143 +386,143 @@ traffic_conditions:
       "isHighway": false
     }
   ],
-  "headline": "Heavy congestion across Frisco with 112 total incidents including 32 active traffic jams and 54 road closures requiring significant route planning.",
+  "headline": "Heavy congestion across Frisco with 138 total incidents including 55 active traffic jams and 54 road closures affecting the area.",
   "provider": "tomtom",
-  "fetchedAt": "2025-12-30T17:23:35.443Z",
+  "fetchedAt": "2025-12-30T21:05:36.831Z",
   "incidents": [
     {
       "road": "",
       "category": "Jam",
-      "location": "FM-3537 (Independence Pkwy) to Westridge Blvd (Independence Pkwy)",
+      "location": "FM-407/Lake Park Rd/Justin Rd (I-35E Frontage) to N Garden Ridge Blvd (I-35E Frontage)",
+      "priority": 160,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-407/Lake Park Rd/Justin Rd (I-35E Frontage) to N Garden Ridge Blvd (I-35E Frontage)",
+      "lengthMiles": 0.6,
+      "delayMinutes": 5
+    },
+    {
+      "road": "I-35E N, US-77 N",
+      "category": "Jam",
+      "location": "Valley Ridge Blvd/Exit 453 (I-35E) to Eagle Point Rd/Exit 454B (I-35E)",
+      "priority": 160,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: I-35E N, US-77 N (Valley Ridge Blvd/Exit 453 (I-35E) to Eagle Point Rd/Exit 454B (I-35E))",
+      "lengthMiles": 1,
+      "delayMinutes": 5
+    },
+    {
+      "road": "FM-1385",
+      "category": "Jam",
+      "location": "FM-428 (Aubrey) (FM-1385) to US-380 (FM-1385)",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-1385 (FM-428 (Aubrey) (FM-1385) to US-380 (FM-1385))",
+      "lengthMiles": 0.3,
+      "delayMinutes": 4
+    },
+    {
+      "road": "FM-1709",
+      "category": "Jam",
+      "location": "E TX-114/E Northwest Pkwy (E Southlake Blvd/FM-1709) to N Kimball Ave (E Southlake Blvd/FM-1709)",
       "priority": 158,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: FM-3537 (Independence Pkwy) to Westridge Blvd (Independence Pkwy)",
+      "description": "Jam: FM-1709 (E TX-114/E Northwest Pkwy (E Southlake Blvd/FM-1709) to N Kimball Ave (E Southlake Blvd/FM-1709))",
+      "lengthMiles": 0.3,
+      "delayMinutes": 3
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "exit [21] to I-635 W",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: exit [21] to I-635 W",
       "lengthMiles": 0.5,
       "delayMinutes": 3
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "US-380 W to US-380 W / Bois D Arc Rd",
-      "priority": 147,
+      "location": "FM-2478/Custer Rd (Ridgeview Dr) to Independence Pkwy (Ridgeview Dr)",
+      "priority": 158,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: US-380 W to US-380 W / Bois D Arc Rd",
-      "lengthMiles": 0.1,
-      "delayMinutes": 2
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "US-380 W to Paloma Creek Blvd / Morning Dove Dr",
-      "priority": 146,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: US-380 W to Paloma Creek Blvd / Morning Dove Dr",
-      "lengthMiles": 0,
-      "delayMinutes": 1
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Northwood Dr to FM-2499",
-      "priority": 143,
-      "severity": "medium",
-      "isHighway": true,
-      "description": "Jam: Northwood Dr to FM-2499",
+      "description": "Jam: FM-2478/Custer Rd (Ridgeview Dr) to Independence Pkwy (Ridgeview Dr)",
       "lengthMiles": 0.1,
       "delayMinutes": 3
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "Michael John Rd to FM-1830",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "S Watters Rd to FM-2170 / S Watters Rd",
+      "priority": 158,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: Michael John Rd to FM-1830",
-      "lengthMiles": 0.9,
-      "delayMinutes": 0
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
-      "lengthMiles": 0.2,
-      "delayMinutes": 0
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
+      "description": "Jam: S Watters Rd to FM-2170 / S Watters Rd",
       "lengthMiles": 0.1,
-      "delayMinutes": 0
+      "delayMinutes": 3
+    },
+    {
+      "road": "FM-423",
+      "category": "Jam",
+      "location": "FM-720/W Main St (TX-423) to Lebanon Rd (TX-423)",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-423 (FM-720/W Main St (TX-423) to Lebanon Rd (TX-423))",
+      "lengthMiles": 0.4,
+      "delayMinutes": 2
+    },
+    {
+      "road": "US-77 S, I-35E S",
+      "category": "Jam",
+      "location": "Frankford Rd exit [446] to Royal Ln exit [439]",
+      "priority": 156,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: US-77 S, I-35E S (Frankford Rd exit [446] to Royal Ln exit [439])",
+      "lengthMiles": 0.1,
+      "delayMinutes": 1
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "FM-720 to Lamar Hunt Way",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "Lewisville-Flower Mound to S Charles St",
+      "priority": 154,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to Lamar Hunt Way",
-      "lengthMiles": 0.2,
-      "delayMinutes": 0
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "FM-720 to FM-720",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720",
-      "lengthMiles": 0,
-      "delayMinutes": 0
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Timberidge Dr to FM-2478 / County Road 125",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Timberidge Dr to FM-2478 / County Road 125",
-      "lengthMiles": 0.3,
-      "delayMinutes": 0
+      "description": "Jam: Lewisville-Flower Mound to S Charles St",
+      "lengthMiles": 0.1,
+      "delayMinutes": 4
     }
   ],
   "keyIssues": [
-    "Independence Pkwy major jam from FM-3537 to Westridge Blvd - 3-minute delay, affects north Frisco routing",
-    "US-380 West congested with consecutive jams near Bois D Arc Rd and Paloma Creek Blvd - combined 3+ minute delays",
-    "Multiple FM-720 closures near Little Elm/Frisco border disrupting lake area access"
+    "I-35E Frontage Road near FM-407/Justin Rd to Garden Ridge Blvd - Major jam with 5 minute delays",
+    "I-35E Northbound at Valley Ridge Blvd (Exit 453) to Eagle Point Rd - Major backup adding 5 minutes",
+    "US-380 corridor from FM-1461 to US-75/TX-121 - Moderate congestion with 4 minute delays"
   ],
   "avoidAreas": [
-    "Independence Pkwy between FM-3537 and Westridge Blvd: major jam with 3-min delays",
-    "US-380 West corridor from Bois D Arc Rd to Paloma Creek: stacked jams causing cumulative delays",
-    "FM-720 corridor near Little Elm: multiple closures blocking through-traffic",
-    "Northwood Dr to FM-2499: moderate jam adding 3-minute delays"
+    "I-35E corridor through Lewisville: Multiple jams stacking 5+ minute delays",
+    "FM-407/Justin Rd interchange area: Major backups on frontage roads",
+    "US-380 between McKinney and Aubrey: 4 minute delays through corridor",
+    "FM-1709/Southlake Blvd near TX-114: 3 minute delays eastbound"
   ],
-  "safetyAlert": "32 active traffic jams in the area",
-  "driverImpact": "Expect 5-10 minute delays on typical Frisco pickups, avoid staging near Independence Pkwy and US-380 West intersections, and pre-plan alternate routes for any trips heading toward Little Elm or crossing FM-720.",
+  "safetyAlert": "55 active traffic jams in the area",
+  "driverImpact": "Expect 10-15 minute longer pickup times for rides heading toward I-35E or US-380 corridors; prioritize pickups in central Frisco using Preston Rd, Coit Rd, or Tollway routes to avoid the heaviest congestion zones along the western and northern edges of your service area.",
   "surgePricing": true,
   "closuresCount": 54,
   "repositioning": null,
-  "incidentsCount": 112,
-  "totalIncidents": 112,
-  "closuresSummary": "9 active road closures, with FM-720 having multiple segments closed near Little Elm and scattered rural closures on FM-543, FM-1830, and County Roads affecting outlying areas.",
+  "incidentsCount": 138,
+  "totalIncidents": 138,
+  "closuresSummary": "54 road closures reported in the broader area, though none are listed as high-priority incidents directly affecting main corridors near your location.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "2 active construction zones: FM-407 between FM-2499/Long Prairie and Briarhill Blvd in Flower Mound, and FM-1171 from Valley Pkwy to I-35E - plan for potential lane restrictions."
+  "constructionSummary": "29 construction zones active in the region; no critical construction impacts flagged in immediate vicinity but expect general slowdowns system-wide."
 }
 
 events:
@@ -1483,36 +1483,36 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Minor delays. General departure and arrival delays are currently 15 minutes or less. No destination-specific delays reported.",
-      "status": "normal",
+      "delays": "Moderate delays reported; gate hold and taxi delays of approximately 15 minutes.",
+      "status": "delays",
       "busyTimes": [
-        "08:00 AM - 11:00 AM",
+        "05:00 AM - 08:00 AM",
         "04:00 PM - 07:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Major departure delays reported. Gate hold and taxi delays are between 31 and 45 minutes due to traffic management initiatives. Arrivals are experiencing airborne delays of 15 minutes or less.",
-      "status": "delays",
+      "delays": "Major delays reported; departure delays between 31 and 45 minutes and increasing.",
+      "status": "severe_delays",
       "busyTimes": [
-        "06:00 AM - 09:00 AM",
+        "05:00 AM - 09:00 AM",
         "04:00 PM - 07:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2025-12-30T17:24:13.921Z",
+  "fetchedAt": "2025-12-30T21:06:13.904Z",
   "busyPeriods": [
-    "Morning Rush (06:00 AM - 09:00 AM)",
-    "Evening Rush (04:00 PM - 07:00 PM)"
+    "Morning rush hour from 5:00 AM to 9:00 AM is highly congested at both airports.",
+    "Evening peak travel time from 4:00 PM to 7:00 PM sees significant arrival and departure traffic."
   ],
-  "recommendations": "For DFW, drivers must wait in the Terminal B infield lot (or Terminal E overflow from 6 PM to midnight); peak demand is expected during the morning and late afternoon rush. For DAL, drivers are required to wait in the designated FIFO zone near the airport entrance and perform pickups in the Valet Lot (Zones 1-3). Due to departure delays at DAL, expect potential shifts in rider pickup times."
+  "recommendations": "For DFW, rideshare pickups are generally on the lower level (Arrivals) at the designated 'Passenger Pickup' zones, but note that Terminal B pickups are located in the Parking Garage (Level 2). For DAL, the rideshare pickup zone is located at the Valet Pavilion and Garage C, Level 1; be prepared for passengers arriving later than expected due to the 6-9 minute walk from the terminal and current major flight delays."
 }
 
 created_at:
-  "Tue Dec 30 2025 17:23:35 GMT+0000 (Coordinated Universal Time)"
+  "Tue Dec 30 2025 21:05:36 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Tue Dec 30 2025 17:24:13 GMT+0000 (Coordinated Universal Time)"
+  "Tue Dec 30 2025 21:06:13 GMT+0000 (Coordinated Universal Time)"
 

@@ -432,6 +432,34 @@ PG_MIN=0
 PG_IDLE_TIMEOUT_MS=30000
 ```
 
+### Bug: "500 Internal Server Error" from type mismatch in DB writes
+
+**Cause:** Writing a STRING to an INTEGER column (e.g., `error_code: 'immediate_failed'` when `error_code` is INTEGER)
+
+**Symptoms:**
+- Server crashes with 500 error
+- PostgreSQL error: `invalid input syntax for type integer: "some_string"`
+- Hard to debug because the error message doesn't mention the column name
+
+**Fix:**
+1. Check the schema (`shared/schema.js`) for column types
+2. `error_code` is INTEGER - use `error_message` (TEXT) for string details
+3. Pattern: `error_message: \`prefix: ${error.message}\`.slice(0, 500)`
+
+**Example (WRONG):**
+```javascript
+await db.update(strategies).set({
+  error_code: 'immediate_failed',  // BAD: error_code is INTEGER!
+});
+```
+
+**Example (CORRECT):**
+```javascript
+await db.update(strategies).set({
+  error_message: `immediate_failed: ${error.message}`.slice(0, 500),
+});
+```
+
 ### Bug: "401 Unauthorized" from AI APIs
 
 **Causes:**

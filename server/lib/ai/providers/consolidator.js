@@ -57,6 +57,10 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
     localTime = `${snapshot.local_iso} (timezone unknown)`;
   }
 
+  // 60s timeout - fail fast if GPT-5.2 hangs
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
   try {
     const prompt = `You are a rideshare strategist. Analyze the briefing data and tell the driver what to do RIGHT NOW.
 
@@ -113,8 +117,10 @@ RULES:
         ],
         reasoning_effort: 'medium',
         max_completion_tokens: 2000  // GPT-5.2 needs tokens for reasoning + output
-      })
+      }),
+      signal: controller.signal  // Abort after 60s timeout
     });
+    clearTimeout(timeoutId);  // Clear timeout on successful response
 
     if (!response.ok) {
       const errText = await response.text();
@@ -133,7 +139,9 @@ RULES:
     aiLog.warn(1, `[GPT-5.2] Empty response. Response: ${JSON.stringify(data).substring(0, 300)}`, OP.AI);
     return { strategy: '' };
   } catch (error) {
-    aiLog.warn(1, `Immediate strategy call failed: ${error.message}`, OP.AI);
+    clearTimeout(timeoutId);  // Clean up timeout on error
+    const isTimeout = error.name === 'AbortError';
+    aiLog.warn(1, `Immediate strategy call failed${isTimeout ? ' (TIMEOUT after 60s)' : ''}: ${error.message}`, OP.AI);
     return { strategy: '' };
   }
 }
@@ -155,6 +163,10 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
   const callStart = Date.now();
 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+    // 60s timeout per attempt - fail fast if Gemini hangs
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
     try {
       if (attempt > 1) {
         aiLog.info(`Consolidator retry attempt ${attempt-1}/${MAX_RETRIES} due to overload...`);
@@ -165,6 +177,7 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,  // Abort after 60s timeout
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             tools: [{ google_search: {} }],
@@ -186,6 +199,8 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
           })
         }
       );
+
+      clearTimeout(timeoutId);  // Clear timeout on any response
 
       // Handle Overloaded (503) or Rate Limited (429)
       if (response.status === 503 || response.status === 429) {
@@ -226,7 +241,9 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
       return { ok: true, output: text.trim(), durationMs: elapsed };
 
     } catch (error) {
-      aiLog.error(1, `Consolidator network error (attempt ${attempt}): ${error.message}`);
+      clearTimeout(timeoutId);  // Clean up timeout on error
+      const isTimeout = error.name === 'AbortError';
+      aiLog.error(1, `Consolidator ${isTimeout ? 'TIMEOUT' : 'network error'} (attempt ${attempt}): ${error.message}`);
       if (attempt <= MAX_RETRIES) {
         const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
         aiLog.info(`Waiting ${delay}ms before retry...`);
@@ -235,7 +252,7 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
       }
       const elapsed = Date.now() - callStart;
       aiLog.error(1, `Consolidator failed after ${elapsed}ms and ${MAX_RETRIES} retries: ${error.message}`);
-      return { ok: false, error: error.message };
+      return { ok: false, error: isTimeout ? 'TIMEOUT after 60s' : error.message };
     }
   }
 }
@@ -460,11 +477,10 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
     const totalDuration = Date.now() - startTime;
     triadLog.error(3, `Failed for ${snapshotId.slice(0, 8)} after ${totalDuration}ms`, error);
     
-    // Write error to DB
+    // Write error to DB (error_code is INTEGER, use error_message for details)
     await db.update(strategies).set({
       status: 'error',
-      error_code: 'consolidator_failed',
-      error_message: error.message.slice(0, 500),
+      error_message: `consolidator_failed: ${error.message}`.slice(0, 500),
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
     
@@ -552,11 +568,10 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     const totalDuration = Date.now() - startTime;
     triadLog.error(3, `Immediate strategy failed after ${totalDuration}ms`, error);
 
-    // Write error to DB
+    // Write error to DB (error_code is INTEGER, use error_message for details)
     await db.update(strategies).set({
       status: 'error',
-      error_code: 'immediate_failed',
-      error_message: error.message.slice(0, 500),
+      error_message: `immediate_failed: ${error.message}`.slice(0, 500),
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 

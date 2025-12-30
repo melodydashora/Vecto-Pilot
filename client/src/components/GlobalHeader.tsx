@@ -91,25 +91,23 @@ const GlobalHeaderComponent: React.FC = () => {
       ? localStorage.getItem("vecto_device_id")
       : null;
 
-  // CRITICAL FIX Issue #5 & #3: Query /api/users/me directly for fresh location from database
-  // This bypasses context state lag and ensures header always shows current location
-  // CRITICAL FIX Finding #3: Reduced polling from 5s to 2s for faster header updates
-  // CRITICAL FIX Production Issue #1 (Dec 1): Disabled aggressive polling (2s) causing 1643 req/6h
-  // Root cause: 30 reqs/min per user × 50 concurrent users = production spike
-  // Solution: Fetch on app init only, refetch on location change via context
+  // Query /api/auth/me for registered users only (anonymous users use snapshot ownership)
+  // This is disabled for anonymous users who don't have auth tokens
+  const authToken = typeof window !== "undefined" ? localStorage.getItem("vecto_auth_token") : null;
   const { data: dbUserLocation } = useQuery({
-    queryKey: ["/api/users/me", deviceId],
+    queryKey: ["/api/auth/me", deviceId],
     queryFn: async () => {
-      if (!deviceId) return null;
+      if (!deviceId || !authToken) return null;
       const res = await fetch(
-        `/api/users/me?device_id=${encodeURIComponent(deviceId)}`,
+        `/api/auth/me`,
+        { headers: { Authorization: `Bearer ${authToken}` } }
       );
       if (!res.ok) return null;
       return res.json();
     },
     staleTime: 60000, // Keep data fresh for 1 minute
     refetchInterval: false, // DISABLED: No polling. Location updates flow through context.
-    enabled: !!deviceId,
+    enabled: !!deviceId && !!authToken, // Only for registered users with auth token
   });
 
   // location from context, supporting both shapes
