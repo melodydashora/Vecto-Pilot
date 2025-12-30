@@ -6,7 +6,6 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, strategies, users, coords_cache } from '../../../shared/schema.js';
 import { sql, eq } from 'drizzle-orm';
 import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
-import { optionalAuth } from '../../middleware/auth.js';
 
 // Helper: Generate cache key from coordinates (6 decimal places = ~11cm precision)
 // Full precision ensures each unique location gets its own cache entry
@@ -374,7 +373,7 @@ router.get('/timezone', async (req, res) => {
  *   - Computes local time context (dow, hour, day_part) in user's timezone
  *   - Single source of truth for driver location (replaces legacy methods)
  */
-router.get('/resolve', optionalAuth, async (req, res) => {
+router.get('/resolve', async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
@@ -608,35 +607,12 @@ router.get('/resolve', optionalAuth, async (req, res) => {
         const dow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
         const dayPartKey = getDayPartKey(hour);
         
-        // ═══════════════════════════════════════════════════════════════════════════
-        // USER LOOKUP PRIORITY: Auth user_id > Device lookup > New user creation
-        // This prevents user_id mismatch between auth token and snapshot ownership
-        // ═══════════════════════════════════════════════════════════════════════════
-        const authUserId = req.auth?.userId; // From JWT token if authenticated
-
-        // Look up existing user by device_id
         const existingUser = await db.query.users.findFirst({
           where: eq(users.device_id, deviceId),
         }).catch(() => null);
-
-        // PRIORITY: Authenticated user_id always wins (prevents ownership mismatch)
-        if (authUserId) {
-          userId = authUserId;
-          console.log(`[location] 🔐 Using authenticated user_id: ${authUserId.slice(0, 8)}`);
-
-          // If device_id points to a different user, update it to current auth user
-          // This links the device to the authenticated user
-          if (existingUser && existingUser.user_id !== authUserId) {
-            console.log(`[location] 🔄 Relinking device from user ${existingUser.user_id.slice(0, 8)} to auth user ${authUserId.slice(0, 8)}`);
-          }
-        } else if (existingUser) {
-          // Anonymous flow: use existing user from device_id lookup
-          userId = existingUser.user_id;
-          console.log(`[location] 📱 Using device-linked user_id: ${userId.slice(0, 8)}`);
-        }
-
+        
         if (existingUser) {
-          // Update existing user (may be different user_id now if auth changed)
+          userId = existingUser.user_id;
           
           try {
             // CRITICAL FIX: Validate formatted_address is not null before database write
@@ -694,15 +670,7 @@ router.get('/resolve', optionalAuth, async (req, res) => {
             });
           }
         } else {
-          // No existing user for this device - create new user record
-          // Use auth user_id if authenticated, otherwise generate new UUID
-          if (!userId) {
-            userId = crypto.randomUUID();
-            console.log(`[location] 🆕 Creating new anonymous user: ${userId.slice(0, 8)}`);
-          } else {
-            console.log(`[location] 🆕 Creating user record for authenticated user: ${userId.slice(0, 8)}`);
-          }
-
+          userId = crypto.randomUUID();
           const newUser = {
             user_id: userId,
             device_id: deviceId,
@@ -724,7 +692,7 @@ router.get('/resolve', optionalAuth, async (req, res) => {
             created_at: now,
             updated_at: now,
           };
-
+          
           try {
             await db.insert(users).values(newUser);
           } catch (insertErr) {
