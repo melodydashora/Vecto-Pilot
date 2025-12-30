@@ -1345,5 +1345,55 @@ if (data.weather) setWeather(data.weather);  // Display data OK
 
 ---
 
+## 20. Screen Flashing Fix (December 2025)
+
+### Problem
+Screens were flashing in production - UI elements would briefly disappear and reappear during data updates.
+
+### Root Causes Identified
+1. **Context value not memoized**: `CoPilotContext.Provider` received a new `value` object on every render, causing all children (StrategyPage, BarsPage, BriefingPage) to re-render
+2. **Aggressive query invalidation**: SSE events called `invalidateQueries()` which clears cache immediately → `isLoading=true` → UI shows loading state → flash
+3. **Binary loading states**: Components used `{isLoading ? <Skeleton /> : <Content />}` which completely replaced UI
+
+### The Fix
+
+**1. Memoized Context Value**
+```typescript
+// co-pilot-context.tsx
+const value: CoPilotContextValue = useMemo(() => ({
+  coords,
+  city: locationContext?.city || null,
+  // ... all other properties
+}), [coords, city, /* dependencies */]);
+```
+
+**2. Use refetchQueries Instead of invalidateQueries**
+```typescript
+// OLD - causes flash
+queryClient.invalidateQueries({ queryKey: [...] });
+
+// NEW - keeps existing data visible during fetch
+queryClient.refetchQueries({
+  queryKey: [...],
+  type: 'active'
+});
+```
+
+**3. Loading Overlay Pattern**
+Instead of replacing content with skeleton:
+- Show existing content with subtle "Updating..." badge overlay
+- Only show skeleton on INITIAL load (no data yet)
+
+### Key Insight
+- `invalidateQueries`: Immediately marks cache as stale → `isLoading` becomes true → UI shows loading state → flash
+- `refetchQueries`: Fetches in background → `isFetching` is true but `isLoading` stays false → existing data remains visible → smooth transition
+
+### Files Modified
+- `client/src/contexts/co-pilot-context.tsx` - Memoized context value, changed to refetchQueries
+- `client/src/pages/co-pilot/StrategyPage.tsx` - Added transitions, loading overlay pattern
+- `client/src/hooks/useStrategyPolling.ts` - Changed invalidateQueries to refetchQueries
+
+---
+
 **Last Updated**: December 30, 2025
 **Maintained By**: Development Team

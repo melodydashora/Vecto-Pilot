@@ -55,6 +55,9 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
   }, [snapshotId, strategySnapshotId, queryClient]);
 
   // Subscribe to SSE strategy_ready events
+  // ANTI-FLASH FIX: Use refetchQueries instead of invalidateQueries
+  // invalidateQueries clears cache immediately → loading flash
+  // refetchQueries keeps current data visible while fetching → smooth transition
   useEffect(() => {
     if (!snapshotId || snapshotId === 'live-snapshot') return;
 
@@ -62,7 +65,10 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
     const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
       if (readySnapshotId === snapshotId) {
         console.log('[strategy-polling] Strategy ready, refetching');
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', snapshotId] });
+        queryClient.refetchQueries({
+          queryKey: ['/api/blocks/strategy', snapshotId],
+          type: 'active'
+        });
       }
     });
 

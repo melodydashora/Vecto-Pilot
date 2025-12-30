@@ -1,7 +1,7 @@
 // client/src/contexts/co-pilot-context.tsx
 // Shared state and queries for all co-pilot pages
 
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
@@ -209,12 +209,19 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   }, [lastSnapshotId, queryClient]);
 
   // Subscribe to SSE strategy_ready events
+  // ANTI-FLASH FIX: Use refetch instead of invalidate to keep existing data visible
+  // invalidateQueries clears cache immediately → loading flash → new data
+  // refetch keeps current data visible while fetching → smooth transition
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
     const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
       if (readySnapshotId === lastSnapshotId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
+        // Refetch in background - keeps existing data visible during fetch
+        queryClient.refetchQueries({
+          queryKey: ['/api/blocks/strategy', lastSnapshotId],
+          type: 'active'
+        });
       }
     });
 
@@ -227,7 +234,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = subscribeBlocksReady((data) => {
       if (data.snapshot_id === lastSnapshotId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks-fast', lastSnapshotId] });
+        // Refetch in background - keeps existing blocks visible during fetch
+        queryClient.refetchQueries({
+          queryKey: ['/api/blocks-fast', lastSnapshotId],
+          type: 'active'
+        });
       }
     });
 
@@ -237,13 +248,17 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Subscribe to SSE phase_change events for real-time progress bar updates
   // LESSON LEARNED: Without this, progress bar only updates via 3-second polling,
   // which is too slow to track rapid phase transitions (the bar "jumps" or "sticks")
+  // ANTI-FLASH FIX: Use refetch instead of invalidate to prevent loading state flash
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
     const unsubscribe = subscribePhaseChange((data) => {
       if (data.snapshot_id === lastSnapshotId) {
-        // Immediately invalidate strategy query to get fresh phase/timing data
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
+        // Refetch in background - keeps current progress bar visible
+        queryClient.refetchQueries({
+          queryKey: ['/api/blocks/strategy', lastSnapshotId],
+          type: 'active'
+        });
       }
     });
 
@@ -448,7 +463,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     isLocationResolved: locationContext?.isLocationResolved || false
   });
 
-  const value: CoPilotContextValue = {
+  // CRITICAL: Memoize context value to prevent cascading re-renders
+  // Without this, every state change creates a new object reference,
+  // causing ALL children (StrategyPage, BarsPage, etc.) to re-render
+  const value: CoPilotContextValue = useMemo(() => ({
     // Location
     coords,
     city: locationContext?.city || null,
@@ -495,7 +513,39 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     barsData,
     isBarsLoading,
     refetchBars,
-  };
+  }), [
+    coords,
+    locationContext?.city,
+    locationContext?.state,
+    locationContext?.timeZone,
+    locationContext?.isLocationResolved,
+    lastSnapshotId,
+    strategyData,
+    persistentStrategy,
+    immediateStrategy,
+    isStrategyFetching,
+    snapshotData,
+    blocks,
+    blocksData,
+    isBlocksLoading,
+    blocksError,
+    refetchBlocks,
+    enrichmentProgress,
+    strategyProgress,
+    enrichmentPhase,
+    pipelinePhase,
+    timeRemainingText,
+    weatherData?.weather,
+    trafficData?.traffic,
+    newsData?.news,
+    eventsData?.events,
+    schoolClosuresData?.school_closures,
+    airportData?.airport_conditions,
+    briefingIsLoading,
+    barsData,
+    isBarsLoading,
+    refetchBars,
+  ]);
 
   return (
     <CoPilotContext.Provider value={value}>
