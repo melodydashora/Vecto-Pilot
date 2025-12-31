@@ -19,14 +19,17 @@ import {
   ResetPasswordPage,
   TermsPage,
 } from '@/pages/auth';
+import AuthRedirect from '@/components/auth/AuthRedirect';
 
 export const router = createBrowserRouter([
   // ═══════════════════════════════════════════════════════════════════════════
-  // Root - Redirects to Sign In (landing page)
+  // Root - Smart redirect based on auth state
+  // - Authenticated users → /co-pilot/strategy
+  // - Unauthenticated users → /auth/sign-in
   // ═══════════════════════════════════════════════════════════════════════════
   {
     path: '/',
-    element: <Navigate to="/auth/sign-in" replace />,
+    element: <AuthRedirect />,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

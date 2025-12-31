@@ -674,10 +674,23 @@ router.get('/resolve', async (req, res) => {
         const dow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
         const dayPartKey = getDayPartKey(hour);
         
-        const existingUser = await db.query.users.findFirst({
+        // Check for existing user by device_id OR by authenticated user_id
+        // Registration creates a user record, so authenticated users may already exist
+        let existingUser = await db.query.users.findFirst({
           where: eq(users.device_id, deviceId),
         }).catch(() => null);
-        
+
+        // If no device match but user is authenticated, check by user_id
+        // This handles the case where registration created the user with a different device_id
+        if (!existingUser && authenticatedUserId) {
+          existingUser = await db.query.users.findFirst({
+            where: eq(users.user_id, authenticatedUserId),
+          }).catch(() => null);
+          if (existingUser) {
+            console.log(`🔐 [Location API] Found user by user_id (different device): ${authenticatedUserId.slice(0, 8)}`);
+          }
+        }
+
         if (existingUser) {
           // Use authenticated user_id if logged in, otherwise use device-based user_id
           userId = authenticatedUserId || existingUser.user_id;
@@ -703,8 +716,10 @@ router.get('/resolve', async (req, res) => {
             
             // CRITICAL FIX Finding #4: Verify database write committed before returning
             // Use raw query with RETURNING to get confirmation row was updated
+            // Update by user_id (more reliable than device_id when user was found by user_id)
             const updateResult = await db.update(users)
               .set({
+                device_id: deviceId, // Update device_id to current device (links this device to user)
                 new_lat: lat,
                 new_lng: lng,
                 accuracy_m: accuracy,
@@ -722,7 +737,7 @@ router.get('/resolve', async (req, res) => {
                 day_part_key: dayPartKey,
                 updated_at: now,
               })
-              .where(eq(users.device_id, deviceId));
+              .where(eq(users.user_id, existingUser.user_id));
             
             // CRITICAL: Verify at least 1 row was updated (write committed)
             if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {

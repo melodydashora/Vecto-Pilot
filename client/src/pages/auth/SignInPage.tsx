@@ -1,7 +1,7 @@
 // client/src/pages/auth/SignInPage.tsx
 // Sign in page with email/password and social login (Google, Apple)
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -64,13 +64,33 @@ type SignInFormData = z.infer<typeof signInSchema>;
 export default function SignInPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Check if user just registered successfully
   const justRegistered = searchParams.get('registered') === 'true';
+
+  // Redirect authenticated users to the app - don't show login page
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      console.log('🔐 [SignIn] User already authenticated - redirecting to app');
+      navigate('/co-pilot/strategy', { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  // Show loading while checking auth state - prevents flash of login form
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const form = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
@@ -247,18 +267,6 @@ export default function SignInPage() {
             </Link>
           </div>
 
-          {/* Testing bypass - only visible in development */}
-          {import.meta.env.DEV && (
-            <div className="mt-4 pt-4 border-t border-slate-700">
-              <button
-                type="button"
-                onClick={() => navigate('/co-pilot/strategy')}
-                className="w-full text-xs text-slate-500 hover:text-slate-400 py-2"
-              >
-                [DEV] Skip login →
-              </button>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
