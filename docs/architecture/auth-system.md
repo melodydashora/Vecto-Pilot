@@ -1,95 +1,64 @@
 # Authentication System
 
-JWT-based authentication with user isolation. Supports both anonymous and registered users.
+JWT-based authentication with user isolation. **All users must be signed in** to use the app.
 
-## Two Authentication Modes
-
-### 1. Anonymous Mode (Default)
-Users can access the app without registration. Access is controlled by **snapshot ownership**:
-- GPS → `/api/location/resolve` → creates snapshot with user_id
-- Snapshot ID acts as capability token (UUID is unguessable)
-- Endpoints use `optionalAuth` + `requireSnapshotOwnership` middleware
-- No JWT token required - snapshot ownership is verified instead
-
-### 2. Registered Mode (Full Features)
-Registered drivers get JWT tokens for authenticated access:
-- Sign up via `/api/auth/register`
-- Login via `/api/auth/login` → returns JWT token
-- Token stored in `localStorage.setItem('vectopilot_auth_token', token)`
-- Endpoints use `requireAuth` middleware
-
-## Architecture Overview
+## Architecture Overview (December 2025)
 
 ```
-ANONYMOUS FLOW (no registration):
-Browser GPS → [LocationContext] → /api/location/resolve
+REQUIRED FLOW (all users):
+User opens app → AuthContext checks for token → Redirect to /auth/sign-in if missing
          ↓
-   Creates snapshot with user_id + snapshot_id
-         ↓
-   Snapshot ID stored in context (not localStorage token)
-         ↓
-   Endpoints check snapshot ownership (optionalAuth + requireSnapshotOwnership)
-
-REGISTERED FLOW (with account):
-User registers/logs in → /api/auth/login
+   User signs in/registers → /api/auth/login
          ↓
    JWT token returned → localStorage.setItem('vectopilot_auth_token')
          ↓
-   All requests include Authorization: Bearer ${token}
+   GPS access granted → /api/location/resolve creates snapshot with user_id
+         ↓
+   All API requests include Authorization: Bearer ${token}
          ↓
    [requireAuth middleware] verifies JWT → req.auth.userId
+         ↓
+   [requireSnapshotOwnership] verifies user owns the snapshot
 ```
 
-## IMPORTANT: /api/auth/token is DISABLED in Production
+## Key Security Principle
 
-The legacy endpoint `/api/auth/token` that mints tokens from user_id is **disabled in production** (returns 403). This was a dev-only convenience endpoint.
-
-In production, users must either:
-- Use anonymous mode (snapshot ownership)
-- Register and login via `/api/auth/login`
+**GPS is gated behind authentication.** Users cannot access location features without signing in first.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `server/api/auth/auth.js` | Registration, login, password reset endpoints |
-| `server/middleware/auth.js` | `requireAuth` and `optionalAuth` middleware |
-| `server/middleware/require-snapshot-ownership.js` | Verifies user owns snapshot (anonymous mode) |
-| `client/src/contexts/location-context-clean.tsx` | GPS resolution, snapshot creation |
+| `server/middleware/auth.js` | `requireAuth` middleware (validates JWT) |
+| `server/middleware/require-snapshot-ownership.js` | Verifies user owns snapshot |
+| `client/src/contexts/auth-context.tsx` | Auth state, login/logout, token management |
+| `client/src/contexts/location-context-clean.tsx` | GPS resolution (requires auth) |
+| `client/src/components/auth/AuthRedirect.tsx` | Redirects based on auth state |
 | `client/src/utils/co-pilot-helpers.ts` | `getAuthHeader()` helper for API calls |
-| `client/src/hooks/useBriefingQueries.ts` | Briefing data fetches with auth headers |
 
-## Authentication Flows
+## Authentication Flow
 
-### Anonymous Flow (Most Users)
+### Sign-Up (New Users)
 
 ```javascript
-// Step 1: GPS Resolution creates snapshot
-// Client: location-context-clean.tsx
-const response = await fetch(`/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${deviceId}`);
-const { snapshot_id, user_id } = await response.json();
-// snapshot_id is stored in context state, NOT localStorage
-
-// Step 2: API calls include snapshot_id in URL
-// Client: useBriefingQueries.ts
-const response = await fetch(`/api/briefing/weather/${snapshotId}`, {
-  headers: getAuthHeader() // Returns {} if no token, or { Authorization: Bearer... } if logged in
+// Client: SignUpPage.tsx
+const response = await fetch('/api/auth/register', {
+  method: 'POST',
+  body: JSON.stringify({ email, password, firstName, lastName, vehicle, ... })
 });
+// → Redirects to /auth/sign-in?registered=true
 
-// Step 3: Server verifies snapshot ownership
-// Server: requireSnapshotOwnership middleware
-const snapshot = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId));
-if (snapshot.user_id && req.auth?.userId && snapshot.user_id !== req.auth.userId) {
-  return res.status(404).json({ error: 'snapshot_not_found' }); // Prevents enumeration
-}
-req.snapshot = snapshot;
-next();
+// Server: auth.js
+// Creates user, driver_profile, driver_vehicles, auth_credentials
+// Geocodes address for home_lat/home_lng
+// Looks up market from platform_data
 ```
 
-### Registered Flow (Logged-in Users)
+### Sign-In (Returning Users)
 
 ```javascript
-// Step 1: User logs in
+// Client: SignInPage.tsx
 const response = await fetch('/api/auth/login', {
   method: 'POST',
   body: JSON.stringify({ email, password })
@@ -97,32 +66,66 @@ const response = await fetch('/api/auth/login', {
 const { token } = await response.json();
 localStorage.setItem('vectopilot_auth_token', token);
 
-// Step 2: All API calls include Authorization header
-const response = await fetch('/api/chat', {
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({ message })
+// Server: auth.js
+// Verifies password with bcrypt
+// Returns JWT token
+```
+
+### Authenticated API Calls
+
+```javascript
+// Client: All API calls include auth header
+const response = await fetch('/api/briefing/weather/' + snapshotId, {
+  headers: getAuthHeader() // { Authorization: 'Bearer xxx' }
 });
 
-// Step 3: Server verifies JWT
 // Server: requireAuth middleware
 const token = req.headers.authorization?.split(' ')[1];
+if (!token) return res.status(401).json({ error: 'no_token' });
 const payload = verifyAppToken(token); // HMAC verification
 req.auth = { userId: payload.userId };
 next();
+
+// Server: requireSnapshotOwnership middleware
+const snapshot = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId));
+if (snapshot.user_id !== req.auth.userId) {
+  return res.status(404).json({ error: 'snapshot_not_found' }); // Prevents enumeration
+}
+req.snapshot = snapshot;
+next();
 ```
+
+## Middleware Chain
+
+All snapshot-based routes use this middleware chain:
+
+```javascript
+router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, handler);
+//                                 ↑              ↑
+//                                 |              |
+//                        Validates JWT    Verifies user owns snapshot
+```
+
+### requireAuth
+- Extracts token from `Authorization: Bearer xxx` header
+- Verifies HMAC signature
+- Sets `req.auth.userId`
+- Returns 401 if no token or invalid token
+
+### requireSnapshotOwnership
+- Looks up snapshot by ID
+- Verifies `snapshot.user_id === req.auth.userId`
+- Returns 404 if user doesn't own snapshot (prevents enumeration)
+- Sets `req.snapshot` for use in handler
 
 ## Security Principles
 
 ### User ID Source
-- **ALWAYS** get user_id from JWT token (decoded by middleware)
-- **NEVER** trust user_id from request body
+**ALWAYS** get user_id from JWT token (decoded by middleware), **NEVER** from request body:
 
 ```javascript
 // CORRECT
-const user_id = req.user_id; // From JWT middleware
+const user_id = req.auth.userId; // From JWT middleware
 
 // WRONG - Never do this
 const { user_id } = req.body; // Attacker can spoof
@@ -135,81 +138,53 @@ All queries filter by authenticated user_id:
 const results = await db
   .select()
   .from(snapshots)
-  .where(eq(snapshots.user_id, req.user_id));
+  .where(eq(snapshots.user_id, req.auth.userId));
 ```
 
 ### Error Responses
-Return 404 (not 401) for unauthorized access to prevent enumeration:
+Return 404 (not 401/403) for unauthorized access to prevent enumeration:
 
 ```javascript
-// If user tries to access another user's data
-if (resource.user_id !== req.user_id) {
+if (resource.user_id !== req.auth.userId) {
   return res.status(404).json({ error: 'Not found' });
 }
 ```
 
-## Database Security
-
-### Row-Level Security (RLS)
-```sql
--- migrations/003_rls_security.sql
-CREATE POLICY user_isolation ON snapshots
-  USING (user_id = current_user_id());
-```
-
-### JWT Helper Functions
-```sql
--- migrations/004_jwt_helpers.sql
-CREATE FUNCTION current_user_id() RETURNS UUID AS $$
-  SELECT current_setting('app.user_id')::UUID;
-$$ LANGUAGE SQL;
-```
-
 ## Token Storage
 
-### Anonymous Mode
-No token stored. Snapshot ID is kept in React context state (not localStorage).
-
-### Registered Mode
 | Storage | Key | Value |
 |---------|-----|-------|
 | localStorage | `vectopilot_auth_token` | JWT string |
 
 **Lifecycle:**
 - Created: After successful login via `/api/auth/login`
-- Used: Every authenticated API call (via `getAuthHeader()`)
-- Cleared: Manual logout or token expiry
+- Used: Every API call (via `getAuthHeader()`)
+- Cleared: Manual logout, token expiry, or sign-out
 
 ## Routes and Authentication
 
-### Anonymous-Compatible Routes (optionalAuth + requireSnapshotOwnership)
-| Route | Description |
-|-------|-------------|
-| `GET /api/briefing/*/:snapshotId` | Weather, traffic, news, events |
-| `GET /api/blocks/*/:snapshotId` | Strategy blocks |
-| `GET /api/venue/*/:snapshotId` | Venue data |
+**All routes require authentication:**
 
-### Registered-Only Routes (requireAuth)
-| Route | Description |
-|-------|-------------|
-| `POST /api/chat` | AI Coach chat |
-| `POST /api/feedback/*` | User feedback |
-| `POST /api/actions` | Action logging |
+| Route Pattern | Middleware |
+|---------------|------------|
+| `GET /api/briefing/*/:snapshotId` | `requireAuth` + `requireSnapshotOwnership` |
+| `GET /api/blocks/*/:snapshotId` | `requireAuth` + `requireSnapshotOwnership` |
+| `POST /api/blocks-fast` | `requireAuth` |
+| `POST /api/chat` | `requireAuth` |
+| `POST /api/feedback/*` | `requireAuth` |
+
+## IMPORTANT: Legacy /api/auth/token is DISABLED
+
+The legacy endpoint `/api/auth/token` that mints tokens from user_id is **disabled in production** (returns 403). Users must register and login via `/api/auth/login`.
 
 ## Verification Checklist
 
-### Anonymous Mode
-- ✅ GPS coordinates obtained (native browser)
-- ✅ Location resolved via `/api/location/resolve`
-- ✅ Snapshot created with user_id
-- ✅ Snapshot ID passed in API URLs
-- ✅ Backend verifies snapshot ownership
-
-### Registered Mode
-- ✅ User logs in via `/api/auth/login`
-- ✅ JWT token stored in localStorage (`vectopilot_auth_token`)
+- ✅ User must sign in before GPS access
+- ✅ JWT token stored in localStorage
 - ✅ All API calls include `Authorization: Bearer` header
-- ✅ Backend verifies JWT and isolates data
+- ✅ Backend verifies JWT with `requireAuth` middleware
+- ✅ Snapshot ownership verified with `requireSnapshotOwnership`
+- ✅ Errors return 404 to prevent enumeration
 
 ## See Also
 

@@ -242,11 +242,11 @@ router.post("/", async (req, res) => {
 
 // GET /:snapshotId - Fetch snapshot for Coach context (early engagement backup)
 // Snapshot fields: city, state, weather (temp, condition), air (AQI), hour, dayPart, holiday, timezone, coordinates
-// Uses optionalAuth + requireSnapshotOwnership for anonymous user support
-import { optionalAuth } from '../../middleware/auth.js';
+// SECURITY: requireAuth enforces user must be signed in (GPS gating requires auth)
+import { requireAuth } from '../../middleware/auth.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 
-router.get("/:snapshotId", optionalAuth, requireSnapshotOwnership, async (req, res) => {
+router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, res) => {
   const { snapshotId } = req.params;
   
   if (!snapshotId) {

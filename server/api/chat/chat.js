@@ -5,7 +5,7 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, strategies } from '../../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 import { coachDAL } from '../../lib/ai/coach-dal.js';
-import { requireAuth, optionalAuth } from '../../middleware/auth.js';
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -123,8 +123,8 @@ router.get('/context/:snapshotId', requireAuth, async (req, res) => {
 
 
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
-// SECURITY: Uses optionalAuth - works for both authenticated and anonymous users
-router.post('/', optionalAuth, async (req, res) => {
+// SECURITY: requireAuth enforces user must be signed in
+router.post('/', requireAuth, async (req, res) => {
   const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [] } = req.body;
 
   if (!message || typeof message !== 'string') {
@@ -173,12 +173,13 @@ router.post('/', optionalAuth, async (req, res) => {
       }
 
       // Get COMPLETE context using CoachDAL (full schema access)
+      // Pass authenticated user ID for driver profile lookup (in case snapshot has different/null user_id)
       if (activeSnapshotId) {
-        fullContext = await coachDAL.getCompleteContext(activeSnapshotId, null);
+        fullContext = await coachDAL.getCompleteContext(activeSnapshotId, null, authUserId !== 'anonymous' ? authUserId : null);
         contextInfo = coachDAL.formatContextForPrompt(fullContext);
-        
+
         console.log(`[chat] Full context loaded - Status: ${fullContext.status} | Snapshot: ${activeSnapshotId}`);
-        console.log(`[chat] Context includes: ${fullContext.smartBlocks?.length || 0} venues, briefing=${!!fullContext.briefing}, feedback=${!!fullContext.feedback}, actions=${fullContext.feedback?.actions?.length || 0}`);
+        console.log(`[chat] Context includes: ${fullContext.smartBlocks?.length || 0} venues, briefing=${!!fullContext.briefing}, driverProfile=${!!fullContext.driverProfile}, vehicle=${!!fullContext.driverVehicle}`);
       } else {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }

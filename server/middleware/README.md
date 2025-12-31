@@ -8,7 +8,7 @@ Express middleware for authentication, validation, rate limiting, and request pr
 
 | File | Purpose | Key Export |
 |------|---------|------------|
-| `auth.js` | JWT authentication | `requireAuth()`, `optionalAuth()` |
+| `auth.js` | JWT authentication | `requireAuth()` |
 | `validation.js` | Zod schema validation | `validate(schema)` |
 | `rate-limit.js` | Request throttling | `generalLimiter`, `expensiveLimiter`, `chatLimiter` |
 | `bot-blocker.js` | Block web crawlers | `apiOnlyBotBlocker`, `botBlocker` |
@@ -25,14 +25,20 @@ Express middleware for authentication, validation, rate limiting, and request pr
 
 ### Authentication
 ```javascript
-import { requireAuth, optionalAuth } from './auth.js';
+import { requireAuth } from './auth.js';
+import { requireSnapshotOwnership } from './require-snapshot-ownership.js';
 
-// Require valid JWT
+// Require valid JWT for all protected routes
 router.get('/protected', requireAuth, handler);
 
-// Optional - populate req.user if token present
-router.get('/public', optionalAuth, handler);
+// For snapshot-based routes: verify auth + snapshot ownership
+router.get('/data/:snapshotId', requireAuth, requireSnapshotOwnership, handler);
+// → req.auth.userId from JWT
+// → req.snapshot from ownership check
 ```
+
+**Note:** `optionalAuth` exists for legacy support but is no longer used.
+All routes now require authentication (GPS gating enforces sign-in).
 
 ### Validation
 ```javascript

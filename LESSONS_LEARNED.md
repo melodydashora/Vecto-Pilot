@@ -1830,5 +1830,123 @@ if (addressFieldsChanged) {
 
 ---
 
+## 24. Schema Column Mismatch in Drizzle ORM (December 31, 2025)
+
+### Problem
+Production error: `TypeError: Cannot convert undefined or null to object` in `orderSelectedFields` when querying `driver_profiles` table.
+
+### Root Cause
+Added new columns to the `getDriverProfile` query that **don't exist in the schema**:
+```javascript
+// WRONG - These columns don't exist in driver_profiles schema!
+uber_eligible: driver_profiles.uber_eligible,
+lyft_eligible: driver_profiles.lyft_eligible,
+prefers_short_trips: driver_profiles.prefers_short_trips,
+weekly_hours_target: driver_profiles.weekly_hours_target,
+// ... etc
+```
+
+When Drizzle tries to build the query with `undefined` columns, it crashes with a cryptic error about `Object.entries()` on null/undefined.
+
+### The Fix
+Only select columns that actually exist in the schema:
+```javascript
+// CORRECT - Use actual schema columns
+rideshare_platforms: driver_profiles.rideshare_platforms,  // JSON array ['uber', 'lyft']
+elig_economy: driver_profiles.elig_economy,  // boolean
+elig_xl: driver_profiles.elig_xl,  // boolean
+pref_pet_friendly: driver_profiles.pref_pet_friendly,  // boolean
+// ... etc
+```
+
+### Prevention Rules
+1. **ALWAYS check `shared/schema.js` before adding new column selections**
+2. **Column names you imagine ≠ column names that exist**
+3. When error mentions `orderSelectedFields` or `Object.entries`, suspect undefined columns
+4. Run `grep -A 50 "driver_profiles = pgTable" shared/schema.js` to see actual columns
+
+### Symptom Mapping
+| Error Message | Likely Cause |
+|---------------|--------------|
+| `Cannot convert undefined or null to object` | Selecting undefined column |
+| `orderSelectedFields` in stack | Drizzle building query with bad columns |
+| Error in `utils.js:53` | Schema mismatch in select() |
+
+### Files Involved
+- `server/lib/ai/coach-dal.js` - The query with wrong columns
+- `shared/schema.js` - The source of truth for column names
+
+---
+
+## 25. Authentication Security Upgrade: optionalAuth → requireAuth (December 31, 2025)
+
+### Background
+Originally the app supported anonymous users (device-only, no account). This led to complex middleware:
+- `optionalAuth` - Validates token if present, allows anonymous if not
+- `requireSnapshotOwnership` - Complex logic for authenticated vs anonymous ownership
+
+### Problem
+With GPS gating now requiring sign-in, `optionalAuth` was redundant:
+1. **Unnecessary complexity** - Two code paths for auth (anonymous + authenticated)
+2. **Verbose logging** - Every request logged 5+ lines of debug output
+3. **Weaker security** - Routes accepted requests without tokens
+
+### The Fix
+Upgraded all snapshot-based routes from `optionalAuth` to `requireAuth`:
+
+```javascript
+// BEFORE (complex, verbose)
+router.get('/weather/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
+  // optionalAuth: Token present? Validate. Missing? Allow as anonymous.
+  // requireSnapshotOwnership: Complex auth.userId vs anonymous logic
+});
+
+// AFTER (simple, strict)
+router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
+  // requireAuth: No token? 401 immediately. Invalid token? 401.
+  // requireSnapshotOwnership: Just check user_id === snapshot.user_id
+});
+```
+
+### Files Changed
+| File | Routes Updated |
+|------|----------------|
+| `server/api/briefing/briefing.js` | 8 routes (weather, traffic, events, etc.) |
+| `server/api/location/snapshot.js` | GET /:snapshotId |
+| `server/api/strategy/blocks-fast.js` | GET /, POST / |
+| `server/api/strategy/content-blocks.js` | GET /strategy/:snapshotId |
+| `server/api/chat/chat.js` | POST / |
+| `server/middleware/require-snapshot-ownership.js` | Simplified, removed verbose logging |
+
+### Logging Reduction
+**Before:** Every request generated 5+ lines:
+```
+[optionalAuth] /weather/fd3d890d... - token: present
+[optionalAuth] ✅ Token verified for user e41bf400
+[requireSnapshotOwnership] 🔍 Checking snapshot: fd3d890d
+[requireSnapshotOwnership]   - auth.userId: e41bf400
+[requireSnapshotOwnership]   - snapshot.user_id: e41bf400
+[requireSnapshotOwnership]   - snapshot.city: Frisco
+[requireSnapshotOwnership] ✅ User ownership verified
+```
+
+**After:** Success = silent. Only errors are logged:
+```
+[snapshotOwnership] ❌ User mismatch: auth=e41bf400 vs snapshot=abc12345
+```
+
+### Prevention Rules
+1. When ALL users must be signed in, use `requireAuth` not `optionalAuth`
+2. Log errors, not successes (success is the expected path)
+3. Anonymous user support should be a conscious architectural decision, not a default
+
+### Benefits
+- **Simpler security model**: One rule - "must be signed in"
+- **Cleaner logs**: Only see auth messages when something goes wrong
+- **Faster debugging**: No more sifting through success logs to find the error
+- **Stricter security**: No request proceeds without valid auth
+
+---
+
 **Last Updated**: December 31, 2025
 **Maintained By**: Development Team

@@ -3,7 +3,7 @@ import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefin
 import { db } from '../../db/drizzle.js';
 import { snapshots, discovered_events } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
-import { requireAuth, optionalAuth } from '../../middleware/auth.js';
+import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
@@ -98,7 +98,7 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
   }
 });
 
-router.get('/snapshot/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
@@ -213,7 +213,7 @@ router.get('/weather/realtime', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/weather/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // LESSON LEARNED (Dec 2025): Weather should read from cached briefing data first,
     // just like traffic/news/airport endpoints do. This prevents excessive API calls
@@ -259,7 +259,7 @@ router.get('/weather/:snapshotId', optionalAuth, requireSnapshotOwnership, async
   }
 });
 
-router.get('/traffic/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/traffic/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // FETCH-ONCE: Just read cached data from DB - no refresh, no regeneration
     // Traffic is generated once during pipeline and stays until new snapshot
@@ -291,7 +291,7 @@ router.get('/traffic/:snapshotId', optionalAuth, requireSnapshotOwnership, async
   }
 });
 
-router.get('/rideshare-news/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // FETCH-ONCE: Just read cached data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
@@ -322,7 +322,7 @@ router.get('/rideshare-news/:snapshotId', optionalAuth, requireSnapshotOwnership
   }
 });
 
-router.get('/events/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // Read events directly from discovered_events table for this snapshot's location
     const snapshot = req.snapshot;
@@ -379,7 +379,7 @@ router.get('/events/:snapshotId', optionalAuth, requireSnapshotOwnership, async 
   }
 });
 
-router.get('/school-closures/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // FETCH-ONCE: Just read cached data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
@@ -423,7 +423,7 @@ router.get('/school-closures/:snapshotId', optionalAuth, requireSnapshotOwnershi
   }
 });
 
-router.get('/airport/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
+router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     // FETCH-ONCE: Just read cached airport data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
