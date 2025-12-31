@@ -15,7 +15,9 @@ import {
   users,
   market_intelligence,
   user_intel_notes,
-  platform_data
+  platform_data,
+  driver_profiles,
+  driver_vehicles
 } from '../../../shared/schema.js';
 import { eq, desc, and, or, sql, isNull, gte } from 'drizzle-orm';
 
@@ -642,6 +644,94 @@ export class CoachDAL {
   }
 
   /**
+   * Get driver profile and vehicle information
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} Driver profile and vehicle data
+   */
+  async getDriverProfile(userId) {
+    try {
+      if (!userId) return { profile: null, vehicle: null };
+
+      // Get driver profile
+      const [profile] = await db
+        .select({
+          id: driver_profiles.id,
+          user_id: driver_profiles.user_id,
+          first_name: driver_profiles.first_name,
+          last_name: driver_profiles.last_name,
+          driver_nickname: driver_profiles.driver_nickname,
+          email: driver_profiles.email,
+          phone: driver_profiles.phone,
+          address_1: driver_profiles.address_1,
+          address_2: driver_profiles.address_2,
+          city: driver_profiles.city,
+          state_territory: driver_profiles.state_territory,
+          zip_code: driver_profiles.zip_code,
+          country: driver_profiles.country,
+          home_lat: driver_profiles.home_lat,
+          home_lng: driver_profiles.home_lng,
+          home_timezone: driver_profiles.home_timezone,
+          market: driver_profiles.market,
+          // Platform eligibility
+          uber_eligible: driver_profiles.uber_eligible,
+          lyft_eligible: driver_profiles.lyft_eligible,
+          doordash_eligible: driver_profiles.doordash_eligible,
+          instacart_eligible: driver_profiles.instacart_eligible,
+          amazon_flex_eligible: driver_profiles.amazon_flex_eligible,
+          grubhub_eligible: driver_profiles.grubhub_eligible,
+          spark_eligible: driver_profiles.spark_eligible,
+          // Preferences
+          prefers_short_trips: driver_profiles.prefers_short_trips,
+          prefers_long_trips: driver_profiles.prefers_long_trips,
+          prefers_airport: driver_profiles.prefers_airport,
+          prefers_surge: driver_profiles.prefers_surge,
+          prefers_scheduled: driver_profiles.prefers_scheduled,
+          avoids_downtown: driver_profiles.avoids_downtown,
+          // Experience
+          driving_experience_years: driver_profiles.driving_experience_years,
+          full_time_driver: driver_profiles.full_time_driver,
+          weekly_hours_target: driver_profiles.weekly_hours_target,
+          weekly_earnings_target: driver_profiles.weekly_earnings_target,
+          // Timestamps
+          created_at: driver_profiles.created_at,
+          updated_at: driver_profiles.updated_at,
+        })
+        .from(driver_profiles)
+        .where(eq(driver_profiles.user_id, userId))
+        .limit(1);
+
+      if (!profile) return { profile: null, vehicle: null };
+
+      // Get primary vehicle
+      const [vehicle] = await db
+        .select({
+          id: driver_vehicles.id,
+          year: driver_vehicles.year,
+          make: driver_vehicles.make,
+          model: driver_vehicles.model,
+          color: driver_vehicles.color,
+          license_plate: driver_vehicles.license_plate,
+          seatbelts: driver_vehicles.seatbelts,
+          is_primary: driver_vehicles.is_primary,
+        })
+        .from(driver_vehicles)
+        .where(and(
+          eq(driver_vehicles.driver_profile_id, profile.id),
+          eq(driver_vehicles.is_primary, true)
+        ))
+        .limit(1);
+
+      return {
+        profile,
+        vehicle: vehicle || null,
+      };
+    } catch (error) {
+      console.error('[CoachDAL] getDriverProfile error:', error);
+      return { profile: null, vehicle: null };
+    }
+  }
+
+  /**
    * Get complete context for AI Coach - Full schema access
    * Combines snapshot, strategy, briefing, smart blocks, feedback, and venue data
    * 
@@ -694,17 +784,20 @@ export class CoachDAL {
         this.getActions(activeSnapshotId),
       ]);
 
-      // Fetch market intelligence and user notes (depends on snapshot for city/state/user_id)
+      // Fetch market intelligence, user notes, and driver profile (depends on snapshot for city/state/user_id)
       let marketIntelligence = { marketPosition: null, intelligence: [] };
       let userNotes = [];
+      let driverData = { profile: null, vehicle: null };
 
       if (snapshot) {
-        const [intel, notes] = await Promise.all([
+        const [intel, notes, driver] = await Promise.all([
           this.getMarketIntelligence(snapshot.city, snapshot.state),
-          snapshot.user_id ? this.getUserNotes(snapshot.user_id) : Promise.resolve([])
+          snapshot.user_id ? this.getUserNotes(snapshot.user_id) : Promise.resolve([]),
+          snapshot.user_id ? this.getDriverProfile(snapshot.user_id) : Promise.resolve({ profile: null, vehicle: null })
         ]);
         marketIntelligence = intel;
         userNotes = notes;
+        driverData = driver;
       }
 
       return {
@@ -717,6 +810,8 @@ export class CoachDAL {
         actions: driverActions,
         marketIntelligence,
         userNotes,
+        driverProfile: driverData.profile,
+        driverVehicle: driverData.vehicle,
         status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
     } catch (error) {
@@ -731,6 +826,8 @@ export class CoachDAL {
         actions: [],
         marketIntelligence: { marketPosition: null, intelligence: [] },
         userNotes: [],
+        driverProfile: null,
+        driverVehicle: null,
         status: 'error',
       };
     }
@@ -765,10 +862,74 @@ export class CoachDAL {
       actions,
       marketIntelligence,
       userNotes,
+      driverProfile,
+      driverVehicle,
       status
     } = context;
 
     let prompt = '';
+
+    // ========== DRIVER PROFILE (Who is this driver?) ==========
+    if (driverProfile) {
+      prompt += `\n\n=== DRIVER PROFILE ===`;
+      const displayName = driverProfile.driver_nickname || driverProfile.first_name || 'Driver';
+      prompt += `\n👤 Name: ${displayName} ${driverProfile.last_name || ''}`.trim();
+      prompt += `\n📧 Email: ${driverProfile.email}`;
+      if (driverProfile.phone) prompt += `\n📱 Phone: ${driverProfile.phone}`;
+
+      // Home location
+      if (driverProfile.city && driverProfile.state_territory) {
+        prompt += `\n🏠 Home: ${driverProfile.city}, ${driverProfile.state_territory}`;
+        if (driverProfile.home_timezone) prompt += ` (${driverProfile.home_timezone})`;
+      }
+      if (driverProfile.market) prompt += `\n📍 Market: ${driverProfile.market}`;
+
+      // Platform eligibility
+      const platforms = [];
+      if (driverProfile.uber_eligible) platforms.push('Uber');
+      if (driverProfile.lyft_eligible) platforms.push('Lyft');
+      if (driverProfile.doordash_eligible) platforms.push('DoorDash');
+      if (driverProfile.instacart_eligible) platforms.push('Instacart');
+      if (driverProfile.amazon_flex_eligible) platforms.push('Amazon Flex');
+      if (driverProfile.grubhub_eligible) platforms.push('GrubHub');
+      if (driverProfile.spark_eligible) platforms.push('Spark');
+      if (platforms.length > 0) {
+        prompt += `\n🚗 Platforms: ${platforms.join(', ')}`;
+      }
+
+      // Preferences
+      const prefs = [];
+      if (driverProfile.prefers_short_trips) prefs.push('short trips');
+      if (driverProfile.prefers_long_trips) prefs.push('long trips');
+      if (driverProfile.prefers_airport) prefs.push('airport runs');
+      if (driverProfile.prefers_surge) prefs.push('surge hunting');
+      if (driverProfile.prefers_scheduled) prefs.push('scheduled rides');
+      if (driverProfile.avoids_downtown) prefs.push('avoids downtown');
+      if (prefs.length > 0) {
+        prompt += `\n⭐ Preferences: ${prefs.join(', ')}`;
+      }
+
+      // Experience
+      if (driverProfile.driving_experience_years) {
+        prompt += `\n📊 Experience: ${driverProfile.driving_experience_years} years`;
+      }
+      if (driverProfile.full_time_driver != null) {
+        prompt += driverProfile.full_time_driver ? ' (Full-time)' : ' (Part-time)';
+      }
+      if (driverProfile.weekly_hours_target) {
+        prompt += `\n🎯 Weekly target: ${driverProfile.weekly_hours_target}h`;
+      }
+      if (driverProfile.weekly_earnings_target) {
+        prompt += ` / $${driverProfile.weekly_earnings_target}`;
+      }
+    }
+
+    // ========== VEHICLE INFO ==========
+    if (driverVehicle) {
+      prompt += `\n\n🚙 VEHICLE: ${driverVehicle.year} ${driverVehicle.make} ${driverVehicle.model}`;
+      if (driverVehicle.color) prompt += ` (${driverVehicle.color})`;
+      if (driverVehicle.seatbelts) prompt += `\n   Capacity: ${driverVehicle.seatbelts} passengers`;
+    }
 
     // ========== SNAPSHOT DATA (Location, Time, Weather, Air Quality) ==========
     if (snapshot) {
@@ -992,6 +1153,8 @@ export class CoachDAL {
 
     // ========== DATA AVAILABILITY SUMMARY ==========
     prompt += `\n\n📋 DATA ACCESS SUMMARY`;
+    prompt += `\n   ✓ Driver Profile: ${driverProfile ? `${driverProfile.first_name} ${driverProfile.last_name}` : 'Not registered'}`;
+    prompt += `\n   ✓ Vehicle: ${driverVehicle ? `${driverVehicle.year} ${driverVehicle.make} ${driverVehicle.model}` : 'Not set'}`;
     prompt += `\n   ✓ Snapshot: ${snapshot ? 'Complete' : 'Unavailable'}`;
     prompt += `\n   ✓ Strategy: ${strategy ? (strategy.consolidated_strategy ? 'Ready' : 'In Progress') : 'Pending'}`;
     prompt += `\n   ✓ Briefing: ${briefing && Object.keys(briefing).length > 0 ? 'Complete' : 'Unavailable'}`;

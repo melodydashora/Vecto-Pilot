@@ -240,6 +240,8 @@ router.post('/', optionalAuth, async (req, res) => {
 - Just being someone to talk to on the road
 
 **Your Data Access (Current Session):**
+- Driver: ${fullContext?.driverProfile ? `${fullContext.driverProfile.first_name} ${fullContext.driverProfile.last_name}` : 'Unknown'} ${fullContext?.driverVehicle ? `driving ${fullContext.driverVehicle.year} ${fullContext.driverVehicle.make} ${fullContext.driverVehicle.model}` : ''}
+- Home: ${fullContext?.driverProfile?.city || 'Unknown'}, ${fullContext?.driverProfile?.state_territory || ''}
 - Snapshot: ${fullContext?.snapshot?.city || 'Unknown'}, ${fullContext?.snapshot?.state || ''} | ${fullContext?.snapshot?.weather?.tempF || 'N/A'}°F ${fullContext?.snapshot?.weather?.conditions || ''}
 - Venues: ${fullContext?.smartBlocks?.length || 0} ranked recommendations with full details
 - Strategy: ${fullContext?.strategy?.status === 'ready' ? 'Ready' : 'Generating...'}

@@ -150,7 +150,8 @@ export const useLocation = () => {
 
 export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Get auth state to link snapshots to logged-in user
-  const { token, user, isLoading: authLoading } = useAuth();
+  // Also get profile for home location fallback when GPS fails
+  const { token, user, profile, isLoading: authLoading } = useAuth();
 
   const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentLocationString, setCurrentLocationString] = useState('Getting location...');
@@ -447,17 +448,23 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const coords = await getGeoPosition();
       if (coords) {
+        console.log('📍 [LocationContext] GPS success - using live location');
         setCurrentCoords({ latitude: coords.latitude, longitude: coords.longitude });
         await enrichLocation(coords.latitude, coords.longitude, coords.accuracy);
+      } else if (profile?.homeLat && profile?.homeLng) {
+        // Fallback to home location from user's profile (set during registration)
+        console.log('🏠 [LocationContext] GPS unavailable - using home location from profile');
+        setCurrentCoords({ latitude: profile.homeLat, longitude: profile.homeLng });
+        await enrichLocation(profile.homeLat, profile.homeLng, 100); // 100m accuracy for geocoded address
       } else {
-        // No fallback - GPS-first global app. User must enable location services.
-        console.warn('[LocationContext] Browser geolocation failed - no fallback');
+        // No GPS and no home location - user needs to enable GPS
+        console.warn('[LocationContext] No GPS and no home location - cannot proceed');
         setCurrentLocationString('Location unavailable - enable GPS');
       }
     } finally {
       setIsUpdating(false);
     }
-  }, [enrichLocation]);
+  }, [enrichLocation, profile?.homeLat, profile?.homeLng]);
 
   // Initial GPS fetch - ONLY start when user is AUTHENTICATED
   // This ensures snapshots are ALWAYS linked to the authenticated user

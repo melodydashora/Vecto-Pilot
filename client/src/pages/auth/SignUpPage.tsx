@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, ArrowLeft, ArrowRight, Check } from 'lucide-react';
-import type { MarketOption, VehicleMake, RegisterData } from '@/types/auth';
+import type { MarketOption, RegisterData } from '@/types/auth';
 
 // Social login icons as inline SVGs for reliability
 const GoogleIcon = () => (
@@ -135,11 +135,31 @@ interface DropdownOption {
 
 export default function SignUpPage() {
   const navigate = useNavigate();
-  const { register: registerUser } = useAuth();
+  const { register: registerUser, isAuthenticated, isLoading: authLoading } = useAuth();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect authenticated users to the app - don't show signup page
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      console.log('🔐 [SignUp] User already authenticated - redirecting to app');
+      navigate('/co-pilot/strategy', { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  // Show loading while checking auth state - prevents flash of signup form
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Social login handlers - redirect to OAuth endpoints
   const handleGoogleSignUp = () => {
@@ -161,11 +181,9 @@ export default function SignUpPage() {
   const [regions, setRegions] = useState<DropdownOption[]>([]);
   const [markets, setMarkets] = useState<MarketOption[]>([]);
   const [years, setYears] = useState<number[]>([]);
-  const [makes, setMakes] = useState<VehicleMake[]>([]);
   const [isLoadingCountries, setIsLoadingCountries] = useState(false);
   const [isLoadingRegions, setIsLoadingRegions] = useState(false);
   const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
-  const [isLoadingMakes, setIsLoadingMakes] = useState(false);
 
   const form = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
@@ -212,7 +230,6 @@ export default function SignUpPage() {
   });
 
   const watchYear = form.watch('vehicleYear');
-  const watchMake = form.watch('vehicleMake');
   const watchPlatforms = form.watch('ridesharePlatforms');
   const watchCountry = form.watch('country');
 
@@ -281,20 +298,6 @@ export default function SignUpPage() {
       .catch(err => console.error('Failed to fetch years:', err));
   }, []);
 
-  // Fetch vehicle makes
-  useEffect(() => {
-    setIsLoadingMakes(true);
-    fetch('/api/vehicle/makes')
-      .then(res => res.json())
-      .then(data => {
-        setMakes(data.makes || []);
-        setIsLoadingMakes(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch makes:', err);
-        setIsLoadingMakes(false);
-      });
-  }, []);
 
   // Validate current step before proceeding
   const validateStep = async (): Promise<boolean> => {
@@ -821,20 +824,13 @@ export default function SignUpPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-slate-200">Make *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                              <SelectValue placeholder={isLoadingMakes ? 'Loading...' : 'Select make'} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="max-h-[300px] overflow-y-auto">
-                            {makes.map((make) => (
-                              <SelectItem key={make.id} value={make.name}>
-                                {make.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Toyota, Honda, Tesla"
+                            className="bg-slate-700/50 border-slate-600 text-white"
+                            {...field}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -1311,4 +1311,229 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2025-12-31 Analysis
+
+**Generated:** 2025-12-31T19:30:25.777Z
+**Branch:** main
+**Last Commit:** 5135d6e Published your App
+
+### Recent Commit Changes (35)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `briefing-last-row.txt` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/contexts/auth-context.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/pages/auth/ForgotPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/ResetPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/SignInPage.tsx` | Modified |
+| `client/src/pages/auth/SignUpPage.tsx` | Modified |
+| `client/src/pages/auth/TermsPage.tsx` | Modified |
+| `client/src/pages/co-pilot/README.md` | Modified |
+| `client/src/pages/co-pilot/SettingsPage.tsx` | Added |
+| `client/src/pages/co-pilot/index.tsx` | Modified |
+| `client/src/routes.tsx` | Modified |
+| `client/src/types/auth.ts` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/architecture/api-reference.md` | Modified |
+| ... and 15 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (server/scripts/seed-countries.js)
+
+### Status: PENDING
+
+---
+
+## 2025-12-31 Analysis
+
+**Generated:** 2025-12-31T19:38:20.667Z
+**Branch:** main
+**Last Commit:** 5135d6e Published your App
+
+### Uncommitted Changes (4)
+| File | Status |
+|------|--------|
+| `lient/src/contexts/location-context-clean.tsx` | Modified |
+| `docs/review-queue/2025-12-31.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/location/location.js` | Modified |
+
+### Recent Commit Changes (35)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `briefing-last-row.txt` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/contexts/auth-context.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/pages/auth/ForgotPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/ResetPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/SignInPage.tsx` | Modified |
+| `client/src/pages/auth/SignUpPage.tsx` | Modified |
+| `client/src/pages/auth/TermsPage.tsx` | Modified |
+| `client/src/pages/co-pilot/README.md` | Modified |
+| `client/src/pages/co-pilot/SettingsPage.tsx` | Added |
+| `client/src/pages/co-pilot/index.tsx` | Modified |
+| `client/src/routes.tsx` | Modified |
+| `client/src/types/auth.ts` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/architecture/api-reference.md` | Modified |
+| ... and 15 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/location/location.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (server/scripts/seed-countries.js)
+
+### Status: PENDING
+
+---
+
+## 2025-12-31 Analysis
+
+**Generated:** 2025-12-31T19:42:56.775Z
+**Branch:** main
+**Last Commit:** 5135d6e Published your App
+
+### Uncommitted Changes (7)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/pages/auth/SignInPage.tsx` | Modified |
+| `client/src/pages/auth/SignUpPage.tsx` | Modified |
+| `docs/review-queue/2025-12-31.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/location/location.js` | Modified |
+
+### Recent Commit Changes (35)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `briefing-last-row.txt` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/contexts/auth-context.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/pages/auth/ForgotPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/ResetPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/SignInPage.tsx` | Modified |
+| `client/src/pages/auth/SignUpPage.tsx` | Modified |
+| `client/src/pages/auth/TermsPage.tsx` | Modified |
+| `client/src/pages/co-pilot/README.md` | Modified |
+| `client/src/pages/co-pilot/SettingsPage.tsx` | Added |
+| `client/src/pages/co-pilot/index.tsx` | Modified |
+| `client/src/routes.tsx` | Modified |
+| `client/src/types/auth.ts` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/architecture/api-reference.md` | Modified |
+| ... and 15 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/client-structure.md` - Context provider changes (client/src/contexts/location-context-clean.tsx)
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/location/location.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (server/scripts/seed-countries.js)
+
+### Status: PENDING
+
+---
+
+## 2025-12-31 Analysis
+
+**Generated:** 2025-12-31T19:52:24.084Z
+**Branch:** main
+**Last Commit:** 5135d6e Published your App
+
+### Uncommitted Changes (10)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/contexts/auth-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/pages/auth/SignInPage.tsx` | Modified |
+| `client/src/pages/auth/SignUpPage.tsx` | Modified |
+| `client/src/routes.tsx` | Modified |
+| `docs/review-queue/2025-12-31.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/location/location.js` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Untracked |
+
+### Recent Commit Changes (35)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `briefing-last-row.txt` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/contexts/auth-context.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/pages/auth/ForgotPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/ResetPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/SignInPage.tsx` | Modified |
+| `client/src/pages/auth/SignUpPage.tsx` | Modified |
+| `client/src/pages/auth/TermsPage.tsx` | Modified |
+| `client/src/pages/co-pilot/README.md` | Modified |
+| `client/src/pages/co-pilot/SettingsPage.tsx` | Added |
+| `client/src/pages/co-pilot/index.tsx` | Modified |
+| `client/src/routes.tsx` | Modified |
+| `client/src/types/auth.ts` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/architecture/api-reference.md` | Modified |
+| ... and 15 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/client-structure.md` - Context provider changes (client/src/contexts/auth-context.tsx)
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/location/location.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (server/scripts/seed-countries.js)
+
+### Status: PENDING
+
+---
+
 ---

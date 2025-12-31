@@ -159,7 +159,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('[auth] Logout error:', error);
     } finally {
+      // Clear all session data on logout
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem('vecto_persistent_strategy');
+      localStorage.removeItem('vecto_strategy_snapshot_id');
+      sessionStorage.removeItem('vecto_snapshot');
+
       setState({
         user: null,
         profile: null,
