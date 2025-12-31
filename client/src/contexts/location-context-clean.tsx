@@ -50,14 +50,15 @@ function getGeoPosition(): Promise<{ latitude: number; longitude: number; accura
       return;
     }
 
-    // Manual timeout - browser's timeout can hang in previews
+    // Manual timeout - must be > browser timeout to let browser respond first
+    // Browser timeout is 10s, so manual is 12s as fallback
     const manualTimeout = setTimeout(() => {
       if (!resolved) {
         resolved = true;
-        console.warn('[getGeoPosition] Manual timeout (5s) - browser geolocation hung. Try opening in new tab.');
+        console.warn('[getGeoPosition] Manual timeout (12s) - browser geolocation hung.');
         resolve(null);
       }
-    }, 5000);
+    }, 12000);
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -71,15 +72,44 @@ function getGeoPosition(): Promise<{ latitude: number; longitude: number; accura
           accuracy: position.coords.accuracy
         });
       },
-      (error) => {
+      async (error) => {
         if (resolved) return;
+        console.warn('[getGeoPosition] Browser failed:', error.code, error.message);
+
+        // Fallback: Google Geolocation API (works when browser GPS fails)
+        const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        if (GOOGLE_API_KEY) {
+          try {
+            console.log('[getGeoPosition] Trying Google Geolocation API fallback...');
+            const res = await fetch(
+              `https://www.googleapis.com/geolocation/v1/geolocate?key=${GOOGLE_API_KEY}`,
+              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+            );
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.location) {
+                resolved = true;
+                clearTimeout(manualTimeout);
+                console.log('[getGeoPosition] Google API success:', data.location.lat, data.location.lng);
+                resolve({
+                  latitude: data.location.lat,
+                  longitude: data.location.lng,
+                  accuracy: data.accuracy || 100
+                });
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('[getGeoPosition] Google API fallback failed:', e);
+          }
+        }
+
+        // No fallback worked
         resolved = true;
         clearTimeout(manualTimeout);
-        console.warn('[getGeoPosition] Failed:', error.code, error.message);
-        // Error codes: 1=PERMISSION_DENIED, 2=POSITION_UNAVAILABLE, 3=TIMEOUT
         resolve(null);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
     );
   });
 }
@@ -399,17 +429,16 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [enrichLocation]);
 
-  // Initial GPS fetch on mount - ALWAYS runs (we never restore snapshot_id)
-  // LESSON LEARNED: We used to skip GPS fetch if snapshot_id was restored from sessionStorage,
-  // but this caused stale data. Now we ALWAYS fetch fresh GPS → create new snapshot.
+  // Initial GPS fetch on mount
+  // Note: Browser may show "[Violation] Only request geolocation in response to user gesture"
+  // This is a warning, not an error - we try anyway and fall back to button click if needed
   useEffect(() => {
-    // Wait a tick to allow sessionStorage restore to complete first
     const timer = setTimeout(() => {
-      // Safety check: only skip if somehow we have a fresh snapshot (shouldn't happen now)
       if (lastSnapshotId && currentCoords) {
-        console.log('📦 [LocationContext] Skipping GPS fetch - already have snapshot (unexpected)');
+        console.log('📦 [LocationContext] Using cached location from sessionStorage');
         return;
       }
+      console.log('📍 [LocationContext] Attempting automatic GPS fetch...');
       refreshGPS();
     }, 50);
     return () => clearTimeout(timer);
