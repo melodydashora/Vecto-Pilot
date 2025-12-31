@@ -1,7 +1,7 @@
 // client/src/contexts/co-pilot-context.tsx
 // Shared state and queries for all co-pilot pages
 
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
@@ -80,6 +80,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
   // Snapshot state
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
+  // Track which snapshot the current strategy belongs to (for future refresh optimization)
   const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null);
 
   // Strategy state
@@ -255,7 +256,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     queryKey: ['/api/snapshot', lastSnapshotId],
     queryFn: async () => {
       if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
-      const response = await fetch(`/api/snapshot/${lastSnapshotId}`);
+      const response = await fetch(`/api/snapshot/${lastSnapshotId}`, {
+        headers: getAuthHeader()
+      });
       if (!response.ok) return null;
       return response.json();
     },
