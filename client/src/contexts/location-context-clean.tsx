@@ -419,9 +419,25 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         await enrichLocation(coords.latitude, coords.longitude, coords.accuracy);
         console.log('🔄 [refreshGPS] Step 7: enrichLocation() completed');
       } else {
-        // No fallback - GPS-first global app. User must enable location services.
-        console.warn('🔄 [refreshGPS] ❌ GPS FAILED - coords is null, no fallback');
-        setCurrentLocationString('Location unavailable - enable GPS');
+        // GPS failed - try IP-based fallback for development/preview environments
+        console.warn('🔄 [refreshGPS] ⚠️ GPS failed, trying IP fallback...');
+        try {
+          const ipRes = await fetch('/api/location/ip');
+          if (ipRes.ok) {
+            const ipData = await ipRes.json();
+            if (ipData.latitude && ipData.longitude) {
+              console.log('🔄 [refreshGPS] ✅ IP fallback succeeded:', ipData.city, ipData.state);
+              setCurrentCoords({ latitude: ipData.latitude, longitude: ipData.longitude });
+              await enrichLocation(ipData.latitude, ipData.longitude, 5000); // Low accuracy for IP
+              return;
+            }
+          }
+        } catch (ipErr) {
+          console.warn('🔄 [refreshGPS] IP fallback also failed:', ipErr);
+        }
+        // Both GPS and IP failed
+        console.error('🔄 [refreshGPS] ❌ Both GPS and IP fallback failed');
+        setCurrentLocationString('Location unavailable - check device settings');
       }
     } catch (err) {
       console.error('🔄 [refreshGPS] ❌ EXCEPTION:', err);
