@@ -1,5 +1,6 @@
 
 import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from './auth-context';
 
 // SessionStorage persistence for snapshot data
 // Prevents data loss when switching between apps (Uber ↔ Vecto)
@@ -148,6 +149,9 @@ export const useLocation = () => {
 };
 
 export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Get auth state to link snapshots to logged-in user
+  const { token, user, isLoading: authLoading } = useAuth();
+
   const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentLocationString, setCurrentLocationString] = useState('Getting location...');
   const [city, setCity] = useState<string | null>(null);
@@ -249,16 +253,42 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const currentGeneration = ++generationCounterRef.current;
     console.log(`🔢 Generation #${currentGeneration} starting for GPS update`);
+    console.log(`🔐 [LocationContext] Auth state: token=${token ? 'yes' : 'no'}, userId=${user?.userId || 'anonymous'}`);
 
     try {
+      // Build location resolve URL with authenticated userId if logged in
+      // This userId is the forever UUID from driver_profiles - NO auto-assignment
+      let resolveUrl = `/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${encodeURIComponent(deviceId)}&accuracy=${accuracy}&coord_source=gps`;
+      if (user?.userId) {
+        resolveUrl += `&user_id=${encodeURIComponent(user.userId)}`;
+      }
+
+      // Prepare headers - include auth token if logged in
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const [locationRes, weatherRes, airRes] = await Promise.all([
-        fetch(`/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${encodeURIComponent(deviceId)}&accuracy=${accuracy}&coord_source=gps`),
+        fetch(resolveUrl, { headers }),
         fetch(`/api/location/weather?lat=${lat}&lng=${lng}`),
         fetch(`/api/location/airquality?lat=${lat}&lng=${lng}`)
       ]);
 
       if (currentGeneration !== generationCounterRef.current) {
         console.log(`⏭️ Generation #${currentGeneration} superseded - ignoring results`);
+        return;
+      }
+
+      // Handle authentication errors - clear stale token and redirect to login
+      if (locationRes.status === 401) {
+        console.warn('🔐 [LocationContext] Authentication failed - clearing stale token');
+        // Clear stale token from localStorage
+        localStorage.removeItem('auth_token');
+        // Dispatch event so auth context can update
+        window.dispatchEvent(new CustomEvent('auth-token-expired'));
+        // Redirect to sign-in
+        window.location.href = '/auth/sign-in?expired=true';
         return;
       }
 
@@ -399,7 +429,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch (error) {
       console.error('[LocationContext] Enrichment failed:', error);
     }
-  }, []);
+  }, [token, user]);
 
   const refreshGPS = useCallback(async () => {
     setIsUpdating(true);
@@ -429,20 +459,35 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [enrichLocation]);
 
-  // Initial GPS fetch on mount
+  // Initial GPS fetch - ONLY start when user is AUTHENTICATED
+  // This ensures snapshots are ALWAYS linked to the authenticated user
+  // Anonymous users on sign-up/sign-in pages should NOT create snapshots
   // Note: Browser may show "[Violation] Only request geolocation in response to user gesture"
   // This is a warning, not an error - we try anyway and fall back to button click if needed
   useEffect(() => {
+    // Don't start GPS fetch until auth state is determined
+    if (authLoading) {
+      console.log('🔐 [LocationContext] Waiting for auth state to load...');
+      return;
+    }
+
+    // CRITICAL: Only start GPS fetch if user is AUTHENTICATED
+    // Anonymous users should not create snapshots
+    if (!user?.userId || !token) {
+      console.log('🔐 [LocationContext] User not authenticated - skipping GPS fetch');
+      return;
+    }
+
     const timer = setTimeout(() => {
       if (lastSnapshotId && currentCoords) {
         console.log('📦 [LocationContext] Using cached location from sessionStorage');
         return;
       }
-      console.log('📍 [LocationContext] Attempting automatic GPS fetch...');
+      console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
       refreshGPS();
     }, 50);
     return () => clearTimeout(timer);
-  }, []);
+  }, [authLoading, user?.userId, token]);
 
   // Listen for snapshot ownership errors (when user changes but stale snapshot ID is used)
   // This triggers a fresh GPS fetch to create a new snapshot for the current user

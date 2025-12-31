@@ -5,6 +5,74 @@
 
 ---
 
+## AUTHENTICATION FIXES - Dec 31, 2025
+
+### Changes Made to Fix Sign-Up/Sign-In Flow
+
+#### 1. Protected Routes (client/src/routes.tsx)
+- Wrapped `/co-pilot` routes with `<ProtectedRoute>` component
+- App now requires authentication before accessing main features
+- Unauthenticated users redirected to `/auth/sign-in`
+
+#### 2. Sign-Up Redirect (client/src/pages/auth/SignUpPage.tsx)
+- Changed post-registration redirect from `/co-pilot/strategy` to `/auth/sign-in?registered=true`
+- Users must now sign in after registration to verify credentials work
+
+#### 3. Registration Token Handling (client/src/contexts/auth-context.tsx)
+- Removed auto-login after registration
+- Token is NOT stored in localStorage after registration
+- User must explicitly sign in to verify credentials
+
+#### 4. Sign-In Success Message (client/src/pages/auth/SignInPage.tsx)
+- Added green success alert when redirected from registration
+- Shows "Account created successfully! Please sign in with your credentials."
+
+#### 5. Settings Page Styling (client/src/pages/co-pilot/SettingsPage.tsx)
+- Changed editable fields from `bg-slate-700` to `bg-slate-600 border-slate-500`
+- Improved contrast between editable fields and card background
+
+#### 6. Home Location in API (server/api/auth/auth.js)
+- Added `homeLat`, `homeLng`, `homeTimezone`, `homeFormattedAddress` to API responses
+- Fields now returned in `/api/auth/me`, login, and register endpoints
+
+#### 7. Debug Logging (server/api/auth/auth.js)
+- Registration: logs password length, first/last char, hash length
+- Login: logs same for comparison + verification result
+- Helps trace password hashing/verification issues
+
+#### 8. Home Location Types (client/src/types/auth.ts)
+- Added `homeLat?: number`, `homeLng?: number`, `homeTimezone?: string`, `homeFormattedAddress?: string` to DriverProfile interface
+
+---
+
+## TEMPORARY CHANGES (Revert After Testing)
+
+### AI Coach Authentication Bypass (Dec 2025)
+
+**File:** `server/api/chat/chat.js`
+
+**Current State:** Changed from `requireAuth` to `optionalAuth` to allow anonymous users access during signup testing.
+
+**What to Revert:**
+```javascript
+// Line 8: Change back to only requireAuth
+import { requireAuth } from '../../middleware/auth.js';
+
+// Line 127: Change back to requireAuth
+router.post('/', requireAuth, async (req, res) => {
+```
+
+**When to Revert:** After sign-up/sign-in flow is fully tested and working.
+
+**Status:** ✅ REVERTED - Dec 31, 2025
+
+**Why:** AI Coach should require authentication for registered users to:
+- Track conversation history per user
+- Personalize responses based on user profile
+- Enable premium features for registered users
+
+---
+
 ## Summary
 
 | Category | Count | Priority |
@@ -374,7 +442,43 @@ npm run lint
 # Run both
 npm run lint && npm run typecheck
 ```
+## Melody's TODO
+[ ] Finish setting up Twillo for forgot password
 
+[ ] Make sure intel connection to db is setup correctly
+
+[ ] Add market map with boundaries to intel page
+
+[ ] Verify Coach as Activate/Deactivate for showing events on the map
+
+[ ] Make sure events table has active (now data not tomorrow or in 5 hours +/- drive time and staging time for start and end of events)
+
+[ ] Make sure model script is ran when the server runs and the parsing script as well as model.md so that we have the latest model and parameter data (think about having a model table)
+
+[ ] event_verifier.js has greyed out event in return function
+
+[ ] UI Mapping in list0repo-files.js needs to be ran during server startup and has greyed out constants
+
+[ ] Claude.md needs to have instructions to read entire repo, update codebase readme files and provide 3 enhancements or errors it founds and document them in ISSUES.md
+
+[ ] We need to update the lexicon with better terms like smartblocks refers only to venues shown on the strategy tab, bar venues, event venues are different, shown different in the UI but have a common coords (most precise - connection in the coords table (we call it coords cache but it needs to be changed))
+
+[ ] Add language preferences in user settings: Language Option	Rationale
+Spanish	Essential in almost every US market.
+Arabic	High value for airport runs and specific metro areas (e.g., Detroit, NYC).
+
+Hindi / Urdu	Very common in tech hubs and major urban centers.
+Mandarin / Cantonese	Critical for West Coast markets and international business travelers.
+Portuguese	Extremely valuable in Florida and parts of the Northeast.
+French	Useful for Canadian travelers and specific immigrant communities.
+American Sign Language (ASL)	Crucial accessibility feature. Drivers who know ASL are a massive asset for deaf or hard-of-hearing riders.
+Implementation Note for Your UI
+
+In the driver profile settings:
+
+Languages Spoken: [x] English (Default) [ ] Spanish [x] Arabic [ ] Hindi [ ] Urdu [ ] ASL (Sign Language) Select all that you can converse fluently in.
+
+This small addition creates a personalized experience that goes beyond just "getting a ride," directly supporting the tip-earning dynamic you've already experienced.
 ---
 
 ## Related Documentation

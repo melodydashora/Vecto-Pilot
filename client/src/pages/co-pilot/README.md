@@ -13,6 +13,7 @@ co-pilot/
 ├── BriefingPage.tsx     # Weather, traffic, news, events
 ├── MapPage.tsx          # Interactive venue + event map
 ├── IntelPage.tsx        # Rideshare platform intelligence
+├── SettingsPage.tsx     # User profile settings
 ├── AboutPage.tsx        # Donation/about (no GlobalHeader)
 ├── PolicyPage.tsx       # Privacy policy
 └── index.tsx            # Barrel exports
@@ -27,6 +28,7 @@ co-pilot/
 | `/co-pilot/briefing` | BriefingPage | Weather, traffic, news, and local events |
 | `/co-pilot/map` | MapPage | Interactive map with venue and event markers |
 | `/co-pilot/intel` | IntelPage | Rideshare platform coverage data |
+| `/co-pilot/settings` | SettingsPage | User profile settings (via gear icon) |
 | `/co-pilot/about` | AboutPage | Donation info (no header shown) |
 | `/co-pilot/policy` | PolicyPage | Privacy policy |
 
@@ -86,6 +88,21 @@ Rideshare platform intelligence:
 Uses:
 - `RideshareIntelTab` component
 - `usePlatformData()` hook
+
+### SettingsPage
+User profile settings:
+- **Personal Info** - Name (read-only), Nickname (editable), Phone
+- **Base Location** - Home address with geocoding
+- **Vehicle** - Year, Make, Model, Seatbelts
+- **Rideshare Platforms** - Uber/Lyft/Private with Uber tier selection
+
+Uses:
+- `useAuth()` for profile data
+- `react-hook-form` with zod validation
+- `updateProfile()` for saving changes
+- Toast notifications for feedback
+
+Access via gear icon in GlobalHeader.
 
 ### AboutPage
 Donation/about page:

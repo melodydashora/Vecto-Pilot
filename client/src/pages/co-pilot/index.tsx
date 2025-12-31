@@ -8,3 +8,4 @@ export { default as MapPage } from "./MapPage";
 export { default as IntelPage } from "./IntelPage";
 export { default as AboutPage } from "./AboutPage";
 export { default as PolicyPage } from "./PolicyPage";
+export { default as SettingsPage } from "./SettingsPage";

@@ -102,17 +102,18 @@ Before creating new files:
 
 ## Authentication
 
-### Token Flow
-1. Device generates/retrieves `device_id` from localStorage
-2. POST `/api/auth/token` with `device_id`
-3. Server returns JWT token
-4. Client stores in `localStorage.vecto_auth_token`
-5. Include in all API calls: `Authorization: Bearer <token>`
+### Token Flow (Registered Users)
+1. User registers via `/api/auth/register` or logs in via `/api/auth/login`
+2. Server returns JWT token
+3. Client stores in `localStorage.vectopilot_auth_token`
+4. Include in all API calls: `Authorization: Bearer <token>`
 
-### No Password Auth
-- Device-based identification only
-- JWT contains `user_id` and `device_id`
-- Token refresh handled automatically
+**Note:** The legacy `/api/auth/token` endpoint is DISABLED in production (returns 403).
+
+### Anonymous Users
+- No JWT token required
+- Access controlled via snapshot ownership
+- Snapshot ID passed in API URL paths
 
 ## Polling & Rate Limits
 

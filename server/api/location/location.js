@@ -378,6 +378,73 @@ router.get('/resolve', async (req, res) => {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTH: Extract authenticated user_id from Authorization header or query param
+    // If user is logged in, link the snapshot to their authenticated identity
+    // IMPORTANT: If a token was provided but invalid, reject the request entirely
+    // to prevent stale tokens from creating orphan snapshots
+    // ═══════════════════════════════════════════════════════════════════════════
+    let authenticatedUserId = null;
+    let tokenWasAttempted = false; // Track if auth was attempted (reject if it fails)
+    const authHeader = req.get('Authorization');
+    const queryUserId = req.query.user_id;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      tokenWasAttempted = true;
+      try {
+        // Token format is "userId.hmacSignature" (NOT JWT)
+        // Use same verification as auth middleware
+        const token = authHeader.slice(7);
+        const [userId, signature] = token.split('.');
+
+        if (!userId || !signature) {
+          throw new Error('Invalid token format - expected userId.signature');
+        }
+
+        // Verify HMAC signature
+        const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'vecto-dev-secret';
+        const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
+
+        if (signature !== expectedSig) {
+          throw new Error('Invalid signature');
+        }
+
+        // Validate userId format (UUID or at least 8 chars)
+        if (!userId || userId.length < 8) {
+          throw new Error('Invalid userId format');
+        }
+
+        authenticatedUserId = userId;
+        console.log(`🔐 [Location API] Authenticated user: ${authenticatedUserId}`);
+      } catch (tokenErr) {
+        console.warn('[Location API] Invalid auth token:', tokenErr.message);
+        // Token was provided but invalid - reject to prevent orphan snapshots
+        return res.status(401).json({
+          error: 'INVALID_TOKEN',
+          message: 'Authentication token is invalid or expired. Please sign in again.',
+          ok: false
+        });
+      }
+    } else if (queryUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(queryUserId)) {
+      // Accept user_id from query param (for logged-in users without re-validating token)
+      authenticatedUserId = queryUserId;
+      console.log(`🔐 [Location API] Using query param user_id: ${authenticatedUserId}`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // REQUIRE AUTHENTICATION: No anonymous snapshots allowed
+    // Protected routes mean only logged-in users should reach here
+    // If no authenticated user, reject the request
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (!authenticatedUserId) {
+      console.warn('[Location API] No authenticated user - rejecting anonymous request');
+      return res.status(401).json({
+        error: 'AUTHENTICATION_REQUIRED',
+        message: 'You must be signed in to use this feature.',
+        ok: false
+      });
+    }
+
     // Dev fallback: Generate deterministic device_id from coords if not provided
     // Uses 6 decimal precision (~0.1m) to ensure unique user per exact address
     // This ensures user records are created even in dev/testing without a real device
@@ -612,7 +679,13 @@ router.get('/resolve', async (req, res) => {
         }).catch(() => null);
         
         if (existingUser) {
-          userId = existingUser.user_id;
+          // Use authenticated user_id if logged in, otherwise use device-based user_id
+          userId = authenticatedUserId || existingUser.user_id;
+
+          // If authenticated user differs from device's current user, update the user_id
+          if (authenticatedUserId && existingUser.user_id !== authenticatedUserId) {
+            console.log(`🔐 [Location API] Linking device ${deviceId.slice(0, 8)} to authenticated user ${authenticatedUserId}`);
+          }
           
           try {
             // CRITICAL FIX: Validate formatted_address is not null before database write
@@ -670,7 +743,9 @@ router.get('/resolve', async (req, res) => {
             });
           }
         } else {
-          userId = crypto.randomUUID();
+          // Use authenticated user_id if logged in, otherwise generate new UUID
+          userId = authenticatedUserId || crypto.randomUUID();
+          console.log(`🔐 [Location API] Creating user record with ${authenticatedUserId ? 'authenticated' : 'anonymous'} user_id: ${userId.slice(0, 8)}`);
           const newUser = {
             user_id: userId,
             device_id: deviceId,

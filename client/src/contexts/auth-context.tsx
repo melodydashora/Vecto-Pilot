@@ -137,18 +137,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: result.message || result.error || 'Registration failed' };
       }
 
-      if (result.token) {
-        localStorage.setItem(TOKEN_KEY, result.token);
-        setState({
-          user: result.user || null,
-          profile: result.profile || null,
-          vehicle: result.vehicle || null,
-          token: result.token,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-      }
-
+      // Don't auto-login after registration - user should sign in to verify credentials
+      // The token is returned but NOT stored, so user must sign in manually
       return { success: true };
     } catch (error) {
       console.error('[auth] Registration error:', error);

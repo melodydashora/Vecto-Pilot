@@ -2,34 +2,48 @@
 ================================================================================
 
 id:
-  "ae6b00fb-e0d7-442e-8652-d61f0350a163"
+  "e44f3e3d-756b-45ee-9286-5add8f89b6a3"
 
 snapshot_id:
-  "8f7b4aa0-8494-44a2-89e8-2bdea809e57e"
+  "312afc02-1868-496e-92e9-c6cd77c8db69"
 
 news:
   {
   "items": [
     {
-      "link": "https://www.txdot.gov",
-      "title": "Major Road Closures on I-35E and Dallas North Tollway",
+      "link": "https://fortworth.culturemap.com/news/city-life/worst-drivers-new-years-eve-traffic-deaths-texas/",
+      "title": "Frisco PD & Uber Offer $30 NYE Vouchers",
       "impact": "high",
-      "source": "Texas Department of Transportation",
-      "summary": "Significant nightly lane closures are scheduled for I-35E and the Dallas North Tollway in Frisco and surrounding areas through December 31, causing potential delays for rideshare trips."
+      "source": "CultureMap Fort Worth",
+      "summary": "Frisco Police Department partners with Uber to provide $30 ride vouchers to discourage drunk driving on New Year's Eve, likely increasing local demand."
     },
     {
-      "link": "https://www.cbsnews.com/texas/",
-      "title": "Driver Safety Alert Following Recent Frisco Incidents",
-      "impact": "medium",
-      "source": "CBS News Texas",
-      "summary": "Local drivers are urged to exercise caution following recent reports of assaults and safety incidents involving rideshare vehicles in the Frisco and North Texas area."
+      "link": "https://www.fox4news.com/news/frisco-lyft-driver-attacked-slashed-throat",
+      "title": "Violent Attack on Frisco Lyft Driver",
+      "impact": "high",
+      "source": "FOX 4 Dallas-Fort Worth",
+      "summary": "A Frisco Lyft driver is recovering after a brutal knife attack by a passenger near Legacy Drive in late December, raising severe safety concerns for local drivers."
     },
     {
-      "link": "https://www.govtech.com",
-      "title": "Gig Economy Oversaturation Impacting Driver Earnings",
+      "link": "https://www.friscotexas.gov/CivicAlerts.aspx?AID=2088",
+      "title": "New Year's Eve Road Closures in Frisco",
       "impact": "medium",
-      "source": "GovTech / Industry Analysis",
-      "summary": "Reports indicate increased competition and lower per-hour earnings for Texas rideshare drivers in late 2025 due to a surge in new drivers entering the gig economy."
+      "source": "City of Frisco",
+      "summary": "Traffic patterns on Hillcrest Road are modified between PGA Pkwy and Panther Creek Pkwy, with potential DNT lane closures affecting holiday routes."
+    },
+    {
+      "link": "https://fortworth.culturemap.com/news/city-life/worst-drivers-new-years-eve-traffic-deaths-texas/",
+      "title": "Dallas County Free Lyft Rides Promo",
+      "impact": "medium",
+      "source": "CultureMap Fort Worth",
+      "summary": "A 'COORSNYE25' promo code offers free Lyft rides (up to $35) in Dallas County, which may draw Frisco drivers south for higher volume trips."
+    },
+    {
+      "link": "https://www.youtube.com/watch?v=15XV5vFj2Xc",
+      "title": "Driver Oversaturation Amid Layoffs",
+      "impact": "medium",
+      "source": "The Rideshare Guy / YouTube",
+      "summary": "Reports indicate increased competition and lower per-hour earnings for Texas gig workers as layoffs push more drivers onto platforms like Uber and Lyft."
     }
   ],
   "reason": null
@@ -37,9 +51,9 @@ news:
 
 weather_current:
   {
-  "tempF": 41,
-  "conditions": "Clear",
-  "description": "Clear"
+  "tempF": 60,
+  "conditions": "Sunny",
+  "description": "Sunny"
 }
 
 weather_forecast:
@@ -47,19 +61,19 @@ weather_forecast:
 
 traffic_conditions:
   {
-  "jams": 38,
+  "jams": 59,
   "stats": {
-    "jams": 38,
-    "major": 21,
-    "total": 124,
-    "closures": 54,
-    "highways": 58,
+    "jams": 59,
+    "major": 35,
+    "total": 143,
+    "closures": 55,
+    "highways": 78,
     "accidents": 0,
-    "construction": 32
+    "construction": 29
   },
-  "summary": "Heavy congestion across the Frisco-Denton corridor with 124 total incidents including 54 road closures and 38 active traffic jams. The US-380 corridor is your biggest headache today with multiple major jams causing 7+ minute delays from Pilot Point-Aubrey through FM-2934, plus additional backup near FM-1385 adding 4 more minutes. FM-720 has extensive closures near Little Elm that will force significant detours. Consider using Preston Road or the Dallas North Tollway as north-south alternatives to avoid the worst congestion on Stemmons Freeway.",
+  "summary": "Heavy congestion across the Frisco area with 143 total incidents including 59 active traffic jams and 78 highway incidents. The worst delays are on US-380 with up to 6-minute delays between TX-5/McDonald St and US-75/TX-121, and FM-407 corridor through Copper Canyon showing 5-minute delays extending to FM-2499. FM-1385 northbound toward Aubrey and the 1st Street corridor near Teel Pkwy are also experiencing major 4-5 minute backups. US-75 southbound from Coit Rd and I-635/LBJ near Central Expressway are adding 3-minute delays for any trips heading toward Dallas.",
   "analyzed": true,
-  "briefing": "Heavy congestion across the Frisco-Denton corridor with 124 total incidents including 54 road closures and 38 active traffic jams. The US-380 corridor is your biggest headache today with multiple major jams causing 7+ minute delays from Pilot Point-Aubrey through FM-2934, plus additional backup near FM-1385 adding 4 more minutes. FM-720 has extensive closures near Little Elm that will force significant detours. Consider using Preston Road or the Dallas North Tollway as north-south alternatives to avoid the worst congestion on Stemmons Freeway.",
+  "briefing": "Heavy congestion across the Frisco area with 143 total incidents including 59 active traffic jams and 78 highway incidents. The worst delays are on US-380 with up to 6-minute delays between TX-5/McDonald St and US-75/TX-121, and FM-407 corridor through Copper Canyon showing 5-minute delays extending to FM-2499. FM-1385 northbound toward Aubrey and the 1st Street corridor near Teel Pkwy are also experiencing major 4-5 minute backups. US-75 southbound from Coit Rd and I-635/LBJ near Central Expressway are adding 3-minute delays for any trips heading toward Dallas.",
   "closures": [
     {
       "road": "",
@@ -81,7 +95,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Lamar Hunt Way to FM-720",
+      "location": "FM-720 to Lamar Hunt Way",
       "severity": "low",
       "isHighway": true
     },
@@ -99,13 +113,13 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "FM-543 to Private Road 5151",
+      "location": "County Road 168 to FM-543",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "County Road 168 to FM-543",
+      "location": "FM-543 to Private Road 5151",
       "severity": "low",
       "isHighway": true
     },
@@ -123,7 +137,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Tisdell Ln to US-377 S",
+      "location": "US-377 S to Tisdell Ln",
       "severity": "low",
       "isHighway": true
     },
@@ -140,8 +154,14 @@ traffic_conditions:
       "isHighway": true
     },
     {
-      "road": "FM-407",
-      "location": "Briarhill Blvd/Country Meadow Dr (Justin Rd/FM-407) to FM-2499/Long Prairie Rd/Village Pkwy (Justin Rd/FM-407)",
+      "road": "FM-1385",
+      "location": "FM-455 (FM-1385) to FM-428 (Pilot Point) (FM-1385)",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "FM-2499",
+      "location": "Highland Shores Blvd (Long Prairie Rd/FM-2499) to Justin Rd (Long Prairie Rd/FM-2499)",
       "severity": "low",
       "isHighway": true
     },
@@ -154,12 +174,6 @@ traffic_conditions:
     {
       "road": "US-380 E",
       "location": "FM-2931 (US-380) to FM-1385 (US-380)",
-      "severity": "low",
-      "isHighway": true
-    },
-    {
-      "road": "FM-1385",
-      "location": "FM-455 (FM-1385) to FM-428 (Pilot Point) (FM-1385)",
       "severity": "low",
       "isHighway": true
     },
@@ -189,19 +203,31 @@ traffic_conditions:
     },
     {
       "road": "",
+      "location": "E Hebron Pkwy to Medical Pkwy",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
       "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "N Hardin Blvd to Limousine Pkwy",
+      "location": "Waterview Pkwy (Synergy Park Blvd) to N Floyd Rd (Synergy Park Blvd)",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "Edgewood Dr to College Park Blvd",
+      "location": "Limousine Pkwy to N Hardin Blvd",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "College Park Blvd to Edgewood Dr",
       "severity": "low",
       "isHighway": false
     },
@@ -261,7 +287,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "W Belt Line Rd to Cherrywood Dr",
+      "location": "Cherrywood Dr to W Belt Line Rd",
       "severity": "low",
       "isHighway": false
     },
@@ -279,7 +305,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Nantucket Dr to N Floyd Rd",
+      "location": "N Floyd Rd to Nantucket Dr",
       "severity": "low",
       "isHighway": false
     },
@@ -303,12 +329,6 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "N Plano Rd to N Glenville Dr",
-      "severity": "low",
-      "isHighway": false
-    },
-    {
-      "road": "",
       "location": "Private Road 5151 to County Road 168",
       "severity": "low",
       "isHighway": false
@@ -321,7 +341,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Bluesage Ln to Naaman School Rd / Berrywood Cir",
+      "location": "Naaman School Rd / Berrywood Cir to Bluesage Ln",
       "severity": "low",
       "isHighway": false
     },
@@ -345,7 +365,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Lawnmeadow Dr to Nantucket Dr",
+      "location": "Nantucket Dr to Lawnmeadow Dr",
       "severity": "low",
       "isHighway": false
     },
@@ -381,25 +401,36 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Country View Ln to TX-5",
+      "location": "TX-5 to Country View Ln",
       "severity": "low",
       "isHighway": false
     }
   ],
-  "headline": "Heavy congestion across the Frisco-Denton corridor with 124 total incidents including 54 road closures and 38 active traffic jams.",
+  "headline": "Heavy congestion across the Frisco area with 143 total incidents including 59 active traffic jams and 78 highway incidents.",
   "provider": "tomtom",
-  "fetchedAt": "2025-12-31T01:51:18.960Z",
+  "fetchedAt": "2025-12-31T19:18:31.246Z",
   "incidents": [
+    {
+      "road": "FM-407",
+      "category": "Jam",
+      "location": "Copper Canyon Rd (Justin Rd/FM-407) to Briarhill Blvd/Country Meadow Dr (Justin Rd/FM-407)",
+      "priority": 160,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-407 (Copper Canyon Rd (Justin Rd/FM-407) to Briarhill Blvd/Country Meadow Dr (Justin Rd/FM-407))",
+      "lengthMiles": 0.6,
+      "delayMinutes": 5
+    },
     {
       "road": "",
       "category": "Jam",
-      "location": "Pilot Point-Aubrey to FM-2934",
-      "priority": 162,
+      "location": "S Teel Pkwy (1st St) to FM-1385 (1st St)",
+      "priority": 160,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Pilot Point-Aubrey to FM-2934",
-      "lengthMiles": 0.1,
-      "delayMinutes": 7
+      "description": "Jam: S Teel Pkwy (1st St) to FM-1385 (1st St)",
+      "lengthMiles": 0.5,
+      "delayMinutes": 5
     },
     {
       "road": "FM-1385",
@@ -409,119 +440,108 @@ traffic_conditions:
       "severity": "high",
       "isHighway": true,
       "description": "Jam: FM-1385 (US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385))",
-      "lengthMiles": 0.6,
+      "lengthMiles": 0.4,
       "delayMinutes": 4
     },
     {
-      "road": "",
+      "road": "TX-288 Loop",
       "category": "Jam",
-      "location": "Denton Way to FM-1385",
-      "priority": 157,
+      "location": "I-35E/US-77/N Stemmons Fwy (TX-288 Loop) to E McKinney St (TX-288 Loop)",
+      "priority": 158,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Denton Way to FM-1385",
-      "lengthMiles": 0.2,
-      "delayMinutes": 2
+      "description": "Jam: TX-288 Loop (I-35E/US-77/N Stemmons Fwy (TX-288 Loop) to E McKinney St (TX-288 Loop))",
+      "lengthMiles": 0.3,
+      "delayMinutes": 3
     },
     {
-      "road": "",
+      "road": "FM-407",
       "category": "Jam",
-      "location": "US-380 E to US-380 E",
-      "priority": 147,
+      "location": "Briarhill Blvd/Country Meadow Dr (Justin Rd/FM-407) to FM-2499/Long Prairie Rd/Village Pkwy (Justin Rd/FM-407)",
+      "priority": 158,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: US-380 E to US-380 E",
-      "lengthMiles": 0.1,
-      "delayMinutes": 2
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "S Stemmons Fwy to Fox Ave",
-      "priority": 143,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: S Stemmons Fwy to Fox Ave",
-      "lengthMiles": 0.2,
+      "description": "Jam: FM-407 (Briarhill Blvd/Country Meadow Dr (Justin Rd/FM-407) to FM-2499/Long Prairie Rd/Village Pkwy (Justin Rd/FM-407))",
+      "lengthMiles": 0.4,
       "delayMinutes": 3
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "Michael John Rd to FM-1830",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "I-635/Lyndon B Johnson Fwy (N Central Expy/US-75) to Forest Ln (N Central Expy/US-75)",
+      "priority": 158,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: Michael John Rd to FM-1830",
-      "lengthMiles": 0.9,
-      "delayMinutes": 0
+      "description": "Jam: I-635/Lyndon B Johnson Fwy (N Central Expy/US-75) to Forest Ln (N Central Expy/US-75)",
+      "lengthMiles": 0.3,
+      "delayMinutes": 3
     },
     {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
-      "priority": 140,
-      "severity": "low",
+      "road": "FM-1709",
+      "category": "Jam",
+      "location": "White Chapel Blvd (W Southlake Blvd/FM-1709) to N Kimball Ave (E Southlake Blvd/FM-1709)",
+      "priority": 157,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
-      "lengthMiles": 0.5,
-      "delayMinutes": 0
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Lamar Hunt Way to FM-720",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Lamar Hunt Way to FM-720",
+      "description": "Jam: FM-1709 (White Chapel Blvd (W Southlake Blvd/FM-1709) to N Kimball Ave (E Southlake Blvd/FM-1709))",
       "lengthMiles": 0.2,
-      "delayMinutes": 0
+      "delayMinutes": 2
+    },
+    {
+      "road": "US-380 E",
+      "category": "Jam",
+      "location": "FM-1461 (W University Dr/US-380) to US-75/TX-121 (W University Dr/US-380)",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: US-380 E (FM-1461 (W University Dr/US-380) to US-75/TX-121 (W University Dr/US-380))",
+      "lengthMiles": 0.4,
+      "delayMinutes": 2
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "FM-720 to FM-720",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "Custer Bridges to FM-2478",
+      "priority": 156,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720",
+      "description": "Jam: Custer Bridges to FM-2478",
       "lengthMiles": 0,
-      "delayMinutes": 0
+      "delayMinutes": 1
+    },
+    {
+      "road": "US-380 W",
+      "category": "Jam",
+      "location": "TX-5/N McDonald St (E University Dr/US-380) to US-75/TX-121 (W University Dr/US-380)",
+      "priority": 151,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: US-380 W (TX-5/N McDonald St (E University Dr/US-380) to US-75/TX-121 (W University Dr/US-380))",
+      "lengthMiles": 0.6,
+      "delayMinutes": 6
     }
   ],
   "keyIssues": [
-    "US-380 corridor experiencing major jam from Pilot Point-Aubrey to FM-2934 with 7-minute delays",
-    "FM-1385 backed up from US-380 to FM-428 in Aubrey with 4-minute delays",
-    "Stemmons Freeway (I-35E) jam between S Stemmons Fwy and Fox Ave causing 3-minute delays"
+    "US-380 corridor: Major 6-minute delays between TX-5/McDonald St and US-75 interchange in McKinney",
+    "FM-407 (Justin Rd): 5-minute delays through Copper Canyon to FM-2499/Long Prairie Rd",
+    "FM-1385 northbound: 4-minute delays from US-380 to FM-428 (Aubrey area)"
   ],
   "avoidAreas": [
-    "US-380 between Pilot Point and FM-1385: 13+ minutes combined delays",
-    "FM-720 near Little Elm: Multiple road closures requiring lengthy detours",
-    "FM-543 rural area: Closed between County Road 168 and Private Road 5151"
+    "US-380 between McKinney and Prosper: 6+ minute delays at US-75 interchange",
+    "FM-407 through Copper Canyon to Flower Mound: 5+ minute cumulative delays",
+    "US-75 southbound near Coit Rd: 3-minute backup affecting Dallas-bound trips"
   ],
-  "safetyAlert": "38 active traffic jams in the area",
-  "driverImpact": "Expect 10-15 minute delays on pickups heading north toward Aubrey or west on US-380; prioritize rides staying within Frisco proper or heading south toward Plano to maintain efficient routing and avoid closure detours.",
+  "safetyAlert": "59 active traffic jams in the area",
+  "driverImpact": "Expect 3-6 minute delays on primary east-west routes (US-380, FM-407) which will significantly impact pickup ETAs; consider using Custer Rd or Preston Rd as north-south alternatives and avoid US-380 for cross-town trips during this heavy congestion period.",
   "surgePricing": true,
-  "closuresCount": 54,
+  "closuresCount": 55,
   "repositioning": null,
-  "incidentsCount": 124,
-  "totalIncidents": 124,
-  "closuresSummary": "9 road closures active, with FM-720 near Little Elm and Trinity Road near Lake Lewisville being most impactful for east-west travel; rural FM-543 area also blocked.",
+  "incidentsCount": 143,
+  "totalIncidents": 143,
+  "closuresSummary": "No active road closures reported in the immediate area.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "FM-407 (Justin Road) has active road works between Copper Canyon Road and FM-2499/Long Prairie Road in Highland Village area - expect slow-and-go conditions."
+  "constructionSummary": "No significant construction zones impacting current traffic flow."
 }
 
 events:
@@ -1340,7 +1360,7 @@ school_closures:
   },
   {
     "type": "district",
-    "impact": "low",
+    "impact": "high",
     "reason": "Martin Luther King Jr. Day",
     "schoolName": "Frisco ISD",
     "closureStart": "2026-01-19",
@@ -1349,14 +1369,14 @@ school_closures:
   {
     "type": "district",
     "impact": "high",
-    "reason": "Winter Break & Professional Learning",
+    "reason": "Winter Break & Staff Development",
     "schoolName": "Prosper ISD",
     "closureStart": "2025-12-22",
     "reopeningDate": "2026-01-06"
   },
   {
     "type": "district",
-    "impact": "low",
+    "impact": "high",
     "reason": "Martin Luther King Jr. Day",
     "schoolName": "Prosper ISD",
     "closureStart": "2026-01-19",
@@ -1365,14 +1385,14 @@ school_closures:
   {
     "type": "district",
     "impact": "high",
-    "reason": "Winter Break & Staff Development",
+    "reason": "Winter Break & Staff Days",
     "schoolName": "Little Elm ISD",
     "closureStart": "2025-12-22",
     "reopeningDate": "2026-01-07"
   },
   {
     "type": "district",
-    "impact": "low",
+    "impact": "high",
     "reason": "Martin Luther King Jr. Day",
     "schoolName": "Little Elm ISD",
     "closureStart": "2026-01-19",
@@ -1381,32 +1401,16 @@ school_closures:
   {
     "type": "district",
     "impact": "high",
-    "reason": "Winter Break & Staff Day",
+    "reason": "Winter Break & Staff Development",
     "schoolName": "Lewisville ISD",
     "closureStart": "2025-12-22",
     "reopeningDate": "2026-01-06"
-  },
-  {
-    "type": "district",
-    "impact": "low",
-    "reason": "Martin Luther King Jr. Day",
-    "schoolName": "Lewisville ISD",
-    "closureStart": "2026-01-19",
-    "reopeningDate": "2026-01-20"
   },
   {
     "type": "district",
     "impact": "high",
-    "reason": "Winter Break & Staff Day",
-    "schoolName": "Plano ISD",
-    "closureStart": "2025-12-22",
-    "reopeningDate": "2026-01-06"
-  },
-  {
-    "type": "district",
-    "impact": "low",
     "reason": "Martin Luther King Jr. Day",
-    "schoolName": "Plano ISD",
+    "schoolName": "Lewisville ISD",
     "closureStart": "2026-01-19",
     "reopeningDate": "2026-01-20"
   },
@@ -1414,13 +1418,29 @@ school_closures:
     "type": "district",
     "impact": "high",
     "reason": "Winter Break & Staff Development",
-    "schoolName": "Allen ISD",
+    "schoolName": "Plano ISD",
     "closureStart": "2025-12-22",
     "reopeningDate": "2026-01-06"
   },
   {
     "type": "district",
-    "impact": "low",
+    "impact": "high",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "Plano ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20"
+  },
+  {
+    "type": "district",
+    "impact": "high",
+    "reason": "Winter Break",
+    "schoolName": "Allen ISD",
+    "closureStart": "2025-12-22",
+    "reopeningDate": "2026-01-05"
+  },
+  {
+    "type": "district",
+    "impact": "high",
     "reason": "Martin Luther King Jr. Day",
     "schoolName": "Allen ISD",
     "closureStart": "2026-01-19",
@@ -1429,14 +1449,14 @@ school_closures:
   {
     "type": "district",
     "impact": "high",
-    "reason": "Winter Break & Staff Development",
+    "reason": "Winter Break",
     "schoolName": "McKinney ISD",
     "closureStart": "2025-12-22",
-    "reopeningDate": "2026-01-06"
+    "reopeningDate": "2026-01-05"
   },
   {
     "type": "district",
-    "impact": "low",
+    "impact": "high",
     "reason": "Martin Luther King Jr. Day",
     "schoolName": "McKinney ISD",
     "closureStart": "2026-01-19",
@@ -1445,30 +1465,30 @@ school_closures:
   {
     "type": "college",
     "impact": "high",
-    "reason": "Winter Break (Campuses Closed)",
-    "schoolName": "Collin College",
+    "reason": "Winter Break",
+    "schoolName": "Collin College (Frisco Campus)",
     "closureStart": "2025-12-24",
     "reopeningDate": "2026-01-05"
   },
   {
     "type": "college",
-    "impact": "low",
+    "impact": "high",
     "reason": "Martin Luther King Jr. Day",
-    "schoolName": "Collin College",
+    "schoolName": "Collin College (Frisco Campus)",
     "closureStart": "2026-01-19",
     "reopeningDate": "2026-01-20"
   },
   {
     "type": "college",
     "impact": "high",
-    "reason": "Winter Break (University Closed)",
+    "reason": "Winter Break",
     "schoolName": "University of North Texas (Frisco)",
     "closureStart": "2025-12-24",
     "reopeningDate": "2026-01-05"
   },
   {
     "type": "college",
-    "impact": "low",
+    "impact": "high",
     "reason": "Martin Luther King Jr. Day",
     "schoolName": "University of North Texas (Frisco)",
     "closureStart": "2026-01-19",
@@ -1482,39 +1502,37 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Minor delays; gate hold and taxi delays of 15 minutes or less reported.",
+      "delays": "Gate hold and taxi delays between 16 and 30 minutes (increasing); airborne arrival delays of 15 minutes or less.",
       "status": "delays",
       "busyTimes": [
-        "06:00 - 09:00",
-        "11:00 - 14:00",
-        "16:00 - 19:00"
+        "05:00 AM - 08:00 AM",
+        "04:00 PM - 07:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Normal operations; no significant delays reported.",
-      "status": "normal",
+      "delays": "Significant delays reported, though conditions are decreasing.",
+      "status": "delays",
       "busyTimes": [
-        "06:00 - 09:00",
-        "11:00 - 14:00",
-        "16:00 - 19:00"
+        "06:00 AM - 07:00 AM",
+        "09:00 AM - 10:00 AM",
+        "03:00 PM - 07:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2025-12-31T01:51:51.041Z",
+  "fetchedAt": "2025-12-31T19:19:06.955Z",
   "busyPeriods": [
-    "Morning Rush (6:00 AM - 9:00 AM)",
-    "Mid-day Peak (11:00 AM - 2:00 PM)",
-    "Evening Rush (4:00 PM - 7:00 PM)"
+    "DFW is reporting busier than usual conditions for New Year's Eve travel.",
+    "Morning security wait times at DAL peaked around 9:00 AM; evening rush expected."
   ],
-  "recommendations": "For DFW: Drivers should wait in the designated TNC staging lots (Remote South or near Terminal A) and pick up passengers at the lower-level 'Ride App Pickup' zones (blue signage) at each terminal. For DAL: Note that the pickup location is at Garage C, Level 1 (near Valet). Drivers must wait in the specific FIFO staging area near the airport entrance to receive trip requests. Expect high demand during the evening rush."
+  "recommendations": "For DFW, drivers should utilize the designated TNC/Rideshare pickup zones on the Arrivals Level (lower level) of each terminal; the staging lot is located near Terminal A. For DAL, the rideshare pickup location has recently moved to the Valet Pavilion and Garage C, Level 1; drivers must wait in the designated FIFO zone to receive trip requests."
 }
 
 created_at:
-  "Wed Dec 31 2025 01:51:18 GMT+0000 (Coordinated Universal Time)"
+  "Wed Dec 31 2025 19:18:30 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Wed Dec 31 2025 01:51:51 GMT+0000 (Coordinated Universal Time)"
+  "Wed Dec 31 2025 19:19:07 GMT+0000 (Coordinated Universal Time)"
 

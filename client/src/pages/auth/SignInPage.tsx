@@ -2,7 +2,7 @@
 // Sign in page with email/password and social login (Google, Apple)
 
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 
 // Social login icons as inline SVGs for reliability
 const GoogleIcon = () => (
@@ -63,10 +63,14 @@ type SignInFormData = z.infer<typeof signInSchema>;
 
 export default function SignInPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if user just registered successfully
+  const justRegistered = searchParams.get('registered') === 'true';
 
   const form = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
@@ -111,14 +115,24 @@ export default function SignInPage() {
       <Card className="w-full max-w-md bg-slate-800/50 border-slate-700">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-            <span className="text-2xl font-bold text-white">EP</span>
+            <span className="text-2xl font-bold text-white">VP</span>
           </div>
           <CardTitle className="text-2xl text-white">Welcome Back</CardTitle>
           <CardDescription className="text-slate-400">
-            Sign in to your EngelPilot account
+            Sign in to your VectoPilot account
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Success message after registration */}
+          {justRegistered && (
+            <Alert className="mb-4 border-green-600/50 bg-green-900/20">
+              <CheckCircle2 className="h-4 w-4 text-green-400" />
+              <AlertDescription className="text-green-300">
+                Account created successfully! Please sign in with your credentials.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertDescription>{error}</AlertDescription>
@@ -232,6 +246,19 @@ export default function SignInPage() {
               Sign up
             </Link>
           </div>
+
+          {/* Testing bypass - only visible in development */}
+          {import.meta.env.DEV && (
+            <div className="mt-4 pt-4 border-t border-slate-700">
+              <button
+                type="button"
+                onClick={() => navigate('/co-pilot/strategy')}
+                className="w-full text-xs text-slate-500 hover:text-slate-400 py-2"
+              >
+                [DEV] Skip login →
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

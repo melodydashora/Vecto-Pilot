@@ -84,7 +84,7 @@ export default function CoachChat({
         console.log('[CoachChat] Processing event deactivation:', event_title, reason);
 
         // First, find the event by title (search in discovered events)
-        const token = localStorage.getItem('vecto_auth_token');
+        const token = localStorage.getItem('vectopilot_auth_token');
         const searchRes = await fetch(`/api/briefing/discovered-events/${snapshotId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -373,13 +373,14 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
     controllerRef.current = new AbortController();
 
     try {
-      const token = localStorage.getItem('vecto_auth_token');
+      const token = localStorage.getItem('vectopilot_auth_token');
+      const headers: Record<string, string> = { "content-type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { 
-          "content-type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({ 
           userId, 
           message: my || "(analyzing files)",

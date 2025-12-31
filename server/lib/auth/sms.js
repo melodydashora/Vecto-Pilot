@@ -7,7 +7,7 @@ import twilio from 'twilio';
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
-const APP_NAME = 'EngelPilot';
+const APP_NAME = 'VectoPilot';
 
 let twilioClient = null;
 

@@ -28,7 +28,7 @@ export default function TermsPage() {
           </CardHeader>
           <CardContent className="text-slate-300 space-y-3">
             <p>
-              EngelPilot provides AI-powered recommendations and strategic insights for rideshare drivers.
+              VectoPilot provides AI-powered recommendations and strategic insights for rideshare drivers.
               Our service analyzes various data points including weather, events, traffic patterns, and
               historical trends to suggest optimal driving strategies.
             </p>
@@ -48,7 +48,7 @@ export default function TermsPage() {
           </CardHeader>
           <CardContent className="text-slate-300 space-y-3">
             <p className="font-semibold text-amber-400">
-              EngelPilot is NOT affiliated with, endorsed by, or sponsored by Uber, Lyft, or any
+              VectoPilot is NOT affiliated with, endorsed by, or sponsored by Uber, Lyft, or any
               other rideshare platform.
             </p>
             <p>
@@ -57,7 +57,7 @@ export default function TermsPage() {
               identify which platforms they operate on.
             </p>
             <p>
-              EngelPilot is an independent third-party service that provides strategic recommendations
+              VectoPilot is an independent third-party service that provides strategic recommendations
               based on publicly available data and proprietary analysis.
             </p>
           </CardContent>
@@ -148,7 +148,7 @@ export default function TermsPage() {
           </CardHeader>
           <CardContent className="text-slate-300 space-y-3">
             <p className="font-semibold">
-              EngelPilot is provided "AS IS" without warranties of any kind, either express or implied.
+              VectoPilot is provided "AS IS" without warranties of any kind, either express or implied.
             </p>
             <p>
               We are not liable for any direct, indirect, incidental, special, consequential, or
@@ -171,8 +171,8 @@ export default function TermsPage() {
             </p>
             <p className="text-slate-400 text-center mt-2 text-sm">
               If you have any questions about these terms, please contact us at{' '}
-              <a href="mailto:support@engelpilot.com" className="text-amber-400 hover:text-amber-300">
-                support@engelpilot.com
+              <a href="mailto:support@vectopilot.com" className="text-amber-400 hover:text-amber-300">
+                support@vectopilot.com
               </a>
             </p>
           </CardContent>
