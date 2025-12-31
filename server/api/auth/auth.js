@@ -56,6 +56,7 @@ router.post('/register', async (req, res) => {
       email,
       phone,
       password,
+      nickname, // Optional custom greeting name
       // Address
       address1,
       address2,
@@ -64,15 +65,105 @@ router.post('/register', async (req, res) => {
       zipCode,
       country = 'US',
       market,
-      // Vehicle
+      // Vehicle - accept both nested and flat formats
       vehicle,
+      vehicleYear,  // Flat format from client
+      vehicleMake,  // Flat format from client
+      vehicleModel, // Flat format from client
+      seatbelts,    // Flat format from client
       // Rideshare
       ridesharePlatforms = ['uber'],
-      uberTiers = {},
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // DRIVER ELIGIBILITY - Platform-agnostic taxonomy
+      // ═══════════════════════════════════════════════════════════════════════
+
+      // Vehicle Class (base tier)
+      eligEconomy = true,
+      eligXl,
+      eligXxl,
+      eligComfort,
+      eligLuxurySedan,
+      eligLuxurySuv,
+
+      // Vehicle Attributes
+      attrElectric,
+      attrGreen,
+      attrWav,
+      attrSki,
+      attrCarSeat,
+
+      // Service Preferences
+      prefPetFriendly,
+      prefTeen,
+      prefAssist,
+      prefShared,
+
+      // Legacy fields (backward compatibility)
+      uberTiers,
+      tierBlack,
+      tierXl,
+      tierComfort,
+      tierStandard,
+      tierShare,
+      uberBlack,
+      uberXxl,
+      uberComfort,
+      uberX,
+      uberXShare,
+
       // Preferences
       marketingOptIn = false,
       termsAccepted = false
     } = req.body;
+
+    // Normalize vehicle: support both nested and flat formats
+    const normalizedVehicle = vehicle || {
+      year: vehicleYear,
+      make: vehicleMake,
+      model: vehicleModel,
+      seatbelts: seatbelts || 4
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Normalize eligibility - support new fields with legacy fallback
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Vehicle Class (default economy to true for new users)
+    const normalizedEligibility = {
+      economy: eligEconomy ?? true,
+      xl: eligXl ?? tierXl ?? uberXxl ?? uberTiers?.uberXXL ?? false,
+      xxl: eligXxl ?? false,
+      comfort: eligComfort ?? tierComfort ?? uberComfort ?? uberTiers?.uberComfort ?? false,
+      luxurySedan: eligLuxurySedan ?? tierBlack ?? uberBlack ?? uberTiers?.uberBlack ?? false,
+      luxurySuv: eligLuxurySuv ?? false,
+    };
+
+    // Vehicle Attributes
+    const normalizedAttributes = {
+      electric: attrElectric ?? false,
+      green: attrGreen ?? false,
+      wav: attrWav ?? false,
+      ski: attrSki ?? false,
+      carSeat: attrCarSeat ?? false,
+    };
+
+    // Service Preferences (unchecked = avoid these rides)
+    const normalizedPreferences = {
+      petFriendly: prefPetFriendly ?? false,
+      teen: prefTeen ?? false,
+      assist: prefAssist ?? false,
+      shared: prefShared ?? tierShare ?? uberXShare ?? uberTiers?.uberXShare ?? false,
+    };
+
+    // Legacy tiers (for backward compatibility)
+    const normalizedTiers = {
+      black: tierBlack ?? uberBlack ?? uberTiers?.uberBlack ?? false,
+      xl: tierXl ?? uberXxl ?? uberTiers?.uberXXL ?? false,
+      comfort: tierComfort ?? uberComfort ?? uberTiers?.uberComfort ?? false,
+      standard: tierStandard ?? uberX ?? uberTiers?.uberX ?? false,
+      share: tierShare ?? uberXShare ?? uberTiers?.uberXShare ?? false
+    };
 
     // Validate required fields
     const missing = [];
@@ -85,9 +176,9 @@ router.post('/register', async (req, res) => {
     if (!city) missing.push('city');
     if (!stateTerritory) missing.push('stateTerritory');
     if (!market) missing.push('market');
-    if (!vehicle?.year) missing.push('vehicle.year');
-    if (!vehicle?.make) missing.push('vehicle.make');
-    if (!vehicle?.model) missing.push('vehicle.model');
+    if (!normalizedVehicle?.year) missing.push('vehicleYear');
+    if (!normalizedVehicle?.make) missing.push('vehicleMake');
+    if (!normalizedVehicle?.model) missing.push('vehicleModel');
     if (!termsAccepted) missing.push('termsAccepted');
 
     if (missing.length > 0) {
@@ -129,7 +220,9 @@ router.post('/register', async (req, res) => {
     }
 
     // Hash password
+    authLog.phase(1, `Hashing password for: ${email} (input length: ${password?.length}, first char: ${password?.[0]}, last char: ${password?.[password.length-1]})`);
     const passwordHash = await hashPassword(password);
+    authLog.phase(1, `Password hashed for: ${email} (hash length: ${passwordHash.length})`);
 
     // Geocode the address to get lat/lng (non-blocking, don't fail registration if this fails)
     let geocodeResult = null;
@@ -182,13 +275,37 @@ router.post('/register', async (req, res) => {
       home_formatted_address: geocodeResult?.formattedAddress || null,
       home_timezone: geocodeResult?.timezone || null,
       market: market.trim(),
+      driver_nickname: nickname?.trim() || firstName.trim(), // Custom greeting name, defaults to first name
       rideshare_platforms: ridesharePlatforms,
-      uber_black: uberTiers.uberBlack || false,
-      uber_xxl: uberTiers.uberXXL || false,
-      uber_comfort: uberTiers.uberComfort || false,
-      uber_x: uberTiers.uberX || false,
-      uber_x_share: uberTiers.uberXShare || false,
+
+      // New eligibility fields
+      elig_economy: normalizedEligibility.economy,
+      elig_xl: normalizedEligibility.xl,
+      elig_xxl: normalizedEligibility.xxl,
+      elig_comfort: normalizedEligibility.comfort,
+      elig_luxury_sedan: normalizedEligibility.luxurySedan,
+      elig_luxury_suv: normalizedEligibility.luxurySuv,
+
+      attr_electric: normalizedAttributes.electric,
+      attr_green: normalizedAttributes.green,
+      attr_wav: normalizedAttributes.wav,
+      attr_ski: normalizedAttributes.ski,
+      attr_car_seat: normalizedAttributes.carSeat,
+
+      pref_pet_friendly: normalizedPreferences.petFriendly,
+      pref_teen: normalizedPreferences.teen,
+      pref_assist: normalizedPreferences.assist,
+      pref_shared: normalizedPreferences.shared,
+
+      // Legacy columns (backward compatibility)
+      uber_black: normalizedTiers.black,
+      uber_xxl: normalizedTiers.xl,
+      uber_comfort: normalizedTiers.comfort,
+      uber_x: normalizedTiers.standard,
+      uber_x_share: normalizedTiers.share,
+
       marketing_opt_in: marketingOptIn,
+      terms_accepted: true, // Boolean flag - must be true to complete registration
       terms_accepted_at: new Date(),
       terms_version: '1.0',
       profile_complete: true
@@ -197,19 +314,21 @@ router.post('/register', async (req, res) => {
     // Create driver vehicle
     await db.insert(driver_vehicles).values({
       driver_profile_id: profile.id,
-      year: vehicle.year,
-      make: vehicle.make.trim(),
-      model: vehicle.model.trim(),
-      color: vehicle.color?.trim() || null,
-      seatbelts: vehicle.seatbelts || 4,
+      year: normalizedVehicle.year,
+      make: normalizedVehicle.make.trim(),
+      model: normalizedVehicle.model.trim(),
+      color: normalizedVehicle.color?.trim() || null,
+      seatbelts: normalizedVehicle.seatbelts || 4,
       is_primary: true
     });
 
     // Create auth credentials
-    await db.insert(auth_credentials).values({
+    const [createdCreds] = await db.insert(auth_credentials).values({
       user_id: newUser.user_id,
       password_hash: passwordHash
-    });
+    }).returning();
+
+    authLog.phase(1, `Auth credentials created for user: ${newUser.user_id.substring(0, 8)} (creds id: ${createdCreds?.id?.substring(0, 8) || 'none'})`);
 
     // Generate auth token
     const token = generateAuthToken(newUser.user_id, email);
@@ -219,18 +338,77 @@ router.post('/register', async (req, res) => {
       console.warn('[auth] Welcome email failed:', err.message);
     });
 
+    // Fetch the created vehicle
+    const createdVehicle = await db.query.driver_vehicles.findFirst({
+      where: and(
+        eq(driver_vehicles.driver_profile_id, profile.id),
+        eq(driver_vehicles.is_primary, true)
+      )
+    });
+
     authLog.done(1, `New driver registered: ${email}`);
 
+    // Return same structure as GET /me for auth context compatibility
     res.status(201).json({
       ok: true,
       token,
       user: {
-        user_id: newUser.user_id,
-        email: profile.email,
+        userId: newUser.user_id,
+        email: profile.email
+      },
+      profile: {
+        id: profile.id,
+        userId: profile.user_id,
         firstName: profile.first_name,
         lastName: profile.last_name,
-        market: profile.market
-      }
+        nickname: profile.driver_nickname || profile.first_name,
+        email: profile.email,
+        phone: profile.phone,
+        address1: profile.address_1,
+        address2: profile.address_2,
+        city: profile.city,
+        stateTerritory: profile.state_territory,
+        zipCode: profile.zip_code,
+        country: profile.country,
+        market: profile.market,
+        ridesharePlatforms: profile.rideshare_platforms || [],
+        // Home location (from registration geocoding)
+        homeLat: profile.home_lat,
+        homeLng: profile.home_lng,
+        homeTimezone: profile.home_timezone,
+        homeFormattedAddress: profile.home_formatted_address,
+        // New eligibility fields
+        eligEconomy: profile.elig_economy ?? true,
+        eligXl: profile.elig_xl || false,
+        eligXxl: profile.elig_xxl || false,
+        eligComfort: profile.elig_comfort || false,
+        eligLuxurySedan: profile.elig_luxury_sedan || false,
+        eligLuxurySuv: profile.elig_luxury_suv || false,
+        attrElectric: profile.attr_electric || false,
+        attrGreen: profile.attr_green || false,
+        attrWav: profile.attr_wav || false,
+        attrSki: profile.attr_ski || false,
+        attrCarSeat: profile.attr_car_seat || false,
+        prefPetFriendly: profile.pref_pet_friendly || false,
+        prefTeen: profile.pref_teen || false,
+        prefAssist: profile.pref_assist || false,
+        prefShared: profile.pref_shared || false,
+        marketingOptIn: profile.marketing_opt_in || false,
+        termsAccepted: true, // Always true for new registrations
+        emailVerified: false,
+        phoneVerified: false,
+        profileComplete: true,
+        createdAt: profile.created_at
+      },
+      vehicle: createdVehicle ? {
+        id: createdVehicle.id,
+        driverProfileId: createdVehicle.driver_profile_id,
+        year: createdVehicle.year,
+        make: createdVehicle.make,
+        model: createdVehicle.model,
+        seatbelts: createdVehicle.seatbelts,
+        isPrimary: createdVehicle.is_primary
+      } : null
     });
 
   } catch (err) {
@@ -271,11 +449,14 @@ router.post('/login', async (req, res) => {
     });
 
     if (!creds) {
+      authLog.warn(1, `No credentials found for user_id: ${profile.user_id.substring(0, 8)}`);
       return res.status(401).json({
         error: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password'
       });
     }
+
+    authLog.phase(1, `Found credentials for: ${email} (hash length: ${creds.password_hash?.length || 0})`);
 
     // Check if account is locked
     if (creds.locked_until && new Date(creds.locked_until) > new Date()) {
@@ -287,7 +468,9 @@ router.post('/login', async (req, res) => {
     }
 
     // Verify password
+    authLog.phase(1, `Verifying password for: ${email} (input length: ${password?.length}, first char: ${password?.[0]}, last char: ${password?.[password.length-1]})`);
     const isValid = await verifyPassword(password, creds.password_hash);
+    authLog.phase(1, `Password verification result: ${isValid}`);
 
     if (!isValid) {
       // Increment failed attempts
@@ -326,18 +509,77 @@ router.post('/login', async (req, res) => {
     // Generate token
     const token = generateAuthToken(profile.user_id, email);
 
+    // Fetch vehicle
+    const vehicle = await db.query.driver_vehicles.findFirst({
+      where: and(
+        eq(driver_vehicles.driver_profile_id, profile.id),
+        eq(driver_vehicles.is_primary, true)
+      )
+    });
+
     authLog.done(1, `Driver logged in: ${email}`);
 
+    // Return same structure as GET /me for auth context compatibility
     res.json({
       ok: true,
       token,
       user: {
-        user_id: profile.user_id,
-        email: profile.email,
+        userId: profile.user_id,
+        email: profile.email
+      },
+      profile: {
+        id: profile.id,
+        userId: profile.user_id,
         firstName: profile.first_name,
         lastName: profile.last_name,
-        market: profile.market
-      }
+        nickname: profile.driver_nickname || profile.first_name,
+        email: profile.email,
+        phone: profile.phone,
+        address1: profile.address_1,
+        address2: profile.address_2,
+        city: profile.city,
+        stateTerritory: profile.state_territory,
+        zipCode: profile.zip_code,
+        country: profile.country,
+        market: profile.market,
+        ridesharePlatforms: profile.rideshare_platforms || [],
+        // Home location (from registration geocoding)
+        homeLat: profile.home_lat,
+        homeLng: profile.home_lng,
+        homeTimezone: profile.home_timezone,
+        homeFormattedAddress: profile.home_formatted_address,
+        // New eligibility fields
+        eligEconomy: profile.elig_economy ?? true,
+        eligXl: profile.elig_xl || false,
+        eligXxl: profile.elig_xxl || false,
+        eligComfort: profile.elig_comfort || false,
+        eligLuxurySedan: profile.elig_luxury_sedan || false,
+        eligLuxurySuv: profile.elig_luxury_suv || false,
+        attrElectric: profile.attr_electric || false,
+        attrGreen: profile.attr_green || false,
+        attrWav: profile.attr_wav || false,
+        attrSki: profile.attr_ski || false,
+        attrCarSeat: profile.attr_car_seat || false,
+        prefPetFriendly: profile.pref_pet_friendly || false,
+        prefTeen: profile.pref_teen || false,
+        prefAssist: profile.pref_assist || false,
+        prefShared: profile.pref_shared || false,
+        marketingOptIn: profile.marketing_opt_in || false,
+        termsAccepted: profile.terms_accepted || false,
+        emailVerified: profile.email_verified || false,
+        phoneVerified: profile.phone_verified || false,
+        profileComplete: profile.profile_complete || false,
+        createdAt: profile.created_at
+      },
+      vehicle: vehicle ? {
+        id: vehicle.id,
+        driverProfileId: vehicle.driver_profile_id,
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        seatbelts: vehicle.seatbelts,
+        isPrimary: vehicle.is_primary
+      } : null
     });
 
   } catch (err) {
@@ -583,41 +825,82 @@ router.get('/me', requireAuth, async (req, res) => {
       )
     });
 
+    // Return structured response matching AuthApiResponse interface
     res.json({
-      user_id: profile.user_id,
-      email: profile.email,
-      firstName: profile.first_name,
-      lastName: profile.last_name,
-      phone: profile.phone,
-      address: {
+      user: {
+        userId: profile.user_id,
+        email: profile.email
+      },
+      profile: {
+        id: profile.id,
+        userId: profile.user_id,
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        nickname: profile.driver_nickname || profile.first_name, // Fallback to first name
+        email: profile.email,
+        phone: profile.phone,
         address1: profile.address_1,
         address2: profile.address_2,
         city: profile.city,
         stateTerritory: profile.state_territory,
         zipCode: profile.zip_code,
-        country: profile.country
+        country: profile.country,
+        market: profile.market,
+        ridesharePlatforms: profile.rideshare_platforms || [],
+
+        // Home location (from registration geocoding)
+        homeLat: profile.home_lat,
+        homeLng: profile.home_lng,
+        homeTimezone: profile.home_timezone,
+        homeFormattedAddress: profile.home_formatted_address,
+
+        // New eligibility fields
+        eligEconomy: profile.elig_economy ?? true,
+        eligXl: profile.elig_xl || false,
+        eligXxl: profile.elig_xxl || false,
+        eligComfort: profile.elig_comfort || false,
+        eligLuxurySedan: profile.elig_luxury_sedan || false,
+        eligLuxurySuv: profile.elig_luxury_suv || false,
+
+        attrElectric: profile.attr_electric || false,
+        attrGreen: profile.attr_green || false,
+        attrWav: profile.attr_wav || false,
+        attrSki: profile.attr_ski || false,
+        attrCarSeat: profile.attr_car_seat || false,
+
+        prefPetFriendly: profile.pref_pet_friendly || false,
+        prefTeen: profile.pref_teen || false,
+        prefAssist: profile.pref_assist || false,
+        prefShared: profile.pref_shared || false,
+        marketingOptIn: profile.marketing_opt_in || false,
+        termsAccepted: profile.terms_accepted || false,
+
+        // Legacy fields (backward compatibility)
+        tierBlack: profile.uber_black || false,
+        tierXl: profile.uber_xxl || false,
+        tierComfort: profile.uber_comfort || false,
+        tierStandard: profile.uber_x || false,
+        tierShare: profile.uber_x_share || false,
+        uberBlack: profile.uber_black || false,
+        uberXxl: profile.uber_xxl || false,
+        uberComfort: profile.uber_comfort || false,
+        uberX: profile.uber_x || false,
+        uberXShare: profile.uber_x_share || false,
+
+        emailVerified: profile.email_verified || false,
+        phoneVerified: profile.phone_verified || false,
+        profileComplete: profile.profile_complete || false,
+        createdAt: profile.created_at
       },
-      market: profile.market,
-      ridesharePlatforms: profile.rideshare_platforms,
-      uberTiers: {
-        uberBlack: profile.uber_black,
-        uberXXL: profile.uber_xxl,
-        uberComfort: profile.uber_comfort,
-        uberX: profile.uber_x,
-        uberXShare: profile.uber_x_share
-      },
-      marketingOptIn: profile.marketing_opt_in,
-      emailVerified: profile.email_verified,
-      phoneVerified: profile.phone_verified,
       vehicle: vehicle ? {
         id: vehicle.id,
+        driverProfileId: vehicle.driver_profile_id,
         year: vehicle.year,
         make: vehicle.make,
         model: vehicle.model,
-        color: vehicle.color,
-        seatbelts: vehicle.seatbelts
-      } : null,
-      createdAt: profile.created_at
+        seatbelts: vehicle.seatbelts,
+        isPrimary: vehicle.is_primary
+      } : null
     });
 
   } catch (err) {
@@ -649,8 +932,8 @@ router.put('/profile', requireAuth, async (req, res) => {
     // Build update object
     const profileUpdates = {};
 
-    if (updates.firstName) profileUpdates.first_name = updates.firstName.trim();
-    if (updates.lastName) profileUpdates.last_name = updates.lastName.trim();
+    // Personal info (note: firstName/lastName intentionally not editable via profile update)
+    if (updates.nickname !== undefined) profileUpdates.driver_nickname = updates.nickname?.trim() || null;
     if (updates.phone) {
       const phoneCheck = validatePhoneNumber(updates.phone);
       if (!phoneCheck.valid) {
@@ -665,6 +948,40 @@ router.put('/profile', requireAuth, async (req, res) => {
     if (updates.zipCode !== undefined) profileUpdates.zip_code = updates.zipCode?.trim() || null;
     if (updates.market) profileUpdates.market = updates.market.trim();
     if (updates.ridesharePlatforms) profileUpdates.rideshare_platforms = updates.ridesharePlatforms;
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Handle new eligibility fields
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Vehicle Class
+    if (updates.eligEconomy !== undefined) profileUpdates.elig_economy = updates.eligEconomy;
+    if (updates.eligXl !== undefined) profileUpdates.elig_xl = updates.eligXl;
+    if (updates.eligXxl !== undefined) profileUpdates.elig_xxl = updates.eligXxl;
+    if (updates.eligComfort !== undefined) profileUpdates.elig_comfort = updates.eligComfort;
+    if (updates.eligLuxurySedan !== undefined) profileUpdates.elig_luxury_sedan = updates.eligLuxurySedan;
+    if (updates.eligLuxurySuv !== undefined) profileUpdates.elig_luxury_suv = updates.eligLuxurySuv;
+
+    // Vehicle Attributes
+    if (updates.attrElectric !== undefined) profileUpdates.attr_electric = updates.attrElectric;
+    if (updates.attrGreen !== undefined) profileUpdates.attr_green = updates.attrGreen;
+    if (updates.attrWav !== undefined) profileUpdates.attr_wav = updates.attrWav;
+    if (updates.attrSki !== undefined) profileUpdates.attr_ski = updates.attrSki;
+    if (updates.attrCarSeat !== undefined) profileUpdates.attr_car_seat = updates.attrCarSeat;
+
+    // Service Preferences
+    if (updates.prefPetFriendly !== undefined) profileUpdates.pref_pet_friendly = updates.prefPetFriendly;
+    if (updates.prefTeen !== undefined) profileUpdates.pref_teen = updates.prefTeen;
+    if (updates.prefAssist !== undefined) profileUpdates.pref_assist = updates.prefAssist;
+    if (updates.prefShared !== undefined) profileUpdates.pref_shared = updates.prefShared;
+
+    // Legacy tier fields (backward compatibility)
+    if (updates.tierBlack !== undefined) profileUpdates.uber_black = updates.tierBlack;
+    if (updates.tierXl !== undefined) profileUpdates.uber_xxl = updates.tierXl;
+    if (updates.tierComfort !== undefined) profileUpdates.uber_comfort = updates.tierComfort;
+    if (updates.tierStandard !== undefined) profileUpdates.uber_x = updates.tierStandard;
+    if (updates.tierShare !== undefined) profileUpdates.uber_x_share = updates.tierShare;
+
+    // Legacy nested uberTiers format (backward compatibility)
     if (updates.uberTiers) {
       if (updates.uberTiers.uberBlack !== undefined) profileUpdates.uber_black = updates.uberTiers.uberBlack;
       if (updates.uberTiers.uberXXL !== undefined) profileUpdates.uber_xxl = updates.uberTiers.uberXXL;
@@ -673,8 +990,42 @@ router.put('/profile', requireAuth, async (req, res) => {
       if (updates.uberTiers.uberXShare !== undefined) profileUpdates.uber_x_share = updates.uberTiers.uberXShare;
     }
     if (updates.marketingOptIn !== undefined) profileUpdates.marketing_opt_in = updates.marketingOptIn;
+    if (updates.country) profileUpdates.country = updates.country.trim();
 
     profileUpdates.updated_at = new Date();
+
+    // Check if any address fields changed - if so, re-geocode
+    const addressFieldsChanged =
+      updates.address1 || updates.address2 !== undefined ||
+      updates.city || updates.stateTerritory ||
+      updates.zipCode !== undefined || updates.country;
+
+    if (addressFieldsChanged) {
+      // Build complete address from updates + existing profile data
+      const addressToGeocode = {
+        address1: (updates.address1?.trim() || profile.address_1),
+        address2: (updates.address2 !== undefined ? updates.address2?.trim() : profile.address_2) || undefined,
+        city: (updates.city?.trim() || profile.city),
+        stateTerritory: (updates.stateTerritory?.trim() || profile.state_territory),
+        zipCode: (updates.zipCode !== undefined ? updates.zipCode?.trim() : profile.zip_code) || undefined,
+        country: (updates.country?.trim() || profile.country)
+      };
+
+      // Geocode address (non-blocking - don't fail update if geocoding fails)
+      try {
+        const geocodeResult = await geocodeAddress(addressToGeocode);
+        if (geocodeResult) {
+          profileUpdates.home_lat = geocodeResult.lat;
+          profileUpdates.home_lng = geocodeResult.lng;
+          profileUpdates.home_formatted_address = geocodeResult.formattedAddress;
+          profileUpdates.home_timezone = geocodeResult.timezone;
+          authLog.done(1, `Re-geocoded address: ${geocodeResult.formattedAddress}`);
+        }
+      } catch (geoErr) {
+        // Non-fatal - log and continue with profile update
+        console.warn('[auth] Re-geocoding failed (non-fatal):', geoErr.message);
+      }
+    }
 
     // Update profile
     await db.update(driver_profiles)

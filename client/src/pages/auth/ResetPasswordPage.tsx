@@ -121,7 +121,7 @@ export default function ResetPasswordPage() {
       <Card className="w-full max-w-md bg-slate-800/50 border-slate-700">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-            <span className="text-2xl font-bold text-white">EP</span>
+            <span className="text-2xl font-bold text-white">VP</span>
           </div>
           <CardTitle className="text-2xl text-white">Reset Password</CardTitle>
           <CardDescription className="text-slate-400">

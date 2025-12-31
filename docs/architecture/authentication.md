@@ -2,7 +2,7 @@
 
 ## Overview
 
-EngelPilot uses a multi-layer authentication system supporting:
+VectoPilot uses a multi-layer authentication system supporting:
 - **Email/password** authentication with bcrypt hashing
 - **Social login** (Google, Apple) via OAuth 2.0
 - **SMS verification** via Twilio for password reset
@@ -380,7 +380,7 @@ JWT_SECRET=your-secret-key
 
 # SendGrid (Email)
 SENDGRID_API_KEY=SG.xxx
-SENDGRID_FROM_EMAIL=noreply@engelpilot.com
+SENDGRID_FROM_EMAIL=noreply@vectopilot.com
 
 # Twilio (SMS)
 TWILIO_ACCOUNT_SID=ACxxx
@@ -392,7 +392,7 @@ GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=xxx
 
 # Apple Sign-In
-APPLE_CLIENT_ID=com.engelpilot.app
+APPLE_CLIENT_ID=com.vectopilot.app
 APPLE_TEAM_ID=xxx
 APPLE_KEY_ID=xxx
 APPLE_PRIVATE_KEY=xxx
@@ -759,13 +759,13 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 ### Google OAuth
 1. Create project at console.cloud.google.com
 2. Enable OAuth 2.0 credentials
-3. Set authorized redirect URI: `https://engelpilot.com/api/auth/google/callback`
+3. Set authorized redirect URI: `https://vectopilot.com/api/auth/google/callback`
 4. Add env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 
 ### Apple Sign-In
 1. Register app at developer.apple.com
 2. Create Services ID with Sign in with Apple capability
-3. Set return URL: `https://engelpilot.com/api/auth/apple/callback`
+3. Set return URL: `https://vectopilot.com/api/auth/apple/callback`
 4. Add env vars: `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`
 
 ---

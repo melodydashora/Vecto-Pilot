@@ -5,7 +5,7 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, strategies } from '../../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 import { coachDAL } from '../../lib/ai/coach-dal.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireAuth, optionalAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -123,17 +123,17 @@ router.get('/context/:snapshotId', requireAuth, async (req, res) => {
 
 
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
-// SECURITY: Requires authentication
-router.post('/', requireAuth, async (req, res) => {
+// SECURITY: Uses optionalAuth - works for both authenticated and anonymous users
+router.post('/', optionalAuth, async (req, res) => {
   const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [] } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
   }
-  
-  // SECURITY: Always use authenticated user, never trust client userId
-  const authUserId = req.auth.userId;
-  console.log('[chat] Authenticated user:', authUserId);
+
+  // Use authenticated user if available, otherwise use provided userId or 'anonymous'
+  const authUserId = req.auth?.userId || userId || 'anonymous';
+  console.log('[chat] User:', authUserId, req.auth ? '(authenticated)' : '(anonymous)');
 
   console.log('[chat] User:', userId || 'anonymous', '| Thread:', threadHistory.length, 'messages | Attachments:', attachments.length, '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
 

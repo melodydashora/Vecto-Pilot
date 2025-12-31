@@ -318,34 +318,47 @@ router.get('/stats', async (req, res) => {
 /**
  * GET /api/platform/countries-dropdown
  * Get countries for signup dropdown (simple value/label format)
- * Returns countries sorted with US first, then alphabetically
+ * Uses the countries reference table (ISO 3166-1 standard)
+ * Returns priority countries first (US, CA, etc.), then alphabetically
  *
  * Query params:
- *   platform - Filter by platform (default: uber)
+ *   all - If 'true', include all countries. Otherwise only show countries with platform data
  */
 router.get('/countries-dropdown', async (req, res) => {
   try {
-    const { platform = 'uber' } = req.query;
+    const showAll = req.query.all === 'true';
 
+    // Query from countries reference table
+    // Priority countries (display_order < 100) come first, then alphabetical
     const result = await db.execute(sql`
-      SELECT DISTINCT country, country_code
-      FROM platform_data
-      WHERE platform = ${platform}
-        AND country IS NOT NULL
-      ORDER BY
-        CASE WHEN country_code = 'US' THEN 0 ELSE 1 END,
-        country
+      SELECT code, name, has_platform_data
+      FROM countries
+      WHERE is_active = true
+      ORDER BY display_order, name
     `);
 
     // Format as value/label pairs for dropdown
+    // If not showing all, filter to only countries with platform data
     const countries = result.rows
-      .filter(r => r.country)
+      .filter(r => showAll || r.has_platform_data)
       .map(r => ({
-        value: r.country_code || r.country,
-        label: r.country
+        value: r.code,
+        label: r.name,
+        hasPlatformData: r.has_platform_data
       }));
 
-    res.json({ countries });
+    // Add "Other" option at the end for countries not in the list
+    countries.push({
+      value: 'OTHER',
+      label: 'Other (Country not listed)',
+      hasPlatformData: false
+    });
+
+    res.json({
+      countries,
+      totalAvailable: result.rows.length,
+      showingAll: showAll
+    });
   } catch (error) {
     console.error('Error fetching countries dropdown:', error);
     res.status(500).json({ error: 'Failed to fetch countries' });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   MapPin,
   Clock,
@@ -70,6 +71,7 @@ const GlobalHeaderComponent: React.FC = () => {
   // CRITICAL FIX Issue #3: Removed incorrect useLocation hook and used useContext for LocationContext
   const loc = useContext(LocationContext) as ExtendedLocationContext | null;
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // state for display
   const [now, setNow] = useState<Date>(new Date());
@@ -93,7 +95,7 @@ const GlobalHeaderComponent: React.FC = () => {
 
   // Query /api/auth/me for registered users only (anonymous users use snapshot ownership)
   // This is disabled for anonymous users who don't have auth tokens
-  const authToken = typeof window !== "undefined" ? localStorage.getItem("vecto_auth_token") : null;
+  const authToken = typeof window !== "undefined" ? localStorage.getItem("vectopilot_auth_token") : null;
   const { data: dbUserLocation } = useQuery({
     queryKey: ["/api/auth/me", deviceId],
     queryFn: async () => {
@@ -447,6 +449,7 @@ const GlobalHeaderComponent: React.FC = () => {
               title="Settings"
               aria-label="Open settings"
               data-testid="button-settings"
+              onClick={() => navigate('/co-pilot/settings')}
             >
               <Settings className="h-5 w-5" />
             </Button>

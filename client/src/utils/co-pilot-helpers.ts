@@ -101,7 +101,7 @@ function subscribeSSE(
  * Get auth headers with JWT token from localStorage
  */
 export function getAuthHeader(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('vecto_auth_token') : null;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('vectopilot_auth_token') : null;
   if (!token) {
     console.warn('[co-pilot] No auth token found in localStorage');
   }

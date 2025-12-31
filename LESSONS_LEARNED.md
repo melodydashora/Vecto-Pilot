@@ -184,6 +184,26 @@ All data MUST link to `snapshot_id`:
 - Higher API costs
 - Confusing UI state
 
+### Auth Token Key Mismatch (Dec 2025)
+
+**Problem:** AI Coach chat returning "unauthorized - invalid or expired token" in production
+
+**Root Cause:**
+- `auth-context.tsx` stores tokens with key: `vectopilot_auth_token`
+- `CoachChat.tsx`, `GlobalHeader.tsx`, `co-pilot-helpers.ts` were reading from: `vecto_auth_token`
+- The keys are similar but NOT the same - easy typo to miss
+
+**Why it worked in dev but failed in prod:**
+- Dev environments may have had both keys populated from earlier testing
+- Production users only have tokens from the login flow (correct key)
+- Reading from wrong key returned `null` or old invalid token
+
+**Fix:** Ensure ALL components use the same token key: `vectopilot_auth_token`
+
+**Prevention:**
+- Export `TOKEN_KEY` constant from auth-context and import it everywhere
+- Never hardcode localStorage keys - use a central constant
+
 ### localStorage Behavior
 
 **Current Behavior:**
@@ -751,6 +771,35 @@ refetchInterval: (query) => {
 **File Changed:** `client/src/hooks/useStrategyPolling.ts`
 
 **Lesson:** When adding new status codes (like 'pending_blocks'), update all polling/SSE logic to handle them. Status codes control polling behavior.
+
+---
+
+## Known Issues / Future Work
+
+### Market Data Quality (Dec 2025)
+
+**Issue:** Users signing up from countries without pre-seeded platform data can enter free-text market names, which will cause data quality issues:
+- Misspellings (e.g., "Dalls" instead of "Dallas")
+- Non-standard names (e.g., "DFW" vs "Dallas-Fort Worth")
+- Made-up markets
+- Inconsistent formatting
+
+**Current State:**
+- `countries` table has 196 countries (ISO 3166-1 standard)
+- 60 countries have pre-seeded market data from `platform_data` table
+- Users in other countries enter market names manually via text input
+
+**Future Solutions:**
+1. Add autocomplete/typeahead with fuzzy matching to suggest existing markets
+2. Add a "market_aliases" table to normalize variations (DFW → Dallas-Fort Worth)
+3. Use geocoding to validate market names against real cities
+4. Admin review queue for new market entries
+5. Expand `platform_data` coverage to more countries over time
+
+**Files Involved:**
+- `server/api/platform/index.js` - countries-dropdown, markets-dropdown endpoints
+- `client/src/pages/auth/SignUpPage.tsx` - conditional dropdown/text input rendering
+- `shared/schema.js` - countries table schema
 
 ---
 
@@ -1597,6 +1646,187 @@ Check these in order:
 2. Is weather making fresh API calls? → Look for "fetching fresh" logs (should be rare)
 3. Are SSE handlers using invalidateQueries? → Should use refetchQueries
 4. Is context value memoized? → Check useMemo in co-pilot-context.tsx
+
+---
+
+## Registration & Profile System (Dec 2025)
+
+### Registration Data Structure Mismatch
+
+**Problem:** Registration failing silently - vehicle data not saved, Uber tiers all false
+
+**Root Cause:**
+- Client (SignUpPage.tsx) sends **flat** field names: `vehicleYear`, `vehicleMake`, `uberBlack`, etc.
+- Server (auth.js) originally expected **nested** objects: `vehicle.year`, `vehicle.make`, `uberTiers.uberBlack`, etc.
+- This mismatch meant all vehicle and tier data was `undefined`
+
+**Fix:** Server now accepts BOTH formats and normalizes:
+```javascript
+// Normalize vehicle: support both nested and flat formats
+const normalizedVehicle = vehicle || {
+  year: vehicleYear,
+  make: vehicleMake,
+  model: vehicleModel,
+  seatbelts: seatbelts || 4
+};
+
+// Normalize uber tiers: support both nested and flat formats
+const normalizedUberTiers = uberTiers || {
+  uberBlack: uberBlack || false,
+  uberXXL: uberXxl || false,   // Note: case mapping
+  uberComfort: uberComfort || false,
+  uberX: uberX || false,
+  uberXShare: uberXShare || false
+};
+```
+
+**Prevention:**
+- When building forms, check what the API endpoint expects
+- Server should be flexible about input formats when reasonable
+- Add validation error messages that surface field names
+
+### GET /me Response Structure Mismatch
+
+**Problem:** After login, `state.profile` and `state.vehicle` always null in auth context
+
+**Root Cause:**
+- Auth context expected: `{ user: {...}, profile: {...}, vehicle: {...} }`
+- GET /me returned: Flat object with all fields at root level
+- `data.profile` was undefined → `state.profile = null`
+
+**Fix:** Restructure GET /me response to match expected interface:
+```javascript
+res.json({
+  user: { userId, email },
+  profile: { id, firstName, lastName, nickname, ... },
+  vehicle: { id, year, make, model, seatbelts, ... }
+});
+```
+
+**Prevention:**
+- TypeScript interfaces should define API response shapes
+- When auth context expects specific structure, verify endpoint returns it
+- Test auth flow end-to-end, not just individual endpoints
+
+### Import Path Conventions
+
+**Problem:** Build failed with "Could not load @/hooks/use-toast"
+
+**Root Cause:**
+- shadcn/ui templates use `use-toast.ts` (kebab-case)
+- This codebase uses `useToast.ts` (camelCase)
+- Easy to copy-paste wrong import path
+
+**Fix:** Use correct path: `import { useToast } from '@/hooks/useToast'`
+
+**Prevention:**
+- Check existing imports in similar files before adding new ones
+- Run `npm run build` after adding new imports
+- Glob for file existence: `ls client/src/hooks/*toast*`
+
+### Geocoding Pattern for Profile Updates
+
+**Implementation:** When address fields change on profile update, re-geocode to update home coordinates.
+
+**Key Design Decisions:**
+1. **Non-blocking:** Geocoding failures don't fail the profile update
+2. **Smart detection:** Only geocode when address fields actually change
+3. **Complete address:** Merge updated fields with existing profile data for full address
+
+```javascript
+if (addressFieldsChanged) {
+  const addressToGeocode = {
+    address1: updates.address1 || profile.address_1,
+    city: updates.city || profile.city,
+    // ... merge all address fields
+  };
+
+  try {
+    const geocodeResult = await geocodeAddress(addressToGeocode);
+    if (geocodeResult) {
+      profileUpdates.home_lat = geocodeResult.lat;
+      profileUpdates.home_lng = geocodeResult.lng;
+      // ...
+    }
+  } catch (geoErr) {
+    // Non-fatal - log and continue
+    console.warn('[auth] Re-geocoding failed:', geoErr.message);
+  }
+}
+```
+
+---
+
+## Form UX Patterns (Dec 2025)
+
+### Natural Tab Order for Address Fields
+
+**Problem:** State/Province was before City, making tab flow unnatural
+
+**Context:** Users typically think of addresses as: Street → City → State → ZIP. Having State first forced users to tab backward or use the mouse.
+
+**Fix:** Swap the order in the grid:
+```jsx
+<div className="grid grid-cols-2 gap-4">
+  {/* City first, then State - natural address flow */}
+  <FormField name="city" ... />
+  <FormField name="stateTerritory" ... />
+</div>
+```
+
+**Key Insight:** Form tab order follows DOM order. Visually, fields appear left-to-right, so left field (City) should be first in the code.
+
+### Autocomplete Pattern for Vehicle Model
+
+**Problem:** Model dropdown was slow to filter after selecting Make, and users couldn't type a custom model if theirs wasn't in the database
+
+**Solution:** Replace Select dropdown with autocomplete input that:
+1. Allows free text typing
+2. Shows filtered suggestions in a popover
+3. Warns (doesn't block) if the value doesn't match a known model
+
+**Implementation:**
+```jsx
+<Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
+  <PopoverTrigger asChild>
+    <Input
+      value={field.value}
+      onChange={(e) => {
+        field.onChange(e.target.value);
+        setModelInputValue(e.target.value);
+      }}
+      onFocus={() => setModelPopoverOpen(true)}
+    />
+  </PopoverTrigger>
+  <PopoverContent>
+    <Command>
+      <CommandList>
+        {filteredModels.slice(0, 10).map(model => (
+          <CommandItem onSelect={() => field.onChange(model.name)}>
+            {model.name}
+          </CommandItem>
+        ))}
+      </CommandList>
+    </Command>
+  </PopoverContent>
+</Popover>
+{/* Soft warning - doesn't block submission */}
+{!isModelKnown && (
+  <div className="text-amber-400 text-xs">
+    <AlertTriangle /> Model not in our database - please verify spelling
+  </div>
+)}
+```
+
+**Key Components Used:**
+- `Popover` + `PopoverContent` - Container for suggestions
+- `Command` + `CommandList` + `CommandItem` - Searchable list from shadcn/ui
+- `Input` instead of `Select` - Allows free text entry
+
+**Benefits:**
+1. Users can type to filter faster than scrolling
+2. Custom models (new cars, rare vehicles) are still accepted
+3. Soft warning helps catch typos without blocking
 
 ---
 

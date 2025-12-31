@@ -81,7 +81,7 @@ All API calls should include the JWT token:
 
 ```javascript
 const headers = {
-  'Authorization': `Bearer ${localStorage.getItem('vecto_auth_token')}`,
+  'Authorization': `Bearer ${localStorage.getItem('vectopilot_auth_token')}`,
   'Content-Type': 'application/json'
 };
 ```

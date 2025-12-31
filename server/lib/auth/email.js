@@ -5,9 +5,9 @@ import sgMail from '@sendgrid/mail';
 
 // Initialize SendGrid with API key
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'noreply@engelpilot.com';
-const APP_NAME = 'EngelPilot';
-const APP_URL = process.env.APP_URL || 'https://engelpilot.com';
+const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'noreply@vectopilot.com';
+const APP_NAME = 'VectoPilot';
+const APP_URL = process.env.APP_URL || 'https://vectopilot.com';
 
 // Brand colors (amber/gold theme)
 const BRAND_COLOR = '#f59e0b'; // amber-500

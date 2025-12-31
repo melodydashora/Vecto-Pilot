@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, ArrowLeft, ArrowRight, Check } from 'lucide-react';
-import type { MarketOption, VehicleMake, VehicleModel, RegisterData } from '@/types/auth';
+import type { MarketOption, VehicleMake, RegisterData } from '@/types/auth';
 
 // Social login icons as inline SVGs for reliability
 const GoogleIcon = () => (
@@ -89,11 +89,28 @@ const signUpSchema = z.object({
 
   // Step 4: Services & Terms
   ridesharePlatforms: z.array(z.string()).min(1, 'Select at least one platform'),
-  uberBlack: z.boolean().optional(),
-  uberXxl: z.boolean().optional(),
-  uberComfort: z.boolean().optional(),
-  uberX: z.boolean().optional(),
-  uberXShare: z.boolean().optional(),
+
+  // Vehicle Class (base tier)
+  eligEconomy: z.boolean().optional(),       // Standard 4-seat sedan
+  eligXl: z.boolean().optional(),            // 6+ seat SUV/minivan
+  eligXxl: z.boolean().optional(),           // 6+ seat + extra cargo
+  eligComfort: z.boolean().optional(),       // Newer vehicle, extra legroom
+  eligLuxurySedan: z.boolean().optional(),   // Premium sedan
+  eligLuxurySuv: z.boolean().optional(),     // Premium SUV
+
+  // Vehicle Attributes (hardware features)
+  attrElectric: z.boolean().optional(),      // Fully electric vehicle (EV)
+  attrGreen: z.boolean().optional(),         // Hybrid or low-emission
+  attrWav: z.boolean().optional(),           // Wheelchair accessible
+  attrSki: z.boolean().optional(),           // Ski rack / winter ready
+  attrCarSeat: z.boolean().optional(),       // Child safety seat
+
+  // Service Preferences (unchecked = avoid these rides)
+  prefPetFriendly: z.boolean().optional(),   // Accept passengers with pets
+  prefTeen: z.boolean().optional(),          // Unaccompanied minors (13-17)
+  prefAssist: z.boolean().optional(),        // Door-to-door assistance for seniors
+  prefShared: z.boolean().optional(),        // Carpool/shared rides
+
   marketingOptIn: z.boolean(),
   termsAccepted: z.boolean().refine(val => val === true, 'You must accept the terms'),
 }).refine(data => data.password === data.confirmPassword, {
@@ -145,12 +162,10 @@ export default function SignUpPage() {
   const [markets, setMarkets] = useState<MarketOption[]>([]);
   const [years, setYears] = useState<number[]>([]);
   const [makes, setMakes] = useState<VehicleMake[]>([]);
-  const [models, setModels] = useState<VehicleModel[]>([]);
   const [isLoadingCountries, setIsLoadingCountries] = useState(false);
   const [isLoadingRegions, setIsLoadingRegions] = useState(false);
   const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
   const [isLoadingMakes, setIsLoadingMakes] = useState(false);
-  const [isLoadingModels, setIsLoadingModels] = useState(false);
 
   const form = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
@@ -173,11 +188,24 @@ export default function SignUpPage() {
       vehicleModel: '',
       seatbelts: 4,
       ridesharePlatforms: ['uber'],
-      uberBlack: false,
-      uberXxl: false,
-      uberComfort: false,
-      uberX: false,
-      uberXShare: false,
+      // Vehicle Class - default to economy for most drivers
+      eligEconomy: true,
+      eligXl: false,
+      eligXxl: false,
+      eligComfort: false,
+      eligLuxurySedan: false,
+      eligLuxurySuv: false,
+      // Vehicle Attributes
+      attrElectric: false,
+      attrGreen: false,
+      attrWav: false,
+      attrSki: false,
+      attrCarSeat: false,
+      // Service Preferences
+      prefPetFriendly: false,
+      prefTeen: false,
+      prefAssist: false,
+      prefShared: false,
       marketingOptIn: false,
       termsAccepted: false,
     },
@@ -188,10 +216,10 @@ export default function SignUpPage() {
   const watchPlatforms = form.watch('ridesharePlatforms');
   const watchCountry = form.watch('country');
 
-  // Fetch countries on mount
+  // Fetch countries on mount (all=true to show all countries, not just those with platform data)
   useEffect(() => {
     setIsLoadingCountries(true);
-    fetch('/api/platform/countries-dropdown')
+    fetch('/api/platform/countries-dropdown?all=true')
       .then(res => res.json())
       .then(data => {
         setCountries(data.countries || []);
@@ -203,9 +231,13 @@ export default function SignUpPage() {
       });
   }, []);
 
+  // Check if selected country has platform data (for showing dropdown vs text input)
+  const selectedCountryHasPlatformData = countries.find(c => c.value === watchCountry)?.hasPlatformData ?? false;
+  const isOtherCountry = watchCountry === 'OTHER';
+
   // Fetch regions when country changes
   useEffect(() => {
-    if (watchCountry) {
+    if (watchCountry && watchCountry !== 'OTHER') {
       setIsLoadingRegions(true);
       form.setValue('stateTerritory', ''); // Reset region when country changes
       form.setValue('market', ''); // Reset market when country changes
@@ -232,6 +264,12 @@ export default function SignUpPage() {
           console.error('Failed to fetch markets:', err);
           setIsLoadingMarkets(false);
         });
+    } else if (watchCountry === 'OTHER') {
+      // Clear regions/markets for OTHER - user will enter manually
+      setRegions([]);
+      setMarkets([]);
+      form.setValue('stateTerritory', '');
+      form.setValue('market', '');
     }
   }, [watchCountry, form]);
 
@@ -257,24 +295,6 @@ export default function SignUpPage() {
         setIsLoadingMakes(false);
       });
   }, []);
-
-  // Fetch models when make or year changes
-  useEffect(() => {
-    if (watchMake && watchYear) {
-      setIsLoadingModels(true);
-      form.setValue('vehicleModel', '');
-      fetch(`/api/vehicle/models?make=${encodeURIComponent(watchMake)}&year=${watchYear}`)
-        .then(res => res.json())
-        .then(data => {
-          setModels(data.models || []);
-          setIsLoadingModels(false);
-        })
-        .catch(err => {
-          console.error('Failed to fetch models:', err);
-          setIsLoadingModels(false);
-        });
-    }
-  }, [watchMake, watchYear, form]);
 
   // Validate current step before proceeding
   const validateStep = async (): Promise<boolean> => {
@@ -325,7 +345,9 @@ export default function SignUpPage() {
     const result = await registerUser(registerData);
 
     if (result.success) {
-      navigate('/co-pilot/strategy');
+      // Redirect to sign-in page so user can verify their credentials work
+      // Show success message via URL parameter
+      navigate('/auth/sign-in?registered=true');
     } else {
       setError(result.error || 'Registration failed');
     }
@@ -347,7 +369,7 @@ export default function SignUpPage() {
       <Card className="w-full max-w-lg bg-slate-800/50 border-slate-700">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-            <span className="text-2xl font-bold text-white">EP</span>
+            <span className="text-2xl font-bold text-white">VP</span>
           </div>
           <CardTitle className="text-2xl text-white">Create Account</CardTitle>
           <CardDescription className="text-slate-400">
@@ -496,14 +518,19 @@ export default function SignUpPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-slate-200">Phone Number *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="tel"
-                            placeholder="(555) 123-4567"
-                            className="bg-slate-700/50 border-slate-600 text-white"
-                            {...field}
-                          />
-                        </FormControl>
+                        <div className="flex gap-2">
+                          <div className="flex items-center px-3 bg-slate-700/50 border border-slate-600 rounded-md text-slate-300 text-sm min-w-[60px] justify-center">
+                            +1
+                          </div>
+                          <FormControl>
+                            <Input
+                              type="tel"
+                              placeholder="(555) 123-4567"
+                              className="bg-slate-700/50 border-slate-600 text-white flex-1"
+                              {...field}
+                            />
+                          </FormControl>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -618,6 +645,7 @@ export default function SignUpPage() {
                   />
 
                   <div className="grid grid-cols-2 gap-4">
+                    {/* City first, then State - natural address flow */}
                     <FormField
                       control={form.control}
                       name="city"
@@ -642,30 +670,42 @@ export default function SignUpPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-slate-200">State/Province *</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
-                            disabled={!watchCountry || isLoadingRegions}
-                          >
+                          {/* Show dropdown if regions available, otherwise show text input */}
+                          {regions.length > 0 && !isOtherCountry ? (
+                            <Select
+                              onValueChange={field.onChange}
+                              value={field.value}
+                              disabled={!watchCountry || isLoadingRegions}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                                  <SelectValue placeholder={
+                                    !watchCountry
+                                      ? 'Select country first'
+                                      : isLoadingRegions
+                                      ? 'Loading...'
+                                      : 'Select state/province'
+                                  } />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-[200px] overflow-y-auto">
+                                {regions.map((region) => (
+                                  <SelectItem key={region.value} value={region.value}>
+                                    {region.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
                             <FormControl>
-                              <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                                <SelectValue placeholder={
-                                  !watchCountry
-                                    ? 'Select country first'
-                                    : isLoadingRegions
-                                    ? 'Loading...'
-                                    : 'Select state/province'
-                                } />
-                              </SelectTrigger>
+                              <Input
+                                placeholder={isLoadingRegions ? 'Loading...' : 'Enter state/province'}
+                                className="bg-slate-700/50 border-slate-600 text-white"
+                                disabled={!watchCountry || isLoadingRegions}
+                                {...field}
+                              />
                             </FormControl>
-                            <SelectContent className="max-h-[200px] overflow-y-auto">
-                              {regions.map((region) => (
-                                <SelectItem key={region.value} value={region.value}>
-                                  {region.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -696,30 +736,47 @@ export default function SignUpPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-slate-200">Market *</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          disabled={!watchCountry || isLoadingMarkets}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                              <SelectValue placeholder={
-                                !watchCountry
-                                  ? 'Select country first'
-                                  : isLoadingMarkets
-                                  ? 'Loading...'
-                                  : 'Select your market'
-                              } />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="max-h-[200px] overflow-y-auto">
-                            {markets.map((market) => (
-                              <SelectItem key={market.value} value={market.value}>
-                                {market.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {/* Show dropdown if markets available, otherwise show text input */}
+                        {markets.length > 0 && !isOtherCountry ? (
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            disabled={!watchCountry || isLoadingMarkets}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                                <SelectValue placeholder={
+                                  !watchCountry
+                                    ? 'Select country first'
+                                    : isLoadingMarkets
+                                    ? 'Loading...'
+                                    : 'Select your market'
+                                } />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="max-h-[200px] overflow-y-auto">
+                              {markets.map((market) => (
+                                <SelectItem key={market.value} value={market.value}>
+                                  {market.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <>
+                            <FormControl>
+                              <Input
+                                placeholder={isLoadingMarkets ? 'Loading...' : 'Enter your market (e.g., Dallas-Fort Worth)'}
+                                className="bg-slate-700/50 border-slate-600 text-white"
+                                disabled={!watchCountry || isLoadingMarkets}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription className="text-slate-400 text-xs">
+                              Enter the city/metro area where you primarily drive
+                            </FormDescription>
+                          </>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -745,7 +802,7 @@ export default function SignUpPage() {
                               <SelectValue placeholder="Select year" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent className="max-h-[300px] overflow-y-auto">
                             {years.map((year) => (
                               <SelectItem key={year} value={year.toString()}>
                                 {year}
@@ -770,7 +827,7 @@ export default function SignUpPage() {
                               <SelectValue placeholder={isLoadingMakes ? 'Loading...' : 'Select make'} />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent className="max-h-[300px] overflow-y-auto">
                             {makes.map((make) => (
                               <SelectItem key={make.id} value={make.name}>
                                 {make.name}
@@ -789,32 +846,13 @@ export default function SignUpPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-slate-200">Model *</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          disabled={!watchMake || isLoadingModels}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                              <SelectValue
-                                placeholder={
-                                  !watchMake
-                                    ? 'Select make first'
-                                    : isLoadingModels
-                                    ? 'Loading...'
-                                    : 'Select model'
-                                }
-                              />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {models.map((model) => (
-                              <SelectItem key={model.id} value={model.name}>
-                                {model.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Camry, Model 3, Accord"
+                            className="bg-slate-700/50 border-slate-600 text-white"
+                            {...field}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -853,24 +891,33 @@ export default function SignUpPage() {
               {/* Step 4: Services & Terms */}
               {step === 4 && (
                 <>
+                  {/* Platforms Section */}
                   <div>
-                    <FormLabel className="text-slate-200">Rideshare Platforms *</FormLabel>
-                    <div className="mt-2 space-y-2">
-                      {['uber', 'lyft', 'private'].map((platform) => (
+                    <FormLabel className="text-slate-200">Which platforms do you drive for? *</FormLabel>
+                    <p className="text-xs text-slate-400 mt-1 mb-3">
+                      Select all that apply
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'uber', label: 'Uber' },
+                        { id: 'lyft', label: 'Lyft' },
+                        { id: 'ridehail', label: 'Other Ridehail' },
+                        { id: 'private', label: 'Private/Chauffeur' },
+                      ].map((platform) => (
                         <div
-                          key={platform}
-                          className="flex items-center space-x-2"
+                          key={platform.id}
+                          className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-700/30 transition-colors"
                         >
                           <Checkbox
-                            id={platform}
-                            checked={watchPlatforms?.includes(platform)}
-                            onCheckedChange={() => togglePlatform(platform)}
+                            id={platform.id}
+                            checked={watchPlatforms?.includes(platform.id)}
+                            onCheckedChange={() => togglePlatform(platform.id)}
                           />
                           <label
-                            htmlFor={platform}
-                            className="text-sm text-slate-200 capitalize cursor-pointer"
+                            htmlFor={platform.id}
+                            className="text-sm text-slate-200 cursor-pointer"
                           >
-                            {platform === 'private' ? 'Private/Chauffeur' : platform.charAt(0).toUpperCase() + platform.slice(1)}
+                            {platform.label}
                           </label>
                         </div>
                       ))}
@@ -882,96 +929,110 @@ export default function SignUpPage() {
                     )}
                   </div>
 
-                  {watchPlatforms?.includes('uber') && (
-                    <div className="bg-slate-700/30 rounded-lg p-4">
-                      <FormLabel className="text-slate-200">Uber Service Tiers (Optional)</FormLabel>
-                      <p className="text-xs text-slate-400 mt-1 mb-3">
-                        Helps us provide you a more tailored strategy
-                      </p>
-                      <div className="space-y-2">
+                  {/* Vehicle Class Section */}
+                  <div className="bg-slate-700/30 rounded-lg p-4">
+                    <FormLabel className="text-slate-200">Vehicle Class</FormLabel>
+                    <p className="text-xs text-slate-400 mt-1 mb-3">
+                      What type of vehicle do you drive? Select all that apply.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { name: 'eligEconomy', label: 'Economy', desc: '4 seats, standard vehicle' },
+                        { name: 'eligXl', label: 'Large (XL)', desc: '6+ seats, SUV/Minivan' },
+                        { name: 'eligXxl', label: 'Extra Large (XXL)', desc: '6+ seats + cargo space' },
+                        { name: 'eligComfort', label: 'Comfort', desc: 'Newer, extra legroom' },
+                        { name: 'eligLuxurySedan', label: 'Luxury Sedan', desc: 'Premium sedan, black on black' },
+                        { name: 'eligLuxurySuv', label: 'Luxury SUV', desc: 'Premium SUV, 6+ seats' },
+                      ].map(({ name, label }) => (
                         <FormField
+                          key={name}
                           control={form.control}
-                          name="uberBlack"
+                          name={name as keyof SignUpFormData}
                           render={({ field }) => (
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-700/50 transition-colors">
                               <Checkbox
-                                id="uberBlack"
-                                checked={field.value}
+                                id={name}
+                                checked={field.value as boolean}
                                 onCheckedChange={field.onChange}
                               />
-                              <label htmlFor="uberBlack" className="text-sm text-slate-200 cursor-pointer">
-                                Uber Black
+                              <label htmlFor={name} className="text-sm text-slate-200 cursor-pointer">
+                                {label}
                               </label>
                             </div>
                           )}
                         />
-                        <FormField
-                          control={form.control}
-                          name="uberXxl"
-                          render={({ field }) => (
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="uberXxl"
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                              <label htmlFor="uberXxl" className="text-sm text-slate-200 cursor-pointer">
-                                Uber XXL
-                              </label>
-                            </div>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="uberComfort"
-                          render={({ field }) => (
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="uberComfort"
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                              <label htmlFor="uberComfort" className="text-sm text-slate-200 cursor-pointer">
-                                Uber Comfort
-                              </label>
-                            </div>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="uberX"
-                          render={({ field }) => (
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="uberX"
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                              <label htmlFor="uberX" className="text-sm text-slate-200 cursor-pointer">
-                                Uber X
-                              </label>
-                            </div>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="uberXShare"
-                          render={({ field }) => (
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="uberXShare"
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                              />
-                              <label htmlFor="uberXShare" className="text-sm text-slate-200 cursor-pointer">
-                                UberX Share
-                              </label>
-                            </div>
-                          )}
-                        />
-                      </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+
+                  {/* Vehicle Attributes Section */}
+                  <div className="bg-slate-700/30 rounded-lg p-4">
+                    <FormLabel className="text-slate-200">Vehicle Features</FormLabel>
+                    <p className="text-xs text-slate-400 mt-1 mb-3">
+                      Special features of your vehicle
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { name: 'attrElectric', label: 'Electric (EV)' },
+                        { name: 'attrGreen', label: 'Green / Hybrid' },
+                        { name: 'attrWav', label: 'Wheelchair (WAV)' },
+                        { name: 'attrSki', label: 'Ski / Winter Ready' },
+                        { name: 'attrCarSeat', label: 'Car Seat Available' },
+                      ].map(({ name, label }) => (
+                        <FormField
+                          key={name}
+                          control={form.control}
+                          name={name as keyof SignUpFormData}
+                          render={({ field }) => (
+                            <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-700/50 transition-colors">
+                              <Checkbox
+                                id={name}
+                                checked={field.value as boolean}
+                                onCheckedChange={field.onChange}
+                              />
+                              <label htmlFor={name} className="text-sm text-slate-200 cursor-pointer">
+                                {label}
+                              </label>
+                            </div>
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Service Preferences Section */}
+                  <div className="bg-slate-700/30 rounded-lg p-4">
+                    <FormLabel className="text-slate-200">Service Preferences</FormLabel>
+                    <p className="text-xs text-slate-400 mt-1 mb-3">
+                      Rides you're willing to accept. Unchecked = we'll avoid sending you these.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { name: 'prefPetFriendly', label: 'Pet Friendly' },
+                        { name: 'prefTeen', label: 'Teen Rides (13-17)' },
+                        { name: 'prefAssist', label: 'Assist / Seniors' },
+                        { name: 'prefShared', label: 'Shared / Pool Rides' },
+                      ].map(({ name, label }) => (
+                        <FormField
+                          key={name}
+                          control={form.control}
+                          name={name as keyof SignUpFormData}
+                          render={({ field }) => (
+                            <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-700/50 transition-colors">
+                              <Checkbox
+                                id={name}
+                                checked={field.value as boolean}
+                                onCheckedChange={field.onChange}
+                              />
+                              <label htmlFor={name} className="text-sm text-slate-200 cursor-pointer">
+                                {label}
+                              </label>
+                            </div>
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
 
                   <FormField
                     control={form.control}
@@ -984,7 +1045,7 @@ export default function SignUpPage() {
                           onCheckedChange={field.onChange}
                         />
                         <label htmlFor="marketingOptIn" className="text-sm text-slate-200 cursor-pointer">
-                          Receive EngelPilot news and updates
+                          Receive VectoPilot news and updates
                         </label>
                       </div>
                     )}

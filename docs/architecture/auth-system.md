@@ -15,7 +15,7 @@ Users can access the app without registration. Access is controlled by **snapsho
 Registered drivers get JWT tokens for authenticated access:
 - Sign up via `/api/auth/register`
 - Login via `/api/auth/login` → returns JWT token
-- Token stored in `localStorage.setItem('vecto_auth_token', token)`
+- Token stored in `localStorage.setItem('vectopilot_auth_token', token)`
 - Endpoints use `requireAuth` middleware
 
 ## Architecture Overview
@@ -33,7 +33,7 @@ Browser GPS → [LocationContext] → /api/location/resolve
 REGISTERED FLOW (with account):
 User registers/logs in → /api/auth/login
          ↓
-   JWT token returned → localStorage.setItem('vecto_auth_token')
+   JWT token returned → localStorage.setItem('vectopilot_auth_token')
          ↓
    All requests include Authorization: Bearer ${token}
          ↓
@@ -95,7 +95,7 @@ const response = await fetch('/api/auth/login', {
   body: JSON.stringify({ email, password })
 });
 const { token } = await response.json();
-localStorage.setItem('vecto_auth_token', token);
+localStorage.setItem('vectopilot_auth_token', token);
 
 // Step 2: All API calls include Authorization header
 const response = await fetch('/api/chat', {
@@ -173,7 +173,7 @@ No token stored. Snapshot ID is kept in React context state (not localStorage).
 ### Registered Mode
 | Storage | Key | Value |
 |---------|-----|-------|
-| localStorage | `vecto_auth_token` | JWT string |
+| localStorage | `vectopilot_auth_token` | JWT string |
 
 **Lifecycle:**
 - Created: After successful login via `/api/auth/login`
@@ -207,7 +207,7 @@ No token stored. Snapshot ID is kept in React context state (not localStorage).
 
 ### Registered Mode
 - ✅ User logs in via `/api/auth/login`
-- ✅ JWT token stored in localStorage (`vecto_auth_token`)
+- ✅ JWT token stored in localStorage (`vectopilot_auth_token`)
 - ✅ All API calls include `Authorization: Bearer` header
 - ✅ Backend verifies JWT and isolates data
 

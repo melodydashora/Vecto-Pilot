@@ -705,6 +705,30 @@ export const platform_data = pgTable("platform_data", {
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
+// COUNTRIES REFERENCE TABLE (ISO 3166-1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Countries table: Standard reference data for country dropdowns
+// Uses ISO 3166-1 alpha-2 codes as primary key
+export const countries = pgTable("countries", {
+  // ISO 3166-1 alpha-2 code (e.g., 'US', 'CA', 'GB')
+  code: varchar("code", { length: 2 }).primaryKey(),
+  // Official country name
+  name: text("name").notNull(),
+  // ISO 3166-1 alpha-3 code (e.g., 'USA', 'CAN', 'GBR')
+  alpha3: varchar("alpha3", { length: 3 }),
+  // Phone calling code (e.g., '+1', '+44')
+  phone_code: text("phone_code"),
+  // Whether this country has rideshare platform coverage in our data
+  has_platform_data: boolean("has_platform_data").notNull().default(false),
+  // Display order (lower = higher priority, US = 0)
+  display_order: integer("display_order").notNull().default(999),
+  // Active flag for filtering
+  is_active: boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // AUTHENTICATION & DRIVER PROFILES
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -717,6 +741,7 @@ export const driver_profiles = pgTable("driver_profiles", {
   // Personal information
   first_name: text("first_name").notNull(),
   last_name: text("last_name").notNull(),
+  driver_nickname: text("driver_nickname"), // Custom greeting name (defaults to first_name if null)
   email: text("email").notNull().unique(),
   phone: text("phone").notNull(),
 
@@ -737,10 +762,35 @@ export const driver_profiles = pgTable("driver_profiles", {
   // Market selection (rideshare market area)
   market: text("market").notNull(),
 
-  // Rideshare platforms used (jsonb array: ['uber', 'lyft', 'private'])
+  // Rideshare platforms used (jsonb array: ['uber', 'lyft', 'ridehail', 'private'])
   rideshare_platforms: jsonb("rideshare_platforms").notNull().default(sql`'["uber"]'`),
 
-  // Uber service tiers (optional - helps provide tailored strategy)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DRIVER ELIGIBILITY - Platform-agnostic taxonomy
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Vehicle Class (base tier - what kind of vehicle do you drive?)
+  elig_economy: boolean("elig_economy").default(true),        // Standard 4-seat sedan (UberX, Lyft Standard)
+  elig_xl: boolean("elig_xl").default(false),                 // 6+ seat SUV/minivan (UberXL, Lyft XL)
+  elig_xxl: boolean("elig_xxl").default(false),               // 6+ seat + extra cargo (Suburban, Expedition MAX)
+  elig_comfort: boolean("elig_comfort").default(false),       // Newer vehicle, extra legroom (Uber Comfort)
+  elig_luxury_sedan: boolean("elig_luxury_sedan").default(false), // Premium sedan, black on black (Uber Black)
+  elig_luxury_suv: boolean("elig_luxury_suv").default(false), // Premium SUV, 6+ seats (Uber Black SUV)
+
+  // Vehicle Attributes (hardware features of your vehicle)
+  attr_electric: boolean("attr_electric").default(false),     // Fully electric vehicle (EV)
+  attr_green: boolean("attr_green").default(false),           // Hybrid or low-emission vehicle
+  attr_wav: boolean("attr_wav").default(false),               // Wheelchair accessible (ramp/lift)
+  attr_ski: boolean("attr_ski").default(false),               // Ski rack / winter ready
+  attr_car_seat: boolean("attr_car_seat").default(false),     // Child safety seat available
+
+  // Service Preferences (rides you're willing to take - unchecked = avoid)
+  pref_pet_friendly: boolean("pref_pet_friendly").default(false), // Accept passengers with pets
+  pref_teen: boolean("pref_teen").default(false),             // Unaccompanied minors (13-17)
+  pref_assist: boolean("pref_assist").default(false),         // Door-to-door assistance for seniors
+  pref_shared: boolean("pref_shared").default(false),         // Carpool/shared rides
+
+  // Legacy columns (kept for backward compatibility - will migrate to new fields)
   uber_black: boolean("uber_black").default(false),
   uber_xxl: boolean("uber_xxl").default(false),
   uber_comfort: boolean("uber_comfort").default(false),
@@ -748,9 +798,10 @@ export const driver_profiles = pgTable("driver_profiles", {
   uber_x_share: boolean("uber_x_share").default(false),
 
   // Notifications
-  marketing_opt_in: boolean("marketing_opt_in").default(false),
+  marketing_opt_in: boolean("marketing_opt_in").notNull().default(false),
 
   // Terms & Conditions
+  terms_accepted: boolean("terms_accepted").notNull().default(false), // Must be true to complete registration
   terms_accepted_at: timestamp("terms_accepted_at", { withTimezone: true }),
   terms_version: text("terms_version"),
 
