@@ -215,6 +215,26 @@ router.get('/weather/realtime', requireAuth, async (req, res) => {
 
 router.get('/weather/:snapshotId', optionalAuth, requireSnapshotOwnership, async (req, res) => {
   try {
+    // LESSON LEARNED (Dec 2025): Weather should read from cached briefing data first,
+    // just like traffic/news/airport endpoints do. This prevents excessive API calls
+    // and ensures consistent behavior across all briefing endpoints.
+    const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
+
+    // If we have cached weather in briefings table, return it
+    if (briefing?.weather_current) {
+      console.log(`[BriefingRoute] ✅ Weather: returning cached data for ${req.snapshot.snapshot_id.slice(0, 8)}`);
+      return res.json({
+        success: true,
+        weather: {
+          current: briefing.weather_current,
+          forecast: briefing.weather_forecast || []
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // No cached weather - fetch fresh (this should be rare, only on first request)
+    console.log(`[BriefingRoute] ⚡ Weather: no cached data, fetching fresh for ${req.snapshot.snapshot_id.slice(0, 8)}`);
     const freshWeather = await fetchWeatherConditions({ snapshot: req.snapshot });
 
     const weatherResponse = freshWeather ? {

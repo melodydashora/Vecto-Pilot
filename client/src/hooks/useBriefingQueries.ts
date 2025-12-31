@@ -137,6 +137,12 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 404 = snapshot not found or ownership mismatch - request new snapshot
+        if (response.status === 404) {
+          console.error('[BriefingQuery] Weather 404 - snapshot ownership error');
+          dispatchSnapshotOwnershipError();
+          return { weather: null, _ownershipError: true };
+        }
         console.error('[BriefingQuery] Weather failed:', response.status);
         // Return undefined to indicate "still loading" - UI will show spinner
         return undefined;
@@ -244,6 +250,12 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 404 = snapshot not found or ownership mismatch - request new snapshot
+        if (response.status === 404) {
+          console.error('[BriefingQuery] Events 404 - snapshot ownership error');
+          dispatchSnapshotOwnershipError();
+          return { events: [], _ownershipError: true };
+        }
         console.error('[BriefingQuery] Events failed:', response.status);
         // Return undefined to indicate "still loading" - UI will show spinner
         // Empty array would mean "fetched successfully but no events found"
@@ -267,6 +279,12 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 404 = snapshot not found or ownership mismatch - request new snapshot
+        if (response.status === 404) {
+          console.error('[BriefingQuery] School closures 404 - snapshot ownership error');
+          dispatchSnapshotOwnershipError();
+          return { school_closures: [], _ownershipError: true };
+        }
         // Return undefined to indicate "still loading" - UI will show spinner
         return undefined;
       }

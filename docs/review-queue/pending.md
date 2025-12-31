@@ -642,4 +642,38 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2025-12-31 Analysis
+
+**Generated:** 2025-12-31T01:51:15.288Z
+**Branch:** main
+**Last Commit:** b7e635a Published your App
+
+### Uncommitted Changes (4)
+| File | Status |
+|------|--------|
+| `ESSONS_LEARNED.md` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `server/api/briefing/briefing.js` | Modified |
+
+### Recent Commit Changes (4)
+| File | Status |
+|------|--------|
+| `briefing-last-row.txt` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `docs/review-queue/2025-12-31.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/client-structure.md` - Context provider changes (client/src/contexts/co-pilot-context.tsx)
+
+#### Medium Priority
+- [ ] `docs/architecture/api-reference.md` - Briefing API changes (server/api/briefing/briefing.js)
+
+### Status: PENDING
+
+---
+
 ---

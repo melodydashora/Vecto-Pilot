@@ -1510,5 +1510,95 @@ Event dispatch/listen pairs:
 
 ---
 
+## 23. Screen Flashing Fix - December 31, 2025 (Round 2)
+
+### Problem
+Screen flashing in production with console logs showing:
+- `[BriefingQuery] Weather failed: 404`
+- Massive re-render loop (repeated `Br` → `gy` → `Br` call stack pattern)
+- Error: `["/api/briefing/weather","ae2b45ac-67a2-4a0f-8cce-8a30bb418263"]`
+
+### Root Causes Identified
+
+**1. Weather query missing 404 handler**
+Unlike traffic/news/airport, weather endpoint didn't dispatch ownership error on 404:
+```javascript
+// BEFORE (BUG): Weather returned undefined on 404, didn't stop retries
+if (!response.ok) {
+  return undefined;  // No ownership error dispatch!
+}
+
+// AFTER (FIX): Now matches traffic/news/airport pattern
+if (response.status === 404) {
+  dispatchSnapshotOwnershipError();
+  return { weather: null, _ownershipError: true };
+}
+```
+
+**2. Weather endpoint making fresh API calls every time**
+Weather endpoint called `fetchWeatherConditions()` directly instead of reading cached data:
+```javascript
+// BEFORE (BUG): Always fetches fresh - excessive API calls
+const freshWeather = await fetchWeatherConditions({ snapshot });
+
+// AFTER (FIX): Read from briefings table first (like traffic does)
+const briefing = await getBriefingBySnapshotId(snapshot_id);
+if (briefing?.weather_current) {
+  return { weather: { current: briefing.weather_current, forecast: briefing.weather_forecast } };
+}
+// Only fetch fresh if no cached data
+```
+
+**3. Context value not memoized**
+`CoPilotContext.Provider` received new object every render → all children re-render:
+```javascript
+// BEFORE (BUG): New object every render
+const value = { coords, city, ... };
+
+// AFTER (FIX): Memoized - same object if deps unchanged
+const value = useMemo(() => ({ coords, city, ... }), [deps]);
+```
+
+**4. SSE handlers using invalidateQueries instead of refetchQueries**
+```javascript
+// BEFORE (BUG): Clears cache → isLoading=true → flash
+queryClient.invalidateQueries({ queryKey: [...] });
+
+// AFTER (FIX): Background fetch, existing data stays visible
+queryClient.refetchQueries({ queryKey: [...], type: 'active' });
+```
+
+### Files Changed
+- `client/src/hooks/useBriefingQueries.ts` - Added 404 handler to weather/events/school-closures
+- `client/src/contexts/co-pilot-context.tsx` - Memoized context value, changed SSE to refetchQueries
+- `server/api/briefing/briefing.js` - Weather endpoint now reads from cached briefing first
+
+### How to Verify Fix in Production
+1. Open browser console
+2. Navigate to the app
+3. Watch for:
+   - ✅ No repeated `Weather failed: 404` logs
+   - ✅ Single `Weather: returning cached data` log (not multiple fresh fetches)
+   - ✅ No massive re-render stack traces
+   - ✅ Smooth UI transitions (no flash when SSE events fire)
+
+### Trade-off: refetchQueries vs invalidateQueries
+- `invalidateQueries`: Clears cache immediately → shows loading state → can flash
+- `refetchQueries`: Keeps old data visible → fetches in background → smooth but briefly shows stale data
+
+We chose `refetchQueries` because:
+1. The "stale" data is only stale for milliseconds during refetch
+2. Flashing is worse UX than briefly showing previous data
+3. For SSE events, we're updating the SAME snapshot, not switching locations
+
+### If Flashing Returns
+Check these in order:
+1. Is weather returning 404? → Check if snapshot exists in DB
+2. Is weather making fresh API calls? → Look for "fetching fresh" logs (should be rare)
+3. Are SSE handlers using invalidateQueries? → Should use refetchQueries
+4. Is context value memoized? → Check useMemo in co-pilot-context.tsx
+
+---
+
 **Last Updated**: December 31, 2025
 **Maintained By**: Development Team

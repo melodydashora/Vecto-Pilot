@@ -2,10 +2,10 @@
 ================================================================================
 
 id:
-  "ef0dd0a1-4095-431b-9c1d-e7c2e561cc58"
+  "ae6b00fb-e0d7-442e-8652-d61f0350a163"
 
 snapshot_id:
-  "852ff4b5-25f1-4e61-983f-285588860d2b"
+  "8f7b4aa0-8494-44a2-89e8-2bdea809e57e"
 
 news:
   {
@@ -37,7 +37,7 @@ news:
 
 weather_current:
   {
-  "tempF": 42,
+  "tempF": 41,
   "conditions": "Clear",
   "description": "Clear"
 }
@@ -47,20 +47,26 @@ weather_forecast:
 
 traffic_conditions:
   {
-  "jams": 43,
+  "jams": 38,
   "stats": {
-    "jams": 43,
-    "major": 28,
-    "total": 130,
-    "closures": 55,
-    "highways": 65,
+    "jams": 38,
+    "major": 21,
+    "total": 124,
+    "closures": 54,
+    "highways": 58,
     "accidents": 0,
     "construction": 32
   },
-  "summary": "Heavy congestion across the Frisco-Denton corridor with 130 total incidents including 43 traffic jams and 55 road closures. The worst delays are on routes heading toward Aubrey and Pilot Point via FM-2934 (6-minute delay) and FM-1385 corridor from US-380 to FM-428 (3-minute delay). US-380 East toward Coit Rd and the FM-2499 corridor near Fairfield Ln are also backed up with 3-4 minute delays. Multiple road closures on FM-720 near Little Elm may force longer detours for lake-area pickups.",
+  "summary": "Heavy congestion across the Frisco-Denton corridor with 124 total incidents including 54 road closures and 38 active traffic jams. The US-380 corridor is your biggest headache today with multiple major jams causing 7+ minute delays from Pilot Point-Aubrey through FM-2934, plus additional backup near FM-1385 adding 4 more minutes. FM-720 has extensive closures near Little Elm that will force significant detours. Consider using Preston Road or the Dallas North Tollway as north-south alternatives to avoid the worst congestion on Stemmons Freeway.",
   "analyzed": true,
-  "briefing": "Heavy congestion across the Frisco-Denton corridor with 130 total incidents including 43 traffic jams and 55 road closures. The worst delays are on routes heading toward Aubrey and Pilot Point via FM-2934 (6-minute delay) and FM-1385 corridor from US-380 to FM-428 (3-minute delay). US-380 East toward Coit Rd and the FM-2499 corridor near Fairfield Ln are also backed up with 3-4 minute delays. Multiple road closures on FM-720 near Little Elm may force longer detours for lake-area pickups.",
+  "briefing": "Heavy congestion across the Frisco-Denton corridor with 124 total incidents including 54 road closures and 38 active traffic jams. The US-380 corridor is your biggest headache today with multiple major jams causing 7+ minute delays from Pilot Point-Aubrey through FM-2934, plus additional backup near FM-1385 adding 4 more minutes. FM-720 has extensive closures near Little Elm that will force significant detours. Consider using Preston Road or the Dallas North Tollway as north-south alternatives to avoid the worst congestion on Stemmons Freeway.",
   "closures": [
+    {
+      "road": "",
+      "location": "Michael John Rd to FM-1830",
+      "severity": "low",
+      "isHighway": true
+    },
     {
       "road": "",
       "location": "Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
@@ -93,25 +99,25 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "County Road 168 to FM-543",
-      "severity": "low",
-      "isHighway": true
-    },
-    {
-      "road": "",
       "location": "FM-543 to Private Road 5151",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "Lewisville-Flower Mound to Mills Rd",
+      "location": "County Road 168 to FM-543",
       "severity": "low",
       "isHighway": true
     },
     {
       "road": "",
-      "location": "N Trinity Rd (Lakeview Blvd) to US-377/US-380/E University Dr (Lakeview Blvd)",
+      "location": "Mills Rd to Lewisville-Flower Mound",
+      "severity": "low",
+      "isHighway": true
+    },
+    {
+      "road": "",
+      "location": "US-377/US-380/E University Dr (Lakeview Blvd) to N Trinity Rd (Lakeview Blvd)",
       "severity": "low",
       "isHighway": true
     },
@@ -136,12 +142,6 @@ traffic_conditions:
     {
       "road": "FM-407",
       "location": "Briarhill Blvd/Country Meadow Dr (Justin Rd/FM-407) to FM-2499/Long Prairie Rd/Village Pkwy (Justin Rd/FM-407)",
-      "severity": "low",
-      "isHighway": true
-    },
-    {
-      "road": "FM-2499",
-      "location": "Highland Shores Blvd (Long Prairie Rd/FM-2499) to Justin Rd (Long Prairie Rd/FM-2499)",
       "severity": "low",
       "isHighway": true
     },
@@ -189,13 +189,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
-      "severity": "low",
-      "isHighway": true
-    },
-    {
-      "road": "",
-      "location": "Waterview Pkwy (Synergy Park Blvd) to N Floyd Rd (Synergy Park Blvd)",
+      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
       "severity": "low",
       "isHighway": true
     },
@@ -207,7 +201,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "College Park Blvd to Edgewood Dr",
+      "location": "Edgewood Dr to College Park Blvd",
       "severity": "low",
       "isHighway": false
     },
@@ -243,6 +237,12 @@ traffic_conditions:
     },
     {
       "road": "",
+      "location": "Settlers Creek Rd to Riverpass Dr",
+      "severity": "low",
+      "isHighway": false
+    },
+    {
+      "road": "",
       "location": "W Jackson Rd to Thirty Five Oaks Mobile Home Park",
       "severity": "low",
       "isHighway": false
@@ -255,7 +255,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Twin Post Rd to Mill Creek Rd",
+      "location": "Mill Creek Rd to Twin Post Rd",
       "severity": "low",
       "isHighway": false
     },
@@ -274,12 +274,6 @@ traffic_conditions:
     {
       "road": "",
       "location": "W Campbell Rd to Lilac Ct",
-      "severity": "low",
-      "isHighway": false
-    },
-    {
-      "road": "",
-      "location": "W Campbell Rd to W Shore Dr",
       "severity": "low",
       "isHighway": false
     },
@@ -327,7 +321,7 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Naaman School Rd / Berrywood Cir to Bluesage Ln",
+      "location": "Bluesage Ln to Naaman School Rd / Berrywood Cir",
       "severity": "low",
       "isHighway": false
     },
@@ -387,58 +381,36 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "TX-5 to Country View Ln",
+      "location": "Country View Ln to TX-5",
       "severity": "low",
       "isHighway": false
     }
   ],
-  "headline": "Heavy congestion across the Frisco-Denton corridor with 130 total incidents including 43 traffic jams and 55 road closures.",
+  "headline": "Heavy congestion across the Frisco-Denton corridor with 124 total incidents including 54 road closures and 38 active traffic jams.",
   "provider": "tomtom",
-  "fetchedAt": "2025-12-31T01:31:16.183Z",
+  "fetchedAt": "2025-12-31T01:51:18.960Z",
   "incidents": [
     {
       "road": "",
       "category": "Jam",
       "location": "Pilot Point-Aubrey to FM-2934",
-      "priority": 161,
+      "priority": 162,
       "severity": "high",
       "isHighway": true,
       "description": "Jam: Pilot Point-Aubrey to FM-2934",
       "lengthMiles": 0.1,
-      "delayMinutes": 6
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Fairfield Ln to FM-2499",
-      "priority": 159,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: Fairfield Ln to FM-2499",
-      "lengthMiles": 0.3,
-      "delayMinutes": 4
+      "delayMinutes": 7
     },
     {
       "road": "FM-1385",
       "category": "Jam",
       "location": "US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)",
-      "priority": 158,
+      "priority": 159,
       "severity": "high",
       "isHighway": true,
       "description": "Jam: FM-1385 (US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385))",
-      "lengthMiles": 0.3,
-      "delayMinutes": 3
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "E University Dr to FM-1385",
-      "priority": 157,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: E University Dr to FM-1385",
-      "lengthMiles": 0.1,
-      "delayMinutes": 2
+      "lengthMiles": 0.6,
+      "delayMinutes": 4
     },
     {
       "road": "",
@@ -452,48 +424,37 @@ traffic_conditions:
       "delayMinutes": 2
     },
     {
-      "road": "FM-455",
+      "road": "",
       "category": "Jam",
-      "location": "FM-3356 (W FM-455) to US-75 (FM-455/W FM-455)",
-      "priority": 157,
+      "location": "US-380 E to US-380 E",
+      "priority": 147,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: FM-455 (FM-3356 (W FM-455) to US-75 (FM-455/W FM-455))",
-      "lengthMiles": 0.2,
+      "description": "Jam: US-380 E to US-380 E",
+      "lengthMiles": 0.1,
       "delayMinutes": 2
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "Bruton Orand Blvd to Lewisville-Flower Mound",
-      "priority": 152,
+      "location": "S Stemmons Fwy to Fox Ave",
+      "priority": 143,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Bruton Orand Blvd to Lewisville-Flower Mound",
-      "lengthMiles": 0,
-      "delayMinutes": 2
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "US-380 E to Coit Rd",
-      "priority": 148,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: US-380 E to Coit Rd",
+      "description": "Jam: S Stemmons Fwy to Fox Ave",
       "lengthMiles": 0.2,
       "delayMinutes": 3
     },
     {
       "road": "",
-      "category": "Jam",
-      "location": "FM-2170 to FM-2170",
-      "priority": 142,
-      "severity": "medium",
+      "category": "Road Closed",
+      "location": "Michael John Rd to FM-1830",
+      "priority": 140,
+      "severity": "low",
       "isHighway": true,
-      "description": "Jam: FM-2170 to FM-2170",
-      "lengthMiles": 0,
-      "delayMinutes": 2
+      "description": "Road Closed: Michael John Rd to FM-1830",
+      "lengthMiles": 0.9,
+      "delayMinutes": 0
     },
     {
       "road": "",
@@ -505,29 +466,62 @@ traffic_conditions:
       "description": "Road Closed: Lakeview Blvd (Trinity Rd) to FM-426/E McKinney St (Trinity Rd)",
       "lengthMiles": 0.5,
       "delayMinutes": 0
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Lamar Hunt Way to FM-720",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Lamar Hunt Way to FM-720",
+      "lengthMiles": 0.2,
+      "delayMinutes": 0
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "FM-720 to FM-720",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: FM-720 to FM-720",
+      "lengthMiles": 0,
+      "delayMinutes": 0
     }
   ],
   "keyIssues": [
-    "Pilot Point-Aubrey corridor to FM-2934 - Major jam with 6-minute delay, worst current backup",
-    "FM-1385 from US-380 to FM-428 (Aubrey) - Major jam with 3-minute delay affecting north-south travel",
-    "US-380 East to Coit Rd - Major jam with 3-minute delay impacting east-west crosstown routes"
+    "US-380 corridor experiencing major jam from Pilot Point-Aubrey to FM-2934 with 7-minute delays",
+    "FM-1385 backed up from US-380 to FM-428 in Aubrey with 4-minute delays",
+    "Stemmons Freeway (I-35E) jam between S Stemmons Fwy and Fox Ave causing 3-minute delays"
   ],
   "avoidAreas": [
-    "FM-720 corridor near Little Elm: Multiple road closures between Lighthouse Beach Dr and Lobo Ln",
-    "Pilot Point-Aubrey route to FM-2934: 6+ minute delays, use US-377 as alternate",
-    "FM-1385 between US-380 and Aubrey: Heavy congestion, consider Dallas North Tollway for north-south trips"
+    "US-380 between Pilot Point and FM-1385: 13+ minutes combined delays",
+    "FM-720 near Little Elm: Multiple road closures requiring lengthy detours",
+    "FM-543 rural area: Closed between County Road 168 and Private Road 5151"
   ],
-  "safetyAlert": "43 active traffic jams in the area",
-  "driverImpact": "Expect 2-6 minute delays on most major corridors north and west of Frisco; pickups near Little Elm and FM-720 will require significant detours due to closures, adding 5-10 minutes to ETAs in those areas.",
+  "safetyAlert": "38 active traffic jams in the area",
+  "driverImpact": "Expect 10-15 minute delays on pickups heading north toward Aubrey or west on US-380; prioritize rides staying within Frisco proper or heading south toward Plano to maintain efficient routing and avoid closure detours.",
   "surgePricing": true,
-  "closuresCount": 55,
+  "closuresCount": 54,
   "repositioning": null,
-  "incidentsCount": 130,
-  "totalIncidents": 130,
-  "closuresSummary": "6 road closures active, with 4 concentrated on FM-720/Little Elm area including Lamar Hunt Way and Lighthouse Beach Dr; Trinity Rd closure between Lakeview Blvd and FM-426 also impacts routing.",
+  "incidentsCount": 124,
+  "totalIncidents": 124,
+  "closuresSummary": "9 road closures active, with FM-720 near Little Elm and Trinity Road near Lake Lewisville being most impactful for east-west travel; rural FM-543 area also blocked.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "No active construction zones currently reported in the immediate area."
+  "constructionSummary": "FM-407 (Justin Road) has active road works between Copper Canyon Road and FM-2499/Long Prairie Road in Highland Village area - expect slow-and-go conditions."
 }
 
 events:
@@ -1488,36 +1482,39 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "General departure and arrival delays of 15 minutes or less (gate hold and taxi delays).",
-      "status": "normal",
+      "delays": "Minor delays; gate hold and taxi delays of 15 minutes or less reported.",
+      "status": "delays",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
-        "04:00 PM - 07:00 PM"
+        "06:00 - 09:00",
+        "11:00 - 14:00",
+        "16:00 - 19:00"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Delay status is very low and decreasing; operations are normal.",
+      "delays": "Normal operations; no significant delays reported.",
       "status": "normal",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
-        "04:00 PM - 07:00 PM"
+        "06:00 - 09:00",
+        "11:00 - 14:00",
+        "16:00 - 19:00"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2025-12-31T01:31:42.412Z",
+  "fetchedAt": "2025-12-31T01:51:51.041Z",
   "busyPeriods": [
-    "Morning rush hour (5:00 AM - 8:00 AM) for departures.",
-    "Evening rush hour (4:00 PM - 7:00 PM) for arrivals and departures."
+    "Morning Rush (6:00 AM - 9:00 AM)",
+    "Mid-day Peak (11:00 AM - 2:00 PM)",
+    "Evening Rush (4:00 PM - 7:00 PM)"
   ],
-  "recommendations": "For DFW: Pickups are at the lower level curbside (Arrivals) at designated 'TNC/Rideshare' zones (Green Curb). Drivers must use the remote staging lot and wait for the FIFO queue. \n\nFor DAL: As of late 2024/2025, the rideshare pickup location has relocated to the Valet Pavilion and Garage C, Level 1. Drivers must stage in the designated TNC holding lot. Avoid waiting on Herb Kelleher Way."
+  "recommendations": "For DFW: Drivers should wait in the designated TNC staging lots (Remote South or near Terminal A) and pick up passengers at the lower-level 'Ride App Pickup' zones (blue signage) at each terminal. For DAL: Note that the pickup location is at Garage C, Level 1 (near Valet). Drivers must wait in the specific FIFO staging area near the airport entrance to receive trip requests. Expect high demand during the evening rush."
 }
 
 created_at:
-  "Wed Dec 31 2025 01:31:15 GMT+0000 (Coordinated Universal Time)"
+  "Wed Dec 31 2025 01:51:18 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Wed Dec 31 2025 01:32:25 GMT+0000 (Coordinated Universal Time)"
+  "Wed Dec 31 2025 01:51:51 GMT+0000 (Coordinated Universal Time)"
 
