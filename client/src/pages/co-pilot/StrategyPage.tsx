@@ -91,9 +91,46 @@ export default function StrategyPage() {
   // Strategy feedback modal state
   const [strategyFeedbackOpen, setStrategyFeedbackOpen] = useState(false);
 
-  // Get GPS refresh from location context
-  const refreshGPS = locationContext?.refreshGPS;
-  const isUpdating = locationContext?.isLoading || false;
+  // Get GPS refresh from location context (with fallback for legacy pattern)
+  // CRITICAL: Match GlobalHeader pattern for consistent GPS access
+  const refreshGPS: undefined | (() => Promise<void>) =
+    locationContext?.refreshGPS ?? (locationContext as any)?.location?.refreshGPS;
+  const isUpdating = locationContext?.isLoading || locationContext?.isUpdating || false;
+
+  // Wrapper for GPS button that ensures feedback even if refreshGPS is undefined
+  const handleEnableGPS = async () => {
+    console.log('🎯 [StrategyPage] ═══════════════════════════════════════════════');
+    console.log('🎯 [StrategyPage] Enable GPS button CLICKED');
+    console.log('🎯 [StrategyPage] locationContext exists:', !!locationContext);
+    console.log('🎯 [StrategyPage] refreshGPS exists:', !!refreshGPS);
+    console.log('🎯 [StrategyPage] refreshGPS type:', typeof refreshGPS);
+    console.log('🎯 [StrategyPage] coords:', coords);
+    console.log('🎯 [StrategyPage] isUpdating:', isUpdating);
+
+    if (!refreshGPS) {
+      console.error('🎯 [StrategyPage] ❌ refreshGPS is undefined - context issue');
+      console.error('🎯 [StrategyPage] Full locationContext:', locationContext);
+      toast({
+        title: 'Location Error',
+        description: 'Unable to access location services. Please refresh the page.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    try {
+      console.log('🎯 [StrategyPage] Calling refreshGPS()...');
+      await refreshGPS();
+      console.log('🎯 [StrategyPage] refreshGPS() completed');
+    } catch (err) {
+      console.error('🎯 [StrategyPage] ❌ GPS refresh failed:', err);
+      toast({
+        title: 'Location Error',
+        description: 'Failed to get GPS location. Check browser permissions.',
+        variant: 'destructive'
+      });
+    }
+    console.log('🎯 [StrategyPage] ═══════════════════════════════════════════════');
+  };
 
   // Cycling loading messages for strategy generation
   const loadingMessages = useStrategyLoadingMessages({ pipelinePhase, timeRemainingText });
@@ -791,7 +828,7 @@ export default function StrategyPage() {
             <MapPin className="w-8 h-8 text-gray-400 mb-4" />
             <p className="text-gray-800 font-semibold mb-2">GPS Location Required</p>
             <p className="text-gray-600 text-sm mb-4">Enable location services to receive personalized recommendations</p>
-            <Button onClick={refreshGPS} disabled={isUpdating}>
+            <Button onClick={handleEnableGPS} disabled={isUpdating}>
               <RefreshCw className={`w-4 h-4 mr-2 ${isUpdating ? 'animate-spin' : ''}`} />
               Enable GPS
             </Button>

@@ -1462,5 +1462,53 @@ The original "flashing" on one specific phone was likely a **browser cache/permi
 
 ---
 
-**Last Updated**: December 30, 2025
+## 22. Missing Event Listener Pattern (December 31, 2025)
+
+### Problem
+Production app completely broken - GPS times out even after permission granted. User accepts geolocation permission, but app never recovers and 5-second timeout fires.
+
+### Root Cause
+An event dispatch/listen pair was broken during refactoring:
+1. `useBriefingQueries.ts` dispatches `snapshot-ownership-error` event when server returns 404 (stale snapshot)
+2. `location-context-clean.tsx` **was supposed to have a listener** that catches this and calls `refreshGPS()`
+3. **The listener was removed** during previous edits, but the dispatcher remained
+4. Result: Event fires into void → app never recovers → GPS timeout → app frozen
+
+### The Fix
+Added the missing event listener back to `location-context-clean.tsx`:
+```javascript
+useEffect(() => {
+  const handleOwnershipError = () => {
+    console.warn('🚨 [LocationContext] Snapshot ownership error - clearing and refreshing');
+    setLastSnapshotId(null);
+    clearSnapshotStorage();
+    lastEnrichmentCoordsRef.current = null;
+    refreshGPS();
+  };
+
+  window.addEventListener('snapshot-ownership-error', handleOwnershipError);
+  return () => window.removeEventListener('snapshot-ownership-error', handleOwnershipError);
+}, [refreshGPS]);
+```
+
+### Pattern to Remember
+**When adding `dispatchEvent()`, ALWAYS verify `addEventListener()` exists**
+
+Event dispatch/listen pairs:
+- `dispatchEvent(new CustomEvent('X'))` needs `addEventListener('X', handler)`
+- Both sides must be reviewed together during refactoring
+- Search for event name across codebase before removing either side
+
+### Files Involved
+- `client/src/hooks/useBriefingQueries.ts:33-36` - Dispatches event
+- `client/src/contexts/location-context-clean.tsx` - Listener was missing (now restored)
+
+### Lesson Learned
+1. Event systems are bidirectional - don't edit one side without checking the other
+2. When GPS "times out after permission granted", check for broken recovery paths
+3. Search for the event name across the codebase before removing event-related code
+
+---
+
+**Last Updated**: December 31, 2025
 **Maintained By**: Development Team
