@@ -1,7 +1,7 @@
 // client/src/contexts/co-pilot-context.tsx
 // Shared state and queries for all co-pilot pages
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
@@ -210,12 +210,15 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   }, [lastSnapshotId, queryClient]);
 
   // Subscribe to SSE strategy_ready events
+  // LESSON LEARNED (Dec 2025): Use refetchQueries instead of invalidateQueries!
+  // invalidateQueries clears cache immediately → isLoading=true → UI shows loading state → FLASH
+  // refetchQueries fetches in background → isFetching=true but isLoading stays false → smooth transition
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
     const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
       if (readySnapshotId === lastSnapshotId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
+        queryClient.refetchQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId], type: 'active' });
       }
     });
 
@@ -228,7 +231,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = subscribeBlocksReady((data) => {
       if (data.snapshot_id === lastSnapshotId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks-fast', lastSnapshotId] });
+        queryClient.refetchQueries({ queryKey: ['/api/blocks-fast', lastSnapshotId], type: 'active' });
       }
     });
 
@@ -243,8 +246,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = subscribePhaseChange((data) => {
       if (data.snapshot_id === lastSnapshotId) {
-        // Immediately invalidate strategy query to get fresh phase/timing data
-        queryClient.invalidateQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId] });
+        // Use refetchQueries to get fresh phase/timing data without clearing cache (prevents flash)
+        queryClient.refetchQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId], type: 'active' });
       }
     });
 
@@ -451,7 +454,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     isLocationResolved: locationContext?.isLocationResolved || false
   });
 
-  const value: CoPilotContextValue = {
+  // LESSON LEARNED (Dec 2025): Context value MUST be memoized to prevent re-render cascade.
+  // Without useMemo, every render creates a new object → all children re-render → flashing UI.
+  // NOTE: refetchBlocks and refetchBars are STABLE refs from useQuery, so they're NOT in deps.
+  const value: CoPilotContextValue = useMemo(() => ({
     // Location
     coords,
     city: locationContext?.city || null,
@@ -498,7 +504,39 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     barsData,
     isBarsLoading,
     refetchBars,
-  };
+  }), [
+    // Primitive/object deps only - NO function refs (they're stable from useQuery)
+    coords,
+    locationContext?.city,
+    locationContext?.state,
+    locationContext?.timeZone,
+    locationContext?.isLocationResolved,
+    lastSnapshotId,
+    strategyData,
+    persistentStrategy,
+    immediateStrategy,
+    isStrategyFetching,
+    snapshotData,
+    blocks,
+    blocksData,
+    isBlocksLoading,
+    blocksError,
+    enrichmentProgress,
+    strategyProgress,
+    enrichmentPhase,
+    pipelinePhase,
+    timeRemainingText,
+    weatherData,
+    trafficData,
+    newsData,
+    eventsData,
+    schoolClosuresData,
+    airportData,
+    briefingIsLoading,
+    barsData,
+    isBarsLoading,
+    // refetchBlocks and refetchBars are EXCLUDED - they're stable refs from useQuery
+  ]);
 
   return (
     <CoPilotContext.Provider value={value}>
