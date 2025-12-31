@@ -211,11 +211,20 @@ export default function SettingsPage() {
       fetch(`/api/platform/regions?country=${watchCountry}`)
         .then(res => res.json())
         .then(data => {
-          setRegions(data.regions || []);
+          let regionList = data.regions || [];
+          // Add current profile value if not in list (so it displays correctly)
+          if (profile?.stateTerritory && !regionList.some((r: DropdownOption) => r.value === profile.stateTerritory)) {
+            regionList = [{ value: profile.stateTerritory, label: profile.stateTerritory }, ...regionList];
+          }
+          setRegions(regionList);
           setIsLoadingRegions(false);
         })
         .catch(err => {
           console.error('Failed to load regions:', err);
+          // Still show profile value if API fails
+          if (profile?.stateTerritory) {
+            setRegions([{ value: profile.stateTerritory, label: profile.stateTerritory }]);
+          }
           setIsLoadingRegions(false);
         });
 
@@ -224,23 +233,45 @@ export default function SettingsPage() {
       fetch(`/api/platform/markets?country=${watchCountry}`)
         .then(res => res.json())
         .then(data => {
-          setMarkets(data.markets || []);
+          let marketList = data.markets || [];
+          // Add current profile value if not in list
+          if (profile?.market && !marketList.some((m: MarketOption) => m.value === profile.market)) {
+            marketList = [{ value: profile.market, label: profile.market }, ...marketList];
+          }
+          setMarkets(marketList);
           setIsLoadingMarkets(false);
         })
         .catch(err => {
           console.error('Failed to load markets:', err);
+          // Still show profile value if API fails
+          if (profile?.market) {
+            setMarkets([{ value: profile.market, label: profile.market }]);
+          }
           setIsLoadingMarkets(false);
         });
     }
-  }, [watchCountry]);
+  }, [watchCountry, profile?.stateTerritory, profile?.market]);
 
   // Fetch vehicle years on mount
   useEffect(() => {
     fetch('/api/platform/uber/years')
       .then(res => res.json())
-      .then(data => setYears(data.years || []))
-      .catch(err => console.error('Failed to load years:', err));
-  }, []);
+      .then(data => {
+        let yearList = data.years || [];
+        // Add current vehicle year if not in list (so it displays correctly)
+        if (vehicle?.year && !yearList.includes(vehicle.year)) {
+          yearList = [vehicle.year, ...yearList].sort((a, b) => b - a);
+        }
+        setYears(yearList);
+      })
+      .catch(err => {
+        console.error('Failed to load years:', err);
+        // Still show vehicle year if API fails
+        if (vehicle?.year) {
+          setYears([vehicle.year]);
+        }
+      });
+  }, [vehicle?.year]);
 
   // Fetch makes when year changes
   useEffect(() => {
@@ -249,15 +280,24 @@ export default function SettingsPage() {
       fetch(`/api/platform/uber/makes?year=${watchYear}`)
         .then(res => res.json())
         .then(data => {
-          setMakes(data.makes || []);
+          let makeList = data.makes || [];
+          // Add current vehicle make if not in list (so it displays correctly)
+          if (vehicle?.make && !makeList.some((m: VehicleMake) => m.name === vehicle.make)) {
+            makeList = [{ id: `custom-${vehicle.make}`, name: vehicle.make }, ...makeList];
+          }
+          setMakes(makeList);
           setIsLoadingMakes(false);
         })
         .catch(err => {
           console.error('Failed to load makes:', err);
+          // Still show vehicle make if API fails
+          if (vehicle?.make) {
+            setMakes([{ id: `custom-${vehicle.make}`, name: vehicle.make }]);
+          }
           setIsLoadingMakes(false);
         });
     }
-  }, [watchYear]);
+  }, [watchYear, vehicle?.make]);
 
   // Fetch models when make changes
   useEffect(() => {
@@ -266,15 +306,24 @@ export default function SettingsPage() {
       fetch(`/api/platform/uber/models?year=${watchYear}&make=${encodeURIComponent(watchMake)}`)
         .then(res => res.json())
         .then(data => {
-          setModels(data.models || []);
+          let modelList = data.models || [];
+          // Add current vehicle model if not in list (so it displays correctly)
+          if (vehicle?.model && !modelList.some((m: VehicleModel) => m.name === vehicle.model)) {
+            modelList = [{ id: `custom-${vehicle.model}`, name: vehicle.model }, ...modelList];
+          }
+          setModels(modelList);
           setIsLoadingModels(false);
         })
         .catch(err => {
           console.error('Failed to load models:', err);
+          // Still show vehicle model if API fails
+          if (vehicle?.model) {
+            setModels([{ id: `custom-${vehicle.model}`, name: vehicle.model }]);
+          }
           setIsLoadingModels(false);
         });
     }
-  }, [watchYear, watchMake]);
+  }, [watchYear, watchMake, vehicle?.model]);
 
   const onSubmit = async (data: SettingsFormData) => {
     setIsSaving(true);

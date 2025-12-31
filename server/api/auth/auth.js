@@ -10,7 +10,8 @@ import {
   driver_profiles,
   driver_vehicles,
   auth_credentials,
-  verification_codes
+  verification_codes,
+  platform_data
 } from '../../../shared/schema.js';
 import {
   hashPassword,
@@ -242,6 +243,31 @@ router.post('/register', async (req, res) => {
       console.warn('[auth] Geocoding failed (non-fatal):', geoErr.message);
     }
 
+    // Look up market from platform_data based on city
+    let resolvedMarket = market?.trim() || null;
+    try {
+      const [marketData] = await db
+        .select({
+          market_anchor: platform_data.market_anchor,
+          region_type: platform_data.region_type,
+        })
+        .from(platform_data)
+        .where(and(
+          eq(platform_data.city, city.trim()),
+          eq(platform_data.platform, 'uber')
+        ))
+        .limit(1);
+
+      if (marketData?.market_anchor) {
+        resolvedMarket = marketData.market_anchor;
+        authLog.done(1, `Market resolved: ${resolvedMarket} (${marketData.region_type})`);
+      } else {
+        console.log(`[auth] No market found for city: ${city.trim()}, using provided: ${market}`);
+      }
+    } catch (marketErr) {
+      console.warn('[auth] Market lookup failed (non-fatal):', marketErr.message);
+    }
+
     // Create user record with geocoded coordinates if available
     const [newUser] = await db.insert(users).values({
       user_id: crypto.randomUUID(),
@@ -274,7 +300,7 @@ router.post('/register', async (req, res) => {
       home_lng: geocodeResult?.lng || null,
       home_formatted_address: geocodeResult?.formattedAddress || null,
       home_timezone: geocodeResult?.timezone || null,
-      market: market.trim(),
+      market: resolvedMarket, // Looked up from platform_data based on city
       driver_nickname: nickname?.trim() || firstName.trim(), // Custom greeting name, defaults to first name
       rideshare_platforms: ridesharePlatforms,
 
@@ -1024,6 +1050,29 @@ router.put('/profile', requireAuth, async (req, res) => {
       } catch (geoErr) {
         // Non-fatal - log and continue with profile update
         console.warn('[auth] Re-geocoding failed (non-fatal):', geoErr.message);
+      }
+
+      // Re-lookup market based on new city
+      const newCity = updates.city?.trim() || profile.city;
+      try {
+        const [marketData] = await db
+          .select({
+            market_anchor: platform_data.market_anchor,
+            region_type: platform_data.region_type,
+          })
+          .from(platform_data)
+          .where(and(
+            eq(platform_data.city, newCity),
+            eq(platform_data.platform, 'uber')
+          ))
+          .limit(1);
+
+        if (marketData?.market_anchor) {
+          profileUpdates.market = marketData.market_anchor;
+          authLog.done(1, `Market updated: ${marketData.market_anchor} (${marketData.region_type})`);
+        }
+      } catch (marketErr) {
+        console.warn('[auth] Market re-lookup failed (non-fatal):', marketErr.message);
       }
     }
 

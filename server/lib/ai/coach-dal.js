@@ -650,9 +650,14 @@ export class CoachDAL {
    */
   async getDriverProfile(userId) {
     try {
-      if (!userId) return { profile: null, vehicle: null };
+      if (!userId) {
+        console.log('[CoachDAL] getDriverProfile: No userId provided');
+        return { profile: null, vehicle: null };
+      }
 
-      // Get driver profile
+      console.log(`[CoachDAL] getDriverProfile: Looking up profile for user ${userId.slice(0, 8)}...`);
+
+      // Get driver profile - only select columns that exist in schema
       const [profile] = await db
         .select({
           id: driver_profiles.id,
@@ -672,26 +677,23 @@ export class CoachDAL {
           home_lng: driver_profiles.home_lng,
           home_timezone: driver_profiles.home_timezone,
           market: driver_profiles.market,
-          // Platform eligibility
-          uber_eligible: driver_profiles.uber_eligible,
-          lyft_eligible: driver_profiles.lyft_eligible,
-          doordash_eligible: driver_profiles.doordash_eligible,
-          instacart_eligible: driver_profiles.instacart_eligible,
-          amazon_flex_eligible: driver_profiles.amazon_flex_eligible,
-          grubhub_eligible: driver_profiles.grubhub_eligible,
-          spark_eligible: driver_profiles.spark_eligible,
-          // Preferences
-          prefers_short_trips: driver_profiles.prefers_short_trips,
-          prefers_long_trips: driver_profiles.prefers_long_trips,
-          prefers_airport: driver_profiles.prefers_airport,
-          prefers_surge: driver_profiles.prefers_surge,
-          prefers_scheduled: driver_profiles.prefers_scheduled,
-          avoids_downtown: driver_profiles.avoids_downtown,
-          // Experience
-          driving_experience_years: driver_profiles.driving_experience_years,
-          full_time_driver: driver_profiles.full_time_driver,
-          weekly_hours_target: driver_profiles.weekly_hours_target,
-          weekly_earnings_target: driver_profiles.weekly_earnings_target,
+          rideshare_platforms: driver_profiles.rideshare_platforms,
+          // Vehicle eligibility
+          elig_economy: driver_profiles.elig_economy,
+          elig_xl: driver_profiles.elig_xl,
+          elig_xxl: driver_profiles.elig_xxl,
+          elig_comfort: driver_profiles.elig_comfort,
+          elig_luxury_sedan: driver_profiles.elig_luxury_sedan,
+          elig_luxury_suv: driver_profiles.elig_luxury_suv,
+          // Vehicle attributes
+          attr_electric: driver_profiles.attr_electric,
+          attr_green: driver_profiles.attr_green,
+          attr_wav: driver_profiles.attr_wav,
+          // Service preferences
+          pref_pet_friendly: driver_profiles.pref_pet_friendly,
+          pref_teen: driver_profiles.pref_teen,
+          pref_assist: driver_profiles.pref_assist,
+          pref_shared: driver_profiles.pref_shared,
           // Timestamps
           created_at: driver_profiles.created_at,
           updated_at: driver_profiles.updated_at,
@@ -700,7 +702,12 @@ export class CoachDAL {
         .where(eq(driver_profiles.user_id, userId))
         .limit(1);
 
-      if (!profile) return { profile: null, vehicle: null };
+      if (!profile) {
+        console.log(`[CoachDAL] getDriverProfile: No profile found for user ${userId.slice(0, 8)}`);
+        return { profile: null, vehicle: null };
+      }
+
+      console.log(`[CoachDAL] getDriverProfile: Found profile for ${profile.first_name} ${profile.last_name}`);
 
       // Get primary vehicle
       const [vehicle] = await db
@@ -721,6 +728,12 @@ export class CoachDAL {
         ))
         .limit(1);
 
+      if (vehicle) {
+        console.log(`[CoachDAL] getDriverProfile: Found vehicle ${vehicle.year} ${vehicle.make} ${vehicle.model}`);
+      } else {
+        console.log(`[CoachDAL] getDriverProfile: No vehicle found for profile ${profile.id.slice(0, 8)}`);
+      }
+
       return {
         profile,
         vehicle: vehicle || null,
@@ -734,16 +747,17 @@ export class CoachDAL {
   /**
    * Get complete context for AI Coach - Full schema access
    * Combines snapshot, strategy, briefing, smart blocks, feedback, and venue data
-   * 
+   *
    * Entry points:
    * - snapshotId: Direct snapshot access
    * - strategyId: Via strategy_id → snapshot_id resolution
-   * 
+   *
    * @param {string} snapshotId - Snapshot ID to scope reads
    * @param {string} strategyId - Alternative entry point (strategy_id from UI)
+   * @param {string} authenticatedUserId - Optional authenticated user ID for driver profile lookup
    * @returns {Promise<Object>} Complete coach context with full schema access
    */
-  async getCompleteContext(snapshotId, strategyId) {
+  async getCompleteContext(snapshotId, strategyId, authenticatedUserId = null) {
     try {
       // Resolve strategy_id to snapshot_id if needed
       let activeSnapshotId = snapshotId;
@@ -790,10 +804,14 @@ export class CoachDAL {
       let driverData = { profile: null, vehicle: null };
 
       if (snapshot) {
+        // Use authenticated user ID if provided, otherwise fall back to snapshot's user_id
+        const effectiveUserId = authenticatedUserId || snapshot.user_id;
+        console.log(`[CoachDAL] getCompleteContext: Snapshot user_id = ${snapshot.user_id || 'NULL'}, authenticated = ${authenticatedUserId || 'NULL'}, effective = ${effectiveUserId || 'NULL'}, city = ${snapshot.city}`);
+
         const [intel, notes, driver] = await Promise.all([
           this.getMarketIntelligence(snapshot.city, snapshot.state),
-          snapshot.user_id ? this.getUserNotes(snapshot.user_id) : Promise.resolve([]),
-          snapshot.user_id ? this.getDriverProfile(snapshot.user_id) : Promise.resolve({ profile: null, vehicle: null })
+          effectiveUserId ? this.getUserNotes(effectiveUserId) : Promise.resolve([]),
+          effectiveUserId ? this.getDriverProfile(effectiveUserId) : Promise.resolve({ profile: null, vehicle: null })
         ]);
         marketIntelligence = intel;
         userNotes = notes;
@@ -884,43 +902,45 @@ export class CoachDAL {
       }
       if (driverProfile.market) prompt += `\n📍 Market: ${driverProfile.market}`;
 
-      // Platform eligibility
-      const platforms = [];
-      if (driverProfile.uber_eligible) platforms.push('Uber');
-      if (driverProfile.lyft_eligible) platforms.push('Lyft');
-      if (driverProfile.doordash_eligible) platforms.push('DoorDash');
-      if (driverProfile.instacart_eligible) platforms.push('Instacart');
-      if (driverProfile.amazon_flex_eligible) platforms.push('Amazon Flex');
-      if (driverProfile.grubhub_eligible) platforms.push('GrubHub');
-      if (driverProfile.spark_eligible) platforms.push('Spark');
-      if (platforms.length > 0) {
-        prompt += `\n🚗 Platforms: ${platforms.join(', ')}`;
+      // Rideshare platforms from JSON array
+      if (driverProfile.rideshare_platforms && Array.isArray(driverProfile.rideshare_platforms)) {
+        const platformNames = driverProfile.rideshare_platforms.map(p =>
+          p.charAt(0).toUpperCase() + p.slice(1)
+        );
+        if (platformNames.length > 0) {
+          prompt += `\n🚗 Platforms: ${platformNames.join(', ')}`;
+        }
       }
 
-      // Preferences
+      // Vehicle eligibility tiers
+      const eligibility = [];
+      if (driverProfile.elig_economy) eligibility.push('Economy (UberX/Lyft)');
+      if (driverProfile.elig_xl) eligibility.push('XL (6+ seats)');
+      if (driverProfile.elig_xxl) eligibility.push('XXL');
+      if (driverProfile.elig_comfort) eligibility.push('Comfort');
+      if (driverProfile.elig_luxury_sedan) eligibility.push('Black/Luxury Sedan');
+      if (driverProfile.elig_luxury_suv) eligibility.push('Black SUV');
+      if (eligibility.length > 0) {
+        prompt += `\n🎖️ Eligible Tiers: ${eligibility.join(', ')}`;
+      }
+
+      // Vehicle attributes
+      const attrs = [];
+      if (driverProfile.attr_electric) attrs.push('Electric Vehicle');
+      if (driverProfile.attr_green) attrs.push('Hybrid/Green');
+      if (driverProfile.attr_wav) attrs.push('Wheelchair Accessible');
+      if (attrs.length > 0) {
+        prompt += `\n✨ Vehicle Features: ${attrs.join(', ')}`;
+      }
+
+      // Service preferences
       const prefs = [];
-      if (driverProfile.prefers_short_trips) prefs.push('short trips');
-      if (driverProfile.prefers_long_trips) prefs.push('long trips');
-      if (driverProfile.prefers_airport) prefs.push('airport runs');
-      if (driverProfile.prefers_surge) prefs.push('surge hunting');
-      if (driverProfile.prefers_scheduled) prefs.push('scheduled rides');
-      if (driverProfile.avoids_downtown) prefs.push('avoids downtown');
+      if (driverProfile.pref_pet_friendly) prefs.push('accepts pets');
+      if (driverProfile.pref_teen) prefs.push('accepts unaccompanied teens');
+      if (driverProfile.pref_assist) prefs.push('provides assist rides');
+      if (driverProfile.pref_shared) prefs.push('takes shared rides');
       if (prefs.length > 0) {
-        prompt += `\n⭐ Preferences: ${prefs.join(', ')}`;
-      }
-
-      // Experience
-      if (driverProfile.driving_experience_years) {
-        prompt += `\n📊 Experience: ${driverProfile.driving_experience_years} years`;
-      }
-      if (driverProfile.full_time_driver != null) {
-        prompt += driverProfile.full_time_driver ? ' (Full-time)' : ' (Part-time)';
-      }
-      if (driverProfile.weekly_hours_target) {
-        prompt += `\n🎯 Weekly target: ${driverProfile.weekly_hours_target}h`;
-      }
-      if (driverProfile.weekly_earnings_target) {
-        prompt += ` / $${driverProfile.weekly_earnings_target}`;
+        prompt += `\n⭐ Service Prefs: ${prefs.join(', ')}`;
       }
     }
 
