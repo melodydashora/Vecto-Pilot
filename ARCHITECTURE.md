@@ -1,12 +1,13 @@
+
 # Vecto Pilot - Architecture Reference
 
-**Last Updated:** 2025-12-27 UTC
+**Last Updated:** 2026-01-01 UTC
 
 This file provides navigation to focused architecture documentation. Each linked document is designed to be readable in a single pass.
 
 ## Recent Changes (2026-01-01)
 
-- **Server Reorganization**: Moved from flat lib structure to domain-based organization
+- **Server Reorganization Complete**: Moved from flat lib structure to domain-based organization
   - `server/lib/ai/` - AI adapters and providers
   - `server/lib/auth/` - Authentication services
   - `server/lib/briefing/` - Briefing generation
@@ -21,9 +22,10 @@ This file provides navigation to focused architecture documentation. Each linked
 - **API Route Organization**: Routes organized by domain in `server/api/`
   - `auth/`, `briefing/`, `chat/`, `feedback/`, `health/`, `intelligence/`, `location/`, `platform/`, `research/`, `strategy/`, `utils/`, `vehicle/`, `venue/`
 - **Bootstrap System**: Separated server startup concerns into `server/bootstrap/`
-- **React Router Refactor**: Monolithic co-pilot.tsx split into 7 route-based pages
+- **React Router Refactor**: Monolithic co-pilot.tsx split into 8 route-based pages
 - **Auth System**: New authentication pages and protected routes
 - **Documentation**: 95+ README files across all folders
+- **Change Analyzer**: Automatic detection of repo changes that may need doc updates
 
 ## Quick Navigation
 
@@ -45,7 +47,7 @@ This file provides navigation to focused architecture documentation. Each linked
 | What | Document | When to Read |
 |------|----------|--------------|
 | **AI Pipeline** | [ai-pipeline.md](docs/architecture/ai-pipeline.md) | Modifying AI flow, model config |
-| **13-Component Pipeline** | [strategy-framework.md](docs/architecture/strategy-framework.md) | Understanding recommendations |
+| **Strategy Framework** | [strategy-framework.md](docs/architecture/strategy-framework.md) | Understanding recommendations |
 | **Event Discovery** | [event-discovery.md](docs/architecture/event-discovery.md) | Modifying event detection |
 | **Google APIs** | [google-cloud-apis.md](docs/architecture/google-cloud-apis.md) | Places, Routes, Weather |
 
@@ -73,13 +75,14 @@ This file provides navigation to focused architecture documentation. Each linked
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │           React Client (Vite + React Router v6)             │ │
 │  │  ┌──────────────────────────────────────────────────────┐  │ │
-│  │  │ routes.tsx → CoPilotLayout → 7 Route Pages           │  │ │
+│  │  │ routes.tsx → CoPilotLayout → 8 Route Pages           │  │ │
 │  │  │   /co-pilot/strategy   → StrategyPage                │  │ │
 │  │  │   /co-pilot/bars       → BarsPage                    │  │ │
 │  │  │   /co-pilot/briefing   → BriefingPage                │  │ │
 │  │  │   /co-pilot/map        → MapPage                     │  │ │
 │  │  │   /co-pilot/intel      → IntelPage                   │  │ │
 │  │  │   /co-pilot/about      → AboutPage                   │  │ │
+│  │  │   /co-pilot/settings   → SettingsPage                │  │ │
 │  │  │   /privacy-policy      → PolicyPage                  │  │ │
 │  │  └──────────────────────────────────────────────────────┘  │ │
 │  └────────────────────────────────────────────────────────────┘ │
@@ -130,28 +133,16 @@ Every folder has a README.md. Total: **95 README files**.
 | `attached_assets/` | [README.md](attached_assets/README.md) |
 | `config/` | [README.md](config/README.md) |
 | `data/` | [README.md](data/README.md) |
-| `data/context-snapshots/` | [README.md](data/context-snapshots/README.md) |
 | `docs/` | [README.md](docs/README.md) |
 | `docs/architecture/` | [README.md](docs/architecture/README.md) |
-| `docs/melswork/` | [README.md](docs/melswork/README.md) |
-| `docs/melswork/needs-updating/` | [README.md](docs/melswork/needs-updating/README.md) |
-| `docs/melswork/needs-updating/architecture/` | [README.md](docs/melswork/needs-updating/architecture/README.md) |
-| `docs/melswork/needs-updating/architecture/urgent/` | [README.md](docs/melswork/needs-updating/architecture/urgent/README.md) |
 | `drizzle/` | [README.md](drizzle/README.md) |
-| `drizzle/meta/` | [README.md](drizzle/meta/README.md) |
-| `keys/` | [README.md](keys/README.md) |
-| `mcp-server/` | [README.md](mcp-server/README.md) |
 | `migrations/` | [README.md](migrations/README.md) |
-| `migrations/manual/` | [README.md](migrations/manual/README.md) |
 | `platform-data/` | [README.md](platform-data/README.md) |
-| `platform-data/uber/` | [README.md](platform-data/uber/README.md) |
 | `public/` | [README.md](public/README.md) |
-| `public/.well-known/` | [README.md](public/.well-known/README.md) |
 | `schema/` | [README.md](schema/README.md) |
 | `scripts/` | [README.md](scripts/README.md) |
 | `shared/` | [README.md](shared/README.md) |
 | `tools/` | [README.md](tools/README.md) |
-| `tools/research/` | [README.md](tools/research/README.md) |
 
 ### Server Folders (40 READMEs)
 
@@ -166,7 +157,6 @@ Every folder has a README.md. Total: **95 README files**.
 | `server/api/feedback/` | [README](server/api/feedback/README.md) | User feedback |
 | `server/api/health/` | [README](server/api/health/README.md) | Health checks |
 | `server/api/location/` | [README](server/api/location/README.md) | GPS, geocoding |
-| `server/api/mcp/` | [README](server/api/mcp/README.md) | MCP protocol |
 | `server/api/research/` | [README](server/api/research/README.md) | Vector search |
 | `server/api/strategy/` | [README](server/api/strategy/README.md) | Strategy generation |
 | `server/api/utils/` | [README](server/api/utils/README.md) | HTTP helpers |
@@ -268,6 +258,7 @@ Every folder has a README.md. Total: **95 README files**.
 | `/co-pilot/map` | MapPage.tsx | Venue + event map |
 | `/co-pilot/intel` | IntelPage.tsx | Rideshare intelligence |
 | `/co-pilot/about` | AboutPage.tsx | About + donation |
+| `/co-pilot/settings` | SettingsPage.tsx | User settings |
 | `/privacy-policy` | PolicyPage.tsx | Privacy policy |
 
 ## Application Workflow
@@ -302,15 +293,51 @@ CoPilotContext ─── strategyQuery ─── POST /api/blocks-fast ───
 |---------|-------|---------|
 | `LocationContext` | App-wide | GPS, city, timezone, overrides |
 | `CoPilotContext` | Co-pilot pages | Strategy, blocks, SSE, progress |
+| `AuthContext` | App-wide | User authentication state |
 | `QueryClient` | App-wide | React Query cache |
+
+## Missing/Needs Documentation
+
+### High Priority
+
+1. **Performance Monitoring** - No centralized metrics/monitoring system documented
+2. **Error Tracking** - Beyond console logs, no error aggregation system
+3. **Analytics** - User behavior tracking not documented
+4. **Rate Limiting Config** - Implementation exists but config unclear
+5. **API Versioning** - No versioning strategy documented
+6. **Backup/Recovery** - Database backup procedures unclear
+7. **Load Balancing** - Replit Autoscale configuration not detailed
+8. **WebSocket Lifecycle** - SSE documented but WS connection management unclear
+
+### Medium Priority
+
+1. **SSL/TLS Setup** - Replit-managed but local dev guidance needed
+2. **Environment Validation** - Comprehensive checklist missing
+3. **Feature Flags** - No feature toggle system documented
+4. **A/B Testing** - Not documented if implemented
+5. **Cache Strategy** - Redis/in-memory caching not fully documented
+6. **Session Management** - User session lifecycle unclear
+7. **File Upload** - Vision API file handling not detailed
+8. **Image Processing** - Screenshot/photo handling unclear
+
+### Low Priority
+
+1. **Build Optimization** - Vite bundle analysis not documented
+2. **Code Splitting** - React lazy loading strategy unclear
+3. **PWA Support** - Offline capabilities not documented
+4. **Push Notifications** - Implementation unclear
+5. **Internationalization** - i18n support not mentioned
+6. **Accessibility** - WCAG compliance not documented
+7. **SEO** - Meta tags/sitemap not detailed
+8. **Social Sharing** - Open Graph tags not mentioned
 
 ## Pending Items / Roadmap
 
-Tracked in [docs/DOC_DISCREPANCIES.md](docs/DOC_DISCREPANCIES.md).
+Tracked in [docs/DOC_DISCREPANCIES.md](docs/DOC_DISCREPANCIES.md) and [docs/review-queue/pending.md](docs/review-queue/pending.md).
 
 ### Critical (Must Fix)
 
-*None currently - all critical issues resolved on 2025-12-27*
+*None currently - all critical issues resolved on 2026-01-01*
 
 ### Medium Priority
 
@@ -318,18 +345,11 @@ Tracked in [docs/DOC_DISCREPANCIES.md](docs/DOC_DISCREPANCIES.md).
 |-------|--------|
 | MCP memory tools verification | Unknown if configured |
 | Legacy Replit docs review | In `docs/melswork/needs-updating/` |
+| Component redundancy check | BarTab vs BarsTable unclear |
 
 ### Documentation Backlog
 
-| Folder | Status | Action Needed |
-|--------|--------|---------------|
-| `docs/melswork/needs-updating/architecture/ai-ml/` | Unknown | Review & merge |
-| `docs/melswork/needs-updating/architecture/auth/` | Unknown | Review & merge |
-| `docs/melswork/needs-updating/architecture/guides/` | Unknown | Review & merge |
-| `docs/melswork/needs-updating/architecture/integration/` | Unknown | Review & merge |
-| `docs/melswork/needs-updating/assistant/` | Unknown | Review & merge |
-| `docs/melswork/needs-updating/eidolon/` | Unknown | Review & merge |
-| `docs/melswork/needs-updating/agent/` | Unknown | Review & merge |
+See [docs/melswork/needs-updating/](docs/melswork/needs-updating/) for documents requiring review.
 
 ## Related Files
 
@@ -337,7 +357,8 @@ Tracked in [docs/DOC_DISCREPANCIES.md](docs/DOC_DISCREPANCIES.md).
 - [LESSONS_LEARNED.md](LESSONS_LEARNED.md) - Historical issues and fixes
 - [docs/AI_PARTNERSHIP_PLAN.md](docs/AI_PARTNERSHIP_PLAN.md) - Documentation improvement roadmap
 - [docs/DOC_DISCREPANCIES.md](docs/DOC_DISCREPANCIES.md) - Known documentation issues
+- [REPO_FILE_LISTING.md](REPO_FILE_LISTING.md) - Complete file inventory
 
 ---
 
-**Note:** This file was restructured on 2025-12-15 and updated on 2025-12-27 with React Router architecture. Detailed content is in `docs/architecture/` for better readability. Complete folder README index now includes 95 files.
+**Note:** This file was restructured on 2025-12-15 and updated on 2026-01-01 with current structure. Detailed content is in `docs/architecture/` for better readability. Complete folder README index includes 95 files. Missing documentation areas identified above require attention.
