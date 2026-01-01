@@ -1,14 +1,17 @@
 # Workflow File Listing
 
-Generated: 2026-01-01T20:31:00.000Z
+Generated: 2026-01-01T21:45:00.000Z
 **Last Review:** 2026-01-01 UTC
 
 > ✅ **Updated:** This file reflects the current repository structure as of January 1, 2026:
-> - Server reorganized into domain-based folders (`server/lib/ai/`, `server/lib/auth/`, `server/lib/briefing/`, etc.)
-> - API routes organized by domain (`server/api/auth/`, `server/api/briefing/`, `server/api/chat/`, etc.)
-> - Client uses React Router with 13 pages (8 co-pilot + 5 auth + SafeScaffold)
-> - Bootstrap system separated into `server/bootstrap/`
-> - 95+ README files across all folders
+> - **Authentication System:** Full JWT-based auth with sign-up, sign-in, verification, password reset
+> - **Server Organization:** Domain-based folders (`server/lib/ai/`, `server/lib/auth/`, `server/lib/briefing/`, etc.)
+> - **API Routes:** Organized by domain in `server/api/` (auth, briefing, chat, feedback, health, intelligence, location, platform, research, strategy, vehicle, venue)
+> - **Client Architecture:** React Router with 13 pages (8 co-pilot + 5 auth + SafeScaffold)
+> - **Route Protection:** `ProtectedRoute` wrapper, `AuthRedirect` for smart routing
+> - **Providers:** AuthProvider, CoPilotProvider, LocationProvider in App.tsx
+> - **Bootstrap System:** Separated into `server/bootstrap/` for route mounting, middleware, workers
+> - **Documentation:** 95+ README files across all folders
 
 Workflow files organized by event flow order. Non-active files appear at the end of each category.
 
