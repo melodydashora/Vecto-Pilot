@@ -2,6 +2,70 @@
 
 This file provides guidance to Claude Code when working with this repository.
 
+---
+
+## 🚨 DEVELOPMENT PROCESS RULES (MANDATORY)
+
+**These rules govern ALL development work. No exceptions.**
+
+### Rule 1: Planning Before Implementation
+- **BEFORE making any code changes**, create a plan document in the same directory as the relevant README.md
+- Plan must include: objectives, approach, files affected, and **test cases**
+- Implementation requires **formal testing approval from Melody** (human developer)
+- Do NOT proceed until Melody confirms: "All tests passed"
+
+### Rule 2: README.md Synchronization
+- **Every time** files in a folder/subfolder are modified, the corresponding README.md MUST be updated
+- If forgotten, use `docs/review-queue/pending.md` to track and verify later
+
+### Rule 3: Pending.md Verification
+- If `docs/review-queue/pending.md` has information, **verify those changes first**
+- Ensure README.md files and root documents (CLAUDE.md, ARCHITECTURE.md, LESSONS_LEARNED.md) reflect those changes before proceeding with new work
+
+### Rule 4: Documentation Currency
+- Understand the repo in its current state before making changes
+- All documentation must be **fully up to date** at all times
+- When in doubt, audit and update docs first
+
+### Rule 5: Major Code Changes - Inline Documentation
+- When changing **functional blocks of code** (major changes), add inline comments with:
+  - Date of change (YYYY-MM-DD)
+  - Reason for the change
+- Update the relevant README.md and root documents
+
+### Rule 6: Master Architect Role
+- **Do NOT blindly accept Melody's memory or advice** - act as a master architect
+- Push back on decisions that don't make technical sense
+- Create sub-agents (Task tool) for complex investigations
+- Make logical, well-reasoned decisions with justification
+
+### Rule 7: AI Coach Data Access (Schema Changes)
+When schema changes are made, ensure the **AI Coach** has access to:
+- All database tables
+- Snapshot history filtered by `user_id`
+- Connected static data (markets, platforms, venue catalogues)
+
+### Rule 8: AI Coach Write Access
+The AI Coach needs **write access** to capture learnings from real user interactions:
+
+| Table | Purpose |
+|-------|---------|
+| `venue_catalogue` | Driver-contributed venue intel (staging spots, GPS dead zones) |
+| `market_information` | Market-specific patterns, surge zones, timing insights |
+| `user_notes` | Per-snapshot notes from driver interactions |
+| `school_event_intel` | School/event patterns discovered through use |
+| `traffic_road_closures` | Road closure patterns, construction zones |
+| `coach_system_notes` | **AI Coach observations** about system enhancements |
+
+**Use Cases (examples, not exhaustive):**
+- "Give me an exact staging location central to events and high-end venues where GPS signal is not blocked"
+- "Analyze surge patterns - where do surges always start/end?"
+- "How can I get short hops without going far from home?"
+- Capture app-specific advice (e.g., "Turn on destination filter to stay in busy area")
+- Learn from driver feedback what worked vs. what didn't
+
+---
+
 ## Project Overview
 
 Vecto Pilot is an AI-powered rideshare intelligence platform. It uses a multi-model AI pipeline (Claude Opus 4.5, Gemini 3.0 Pro, GPT-5.2) to generate venue recommendations and tactical guidance for drivers.

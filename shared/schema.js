@@ -1090,6 +1090,174 @@ export const user_intel_notes = pgTable("user_intel_notes", {
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
+// AI COACH TABLES: Conversation history and system observations
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Coach Conversations Table
+ *
+ * Stores complete AI Coach conversation history for user-level memory.
+ * Enables full thread continuity across sessions, app updates, and tab switches.
+ *
+ * Features:
+ * - Links to user_id for persistent cross-session memory
+ * - Optional snapshot_id for context at time of conversation
+ * - Stores both user messages and coach responses
+ * - Thread grouping via conversation_id
+ * - Supports message editing/regeneration tracking
+ */
+export const coach_conversations = pgTable("coach_conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // User identification (required for user-level memory)
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+
+  // Context at time of conversation (optional - some messages may be context-free)
+  snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'set null' }),
+
+  // Conversation threading (groups messages in a single conversation)
+  conversation_id: uuid("conversation_id").notNull(), // Groups related messages together
+  parent_message_id: uuid("parent_message_id"), // For reply threading (optional)
+
+  // Message content
+  role: text("role").notNull(), // 'user' | 'assistant' | 'system'
+  content: text("content").notNull(), // The actual message content
+  content_type: text("content_type").default('text'), // 'text' | 'image' | 'file'
+
+  // Metadata for learning
+  topic_tags: jsonb("topic_tags").default(sql`'[]'`), // AI-classified topics: ['staging', 'surge', 'earnings']
+  extracted_tips: jsonb("extracted_tips").default(sql`'[]'`), // Tips extracted from this exchange
+  sentiment: text("sentiment"), // 'positive' | 'negative' | 'neutral' - user satisfaction
+
+  // Context preserved for replay
+  location_context: jsonb("location_context"), // { city, state, lat, lng } at time of message
+  time_context: jsonb("time_context"), // { dow, hour, day_part, timezone } at time of message
+
+  // Token usage (for cost tracking)
+  tokens_in: integer("tokens_in"),
+  tokens_out: integer("tokens_out"),
+  model_used: text("model_used"), // 'claude-opus-4.5', 'gpt-5.2', etc.
+
+  // Status
+  is_edited: boolean("is_edited").default(false), // Was this message edited?
+  is_regenerated: boolean("is_regenerated").default(false), // Was the response regenerated?
+  is_starred: boolean("is_starred").default(false), // User starred for reference
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxUserId: sql`create index if not exists idx_coach_conversations_user_id on ${table} (user_id)`,
+  idxConversationId: sql`create index if not exists idx_coach_conversations_conversation_id on ${table} (conversation_id)`,
+  idxSnapshotId: sql`create index if not exists idx_coach_conversations_snapshot_id on ${table} (snapshot_id)`,
+  idxCreatedAt: sql`create index if not exists idx_coach_conversations_created_at on ${table} (created_at desc)`,
+  idxUserConversation: sql`create index if not exists idx_coach_conversations_user_conv on ${table} (user_id, conversation_id, created_at)`,
+  // GIN index for topic_tags search
+  idxTopicTags: sql`create index if not exists idx_coach_conversations_topic_tags on ${table} using gin (topic_tags)`,
+}));
+
+/**
+ * Coach System Notes Table
+ *
+ * AI Coach observations about potential system enhancements, feature requests,
+ * and patterns observed during user interactions.
+ *
+ * Purpose:
+ * - Capture "aha moments" from user interactions (e.g., "user wanted screenshot analysis")
+ * - Log feature suggestions derived from real usage patterns
+ * - Track pain points and common frustrations
+ * - Document workarounds that could become features
+ */
+export const coach_system_notes = pgTable("coach_system_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Note classification
+  note_type: text("note_type").notNull(), // 'feature_request' | 'pain_point' | 'workaround' | 'aha_moment' | 'bug_report' | 'integration_idea'
+  category: text("category").notNull(), // 'ui' | 'strategy' | 'briefing' | 'venues' | 'coach' | 'map' | 'earnings' | 'general'
+  priority: integer("priority").default(50), // 1-100, higher = more urgent/valuable
+
+  // Content
+  title: text("title").notNull(), // Short descriptive title
+  description: text("description").notNull(), // Full description of the observation
+  user_quote: text("user_quote"), // Direct quote from user that triggered this note
+
+  // Context
+  triggering_user_id: uuid("triggering_user_id").references(() => users.user_id, { onDelete: 'set null' }),
+  triggering_conversation_id: uuid("triggering_conversation_id"), // Link to conversation that triggered this
+  triggering_snapshot_id: uuid("triggering_snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'set null' }),
+
+  // Usage patterns
+  occurrence_count: integer("occurrence_count").default(1), // How many users/times this has come up
+  affected_users: jsonb("affected_users").default(sql`'[]'`), // Array of user_ids who mentioned this
+
+  // Market/location context (some notes are market-specific)
+  market_slug: text("market_slug"),
+  is_market_specific: boolean("is_market_specific").default(false),
+
+  // Status tracking
+  status: text("status").default('new'), // 'new' | 'reviewed' | 'planned' | 'implemented' | 'wont_fix'
+  reviewed_at: timestamp("reviewed_at", { withTimezone: true }),
+  reviewed_by: text("reviewed_by"),
+  implementation_notes: text("implementation_notes"),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxNoteType: sql`create index if not exists idx_coach_system_notes_note_type on ${table} (note_type)`,
+  idxCategory: sql`create index if not exists idx_coach_system_notes_category on ${table} (category)`,
+  idxStatus: sql`create index if not exists idx_coach_system_notes_status on ${table} (status)`,
+  idxPriority: sql`create index if not exists idx_coach_system_notes_priority on ${table} (priority desc)`,
+  idxCreatedAt: sql`create index if not exists idx_coach_system_notes_created_at on ${table} (created_at desc)`,
+}));
+
+/**
+ * News Deactivations Table
+ *
+ * Tracks deactivated news items from briefings.news (JSONB).
+ * Allows AI Coach or users to mark news stories as inactive with reasoning.
+ *
+ * Reasons are free-form - we'll learn common patterns as users interact.
+ * Examples discovered so far:
+ * - "Article is from a year ago"
+ * - "Already resolved"
+ * - User preference
+ *
+ * Why separate table vs modifying briefings.news?
+ * - briefings.news is per-snapshot, but deactivations are per-user
+ * - A user deactivating an old carjacking story affects only their view
+ * - Other users may still want to see the same story
+ */
+export const news_deactivations = pgTable("news_deactivations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // User who deactivated this news item
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+
+  // News item identification (matches items in briefings.news JSONB)
+  news_hash: text("news_hash").notNull(), // MD5 of normalized(title + source + date)
+  news_title: text("news_title").notNull(), // Original title for reference
+  news_source: text("news_source"), // Source URL or name
+
+  // Deactivation details - free-form, we'll learn patterns as we go
+  reason: text("reason").notNull(), // Free-form reason from user or AI Coach
+
+  // Who initiated the deactivation
+  deactivated_by: text("deactivated_by").notNull().default('user'), // 'user' | 'ai_coach'
+
+  // Scope
+  scope: text("scope").default('user'), // 'user' (just this user) | 'snapshot' (just this context)
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxUserId: sql`create index if not exists idx_news_deactivations_user_id on ${table} (user_id)`,
+  idxNewsHash: sql`create index if not exists idx_news_deactivations_news_hash on ${table} (news_hash)`,
+  // Unique constraint: one deactivation per user per news item
+  uniqueUserNews: sql`create unique index if not exists idx_news_deactivations_unique on ${table} (user_id, news_hash)`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DRIZZLE RELATIONS: Enable eager loading via `with: { coords: true }`
 // ═══════════════════════════════════════════════════════════════════════════
 

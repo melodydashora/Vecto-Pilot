@@ -1,6 +1,7 @@
 // server/api/chat/chat.js
 // AI Strategy Coach - Conversational assistant for drivers with web search
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
 import { snapshots, strategies } from '../../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
@@ -8,6 +9,136 @@ import { coachDAL } from '../../lib/ai/coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACTION PARSING HELPERS
+// Parse special action tags from AI responses and execute them
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Parse all special action tags from AI response
+ * Returns actions to execute and cleaned response text
+ */
+function parseActions(responseText) {
+  const actions = {
+    notes: [],
+    events: [],
+    news: [],
+    systemNotes: []
+  };
+
+  // Pattern: [ACTION_TYPE: {...json...}]
+  const patterns = [
+    { type: 'note', regex: /\[SAVE_NOTE:\s*(\{[^}]+\})\]/g, key: 'notes' },
+    { type: 'event', regex: /\[DEACTIVATE_EVENT:\s*(\{[^}]+\})\]/g, key: 'events' },
+    { type: 'news', regex: /\[DEACTIVATE_NEWS:\s*(\{[^}]+\})\]/g, key: 'news' },
+    { type: 'system', regex: /\[SYSTEM_NOTE:\s*(\{[^}]+\})\]/g, key: 'systemNotes' }
+  ];
+
+  let cleanedText = responseText;
+
+  for (const { regex, key } of patterns) {
+    let match;
+    while ((match = regex.exec(responseText)) !== null) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        actions[key].push(parsed);
+        // Remove the action tag from visible response
+        cleanedText = cleanedText.replace(match[0], '');
+      } catch (e) {
+        console.warn(`[chat] Failed to parse ${key} action:`, match[1]);
+      }
+    }
+  }
+
+  return { actions, cleanedText: cleanedText.trim() };
+}
+
+/**
+ * Execute parsed actions asynchronously (non-blocking)
+ */
+async function executeActions(actions, userId, snapshotId, conversationId) {
+  const results = { saved: 0, errors: [] };
+
+  // Save user notes
+  for (const note of actions.notes) {
+    try {
+      await coachDAL.saveUserNote({
+        user_id: userId,
+        snapshot_id: snapshotId,
+        note_type: note.type || 'insight',
+        title: note.title || null,
+        content: note.content,
+        importance: note.importance || 50,
+        confidence: 80,
+        created_by: 'ai_coach'
+      });
+      results.saved++;
+      console.log(`[chat/actions] Saved note: ${note.title || 'untitled'}`);
+    } catch (e) {
+      results.errors.push(`Note: ${e.message}`);
+    }
+  }
+
+  // Deactivate events
+  for (const event of actions.events) {
+    try {
+      await coachDAL.deactivateEvent({
+        user_id: userId,
+        event_title: event.event_title,
+        reason: event.reason,
+        notes: event.notes,
+        deactivated_by: 'ai_coach'
+      });
+      results.saved++;
+      console.log(`[chat/actions] Deactivated event: ${event.event_title}`);
+    } catch (e) {
+      results.errors.push(`Event: ${e.message}`);
+    }
+  }
+
+  // Deactivate news
+  for (const news of actions.news) {
+    try {
+      await coachDAL.deactivateNews({
+        user_id: userId,
+        news_title: news.news_title,
+        reason: news.reason,
+        deactivated_by: 'ai_coach'
+      });
+      results.saved++;
+      console.log(`[chat/actions] Deactivated news: ${news.news_title}`);
+    } catch (e) {
+      results.errors.push(`News: ${e.message}`);
+    }
+  }
+
+  // Save system notes
+  for (const sysNote of actions.systemNotes) {
+    try {
+      await coachDAL.saveSystemNote({
+        note_type: sysNote.type || 'pain_point',
+        category: sysNote.category || 'general',
+        title: sysNote.title,
+        description: sysNote.description,
+        user_quote: sysNote.user_quote,
+        triggering_user_id: userId,
+        triggering_conversation_id: conversationId,
+        triggering_snapshot_id: snapshotId
+      });
+      results.saved++;
+      console.log(`[chat/actions] Saved system note: ${sysNote.title}`);
+    } catch (e) {
+      results.errors.push(`SystemNote: ${e.message}`);
+    }
+  }
+
+  if (results.errors.length > 0) {
+    console.warn(`[chat/actions] ${results.errors.length} errors:`, results.errors);
+  }
+
+  return results;
+}
 
 // POST /api/chat/notes - Save a coach note about the user
 // SECURITY: Requires auth
@@ -125,7 +256,7 @@ router.get('/context/:snapshotId', requireAuth, async (req, res) => {
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
 // SECURITY: requireAuth enforces user must be signed in
 router.post('/', requireAuth, async (req, res) => {
-  const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [] } = req.body;
+  const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [], conversationId: clientConversationId } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
@@ -133,9 +264,13 @@ router.post('/', requireAuth, async (req, res) => {
 
   // Use authenticated user if available, otherwise use provided userId or 'anonymous'
   const authUserId = req.auth?.userId || userId || 'anonymous';
-  console.log('[chat] User:', authUserId, req.auth ? '(authenticated)' : '(anonymous)');
+  const isAuthenticated = authUserId !== 'anonymous';
 
-  console.log('[chat] User:', userId || 'anonymous', '| Thread:', threadHistory.length, 'messages | Attachments:', attachments.length, '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
+  // Generate or use existing conversation_id for thread tracking
+  const conversationId = clientConversationId || randomUUID();
+
+  console.log('[chat] User:', authUserId, isAuthenticated ? '(authenticated)' : '(anonymous)', '| Conversation:', conversationId.slice(0, 8));
+  console.log('[chat] Thread:', threadHistory.length, 'messages | Attachments:', attachments.length, '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
 
   try {
     // Use CoachDAL for full schema read access with ALL tables
@@ -183,9 +318,60 @@ router.post('/', requireAuth, async (req, res) => {
       } else {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
+
+      // Add snapshot history for authenticated users (last 10 sessions)
+      let snapshotHistoryInfo = '';
+      if (isAuthenticated) {
+        try {
+          const history = await coachDAL.getSnapshotHistory(authUserId, 10);
+          if (history && history.length > 0) {
+            fullContext = fullContext || {};
+            fullContext.snapshotHistory = history;
+
+            snapshotHistoryInfo = `\n\n📍 **Recent Session History (${history.length} sessions):**\n`;
+            for (const snap of history.slice(0, 5)) {
+              const date = new Date(snap.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+              const time = new Date(snap.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+              snapshotHistoryInfo += `- ${date} ${time}: ${snap.city}, ${snap.state}${snap.holiday ? ` (${snap.holiday})` : ''}\n`;
+            }
+          }
+        } catch (e) {
+          console.warn('[chat] Failed to load snapshot history:', e.message);
+        }
+      }
     } catch (err) {
       console.warn('[chat] Could not fetch context:', err.message);
       contextInfo = '\n\n⚠️ Context temporarily unavailable';
+    }
+
+    // Track active snapshot ID for conversation persistence
+    let activeSnapshotId = snapshotId || null;
+
+    // Save user message to coach_conversations (non-blocking, authenticated users only)
+    let userMessageId = null;
+    if (isAuthenticated) {
+      try {
+        const userMsg = await coachDAL.saveConversationMessage({
+          user_id: authUserId,
+          snapshot_id: activeSnapshotId,
+          conversation_id: conversationId,
+          role: 'user',
+          content: message,
+          content_type: attachments.length > 0 ? 'text+attachment' : 'text',
+          location_context: fullContext?.snapshot ? {
+            city: fullContext.snapshot.city,
+            state: fullContext.snapshot.state,
+            country: fullContext.snapshot.country
+          } : null,
+          time_context: {
+            local_time: new Date().toISOString(),
+            daypart: fullContext?.snapshot?.time_of_day || null
+          }
+        });
+        userMessageId = userMsg?.id;
+      } catch (e) {
+        console.warn('[chat] Failed to save user message:', e.message);
+      }
     }
 
     const systemPrompt = `You are an AI companion for rideshare drivers using Vecto Pilot - but you're much more than just a rideshare assistant. You're a powerful, versatile helper who can assist with anything the driver needs.
@@ -250,6 +436,8 @@ router.post('/', requireAuth, async (req, res) => {
 - Market Intel: ${fullContext?.marketIntelligence?.intelligence?.length || 0} research items
 - Your Notes: ${fullContext?.userNotes?.length || 0} saved about this driver
 - Market Position: ${fullContext?.marketIntelligence?.marketPosition?.region_type || 'Unknown'} (${fullContext?.marketIntelligence?.marketPosition?.market_anchor || 'Unknown market'})
+- Session History: ${fullContext?.snapshotHistory?.length || 0} recent sessions (you can reference where they've driven before)
+${snapshotHistoryInfo}
 
 **Communication Style:**
 - Warm, friendly, conversational - like a supportive friend
@@ -262,11 +450,23 @@ router.post('/', requireAuth, async (req, res) => {
 
 📋 **Event Verification & Deactivation:**
 - When a driver reports an event is over, cancelled, or has incorrect times, you can mark it for removal
-- To deactivate an event from the Map tab, format your response with:
-  \`[DEACTIVATE_EVENT: {"event_title": "Event Name", "reason": "event_ended|incorrect_time|cancelled|no_longer_relevant", "notes": "Optional explanation"}]\`
-- Valid reasons: event_ended, incorrect_time, cancelled, no_longer_relevant, duplicate, other
-- If they say times are wrong, include the correct times in notes (e.g., "Actually starts at 8pm not 7pm")
-- Only deactivate when the driver confirms the event is invalid
+- To deactivate an event, format your response with:
+  \`[DEACTIVATE_EVENT: {"event_title": "Event Name", "reason": "your reason here", "notes": "Optional explanation"}]\`
+- Suggested reasons: event_ended, incorrect_time, cancelled, no_longer_relevant, duplicate
+- You can also use your own reason if none of these fit
+- If times are wrong, include the correct times in notes (e.g., "Actually starts at 8pm not 7pm")
+
+📰 **News Article Deactivation:**
+- When a driver reports news is outdated, irrelevant, or incorrect, you can hide it for them
+- To deactivate a news item, format your response with:
+  \`[DEACTIVATE_NEWS: {"news_title": "Article Title", "reason": "your reason here"}]\`
+- Suggested reasons: outdated (article from weeks/months ago), already_resolved, incorrect_info, not_relevant_to_area, duplicate
+- You can also use your own reason based on what the driver tells you (e.g., "I only drive Lyft")
+
+📊 **System Observations:**
+- When you notice pain points, feature requests, or patterns from user interactions, save them
+- Format: \`[SYSTEM_NOTE: {"type": "feature_request|pain_point|bug_report|aha_moment", "category": "ui|strategy|briefing|venues|coach|map|earnings", "title": "Short title", "description": "What you observed", "user_quote": "Optional verbatim quote"}]\`
+- This helps the development team improve Vecto Pilot based on real user needs
 
 **Important:**
 - You understand context from conversation history
@@ -408,12 +608,60 @@ You're a powerful AI companion with research-backed market intelligence and pers
 
       if (totalText) {
         console.log(`[chat] ✅ Gemini streamed response: ${totalText.substring(0, 100)}...`);
+
+        // Parse actions and execute them (non-blocking)
+        const { actions, cleanedText } = parseActions(totalText);
+        const hasActions = Object.values(actions).some(arr => arr.length > 0);
+
+        if (hasActions) {
+          console.log(`[chat] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}`);
+
+          // Execute actions asynchronously (don't wait for completion)
+          executeActions(actions, authUserId, activeSnapshotId, conversationId)
+            .then(result => {
+              if (result.saved > 0) {
+                console.log(`[chat] ✅ Executed ${result.saved} actions`);
+              }
+            })
+            .catch(e => console.error('[chat] Action execution error:', e.message));
+        }
+
+        // Save assistant response to coach_conversations (authenticated users only)
+        if (isAuthenticated) {
+          try {
+            // Extract tips from response using CoachDAL
+            const extractedTips = await coachDAL.extractAndSaveTips(authUserId, cleanedText, {
+              snapshot_id: activeSnapshotId,
+              conversation_id: conversationId
+            });
+
+            await coachDAL.saveConversationMessage({
+              user_id: authUserId,
+              snapshot_id: activeSnapshotId,
+              conversation_id: conversationId,
+              parent_message_id: userMessageId,
+              role: 'assistant',
+              content: cleanedText,
+              content_type: 'text',
+              extracted_tips: extractedTips?.tips || [],
+              model_used: 'gemini-3-pro-preview',
+              location_context: fullContext?.snapshot ? {
+                city: fullContext.snapshot.city,
+                state: fullContext.snapshot.state,
+                country: fullContext.snapshot.country
+              } : null
+            });
+          } catch (e) {
+            console.warn('[chat] Failed to save assistant message:', e.message);
+          }
+        }
       } else {
         console.warn('[chat] Empty streaming response from Gemini');
         res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
       }
 
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      // Send done event with conversation_id for client to continue thread
+      res.write(`data: ${JSON.stringify({ done: true, conversation_id: conversationId })}\n\n`);
       res.end();
     } catch (error) {
       console.error('[chat] Gemini request error:', error.message);
@@ -430,6 +678,191 @@ You're a powerful AI companion with research-backed market intelligence and pers
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();
     }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONVERSATION HISTORY ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/chat/conversations - List all conversations for the user
+// SECURITY: Requires auth
+router.get('/conversations', requireAuth, async (req, res) => {
+  const userId = req.auth.userId;
+  const limit = parseInt(req.query.limit) || 20;
+
+  try {
+    const conversations = await coachDAL.getConversations(userId, limit);
+    res.json({ conversations, count: conversations.length });
+  } catch (error) {
+    console.error('[chat/conversations] Error fetching conversations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/chat/conversations/:conversationId - Get messages for a specific conversation
+// SECURITY: Requires auth
+router.get('/conversations/:conversationId', requireAuth, async (req, res) => {
+  const userId = req.auth.userId;
+  const { conversationId } = req.params;
+  const limit = parseInt(req.query.limit) || 100;
+
+  try {
+    const messages = await coachDAL.getConversationHistory(userId, conversationId, limit);
+    res.json({ conversation_id: conversationId, messages, count: messages.length });
+  } catch (error) {
+    console.error('[chat/conversations] Error fetching conversation history:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/chat/conversations/:conversationId/star - Toggle star on a message
+// SECURITY: Requires auth
+router.post('/conversations/:messageId/star', requireAuth, async (req, res) => {
+  const { messageId } = req.params;
+  const { starred } = req.body;
+
+  try {
+    const result = await coachDAL.toggleMessageStar(messageId, starred !== false);
+    if (result) {
+      res.json({ success: true, message_id: messageId, starred: result.is_starred });
+    } else {
+      res.status(404).json({ error: 'Message not found' });
+    }
+  } catch (error) {
+    console.error('[chat/conversations] Error toggling star:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/chat/history - Get all conversation history for current user
+// SECURITY: Requires auth
+router.get('/history', requireAuth, async (req, res) => {
+  const userId = req.auth.userId;
+  const limit = parseInt(req.query.limit) || 100;
+
+  try {
+    const messages = await coachDAL.getConversationHistory(userId, null, limit);
+    res.json({ messages, count: messages.length });
+  } catch (error) {
+    console.error('[chat/history] Error fetching history:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYSTEM NOTES ENDPOINTS (for admin review)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/chat/system-notes - Get system notes (AI observations about improvements)
+// SECURITY: Requires auth (consider making admin-only in production)
+router.get('/system-notes', requireAuth, async (req, res) => {
+  const status = req.query.status || null; // 'new', 'reviewed', 'planned', 'implemented'
+  const limit = parseInt(req.query.limit) || 50;
+
+  try {
+    const notes = await coachDAL.getSystemNotes(status, limit);
+    res.json({ notes, count: notes.length });
+  } catch (error) {
+    console.error('[chat/system-notes] Error fetching system notes:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEWS/EVENT DEACTIVATION ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// POST /api/chat/deactivate-news - Manually deactivate a news item
+// SECURITY: Requires auth
+router.post('/deactivate-news', requireAuth, async (req, res) => {
+  const userId = req.auth.userId;
+  const { news_title, news_source, reason } = req.body;
+
+  if (!news_title) {
+    return res.status(400).json({ error: 'news_title required' });
+  }
+
+  try {
+    const result = await coachDAL.deactivateNews({
+      user_id: userId,
+      news_title,
+      news_source: news_source || null,
+      reason: reason || 'User requested removal',
+      deactivated_by: 'user'
+    });
+
+    if (result) {
+      res.json({ success: true, deactivation_id: result.id });
+    } else {
+      res.status(500).json({ error: 'Failed to deactivate news' });
+    }
+  } catch (error) {
+    console.error('[chat/deactivate-news] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/chat/deactivated-news - Get list of deactivated news hashes for user
+// SECURITY: Requires auth
+router.get('/deactivated-news', requireAuth, async (req, res) => {
+  const userId = req.auth.userId;
+
+  try {
+    const hashes = await coachDAL.getDeactivatedNewsHashes(userId);
+    res.json({ hashes, count: hashes.length });
+  } catch (error) {
+    console.error('[chat/deactivated-news] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/chat/deactivate-event - Manually deactivate an event
+// SECURITY: Requires auth
+router.post('/deactivate-event', requireAuth, async (req, res) => {
+  const userId = req.auth.userId;
+  const { event_title, reason, notes } = req.body;
+
+  if (!event_title) {
+    return res.status(400).json({ error: 'event_title required' });
+  }
+
+  try {
+    const result = await coachDAL.deactivateEvent({
+      user_id: userId,
+      event_title,
+      reason: reason || 'User requested removal',
+      notes: notes || null,
+      deactivated_by: 'user'
+    });
+
+    if (result) {
+      res.json({ success: true, message: 'Event deactivated' });
+    } else {
+      res.status(500).json({ error: 'Failed to deactivate event' });
+    }
+  } catch (error) {
+    console.error('[chat/deactivate-event] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SNAPSHOT HISTORY ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/chat/snapshot-history - Get user's location snapshot history
+// SECURITY: Requires auth
+router.get('/snapshot-history', requireAuth, async (req, res) => {
+  const userId = req.auth.userId;
+  const limit = parseInt(req.query.limit) || 20;
+
+  try {
+    const history = await coachDAL.getSnapshotHistory(userId, limit);
+    res.json({ snapshots: history, count: history.length });
+  } catch (error) {
+    console.error('[chat/snapshot-history] Error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

@@ -353,3 +353,45 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     }
   };
 }
+
+/**
+ * Standalone hook for fetching ONLY currently active events (happening now).
+ * Used by MapPage to show real-time event markers.
+ *
+ * Unlike the main eventsQuery which fetches all upcoming events for the briefing tab,
+ * this hook uses the ?filter=active parameter to get only events whose duration
+ * includes the current time.
+ *
+ * Refetches every 60 seconds to stay current as events start/end.
+ */
+export function useActiveEventsQuery(snapshotId: string | null) {
+  return useQuery({
+    queryKey: ['/api/briefing/events', snapshotId, 'active'],
+    queryFn: async () => {
+      if (!snapshotId) return { events: [] };
+
+      console.log('[BriefingQuery] 🎯 Fetching active events for', snapshotId.slice(0, 8));
+      const response = await fetch(`/api/briefing/events/${snapshotId}?filter=active`, {
+        headers: getAuthHeader()
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.error('[BriefingQuery] Active events 404 - snapshot ownership error');
+          dispatchSnapshotOwnershipError();
+          return { events: [], _ownershipError: true };
+        }
+        console.error('[BriefingQuery] Active events failed:', response.status);
+        return { events: [] };
+      }
+
+      const data = await response.json();
+      console.log('[BriefingQuery] ✅ Active events received:', data.events?.length || 0);
+      return data;
+    },
+    enabled: !!snapshotId,
+    staleTime: 30000, // Consider stale after 30 seconds
+    refetchInterval: 60000, // Refetch every 60 seconds for real-time accuracy
+    refetchOnWindowFocus: true,
+  });
+}

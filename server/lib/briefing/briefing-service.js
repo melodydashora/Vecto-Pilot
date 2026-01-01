@@ -7,6 +7,7 @@ import { z } from 'zod';
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { briefingLog, OP } from '../../logger/workflow.js';
 // SerpAPI + GPT-5.2 event discovery (replaces Gemini for events)
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
@@ -16,8 +17,32 @@ import { dumpLastBriefingRow } from './dump-last-briefing.js';
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 import { getTomTomTraffic } from '../external/tomtom-traffic.js';
 
+// Haversine distance calculation for school closures filtering
+import { haversineDistanceMiles } from '../location/geo.js';
+
 // Email alerts for model errors
 import { sendModelErrorAlert } from '../notifications/email-alerts.js';
+
+/**
+ * Get region-specific search terms for school authorities
+ * Handles US, UK, Canada, and other international variations
+ */
+function getSchoolSearchTerms(country) {
+  const c = (country || 'US').toLowerCase();
+
+  if (['united kingdom', 'uk', 'gb', 'england', 'scotland', 'wales'].includes(c)) {
+    return { authority: 'Local Education Authority', terms: 'term dates, bank holidays, half-term', type: 'council' };
+  }
+  if (['canada', 'ca'].includes(c)) {
+    return { authority: 'School Board', terms: 'school board calendar, PA days, professional development', type: 'board' };
+  }
+  if (['australia', 'au'].includes(c)) {
+    return { authority: 'Department of Education', terms: 'school term dates, pupil-free days', type: 'state' };
+  }
+  // Default: US
+  return { authority: 'School District/ISD', terms: 'school district calendar, student holidays, professional development', type: 'district' };
+}
+
 
 // Initialize OpenAI client for GPT-5.2 fallback
 const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
@@ -416,6 +441,133 @@ IMPORTANT: Return ONLY valid JSON. The "briefing" field should be 3-4 sentences 
     };
   } catch (err) {
     briefingLog.warn(1, `GPT-5.2 traffic analysis failed: ${err.message}`, OP.FALLBACK);
+    return null;
+  }
+}
+
+/**
+ * Analyze TomTom traffic data with AI for strategic, driver-focused summary
+ * Model-agnostic: Uses configured STRATEGY_TRAFFIC_ANALYZER model or defaults to Gemini Flash
+ * Gemini Flash: $0.50/M input - cost-effective for high-volume traffic analysis
+ * @param {Object} params - { tomtomData, city, state, formattedAddress, driverLat, driverLon }
+ */
+async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress, driverLat, driverLon }) {
+  // Default to Gemini Flash for traffic analysis (fast, cheap, good at structured output)
+  const trafficModel = process.env.STRATEGY_TRAFFIC_ANALYZER || 'gemini-3-flash';
+
+  if (!process.env.GEMINI_API_KEY && trafficModel.startsWith('gemini')) {
+    briefingLog.warn(1, `Traffic analyzer unavailable - no GEMINI_API_KEY`, OP.FALLBACK);
+    return null;
+  }
+
+  const startTime = Date.now();
+  const modelLabel = trafficModel.includes('flash') ? 'Gemini Flash' : trafficModel.split('-').slice(0, 2).join(' ');
+  briefingLog.ai(1, modelLabel, `analyzing traffic for ${city}, ${state}`);
+
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: trafficModel,
+      generationConfig: {
+        maxOutputTokens: 2048,
+        temperature: 0.2,
+        // Flash supports MEDIUM thinking, Pro only LOW/HIGH
+        thinkingConfig: { thinkingLevel: trafficModel.includes('flash') ? 'MEDIUM' : 'LOW' }
+      }
+    });
+
+    // Prepare incident data with distance information
+    const stats = tomtomData.stats || {};
+    const incidents = tomtomData.incidents || [];
+
+    // Filter and prioritize: highway accidents/closures that affect strategy
+    const highwayIncidents = incidents.filter(i => i.isHighway);
+    const closures = incidents.filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed');
+    const accidents = incidents.filter(i => i.category === 'Accident');
+    const jams = incidents.filter(i => i.category === 'Jam');
+
+    // Build a strategic prompt focused on driver impact
+    const prompt = `You are a traffic strategist for rideshare drivers. Analyze this traffic data and provide a STRATEGIC briefing.
+
+DRIVER POSITION: ${formattedAddress} (${driverLat?.toFixed(4) || 'N/A'}, ${driverLon?.toFixed(4) || 'N/A'})
+AREA: ${city}, ${state}
+
+TRAFFIC OVERVIEW:
+- Total incidents within 10 miles: ${stats.total || incidents.length}
+- Highway incidents: ${highwayIncidents.length}
+- Road closures: ${closures.length}
+- Accidents: ${accidents.length}
+- Traffic jams: ${jams.length}
+- Congestion level: ${tomtomData.congestionLevel}
+
+PRIORITY INCIDENTS (sorted by impact, with distance from driver):
+${incidents.slice(0, 15).map((inc, i) => {
+  const dist = inc.distanceFromDriver !== null ? `${inc.distanceFromDriver}mi` : '?';
+  return `${i+1}. [${inc.category}] ${inc.road || 'Local road'}: ${inc.from || ''} → ${inc.to || ''} (${dist} away, ${inc.magnitude} severity, ${inc.delayMinutes || 0}min delay)`;
+}).join('\n')}
+
+HIGHWAY CLOSURES & ACCIDENTS (CRITICAL):
+${[...closures.filter(c => c.isHighway), ...accidents.filter(a => a.isHighway)].slice(0, 8).map(c =>
+  `- ${c.road}: ${c.location} [${c.distanceFromDriver !== null ? c.distanceFromDriver + 'mi' : '?'}] - ${c.category}`
+).join('\n') || 'None on major highways'}
+
+Return ONLY a JSON object with this structure:
+{
+  "briefing": "2-3 sentences: (1) Overall traffic status with congestion level. (2) SPECIFIC highway/road issues that affect strategy with distances. (3) Recommended action or route adjustments. Be CONCISE and STRATEGIC.",
+  "keyIssues": [
+    "Highway/Road + issue + distance + impact (e.g., 'I-35 accident 3.2mi north - 15min delays')",
+    "Highway/Road + issue + distance + impact",
+    "Highway/Road + issue + distance + impact"
+  ],
+  "avoidAreas": [
+    "Area/corridor to avoid: reason with distance",
+    "Area/corridor to avoid: reason with distance"
+  ],
+  "driverImpact": "One strategic sentence: How this affects rideshare operations RIGHT NOW - best areas vs areas to avoid",
+  "closuresSummary": "X closures within 10mi, most critical: [list top 2]",
+  "constructionSummary": "Construction zones summary if any significant"
+}
+
+Focus on ACTIONABLE intelligence: what should the driver DO based on this traffic?`;
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    });
+
+    const content = result?.response?.text()?.trim() || '';
+
+    // Parse JSON from response
+    let jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      // Try extracting from code block
+      const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (codeBlockMatch) {
+        jsonMatch = codeBlockMatch[1].match(/\{[\s\S]*\}/);
+      }
+    }
+
+    if (!jsonMatch) {
+      briefingLog.warn(1, `Gemini Flash traffic analysis returned non-JSON`, OP.AI);
+      return null;
+    }
+
+    const analysis = JSON.parse(jsonMatch[0]);
+    const elapsedMs = Date.now() - startTime;
+    briefingLog.done(1, `${modelLabel} traffic analysis (${elapsedMs}ms)`, OP.AI);
+
+    return {
+      briefing: analysis.briefing,
+      headline: analysis.briefing?.split('.')[0] + '.' || analysis.headline,
+      keyIssues: analysis.keyIssues || [],
+      avoidAreas: analysis.avoidAreas || [],
+      driverImpact: analysis.driverImpact,
+      closuresSummary: analysis.closuresSummary,
+      constructionSummary: analysis.constructionSummary,
+      analyzedAt: new Date().toISOString(),
+      provider: trafficModel
+    };
+  } catch (err) {
+    briefingLog.warn(1, `${modelLabel} traffic analysis failed: ${err.message}`, OP.AI);
     return null;
   }
 }
@@ -1351,25 +1503,46 @@ export async function fetchWeatherConditions({ snapshot }) {
 export async function fetchSchoolClosures({ snapshot }) {
   if (!process.env.GEMINI_API_KEY || !snapshot?.city || !snapshot?.state) return [];
 
-  const { city, state, lat, lng } = snapshot;
-  const prompt = `Find upcoming school closures/breaks for ${city}, ${state} within 15 miles of coordinates (${lat}, ${lng}) for the next 30 days.
+  const { city, state, lat, lng, country } = snapshot;
+  const context = getSchoolSearchTerms(country);
 
-Include:
-1. School district closures (winter break, spring break, professional development days)
-2. Local college/university closures
-3. Closure dates and reopening dates
+  // Build a context-aware prompt using market + location context
+  // Gemini discovers institutions dynamically based on the location (no hardcoded anchors)
+  const prompt = `Analyze academic schedules and closures for ${city}, ${state}${country !== 'US' ? `, ${country}` : ''} for the next 30 days.
 
-Return ONLY valid JSON array:
+TARGET COORDINATES: ${lat}, ${lng}
+SEARCH RADIUS: 15 miles
+
+TASK 1: K-12 PUBLIC SCHOOLS (${context.authority})
+Search for: ${context.terms}
+Look for local school districts/boards using regional naming conventions (e.g., "ISD" in Texas, "Parish Schools" in Louisiana, "School Board" in Canada).
+
+TASK 2: UNIVERSITIES & COLLEGES
+Search for major universities within 15 miles. Look for breaks, move-in/out days, commencement, finals week.
+
+TASK 3: PRIVATE & RELIGIOUS SCHOOLS
+Check for major private academies with different schedules than public schools.
+
+IMPORTANT: Each institution type may have DIFFERENT calendars. Public schools can be closed while private schools are open (and vice versa).
+
+Return ONLY a valid JSON array with institutions that are CLOSED or closing soon:
 [
   {
-    "schoolName": "District Name or University Name",
+    "schoolName": "Name of district or institution",
+    "type": "public" | "private" | "college",
     "closureStart": "YYYY-MM-DD",
     "reopeningDate": "YYYY-MM-DD",
-    "type": "district" | "college",
-    "reason": "Winter Break",
-    "impact": "high" | "medium" | "low"
+    "reason": "Holiday Name / Break / Professional Development",
+    "impact": "high" | "medium" | "low",
+    "lat": 32.xxx,
+    "lng": -96.xxx
   }
-]`;
+]
+
+NOTES:
+- Include approximate lat/lng coordinates for each institution (for distance calculation)
+- "impact" should be "high" for large districts/universities, "medium" for mid-size, "low" for small private schools
+- If no closures are found, return an empty array []`;
 
   const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
 
@@ -1381,10 +1554,41 @@ Return ONLY valid JSON array:
   try {
     const closures = safeJsonParse(result.output);
     const closuresArray = Array.isArray(closures) ? closures : [];
-    if (closuresArray.length > 0) {
-      briefingLog.done(2, `${closuresArray.length} school closures found`, OP.AI);
+
+    if (closuresArray.length === 0) {
+      briefingLog.info(`No school closures found for ${city}, ${state}`);
+      return [];
     }
-    return closuresArray;
+
+    // Enrich with distance data using Gemini-provided coordinates
+    const enriched = closuresArray.map((c) => {
+      let distanceFromDriver = null;
+      if (c.lat && c.lng && lat && lng) {
+        distanceFromDriver = parseFloat(haversineDistanceMiles(lat, lng, c.lat, c.lng).toFixed(1));
+      }
+      return { ...c, distanceFromDriver };
+    });
+
+    // Filter to closures within 15 miles (keep ones without coordinates with warning)
+    const nearbyClosures = enriched.filter((c) => {
+      if (c.distanceFromDriver === null || c.distanceFromDriver === undefined) {
+        // No coordinates - include but log warning
+        briefingLog.warn(2, `School ${c.schoolName} has no coordinates - including anyway`, OP.AI);
+        return true;
+      }
+      return c.distanceFromDriver <= 15;
+    });
+
+    const filteredOutCount = enriched.length - nearbyClosures.length;
+    if (filteredOutCount > 0) {
+      briefingLog.phase(2, `School closures: filtered ${filteredOutCount} beyond 15mi`, OP.AI);
+    }
+
+    if (nearbyClosures.length > 0) {
+      briefingLog.done(2, `${nearbyClosures.length} school closures found for ${city}, ${state}`, OP.AI);
+    }
+
+    return nearbyClosures;
   } catch (parseErr) {
     briefingLog.warn(2, `School closures parse failed: ${parseErr.message}`, OP.AI);
     return [];
@@ -1437,7 +1641,8 @@ export async function fetchTrafficConditions({ snapshot }) {
         lon: lng,
         city,
         state,
-        radiusMiles: 15  // 15-mile radius for city-wide coverage
+        radiusMiles: 15,        // 15-mile bounding box for API query
+        maxDistanceMiles: 10    // Filter to 10 miles from driver's actual position
       });
 
       if (tomtomResult.traffic && !tomtomResult.error) {
@@ -1452,15 +1657,18 @@ export async function fetchTrafficConditions({ snapshot }) {
         const traffic = tomtomResult.traffic;
         const formattedAddress = snapshot?.formatted_address || `${city}, ${state}`;
 
-        // Analyze traffic with Claude for human-readable briefing
-        const analysis = await analyzeTrafficWithClaude({
+        // Analyze traffic with AI for strategic, driver-focused briefing
+        // Uses configured model (default: Gemini Flash - fast & cost-effective)
+        const analysis = await analyzeTrafficWithAI({
           tomtomData: traffic,
           city,
           state,
-          formattedAddress
+          formattedAddress,
+          driverLat: lat,
+          driverLon: lng
         });
 
-        // Format incidents for display (prioritized)
+        // Format incidents for display (prioritized, within 10mi)
         const prioritizedIncidents = traffic.incidents.slice(0, 10).map(inc => ({
           description: inc.displayDescription || `${inc.category}: ${inc.location}`,
           severity: inc.magnitude === 'Major' ? 'high' : inc.magnitude === 'Moderate' ? 'medium' : 'low',
@@ -1470,21 +1678,23 @@ export async function fetchTrafficConditions({ snapshot }) {
           isHighway: inc.isHighway,
           priority: inc.priority,
           delayMinutes: inc.delayMinutes,
-          lengthMiles: inc.lengthMiles
+          lengthMiles: inc.lengthMiles,
+          distanceFromDriver: inc.distanceFromDriver  // Distance in miles from driver's position
         }));
 
-        // Separate closures for expandable section
+        // Separate closures for expandable section (also filtered by distance)
         const allClosures = (traffic.allIncidents || traffic.incidents)
           .filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed')
           .map(c => ({
             road: c.road,
             location: c.location,
             isHighway: c.isHighway,
-            severity: c.magnitude === 'Major' ? 'high' : c.magnitude === 'Moderate' ? 'medium' : 'low'
+            severity: c.magnitude === 'Major' ? 'high' : c.magnitude === 'Moderate' ? 'medium' : 'low',
+            distanceFromDriver: c.distanceFromDriver
           }));
 
         return {
-          // Claude analysis (human-readable briefing)
+          // AI analysis (strategic, driver-focused briefing)
           briefing: analysis?.briefing || traffic.summary,  // Full 2-3 sentence briefing
           headline: analysis?.headline || traffic.summary,  // First sentence (backwards compat)
           keyIssues: analysis?.keyIssues || [],

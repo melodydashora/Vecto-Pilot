@@ -32,15 +32,30 @@ Complete frontend → backend API endpoint reference.
 |----------|--------|---------|---------|
 | `/api/briefing/weather/:snapshotId` | GET | `server/api/briefing/briefing.js` | Weather briefing data |
 | `/api/briefing/traffic/:snapshotId` | GET | `server/api/briefing/briefing.js` | Traffic conditions data |
-| `/api/briefing/events/:snapshotId` | GET | `server/api/briefing/briefing.js` | Local events data |
+| `/api/briefing/events/:snapshotId` | GET | `server/api/briefing/briefing.js` | Local events (7-day window) |
+| `/api/briefing/events/:snapshotId?filter=active` | GET | `server/api/briefing/briefing.js` | Events happening NOW (active filter) |
 | `/api/briefing/rideshare-news/:snapshotId` | GET | `server/api/briefing/briefing.js` | Rideshare-relevant news |
 | `/api/briefing/school-closures/:snapshotId` | GET | `server/api/briefing/briefing.js` | School/college closures |
+| `/api/briefing/airport/:snapshotId` | GET | `server/api/briefing/briefing.js` | Airport delays and conditions |
 
 ### Chat & Voice
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/api/chat` | POST | `server/api/chat/chat.js` | AI Coach chat with SSE streaming |
+| `/api/chat` | POST | `server/api/chat/chat.js` | AI Coach chat with SSE streaming + action parsing |
+| `/api/chat/notes` | POST | `server/api/chat/chat.js` | Save a coach note about the user |
+| `/api/chat/notes` | GET | `server/api/chat/chat.js` | Get user's coach notes |
+| `/api/chat/notes/:noteId` | DELETE | `server/api/chat/chat.js` | Delete a coach note (soft delete) |
+| `/api/chat/context/:snapshotId` | GET | `server/api/chat/chat.js` | Get full context for strategy coach |
+| `/api/chat/conversations` | GET | `server/api/chat/chat.js` | List all conversations for user |
+| `/api/chat/conversations/:conversationId` | GET | `server/api/chat/chat.js` | Get messages for a conversation |
+| `/api/chat/conversations/:messageId/star` | POST | `server/api/chat/chat.js` | Toggle star on a message |
+| `/api/chat/history` | GET | `server/api/chat/chat.js` | Get all conversation history |
+| `/api/chat/system-notes` | GET | `server/api/chat/chat.js` | Get AI system observations |
+| `/api/chat/deactivate-news` | POST | `server/api/chat/chat.js` | Deactivate a news item for user |
+| `/api/chat/deactivated-news` | GET | `server/api/chat/chat.js` | Get deactivated news hashes |
+| `/api/chat/deactivate-event` | POST | `server/api/chat/chat.js` | Deactivate an event for user |
+| `/api/chat/snapshot-history` | GET | `server/api/chat/chat.js` | Get user's location snapshot history |
 | `/api/realtime/token` | GET | `server/api/chat/realtime.js` | OpenAI Realtime API token for voice |
 | `/api/tts` | POST | `server/api/chat/tts.js` | Text-to-speech generation |
 
@@ -64,7 +79,15 @@ Complete frontend → backend API endpoint reference.
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/api/auth/token` | POST | `server/api/auth/auth.js` | Generate JWT from device_id |
+| `/api/auth/register` | POST | `server/api/auth/auth.js` | Create new driver account |
+| `/api/auth/login` | POST | `server/api/auth/auth.js` | Login with email/password |
+| `/api/auth/verify-email` | POST | `server/api/auth/auth.js` | Verify email with code |
+| `/api/auth/resend-verification` | POST | `server/api/auth/auth.js` | Resend verification email |
+| `/api/auth/forgot-password` | POST | `server/api/auth/auth.js` | Request password reset |
+| `/api/auth/reset-password` | POST | `server/api/auth/auth.js` | Reset password with token |
+| `/api/auth/me` | GET | `server/api/auth/auth.js` | Get current user profile |
+| `/api/auth/profile` | PUT | `server/api/auth/auth.js` | Update driver profile |
+| `/api/auth/token` | POST | `server/api/auth/auth.js` | **DISABLED** - Legacy token endpoint |
 
 ### Health & Diagnostics
 

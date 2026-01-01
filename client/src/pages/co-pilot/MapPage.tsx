@@ -1,7 +1,7 @@
 // client/src/pages/co-pilot/MapPage.tsx
 // Wrapper page for the Map tab showing venues and events on a map
 // Includes: strategy blocks, bar markers (green=open, red=closing soon), and events
-// Uses pre-loaded briefing data from CoPilotContext for instant display
+// Events are filtered to "active only" (currently happening) via useActiveEventsQuery
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { MapPin } from 'lucide-react';
 import MapTab from '@/components/MapTab';
 import { useCoPilot } from '@/contexts/co-pilot-context';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
+import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
 
 // Event type for MapTab
 interface MapEvent {
@@ -67,7 +68,11 @@ interface BarsApiResponse {
 }
 
 export default function MapPage() {
-  const { coords, lastSnapshotId, blocks, isBlocksLoading, timezone, briefingData } = useCoPilot();
+  const { coords, lastSnapshotId, blocks, isBlocksLoading, timezone } = useCoPilot();
+
+  // Fetch only currently active events (happening now) for the map
+  // This uses the ?filter=active endpoint which returns events during their duration
+  const { data: activeEventsData } = useActiveEventsQuery(lastSnapshotId);
 
   // Fetch bars for map markers (separate from strategy blocks)
   // Only shows $$ and above (expense_rank >= 2) with open/closing soon status
@@ -148,9 +153,10 @@ export default function MapPage() {
     value_grade: block.value_grade,
   }));
 
-  // Transform events to map format (including event_end_date for multi-day events)
-  // Uses pre-loaded briefing data from CoPilotContext
-  const mapEvents: MapEvent[] = (briefingData?.events || []).map((e: BriefingEvent): MapEvent => ({
+  // Transform ACTIVE events to map format (only events happening NOW)
+  // Uses useActiveEventsQuery which fetches ?filter=active from the API
+  // This ensures the map shows real-time events, not all upcoming events
+  const mapEvents: MapEvent[] = (activeEventsData?.events || []).map((e: BriefingEvent): MapEvent => ({
     title: e.title as string,
     venue: e.venue as string | undefined,
     address: e.address as string | undefined,

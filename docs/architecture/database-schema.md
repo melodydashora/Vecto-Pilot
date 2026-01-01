@@ -282,20 +282,57 @@ See [Event Discovery Architecture](event-discovery.md) for full documentation.
 
 **Purpose:** Extended user information for registered drivers (linked to users table)
 
+**Eligibility Taxonomy:** Platform-agnostic vehicle class, attributes, and preferences.
+
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | UUID (PK) | Primary identifier |
 | `user_id` | UUID (FK, UNIQUE) | Reference to users |
 | `first_name`, `last_name` | TEXT | Driver name |
+| `driver_nickname` | TEXT | Custom greeting name (defaults to first_name) |
 | `email` | TEXT (UNIQUE) | Email address |
 | `phone` | TEXT | Phone number |
 | `address_1`, `city`, `state_territory`, `country` | TEXT | Home address |
 | `home_lat`, `home_lng` | DECIMAL | Geocoded home coordinates |
 | `home_timezone` | TEXT | IANA timezone |
 | `market` | TEXT | Rideshare market area |
-| `rideshare_platforms` | JSONB | Array: ['uber', 'lyft', 'private'] |
-| `uber_black`, `uber_xxl`, etc. | BOOLEAN | Service tier flags |
+| `rideshare_platforms` | JSONB | Array: ['uber', 'lyft', 'ridehail', 'private'] |
+| **Vehicle Class** | | |
+| `elig_economy` | BOOLEAN | Standard 4-seat sedan (UberX, Lyft Standard) |
+| `elig_xl` | BOOLEAN | 6+ seat SUV/minivan |
+| `elig_xxl` | BOOLEAN | 6+ seat + extra cargo |
+| `elig_comfort` | BOOLEAN | Newer vehicle, extra legroom |
+| `elig_luxury_sedan` | BOOLEAN | Premium sedan (Uber Black) |
+| `elig_luxury_suv` | BOOLEAN | Premium SUV, 6+ seats |
+| **Vehicle Attributes** | | |
+| `attr_electric` | BOOLEAN | Fully electric vehicle |
+| `attr_green` | BOOLEAN | Hybrid or low-emission |
+| `attr_wav` | BOOLEAN | Wheelchair accessible |
+| `attr_ski` | BOOLEAN | Ski rack / winter ready |
+| `attr_car_seat` | BOOLEAN | Child safety seat available |
+| **Service Preferences** | | |
+| `pref_pet_friendly` | BOOLEAN | Accept passengers with pets |
+| `pref_teen` | BOOLEAN | Unaccompanied minors (13-17) |
+| `pref_assist` | BOOLEAN | Door-to-door assistance for seniors |
+| `pref_shared` | BOOLEAN | Carpool/shared rides |
 | `email_verified`, `phone_verified` | BOOLEAN | Verification status |
+| `terms_accepted`, `terms_accepted_at` | BOOLEAN/TIMESTAMP | Terms & Conditions |
+
+### `driver_vehicles` - Vehicle Information
+
+**Purpose:** Vehicle details for each registered driver
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `driver_profile_id` | UUID (FK) | Reference to driver_profiles |
+| `year` | INTEGER | Vehicle year |
+| `make`, `model` | TEXT | Vehicle make and model |
+| `color` | TEXT | Vehicle color |
+| `license_plate` | TEXT | License plate |
+| `seatbelts` | INTEGER | Seatbelt count (default 4) |
+| `is_primary` | BOOLEAN | Primary vehicle flag |
+| `is_active` | BOOLEAN | Active status |
 
 ### `auth_credentials` - Password & Security
 
@@ -320,6 +357,108 @@ See [Event Discovery Architecture](event-discovery.md) for full documentation.
 | `destination` | TEXT | Email or phone number |
 | `expires_at` | TIMESTAMP | Code expiry |
 | `attempts` | INTEGER | Attempt counter |
+
+---
+
+## Platform & Reference Tables
+
+### `platform_data` - Rideshare Platform Coverage
+
+**Purpose:** Which rideshare platforms operate in each city/market
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `platform` | TEXT | 'uber', 'lyft', etc. |
+| `country` | TEXT | Country name |
+| `country_code` | TEXT | ISO 2-letter code (e.g., 'US', 'CA') |
+| `region` | TEXT | State/province/region |
+| `city` | TEXT | City name |
+| `market` | TEXT | Market name (e.g., 'Dallas-Fort Worth') |
+| `market_anchor` | TEXT | Core market city |
+| `region_type` | TEXT | 'Core', 'Satellite', or 'Rural' |
+| `timezone` | TEXT | IANA timezone |
+| `center_lat`, `center_lng` | DECIMAL | Market center coordinates |
+| `coord_boundary` | JSONB | GeoJSON polygon for service area |
+| `is_active` | BOOLEAN | Whether service is active |
+
+### `countries` - Country Reference Data
+
+**Purpose:** ISO 3166-1 country codes for registration dropdowns
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `code` | VARCHAR(2) PK | ISO alpha-2 code (e.g., 'US') |
+| `name` | TEXT | Official country name |
+| `alpha3` | VARCHAR(3) | ISO alpha-3 code (e.g., 'USA') |
+| `phone_code` | TEXT | Calling code (e.g., '+1') |
+| `has_platform_data` | BOOLEAN | Has rideshare coverage in our data |
+| `display_order` | INTEGER | Dropdown priority (US = 0) |
+| `is_active` | BOOLEAN | Active for filtering |
+
+---
+
+## AI Coach Tables
+
+### `coach_conversations` - User-Level Memory
+
+**Purpose:** Full conversation history for AI Coach, enabling thread continuity across sessions
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Query: `server/lib/ai/coach-dal.js`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `user_id` | UUID (FK) | Reference to users (required) |
+| `snapshot_id` | UUID (FK) | Reference to snapshots (optional) |
+| `conversation_id` | UUID | Groups messages in a thread |
+| `role` | TEXT | 'user' / 'assistant' / 'system' |
+| `content` | TEXT | Message content |
+| `topic_tags` | JSONB | AI-classified topics: ['staging', 'surge'] |
+| `extracted_tips` | JSONB | Tips extracted from exchange |
+| `location_context` | JSONB | {city, state, lat, lng} at time of message |
+| `time_context` | JSONB | {dow, hour, day_part} at time of message |
+| `is_starred` | BOOLEAN | User starred for reference |
+| `created_at` | TIMESTAMP | When message was sent |
+
+### `coach_system_notes` - AI Observations
+
+**Purpose:** AI Coach observations about potential system enhancements
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Query: `server/lib/ai/coach-dal.js`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `note_type` | TEXT | 'feature_request' / 'pain_point' / 'aha_moment' |
+| `category` | TEXT | 'ui' / 'strategy' / 'coach' / 'venues' |
+| `priority` | INTEGER | 1-100 (higher = more urgent) |
+| `title` | TEXT | Short descriptive title |
+| `description` | TEXT | Full observation |
+| `user_quote` | TEXT | Direct user quote that triggered this |
+| `occurrence_count` | INTEGER | How many times this has come up |
+| `status` | TEXT | 'new' / 'reviewed' / 'planned' / 'implemented' |
+
+### `news_deactivations` - User Content Filtering
+
+**Purpose:** Per-user news deactivation - reasons are free-form, we'll learn patterns as users interact
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Query: `server/lib/ai/coach-dal.js`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `user_id` | UUID (FK) | Reference to users |
+| `news_hash` | TEXT | MD5 hash for deduplication |
+| `news_title` | TEXT | Original title |
+| `reason` | TEXT | Free-form reason from user or AI Coach |
+| `deactivated_by` | TEXT | 'user' / 'ai_coach' |
 
 ---
 
