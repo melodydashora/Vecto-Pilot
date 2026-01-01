@@ -4,12 +4,26 @@
 
 This file provides navigation to focused architecture documentation. Each linked document is designed to be readable in a single pass.
 
-## Recent Changes (2025-12-27)
+## Recent Changes (2026-01-01)
 
-- **React Router Refactor**: Monolithic co-pilot.tsx (1700 LOC) split into 7 route-based pages
-- **New Layout System**: CoPilotLayout.tsx with conditional GlobalHeader
-- **Shared Context**: CoPilotContext for cross-page state management
-- **Documentation Audit**: 27 new README files added (now 95 total)
+- **Server Reorganization**: Moved from flat lib structure to domain-based organization
+  - `server/lib/ai/` - AI adapters and providers
+  - `server/lib/auth/` - Authentication services
+  - `server/lib/briefing/` - Briefing generation
+  - `server/lib/strategy/` - Strategy pipeline
+  - `server/lib/venue/` - Venue intelligence
+  - `server/lib/location/` - Location services
+  - `server/lib/external/` - Third-party API integrations
+  - `server/lib/infrastructure/` - Job queue
+  - `server/lib/notifications/` - Email alerts
+  - `server/lib/change-analyzer/` - File change tracking
+  - `server/lib/subagents/` - AI sub-tasks
+- **API Route Organization**: Routes organized by domain in `server/api/`
+  - `auth/`, `briefing/`, `chat/`, `feedback/`, `health/`, `intelligence/`, `location/`, `platform/`, `research/`, `strategy/`, `utils/`, `vehicle/`, `venue/`
+- **Bootstrap System**: Separated server startup concerns into `server/bootstrap/`
+- **React Router Refactor**: Monolithic co-pilot.tsx split into 7 route-based pages
+- **Auth System**: New authentication pages and protected routes
+- **Documentation**: 95+ README files across all folders
 
 ## Quick Navigation
 

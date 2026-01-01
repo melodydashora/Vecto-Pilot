@@ -370,16 +370,16 @@ The following orphaned files have been removed:
 ### Active Files Count
 - **Entry Points**: 3 (main.tsx, App.tsx, routes.tsx)
 - **Layouts**: 1 (CoPilotLayout.tsx)
-- **Pages**: 8 (7 co-pilot pages + SafeScaffold)
-- **Core Components**: 11
-- **Sub-Components**: 2
+- **Pages**: 13 (8 co-pilot pages + 5 auth pages + SafeScaffold)
+- **Core Components**: 13
+- **Sub-Components**: 8 (co-pilot, intel, auth)
 - **Strategy Components**: 0 active (legacy moved to _future)
-- **Hooks**: 9 active, 1 review
-- **Contexts**: 2 (location-context-clean, co-pilot-context)
+- **Hooks**: 13 active
+- **Contexts**: 3 (location-context-clean, co-pilot-context, auth-context)
 - **Libraries**: 3 active
-- **Types**: 3 active
+- **Types**: 4 active
 - **Utilities**: 1
-- **Future/Staged**: 8 files in `_future/`
+- **Future/Staged**: 10+ files in `_future/`
 
 ### Cleanup Status (Dec 2025)
 
