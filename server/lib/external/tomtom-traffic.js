@@ -10,6 +10,25 @@ import { briefingLog, OP } from '../../logger/workflow.js';
 const TOMTOM_API_KEY = process.env.TOMTOM_API_KEY;
 const TOMTOM_BASE_URL = 'https://api.tomtom.com/traffic/services/5';
 
+/**
+ * Calculate distance between two coordinates using Haversine formula
+ * @param {number} lat1 - Latitude of point 1
+ * @param {number} lon1 - Longitude of point 1
+ * @param {number} lat2 - Latitude of point 2
+ * @param {number} lon2 - Longitude of point 2
+ * @returns {number} - Distance in miles
+ */
+function calculateDistanceMiles(lat1, lon1, lat2, lon2) {
+  const R = 3958.8; // Earth's radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 // Incident category mapping for display
 const CATEGORY_LABELS = {
   0: 'Unknown',
@@ -215,12 +234,13 @@ function createBoundingBox(lat, lon, radiusMiles = 10) {
  * @param {Object} params - Request parameters
  * @param {number} params.lat - Latitude
  * @param {number} params.lon - Longitude
- * @param {number} params.radiusMiles - Search radius in miles (default 10)
+ * @param {number} params.radiusMiles - Search radius in miles (default 10 for bounding box)
+ * @param {number} params.maxDistanceMiles - Maximum distance from driver to include (default 10)
  * @param {string} params.city - City name (for logging)
  * @param {string} params.state - State name (for logging)
  * @returns {Promise<Object>} - Traffic incidents and conditions
  */
-export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, city, state }) {
+export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistanceMiles = 10, city, state }) {
   if (!TOMTOM_API_KEY) {
     return {
       traffic: {
@@ -285,6 +305,30 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, city, state
       // Length in miles
       const lengthMiles = props.length ? parseFloat((props.length / 1609.34).toFixed(1)) : null;
 
+      // Get incident coordinates (first point of geometry for distance calc)
+      // TomTom returns coordinates as [lon, lat] (GeoJSON format)
+      let incidentLat = null;
+      let incidentLon = null;
+      if (inc.geometry?.coordinates) {
+        const coords = inc.geometry.coordinates;
+        // Handle LineString (array of coordinate pairs) or Point (single pair)
+        if (Array.isArray(coords[0])) {
+          // LineString: take midpoint or first point
+          incidentLon = coords[0][0];
+          incidentLat = coords[0][1];
+        } else {
+          // Point
+          incidentLon = coords[0];
+          incidentLat = coords[1];
+        }
+      }
+
+      // Calculate actual distance from driver to incident
+      let distanceFromDriver = null;
+      if (incidentLat !== null && incidentLon !== null && lat && lon) {
+        distanceFromDriver = parseFloat(calculateDistanceMiles(lat, lon, incidentLat, incidentLon).toFixed(1));
+      }
+
       const incident = {
         id: props.id,
         category,
@@ -302,6 +346,10 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, city, state
         // Add city context from the request
         city: city || null,
         state: state || null,
+        // Add distance from driver's position
+        distanceFromDriver,
+        incidentLat,
+        incidentLon,
       };
 
       // Calculate priority score for sorting
@@ -310,11 +358,12 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, city, state
       // Determine if this is a major arterial/highway
       incident.isHighway = getRoadPriority(incident.location, roadNumbers) >= 60;
 
-      // Format display description with road context
+      // Format display description with road context and distance
+      const distanceStr = distanceFromDriver !== null ? ` [${distanceFromDriver} mi]` : '';
       if (road) {
-        incident.displayDescription = `${category}: ${road} (${fromTo})`;
+        incident.displayDescription = `${category}: ${road} (${fromTo})${distanceStr}`;
       } else {
-        incident.displayDescription = `${category}: ${fromTo}`;
+        incident.displayDescription = `${category}: ${fromTo}${distanceStr}`;
       }
 
       return incident;
@@ -338,8 +387,22 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, city, state
       return true;
     });
 
+    // Filter by actual distance from driver (not just bounding box)
+    // This removes incidents that are technically in the bbox but farther than maxDistanceMiles
+    const distanceFilteredIncidents = deduplicatedIncidents.filter(inc => {
+      // Keep incidents without distance (couldn't calculate) - they're likely relevant
+      if (inc.distanceFromDriver === null) return true;
+      return inc.distanceFromDriver <= maxDistanceMiles;
+    });
+
+    // Log how many were filtered out
+    const filteredOutCount = deduplicatedIncidents.length - distanceFilteredIncidents.length;
+    if (filteredOutCount > 0) {
+      briefingLog.phase(1, `Traffic: filtered ${filteredOutCount} incidents beyond ${maxDistanceMiles} mi`, OP.AI);
+    }
+
     // Sort by priority (highest first) - highways and major incidents first
-    const sortedIncidents = deduplicatedIncidents.sort((a, b) => b.priority - a.priority);
+    const sortedIncidents = distanceFilteredIncidents.sort((a, b) => b.priority - a.priority);
 
     // Categorize incidents for better display
     const highwayIncidents = sortedIncidents.filter(i => i.isHighway);

@@ -1,5 +1,5 @@
 // server/lib/coach-dal.js
-// AI Strategy Coach Data Access Layer - Full Schema Read Access
+// AI Strategy Coach Data Access Layer - Full Schema Read/Write Access
 import { db } from '../../db/drizzle.js';
 import {
   snapshots,
@@ -17,9 +17,14 @@ import {
   user_intel_notes,
   platform_data,
   driver_profiles,
-  driver_vehicles
+  driver_vehicles,
+  discovered_events,
+  coach_conversations,
+  coach_system_notes,
+  news_deactivations
 } from '../../../shared/schema.js';
-import { eq, desc, and, or, sql, isNull, gte } from 'drizzle-orm';
+import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
+import crypto from 'crypto';
 
 /**
  * CoachDAL - Full schema read access for AI Strategy Coach
@@ -1186,6 +1191,707 @@ export class CoachDAL {
     prompt += `\n   Status: ${status}`;
 
     return prompt;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SNAPSHOT HISTORY - User-level historical data access
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get snapshot history for a user (enables cross-session learning)
+   * @param {string} userId - User ID
+   * @param {number} limit - Max snapshots to retrieve
+   * @param {Date} since - Only snapshots since this date
+   * @returns {Promise<Array>} Array of historical snapshots with strategies
+   */
+  async getSnapshotHistory(userId, limit = 20, since = null) {
+    try {
+      if (!userId) return [];
+
+      const conditions = [eq(snapshots.user_id, userId)];
+      if (since) {
+        conditions.push(gte(snapshots.created_at, since));
+      }
+
+      const snapshotHistory = await db
+        .select({
+          snapshot_id: snapshots.snapshot_id,
+          created_at: snapshots.created_at,
+          city: snapshots.city,
+          state: snapshots.state,
+          dow: snapshots.dow,
+          hour: snapshots.hour,
+          day_part_key: snapshots.day_part_key,
+          holiday: snapshots.holiday,
+          weather: snapshots.weather,
+        })
+        .from(snapshots)
+        .where(and(...conditions))
+        .orderBy(desc(snapshots.created_at))
+        .limit(limit);
+
+      // Enrich with strategy status
+      const enrichedHistory = await Promise.all(
+        snapshotHistory.map(async (snap) => {
+          const [strat] = await db
+            .select({
+              status: strategies.status,
+              strategy_for_now: strategies.strategy_for_now,
+            })
+            .from(strategies)
+            .where(eq(strategies.snapshot_id, snap.snapshot_id))
+            .limit(1);
+
+          return {
+            ...snap,
+            had_strategy: !!strat?.strategy_for_now,
+            strategy_status: strat?.status || 'none',
+          };
+        })
+      );
+
+      console.log(`[CoachDAL] getSnapshotHistory: Found ${enrichedHistory.length} snapshots for user ${userId.slice(0, 8)}`);
+      return enrichedHistory;
+    } catch (error) {
+      console.error('[CoachDAL] getSnapshotHistory error:', error);
+      return [];
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONVERSATION PERSISTENCE - Full thread memory
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Save a conversation message (user or assistant)
+   * @param {Object} messageData - Message data
+   * @returns {Promise<Object|null>} Saved message or null
+   */
+  async saveConversationMessage(messageData) {
+    try {
+      const {
+        user_id,
+        snapshot_id,
+        conversation_id,
+        parent_message_id,
+        role,
+        content,
+        content_type = 'text',
+        topic_tags = [],
+        extracted_tips = [],
+        sentiment,
+        location_context,
+        time_context,
+        tokens_in,
+        tokens_out,
+        model_used
+      } = messageData;
+
+      if (!user_id || !conversation_id || !role || !content) {
+        console.warn('[CoachDAL] saveConversationMessage: missing required fields');
+        return null;
+      }
+
+      const [message] = await db
+        .insert(coach_conversations)
+        .values({
+          user_id,
+          snapshot_id,
+          conversation_id,
+          parent_message_id,
+          role,
+          content,
+          content_type,
+          topic_tags,
+          extracted_tips,
+          sentiment,
+          location_context,
+          time_context,
+          tokens_in,
+          tokens_out,
+          model_used,
+        })
+        .returning();
+
+      console.log(`[CoachDAL] Saved conversation message: ${message.id} (${role})`);
+      return message;
+    } catch (error) {
+      console.error('[CoachDAL] saveConversationMessage error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get conversation history for a user
+   * @param {string} userId - User ID
+   * @param {string} conversationId - Specific conversation (optional)
+   * @param {number} limit - Max messages to retrieve
+   * @returns {Promise<Array>} Array of messages
+   */
+  async getConversationHistory(userId, conversationId = null, limit = 100) {
+    try {
+      if (!userId) return [];
+
+      const conditions = [eq(coach_conversations.user_id, userId)];
+      if (conversationId) {
+        conditions.push(eq(coach_conversations.conversation_id, conversationId));
+      }
+
+      const messages = await db
+        .select()
+        .from(coach_conversations)
+        .where(and(...conditions))
+        .orderBy(asc(coach_conversations.created_at))
+        .limit(limit);
+
+      console.log(`[CoachDAL] getConversationHistory: Found ${messages.length} messages for user ${userId.slice(0, 8)}`);
+      return messages;
+    } catch (error) {
+      console.error('[CoachDAL] getConversationHistory error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get list of conversations for a user (summary view)
+   * @param {string} userId - User ID
+   * @param {number} limit - Max conversations to retrieve
+   * @returns {Promise<Array>} Array of conversation summaries
+   */
+  async getConversations(userId, limit = 20) {
+    try {
+      if (!userId) return [];
+
+      // Get distinct conversations with first message as title
+      const conversations = await db
+        .selectDistinctOn([coach_conversations.conversation_id], {
+          conversation_id: coach_conversations.conversation_id,
+          first_message: coach_conversations.content,
+          created_at: coach_conversations.created_at,
+          snapshot_id: coach_conversations.snapshot_id,
+          topic_tags: coach_conversations.topic_tags,
+        })
+        .from(coach_conversations)
+        .where(and(
+          eq(coach_conversations.user_id, userId),
+          eq(coach_conversations.role, 'user')
+        ))
+        .orderBy(coach_conversations.conversation_id, desc(coach_conversations.created_at))
+        .limit(limit);
+
+      console.log(`[CoachDAL] getConversations: Found ${conversations.length} conversations for user ${userId.slice(0, 8)}`);
+      return conversations;
+    } catch (error) {
+      console.error('[CoachDAL] getConversations error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Star/unstar a message for easy reference
+   * @param {string} messageId - Message ID
+   * @param {boolean} starred - Whether to star or unstar
+   */
+  async toggleMessageStar(messageId, starred) {
+    try {
+      await db
+        .update(coach_conversations)
+        .set({ is_starred: starred, updated_at: new Date() })
+        .where(eq(coach_conversations.id, messageId));
+      console.log(`[CoachDAL] Message ${messageId} ${starred ? 'starred' : 'unstarred'}`);
+    } catch (error) {
+      console.error('[CoachDAL] toggleMessageStar error:', error);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SYSTEM NOTES - AI observations about system enhancements
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Save a system enhancement note (AI observation)
+   * @param {Object} noteData - System note data
+   * @returns {Promise<Object|null>} Saved note or null
+   */
+  async saveSystemNote(noteData) {
+    try {
+      const {
+        note_type,
+        category,
+        priority = 50,
+        title,
+        description,
+        user_quote,
+        triggering_user_id,
+        triggering_conversation_id,
+        triggering_snapshot_id,
+        market_slug,
+        is_market_specific = false
+      } = noteData;
+
+      if (!note_type || !category || !title || !description) {
+        console.warn('[CoachDAL] saveSystemNote: missing required fields');
+        return null;
+      }
+
+      // Check if similar note exists (dedupe by title + category)
+      const [existing] = await db
+        .select()
+        .from(coach_system_notes)
+        .where(and(
+          eq(coach_system_notes.title, title),
+          eq(coach_system_notes.category, category)
+        ))
+        .limit(1);
+
+      if (existing) {
+        // Update occurrence count instead of creating duplicate
+        await db
+          .update(coach_system_notes)
+          .set({
+            occurrence_count: sql`${coach_system_notes.occurrence_count} + 1`,
+            affected_users: sql`${coach_system_notes.affected_users} || ${JSON.stringify([triggering_user_id])}::jsonb`,
+            updated_at: new Date()
+          })
+          .where(eq(coach_system_notes.id, existing.id));
+        console.log(`[CoachDAL] Updated existing system note: ${existing.id} (occurrence: ${existing.occurrence_count + 1})`);
+        return existing;
+      }
+
+      const [note] = await db
+        .insert(coach_system_notes)
+        .values({
+          note_type,
+          category,
+          priority,
+          title,
+          description,
+          user_quote,
+          triggering_user_id,
+          triggering_conversation_id,
+          triggering_snapshot_id,
+          market_slug,
+          is_market_specific,
+          affected_users: triggering_user_id ? [triggering_user_id] : [],
+        })
+        .returning();
+
+      console.log(`[CoachDAL] Saved system note: ${note.id} (${note_type}/${category})`);
+      return note;
+    } catch (error) {
+      console.error('[CoachDAL] saveSystemNote error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get system notes (for admin review)
+   * @param {string} status - Filter by status (optional)
+   * @param {number} limit - Max notes to retrieve
+   * @returns {Promise<Array>} Array of system notes
+   */
+  async getSystemNotes(status = null, limit = 50) {
+    try {
+      const conditions = [];
+      if (status) {
+        conditions.push(eq(coach_system_notes.status, status));
+      }
+
+      const notes = await db
+        .select()
+        .from(coach_system_notes)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(coach_system_notes.priority), desc(coach_system_notes.created_at))
+        .limit(limit);
+
+      return notes;
+    } catch (error) {
+      console.error('[CoachDAL] getSystemNotes error:', error);
+      return [];
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEWS/EVENT DEACTIVATION - User-specific content filtering
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Generate hash for news item deduplication
+   * @private
+   */
+  _generateNewsHash(title, source, date) {
+    const normalized = `${title || ''}_${source || ''}_${date || ''}`.toLowerCase().trim();
+    return crypto.createHash('md5').update(normalized).digest('hex');
+  }
+
+  /**
+   * Deactivate a news item for a user
+   * @param {Object} deactivationData - Deactivation data
+   * @returns {Promise<Object|null>} Deactivation record or null
+   *
+   * @example
+   * // User asks to hide old news
+   * await coachDAL.deactivateNews({
+   *   user_id: userId,
+   *   news_title: 'Rideshare driver carjacked in East Dallas',
+   *   reason: 'Article is from a year ago'
+   * });
+   *
+   * @example
+   * // User preference
+   * await coachDAL.deactivateNews({
+   *   user_id: userId,
+   *   news_title: 'Uber announces new driver incentives',
+   *   reason: 'I only drive Lyft'
+   * });
+   */
+  async deactivateNews(deactivationData) {
+    try {
+      const {
+        user_id,
+        news_title,
+        news_source,
+        news_date,
+        reason, // Free-form - we'll learn patterns as users interact
+        deactivated_by = 'user'
+      } = deactivationData;
+
+      if (!user_id || !news_title || !reason) {
+        console.warn('[CoachDAL] deactivateNews: missing required fields');
+        return null;
+      }
+
+      const news_hash = this._generateNewsHash(news_title, news_source, news_date);
+
+      const [deactivation] = await db
+        .insert(news_deactivations)
+        .values({
+          user_id,
+          news_hash,
+          news_title,
+          news_source,
+          reason,
+          deactivated_by,
+        })
+        .onConflictDoUpdate({
+          target: [news_deactivations.user_id, news_deactivations.news_hash],
+          set: {
+            reason,
+            created_at: new Date()
+          }
+        })
+        .returning();
+
+      console.log(`[CoachDAL] Deactivated news: "${news_title.substring(0, 30)}..." for user ${user_id.slice(0, 8)} (reason: ${reason})`);
+      return deactivation;
+    } catch (error) {
+      console.error('[CoachDAL] deactivateNews error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get deactivated news hashes for a user (for filtering)
+   * @param {string} userId - User ID
+   * @returns {Promise<Set<string>>} Set of deactivated news hashes
+   */
+  async getDeactivatedNewsHashes(userId) {
+    try {
+      if (!userId) return new Set();
+
+      const deactivations = await db
+        .select({ news_hash: news_deactivations.news_hash })
+        .from(news_deactivations)
+        .where(eq(news_deactivations.user_id, userId));
+
+      return new Set(deactivations.map(d => d.news_hash));
+    } catch (error) {
+      console.error('[CoachDAL] getDeactivatedNewsHashes error:', error);
+      return new Set();
+    }
+  }
+
+  /**
+   * Deactivate a discovered event
+   * @param {Object} deactivationData - Deactivation data
+   * @returns {Promise<Object|null>} Updated event or null
+   */
+  async deactivateEvent(deactivationData) {
+    try {
+      const {
+        event_id,
+        reason,
+        deactivated_by = 'ai_coach'
+      } = deactivationData;
+
+      if (!event_id || !reason) {
+        console.warn('[CoachDAL] deactivateEvent: missing required fields');
+        return null;
+      }
+
+      const [event] = await db
+        .update(discovered_events)
+        .set({
+          is_active: false,
+          deactivation_reason: reason,
+          deactivated_at: new Date(),
+          deactivated_by,
+          updated_at: new Date()
+        })
+        .where(eq(discovered_events.id, event_id))
+        .returning();
+
+      console.log(`[CoachDAL] Deactivated event: ${event_id} (reason: ${reason})`);
+      return event;
+    } catch (error) {
+      console.error('[CoachDAL] deactivateEvent error:', error);
+      return null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MARKET INTELLIGENCE - Coach-contributed market insights
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Save market intelligence (from coach analysis)
+   * @param {Object} intelData - Market intelligence data
+   * @returns {Promise<Object|null>} Saved intel or null
+   */
+  async saveMarketIntelligence(intelData) {
+    try {
+      const {
+        market,
+        platform = 'both',
+        intel_type,
+        intel_subtype,
+        title,
+        summary,
+        content,
+        neighborhoods,
+        boundaries,
+        time_context,
+        tags = [],
+        priority = 50,
+        source = 'ai_coach',
+        confidence = 70,
+        created_by = 'ai_coach'
+      } = intelData;
+
+      if (!market || !intel_type || !title || !content) {
+        console.warn('[CoachDAL] saveMarketIntelligence: missing required fields');
+        return null;
+      }
+
+      const market_slug = market.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+      const [intel] = await db
+        .insert(market_intelligence)
+        .values({
+          market,
+          market_slug,
+          platform,
+          intel_type,
+          intel_subtype,
+          title,
+          summary,
+          content,
+          neighborhoods,
+          boundaries,
+          time_context,
+          tags,
+          priority,
+          source,
+          confidence,
+          created_by,
+          coach_can_cite: true,
+          coach_priority: priority,
+        })
+        .returning();
+
+      console.log(`[CoachDAL] Saved market intel: ${intel.id} (${market}/${intel_type})`);
+      return intel;
+    } catch (error) {
+      console.error('[CoachDAL] saveMarketIntelligence error:', error);
+      return null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VENUE CATALOG - Driver-contributed venue intel
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Save or update venue catalog entry (driver intel contribution)
+   * @param {Object} venueData - Venue data
+   * @returns {Promise<Object|null>} Saved venue or null
+   */
+  async saveVenueCatalogEntry(venueData) {
+    try {
+      const {
+        place_id,
+        venue_name,
+        address,
+        lat,
+        lng,
+        category,
+        dayparts,
+        staging_notes,
+        city,
+        metro,
+        district,
+        ai_estimated_hours,
+        discovery_source = 'ai_coach'
+      } = venueData;
+
+      if (!venue_name || !address || !category) {
+        console.warn('[CoachDAL] saveVenueCatalogEntry: missing required fields');
+        return null;
+      }
+
+      const district_slug = district
+        ? district.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        : null;
+
+      // Check if venue exists by place_id
+      if (place_id) {
+        const [existing] = await db
+          .select()
+          .from(venue_catalog)
+          .where(eq(venue_catalog.place_id, place_id))
+          .limit(1);
+
+        if (existing) {
+          // Update existing venue
+          const [updated] = await db
+            .update(venue_catalog)
+            .set({
+              staging_notes: staging_notes || existing.staging_notes,
+              ai_estimated_hours: ai_estimated_hours || existing.ai_estimated_hours,
+              validated_at: new Date(),
+            })
+            .where(eq(venue_catalog.venue_id, existing.venue_id))
+            .returning();
+
+          console.log(`[CoachDAL] Updated venue: ${updated.venue_id} (${venue_name})`);
+          return updated;
+        }
+      }
+
+      // Create new venue entry
+      const [venue] = await db
+        .insert(venue_catalog)
+        .values({
+          place_id,
+          venue_name,
+          address,
+          lat,
+          lng,
+          category,
+          dayparts,
+          staging_notes,
+          city,
+          metro,
+          district,
+          district_slug,
+          ai_estimated_hours,
+          discovery_source,
+        })
+        .returning();
+
+      console.log(`[CoachDAL] Created venue: ${venue.venue_id} (${venue_name})`);
+      return venue;
+    } catch (error) {
+      console.error('[CoachDAL] saveVenueCatalogEntry error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Add staging notes to an existing venue
+   * @param {string} placeId - Google Place ID
+   * @param {Object} stagingNotes - Staging notes to add
+   * @returns {Promise<Object|null>} Updated venue or null
+   */
+  async addVenueStagingNotes(placeId, stagingNotes) {
+    try {
+      if (!placeId || !stagingNotes) {
+        console.warn('[CoachDAL] addVenueStagingNotes: missing required fields');
+        return null;
+      }
+
+      const [venue] = await db
+        .update(venue_catalog)
+        .set({
+          staging_notes: sql`COALESCE(${venue_catalog.staging_notes}, '{}')::jsonb || ${JSON.stringify(stagingNotes)}::jsonb`,
+          validated_at: new Date(),
+        })
+        .where(eq(venue_catalog.place_id, placeId))
+        .returning();
+
+      if (venue) {
+        console.log(`[CoachDAL] Added staging notes to venue: ${placeId}`);
+      }
+      return venue;
+    } catch (error) {
+      console.error('[CoachDAL] addVenueStagingNotes error:', error);
+      return null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TIPS EXTRACTION - Learn from successful conversations
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Extract and save tips from a coach response
+   * @param {string} userId - User ID
+   * @param {string} responseContent - Coach response containing tips
+   * @param {Object} context - Context (city, state, etc.)
+   * @returns {Promise<number>} Number of tips extracted
+   */
+  async extractAndSaveTips(userId, responseContent, context = {}) {
+    try {
+      // Look for actionable patterns in the response
+      const tipPatterns = [
+        /(?:try|consider|i recommend|you should|tip:)\s+([^.!?]+[.!?])/gi,
+        /(?:what works|pro tip|insider tip):\s+([^.!?]+[.!?])/gi,
+        /(?:turn on|enable|activate|use)\s+(?:your\s+)?(\w+\s+(?:filter|mode|setting)[^.!?]*[.!?])/gi,
+      ];
+
+      const extractedTips = [];
+      for (const pattern of tipPatterns) {
+        let match;
+        while ((match = pattern.exec(responseContent)) !== null) {
+          extractedTips.push(match[1].trim());
+        }
+      }
+
+      // Save each unique tip as a user intel note
+      const savedCount = 0;
+      const uniqueTips = [...new Set(extractedTips)].slice(0, 5); // Max 5 tips per response
+
+      for (const tip of uniqueTips) {
+        await this.saveUserNote({
+          user_id: userId,
+          note_type: 'tip',
+          category: 'strategy',
+          title: tip.substring(0, 50),
+          content: tip,
+          market_slug: context.market_slug,
+          importance: 60,
+          created_by: 'ai_coach'
+        });
+      }
+
+      if (uniqueTips.length > 0) {
+        console.log(`[CoachDAL] Extracted ${uniqueTips.length} tips from coach response`);
+      }
+      return uniqueTips.length;
+    } catch (error) {
+      console.error('[CoachDAL] extractAndSaveTips error:', error);
+      return 0;
+    }
   }
 }
 

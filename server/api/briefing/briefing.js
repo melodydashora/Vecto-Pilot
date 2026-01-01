@@ -10,6 +10,108 @@ import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
 
 const router = Router();
 
+/**
+ * Parse event time string (e.g., "7:00 PM", "19:00", "7pm") into a Date object
+ * @param {string} timeStr - Time string in various formats
+ * @param {string} dateStr - Date string (YYYY-MM-DD)
+ * @param {string} timezone - IANA timezone (e.g., 'America/Chicago')
+ * @returns {Date|null} - Date object in UTC, or null if parsing fails
+ */
+function parseEventTime(timeStr, dateStr, timezone) {
+  if (!timeStr || !dateStr) return null;
+
+  try {
+    // Normalize time string
+    let normalized = timeStr.trim().toUpperCase();
+
+    // Handle 12-hour format (7:00 PM, 7pm, 7:30 am)
+    const match12h = normalized.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/);
+    if (match12h) {
+      let hours = parseInt(match12h[1], 10);
+      const minutes = parseInt(match12h[2] || '0', 10);
+      const period = match12h[3];
+
+      if (period === 'PM' && hours !== 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+
+      // Create date string for parsing
+      const timeFormatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+      const dateTimeStr = `${dateStr}T${timeFormatted}`;
+
+      // Parse in the venue's timezone
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      });
+
+      // Create Date in venue timezone and convert to UTC
+      const localDate = new Date(dateTimeStr);
+      // Adjust for timezone offset
+      const tzOffset = getTimezoneOffset(dateTimeStr, timezone);
+      return new Date(localDate.getTime() + tzOffset);
+    }
+
+    // Handle 24-hour format (19:00, 07:30)
+    const match24h = normalized.match(/^(\d{1,2}):(\d{2})$/);
+    if (match24h) {
+      const hours = parseInt(match24h[1], 10);
+      const minutes = parseInt(match24h[2], 10);
+      const timeFormatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+      const dateTimeStr = `${dateStr}T${timeFormatted}`;
+      const localDate = new Date(dateTimeStr);
+      const tzOffset = getTimezoneOffset(dateTimeStr, timezone);
+      return new Date(localDate.getTime() + tzOffset);
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get timezone offset in milliseconds for a given datetime and timezone
+ */
+function getTimezoneOffset(dateTimeStr, timezone) {
+  const date = new Date(dateTimeStr);
+  const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+  const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
+  return utcDate - tzDate;
+}
+
+/**
+ * Check if an event is currently active (happening now)
+ * @param {Object} event - Event object with event_date, event_time, event_end_time, event_end_date
+ * @param {Date} now - Current time
+ * @param {string} timezone - IANA timezone for the event
+ * @returns {boolean} - True if event is currently happening
+ */
+function isEventActiveNow(event, now, timezone) {
+  // Get today's date in the event's timezone
+  const today = now.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD format
+
+  // Multi-day event check: is today within the event date range?
+  const eventStartDate = event.event_date;
+  const eventEndDate = event.event_end_date || event.event_date;
+
+  if (!eventStartDate) return false;
+  if (today < eventStartDate || today > eventEndDate) return false;
+
+  // Parse start and end times
+  // Use event_date for start, event_end_date for end (or today if single-day)
+  const startTime = parseEventTime(event.event_time || '00:00', eventStartDate, timezone);
+  const endTime = parseEventTime(event.event_end_time || '23:59', eventEndDate, timezone);
+
+  // If we couldn't parse times, check if date matches (assume all-day event)
+  if (!startTime || !endTime) {
+    return today >= eventStartDate && today <= eventEndDate;
+  }
+
+  // Check if current time is within the event duration
+  return now >= startTime && now <= endTime;
+}
+
 router.get('/current', requireAuth, async (req, res) => {
   try {
     const latestSnapshot = await db.select()
@@ -326,6 +428,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
   try {
     // Read events directly from discovered_events table for this snapshot's location
     const snapshot = req.snapshot;
+    const { filter } = req.query; // ?filter=active for currently happening events
     const today = new Date().toISOString().split('T')[0];
     const weekFromNow = new Date();
     weekFromNow.setDate(weekFromNow.getDate() + 7);
@@ -344,7 +447,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       .limit(50);
 
     // Map to briefing events format
-    const allEvents = events.map(e => ({
+    let allEvents = events.map(e => ({
       title: e.title,
       summary: [e.title, e.venue_name, e.event_date, e.event_time].filter(Boolean).join(' • '),
       impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
@@ -362,10 +465,20 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       longitude: e.lng
     }));
 
+    // Apply "active" filter: show only events happening RIGHT NOW (during their duration)
+    // Used by MapPage for real-time event display
+    if (filter === 'active') {
+      const now = new Date();
+      const snapshotTimezone = snapshot.timezone || 'America/Chicago';
+      const beforeCount = allEvents.length;
+      allEvents = allEvents.filter(e => isEventActiveNow(e, now, snapshotTimezone));
+      console.log(`[BriefingRoute] Events filter=active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTimezone}`);
+    }
+
     res.json({
       success: true,
       events: allEvents,
-      reason: allEvents.length === 0 ? 'No events found for this location' : null,
+      reason: allEvents.length === 0 ? (filter === 'active' ? 'No events happening right now' : 'No events found for this location') : null,
       timestamp: new Date().toISOString()
     });
   } catch (error) {

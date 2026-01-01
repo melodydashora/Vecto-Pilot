@@ -80,7 +80,8 @@ WEATHER: ${JSON.stringify(snapshot.weather)}
 
 NEWS: ${JSON.stringify(briefing.news)}
 
-SCHOOL CLOSURES: ${JSON.stringify(briefing.school_closures)}
+SCHOOL CLOSURES (within 10mi):
+${formatSchoolClosuresSummary(briefing.school_closures)}
 
 AIRPORT CONDITIONS: ${JSON.stringify(briefing.airport)}
 
@@ -258,6 +259,50 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
 }
 
 /**
+ * Format school closures for strategist summary
+ * Shows count, type breakdown, distance from driver, and reopening dates
+ * Limits to 8 entries to save tokens in the prompt
+ */
+function formatSchoolClosuresSummary(closures) {
+  if (!closures || !Array.isArray(closures) || closures.length === 0) {
+    return 'No school/university closures within 15mi';
+  }
+
+  // Count by type
+  const byType = {
+    public: closures.filter(c => c.type === 'public').length,
+    private: closures.filter(c => c.type === 'private').length,
+    charter: closures.filter(c => c.type === 'charter').length,
+    college: closures.filter(c => c.type === 'college').length
+  };
+
+  const summary = [`${closures.length} institutions closed within 15mi:`];
+
+  // Add each closure with distance and reopening date (limit to 8 to save tokens)
+  closures.slice(0, 8).forEach(c => {
+    const name = c.schoolName || c.name;
+    const distStr = c.distanceFromDriver !== undefined && c.distanceFromDriver !== null
+      ? ` [${c.distanceFromDriver}mi]`
+      : '';
+    const reopenStr = c.reopeningDate ? ` → reopens ${c.reopeningDate}` : '';
+    summary.push(`- ${name} (${c.type}): ${c.reason}${reopenStr}${distStr}`);
+  });
+
+  if (closures.length > 8) {
+    summary.push(`... and ${closures.length - 8} more`);
+  }
+
+  // Add type breakdown if multiple types
+  const activeTypes = Object.entries(byType).filter(([_, count]) => count > 0);
+  if (activeTypes.length > 1) {
+    const breakdown = activeTypes.map(([type, count]) => `${count} ${type}`).join(', ');
+    summary.push(`Types: ${breakdown}`);
+  }
+
+  return summary.join('\n');
+}
+
+/**
  * Parse JSON field safely - handles both string and object formats
  */
 function parseJsonField(field) {
@@ -389,8 +434,8 @@ ${JSON.stringify(newsData, null, 2)}
 === CURRENT_WEATHER_DATA ===
 ${JSON.stringify(weatherData, null, 2)}
 
-=== SCHOOL_CLOSURES_DATA ===
-${JSON.stringify(closuresData, null, 2)}
+=== SCHOOL_CLOSURES_DATA (within 10mi of driver) ===
+${formatSchoolClosuresSummary(closuresData)}
 
 === AIRPORT_CONDITIONS_DATA ===
 ${JSON.stringify(airportData, null, 2)}

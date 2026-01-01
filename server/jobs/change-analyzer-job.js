@@ -68,8 +68,11 @@ export async function runAnalysis() {
       getLastCommit()
     ]);
 
-    // Combine all changes
-    const allChanges = [...uncommittedChanges, ...recentCommits];
+    // Combine all changes, excluding .md files to prevent recursive analysis
+    // (analyzing .md files causes them to be modified, triggering more analysis)
+    const allChanges = [...uncommittedChanges, ...recentCommits].filter(
+      change => !change.file.endsWith('.md')
+    );
 
     // Map to affected documentation
     const docImpacts = analyzeDocImpact(allChanges);
