@@ -1,6 +1,6 @@
 # VECTO PILOT™ - COMPLETE SYSTEM MAP
 
-**Last Updated:** 2025-12-27 UTC
+**Last Updated:** 2026-01-01 UTC
 
 This document provides a complete visual mapping of the Vecto Pilot system, showing how every component connects from UI to database and back.
 
@@ -14,112 +14,180 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  GlobalHeader.tsx                                                 │  │
-│  │  • GPS status display                                            │  │
-│  │  • Location display (DB → context → header)                      │  │
-│  │  • Refresh button                                                │  │
+│  │  App.tsx (React Router + Providers)                              │  │
+│  │  • AuthProvider (auth-context.tsx)                               │  │
+│  │  • CoPilotProvider (co-pilot-context.tsx)                        │  │
+│  │  • QueryClientProvider (React Query)                             │  │
 │  └────────────────────┬─────────────────────────────────────────────┘  │
 │                       ↓                                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  location-context-clean.tsx (LocationProvider)                    │  │
-│  │  • useGeoPosition() → Browser GPS                                │  │
-│  │  • POST /api/location/resolve → users table                      │  │
-│  │  • POST /api/auth/token → JWT generation                         │  │
-│  │  • localStorage.setItem('token')                                 │  │
+│  │  routes.tsx (Route Configuration)                                 │  │
+│  │  • / → AuthRedirect (smart routing)                              │  │
+│  │  • /auth/* → Public auth pages (no layout)                       │  │
+│  │  • /co-pilot/* → Protected routes (CoPilotLayout)                │  │
 │  └────────────────────┬─────────────────────────────────────────────┘  │
 │                       ↓                                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  CoPilotLayout.tsx (Shared Layout) + React Router                │  │
+│  │  CoPilotLayout.tsx (Shared Layout)                                │  │
+│  │  ├── LocationProvider (location-context-clean.tsx)               │  │
+│  │  │   └── Manages GPS, weather, snapshots                         │  │
+│  │  ├── GlobalHeader (conditional - hidden on /about)               │  │
+│  │  │   └── Location display, refresh button                        │  │
+│  │  ├── <Outlet /> (current page renders here)                      │  │
+│  │  └── BottomTabNavigation (React Router nav)                      │  │
+│  └────────────────────┬─────────────────────────────────────────────┘  │
+│                       ↓                                                  │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  Route-Based Pages (8 co-pilot + 5 auth + SafeScaffold)          │  │
 │  │  ┌────────────────────────────────────────────────────────────┐  │  │
-│  │  │ pages/co-pilot/ (7 route-based pages)                      │  │  │
-│  │  │ ├── StrategyPage   /co-pilot/strategy                      │  │  │
-│  │  │ ├── BarsPage       /co-pilot/bars                          │  │  │
-│  │  │ ├── BriefingPage   /co-pilot/briefing                      │  │  │
-│  │  │ ├── MapPage        /co-pilot/map                           │  │  │
-│  │  │ ├── IntelPage      /co-pilot/intel                         │  │  │
-│  │  │ ├── AboutPage      /co-pilot/about (no GlobalHeader)       │  │  │
-│  │  │ └── PolicyPage     /co-pilot/policy                        │  │  │
+│  │  │ /co-pilot/strategy  → StrategyPage.tsx                     │  │  │
+│  │  │   • AI strategy display                                    │  │  │
+│  │  │   • Smart Blocks (NOW strategy: top 3 Grade A, ≥1mi apart) │  │  │
+│  │  │   • CoachChat (GPT-5.2 text + Realtime voice)              │  │  │
+│  │  │   • FeedbackModal                                          │  │  │
+│  │  │   • SmartBlocksStatus (pipeline progress)                  │  │  │
+│  │  │   • GreetingBanner (holiday awareness)                     │  │  │
+│  │  ├────────────────────────────────────────────────────────────┤  │  │
+│  │  │ /co-pilot/bars → BarsPage.tsx                              │  │  │
+│  │  │   • BarsTable (premium venue listings)                     │  │  │
+│  │  │   • Filter: $$ and above, open only                        │  │  │
+│  │  ├────────────────────────────────────────────────────────────┤  │  │
+│  │  │ /co-pilot/briefing → BriefingPage.tsx                      │  │  │
+│  │  │   • BriefingTab (weather, traffic, news, events)           │  │  │
+│  │  │   • EventsComponent (active events display)                │  │  │
+│  │  │   • useBriefingQueries (direct API fetch)                  │  │  │
+│  │  ├────────────────────────────────────────────────────────────┤  │  │
+│  │  │ /co-pilot/map → MapPage.tsx                                │  │  │
+│  │  │   • MapTab (interactive venue map)                         │  │  │
+│  │  │   • Strategy blocks + bar markers + active events          │  │  │
+│  │  │   • useActiveEventsQuery (happening now filter)            │  │  │
+│  │  ├────────────────────────────────────────────────────────────┤  │  │
+│  │  │ /co-pilot/intel → IntelPage.tsx                            │  │  │
+│  │  │   • RideshareIntelTab                                      │  │  │
+│  │  │   • DeadheadCalculator, ZoneCards, StrategyCards           │  │  │
+│  │  ├────────────────────────────────────────────────────────────┤  │  │
+│  │  │ /co-pilot/about → AboutPage.tsx (no header)                │  │  │
+│  │  │   • DonationTab + InstructionsTab                          │  │  │
+│  │  ├────────────────────────────────────────────────────────────┤  │  │
+│  │  │ /co-pilot/policy → PolicyPage.tsx                          │  │  │
+│  │  │   • Privacy policy (static)                                │  │  │
+│  │  ├────────────────────────────────────────────────────────────┤  │  │
+│  │  │ /co-pilot/settings → SettingsPage.tsx                      │  │  │
+│  │  │   • User profile editing                                   │  │  │
+│  │  │   • Vehicle settings                                       │  │  │
+│  │  │   • Platform data dropdowns                                │  │  │
 │  │  └────────────────────────────────────────────────────────────┘  │  │
-│  │  CoPilotContext: strategy, blocks, SSE subscriptions             │  │
+│  │  ┌────────────────────────────────────────────────────────────┐  │  │
+│  │  │ Auth Pages (public, no layout)                             │  │  │
+│  │  │ • /auth/sign-in → SignInPage.tsx                           │  │  │
+│  │  │ • /auth/sign-up → SignUpPage.tsx                           │  │  │
+│  │  │ • /auth/forgot-password → ForgotPasswordPage.tsx           │  │  │
+│  │  │ • /auth/reset-password → ResetPasswordPage.tsx             │  │  │
+│  │  │ • /auth/terms → TermsPage.tsx                              │  │  │
+│  │  └────────────────────────────────────────────────────────────┘  │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │         ↓                  ↓                  ↓                         │
-│  [useQuery hooks with Authorization: Bearer {token} headers]            │
+│  [React Query hooks with Authorization: Bearer {token} headers]        │
 └─────────┼──────────────────┼──────────────────┼─────────────────────────┘
           ↓                  ↓                  ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    GATEWAY SERVER (Express, Port 5000)                   │
+│              GATEWAY SERVER (Express, Port 5000, mono-mode)              │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
+│  [server/bootstrap/routes.js] - Centralized route mounting              │
+│         ↓                                                                │
 │  [requireAuth middleware] → JWT verification → user_id extraction        │
 │         ↓                                                                │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  SDK Routes (/api/*)                                             │  │
+│  │  API Routes (server/api/* - organized by domain)                 │  │
 │  │  ┌──────────────────────────────────────────────────────────────┐│  │
-│  │  │ Location Routes (location.js)                                ││  │
-│  │  │ POST /api/location/resolve                                   ││  │
-│  │  │   → Google Geocoding API                                     ││  │
-│  │  │   → users table (INSERT/UPDATE)                              ││  │
-│  │  │   → return user_id                                           ││  │
+│  │  │ Health & Diagnostics (server/api/health/)                    ││  │
+│  │  │ • /api/diagnostics → diagnostics.js                          ││  │
+│  │  │ • /api/diagnostic → diagnostic-identity.js                   ││  │
+│  │  │ • /api/health → health.js                                    ││  │
+│  │  │ • /api/ml-health → ml-health.js                              ││  │
+│  │  │ • /api/job-metrics → job-metrics.js                          ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
 │  │  ┌──────────────────────────────────────────────────────────────┐│  │
-│  │  │ Snapshot Routes (snapshot.js)                                ││  │
-│  │  │ POST /api/snapshot                                           ││  │
-│  │  │   → snapshots table (self-contained context)                 ││  │
-│  │  │   → POST /api/blocks-fast (trigger waterfall)                ││  │
-│  │  │   → return snapshot_id                                       ││  │
-│  │  │ GET /api/snapshot/:snapshotId                                ││  │
-│  │  │   → snapshots table                                          ││  │
-│  │  │   → return full snapshot context                             ││  │
+│  │  │ Chat & Voice (server/api/chat/)                              ││  │
+│  │  │ • POST /api/chat/:snapshotId/message → chat.js (SSE stream)  ││  │
+│  │  │ • POST /api/tts → tts.js (OpenAI TTS)                        ││  │
+│  │  │ • POST /api/realtime/token → realtime.js (voice)             ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
 │  │  ┌──────────────────────────────────────────────────────────────┐│  │
-│  │  │ Strategy Routes (strategy.js)                                ││  │
-│  │  │ GET /api/strategy/:snapshotId                                ││  │
-│  │  │   → strategies table                                         ││  │
-│  │  │   → return minstrategy + consolidated_strategy               ││  │
+│  │  │ Venue Intelligence (server/api/venue/)                       ││  │
+│  │  │ • GET /api/venues/nearby → venue-intelligence.js             ││  │
+│  │  │ • GET /api/venue/events → venue-events.js                    ││  │
+│  │  │ • POST /api/closed-venue-reasoning → closed-venue-reasoning  ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
 │  │  ┌──────────────────────────────────────────────────────────────┐│  │
-│  │  │ Blocks Routes (blocks-fast.js)                               ││  │
-│  │  │ POST /api/blocks-fast (waterfall trigger)                    ││  │
-│  │  │   → runMinStrategy (minstrategy provider)                    ││  │
-│  │  │   → runBriefing (briefing provider)                          ││  │
-│  │  │   → runHolidayCheck (holiday provider)                       ││  │
-│  │  │   → runConsolidator (consolidator provider)                  ││  │
-│  │  │   → generateEnhancedSmartBlocks (venue planner)              ││  │
-│  │  │   → return { ok: true }                                      ││  │
-│  │  │ GET /api/blocks?snapshotId=X                                 ││  │
-│  │  │   → rankings table                                           ││  │
-│  │  │   → ranking_candidates table                                 ││  │
-│  │  │   → return enriched venue blocks                             ││  │
+│  │  │ Briefing (server/api/briefing/)                              ││  │
+│  │  │ • GET /api/briefing/weather/:snapshotId → briefing.js        ││  │
+│  │  │ • GET /api/briefing/traffic/:snapshotId → briefing.js        ││  │
+│  │  │ • GET /api/briefing/rideshare-news/:snapshotId → briefing.js ││  │
+│  │  │ • GET /api/briefing/events/:snapshotId → briefing.js         ││  │
+│  │  │ • GET /api/briefing/school-closures/:snapshotId → briefing   ││  │
+│  │  │ • GET /events → events.js (SSE stream)                       ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
 │  │  ┌──────────────────────────────────────────────────────────────┐│  │
-│  │  │ Briefing Routes (briefing.js)                                ││  │
-│  │  │ GET /api/briefing/weather/:snapshotId                        ││  │
-│  │  │   → briefings.weather_current, weather_forecast              ││  │
-│  │  │ GET /api/briefing/traffic/:snapshotId                        ││  │
-│  │  │   → briefings.traffic_conditions                             ││  │
-│  │  │ GET /api/briefing/news/:snapshotId                           ││  │
-│  │  │   → briefings.news                                           ││  │
-│  │  │ GET /api/briefing/events/:snapshotId                         ││  │
-│  │  │   → briefings.events                                         ││  │
-│  │  │ GET /api/briefing/closures/:snapshotId                       ││  │
-│  │  │   → briefings.school_closures                                ││  │
+│  │  │ Auth (server/api/auth/)                                      ││  │
+│  │  │ • POST /api/auth/sign-up → auth.js                           ││  │
+│  │  │ • POST /api/auth/sign-in → auth.js                           ││  │
+│  │  │ • POST /api/auth/verify-email → auth.js                      ││  │
+│  │  │ • POST /api/auth/refresh → auth.js                           ││  │
+│  │  │ • POST /api/auth/forgot-password → auth.js                   ││  │
+│  │  │ • POST /api/auth/reset-password → auth.js                    ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
 │  │  ┌──────────────────────────────────────────────────────────────┐│  │
-│  │  │ Chat Routes (chat.js, realtime.js)                           ││  │
-│  │  │ POST /api/chat                                               ││  │
-│  │  │   → CoachDAL (read all tables for context)                   ││  │
-│  │  │   → GPT-5.2 API                                              ││  │
-│  │  │   → return AI response                                       ││  │
-│  │  │ WebSocket /api/realtime                                      ││  │
-│  │  │   → OpenAI Realtime API (voice)                              ││  │
+│  │  │ Location (server/api/location/)                              ││  │
+│  │  │ • GET /api/location/resolve → location.js (GPS resolution)   ││  │
+│  │  │ • GET /api/location/ip → location.js (IP fallback)           ││  │
+│  │  │ • GET /api/location/weather → location.js                    ││  │
+│  │  │ • GET /api/location/airquality → location.js                 ││  │
+│  │  │ • POST /api/snapshot → snapshot.js (save snapshot)           ││  │
+│  │  │ • GET /api/snapshot/:id → snapshot.js                        ││  │
+│  │  │ • GET /api/users/me → location.js (user location from DB)    ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
 │  │  ┌──────────────────────────────────────────────────────────────┐│  │
-│  │  │ Auth Routes (auth.js)                                        ││  │
-│  │  │ POST /api/auth/token                                         ││  │
-│  │  │   → JWT.sign({ userId })                                     ││  │
-│  │  │   → return { token }                                         ││  │
+│  │  │ Strategy (server/api/strategy/)                              ││  │
+│  │  │ • POST /api/blocks-fast → blocks-fast.js (TRIAD trigger)     ││  │
+│  │  │ • GET /api/blocks-fast → blocks-fast.js (fetch blocks)       ││  │
+│  │  │ • GET /api/blocks/strategy/:id → content-blocks.js           ││  │
+│  │  │ • GET /api/strategy/:snapshotId → strategy.js                ││  │
+│  │  │ • GET /api/strategy/events → strategy-events.js (SSE)        ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
-│  └──────────────────────────────────────────────────────────────────┘  │
+│  │  ┌──────────────────────────────────────────────────────────────┐│  │
+│  │  │ Feedback (server/api/feedback/)                              ││  │
+│  │  │ • POST /api/feedback/venue → feedback.js                     ││  │
+│  │  │ • POST /api/feedback/strategy → feedback.js                  ││  │
+│  │  │ • POST /api/feedback/app → feedback.js                       ││  │
+│  │  │ • POST /api/actions → actions.js (log user actions)          ││  │
+│  │  └──────────────────────────────────────────────────────────────┘│  │
+│  │  ┌──────────────────────────────────────────────────────────────┐│  │
+│  │  │ Platform Data (server/api/platform/)                         ││  │
+│  │  │ • GET /api/platform/markets → index.js                       ││  │
+│  │  │ • GET /api/platform/countries-dropdown → index.js            ││  │
+│  │  │ • GET /api/platform/regions-dropdown → index.js              ││  │
+│  │  │ • GET /api/platform/markets-dropdown → index.js              ││  │
+│  │  │ • GET /api/platform/lookup → index.js (city lookup)          ││  │
+│  │  └──────────────────────────────────────────────────────────────┘│  │
+│  │  ┌──────────────────────────────────────────────────────────────┐│  │
+│  │  │ Intelligence (server/api/intelligence/)                      ││  │
+│  │  │ • GET /api/intelligence/markets → index.js                   ││  │
+│  │  │ • GET /api/intelligence/coach/:market → index.js             ││  │
+│  │  │ • GET /api/intelligence/lookup → index.js                    ││  │
+│  │  └──────────────────────────────────────────────────────────────┘│  │
+│  │  ┌──────────────────────────────────────────────────────────────┐│  │
+│  │  │ Vehicle (server/api/vehicle/)                                ││  │
+│  │  │ • GET /api/vehicle/years → vehicle.js                        ││  │
+│  │  │ • GET /api/vehicle/makes → vehicle.js                        ││  │
+│  │  │ • GET /api/vehicle/models → vehicle.js                       ││  │
+│  │  └──────────────────────────────────────────────────────────────┘│  │
+│  │  ┌──────────────────────────────────────────────────────────────┐│  │
+│  │  │ Agent (server/agent/)                                        ││  │
+│  │  │ • /agent/* → embed.js (workspace agent)                      ││  │
+│  │  │ • /agent/ws → embed.js (WebSocket for agent)                 ││  │
+│  │  └──────────────────────────────────────────────────────────────┘│  │
 └─────────────────────────────────────────────────────────────────────────┘
           ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -130,6 +198,9 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │     ↓       ↓           ↓            ↓              ↓                    │
 │  actions    briefings   triad_jobs   venue_feedback strategy_feedback    │
 │                                                                          │
+│  Additional tables: discovered_events, venue_events, market_intelligence │
+│                     platform_data, countries, auth tables                │
+│                                                                          │
 │  Row-Level Security (RLS) policies filter all queries by user_id        │
 └─────────────────────────────────────────────────────────────────────────┘
           ↓
@@ -138,43 +209,24 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Anthropic Claude Sonnet 4.5                                     │   │
-│  │ • Strategic overview (minstrategy provider)                     │   │
-│  │ • File: server/lib/ai/adapters/anthropic-adapter.js             │   │
+│  │ Anthropic Claude Sonnet 4.5 (Strategic Overview)               │   │
+│  │ • File: server/lib/ai/adapters/anthropic-sonnet45.js            │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ OpenAI GPT-5.2                                                  │   │
-│  │ • Strategy consolidation (consolidator provider)                │   │
-│  │ • Venue recommendations (tactical planner)                      │   │
-│  │ • AI Coach (text chat)                                          │   │
+│  │ OpenAI GPT-5.2 (Consolidation, Venues, Coach)                  │   │
 │  │ • File: server/lib/ai/adapters/openai-adapter.js                │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Google Gemini 3.0 Pro (with Google Search)                     │   │
-│  │ • Events discovery (briefing provider)                          │   │
-│  │ • Traffic analysis (briefing provider)                          │   │
-│  │ • News filtering (briefing provider)                            │   │
-│  │ • School closures (briefing provider)                           │   │
+│  │ Google Gemini 3.0 Pro + Search (Events, Traffic, News)         │   │
 │  │ • File: server/lib/ai/adapters/gemini-adapter.js                │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Google Gemini 2.5 Pro                                           │   │
-│  │ • Event verification (venue-event-verifier.js)                  │   │
-│  │ • File: server/lib/venue/enhanced-smart-blocks.js               │   │
+│  │ Google Gemini 2.5 Pro (Event Verification)                     │   │
+│  │ • File: server/lib/ai/adapters/gemini-2.5-pro.js                │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Gemini 3.0 Pro (Holiday Detection - at Snapshot Creation)       │   │
-│  │ • Holiday detection with Google Search grounding                │   │
-│  │ • File: server/lib/holiday-detector.js (called by location.js)  │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Google APIs (Maps Platform)                                     │   │
-│  │ • Places API → business details, hours (places-cache.js)        │   │
-│  │ • Routes API → distance, drive time (routes-api.js)             │   │
-│  │ • Geocoding API → address resolution (geocoding.js)             │   │
-│  │ • Weather API → current + forecast (briefing-service.js)        │   │
-│  │ • Air Quality API → AQI data (location.js)                      │   │
-│  │ • Timezone API → timezone resolution (location.js)              │   │
+│  │ Google APIs (Maps Platform)                                    │   │
+│  │ • Places API, Routes API, Geocoding, Weather, AQ, Timezone     │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -189,18 +241,17 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 1. POST /api/blocks-fast { snapshotId }
    ↓
 2. Parallel Providers (Promise.allSettled):
-   ├─ runMinStrategy (Claude Sonnet 4.5)
+   ├─ Strategist (Claude Sonnet 4.5)
    │  └─ strategies.minstrategy ✓
-   ├─ runBriefing (Gemini 3.0 Pro)
-   │  └─ briefings.{news, events, traffic, closures} ✓
+   ├─ Briefing (Gemini 3.0 Pro + Google Search)
+   │  └─ briefings.{news, events, traffic, closures, airport} ✓
    └─ Holiday Detection (at snapshot creation)
       └─ snapshots.holiday, snapshots.is_holiday ✓
-      └─ Supports override via server/config/holiday-override.json
    ↓
-3. runConsolidator (GPT-5.2)
-   └─ strategies.consolidated_strategy ✓
+3. Consolidator (GPT-5.2)
+   └─ strategies.consolidated_strategy ✓ (NOW strategy)
    ↓
-4. generateEnhancedSmartBlocks:
+4. Enhanced Smart Blocks:
    ├─ GPT-5.2 Tactical Planner
    │  └─ venue coords + staging coords
    ├─ Google Places API
@@ -223,182 +274,79 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 
 ## 📱 UI COMPONENT MAPPING
 
-### GlobalHeader.tsx
-**Data Sources:**
-- `location-context-clean.tsx` (currentLocation string)
-- `users` table via LocationContext
-- GPS via `useGeoPosition.ts`
+### Route-Based Architecture
 
-**Display:**
-- Location string (e.g., "Frisco, TX")
-- GPS status (getting/updating/ready)
-- Refresh button
+The UI uses **React Router** with:
+- **AuthProvider** for authentication state
+- **CoPilotProvider** for shared strategy/blocks state (persists across routes)
+- **LocationProvider** for GPS/weather/snapshots
+- **ProtectedRoute** wrapper for authenticated pages
+- **CoPilotLayout** as shared layout (GlobalHeader + BottomTabNavigation)
 
----
+### Page → API Mapping
 
-### Route-Based Pages (client/src/pages/co-pilot/)
-
-The UI uses React Router with 7 route-based pages sharing `CoPilotContext`:
-
-| Route | Page | Data Source | Key Query |
-|-------|------|-------------|-----------|
-| `/co-pilot/strategy` | StrategyPage | `strategies.*`, `ranking_candidates.*` | `GET /api/strategy/:snapshotId`, `GET /api/blocks` |
-| `/co-pilot/bars` | BarsPage | `ranking_candidates.*` | `GET /api/blocks?snapshotId=X` |
-| `/co-pilot/briefing` | BriefingPage | `briefings.*` | `GET /api/briefing/*/:snapshotId` |
-| `/co-pilot/map` | MapPage | `ranking_candidates.{lat, lng}` | via CoPilotContext |
-| `/co-pilot/intel` | IntelPage | Rideshare intelligence | External APIs |
-| `/co-pilot/about` | AboutPage | Static | None (no GlobalHeader) |
-| `/co-pilot/policy` | PolicyPage | Static | None |
-
-**Shared State (CoPilotContext):**
-- `strategyData` - Strategy queries (React Query)
-- `blocksData` - Blocks/venues queries (React Query)
-- `persistentStrategy`, `immediateStrategy` - Cached strategy
-- SSE subscriptions for `strategy_ready` events
-- `enrichmentProgress` - Pipeline progress tracking
-
-**Briefing Queries (BriefingPage):**
-- `GET /api/briefing/weather/:snapshotId`
-- `GET /api/briefing/traffic/:snapshotId`
-- `GET /api/briefing/news/:snapshotId`
-- `GET /api/briefing/events/:snapshotId`
-- `GET /api/briefing/closures/:snapshotId`
-
----
-
-### MarketIntelligenceBlocks.tsx (formerly SmartBlocks.tsx)
-**Props from briefing data:**
-- `name` - Venue name
-- `address` - Full street address
-- `estimated_distance_miles` - Distance
-- `driveTimeMinutes` - Drive time
-- `value_per_min` - Earnings per minute
-- `value_grade` - A/B/C grade
-- `proTips` - Tactical tips array
-- `businessHours` - Hours object
-- `venue_events` - Event data
-
----
-
-### BriefingTab.tsx
-**Props from briefings:**
-- `weather_current` - Current conditions
-- `weather_forecast` - 6-hour forecast
-- `traffic_conditions` - Traffic summary + incidents
-- `news` - Filtered news items
-- `events` - Local events array
-- `school_closures` - School/college closures
-
----
-
-### CoachChat.tsx
-**Backend Context (via server/lib/ai/coach-dal.js - ALL Fields from ALL Tables):**
-- `snapshots.*` - Complete snapshot (31 fields):
-  - Location: GPS coords, city, state, formatted_address, timezone, H3 grid
-  - Time: local_iso, dow, hour, day_part_key
-  - Environment: weather (tempF, conditions), air (AQI), airport_context
-  - News: local_news, news_briefing (Gemini 60-min intel)
-  - Device: device metadata, permissions
-- `strategies.*` - Full strategy (12 fields):
-  - Strategic text: minstrategy (Claude), consolidated_strategy (GPT-5.2)
-  - Metadata: model_name, model_params, prompt_version, latency_ms, tokens
-  - Status: pending/ok/failed, error tracking
-- `briefings.*` - Comprehensive briefing (15 fields):
-  - Events: Gemini-discovered events with citations
-  - Traffic: Real-time incidents, congestion from Google Search
-  - News: Filtered rideshare-relevant news
-  - Weather: Current conditions + 6-hour forecast
-  - Closures: School/college closures affecting demand
-- `rankings.*` - Session metadata (6 fields):
-  - Model: venue planner model name
-  - Timing: planner_ms, total_ms
-  - Path: enhanced-smart-blocks workflow
-- `ranking_candidates.*` - Enriched venues (25 fields each):
-  - Identity: name, place_id, address, category, coordinates
-  - Navigation: distance_miles, drive_minutes (Google Routes API)
-  - Economics: value_per_min, value_grade, earnings projections, surge
-  - Intelligence: pro_tips[], staging_name/lat/lng, closed_reasoning
-  - Events: venue_events (Gemini verification), event impact
-  - Hours: business_hours, isOpen status
-- `venue_feedback.*` - Community ratings:
-  - Sentiment: thumbs up/down counts per venue
-  - Comments: Driver feedback text
-  - Aggregation: up_count, down_count per ranking
-- `strategy_feedback.*` - Strategy ratings:
-  - Sentiment: thumbs up/down on overall strategy
-  - Comments: Driver strategy feedback
-- `actions.*` - Behavior history:
-  - Actions: view, select, navigate, dismiss, dwell
-  - Timing: dwell_ms, from_rank
-  - Context: block_id, ranking_id linkage
-
-**Enhanced Features:**
-- **Thread Awareness**: Full conversation history via `assistant_memory` table
-- **Google Search Tool**: Gemini 3.0 Pro with real-time web search for briefing data
-- **File Upload**: Vision analysis of images, screenshots, documents
-- **Memory Context**: Cross-session personalization and learning
-
-**AI Models:**
-- GPT-5.2 (text chat, reasoning_effort=medium)
-- GPT-5.2 Realtime (voice chat with streaming)
-- Google Gemini 3.0 Pro (briefing generation with Google Search)
+| Route | Component | Primary Data Sources |
+|-------|-----------|---------------------|
+| `/co-pilot/strategy` | StrategyPage.tsx | CoPilotContext (strategy, blocks), CoachChat |
+| `/co-pilot/bars` | BarsPage.tsx | `/api/venues/nearby`, BarsTable |
+| `/co-pilot/briefing` | BriefingPage.tsx | useBriefingQueries (6 endpoints) |
+| `/co-pilot/map` | MapPage.tsx | CoPilotContext (blocks), bars API, active events |
+| `/co-pilot/intel` | IntelPage.tsx | RideshareIntelTab (static intelligence) |
+| `/co-pilot/about` | AboutPage.tsx | Static (no API) |
+| `/co-pilot/policy` | PolicyPage.tsx | Static (no API) |
+| `/co-pilot/settings` | SettingsPage.tsx | Auth context, platform data APIs |
 
 ---
 
 ## 🗄️ TABLE DEPENDENCY GRAPH
 
 ```
-users (GPS coordinates, location)
-  ↓
-snapshots (point-in-time context)
-  ├─→ strategies (AI strategic outputs)
-  │     └─→ triad_jobs (job tracking)
-  ├─→ briefings (real-time intelligence)
-  ├─→ rankings (venue recommendation sessions)
-  │     └─→ ranking_candidates (individual venues)
-  ├─→ actions (user behavior tracking)
-  ├─→ venue_feedback (venue ratings)
-  └─→ strategy_feedback (strategy ratings)
-```
+users (GPS coordinates, location, auth)
+  ├─→ auth_sessions (JWT tokens)
+  ├─→ auth_verification_codes (email/SMS codes)
+  └─→ snapshots (point-in-time context)
+        ├─→ strategies (AI strategic outputs)
+        │     └─→ triad_jobs (job tracking)
+        ├─→ briefings (real-time intelligence)
+        ├─→ rankings (venue recommendation sessions)
+        │     └─→ ranking_candidates (individual venues)
+        ├─→ actions (user behavior tracking)
+        ├─→ venue_feedback (venue ratings)
+        └─→ strategy_feedback (strategy ratings)
 
-**Foreign Key Relationships:**
-- `snapshots.user_id` → `users.user_id`
-- `strategies.snapshot_id` → `snapshots.snapshot_id`
-- `briefings.snapshot_id` → `snapshots.snapshot_id`
-- `rankings.snapshot_id` → `snapshots.snapshot_id`
-- `ranking_candidates.ranking_id` → `rankings.ranking_id`
-- `ranking_candidates.snapshot_id` → `snapshots.snapshot_id`
-- `actions.snapshot_id` → `snapshots.snapshot_id`
-- `venue_feedback.snapshot_id` → `snapshots.snapshot_id`
-- `strategy_feedback.snapshot_id` → `snapshots.snapshot_id`
+discovered_events (global event repository)
+  └─→ venue_events (venue-event associations)
+
+market_intelligence (curated market knowledge)
+platform_data (Uber/Lyft city coverage)
+countries (ISO 3166-1 reference)
+```
 
 ---
 
 ## 🔐 SECURITY FLOW
 
 ```
-1. Browser GPS → lat/lng coordinates
+1. User signs up → POST /api/auth/sign-up
    ↓
-2. POST /api/location/resolve
+2. Create user record + send verification email
    ↓
-3. INSERT/UPDATE users table → user_id returned
+3. User verifies → POST /api/auth/verify-email
    ↓
-4. POST /api/auth/token { user_id }
+4. User signs in → POST /api/auth/sign-in
    ↓
-5. JWT signed with secret → { userId: user_id }
+5. JWT access token (15min) + refresh token (7d) returned
    ↓
-6. localStorage.setItem('token', jwt)
+6. Client stores tokens in AuthContext (memory + localStorage for refresh)
    ↓
-7. All API calls include: Authorization: Bearer {jwt}
+7. All API calls include: Authorization: Bearer {access_token}
    ↓
 8. requireAuth middleware:
    - Verify JWT signature
    - Extract user_id from payload
    - Attach to req.auth.userId
    ↓
-9. Database queries filtered by user_id:
-   - RLS policies enforce user_id isolation
-   - Drizzle queries use eq(table.user_id, req.auth.userId)
+9. Database queries filtered by user_id (RLS policies)
    ↓
 10. Response contains ONLY data for authenticated user
 ```
@@ -408,13 +356,15 @@ snapshots (point-in-time context)
 ## 🎯 KEY TAKEAWAYS
 
 1. **Single Source of Truth:** PostgreSQL database is authoritative for all data
-2. **Route-Based UI:** React Router with 7 pages sharing CoPilotContext (replaced monolithic co-pilot.tsx)
-3. **Model-Agnostic Providers:** Each AI role (strategist, briefer, consolidator) is pluggable
-4. **Enrichment Pipeline:** Google APIs provide verified data (coords, hours, distance)
-5. **JWT Authentication:** User isolation at every layer (middleware, RLS, queries)
-6. **Snapshot-Centric:** All data scoped to snapshot_id for ML traceability
-7. **Real-Time Updates:** SSE for strategy_ready, polling for blocks
-8. **Fail-Closed:** Missing data returns null/404, never hallucinated defaults
+2. **Route-Based UI:** React Router with 13 pages, shared CoPilotContext
+3. **Authentication First:** All routes protected except auth pages
+4. **Domain-Organized APIs:** server/api/* folders by domain (auth, briefing, chat, etc.)
+5. **Model-Agnostic Providers:** Each AI role is pluggable via adapters
+6. **Enrichment Pipeline:** Google APIs provide verified data
+7. **JWT Authentication:** User isolation at every layer
+8. **Snapshot-Centric:** All data scoped to snapshot_id for ML traceability
+9. **Real-Time Updates:** SSE for briefing_ready, strategy_ready, blocks_ready
+10. **Fail-Closed:** Missing data returns null/404, never hallucinated defaults
 
 ---
 
