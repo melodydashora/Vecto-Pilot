@@ -1,4 +1,3 @@
-
 # VECTO PILOT™ - COMPLETE SYSTEM MAP
 
 **Last Updated:** 2025-12-27 UTC
@@ -141,14 +140,14 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Anthropic Claude Sonnet 4.5                                     │   │
 │  │ • Strategic overview (minstrategy provider)                     │   │
-│  │ • File: providers/minstrategy.js → adapters/anthropic-adapter.js│   │
+│  │ • File: server/lib/ai/adapters/anthropic-adapter.js             │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ OpenAI GPT-5.2                                                  │   │
 │  │ • Strategy consolidation (consolidator provider)                │   │
 │  │ • Venue recommendations (tactical planner)                      │   │
 │  │ • AI Coach (text chat)                                          │   │
-│  │ • File: providers/consolidator.js → adapters/openai-adapter.js  │   │
+│  │ • File: server/lib/ai/adapters/openai-adapter.js                │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google Gemini 3.0 Pro (with Google Search)                     │   │
@@ -156,17 +155,17 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │ • Traffic analysis (briefing provider)                          │   │
 │  │ • News filtering (briefing provider)                            │   │
 │  │ • School closures (briefing provider)                           │   │
-│  │ • File: briefing-service.js → adapters/gemini-adapter.js        │   │
+│  │ • File: server/lib/ai/adapters/gemini-adapter.js                │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google Gemini 2.5 Pro                                           │   │
 │  │ • Event verification (venue-event-verifier.js)                  │   │
-│  │ • File: venue-event-verifier.js → adapters/gemini-adapter.js    │   │
+│  │ • File: server/lib/venue/enhanced-smart-blocks.js               │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Gemini 3.0 Pro (Holiday Detection - at Snapshot Creation)       │   │
 │  │ • Holiday detection with Google Search grounding                │   │
-│  │ • File: lib/holiday-detector.js (called by location.js)         │   │
+│  │ • File: server/lib/holiday-detector.js (called by location.js)  │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google APIs (Maps Platform)                                     │   │
@@ -293,7 +292,7 @@ The UI uses React Router with 7 route-based pages sharing `CoPilotContext`:
 ---
 
 ### CoachChat.tsx
-**Backend Context (via CoachDAL - ALL Fields from ALL Tables):**
+**Backend Context (via server/lib/ai/coach-dal.js - ALL Fields from ALL Tables):**
 - `snapshots.*` - Complete snapshot (31 fields):
   - Location: GPS coords, city, state, formatted_address, timezone, H3 grid
   - Time: local_iso, dow, hour, day_part_key
@@ -339,7 +338,7 @@ The UI uses React Router with 7 route-based pages sharing `CoPilotContext`:
 - **File Upload**: Vision analysis of images, screenshots, documents
 - **Memory Context**: Cross-session personalization and learning
 
-**AI Models:** 
+**AI Models:**
 - GPT-5.2 (text chat, reasoning_effort=medium)
 - GPT-5.2 Realtime (voice chat with streaming)
 - Google Gemini 3.0 Pro (briefing generation with Google Search)

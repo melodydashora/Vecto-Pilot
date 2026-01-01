@@ -1,15 +1,14 @@
 # Workflow File Listing
 
-Generated: 2025-12-23T02:52:02.413Z
-**Last Review:** 2025-12-27 UTC
+Generated: 2026-01-01T20:31:00.000Z
+**Last Review:** 2026-01-01 UTC
 
-> ⚠️ **Note:** This file was auto-generated. Since December 23, significant reorganization has occurred:
-> - Scripts moved to categorized subdirectories (`scripts/analysis/`, `scripts/testing/`, etc.)
-> - Server lib files reorganized into domain folders (`server/lib/auth/`, `server/lib/core/`, etc.)
-> - Client refactored from monolithic `co-pilot.tsx` to 7 route-based pages
-> - Many files marked as deleted in git status may need removal from this listing
->
-> Consider regenerating this file to reflect current structure.
+> ✅ **Updated:** This file reflects the current repository structure as of January 1, 2026:
+> - Server reorganized into domain-based folders (`server/lib/ai/`, `server/lib/auth/`, `server/lib/briefing/`, etc.)
+> - API routes organized by domain (`server/api/auth/`, `server/api/briefing/`, `server/api/chat/`, etc.)
+> - Client uses React Router with 13 pages (8 co-pilot + 5 auth + SafeScaffold)
+> - Bootstrap system separated into `server/bootstrap/`
+> - 95+ README files across all folders
 
 Workflow files organized by event flow order. Non-active files appear at the end of each category.
 
