@@ -2,10 +2,10 @@
 ================================================================================
 
 id:
-  "1ac32b6a-dd4b-485e-9a4e-5068f23a39aa"
+  "cda54c6b-e186-45c4-b197-bdeef56e1870"
 
 snapshot_id:
-  "a86d0b60-e120-4781-a8e1-2a3357c1a41a"
+  "37946ac0-391a-4209-9c66-8d8cfe1d23c1"
 
 news:
   {
@@ -44,7 +44,7 @@ news:
 
 weather_current:
   {
-  "tempF": 69,
+  "tempF": 68,
   "conditions": "Cloudy",
   "description": "Cloudy"
 }
@@ -54,19 +54,19 @@ weather_forecast:
 
 traffic_conditions:
   {
-  "jams": 8,
+  "jams": 10,
   "stats": {
-    "jams": 8,
+    "jams": 10,
     "major": 6,
-    "total": 35,
-    "closures": 13,
-    "highways": 25,
+    "total": 36,
+    "closures": 12,
+    "highways": 26,
     "accidents": 0,
     "construction": 14
   },
-  "summary": "35 active traffic incidents near Frisco, 8 traffic jams, 13 road closures, 14 construction zones",
+  "summary": "36 active traffic incidents near Frisco, 10 traffic jams, 12 road closures, 14 construction zones",
   "analyzed": false,
-  "briefing": "35 active traffic incidents near Frisco, 8 traffic jams, 13 road closures, 14 construction zones",
+  "briefing": "36 active traffic incidents near Frisco, 10 traffic jams, 12 road closures, 14 construction zones",
   "closures": [
     {
       "road": "",
@@ -126,13 +126,6 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Medical Pkwy to E Hebron Pkwy",
-      "severity": "low",
-      "isHighway": true,
-      "distanceFromDriver": 7.1
-    },
-    {
-      "road": "",
       "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
       "severity": "low",
       "isHighway": true,
@@ -160,21 +153,33 @@ traffic_conditions:
       "distanceFromDriver": 3.1
     }
   ],
-  "headline": "35 active traffic incidents near Frisco, 8 traffic jams, 13 road closures, 14 construction zones",
+  "headline": "36 active traffic incidents near Frisco, 10 traffic jams, 12 road closures, 14 construction zones",
   "provider": "tomtom",
-  "fetchedAt": "2026-01-01T20:29:19.772Z",
+  "fetchedAt": "2026-01-01T21:37:18.627Z",
   "incidents": [
     {
       "road": "",
       "category": "Jam",
-      "location": "Barret Dr to FM-2934",
-      "priority": 158,
+      "location": "Stone Circle Ln to FM-2281",
+      "priority": 157,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Barret Dr to FM-2934 [3.6 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 3,
-      "distanceFromDriver": 3.6
+      "description": "Jam: Stone Circle Ln to FM-2281 [6.9 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 2,
+      "distanceFromDriver": 6.9
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-2478 to FM-2478",
+      "priority": 142,
+      "severity": "medium",
+      "isHighway": true,
+      "description": "Jam: FM-2478 to FM-2478 [8.2 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 2,
+      "distanceFromDriver": 8.2
     },
     {
       "road": "",
@@ -199,6 +204,18 @@ traffic_conditions:
       "lengthMiles": 0,
       "delayMinutes": 0,
       "distanceFromDriver": 3.2
+    },
+    {
+      "road": "US-380 W",
+      "category": "Road Works",
+      "location": "Gee Rd (US-380) to FM-1385 (US-380)",
+      "priority": 136,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Works: US-380 W (Gee Rd (US-380) to FM-1385 (US-380)) [6.3 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 1,
+      "distanceFromDriver": 6.3
     },
     {
       "road": "FM-1171",
@@ -237,18 +254,6 @@ traffic_conditions:
       "distanceFromDriver": 7.6
     },
     {
-      "road": "US-380 W",
-      "category": "Road Works",
-      "location": "Gee Rd (US-380) to FM-1385 (US-380)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: US-380 W (Gee Rd (US-380) to FM-1385 (US-380)) [6.3 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 0,
-      "distanceFromDriver": 6.3
-    },
-    {
       "road": "",
       "category": "Road Works",
       "location": "W Main St (Dallas Pkwy) to FM-2934/Eldorado Pkwy (Dallas Pkwy)",
@@ -271,30 +276,18 @@ traffic_conditions:
       "lengthMiles": 0.4,
       "delayMinutes": 0,
       "distanceFromDriver": 4
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "US-380 W to Paloma Creek Blvd",
-      "priority": 130,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: US-380 W to Paloma Creek Blvd [7.2 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 7.2
     }
   ],
   "keyIssues": [],
   "avoidAreas": [],
-  "safetyAlert": "8 active traffic jams in the area",
+  "safetyAlert": "10 active traffic jams in the area",
   "driverImpact": null,
   "surgePricing": true,
-  "closuresCount": 13,
+  "closuresCount": 12,
   "repositioning": null,
-  "incidentsCount": 35,
-  "totalIncidents": 35,
-  "closuresSummary": "13 road closures",
+  "incidentsCount": 36,
+  "totalIncidents": 36,
+  "closuresSummary": "12 road closures",
   "congestionLevel": "high",
   "highDemandZones": [],
   "constructionSummary": null
@@ -302,6 +295,70 @@ traffic_conditions:
 
 events:
   [
+  {
+    "title": "$1,000 Progressive Cash Pot Trivia Night with Shoji",
+    "venue": "Reservoir",
+    "impact": "low",
+    "source": "Gemini-2.5-Pro",
+    "address": "9305 Preston Rd, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "$1,000 Progressive Cash Pot Trivia Night with Shoji • Reservoir • 2026-01-01 • 07:00 PM",
+    "latitude": 33.1460409,
+    "location": "Reservoir, 9305 Preston Rd, Frisco, TX 75033",
+    "longitude": -96.9091099,
+    "event_date": "2026-01-01",
+    "event_time": "07:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": null
+  },
+  {
+    "title": "KAI - Industry Thursdays",
+    "venue": "KAI Legacy West (KAI Lounge)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "5800 Legacy Dr, Plano, TX 75024",
+    "subtype": "nightlife",
+    "summary": "KAI - Industry Thursdays • KAI Legacy West (KAI Lounge) • 2026-01-01 • 9:00 PM",
+    "latitude": 33.078,
+    "location": "KAI Legacy West (KAI Lounge), 5800 Legacy Dr, Plano, TX 75024",
+    "longitude": -96.8247,
+    "event_date": "2026-01-01",
+    "event_time": "9:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "12:00 AM"
+  },
+  {
+    "title": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily)",
+    "venue": "Frisco Art Gallery (Frisco Discovery Center)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "8004 N Dallas Pkwy, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily) • Frisco Art Gallery (Frisco Discovery Center) • 2026-01-01 • 12:00 PM",
+    "latitude": 33.1507,
+    "location": "Frisco Art Gallery (Frisco Discovery Center), 8004 N Dallas Pkwy, Frisco, TX 75034",
+    "longitude": -96.8233,
+    "event_date": "2026-01-01",
+    "event_time": "12:00 PM",
+    "event_type": "festival",
+    "event_end_time": "5:00 PM"
+  },
+  {
+    "title": "CFP: Allstate Sugar Bowl (#3 Georgia vs. #6 Ole Miss) at Cosm",
+    "venue": "Cosm Dallas (Grandscape)",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "sports",
+    "summary": "CFP: Allstate Sugar Bowl (#3 Georgia vs. #6 Ole Miss) at Cosm • Cosm Dallas (Grandscape) • 2026-01-01 • 7:00 PM",
+    "latitude": 33.0771,
+    "location": "Cosm Dallas (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8593,
+    "event_date": "2026-01-01",
+    "event_time": "7:00 PM",
+    "event_type": "sports",
+    "event_end_time": "9:00 PM"
+  },
   {
     "title": "Snow Globe Experience (Recurring Daily)",
     "venue": "The Westin Dallas Stonebriar Golf Resort & Spa",
@@ -316,54 +373,6 @@ events:
     "event_date": "2026-01-01",
     "event_time": "TBD",
     "event_type": "festival",
-    "event_end_time": null
-  },
-  {
-    "title": "DJ Joe Vega",
-    "venue": "Sidecar Social Frisco",
-    "impact": "medium",
-    "source": "Gemini-3-Pro",
-    "address": "6770 Winning Dr, Frisco, TX 75034",
-    "subtype": "nightlife",
-    "summary": "DJ Joe Vega • Sidecar Social Frisco • 2026-01-01 • 9:30 PM",
-    "latitude": 33.1114,
-    "location": "Sidecar Social Frisco, 6770 Winning Dr, Frisco, TX 75034",
-    "longitude": -96.8253,
-    "event_date": "2026-01-01",
-    "event_time": "9:30 PM",
-    "event_type": "nightlife",
-    "event_end_time": "1:00 AM"
-  },
-  {
-    "title": "Dallas Mavericks vs. Philadelphia 76ers",
-    "venue": "American Airlines Center",
-    "impact": "high",
-    "source": "Claude",
-    "address": "2500 Victory Avenue, Dallas, TX 75219",
-    "subtype": "sports",
-    "summary": "Dallas Mavericks vs. Philadelphia 76ers • American Airlines Center • 2026-01-01 • 7:30 PM",
-    "latitude": 32.7905,
-    "location": "American Airlines Center, 2500 Victory Avenue, Dallas, TX 75219",
-    "longitude": -96.8103,
-    "event_date": "2026-01-01",
-    "event_time": "7:30 PM",
-    "event_type": "sports",
-    "event_end_time": "10:00 PM"
-  },
-  {
-    "title": "Christmas In The Square 2025 Choreographed Lightshow",
-    "venue": "Frisco Square",
-    "impact": "medium",
-    "source": "SerpAPI",
-    "address": "Frisco Square, 8843 Coleman Blvd, Frisco, TX",
-    "subtype": "other",
-    "summary": "Christmas In The Square 2025 Choreographed Lightshow • Frisco Square • 2026-01-01 • Thu, Jan 1, 6 – 9 PM CST",
-    "latitude": 33.150907,
-    "location": "Frisco Square, Frisco Square, 8843 Coleman Blvd, Frisco, TX",
-    "longitude": -96.8317501,
-    "event_date": "2026-01-01",
-    "event_time": "Thu, Jan 1, 6 – 9 PM CST",
-    "event_type": "other",
     "event_end_time": null
   },
   {
@@ -383,20 +392,20 @@ events:
     "event_end_time": "10:00 PM"
   },
   {
-    "title": "CFP: Allstate Sugar Bowl (#3 Georgia vs. #6 Ole Miss) at Cosm",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "high",
+    "title": "Museum Closed (New Year’s Day)",
+    "venue": "The Discovery Center (Frisco Discovery Center)",
+    "impact": "low",
     "source": "GPT-5.2",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "sports",
-    "summary": "CFP: Allstate Sugar Bowl (#3 Georgia vs. #6 Ole Miss) at Cosm • Cosm Dallas (Grandscape) • 2026-01-01 • 7:00 PM",
-    "latitude": 33.0771,
-    "location": "Cosm Dallas (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8593,
+    "address": "8004 N Dallas Pkwy, Frisco, TX 75034",
+    "subtype": "civic",
+    "summary": "Museum Closed (New Year’s Day) • The Discovery Center (Frisco Discovery Center) • 2026-01-01 • TBD",
+    "latitude": 33.1511,
+    "location": "The Discovery Center (Frisco Discovery Center), 8004 N Dallas Pkwy, Frisco, TX 75034",
+    "longitude": -96.8233,
     "event_date": "2026-01-01",
-    "event_time": "7:00 PM",
-    "event_type": "sports",
-    "event_end_time": "9:00 PM"
+    "event_time": "TBD",
+    "event_type": "civic",
+    "event_end_time": null
   },
   {
     "title": "CFP: Capital One Orange Bowl (#4 Texas Tech vs. #5 Oregon) at Cosm",
@@ -415,36 +424,36 @@ events:
     "event_end_time": "1:00 PM"
   },
   {
-    "title": "Toulouse - New Year’s Day (Brunch & Dinner)",
-    "venue": "Toulouse Café and Bar (Legacy West)",
+    "title": "Taverna - New Year's Day Brunch",
+    "venue": "Taverna by Lombardi (Legacy West)",
     "impact": "medium",
     "source": "GPT-5.2",
-    "address": "7300 Windrose Ave, Plano, TX 75024",
+    "address": "7401 Lone Star Dr, Plano, TX 75024",
     "subtype": "festival",
-    "summary": "Toulouse - New Year’s Day (Brunch & Dinner) • Toulouse Café and Bar (Legacy West) • 2026-01-01 • 11:00 AM",
-    "latitude": 33.0773,
-    "location": "Toulouse Café and Bar (Legacy West), 7300 Windrose Ave, Plano, TX 75024",
-    "longitude": -96.8271,
+    "summary": "Taverna - New Year's Day Brunch • Taverna by Lombardi (Legacy West) • 2026-01-01 • 11:00 AM",
+    "latitude": 33.0777,
+    "location": "Taverna by Lombardi (Legacy West), 7401 Lone Star Dr, Plano, TX 75024",
+    "longitude": -96.8257,
     "event_date": "2026-01-01",
     "event_time": "11:00 AM",
     "event_type": "festival",
-    "event_end_time": "9:00 PM"
+    "event_end_time": "10:00 PM"
   },
   {
-    "title": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily)",
-    "venue": "Frisco Art Gallery (Frisco Discovery Center)",
+    "title": "325 Comedy Show - FREE with a RESERVATION",
+    "venue": "Hyena's Comedy Night Club - Dallas",
     "impact": "medium",
     "source": "GPT-5.2",
-    "address": "8004 N Dallas Pkwy, Frisco, TX 75034",
-    "subtype": "festival",
-    "summary": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily) • Frisco Art Gallery (Frisco Discovery Center) • 2026-01-01 • 12:00 PM",
-    "latitude": 33.1507,
-    "location": "Frisco Art Gallery (Frisco Discovery Center), 8004 N Dallas Pkwy, Frisco, TX 75034",
-    "longitude": -96.8233,
+    "address": "5321 E Mockingbird Ln, Dallas, TX 75206",
+    "subtype": "theater",
+    "summary": "325 Comedy Show - FREE with a RESERVATION • Hyena's Comedy Night Club - Dallas • 2026-01-01 • 8:30 PM",
+    "latitude": 32.83541,
+    "location": "Hyena's Comedy Night Club - Dallas, 5321 E Mockingbird Ln, Dallas, TX 75206",
+    "longitude": -96.76757,
     "event_date": "2026-01-01",
-    "event_time": "12:00 PM",
-    "event_type": "festival",
-    "event_end_time": "5:00 PM"
+    "event_time": "8:30 PM",
+    "event_type": "theater",
+    "event_end_time": "10:15 PM"
   },
   {
     "title": "$1,000 Progressive Cash Pot Trivia Night",
@@ -463,68 +472,52 @@ events:
     "event_end_time": "9:00 PM"
   },
   {
-    "title": "Skate the Square (Outdoor Ice Rink)",
-    "venue": "Skate the Square (Frisco Square)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "8874 Coleman Blvd, Frisco, TX 75034",
-    "subtype": "civic",
-    "summary": "Skate the Square (Outdoor Ice Rink) • Skate the Square (Frisco Square) • 2026-01-01 • 2:00 PM",
-    "latitude": 33.1521,
-    "location": "Skate the Square (Frisco Square), 8874 Coleman Blvd, Frisco, TX 75034",
-    "longitude": -96.8345,
-    "event_date": "2026-01-01",
-    "event_time": "2:00 PM",
-    "event_type": "civic",
-    "event_end_time": "4:00 PM"
-  },
-  {
-    "title": "CFP: Rose Bowl Presented by Prudential (#1 Indiana vs. #9 Alabama) at Cosm",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "sports",
-    "summary": "CFP: Rose Bowl Presented by Prudential (#1 Indiana vs. #9 Alabama) at Cosm • Cosm Dallas (Grandscape) • 2026-01-01 • 3:00 PM",
-    "latitude": 33.0771,
-    "location": "Cosm Dallas (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8593,
-    "event_date": "2026-01-01",
-    "event_time": "3:00 PM",
-    "event_type": "sports",
-    "event_end_time": "5:00 PM"
-  },
-  {
-    "title": "KAI - Industry Thursdays",
-    "venue": "KAI Legacy West (KAI Lounge)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5800 Legacy Dr, Plano, TX 75024",
-    "subtype": "nightlife",
-    "summary": "KAI - Industry Thursdays • KAI Legacy West (KAI Lounge) • 2026-01-01 • 9:00 PM",
-    "latitude": 33.078,
-    "location": "KAI Legacy West (KAI Lounge), 5800 Legacy Dr, Plano, TX 75024",
-    "longitude": -96.8247,
-    "event_date": "2026-01-01",
-    "event_time": "9:00 PM",
-    "event_type": "nightlife",
-    "event_end_time": "12:00 AM"
-  },
-  {
-    "title": "Frisco's Best Karaoke Night with KJ Shoji",
-    "venue": "The Revel Patio Grill",
+    "title": "Christmas In The Square 2025 Choreographed Lightshow",
+    "venue": "Frisco Square",
     "impact": "medium",
     "source": "SerpAPI",
-    "address": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX",
-    "subtype": "nightlife",
-    "summary": "Frisco's Best Karaoke Night with KJ Shoji • The Revel Patio Grill • 2026-01-01 • Thu, Jan 1, 7 – 9 PM CST",
-    "latitude": 33.1552065,
-    "location": "The Revel Patio Grill, The Revel Patio Grill, 9305 Preston Rd, Frisco, TX",
-    "longitude": -96.8044103,
+    "address": "Frisco Square, 8843 Coleman Blvd, Frisco, TX",
+    "subtype": "other",
+    "summary": "Christmas In The Square 2025 Choreographed Lightshow • Frisco Square • 2026-01-01 • Thu, Jan 1, 6 – 9 PM CST",
+    "latitude": 33.150907,
+    "location": "Frisco Square, Frisco Square, 8843 Coleman Blvd, Frisco, TX",
+    "longitude": -96.8317501,
     "event_date": "2026-01-01",
-    "event_time": "Thu, Jan 1, 7 – 9 PM CST",
-    "event_type": "nightlife",
+    "event_time": "Thu, Jan 1, 6 – 9 PM CST",
+    "event_type": "other",
     "event_end_time": null
+  },
+  {
+    "title": "Night at the Museum - Play Street Plano 2026",
+    "venue": "Play Street Museum - Plano",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "5964 W Parker Rd, Suite 120, Plano, TX 75093",
+    "subtype": "other",
+    "summary": "Night at the Museum - Play Street Plano 2026 • Play Street Museum - Plano • 2026-01-01 • 6:30 PM",
+    "latitude": 33.03923,
+    "location": "Play Street Museum - Plano, 5964 W Parker Rd, Suite 120, Plano, TX 75093",
+    "longitude": -96.80627,
+    "event_date": "2026-01-01",
+    "event_time": "6:30 PM",
+    "event_type": "other",
+    "event_end_time": "8:00 PM"
+  },
+  {
+    "title": "New Years Day Flow (New Year’s Day Yoga Flow)",
+    "venue": "Shala Yoga Loft",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "1021 E 15th Street, Plano, TX 75074",
+    "subtype": "other",
+    "summary": "New Years Day Flow (New Year’s Day Yoga Flow) • Shala Yoga Loft • 2026-01-01 • 1:00 PM",
+    "latitude": 33.02052,
+    "location": "Shala Yoga Loft, 1021 E 15th Street, Plano, TX 75074",
+    "longitude": -96.70346,
+    "event_date": "2026-01-01",
+    "event_time": "1:00 PM",
+    "event_type": "other",
+    "event_end_time": "2:30 PM"
   },
   {
     "title": "Frisco's Best Karaoke Night",
@@ -559,20 +552,36 @@ events:
     "event_end_time": "10:00 PM"
   },
   {
-    "title": "Taverna - New Year's Day Brunch",
-    "venue": "Taverna by Lombardi (Legacy West)",
+    "title": "Skate the Square (Outdoor Ice Rink)",
+    "venue": "Skate the Square (Frisco Square)",
     "impact": "medium",
     "source": "GPT-5.2",
-    "address": "7401 Lone Star Dr, Plano, TX 75024",
-    "subtype": "festival",
-    "summary": "Taverna - New Year's Day Brunch • Taverna by Lombardi (Legacy West) • 2026-01-01 • 11:00 AM",
-    "latitude": 33.0777,
-    "location": "Taverna by Lombardi (Legacy West), 7401 Lone Star Dr, Plano, TX 75024",
-    "longitude": -96.8257,
+    "address": "8874 Coleman Blvd, Frisco, TX 75034",
+    "subtype": "civic",
+    "summary": "Skate the Square (Outdoor Ice Rink) • Skate the Square (Frisco Square) • 2026-01-01 • 2:00 PM",
+    "latitude": 33.1521,
+    "location": "Skate the Square (Frisco Square), 8874 Coleman Blvd, Frisco, TX 75034",
+    "longitude": -96.8345,
     "event_date": "2026-01-01",
-    "event_time": "11:00 AM",
-    "event_type": "festival",
-    "event_end_time": "10:00 PM"
+    "event_time": "2:00 PM",
+    "event_type": "civic",
+    "event_end_time": "4:00 PM"
+  },
+  {
+    "title": "CFP: Rose Bowl Presented by Prudential (#1 Indiana vs. #9 Alabama) at Cosm",
+    "venue": "Cosm Dallas (Grandscape)",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "sports",
+    "summary": "CFP: Rose Bowl Presented by Prudential (#1 Indiana vs. #9 Alabama) at Cosm • Cosm Dallas (Grandscape) • 2026-01-01 • 3:00 PM",
+    "latitude": 33.0771,
+    "location": "Cosm Dallas (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8593,
+    "event_date": "2026-01-01",
+    "event_time": "3:00 PM",
+    "event_type": "sports",
+    "event_end_time": "5:00 PM"
   },
   {
     "title": "The Light Park",
@@ -591,6 +600,38 @@ events:
     "event_end_time": null
   },
   {
+    "title": "Toulouse - New Year’s Day (Brunch & Dinner)",
+    "venue": "Toulouse Café and Bar (Legacy West)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "7300 Windrose Ave, Plano, TX 75024",
+    "subtype": "festival",
+    "summary": "Toulouse - New Year’s Day (Brunch & Dinner) • Toulouse Café and Bar (Legacy West) • 2026-01-01 • 11:00 AM",
+    "latitude": 33.0773,
+    "location": "Toulouse Café and Bar (Legacy West), 7300 Windrose Ave, Plano, TX 75024",
+    "longitude": -96.8271,
+    "event_date": "2026-01-01",
+    "event_time": "11:00 AM",
+    "event_type": "festival",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Dallas Mavericks vs. Philadelphia 76ers",
+    "venue": "American Airlines Center",
+    "impact": "high",
+    "source": "Claude",
+    "address": "2500 Victory Avenue, Dallas, TX 75219",
+    "subtype": "sports",
+    "summary": "Dallas Mavericks vs. Philadelphia 76ers • American Airlines Center • 2026-01-01 • 7:30 PM",
+    "latitude": 32.7905,
+    "location": "American Airlines Center, 2500 Victory Avenue, Dallas, TX 75219",
+    "longitude": -96.8103,
+    "event_date": "2026-01-01",
+    "event_time": "7:30 PM",
+    "event_type": "sports",
+    "event_end_time": "10:00 PM"
+  },
+  {
     "title": "Santa’s Last Stop at Truck Yard (Holiday Pop-Up Bar)",
     "venue": "Truck Yard (Grandscape)",
     "impact": "medium",
@@ -607,34 +648,34 @@ events:
     "event_end_time": null
   },
   {
-    "title": "325 Comedy Show - FREE with a RESERVATION",
-    "venue": "Hyena's Comedy Night Club - Dallas",
+    "title": "DJ Joe Vega",
+    "venue": "Sidecar Social Frisco",
     "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5321 E Mockingbird Ln, Dallas, TX 75206",
-    "subtype": "theater",
-    "summary": "325 Comedy Show - FREE with a RESERVATION • Hyena's Comedy Night Club - Dallas • 2026-01-01 • 8:30 PM",
-    "latitude": 32.83541,
-    "location": "Hyena's Comedy Night Club - Dallas, 5321 E Mockingbird Ln, Dallas, TX 75206",
-    "longitude": -96.76757,
+    "source": "Gemini-3-Pro",
+    "address": "6770 Winning Dr, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "DJ Joe Vega • Sidecar Social Frisco • 2026-01-01 • 9:30 PM",
+    "latitude": 33.1114,
+    "location": "Sidecar Social Frisco, 6770 Winning Dr, Frisco, TX 75034",
+    "longitude": -96.8253,
     "event_date": "2026-01-01",
-    "event_time": "8:30 PM",
-    "event_type": "theater",
-    "event_end_time": "10:15 PM"
+    "event_time": "9:30 PM",
+    "event_type": "nightlife",
+    "event_end_time": "1:00 AM"
   },
   {
-    "title": "$1,000 Progressive Cash Pot Trivia Night with Shoji",
-    "venue": "Reservoir",
-    "impact": "low",
-    "source": "Gemini-2.5-Pro",
-    "address": "9305 Preston Rd, Frisco, TX 75033",
+    "title": "Frisco's Best Karaoke Night with KJ Shoji",
+    "venue": "The Revel Patio Grill",
+    "impact": "medium",
+    "source": "SerpAPI",
+    "address": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX",
     "subtype": "nightlife",
-    "summary": "$1,000 Progressive Cash Pot Trivia Night with Shoji • Reservoir • 2026-01-01 • 07:00 PM",
-    "latitude": 33.1460409,
-    "location": "Reservoir, 9305 Preston Rd, Frisco, TX 75033",
-    "longitude": -96.9091099,
+    "summary": "Frisco's Best Karaoke Night with KJ Shoji • The Revel Patio Grill • 2026-01-01 • Thu, Jan 1, 7 – 9 PM CST",
+    "latitude": 33.1552065,
+    "location": "The Revel Patio Grill, The Revel Patio Grill, 9305 Preston Rd, Frisco, TX",
+    "longitude": -96.8044103,
     "event_date": "2026-01-01",
-    "event_time": "07:00 PM",
+    "event_time": "Thu, Jan 1, 7 – 9 PM CST",
     "event_type": "nightlife",
     "event_end_time": null
   },
@@ -653,6 +694,22 @@ events:
     "event_time": "10:00 PM",
     "event_type": "nightlife",
     "event_end_time": "2:00 AM"
+  },
+  {
+    "title": "Darna - Flamenco Nights",
+    "venue": "Darna Mediterranean Eatery (Legacy West)",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "7400 Windrose Ave, Plano, TX 75024",
+    "subtype": "theater",
+    "summary": "Darna - Flamenco Nights • Darna Mediterranean Eatery (Legacy West) • 2026-01-02 • 9:30 PM",
+    "latitude": 33.0776,
+    "location": "Darna Mediterranean Eatery (Legacy West), 7400 Windrose Ave, Plano, TX 75024",
+    "longitude": -96.8277,
+    "event_date": "2026-01-02",
+    "event_time": "9:30 PM",
+    "event_type": "theater",
+    "event_end_time": "11:30 PM"
   },
   {
     "title": "NBA: Thunder @ Warriors at Cosm",
@@ -685,6 +742,22 @@ events:
     "event_time": "9:00 PM",
     "event_type": "concert",
     "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "A Chorus Line",
+    "venue": "Willow Bend Center For The Arts, Rodenbaugh Theatre",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "6121 W Park Blvd, Suite B216, Plano, TX 75093",
+    "subtype": "theater",
+    "summary": "A Chorus Line • Willow Bend Center For The Arts, Rodenbaugh Theatre • 2026-01-02 • 7:30 PM",
+    "latitude": 33.02884,
+    "location": "Willow Bend Center For The Arts, Rodenbaugh Theatre, 6121 W Park Blvd, Suite B216, Plano, TX 75093",
+    "longitude": -96.8311,
+    "event_date": "2026-01-02",
+    "event_time": "7:30 PM",
+    "event_type": "theater",
+    "event_end_time": "10:00 PM"
   },
   {
     "title": "Dustin Nickerson Comedy Shows",
@@ -735,22 +808,6 @@ events:
     "event_end_time": "11:00 PM"
   },
   {
-    "title": "Darna - Flamenco Nights",
-    "venue": "Darna Mediterranean Eatery (Legacy West)",
-    "impact": "low",
-    "source": "GPT-5.2",
-    "address": "7400 Windrose Ave, Plano, TX 75024",
-    "subtype": "theater",
-    "summary": "Darna - Flamenco Nights • Darna Mediterranean Eatery (Legacy West) • 2026-01-02 • 9:30 PM",
-    "latitude": 33.0776,
-    "location": "Darna Mediterranean Eatery (Legacy West), 7400 Windrose Ave, Plano, TX 75024",
-    "longitude": -96.8277,
-    "event_date": "2026-01-02",
-    "event_time": "9:30 PM",
-    "event_type": "theater",
-    "event_end_time": "11:30 PM"
-  },
-  {
     "title": "Arch Hooks",
     "venue": "The Revel Patio Grill",
     "impact": "medium",
@@ -767,20 +824,20 @@ events:
     "event_end_time": null
   },
   {
-    "title": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily)",
-    "venue": "Frisco Art Gallery (Frisco Discovery Center)",
-    "impact": "medium",
+    "title": "Women’s Golf Clinic at PGA of America Coaching Center",
+    "venue": "PGA of America Coaching Center (PGA Frisco)",
+    "impact": "low",
     "source": "GPT-5.2",
-    "address": "8004 N Dallas Pkwy, Frisco, TX 75034",
-    "subtype": "festival",
-    "summary": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily) • Frisco Art Gallery (Frisco Discovery Center) • 2026-01-02 • 10:00 AM",
-    "latitude": 33.1507,
-    "location": "Frisco Art Gallery (Frisco Discovery Center), 8004 N Dallas Pkwy, Frisco, TX 75034",
-    "longitude": -96.8233,
+    "address": "3255 PGA Parkway, Frisco, TX 75033",
+    "subtype": "other",
+    "summary": "Women’s Golf Clinic at PGA of America Coaching Center • PGA of America Coaching Center (PGA Frisco) • 2026-01-02 • 11:00 AM",
+    "latitude": 33.1066,
+    "location": "PGA of America Coaching Center (PGA Frisco), 3255 PGA Parkway, Frisco, TX 75033",
+    "longitude": -96.8193,
     "event_date": "2026-01-02",
-    "event_time": "10:00 AM",
-    "event_type": "festival",
-    "event_end_time": "5:00 PM"
+    "event_time": "11:00 AM",
+    "event_type": "other",
+    "event_end_time": "12:00 PM"
   },
   {
     "title": "Frisco Athletic Center",
@@ -844,6 +901,22 @@ events:
     "event_date": "2026-01-02",
     "event_time": "10:00 AM",
     "event_type": "other",
+    "event_end_time": null
+  },
+  {
+    "title": "Santa’s Last Stop at Truck Yard (Holiday Pop-Up Bar)",
+    "venue": "Truck Yard (Grandscape)",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "5959 Grove Ln Ste B, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "Santa’s Last Stop at Truck Yard (Holiday Pop-Up Bar) • Truck Yard (Grandscape) • 2026-01-02 • 11:00 AM",
+    "latitude": 33.099277,
+    "location": "Truck Yard (Grandscape), 5959 Grove Ln Ste B, The Colony, TX 75056",
+    "longitude": -96.813803,
+    "event_date": "2026-01-02",
+    "event_time": "11:00 AM",
+    "event_type": "nightlife",
     "event_end_time": null
   },
   {
@@ -927,22 +1000,6 @@ events:
     "event_end_time": "9:00 PM"
   },
   {
-    "title": "Santa’s Last Stop at Truck Yard (Holiday Pop-Up Bar)",
-    "venue": "Truck Yard (Grandscape)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "5959 Grove Ln Ste B, The Colony, TX 75056",
-    "subtype": "nightlife",
-    "summary": "Santa’s Last Stop at Truck Yard (Holiday Pop-Up Bar) • Truck Yard (Grandscape) • 2026-01-02 • 11:00 AM",
-    "latitude": 33.099277,
-    "location": "Truck Yard (Grandscape), 5959 Grove Ln Ste B, The Colony, TX 75056",
-    "longitude": -96.813803,
-    "event_date": "2026-01-02",
-    "event_time": "11:00 AM",
-    "event_type": "nightlife",
-    "event_end_time": null
-  },
-  {
     "title": "Snow Globe Experience (Recurring Daily)",
     "venue": "The Westin Dallas Stonebriar Golf Resort & Spa",
     "impact": "medium",
@@ -957,6 +1014,22 @@ events:
     "event_time": "TBD",
     "event_type": "festival",
     "event_end_time": null
+  },
+  {
+    "title": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily)",
+    "venue": "Frisco Art Gallery (Frisco Discovery Center)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "8004 N Dallas Pkwy, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily) • Frisco Art Gallery (Frisco Discovery Center) • 2026-01-02 • 10:00 AM",
+    "latitude": 33.1507,
+    "location": "Frisco Art Gallery (Frisco Discovery Center), 8004 N Dallas Pkwy, Frisco, TX 75034",
+    "longitude": -96.8233,
+    "event_date": "2026-01-02",
+    "event_time": "10:00 AM",
+    "event_type": "festival",
+    "event_end_time": "5:00 PM"
   },
   {
     "title": "First Friday Art Show and Free Admission Night",
@@ -1021,86 +1094,6 @@ events:
     "event_time": "9:30 PM",
     "event_type": "concert",
     "event_end_time": "12:00 AM"
-  },
-  {
-    "title": "NFL: Panthers @ Buccaneers at Cosm",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "sports",
-    "summary": "NFL: Panthers @ Buccaneers at Cosm • Cosm Dallas (Grandscape) • 2026-01-03 • 3:30 PM",
-    "latitude": 33.0771,
-    "location": "Cosm Dallas (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8593,
-    "event_date": "2026-01-03",
-    "event_time": "3:30 PM",
-    "event_type": "sports",
-    "event_end_time": "5:30 PM"
-  },
-  {
-    "title": "Semper VIVA Holiday Recovery Party",
-    "venue": "Semper Viva Med Spa",
-    "impact": "low",
-    "source": "Claude",
-    "address": "8877 Wade Blvd, Frisco, TX 75034",
-    "subtype": "other",
-    "summary": "Semper VIVA Holiday Recovery Party • Semper Viva Med Spa • 2026-01-03 • 3:00 PM",
-    "latitude": 33.1342,
-    "location": "Semper Viva Med Spa, 8877 Wade Blvd, Frisco, TX 75034",
-    "longitude": -96.8034,
-    "event_date": "2026-01-03",
-    "event_time": "3:00 PM",
-    "event_type": "other",
-    "event_end_time": "6:00 PM"
-  },
-  {
-    "title": "Stonebriar social hour",
-    "venue": "Stonebriar Centre",
-    "impact": "low",
-    "source": "GPT-5.2",
-    "address": "2601 Preston Rd, Frisco, TX 75034",
-    "subtype": "civic",
-    "summary": "Stonebriar social hour • Stonebriar Centre • 2026-01-03 • 9:00 AM",
-    "latitude": 33.0996,
-    "location": "Stonebriar Centre, 2601 Preston Rd, Frisco, TX 75034",
-    "longitude": -96.8179,
-    "event_date": "2026-01-03",
-    "event_time": "9:00 AM",
-    "event_type": "civic",
-    "event_end_time": "10:00 AM"
-  },
-  {
-    "title": "New Year, Better You Fitness Series (Stretch & Restorative Yoga hosted by Ignyte Yoga)",
-    "venue": "PGA District (Panther Creek Event Pavilion)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "3255 PGA Pkwy, Frisco, TX 75033",
-    "subtype": "festival",
-    "summary": "New Year, Better You Fitness Series (Stretch & Restorative Yoga hosted by Ignyte Yoga) • PGA District (Panther Creek Event Pavilion) • 2026-01-03 • 9:00 AM",
-    "latitude": 33.108865,
-    "location": "PGA District (Panther Creek Event Pavilion), 3255 PGA Pkwy, Frisco, TX 75033",
-    "longitude": -96.821214,
-    "event_date": "2026-01-03",
-    "event_time": "9:00 AM",
-    "event_type": "festival",
-    "event_end_time": "10:00 AM"
-  },
-  {
-    "title": "Snow Globe Experience (Recurring Daily)",
-    "venue": "The Westin Dallas Stonebriar Golf Resort & Spa",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "1549 Legacy Dr, Frisco, TX 75034",
-    "subtype": "festival",
-    "summary": "Snow Globe Experience (Recurring Daily) • The Westin Dallas Stonebriar Golf Resort & Spa • 2026-01-03 • TBD",
-    "latitude": 33.1076,
-    "location": "The Westin Dallas Stonebriar Golf Resort & Spa, 1549 Legacy Dr, Frisco, TX 75034",
-    "longitude": -96.8236,
-    "event_date": "2026-01-03",
-    "event_time": "TBD",
-    "event_type": "festival",
-    "event_end_time": null
   }
 ]
 
@@ -1242,38 +1235,37 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "General departure and arrival delays of 15 minutes or less (gate hold and taxi delays).",
+      "delays": "General departure and arrival delays of 15 minutes or less; gate hold and taxi delays reported.",
       "status": "normal",
       "busyTimes": [
-        "05:00 - 08:00",
-        "16:00 - 19:00"
+        "05:00 AM - 08:00 AM",
+        "04:00 PM - 07:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Very low delays reported; security wait times approximately 15 minutes.",
+      "delays": "No significant delays reported; FAA status is normal.",
       "status": "normal",
       "busyTimes": [
-        "06:00 - 09:00",
-        "11:00 - 14:00",
-        "16:00 - 19:00"
+        "06:00 AM - 09:00 AM",
+        "11:00 AM - 02:00 PM",
+        "04:00 PM - 07:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-01-01T20:30:05.346Z",
+  "fetchedAt": "2026-01-01T21:37:46.749Z",
   "busyPeriods": [
-    "Standard peak hours are 6:00-9:00 AM and 4:00-7:00 PM.",
-    "Mid-day (11:00 AM - 2:00 PM) shows increased activity at Dallas Love Field.",
-    "Expect potential post-holiday volume increases in the afternoon and evening."
+    "Morning rush (6:00 AM - 9:00 AM) due to business travel and early departures.",
+    "Evening peak (4:00 PM - 7:00 PM) for returning flights and connections."
   ],
-  "recommendations": "For DFW: Rideshare pickups are located on the Upper Level curbside of each terminal. Drivers should wait in the Terminal B infield lot (or Terminal E overflow during peak times). For DAL: Pickups are located at the Valet Pavilion and Garage C, Level 1 (relocated as of 2025). Drivers must stage in the designated TNC holding lot. Peak earning times are typically early mornings and late afternoons."
+  "recommendations": "For DFW, rideshare pickups are located at the upper-level curb of each terminal; drivers should wait in the designated remote staging areas until a request is received. For DAL, the pickup location is at the Valet Pavilion and Garage C, Level 1; drivers must use the designated TNC holding lot and should not idle at the curb."
 }
 
 created_at:
-  "Thu Jan 01 2026 20:29:19 GMT+0000 (Coordinated Universal Time)"
+  "Thu Jan 01 2026 21:37:18 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Thu Jan 01 2026 20:30:05 GMT+0000 (Coordinated Universal Time)"
+  "Thu Jan 01 2026 21:37:46 GMT+0000 (Coordinated Universal Time)"
 

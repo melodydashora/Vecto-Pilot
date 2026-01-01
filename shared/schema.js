@@ -1115,6 +1115,9 @@ export const coach_conversations = pgTable("coach_conversations", {
   // Context at time of conversation (optional - some messages may be context-free)
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'set null' }),
 
+  // Market context - ties conversation to a specific market for cross-driver learning
+  market_slug: text("market_slug"), // e.g., "dallas-tx", "los-angeles-ca" - derived from snapshot
+
   // Conversation threading (groups messages in a single conversation)
   conversation_id: uuid("conversation_id").notNull(), // Groups related messages together
   parent_message_id: uuid("parent_message_id"), // For reply threading (optional)
@@ -1154,6 +1157,8 @@ export const coach_conversations = pgTable("coach_conversations", {
   idxUserConversation: sql`create index if not exists idx_coach_conversations_user_conv on ${table} (user_id, conversation_id, created_at)`,
   // GIN index for topic_tags search
   idxTopicTags: sql`create index if not exists idx_coach_conversations_topic_tags on ${table} using gin (topic_tags)`,
+  // Market-based queries for cross-driver learning
+  idxMarketSlug: sql`create index if not exists idx_coach_conversations_market_slug on ${table} (market_slug)`,
 }));
 
 /**
@@ -1255,6 +1260,74 @@ export const news_deactivations = pgTable("news_deactivations", {
   idxNewsHash: sql`create index if not exists idx_news_deactivations_news_hash on ${table} (news_hash)`,
   // Unique constraint: one deactivation per user per news item
   uniqueUserNews: sql`create unique index if not exists idx_news_deactivations_unique on ${table} (user_id, news_hash)`,
+}));
+
+/**
+ * Zone Intelligence Table
+ *
+ * Crowd-sourced, market-specific zone intelligence gathered from driver conversations.
+ * Unlike market_intelligence (research-backed), this is real-world intel from actual drivers.
+ *
+ * Zone Types:
+ * - dead_zone: Areas with little to no ride demand
+ * - danger_zone: Areas drivers report as unsafe/sketchy
+ * - honey_hole: Consistently profitable spots
+ * - surge_trap: Areas with fake/unprofitable surge
+ * - staging_spot: Good waiting/staging locations
+ * - event_zone: Temporary high-demand areas (concerts, games)
+ *
+ * Cross-Driver Learning:
+ * - As multiple drivers report similar zones, confidence increases
+ * - Market-specific (zone in Dallas doesn't affect LA)
+ * - Time-aware (dead zones may only apply at certain hours)
+ */
+export const zone_intelligence = pgTable("zone_intelligence", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Market context (required)
+  market_slug: text("market_slug").notNull(), // e.g., "dallas-tx", "los-angeles-ca"
+
+  // Zone identification
+  zone_type: text("zone_type").notNull(), // 'dead_zone' | 'danger_zone' | 'honey_hole' | 'surge_trap' | 'staging_spot' | 'event_zone'
+  zone_name: text("zone_name").notNull(), // Human-readable: "Deep Ellum after 2am", "DFW Airport cell phone lot"
+  zone_description: text("zone_description"), // Detailed description of the zone
+
+  // Location (optional - AI may describe without exact coordinates)
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  radius_miles: doublePrecision("radius_miles").default(0.5), // Approximate zone radius
+  address_hint: text("address_hint"), // "Near the Target on Main St" - human-readable location
+
+  // Time constraints (when does this apply?)
+  time_constraints: jsonb("time_constraints").default(sql`'{}'`), // { after_hour: 22, before_hour: 6, days: ['fri', 'sat'] }
+  is_time_specific: boolean("is_time_specific").default(false), // True if zone quality depends on time
+
+  // Crowd-sourced validation
+  reports_count: integer("reports_count").default(1), // How many drivers reported this
+  confidence_score: integer("confidence_score").default(50), // 1-100, increases with more reports
+  contributing_users: jsonb("contributing_users").default(sql`'[]'`), // Array of user_ids who contributed
+  source_conversations: jsonb("source_conversations").default(sql`'[]'`), // conversation_ids where learned
+
+  // Latest report details
+  last_reason: text("last_reason"), // Most recent reason given
+  last_reported_by: uuid("last_reported_by").references(() => users.user_id, { onDelete: 'set null' }),
+  last_reported_at: timestamp("last_reported_at", { withTimezone: true }),
+
+  // Status
+  is_active: boolean("is_active").default(true), // Soft delete / deactivation
+  verified_by_admin: boolean("verified_by_admin").default(false), // Manual verification
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxMarketSlug: sql`create index if not exists idx_zone_intelligence_market_slug on ${table} (market_slug)`,
+  idxZoneType: sql`create index if not exists idx_zone_intelligence_zone_type on ${table} (zone_type)`,
+  idxConfidence: sql`create index if not exists idx_zone_intelligence_confidence on ${table} (confidence_score desc)`,
+  idxActive: sql`create index if not exists idx_zone_intelligence_active on ${table} (is_active) where is_active = true`,
+  idxMarketType: sql`create index if not exists idx_zone_intelligence_market_type on ${table} (market_slug, zone_type)`,
+  // Spatial index would be ideal here but requires PostGIS - using lat/lng for now
+  idxLocation: sql`create index if not exists idx_zone_intelligence_location on ${table} (lat, lng) where lat is not null`,
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
