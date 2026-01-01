@@ -59,6 +59,28 @@ Complete frontend → backend API endpoint reference.
 | `/api/realtime/token` | GET | `server/api/chat/realtime.js` | OpenAI Realtime API token for voice |
 | `/api/tts` | POST | `server/api/chat/tts.js` | Text-to-speech generation |
 
+#### AI Coach Action Parsing
+
+The `/api/chat` POST endpoint parses special action tags from AI responses and executes them:
+
+| Action Tag | Purpose | Example |
+|------------|---------|---------|
+| `[NOTE: {...}]` | Save coach note about user | `[NOTE: {"content": "Prefers airport runs"}]` |
+| `[SYSTEM_NOTE: {...}]` | AI-generated observation | `[SYSTEM_NOTE: {"content": "User seems tired"}]` |
+| `[DEACTIVATE_NEWS: {...}]` | Hide news item for user | `[DEACTIVATE_NEWS: {"hash": "abc123", "reason": "already knew"}]` |
+| `[DEACTIVATE_EVENT: {...}]` | Hide event for user | `[DEACTIVATE_EVENT: {"eventId": "uuid", "reason": "not interested"}]` |
+| `[ZONE_INTEL: {...}]` | Crowd-sourced zone learning | `[ZONE_INTEL: {"zone_type": "dead_zone", "zone_name": "Airport Cellphone Lot", "reason": "No rides here after 10pm"}]` |
+
+**Zone Intelligence Types:**
+- `dead_zone` - Areas with no ride requests
+- `danger_zone` - Unsafe areas to avoid
+- `honey_hole` - High-earnings sweet spots
+- `surge_trap` - Fake surges that don't convert
+- `staging_spot` - Good waiting spots
+- `event_zone` - Event-related hotspots
+
+**Cross-Driver Learning:** Zone intel is aggregated across drivers in the same market. Confidence scores increase when multiple drivers report the same zone.
+
 ### Feedback & Actions
 
 | Endpoint | Method | Handler | Purpose |
@@ -128,3 +150,11 @@ Common HTTP codes:
 - `429` - Rate limited
 - `500` - Internal server error
 - `504` - Gateway timeout (AI processing took too long)
+
+## Related Documentation
+
+For more comprehensive API documentation including external APIs, database queries, and LLM patterns, see:
+
+- **[APICALL.md](/APICALL.md)** - Full API call documentation (external APIs, LLM providers, circuit breakers)
+- **[database-schema.md](./database-schema.md)** - Database table schemas and relationships
+- **[ai-pipeline.md](./ai-pipeline.md)** - AI model pipeline and provider details

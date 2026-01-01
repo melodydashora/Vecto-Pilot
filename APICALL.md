@@ -158,10 +158,38 @@
 ### Chat & Coach Routes
 
 #### `/api/chat` - AI Strategy Coach
-- **File**: [server/routes/chat.js](/server/routes/chat.js)
+- **File**: [server/api/chat/chat.js](/server/api/chat/chat.js)
+- **DAL**: [server/lib/ai/coach-dal.js](/server/lib/ai/coach-dal.js)
 - **Endpoints**:
-  - `POST /api/chat` - Chat with AI coach (streaming)
-  - `GET /coach/context/:snapshotId` - Get snapshot context
+  - `POST /api/chat` - Chat with AI coach (streaming + action parsing)
+  - `GET /api/chat/context/:snapshotId` - Get snapshot context
+  - `GET /api/chat/notes` - Get user's coach notes
+  - `POST /api/chat/notes` - Save a coach note
+  - `DELETE /api/chat/notes/:noteId` - Delete a coach note
+  - `GET /api/chat/conversations` - List all conversations
+  - `GET /api/chat/conversations/:id` - Get conversation messages
+  - `POST /api/chat/conversations/:id/star` - Toggle star on message
+  - `GET /api/chat/system-notes` - Get AI system observations
+  - `POST /api/chat/deactivate-news` - Deactivate news item
+  - `POST /api/chat/deactivate-event` - Deactivate event
+  - `GET /api/chat/snapshot-history` - Get location history
+
+##### AI Coach Action Parsing
+The chat endpoint parses special action tags from AI responses:
+
+| Action Tag | Table | Purpose |
+|------------|-------|---------|
+| `[NOTE: {...}]` | `coach_notes` | Save note about user |
+| `[SYSTEM_NOTE: {...}]` | `coach_system_notes` | AI-generated observation |
+| `[DEACTIVATE_NEWS: {...}]` | `news_deactivations` | Hide news for user |
+| `[DEACTIVATE_EVENT: {...}]` | `event_deactivations` | Hide event for user |
+| `[ZONE_INTEL: {...}]` | `zone_intelligence` | Crowd-sourced zone learning |
+
+##### Zone Intelligence (Cross-Driver Learning)
+- **Table**: `zone_intelligence`
+- **Zone Types**: `dead_zone`, `danger_zone`, `honey_hole`, `surge_trap`, `staging_spot`, `event_zone`
+- **Algorithm**: Confidence score increases (+10, max 95) when multiple drivers report same zone
+- **Market Isolation**: Zone data is scoped by `market_slug` (e.g., "dallas-tx")
 
 ### Feedback Routes
 
@@ -232,10 +260,16 @@
   - `llm_venue_suggestions` - LLM-suggested venues
   - `eidolon_memory` - Eidolon memory store
   - `assistant_memory` - Assistant memory
+  - `coach_conversations` - AI Coach chat history (with `market_slug`)
+  - `coach_notes` - User notes from AI Coach
+  - `coach_system_notes` - AI-generated observations
+  - `news_deactivations` - Hidden news items
+  - `event_deactivations` - Hidden events
+  - `zone_intelligence` - Crowd-sourced zone learning (cross-driver)
 
 ### Direct SQL Queries
-- **Files**: 
-  - [server/lib/coach/coach-dal.js](/server/lib/coach/coach-dal.js) - Coach data access
+- **Files**:
+  - [server/lib/ai/coach-dal.js](/server/lib/ai/coach-dal.js) - Coach data access (notes, conversations, zone intel)
   - [server/lib/providers/briefing.js](/server/lib/providers/briefing.js) - Briefing queries
   - [server/routes/actions.js](/server/routes/actions.js) - Metrics updates
   - [scripts/database/postdeploy-sql.mjs](/scripts/database/postdeploy-sql.mjs) - Migration runner
