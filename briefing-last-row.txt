@@ -2,10 +2,10 @@
 ================================================================================
 
 id:
-  "cda54c6b-e186-45c4-b197-bdeef56e1870"
+  "50f6b395-1818-4cd6-ae33-63ae9fc564ec"
 
 snapshot_id:
-  "37946ac0-391a-4209-9c66-8d8cfe1d23c1"
+  "85cb25aa-08c6-4942-97f6-4079c303e779"
 
 news:
   {
@@ -54,19 +54,19 @@ weather_forecast:
 
 traffic_conditions:
   {
-  "jams": 10,
+  "jams": 8,
   "stats": {
-    "jams": 10,
-    "major": 6,
-    "total": 36,
+    "jams": 8,
+    "major": 4,
+    "total": 33,
     "closures": 12,
-    "highways": 26,
+    "highways": 25,
     "accidents": 0,
-    "construction": 14
+    "construction": 13
   },
-  "summary": "36 active traffic incidents near Frisco, 10 traffic jams, 12 road closures, 14 construction zones",
+  "summary": "33 active traffic incidents near Frisco, 8 traffic jams, 12 road closures, 13 construction zones",
   "analyzed": false,
-  "briefing": "36 active traffic incidents near Frisco, 10 traffic jams, 12 road closures, 14 construction zones",
+  "briefing": "33 active traffic incidents near Frisco, 8 traffic jams, 12 road closures, 13 construction zones",
   "closures": [
     {
       "road": "",
@@ -115,7 +115,7 @@ traffic_conditions:
       "location": "Doe Creek Rd to Hollyhock Rd",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.2
+      "distanceFromDriver": 6.3
     },
     {
       "road": "US-380 E",
@@ -126,17 +126,17 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
+      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.6
+      "distanceFromDriver": 7.7
     },
     {
       "road": "",
       "location": "N Cowan Ave to Benjamins Way",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.6
+      "distanceFromDriver": 8.5
     },
     {
       "road": "",
@@ -153,20 +153,20 @@ traffic_conditions:
       "distanceFromDriver": 3.1
     }
   ],
-  "headline": "36 active traffic incidents near Frisco, 10 traffic jams, 12 road closures, 14 construction zones",
+  "headline": "33 active traffic incidents near Frisco, 8 traffic jams, 12 road closures, 13 construction zones",
   "provider": "tomtom",
-  "fetchedAt": "2026-01-01T21:37:18.627Z",
+  "fetchedAt": "2026-01-01T21:43:11.076Z",
   "incidents": [
     {
       "road": "",
       "category": "Jam",
       "location": "Stone Circle Ln to FM-2281",
-      "priority": 157,
+      "priority": 156,
       "severity": "high",
       "isHighway": true,
       "description": "Jam: Stone Circle Ln to FM-2281 [6.9 mi]",
       "lengthMiles": 0,
-      "delayMinutes": 2,
+      "delayMinutes": 1,
       "distanceFromDriver": 6.9
     },
     {
@@ -176,10 +176,10 @@ traffic_conditions:
       "priority": 142,
       "severity": "medium",
       "isHighway": true,
-      "description": "Jam: FM-2478 to FM-2478 [8.2 mi]",
+      "description": "Jam: FM-2478 to FM-2478 [8.3 mi]",
       "lengthMiles": 0,
       "delayMinutes": 2,
-      "distanceFromDriver": 8.2
+      "distanceFromDriver": 8.3
     },
     {
       "road": "",
@@ -206,28 +206,16 @@ traffic_conditions:
       "distanceFromDriver": 3.2
     },
     {
-      "road": "US-380 W",
-      "category": "Road Works",
-      "location": "Gee Rd (US-380) to FM-1385 (US-380)",
-      "priority": 136,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: US-380 W (Gee Rd (US-380) to FM-1385 (US-380)) [6.3 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 1,
-      "distanceFromDriver": 6.3
-    },
-    {
       "road": "FM-1171",
       "category": "Road Works",
       "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
       "priority": 135,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
+      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.6 mi]",
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 9.7
+      "distanceFromDriver": 9.6
     },
     {
       "road": "US-380 E, US-380 W",
@@ -252,6 +240,18 @@ traffic_conditions:
       "lengthMiles": 0,
       "delayMinutes": 0,
       "distanceFromDriver": 7.6
+    },
+    {
+      "road": "US-380 W",
+      "category": "Road Works",
+      "location": "Gee Rd (US-380) to FM-1385 (US-380)",
+      "priority": 135,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Works: US-380 W (Gee Rd (US-380) to FM-1385 (US-380)) [6.3 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 0,
+      "distanceFromDriver": 6.3
     },
     {
       "road": "",
@@ -280,13 +280,13 @@ traffic_conditions:
   ],
   "keyIssues": [],
   "avoidAreas": [],
-  "safetyAlert": "10 active traffic jams in the area",
+  "safetyAlert": "8 active traffic jams in the area",
   "driverImpact": null,
   "surgePricing": true,
   "closuresCount": 12,
   "repositioning": null,
-  "incidentsCount": 36,
-  "totalIncidents": 36,
+  "incidentsCount": 33,
+  "totalIncidents": 33,
   "closuresSummary": "12 road closures",
   "congestionLevel": "high",
   "highDemandZones": [],
@@ -1235,37 +1235,36 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "General departure and arrival delays of 15 minutes or less; gate hold and taxi delays reported.",
+      "delays": "General departure and arrival delays of 15 minutes or less. Traffic is experiencing minor gate hold and taxi delays.",
       "status": "normal",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
-        "04:00 PM - 07:00 PM"
+        "07:00 AM - 09:00 AM",
+        "03:00 PM - 06:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "No significant delays reported; FAA status is normal.",
+      "delays": "Airborne and ground traffic experiencing minor delays of 15 minutes or less. Operations are generally normal.",
       "status": "normal",
       "busyTimes": [
-        "06:00 AM - 09:00 AM",
-        "11:00 AM - 02:00 PM",
+        "05:00 AM - 08:00 AM",
         "04:00 PM - 07:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-01-01T21:37:46.749Z",
+  "fetchedAt": "2026-01-01T21:43:40.058Z",
   "busyPeriods": [
-    "Morning rush (6:00 AM - 9:00 AM) due to business travel and early departures.",
-    "Evening peak (4:00 PM - 7:00 PM) for returning flights and connections."
+    "Morning rush (7-9 AM) and late afternoon (3-7 PM) are standard peak times.",
+    "As it is New Year's Day, expect lighter traffic in the early morning and potentially heavier arrival volumes in the evening as travelers return."
   ],
-  "recommendations": "For DFW, rideshare pickups are located at the upper-level curb of each terminal; drivers should wait in the designated remote staging areas until a request is received. For DAL, the pickup location is at the Valet Pavilion and Garage C, Level 1; drivers must use the designated TNC holding lot and should not idle at the curb."
+  "recommendations": "For DFW: Pickups are at the lower level (Arrivals) at designated 'TNC/Rideshare' zones for each terminal (A-E). Drivers should utilize the staging lots near Terminal A to enter the queue. For DAL: **Crucial Note**: Rideshare pickups are located in Garage C, Level 1 (Valet Pavilion), not at the curbside. Drivers must follow signs to the designated TNC area in the garage. Curbside is generally restricted to drop-offs and accessibility needs."
 }
 
 created_at:
-  "Thu Jan 01 2026 21:37:18 GMT+0000 (Coordinated Universal Time)"
+  "Thu Jan 01 2026 21:43:10 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Thu Jan 01 2026 21:37:46 GMT+0000 (Coordinated Universal Time)"
+  "Thu Jan 01 2026 21:43:40 GMT+0000 (Coordinated Universal Time)"
 

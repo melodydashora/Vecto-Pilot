@@ -772,6 +772,57 @@ refetchInterval: (query) => {
 
 **Lesson:** When adding new status codes (like 'pending_blocks'), update all polling/SSE logic to handle them. Status codes control polling behavior.
 
+### Bug: Variable not defined error from nested try block scope (Dec 2025)
+
+**Error:** `snapshotHistoryInfo is not defined` in AI Coach chat endpoint
+
+**Cause:** Variable declared inside nested try block but used outside its scope
+
+**Root Cause:**
+JavaScript block scoping means variables declared with `let` inside a `try` block are not accessible outside that block:
+```javascript
+// WRONG - variable not accessible outside try block
+try {
+  // Some async operations...
+  try {
+    let snapshotHistoryInfo = '';  // Declared inside nested try
+    // ... processing
+  } catch (e) {
+    // handle error
+  }
+} catch (e) {
+  // handle error
+}
+
+// ERROR: snapshotHistoryInfo is not defined here!
+const message = `Context: ${snapshotHistoryInfo}`;
+```
+
+**Fix:** Declare variables at the outer scope level:
+```javascript
+// CORRECT - variable accessible everywhere in function
+let contextInfo = '';
+let fullContext = null;
+let snapshotHistoryInfo = '';  // Declared at outer scope
+
+try {
+  try {
+    snapshotHistoryInfo = '...';  // Assign inside nested try
+  } catch (e) {
+    // handle error
+  }
+} catch (e) {
+  // handle error
+}
+
+// Works! Variable was declared at accessible scope
+const message = `Context: ${snapshotHistoryInfo}`;
+```
+
+**File Changed:** `server/api/chat/chat.js`
+
+**Lesson:** When adding variables to complex try/catch flows, declare them at the outermost scope where they'll be used. Block scoping in JavaScript means nested declarations aren't accessible to outer code.
+
 ---
 
 ## Known Issues / Future Work
