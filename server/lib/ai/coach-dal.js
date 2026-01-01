@@ -21,7 +21,8 @@ import {
   discovered_events,
   coach_conversations,
   coach_system_notes,
-  news_deactivations
+  news_deactivations,
+  zone_intelligence
 } from '../../../shared/schema.js';
 import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
 import crypto from 'crypto';
@@ -1277,6 +1278,7 @@ export class CoachDAL {
         role,
         content,
         content_type = 'text',
+        market_slug,  // For cross-driver learning
         topic_tags = [],
         extracted_tips = [],
         sentiment,
@@ -1302,6 +1304,7 @@ export class CoachDAL {
           role,
           content,
           content_type,
+          market_slug,  // For cross-driver learning
           topic_tags,
           extracted_tips,
           sentiment,
@@ -1891,6 +1894,234 @@ export class CoachDAL {
     } catch (error) {
       console.error('[CoachDAL] extractAndSaveTips error:', error);
       return 0;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ZONE INTELLIGENCE - Crowd-sourced market knowledge
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Generate market slug from city/state
+   * @param {string} city - City name
+   * @param {string} state - State abbreviation
+   * @returns {string} Market slug (e.g., "dallas-tx")
+   */
+  generateMarketSlug(city, state) {
+    if (!city || !state) return null;
+    const normalizedCity = city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    const normalizedState = state.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    return `${normalizedCity}-${normalizedState}`;
+  }
+
+  /**
+   * Save zone intelligence from AI Coach conversation
+   * Implements cross-driver learning: if zone already exists, increment reports and confidence
+   *
+   * @param {Object} zoneData - Zone intelligence data
+   * @returns {Promise<Object|null>} Saved/updated zone or null
+   *
+   * @example
+   * await coachDAL.saveZoneIntelligence({
+   *   market_slug: 'dallas-tx',
+   *   zone_type: 'dead_zone',
+   *   zone_name: 'The area around Galleria after 11pm',
+   *   reason: 'Driver said they waited 45 min with no pings',
+   *   time_constraints: { after_hour: 23 },
+   *   user_id: userId,
+   *   conversation_id: conversationId
+   * });
+   */
+  async saveZoneIntelligence(zoneData) {
+    try {
+      const {
+        market_slug,
+        zone_type,
+        zone_name,
+        zone_description,
+        lat,
+        lng,
+        radius_miles,
+        address_hint,
+        time_constraints,
+        reason,
+        user_id,
+        conversation_id
+      } = zoneData;
+
+      if (!market_slug || !zone_type || !zone_name) {
+        console.warn('[CoachDAL] saveZoneIntelligence: missing required fields');
+        return null;
+      }
+
+      // Check if similar zone already exists in this market
+      // Match by zone_type and similar name (fuzzy match)
+      const normalizedName = zone_name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const existing = await db
+        .select()
+        .from(zone_intelligence)
+        .where(and(
+          eq(zone_intelligence.market_slug, market_slug),
+          eq(zone_intelligence.zone_type, zone_type),
+          eq(zone_intelligence.is_active, true)
+        ))
+        .limit(100);
+
+      // Find matching zone by name similarity
+      const matchingZone = existing.find(z => {
+        const existingName = z.zone_name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        // Simple containment check - could be improved with fuzzy matching
+        return existingName.includes(normalizedName) || normalizedName.includes(existingName);
+      });
+
+      if (matchingZone) {
+        // Cross-driver learning: update existing zone
+        const contributors = matchingZone.contributing_users || [];
+        const conversations = matchingZone.source_conversations || [];
+
+        // Only add user if not already a contributor
+        if (user_id && !contributors.includes(user_id)) {
+          contributors.push(user_id);
+        }
+        if (conversation_id && !conversations.includes(conversation_id)) {
+          conversations.push(conversation_id);
+        }
+
+        // Increase confidence with more reports (max 95)
+        const newConfidence = Math.min(95, matchingZone.confidence_score + 10);
+
+        const [updated] = await db
+          .update(zone_intelligence)
+          .set({
+            reports_count: matchingZone.reports_count + 1,
+            confidence_score: newConfidence,
+            contributing_users: contributors,
+            source_conversations: conversations,
+            last_reason: reason || matchingZone.last_reason,
+            last_reported_by: user_id,
+            last_reported_at: new Date(),
+            updated_at: new Date(),
+            // Update coordinates if we now have them
+            lat: lat || matchingZone.lat,
+            lng: lng || matchingZone.lng,
+            address_hint: address_hint || matchingZone.address_hint,
+          })
+          .where(eq(zone_intelligence.id, matchingZone.id))
+          .returning();
+
+        console.log(`[CoachDAL] Zone intel updated: "${zone_name}" now has ${updated.reports_count} reports, confidence=${updated.confidence_score}`);
+        return updated;
+      } else {
+        // New zone - create it
+        const [created] = await db
+          .insert(zone_intelligence)
+          .values({
+            market_slug,
+            zone_type,
+            zone_name,
+            zone_description: zone_description || reason,
+            lat: lat || null,
+            lng: lng || null,
+            radius_miles: radius_miles || 0.5,
+            address_hint: address_hint || null,
+            time_constraints: time_constraints || {},
+            is_time_specific: !!(time_constraints && Object.keys(time_constraints).length > 0),
+            reports_count: 1,
+            confidence_score: 50,
+            contributing_users: user_id ? [user_id] : [],
+            source_conversations: conversation_id ? [conversation_id] : [],
+            last_reason: reason,
+            last_reported_by: user_id,
+            last_reported_at: new Date(),
+          })
+          .returning();
+
+        console.log(`[CoachDAL] New zone intel created: "${zone_name}" in ${market_slug} (${zone_type})`);
+        return created;
+      }
+    } catch (error) {
+      console.error('[CoachDAL] saveZoneIntelligence error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get zone intelligence for a market
+   * @param {string} marketSlug - Market slug (e.g., "dallas-tx")
+   * @param {Object} options - Filter options
+   * @returns {Promise<Array>} Zone intelligence items
+   */
+  async getZoneIntelligence(marketSlug, options = {}) {
+    try {
+      const { zone_type, min_confidence = 30, limit = 50 } = options;
+
+      const conditions = [
+        eq(zone_intelligence.market_slug, marketSlug),
+        eq(zone_intelligence.is_active, true),
+        gte(zone_intelligence.confidence_score, min_confidence)
+      ];
+
+      if (zone_type) {
+        conditions.push(eq(zone_intelligence.zone_type, zone_type));
+      }
+
+      const zones = await db
+        .select()
+        .from(zone_intelligence)
+        .where(and(...conditions))
+        .orderBy(desc(zone_intelligence.confidence_score), desc(zone_intelligence.reports_count))
+        .limit(limit);
+
+      console.log(`[CoachDAL] getZoneIntelligence: Found ${zones.length} zones in ${marketSlug}`);
+      return zones;
+    } catch (error) {
+      console.error('[CoachDAL] getZoneIntelligence error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get zone intelligence summary for AI prompt
+   * @param {string} marketSlug - Market slug
+   * @returns {Promise<string>} Formatted zone intel for AI
+   */
+  async getZoneIntelligenceSummary(marketSlug) {
+    try {
+      if (!marketSlug) return '';
+
+      const zones = await this.getZoneIntelligence(marketSlug, { min_confidence: 40, limit: 20 });
+      if (zones.length === 0) return '';
+
+      let summary = `\n\n🗺️ **Local Zone Intelligence for ${marketSlug}** (crowd-sourced from drivers):\n`;
+
+      const byType = {};
+      for (const zone of zones) {
+        if (!byType[zone.zone_type]) byType[zone.zone_type] = [];
+        byType[zone.zone_type].push(zone);
+      }
+
+      const typeLabels = {
+        dead_zone: '🚫 Dead Zones',
+        danger_zone: '⚠️ Danger Zones',
+        honey_hole: '🍯 Honey Holes',
+        surge_trap: '🪤 Surge Traps',
+        staging_spot: '🅿️ Staging Spots',
+        event_zone: '🎉 Event Zones'
+      };
+
+      for (const [type, typeZones] of Object.entries(byType)) {
+        summary += `\n${typeLabels[type] || type}:\n`;
+        for (const z of typeZones.slice(0, 5)) {
+          const confidence = z.reports_count > 1 ? `(${z.reports_count} reports)` : '(new)';
+          const time = z.is_time_specific ? `[time-specific]` : '';
+          summary += `  • ${z.zone_name} ${confidence} ${time}\n`;
+        }
+      }
+
+      return summary;
+    } catch (error) {
+      console.error('[CoachDAL] getZoneIntelligenceSummary error:', error);
+      return '';
     }
   }
 }

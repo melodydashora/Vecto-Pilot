@@ -24,7 +24,8 @@ function parseActions(responseText) {
     notes: [],
     events: [],
     news: [],
-    systemNotes: []
+    systemNotes: [],
+    zoneIntel: []
   };
 
   // Pattern: [ACTION_TYPE: {...json...}]
@@ -32,7 +33,8 @@ function parseActions(responseText) {
     { type: 'note', regex: /\[SAVE_NOTE:\s*(\{[^}]+\})\]/g, key: 'notes' },
     { type: 'event', regex: /\[DEACTIVATE_EVENT:\s*(\{[^}]+\})\]/g, key: 'events' },
     { type: 'news', regex: /\[DEACTIVATE_NEWS:\s*(\{[^}]+\})\]/g, key: 'news' },
-    { type: 'system', regex: /\[SYSTEM_NOTE:\s*(\{[^}]+\})\]/g, key: 'systemNotes' }
+    { type: 'system', regex: /\[SYSTEM_NOTE:\s*(\{[^}]+\})\]/g, key: 'systemNotes' },
+    { type: 'zone', regex: /\[ZONE_INTEL:\s*(\{[^}]+\})\]/g, key: 'zoneIntel' }
   ];
 
   let cleanedText = responseText;
@@ -130,6 +132,29 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       console.log(`[chat/actions] Saved system note: ${sysNote.title}`);
     } catch (e) {
       results.errors.push(`SystemNote: ${e.message}`);
+    }
+  }
+
+  // Save zone intelligence (crowd-sourced market knowledge)
+  for (const zone of actions.zoneIntel) {
+    try {
+      await coachDAL.saveZoneIntelligence({
+        market_slug: zone.market_slug,
+        zone_type: zone.zone_type,
+        zone_name: zone.zone_name,
+        zone_description: zone.description,
+        address_hint: zone.address_hint,
+        time_constraints: zone.time_constraints ?
+          (typeof zone.time_constraints === 'string' ? { note: zone.time_constraints } : zone.time_constraints)
+          : null,
+        reason: zone.reason,
+        user_id: userId,
+        conversation_id: conversationId
+      });
+      results.saved++;
+      console.log(`[chat/actions] Saved zone intel: ${zone.zone_name} (${zone.zone_type})`);
+    } catch (e) {
+      results.errors.push(`ZoneIntel: ${e.message}`);
     }
   }
 
@@ -276,7 +301,8 @@ router.post('/', requireAuth, async (req, res) => {
     // Use CoachDAL for full schema read access with ALL tables
     let contextInfo = '';
     let fullContext = null;
-    
+    let snapshotHistoryInfo = '';  // Declared here so it's accessible in system prompt
+
     try {
       // PRIORITY: Use the snapshotId provided by the UI (always current)
       // The UI has the authoritative snapshot ID from the current location
@@ -320,7 +346,6 @@ router.post('/', requireAuth, async (req, res) => {
       }
 
       // Add snapshot history for authenticated users (last 10 sessions)
-      let snapshotHistoryInfo = '';
       if (isAuthenticated) {
         try {
           const history = await coachDAL.getSnapshotHistory(authUserId, 10);
@@ -337,6 +362,22 @@ router.post('/', requireAuth, async (req, res) => {
           }
         } catch (e) {
           console.warn('[chat] Failed to load snapshot history:', e.message);
+        }
+      }
+
+      // Add crowd-sourced zone intelligence for this market
+      if (fullContext?.snapshot) {
+        try {
+          const marketSlug = coachDAL.generateMarketSlug(fullContext.snapshot.city, fullContext.snapshot.state);
+          if (marketSlug) {
+            fullContext.marketSlug = marketSlug;
+            const zoneIntelSummary = await coachDAL.getZoneIntelligenceSummary(marketSlug);
+            if (zoneIntelSummary) {
+              contextInfo += zoneIntelSummary;
+            }
+          }
+        } catch (e) {
+          console.warn('[chat] Failed to load zone intelligence:', e.message);
         }
       }
     } catch (err) {
@@ -358,6 +399,7 @@ router.post('/', requireAuth, async (req, res) => {
           role: 'user',
           content: message,
           content_type: attachments.length > 0 ? 'text+attachment' : 'text',
+          market_slug: fullContext?.marketSlug || null, // For cross-driver learning
           location_context: fullContext?.snapshot ? {
             city: fullContext.snapshot.city,
             state: fullContext.snapshot.state,
@@ -467,6 +509,20 @@ ${snapshotHistoryInfo}
 - When you notice pain points, feature requests, or patterns from user interactions, save them
 - Format: \`[SYSTEM_NOTE: {"type": "feature_request|pain_point|bug_report|aha_moment", "category": "ui|strategy|briefing|venues|coach|map|earnings", "title": "Short title", "description": "What you observed", "user_quote": "Optional verbatim quote"}]\`
 - This helps the development team improve Vecto Pilot based on real user needs
+
+🗺️ **Zone Intelligence (Crowd-Sourced Learning):**
+- When drivers share intel about specific areas (dead zones, dangerous spots, honey holes, staging spots), SAVE IT!
+- This builds a crowd-sourced knowledge base that helps ALL drivers in this market
+- Format: \`[ZONE_INTEL: {"zone_type": "dead_zone|danger_zone|honey_hole|surge_trap|staging_spot|event_zone", "zone_name": "Human-readable area name", "market_slug": "${fullContext?.snapshot ? coachDAL.generateMarketSlug(fullContext.snapshot.city, fullContext.snapshot.state) : 'unknown'}", "reason": "What the driver said", "time_constraints": "after 10pm weeknights", "address_hint": "near the Target on Main"}]\`
+- Zone types:
+  • dead_zone: Areas with little/no ride demand
+  • danger_zone: Unsafe/sketchy areas to avoid
+  • honey_hole: Consistently profitable spots
+  • surge_trap: Fake/unprofitable surge areas
+  • staging_spot: Good waiting/staging locations
+  • event_zone: Temporary high-demand areas
+- ALWAYS include the reason in the driver's words
+- Time constraints are optional but very valuable (e.g., "dead after 10pm", "busy during Cowboys games")
 
 **Important:**
 - You understand context from conversation history
@@ -614,7 +670,7 @@ You're a powerful AI companion with research-backed market intelligence and pers
         const hasActions = Object.values(actions).some(arr => arr.length > 0);
 
         if (hasActions) {
-          console.log(`[chat] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}`);
+          console.log(`[chat] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}, zoneIntel=${actions.zoneIntel.length}`);
 
           // Execute actions asynchronously (don't wait for completion)
           executeActions(actions, authUserId, activeSnapshotId, conversationId)
@@ -643,6 +699,7 @@ You're a powerful AI companion with research-backed market intelligence and pers
               role: 'assistant',
               content: cleanedText,
               content_type: 'text',
+              market_slug: fullContext?.marketSlug || null, // For cross-driver learning
               extracted_tips: extractedTips?.tips || [],
               model_used: 'gemini-3-pro-preview',
               location_context: fullContext?.snapshot ? {

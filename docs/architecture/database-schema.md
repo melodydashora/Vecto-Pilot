@@ -413,6 +413,7 @@ See [Event Discovery Architecture](event-discovery.md) for full documentation.
 | `id` | UUID (PK) | Primary identifier |
 | `user_id` | UUID (FK) | Reference to users (required) |
 | `snapshot_id` | UUID (FK) | Reference to snapshots (optional) |
+| `market_slug` | TEXT | Market identifier for cross-driver learning (e.g., "dallas-tx") |
 | `conversation_id` | UUID | Groups messages in a thread |
 | `role` | TEXT | 'user' / 'assistant' / 'system' |
 | `content` | TEXT | Message content |
@@ -459,6 +460,54 @@ See [Event Discovery Architecture](event-discovery.md) for full documentation.
 | `news_title` | TEXT | Original title |
 | `reason` | TEXT | Free-form reason from user or AI Coach |
 | `deactivated_by` | TEXT | 'user' / 'ai_coach' |
+
+### `zone_intelligence` - Crowd-Sourced Market Knowledge
+
+**Purpose:** Market-specific zone intelligence gathered from driver conversations. Implements **cross-driver learning**: when multiple drivers report the same zone, confidence increases.
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Query: `server/lib/ai/coach-dal.js`
+
+**Zone Types:**
+| Type | Description |
+|------|-------------|
+| `dead_zone` | Areas with little/no ride demand |
+| `danger_zone` | Unsafe/sketchy areas to avoid |
+| `honey_hole` | Consistently profitable spots |
+| `surge_trap` | Fake/unprofitable surge areas |
+| `staging_spot` | Good waiting/staging locations |
+| `event_zone` | Temporary high-demand areas |
+
+**Key Columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `market_slug` | TEXT | Market identifier (e.g., "dallas-tx") |
+| `zone_type` | TEXT | Zone classification (see types above) |
+| `zone_name` | TEXT | Human-readable name ("Deep Ellum after 2am") |
+| `zone_description` | TEXT | Detailed description |
+| `lat`, `lng` | DOUBLE | Optional coordinates |
+| `radius_miles` | DOUBLE | Approximate zone radius (default 0.5) |
+| `address_hint` | TEXT | Location hint ("near Target on Main") |
+| `time_constraints` | JSONB | When this applies (e.g., `{after_hour: 22}`) |
+| `is_time_specific` | BOOLEAN | True if zone quality depends on time |
+| `reports_count` | INTEGER | How many drivers reported this |
+| `confidence_score` | INTEGER | 1-100, increases with more reports (max 95) |
+| `contributing_users` | JSONB | Array of user_ids who contributed |
+| `source_conversations` | JSONB | conversation_ids where learned |
+| `last_reason` | TEXT | Most recent reason given |
+| `is_active` | BOOLEAN | Soft delete flag |
+
+**Cross-Driver Learning Algorithm:**
+1. When driver reports zone intel, search for similar zones (by type + name similarity)
+2. If match found: increment `reports_count`, increase `confidence_score` by 10 (max 95), add user to `contributing_users`
+3. If no match: create new zone with `confidence_score: 50`
+
+**AI Coach Integration:**
+- AI Coach parses `[ZONE_INTEL: {...}]` tags from responses
+- Zone intel summary included in AI context for all drivers in that market
+- Only zones with `confidence_score >= 40` shown in summaries
 
 ---
 
