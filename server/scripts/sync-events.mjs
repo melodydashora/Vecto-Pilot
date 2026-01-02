@@ -19,6 +19,7 @@ import crypto from 'crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { sql } from 'drizzle-orm';
+import { findOrCreateVenue, linkEventToVenue } from '../lib/venue/venue-cache.js';
 
 const { Pool } = pg;
 
@@ -91,6 +92,63 @@ async function geocodeMissingCoordinates(events) {
   console.log(`  [Geocode] ${geocoded}/${events.length} events now have coordinates`);
 
   return events;
+}
+
+// ============================================================================
+// Process events through venue cache for precise coordinates and deduplication
+// ============================================================================
+async function processEventsWithVenueCache(events) {
+  const eventsWithVenues = [];
+  let venuesCached = 0;
+  let venuesReused = 0;
+  let venuesFailed = 0;
+
+  console.log(`  [VenueCache] Processing ${events.length} events through venue cache...`);
+
+  for (const event of events) {
+    // Skip events without venue name
+    if (!event.venue_name) {
+      eventsWithVenues.push(event);
+      continue;
+    }
+
+    try {
+      const venue = await findOrCreateVenue({
+        venue: event.venue_name,
+        address: event.address,
+        latitude: event.lat,
+        longitude: event.lng,
+        city: event.city,
+        state: event.state
+      }, `sync_events_${(event.source_model || 'unknown').toLowerCase()}`);
+
+      if (venue) {
+        // Update event with precise venue coordinates
+        if (venue.lat && venue.lng) {
+          event.lat = venue.lat;
+          event.lng = venue.lng;
+        }
+        // Store venue_id for linking after insert
+        event._venue_id = venue.id;
+
+        // Track if this was a reuse or new cache
+        if (venue.access_count > 1) {
+          venuesReused++;
+        } else {
+          venuesCached++;
+        }
+      }
+    } catch (err) {
+      // Venue cache is best-effort, don't fail event processing
+      console.log(`  [VenueCache] Warning for "${event.venue_name}": ${err.message}`);
+      venuesFailed++;
+    }
+
+    eventsWithVenues.push(event);
+  }
+
+  console.log(`  [VenueCache] Results: ${venuesCached} new, ${venuesReused} reused, ${venuesFailed} failed`);
+  return eventsWithVenues;
 }
 
 // ============================================================================
@@ -179,13 +237,56 @@ Only return genuinely NEW events not already covered above.`;
 // ============================================================================
 // Event prompt for GPT-5.2
 // ============================================================================
-function buildEventPrompt(city, state, date, lat, lng, existingEvents = []) {
+function buildEventPrompt(city, state, date, lat, lng, existingEvents = [], options = {}) {
+  const { todayOnly = false } = options;
+  const dedupSection = formatExistingEventsForPrompt(existingEvents);
+
+  // TODAY-ONLY MODE: For briefing tab, only get today's events with required times
+  if (todayOnly) {
+    return `Search for events happening TODAY (${date}) within ${MAX_DRIVE_MINUTES} minutes drive of coordinates ${lat}, ${lng} (near ${city}, ${state}).${dedupSection}
+
+**CRITICAL REQUIREMENTS:**
+1. ONLY events happening on ${date} (today)
+2. MUST include both event_time AND event_end_time (no TBD, no missing times)
+3. Times in format "HH:MM AM/PM" (e.g., "7:00 PM")
+
+This is for rideshare drivers - we need events that generate pickups/dropoffs.
+
+Look for these rideshare-relevant event types:
+- Concerts, music festivals, live music shows at venues, arenas, amphitheaters
+- Professional sports (NFL, NBA, MLB, NHL, MLS), college sports
+- Theater performances, comedy shows
+- Conferences, conventions, trade shows
+- Parades, festivals, community events, holiday celebrations
+- Nightclub events, DJ nights
+- Marathons, races, athletic events
+- Any large gatherings (100+ people expected)
+
+Return a JSON array with events found:
+[
+  {
+    "title": "Event Name",
+    "venue": "Venue Name",
+    "address": "Full Address with City, State ZIP",
+    "lat": 32.7767,
+    "lng": -96.7970,
+    "event_date": "${date}",
+    "event_time": "7:00 PM",
+    "event_end_time": "10:00 PM",
+    "category": "concert|sports|theater|conference|festival|nightlife|civic|academic|airport|other",
+    "expected_attendance": "high|medium|low",
+    "source": "where you found this info"
+  }
+]
+
+IMPORTANT: Skip events without confirmed start AND end times. Return [] if no events with complete times found.`;
+  }
+
+  // FULL MODE: For map tab, get 7-day window
   const today = new Date(date);
   const dayAfter = new Date(today);
   dayAfter.setDate(today.getDate() + 6); // Get a week of events
   const dateRange = `${date} to ${dayAfter.toISOString().split('T')[0]}`;
-
-  const dedupSection = formatExistingEventsForPrompt(existingEvents);
 
   return `Search for ALL events happening within ${MAX_DRIVE_MINUTES} minutes drive of coordinates ${lat}, ${lng} (near ${city}, ${state}) from ${dateRange}.${dedupSection}
 
@@ -331,7 +432,7 @@ async function searchWithSerpAPI(city, state) {
 // ============================================================================
 // GPT-5.2 Search (best quality)
 // ============================================================================
-async function searchWithGPT52(city, state, lat, lng, existingEvents = []) {
+async function searchWithGPT52(city, state, lat, lng, existingEvents = [], options = {}) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     console.log('  [GPT-5.2] Skipped - OPENAI_API_KEY not set');
@@ -339,11 +440,13 @@ async function searchWithGPT52(city, state, lat, lng, existingEvents = []) {
   }
 
   const startTime = Date.now();
-  const date = new Date().toISOString().split('T')[0];
-  console.log(`  [GPT-5.2] Searching events near ${city}, ${state}... (${existingEvents.length} existing events for dedup)`);
+  // Use user's local date if provided, otherwise use server date
+  const date = options.userLocalDate || new Date().toISOString().split('T')[0];
+  const modeLabel = options.todayOnly ? 'TODAY ONLY' : '7-day';
+  console.log(`  [GPT-5.2] Searching events near ${city}, ${state} (${modeLabel}, date: ${date})... (${existingEvents.length} existing events for dedup)`);
 
   try {
-    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
+    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -413,7 +516,7 @@ async function searchWithGPT52(city, state, lat, lng, existingEvents = []) {
 // ============================================================================
 // MODEL: Gemini 3 Pro with Google Search (daily sync)
 // ============================================================================
-async function searchWithGemini3Pro(city, state, lat, lng, existingEvents = []) {
+async function searchWithGemini3Pro(city, state, lat, lng, existingEvents = [], options = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.log('  [Gemini 3 Pro] Skipped - GEMINI_API_KEY not set');
@@ -421,11 +524,13 @@ async function searchWithGemini3Pro(city, state, lat, lng, existingEvents = []) 
   }
 
   const startTime = Date.now();
-  const date = new Date().toISOString().split('T')[0];
-  console.log(`  [Gemini 3 Pro] Searching events near ${city}, ${state}... (${existingEvents.length} existing for dedup)`);
+  // Use user's local date if provided, otherwise use server date
+  const date = options.userLocalDate || new Date().toISOString().split('T')[0];
+  const modeLabel = options.todayOnly ? 'TODAY ONLY' : '7-day';
+  console.log(`  [Gemini 3 Pro] Searching events near ${city}, ${state} (${modeLabel}, date: ${date})... (${existingEvents.length} existing for dedup)`);
 
   try {
-    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
+    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
@@ -577,7 +682,7 @@ Search for: concerts, sports games, festivals, theater, comedy shows, convention
 // ============================================================================
 // MODEL: Claude with Web Search (daily sync)
 // ============================================================================
-async function searchWithClaude(city, state, lat, lng, existingEvents = []) {
+async function searchWithClaude(city, state, lat, lng, existingEvents = [], options = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.log('  [Claude] Skipped - ANTHROPIC_API_KEY not set');
@@ -585,11 +690,13 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = []) {
   }
 
   const startTime = Date.now();
-  const date = new Date().toISOString().split('T')[0];
-  console.log(`  [Claude] Searching events near ${city}, ${state}... (${existingEvents.length} existing for dedup)`);
+  // Use user's local date if provided, otherwise use server date
+  const date = options.userLocalDate || new Date().toISOString().split('T')[0];
+  const modeLabel = options.todayOnly ? 'TODAY ONLY' : '7-day';
+  console.log(`  [Claude] Searching events near ${city}, ${state} (${modeLabel}, date: ${date})... (${existingEvents.length} existing for dedup)`);
 
   try {
-    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
+    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -659,7 +766,7 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = []) {
 // ============================================================================
 // MODEL: Perplexity Sonar Reasoning Pro (daily sync)
 // ============================================================================
-async function searchWithPerplexityReasoning(city, state, lat, lng, existingEvents = []) {
+async function searchWithPerplexityReasoning(city, state, lat, lng, existingEvents = [], options = {}) {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) {
     console.log('  [Perplexity Reasoning] Skipped - PERPLEXITY_API_KEY not set');
@@ -667,11 +774,13 @@ async function searchWithPerplexityReasoning(city, state, lat, lng, existingEven
   }
 
   const startTime = Date.now();
-  const date = new Date().toISOString().split('T')[0];
-  console.log(`  [Perplexity Reasoning] Searching events near ${city}, ${state}... (${existingEvents.length} existing for dedup)`);
+  // Use user's local date if provided, otherwise use server date
+  const date = options.userLocalDate || new Date().toISOString().split('T')[0];
+  const modeLabel = options.todayOnly ? 'TODAY ONLY' : '7-day';
+  console.log(`  [Perplexity Reasoning] Searching events near ${city}, ${state} (${modeLabel}, date: ${date})... (${existingEvents.length} existing for dedup)`);
 
   try {
-    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents);
+    const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -799,7 +908,7 @@ async function storeEvents(db, events) {
           event_date, event_time, event_end_time, event_end_date,
           lat, lng, category, expected_attendance,
           source_model, source_url, raw_source_data,
-          event_hash
+          event_hash, venue_id
         ) VALUES (
           ${event.title},
           ${event.venue_name},
@@ -818,7 +927,8 @@ async function storeEvents(db, events) {
           ${event.source_model},
           ${event.source_url},
           ${JSON.stringify(event.raw_source_data)}::jsonb,
-          ${hash}
+          ${hash},
+          ${event._venue_id || null}
         )
         ON CONFLICT (event_hash) DO NOTHING
       `);
@@ -847,14 +957,18 @@ async function storeEvents(db, events) {
 // ============================================================================
 // Main sync function (for user location)
 // ============================================================================
-async function syncEventsForLocation(location, isDaily = false) {
+async function syncEventsForLocation(location, isDaily = false, options = {}) {
   const { city, state, lat, lng } = location;
+  const { userLocalDate, todayOnly = false } = options;
+
   const mode = isDaily ? 'DAILY (all models)' : 'NORMAL (SerpAPI + GPT-5.2)';
+  const dateMode = todayOnly ? 'TODAY ONLY' : '7-day window';
 
   console.log('═══════════════════════════════════════════════════════════════');
   console.log('EVENT DISCOVERY SYNC');
-  console.log(`Mode: ${mode}`);
+  console.log(`Mode: ${mode} | Date Mode: ${dateMode}`);
   console.log(`Location: ${city}, ${state} (${lat}, ${lng})`);
+  if (userLocalDate) console.log(`User Local Date: ${userLocalDate}`);
   console.log(`Started: ${new Date().toISOString()}`);
   console.log('═══════════════════════════════════════════════════════════════\n');
 
@@ -862,8 +976,9 @@ async function syncEventsForLocation(location, isDaily = false) {
   let allEvents = [];
 
   // Fetch existing events for semantic deduplication
-  const today = new Date().toISOString().split('T')[0];
-  const weekFromNow = new Date();
+  // Use user's local date if provided, otherwise use server date
+  const today = userLocalDate || new Date().toISOString().split('T')[0];
+  const weekFromNow = new Date(today);
   weekFromNow.setDate(weekFromNow.getDate() + 7);
   const endDate = weekFromNow.toISOString().split('T')[0];
 
@@ -871,24 +986,27 @@ async function syncEventsForLocation(location, isDaily = false) {
   const existingEvents = await fetchExistingEvents(db, city, state, today, endDate);
   console.log(`[Dedup] Found ${existingEvents.length} existing events to avoid duplicates\n`);
 
+  // Options to pass to search functions
+  const searchOptions = { userLocalDate: today, todayOnly };
+
   if (isDaily) {
     // DAILY MODE: Run ALL working models in parallel for maximum coverage
     // All models receive existing events for semantic deduplication
     console.log('Running 6 models in parallel (with semantic deduplication)...');
     const results = await Promise.all([
       searchWithSerpAPI(city, state),  // SerpAPI doesn't support custom prompts
-      searchWithGPT52(city, state, lat, lng, existingEvents),
-      searchWithGemini3Pro(city, state, lat, lng, existingEvents),
+      searchWithGPT52(city, state, lat, lng, existingEvents, searchOptions),
+      searchWithGemini3Pro(city, state, lat, lng, existingEvents, searchOptions),
       searchWithGemini25Pro(city, state, lat, lng),  // Uses different prompt format
-      searchWithClaude(city, state, lat, lng, existingEvents),
-      searchWithPerplexityReasoning(city, state, lat, lng, existingEvents)
+      searchWithClaude(city, state, lat, lng, existingEvents, searchOptions),
+      searchWithPerplexityReasoning(city, state, lat, lng, existingEvents, searchOptions)
     ]);
     allEvents = results.flat();
   } else {
     // NORMAL MODE: Run only SerpAPI + GPT-5.2 (fast/efficient)
     const [serpEvents, gptEvents] = await Promise.all([
       searchWithSerpAPI(city, state),
-      searchWithGPT52(city, state, lat, lng, existingEvents)
+      searchWithGPT52(city, state, lat, lng, existingEvents, searchOptions)
     ]);
     allEvents = [...serpEvents, ...gptEvents];
   }
@@ -899,6 +1017,9 @@ async function syncEventsForLocation(location, isDaily = false) {
   if (allEvents.length > 0) {
     // Geocode events missing lat/lng coordinates
     allEvents = await geocodeMissingCoordinates(allEvents);
+
+    // Process through venue cache for precise coordinates and venue linking
+    allEvents = await processEventsWithVenueCache(allEvents);
 
     console.log(`\n[Storing] ${allEvents.length} events...`);
     const result = await storeEvents(db, allEvents);

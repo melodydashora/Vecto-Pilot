@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, confirmTBDEventDetails, fetchWeatherConditions } from '../../lib/briefing/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, confirmTBDEventDetails, fetchWeatherConditions, fetchRideshareNews } from '../../lib/briefing/briefing-service.js';
 import { db } from '../../db/drizzle.js';
-import { snapshots, discovered_events, news_deactivations } from '../../../shared/schema.js';
+import { snapshots, discovered_events, news_deactivations, briefings } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
@@ -678,8 +678,98 @@ router.post('/confirm-event-details', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/briefing/refresh-daily/:snapshotId
+ * On-demand refresh of daily data: events + news
+ *
+ * Called when user clicks "Refresh Daily Data" button in BriefingTab.
+ * Runs in parallel:
+ *   - Event discovery: SerpAPI + GPT-5.2 + Gemini + Claude + Perplexity → discovered_events table
+ *   - News refresh: Gemini with Google Search → briefings.news
+ *
+ * Query params:
+ *   - daily=true: Run ALL models (default)
+ *   - daily=false: Run only SerpAPI + GPT-5.2
+ *
+ * Returns:
+ *   - 200: { ok: true, events: {...}, news: {...} }
+ *   - 404: { error: "snapshot_not_found" }
+ */
+router.post('/refresh-daily/:snapshotId', expensiveEndpointLimiter, requireAuth, requireSnapshotOwnership, async (req, res) => {
+  try {
+    const snapshot = req.snapshot;
+    const isDaily = req.query.daily !== 'false'; // Default to daily (all models)
+
+    // Get user's local date from snapshot timezone
+    const userTimezone = snapshot.timezone || 'America/Chicago';
+    const userLocalDate = snapshot.local_iso
+      ? new Date(snapshot.local_iso).toISOString().split('T')[0]
+      : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
+
+    console.log(`[BriefingRoute] POST /refresh-daily/${snapshot.snapshot_id} - isDaily=${isDaily}`);
+    console.log(`[BriefingRoute] Location: ${snapshot.city}, ${snapshot.state} (${snapshot.lat}, ${snapshot.lng})`);
+    console.log(`[BriefingRoute] User timezone: ${userTimezone}, local date: ${userLocalDate}`);
+
+    // Run events AND news refresh in parallel
+    // Events: TODAY ONLY mode with required times for Briefing tab
+    const [eventsResult, newsResult] = await Promise.all([
+      syncEventsForLocation({
+        city: snapshot.city,
+        state: snapshot.state,
+        lat: snapshot.lat,
+        lng: snapshot.lng
+      }, isDaily, {
+        userLocalDate,
+        todayOnly: true  // Only fetch today's events with required times
+      }),
+      fetchRideshareNews({ snapshot })
+    ]);
+
+    console.log(`[BriefingRoute] ✅ Event discovery complete: ${eventsResult.events.length} found, ${eventsResult.inserted} inserted`);
+    console.log(`[BriefingRoute] ✅ News refresh complete: ${newsResult?.items?.length || 0} items`);
+
+    // Update briefings table with fresh news
+    if (newsResult?.items?.length > 0) {
+      const newsData = {
+        items: newsResult.items,
+        reason: null
+      };
+
+      await db.update(briefings)
+        .set({
+          news: newsData,
+          updated_at: new Date()
+        })
+        .where(eq(briefings.snapshot_id, snapshot.snapshot_id));
+
+      console.log(`[BriefingRoute] ✅ Briefings table updated with ${newsResult.items.length} news items`);
+    }
+
+    // Return both events and news results
+    res.json({
+      ok: true,
+      snapshot_id: snapshot.snapshot_id,
+      mode: isDaily ? 'daily' : 'normal',
+      events: {
+        total_discovered: eventsResult.events.length,
+        inserted: eventsResult.inserted,
+        skipped: eventsResult.skipped
+      },
+      news: {
+        count: newsResult?.items?.length || 0,
+        items: newsResult?.items?.slice(0, 10) || []  // Return first 10 for display
+      }
+    });
+  } catch (error) {
+    console.error('[BriefingRoute] Error refreshing daily data:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/briefing/discover-events/:snapshotId
  * On-demand event discovery using all AI models (daily mode)
+ *
+ * DEPRECATED: Use /refresh-daily/:snapshotId instead (refreshes events + news)
  *
  * Called when user clicks "Discover Events" button in BriefingTab.
  * Uses: snapshot location → SerpAPI + GPT-5.2 + Gemini + Claude + Perplexity → discovered_events table

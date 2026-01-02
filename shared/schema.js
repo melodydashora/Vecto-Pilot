@@ -301,6 +301,72 @@ export const places_cache = pgTable("places_cache", {
   access_count: integer("access_count").notNull().default(0),
 });
 
+/**
+ * Venue Cache - Centralized venue data for events + bars + restaurants
+ *
+ * Purposes:
+ * 1. Avoid repeated geocoding/Places API calls for same venues
+ * 2. Deduplicate events by venue (multiple events at AT&T Stadium share one venue)
+ * 3. Enable SmartBlocks "event tonight" flag by joining venues to events
+ * 4. Store full-precision coordinates for accurate mapping
+ *
+ * Lookup patterns:
+ * - By place_id (Google Places) - fastest, exact match
+ * - By normalized_name + city + state - for event venues without place_id
+ * - By coord_key - for nearby venue matching
+ */
+export const venue_cache = pgTable("venue_cache", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Identity
+  venue_name: text("venue_name").notNull(),
+  normalized_name: text("normalized_name").notNull(), // lowercase, alphanumeric only for fuzzy matching
+
+  // Location
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  country: text("country").default('USA'),
+
+  // Coordinates (full precision - 15+ decimal places)
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  coord_key: text("coord_key"), // Format: "lat6d_lng6d" e.g., "33.128400_-96.868800" for fast lookup
+
+  // Address
+  address: text("address"), // Street address
+  formatted_address: text("formatted_address"), // Full formatted address from Google
+  zip: text("zip"),
+
+  // Google Places (if available)
+  place_id: text("place_id").unique(), // Google Places ID
+
+  // Hours (if available)
+  hours: jsonb("hours"), // { monday: "9:00 AM - 5:00 PM", tuesday: "...", ... }
+  hours_source: text("hours_source"), // 'google_places', 'manual', 'inferred'
+
+  // Venue type hints
+  venue_type: text("venue_type"), // 'stadium', 'arena', 'theater', 'bar', 'restaurant', 'convention_center', 'outdoor', 'other'
+  capacity_estimate: integer("capacity_estimate"), // Estimated capacity for surge prediction
+
+  // Source & metadata
+  source: text("source").notNull(), // 'google_places', 'geocoding', 'serpapi', 'llm', 'manual'
+  source_model: text("source_model"), // Which LLM if source='llm'
+
+  // Cache management
+  cached_at: timestamp("cached_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  access_count: integer("access_count").notNull().default(0),
+  last_accessed_at: timestamp("last_accessed_at", { withTimezone: true }),
+}, (table) => ({
+  // Unique constraint: one venue per normalized name + city + state
+  uniqueVenue: sql`unique nulls not distinct (normalized_name, city, state)`,
+  // Indexes for fast lookup
+  idxPlaceId: sql`create index if not exists idx_venue_cache_place_id on ${table} (place_id) where place_id is not null`,
+  idxCoordKey: sql`create index if not exists idx_venue_cache_coord_key on ${table} (coord_key) where coord_key is not null`,
+  idxCityState: sql`create index if not exists idx_venue_cache_city_state on ${table} (city, state)`,
+  idxNormalizedName: sql`create index if not exists idx_venue_cache_normalized_name on ${table} (normalized_name)`,
+}));
+
 // Per-venue thumbs up/down feedback (tied to rankings)
 export const venue_feedback = pgTable("venue_feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -509,12 +575,14 @@ export const discovered_events = pgTable("discovered_events", {
   city: text("city").notNull(),
   state: text("state").notNull(),
   zip: text("zip"),
+  // Reference to cached venue (enables venue → events queries for SmartBlocks)
+  venue_id: uuid("venue_id").references(() => venue_cache.id, { onDelete: 'set null' }),
   // Event timing
   event_date: text("event_date").notNull(), // YYYY-MM-DD format
   event_time: text("event_time"), // e.g., "7:00 PM", "All Day"
   event_end_time: text("event_end_time"), // e.g., "10:00 PM"
   event_end_date: text("event_end_date"), // For multi-day events
-  // Coordinates (optional - if available from source)
+  // Coordinates (optional - from venue_cache if venue_id set, otherwise from LLM)
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   // Categorization
@@ -542,6 +610,8 @@ export const discovered_events = pgTable("discovered_events", {
   idxCategory: sql`create index if not exists idx_discovered_events_category on ${table} (category)`,
   idxHash: sql`create unique index if not exists idx_discovered_events_hash on ${table} (event_hash)`,
   idxDiscoveredAt: sql`create index if not exists idx_discovered_events_discovered_at on ${table} (discovered_at desc)`,
+  // Index for venue → events join (SmartBlocks "event tonight" flag)
+  idxVenueId: sql`create index if not exists idx_discovered_events_venue_id on ${table} (venue_id) where venue_id is not null`,
 }));
 
 // Traffic zones for real-time traffic intelligence

@@ -1616,38 +1616,181 @@ export class CoachDAL {
 
   /**
    * Deactivate a discovered event
+   * Supports lookup by either event_id or event_title (title-based lookup searches recent active events)
    * @param {Object} deactivationData - Deactivation data
+   * @param {string} [deactivationData.event_id] - Direct event ID (optional if event_title provided)
+   * @param {string} [deactivationData.event_title] - Event title for fuzzy lookup (optional if event_id provided)
+   * @param {string} deactivationData.reason - Reason for deactivation
+   * @param {string} [deactivationData.notes] - Additional notes
+   * @param {string} [deactivationData.deactivated_by] - Who deactivated (default: 'ai_coach')
    * @returns {Promise<Object|null>} Updated event or null
    */
   async deactivateEvent(deactivationData) {
     try {
       const {
         event_id,
+        event_title,
         reason,
+        notes,
         deactivated_by = 'ai_coach'
       } = deactivationData;
 
-      if (!event_id || !reason) {
-        console.warn('[CoachDAL] deactivateEvent: missing required fields');
+      if (!reason) {
+        console.warn('[CoachDAL] deactivateEvent: missing reason');
         return null;
       }
+
+      let targetEventId = event_id;
+
+      // If no event_id, look up by title
+      if (!targetEventId && event_title) {
+        // Search for matching active event (case-insensitive, recent first)
+        const normalizedTitle = event_title.trim().toLowerCase();
+
+        const matchingEvents = await db
+          .select({ id: discovered_events.id, title: discovered_events.title })
+          .from(discovered_events)
+          .where(eq(discovered_events.is_active, true))
+          .orderBy(desc(discovered_events.created_at))
+          .limit(100); // Check recent events
+
+        // Find best match (exact or close)
+        const exactMatch = matchingEvents.find(e =>
+          e.title?.toLowerCase() === normalizedTitle
+        );
+
+        if (exactMatch) {
+          targetEventId = exactMatch.id;
+          console.log(`[CoachDAL] Found event by title: "${event_title}" -> ID ${targetEventId}`);
+        } else {
+          // Try partial match (title contains the search term or vice versa)
+          const partialMatch = matchingEvents.find(e =>
+            e.title?.toLowerCase().includes(normalizedTitle) ||
+            normalizedTitle.includes(e.title?.toLowerCase())
+          );
+
+          if (partialMatch) {
+            targetEventId = partialMatch.id;
+            console.log(`[CoachDAL] Found event by partial match: "${event_title}" -> "${partialMatch.title}" (ID ${targetEventId})`);
+          }
+        }
+      }
+
+      if (!targetEventId) {
+        console.warn(`[CoachDAL] deactivateEvent: could not find event - id: ${event_id}, title: "${event_title}"`);
+        return null;
+      }
+
+      const deactivationReason = notes ? `${reason}: ${notes}` : reason;
 
       const [event] = await db
         .update(discovered_events)
         .set({
           is_active: false,
-          deactivation_reason: reason,
+          deactivation_reason: deactivationReason,
           deactivated_at: new Date(),
           deactivated_by,
           updated_at: new Date()
         })
-        .where(eq(discovered_events.id, event_id))
+        .where(eq(discovered_events.id, targetEventId))
         .returning();
 
-      console.log(`[CoachDAL] Deactivated event: ${event_id} (reason: ${reason})`);
+      console.log(`[CoachDAL] Deactivated event: ${targetEventId} (reason: ${deactivationReason})`);
       return event;
     } catch (error) {
       console.error('[CoachDAL] deactivateEvent error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Reactivate a previously deactivated event (undo mistaken deactivation)
+   * Supports lookup by either event_id or event_title
+   * @param {Object} reactivationData - Reactivation data
+   * @param {string} [reactivationData.event_id] - Direct event ID (optional if event_title provided)
+   * @param {string} [reactivationData.event_title] - Event title for fuzzy lookup (optional if event_id provided)
+   * @param {string} reactivationData.reason - Reason for reactivation
+   * @param {string} [reactivationData.notes] - Additional notes
+   * @param {string} [reactivationData.reactivated_by] - Who reactivated (default: 'ai_coach')
+   * @returns {Promise<Object|null>} Updated event or null
+   */
+  async reactivateEvent(reactivationData) {
+    try {
+      const {
+        event_id,
+        event_title,
+        reason,
+        notes,
+        reactivated_by = 'ai_coach'
+      } = reactivationData;
+
+      if (!reason) {
+        console.warn('[CoachDAL] reactivateEvent: missing reason');
+        return null;
+      }
+
+      let targetEventId = event_id;
+
+      // If no event_id, look up by title (including inactive events)
+      if (!targetEventId && event_title) {
+        const normalizedTitle = event_title.trim().toLowerCase();
+
+        // Search ALL events (including inactive ones) to find the deactivated event
+        const matchingEvents = await db
+          .select({ id: discovered_events.id, title: discovered_events.title, is_active: discovered_events.is_active })
+          .from(discovered_events)
+          .orderBy(desc(discovered_events.created_at))
+          .limit(200); // Check more events since we need inactive ones too
+
+        // Prioritize inactive events (the ones we want to reactivate)
+        const inactiveEvents = matchingEvents.filter(e => !e.is_active);
+
+        // Find best match among inactive events first
+        const exactMatch = inactiveEvents.find(e =>
+          e.title?.toLowerCase() === normalizedTitle
+        );
+
+        if (exactMatch) {
+          targetEventId = exactMatch.id;
+          console.log(`[CoachDAL] Found inactive event by title: "${event_title}" -> ID ${targetEventId}`);
+        } else {
+          // Try partial match on inactive events
+          const partialMatch = inactiveEvents.find(e =>
+            e.title?.toLowerCase().includes(normalizedTitle) ||
+            normalizedTitle.includes(e.title?.toLowerCase())
+          );
+
+          if (partialMatch) {
+            targetEventId = partialMatch.id;
+            console.log(`[CoachDAL] Found inactive event by partial match: "${event_title}" -> "${partialMatch.title}" (ID ${targetEventId})`);
+          }
+        }
+      }
+
+      if (!targetEventId) {
+        console.warn(`[CoachDAL] reactivateEvent: could not find event - id: ${event_id}, title: "${event_title}"`);
+        return null;
+      }
+
+      const reactivationNote = notes ? `Reactivated: ${reason} - ${notes}` : `Reactivated: ${reason}`;
+
+      const [event] = await db
+        .update(discovered_events)
+        .set({
+          is_active: true,
+          deactivation_reason: null, // Clear the deactivation reason
+          deactivated_at: null,
+          deactivated_by: null,
+          // Store reactivation info in a way that doesn't overwrite important fields
+          updated_at: new Date()
+        })
+        .where(eq(discovered_events.id, targetEventId))
+        .returning();
+
+      console.log(`[CoachDAL] Reactivated event: ${targetEventId} (reason: ${reactivationNote}, by: ${reactivated_by})`);
+      return event;
+    } catch (error) {
+      console.error('[CoachDAL] reactivateEvent error:', error);
       return null;
     }
   }

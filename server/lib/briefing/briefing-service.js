@@ -453,7 +453,8 @@ IMPORTANT: Return ONLY valid JSON. The "briefing" field should be 3-4 sentences 
  */
 async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress, driverLat, driverLon }) {
   // Default to Gemini Flash for traffic analysis (fast, cheap, good at structured output)
-  const trafficModel = process.env.STRATEGY_TRAFFIC_ANALYZER || 'gemini-3-flash';
+  // NOTE: Model ID must include "-preview" suffix (gemini-3-flash is not valid)
+  const trafficModel = process.env.STRATEGY_TRAFFIC_ANALYZER || 'gemini-3-flash-preview';
 
   if (!process.env.GEMINI_API_KEY && trafficModel.startsWith('gemini')) {
     briefingLog.warn(1, `Traffic analyzer unavailable - no GEMINI_API_KEY`, OP.FALLBACK);
@@ -576,7 +577,9 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
  * Fetch news using Claude web search (fallback when Gemini fails)
  */
 async function fetchNewsWithClaudeWebSearch({ city, state, date }) {
-  const prompt = `Search the web for rideshare-relevant news in ${city}, ${state} as of ${date}.
+  const prompt = `Search the web for RECENT rideshare-relevant news in ${city}, ${state}. Today is ${date}.
+
+CRITICAL: Only return news from the LAST 7 DAYS. Do NOT return outdated articles.
 
 SEARCH FOR:
 1. "${city} ${state} rideshare driver news today"
@@ -589,15 +592,20 @@ Return a JSON array of 2-5 news items:
   {
     "title": "News Title",
     "summary": "One sentence summary with driver impact",
+    "published_date": "YYYY-MM-DD",
     "impact": "high" | "medium" | "low",
     "source": "Source Name",
     "link": "url"
   }
 ]
 
-If no rideshare-specific news found, return general local news affecting drivers.`;
+IMPORTANT:
+- The "published_date" field is REQUIRED - extract the actual publication date
+- Only include articles published within the last 7 days
+- If you cannot determine the publication date, DO NOT include that article
+- If no recent news found, return empty array []`;
 
-  const system = `You are a news search assistant for rideshare drivers. Search the web for relevant news and return structured JSON data. Focus on news that impacts driver earnings, regulations, and working conditions.`;
+  const system = `You are a news search assistant for rideshare drivers. Search the web for RECENT relevant news (last 7 days only) and return structured JSON data with publication dates. Focus on news that impacts driver earnings, regulations, and working conditions. Do NOT return outdated articles.`;
 
   try {
     const result = await callClaudeWithWebSearch({ system, prompt, maxTokens: 2048 });
@@ -614,8 +622,11 @@ If no rideshare-specific news found, return general local news affecting drivers
       return { items: [], reason: 'No news found via Claude web search', provider: 'claude' };
     }
 
-    briefingLog.done(2, `Claude: ${newsArray.length} news items, ${result.citations?.length || 0} citations`, OP.FALLBACK);
-    return { items: newsArray, citations: result.citations, reason: null, provider: 'claude' };
+    // Filter out stale news (older than 7 days) as safety net
+    const filteredNews = filterRecentNews(newsArray, date);
+
+    briefingLog.done(2, `Claude: ${filteredNews.length} news items (${newsArray.length - filteredNews.length} filtered), ${result.citations?.length || 0} citations`, OP.FALLBACK);
+    return { items: filteredNews, citations: result.citations, reason: null, provider: 'claude' };
   } catch (err) {
     briefingLog.error(2, `Claude news failed`, err, OP.FALLBACK);
     return { items: [], reason: err.message, provider: 'claude' };
@@ -1309,7 +1320,8 @@ ${eventDetails}
 
 Return JSON array with one object per event.`;
 
-  const result = await callGeminiWithSearch({ prompt, temperature: 0.2, maxTokens: 2048 });
+  // NOTE: With thinkingLevel: HIGH, thinking uses tokens from maxOutputTokens budget
+  const result = await callGeminiWithSearch({ prompt, temperature: 0.2, maxTokens: 8192 });
 
   if (!result.ok) {
     briefingLog.warn(2, `TBD confirmation failed: ${result.error}`, OP.AI);
@@ -1355,7 +1367,9 @@ export async function fetchWeatherForecast({ snapshot }) {
   ]
 }`;
 
-  const result = await callGeminiWithSearch({ prompt, maxTokens: 1000 });
+  // NOTE: With thinkingLevel: HIGH, thinking uses tokens from maxOutputTokens budget
+  // 1000 was way too low - increased to 4096 (weather responses are small)
+  const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
 
   if (!result.ok) {
     briefingLog.warn(1, `Weather forecast failed: ${result.error}`, OP.AI);
@@ -1889,7 +1903,54 @@ Return JSON (use actual airport codes and names for the location):
   }
 }
 
-async function fetchRideshareNews({ snapshot }) {
+/**
+ * Filter news items to only include articles from the last 7 days
+ * Safety net in case AI returns outdated articles despite prompt instructions
+ * @param {Array} newsItems - Array of news items with optional published_date field
+ * @param {string} todayDate - Today's date in YYYY-MM-DD format
+ * @returns {Array} Filtered news items
+ */
+function filterRecentNews(newsItems, todayDate) {
+  if (!Array.isArray(newsItems) || newsItems.length === 0) {
+    return newsItems;
+  }
+
+  const today = new Date(todayDate);
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const filtered = newsItems.filter(item => {
+    // If no published_date, include with warning (can't verify freshness)
+    if (!item.published_date) {
+      briefingLog.warn(2, `News item missing date: "${item.title?.slice(0, 40)}..."`, OP.AI);
+      return true; // Include but log warning
+    }
+
+    try {
+      const pubDate = new Date(item.published_date);
+      if (isNaN(pubDate.getTime())) {
+        briefingLog.warn(2, `Invalid date format: ${item.published_date}`, OP.AI);
+        return true; // Include but log warning
+      }
+
+      const isRecent = pubDate >= sevenDaysAgo;
+      if (!isRecent) {
+        briefingLog.warn(2, `Filtered stale news (${item.published_date}): "${item.title?.slice(0, 40)}..."`, OP.AI);
+      }
+      return isRecent;
+    } catch (err) {
+      return true; // Include on error
+    }
+  });
+
+  if (filtered.length < newsItems.length) {
+    briefingLog.info(`Filtered ${newsItems.length - filtered.length} stale news items`, OP.AI);
+  }
+
+  return filtered;
+}
+
+export async function fetchRideshareNews({ snapshot }) {
   // Require valid location data - no hardcoded defaults for global app
   if (!snapshot?.city || !snapshot?.state) {
     briefingLog.warn(2, 'Missing city/state in snapshot - cannot fetch news', OP.AI);
@@ -1920,10 +1981,12 @@ async function fetchRideshareNews({ snapshot }) {
 
   briefingLog.ai(2, 'Gemini', `news for ${city}, ${state}`);
 
-  const prompt = `You MUST search for and find rideshare-relevant news. Search the web NOW.
+  const prompt = `You MUST search for and find RECENT rideshare-relevant news. Search the web NOW.
 
 Location: ${city}, ${state}
-Date: ${date}
+Today's Date: ${date}
+
+CRITICAL: Only return news from the LAST 7 DAYS. Do NOT return outdated articles.
 
 MANDATORY SEARCH QUERIES:
 1. Search: "${city} ${state} rideshare driver news today"
@@ -1934,17 +1997,24 @@ MANDATORY SEARCH QUERIES:
 Return JSON array:
 [
   {
-    "title": "Event/News Title",
+    "title": "News Title",
     "summary": "One sentence summary with driver impact",
+    "published_date": "YYYY-MM-DD",
     "impact": "high" | "medium" | "low",
     "source": "Source Name",
     "link": "url"
   }
 ]
 
-Return 2-5 items if found. If no rideshare-specific news found, return general local news affecting drivers.`;
+IMPORTANT:
+- The "published_date" field is REQUIRED - extract the actual publication date from the article
+- Only include articles published within the last 7 days of ${date}
+- If you cannot determine the publication date, DO NOT include that article
+- Return 2-5 items if found. If no recent news found, return empty array []`;
 
-  const result = await callGeminiWithSearch({ prompt, maxTokens: 2048 });
+  // NOTE: With thinkingLevel: HIGH, thinking uses tokens from maxOutputTokens budget
+  // 2048 was too low - thinking consumed all tokens leaving 0 for response
+  const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
 
   // Graceful degradation - try Claude fallback
   if (!result.ok) {
@@ -1970,8 +2040,11 @@ Return 2-5 items if found. If no rideshare-specific news found, return general l
       return { items: [], reason: 'No rideshare news found for this location', provider: 'gemini' };
     }
 
-    briefingLog.done(2, `Gemini: ${newsArray.length} news items`, OP.AI);
-    return { items: newsArray, reason: null, provider: 'gemini' };
+    // Filter out stale news (older than 7 days) as safety net
+    const filteredNews = filterRecentNews(newsArray, date);
+
+    briefingLog.done(2, `Gemini: ${filteredNews.length} news items (${newsArray.length - filteredNews.length} filtered as stale)`, OP.AI);
+    return { items: filteredNews, reason: null, provider: 'gemini' };
   } catch (parseErr) {
     // TRY CLAUDE WEB SEARCH AS FALLBACK
     if (process.env.ANTHROPIC_API_KEY) {
@@ -2084,12 +2157,15 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
   const { city, state } = snapshot;
 
-  // SPLIT CACHE STRATEGY:
-  // - ALWAYS refresh (every call): traffic, events
-  // - Cached by city+state+day: news, school_closures
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BRIEFING CACHING STRATEGY:
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ALWAYS FRESH (every request):  Weather (4-hr forecast), Traffic, Events, Airport
+  // CACHED (24-hour, same city):   News, School Closures
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // Step 1: Check for existing briefing by city+state (daily cache is city-level)
-  // Events, news, concerts, closures are the same for all users in the same city
+  // Step 1: Check for cached NEWS + SCHOOL CLOSURES only (city-level, 24-hour cache)
+  // Weather, traffic, events, and airport are NEVER cached - always fetched fresh
   // JOIN briefings with snapshots to get city/state (briefings table no longer stores location)
   let cachedDailyData = null;
   try {
@@ -2136,40 +2212,25 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     console.warn(`[BriefingService] Cache lookup failed:`, cacheErr.message);
   }
 
-  // Step 2: Get weather from snapshot
-  let weatherResult = null;
-  let existingWeather = null;
+  // Step 2: ALWAYS fetch fresh weather (4-hour forecast), traffic, events, AND airport conditions
+  // NOTE: The snapshot has current conditions from location resolution, but the briefing needs the 4-hour forecast
+  // which must be fetched fresh from Google Weather API - just like traffic, events, and airport.
+  briefingLog.phase(1, `Fetching weather + traffic + events + airport`, OP.AI);
+
+  let weatherResult, trafficResult, eventsResult, airportResult;
   try {
-    existingWeather = typeof snapshot.weather === 'string' ? JSON.parse(snapshot.weather) : snapshot.weather;
-  } catch (e) {
-    console.warn('[BriefingService] Failed to parse snapshot weather:', e.message);
-  }
-
-  if (existingWeather && (existingWeather.tempF !== undefined || existingWeather.temperature !== undefined)) {
-    weatherResult = {
-      current: existingWeather,
-      forecast: existingWeather.forecast || []
-    };
-  } else {
-    weatherResult = { current: null, forecast: [] };
-  }
-
-  // Step 3: ALWAYS fetch fresh traffic, events, AND airport conditions (every snapshot)
-  briefingLog.phase(1, `Fetching traffic + events + airport`, OP.AI);
-
-  let trafficResult, eventsResult, airportResult;
-  try {
-    [trafficResult, eventsResult, airportResult] = await Promise.all([
+    [weatherResult, trafficResult, eventsResult, airportResult] = await Promise.all([
+      fetchWeatherConditions({ snapshot }),
       fetchTrafficConditions({ snapshot }),
       snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
       fetchAirportConditions({ snapshot })
     ]);
   } catch (freshErr) {
-    console.error(`[BriefingService] ❌ FAIL-FAST: Traffic/Events/Airport fetch failed:`, freshErr.message);
+    console.error(`[BriefingService] ❌ FAIL-FAST: Weather/Traffic/Events/Airport fetch failed:`, freshErr.message);
     throw freshErr;
   }
 
-  // Step 4: Get cached data (news, closures) or fetch fresh if cache miss
+  // Step 3: Get cached data (news, closures) or fetch fresh if cache miss
   let newsResult, schoolClosures;
 
   if (cachedDailyData) {
@@ -2194,7 +2255,8 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   const newsItems = newsResult?.items || [];
 
   const airportCount = airportResult?.airports?.length || 0;
-  briefingLog.done(2, `events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'ok'}, airports=${airportCount}`, OP.AI);
+  const forecastHours = weatherResult?.forecast?.length || 0;
+  briefingLog.done(2, `weather=${forecastHours}hr, events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'ok'}, airports=${airportCount}`, OP.AI);
 
   const weatherCurrent = weatherResult?.current || null;
 

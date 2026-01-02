@@ -103,7 +103,10 @@
       "Bash(__NEW_LINE__ echo \"Testing briefing endpoints...\")",
       "Bash(SNAPSHOT=\"df0afe3f-0efa-4832-97f8-29ccda7c8172\" UA=\"Mozilla/5.0\")",
       "Bash(git checkout:*)",
-      "Bash(dmesg:*)"
+      "Bash(dmesg:*)",
+      "mcp__plugin_serena_serena__write_memory",
+      "mcp__plugin_serena_serena__activate_project",
+      "mcp__plugin_serena_serena__list_memories"
     ],
     "deny": [],
     "ask": []

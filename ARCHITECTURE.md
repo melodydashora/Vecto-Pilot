@@ -7,7 +7,9 @@ This file provides navigation to focused architecture documentation. Each linked
 
 ## Recent Changes (2026-01-02)
 
-- **Global Markets Table**: 102 markets (31 US + 71 international) with pre-stored timezones
+- **Global Markets Table**: 140 markets (69 US + 71 international) with pre-stored timezones
+  - 67 US markets with airport codes (71 airports total)
+  - Multi-airport markets: Chicago, Dallas, Houston, NYC
   - Skips Google Timezone API for known markets (~200-300ms savings per request)
   - 3,333 city aliases for suburb/neighborhood matching
   - Countries: US, Canada, UK, Australia, Mexico, Brazil, India, Germany, France, Spain, Italy, Japan, Singapore, UAE, South Africa, + 20 more

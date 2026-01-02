@@ -1,8 +1,8 @@
 # AI Model Reference Guide
 
-> **Last Updated:** December 27, 2025
+> **Last Updated:** January 2, 2026
 > **Research Tool:** Perplexity Sonar Reasoning Pro
-> **Total Citations:** 67
+> **Total Citations:** 60
 
 This document contains up-to-date information about AI models and APIs used in this project.
 Auto-generated from Perplexity web search research.
@@ -43,124 +43,166 @@ Auto-generated from Perplexity web search research.
 
 ## OpenAI
 
-**Research Date:** 12/27/2025, 11:35:46 PM
+**Research Date:** 1/2/2026, 5:59:35 AM
 
-Based on the search results provided, I can identify OpenAI's latest models released by December 27, 2025, but the search results **do not contain the specific technical specifications you requested** (context windows, max output tokens, exact pricing, parameter details, or role information).
+I cannot provide the complete technical specifications you've requested because the search results lack the detailed API documentation needed to answer your query comprehensively.
 
-## Latest Flagship Models Available
+**What the search results confirm:**
 
-**GPT-5.2** – Released December 11, 2025[1][3]
-The most capable model series for professional knowledge work, with improved reasoning and factuality. Available to ChatGPT Plus, Pro, Team, Free, and Enterprise users via API with the identifier `gpt-5.2`[2]. Also includes a "Thinking" variant for deeper reasoning work[1].
+The **latest o-series models available** as of January 2026 include:[1]
+- **o3** (flagship reasoning model, released Q1 2025)
+- **o3-mini** (released February 2025, with Adaptive Thinking feature offering Low, Medium, and High reasoning effort options)
+- **o4-mini** (released late 2025)
 
-**GPT-5.2-Codex** – Released December 18, 2025[1][2]
-The most advanced agentic coding model with native context compaction, improved large refactors and migrations, enhanced Windows performance, and stronger cybersecurity capabilities. Available to paid Codex users; API access was planned to roll out in the weeks following release[1].
+Additionally, **GPT-5 series models** were released in late 2025 and support multimodal reasoning over video, audio, and complex schematics.[1]
 
-**GPT Image 1.5** – Released December 17, 2025[4]
-Delivers 4× faster image generation with 20% reduced API costs compared to its predecessor[4].
+**Critical limitations in available information:**
 
-## O-Series Reasoning Models
+The search results do not contain:
+- Specific model ID strings for API calls
+- Exact context window sizes or max output token limits
+- Current pricing per 1M tokens (input/output)
+- API parameter specifications (max_completion_tokens, reasoning_effort enum values)
+- Whether the "developer" role replaces the "system" role in the messages API
+- Complete technical specifications for the latest models
 
-The search results mention **o3 and o4-mini** are available in ChatGPT's model picker[3], but provide no additional details about availability, specifications, or release dates.
+**Why this matters:**
 
-## Missing Information
-
-The search results do not include: context window sizes, max output tokens, exact API pricing per token, `max_completion_tokens` parameter values, `reasoning_effort` options, or clarification on "developer" vs "system" roles. For these specifications, you would need to consult OpenAI's official API documentation directly.
+For accurate, production-ready API documentation including exact endpoint parameters, pricing tables, and model identifiers, you should consult OpenAI's official API documentation directly, as the search results capture only high-level announcements about model releases rather than the detailed technical specifications required for your use case.
 
 ---
 
 ## Anthropic
 
-**Research Date:** 12/27/2025, 11:35:39 PM
+**Research Date:** 1/2/2026, 5:59:36 AM
 
-Based on the search results available, I can confirm the latest Claude models, but the sources provide limited API specification details.
+Based on the search results provided, I can identify the newest Claude models, but the available information is incomplete for all the technical specifications you requested.
 
-## Latest Claude Models Available (December 2025)
+## Latest Claude Models Available (as of January 2026)
 
-The newest models confirmed as currently available are:
+The most recent Claude models mentioned in the search results are:[2]
 
-**Claude Opus 4.5** — API identifier: `claude-opus-4-5-20251101`[2]
+- **Claude 3.7 Sonnet** (model ID: `anthropic.claude-3-7-sonnet-20250219-v1:0`)[4]
+- **Claude Sonnet 4.5** (model ID: `anthropic.claude-opus-4-5-20251101-v1:0`)[4]
+- **Claude Opus 4.5**[2]
+- **Claude Haiku 4.5**[2]
 
-**Claude Sonnet 4.5** — Referenced as available but without a specific snapshot date in the search results[2][5]
+## Available Information from Search Results
 
-**Claude Haiku** — The Haiku line is available but search results show `claude-3-5-haiku@20241022` as an example identifier[4]
+**Capabilities confirmed:**
+- Computer use (beta) available on Claude 3.5 Sonnet v2, Claude Sonnet 4.5, Claude Haiku 4.5, Claude 3.7 Sonnet, and Claude Opus 4 models[2]
+- Tool use / function calling supported[2]
+- Extended thinking / thinking blocks available on Claude 3.7 Sonnet and Claude Sonnet 4.5[4]
+- Fine-grained tool streaming on Claude Sonnet 4.5, Claude Haiku 4.5, Claude Sonnet 4, and Claude Opus 4[2]
+- Claude Opus 4.5 achieves 80.9% accuracy on real-world coding tasks[6]
 
-## Information Limitations
+**Note:** An **Effort Parameter API** is available as a new SDK parameter to control reasoning depth, available through the Anthropic API with no additional charge[6]
 
-The search results confirm these models are production-available and describe their strategic positioning (Opus 4.5 specializes in "reasoning-first" capabilities for coding[6]), but they **do not include**:
+## Information Not Available in Search Results
 
-- Exact context window sizes for each model tier
-- Maximum output token limits
-- Current pricing per 1M tokens
-- Specific parameter ranges (temperature, top_p, top_k values)
-- Extended thinking/reasoning configuration parameters
+The search results do not contain specific details for:
+- Pricing per 1M tokens (input/output/cache)
+- Exact context window sizes and max output tokens
+- Parameter specifications (temperature, top_p, top_k defaults and ranges)
 - Web search tool availability
-- Complete capability matrices (vision, function calling, PDF handling, computer use)
+- Vision and PDF capabilities
+- Direct Anthropic API model IDs (only AWS Bedrock IDs are provided)
 
-The search results mention a **200k context window** advantage[1] attributed to Claude models generally, but don't specify which versions include this or if it varies by tier.
-
-For complete and current API specifications, you would need to consult Anthropic's official documentation directly, as the search results provided focus primarily on product announcements and developer migration trends rather than detailed technical API documentation.
+For complete and current API specifications, consult the official Anthropic API documentation directly, as the search results appear to focus on AWS Bedrock integration rather than the direct Anthropic API endpoint.
 
 ---
 
 ## Google
 
-**Research Date:** 12/27/2025, 11:35:42 PM
+**Research Date:** 1/2/2026 (Updated with official docs)
 
-Based on the search results, the **newest Gemini model available via API as of December 27, 2025 is Gemini 3 Flash**, released on December 17, 2025[1][2].
+### Gemini 3 Models
 
-## Gemini 3 Flash
+> **CRITICAL:** Model IDs must include `-preview` suffix. `gemini-3-pro` and `gemini-3-flash` are NOT valid!
 
-**Pricing:**
-- Input: **$0.50 per million tokens**[2]
-- Output: **$3 per million tokens**[2]
+| Model ID | Type | Context | thinkingLevel |
+|----------|------|---------|---------------|
+| `gemini-3-pro-preview` | Flagship reasoning | 1M tokens | LOW, HIGH only |
+| `gemini-3-flash-preview` | Fast/efficient | 1M tokens | MINIMAL, LOW, MEDIUM, HIGH |
 
-**Capabilities:**
-Gemini 3 Flash combines Pro-grade reasoning with Flash-level speed, matching Gemini 3 Pro on many benchmarks while being 3x faster[2]. It uses 30% fewer tokens than 2.5 Pro on average while delivering higher performance[2].
+### thinkingLevel Parameter (CRITICAL)
 
-**Limitations of Available Information:**
+**Gemini 3 Pro only supports LOW or HIGH. MEDIUM causes 400 errors!**
 
-The search results do not provide the following technical specifications you requested:
-- Exact model ID strings for API calls
-- Context window size
-- Max output tokens (maxOutputTokens)
-- Parameter details (temperature, topP, topK values)
-- Thinking parameters (thinkingConfig, thinkingLevel specifications)
-- Google Search grounding configuration details
+| Level | Description | Use Case |
+|-------|-------------|----------|
+| `MINIMAL` | Flash-only | Constrained thinking, simplest tasks |
+| `LOW` | All models | Simple tasks, faster responses |
+| `MEDIUM` | **Flash-only** | Moderate complexity |
+| `HIGH` | All models (default) | Complex reasoning, multi-step planning |
 
-The search results confirm Gemini 3 Flash is now the default model in the Gemini app and AI Mode in Google Search globally[2], but do not include the detailed API parameter documentation needed for production implementation. You would need to consult Google's official API documentation at Google AI Studio or Vertex AI to access the complete technical specifications and model ID strings required for your API integration.
+### Breaking Changes
+
+1. **`thinking_budget` deprecated** - Use `thinkingLevel` instead
+2. **Cannot mix parameters** - Using both `thinking_level` AND `thinking_budget` returns 400 error
+3. **Thinking cannot be disabled** for Gemini 3 Pro - minimum is LOW
+4. **Grounding billing starts Jan 5, 2026** - Google Search grounding will incur charges
+
+### Correct Usage
+
+**JavaScript:**
+```javascript
+const response = await ai.models.generateContent({
+  model: "gemini-3-pro-preview",
+  contents: "How does AI work?",
+  config: {
+    thinkingConfig: {
+      thinkingLevel: "LOW"  // or "HIGH" for Pro
+    }
+  },
+});
+```
+
+**cURL:**
+```bash
+curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent" \
+  -H "x-goog-api-key: $GEMINI_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "contents": [{ "parts": [{"text": "How does AI work?"}] }],
+    "generationConfig": {
+      "thinkingConfig": {
+        "thinkingLevel": "LOW"
+      }
+    }
+  }'
+```
+
+### Google Search Grounding
+
+```javascript
+// Enable Google Search for real-time data
+const response = await model.generateContent({
+  contents: [...],
+  tools: [{ googleSearch: {} }]  // camelCase in JS SDK
+});
+```
+
+**Sources:**
+- [Gemini 3 Developer Guide](https://ai.google.dev/gemini-api/docs/gemini-3)
+- [Gemini Thinking Docs](https://ai.google.dev/gemini-api/docs/thinking)
+- [Vertex AI Gemini 3 Pro](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro)
 
 ---
 
 ## Perplexity
 
-**Research Date:** 12/27/2025, 11:35:41 PM
+**Research Date:** 1/2/2026, 5:59:33 AM
 
-Based on the provided search results, I can identify some of Perplexity's current models, but the search results do not contain comprehensive details for all the specifications you've requested.
+The search results provided do not contain information about Perplexity AI's flagship models, API specifications, pricing, or technical parameters. The results focus primarily on Samsung's integration of Perplexity AI into the Galaxy S26's Bixby assistant, rather than Perplexity's own model offerings and API documentation.
 
-## Available Information from Search Results
+To obtain the specific details you've requested—including model IDs, context windows, pricing structures, parameter specifications, and API endpoint details for Sonar, Sonar Pro, Sonar Reasoning, and other current Perplexity models—you would need to:
 
-**Confirmed Current Models:**
+1. Check Perplexity AI's official API documentation at their developer portal
+2. Review their current pricing page for the most up-to-date token costs and request-based pricing
+3. Consult their API reference guide for exact parameter names, values, and ranges
 
-Perplexity's core online models are **pplx-7b-online** and **pplx-70b-online**, based on open-source foundations Mistral-7B and LLaMA2-70B respectively[2]. The search results also reference **Sonar** and **Sonar Pro** models in pricing discussions[3].
-
-**API Details:**
-
-The platform exposes an **OpenAI-compatible HTTP API** using the chat/completions endpoint style[5], allowing integration via standard OpenAI SDKs with a custom base_url.
-
-**Pricing Structure:**
-
-Perplexity operates on a **pay-as-you-go credit system** based on token usage and search depth rather than flat monthly rates[3]. Search mode cost multipliers apply:
-- **Low Mode**: Maximum cost efficiency for straightforward queries
-- **Medium Mode**: Balanced approach with moderate token consumption  
-- **High Mode**: Maximum depth research with highest token consumption[3]
-
-**Capabilities:**
-
-Perplexity AI supports **multi-turn conversational queries**, **real-time web synthesis**, **citations**, and **multi-modal integration** planned for 2026[1][2].
-
-## Information Not in Search Results
-
-The search results do not contain the specific technical parameters you requested, including exact context window sizes, max output tokens, per-1M token pricing, parameter ranges (temperature, top_p), search recency filter values, or details about sonar-reasoning, sonar-reasoning-pro, or sonar-deep-research models. To obtain these current specifications, you would need to consult Perplexity's official API documentation directly.
+The search results confirm that Perplexity AI exists and is being integrated into Samsung products, but they don't include the technical API documentation you need for development purposes.
 
 ---
 
@@ -168,44 +210,62 @@ The search results do not contain the specific technical parameters you requeste
 
 ## TomTom
 
-**Research Date:** 12/27/2025, 11:35:39 PM
+**Research Date:** 1/2/2026, 5:59:35 AM
 
-The provided search results do not contain detailed specifications for TomTom's current Traffic APIs, including the specific endpoints, authentication parameters, response formats, rate limits, and pricing you've requested.
+I cannot provide the specific technical details you've requested based on the available search results. While the search results confirm that **TomTom offers Traffic APIs**[1][2], they do not contain the detailed documentation needed to answer your query.
 
-The search results confirm that **TomTom offers APIs for tracking and logistics** including geofencing, location history tracking, and notifications management[1], and they mention **Map Display API** with raster and vector tiles[2]. However, the results don't include documentation for dedicated Traffic Flow, Traffic Incidents, Traffic Tiles, or detailed Route Planning APIs with the technical specifications you need.
+The search results reference Traffic APIs alongside products like Traffic Stats, Origin Destination Analysis, Route Monitoring, Junction Analytics, and Historical Traffic Volumes[1][2], but they lack:
 
-To obtain the current technical details for TomTom's Traffic APIs as of December 2025, you would need to:
+- Specific endpoint URLs and patterns
+- Authentication parameter names and formats
+- Detailed parameter specifications (bbox/coordinates, zoom levels, categories, styles)
+- JSON response structures
+- Rate limit information
+- Pricing tiers or per-call costs
 
-- **Access TomTom's official API documentation** directly at their developer portal
-- **Review the API reference sections** for endpoint patterns, parameter specifications, and authentication requirements
-- **Check the pricing page** for current rate limits and cost structures, as API pricing and features frequently update
+The search results direct to the TomTom Developer Portal[6], which hosts documentation and code samples, but the actual API documentation pages are not included in these results.
 
-The search results indicate that TomTom provides flexible endpoint options (synchronous and asynchronous), supports multiple pricing tiers (free evaluation, pay-as-you-grow, and enterprise)[1], and offers API documentation through their developer resources[2], but the specific technical parameters and endpoints you're seeking are not included in these results.
+To access the current Traffic API specifications you need, you would need to:
 
-For authoritative, up-to-date information on API endpoints, request/response formats, and rate limiting, consulting TomTom's live developer documentation would be essential.
+1. Visit the TomTom Developer Portal directly at developer.tomtom.com
+2. Review the API documentation for Traffic Flow, Traffic Incidents, Traffic Tiles, and Route Planning APIs
+3. Check the pricing page for current rate limits and costs
+4. Note that TomTom also has a Public Preview program[6] where newer features may be available as beta releases
+
+I recommend consulting the official TomTom Developer Portal documentation directly, as API specifications, endpoints, and pricing are subject to updates and require current, authoritative sources.
 
 ---
 
 ## Google Maps
 
-**Research Date:** 12/27/2025, 11:35:39 PM
+**Research Date:** 1/2/2026, 5:59:38 AM
 
-The search results provided do not contain the specific technical specifications you've requested for Google Maps Platform APIs. The search results discuss rideshare app development and mention that services like Google Maps are integrated for navigation and routing[1][2][5], but they do not include API endpoint URLs, authentication parameters, pricing details, daily quotas, or information about the Places API new vs. legacy versions.
+The search results provided contain limited detailed information about Google Maps Platform APIs for rideshare applications. I can share what's available, though the results lack comprehensive endpoint specifications, pricing structures, and quota limits for most of the APIs you've requested.
 
-To obtain the accurate, production-ready API specifications you need for rideshare development as of December 2025, I recommend consulting:
+## Available Information from Search Results
 
-- **Google Maps Platform official documentation** - The authoritative source for current API endpoints, parameter names, authentication methods, and pricing models
-- **Google Cloud Console** - For real-time quota limits and usage tracking specific to your project
-- **API Release Notes** - For any 2025 updates to Places API, Routes API, Geocoding API, and other services
+**Google Roads API** is specifically mentioned for rideshare use cases[1]. This API includes three components:
 
-This approach is essential because:
+- **Snap to Roads endpoint:** `GET https://roads.googleapis.com/v1/snapToRoads?path={latitude,longitude}&key={YOUR_API_KEY}`
+- **Nearest Roads endpoint:** Accepts up to 100 individual GPS coordinates and returns the closest road segment[1]
+- **Speed Limits endpoint:** `GET https://roads.googleapis.com/v1/speedLimits?placeId={PLACE_ID}&key={YOUR_API_KEY}`
 
-- API endpoints and parameter specifications can change with platform updates
-- Pricing models and quota limits are subject to change and vary by account tier
-- The distinction between legacy and new Places API versions requires current documentation to avoid deprecated implementations
-- Accurate pricing information is critical for project budgeting
+The Speed Limits endpoint requires a **Google Asset Tracking license** and accepts up to 100 place IDs per request, with `{PLACE_ID}` obtained from the Google Place Details API[1].
 
-If you have access to Google Cloud documentation or specific API details from your development environment, I'd be happy to help interpret them or answer questions about how these APIs integrate into rideshare architectures based on that information.
+## External API Services Mentioned
+
+The search results reference that rideshare platforms use **Google Maps Platform or Mapbox** for location, navigation, and geocoding services[3], with recurring usage fees estimated between $100 to $5,000/month depending on scale[6].
+
+## Limitations
+
+The search results do not provide:
+- Detailed endpoints and parameters for Places API (new vs. legacy), Routes API, or Geocoding API
+- Specific pricing per 1,000 requests
+- Daily quota limits
+- Information on Weather or Air Quality APIs
+- Places API new vs. legacy migration requirements
+
+For current, comprehensive documentation on these APIs' endpoints, parameters, pricing tiers, and quota structures as of January 2026, you would need to consult Google's official Maps Platform documentation directly, as the available search results focus primarily on the Roads API and general cost considerations rather than detailed API specifications.
 
 ---
 
@@ -215,56 +275,71 @@ If you have access to Google Cloud documentation or specific API details from yo
 
 > **IMPORTANT:** These are breaking changes that cause 400/401 errors if misconfigured.
 
-The search results provided do not contain the specific API parameter constraints, breaking changes, or endpoint configurations you're requesting.
+### Google Gemini 3 (Verified Jan 2026)
 
-The available information covers **general capabilities** of recent models—such as GPT-5.2's three-tier architecture (Instant, Thinking, Pro), a 400,000-token context window, and an August 2025 knowledge cutoff[1][5]—but does not include:
+| Constraint | Details |
+|------------|---------|
+| `thinkingLevel` for Pro | **LOW or HIGH only** - MEDIUM causes 400 |
+| `thinkingLevel` for Flash | MINIMAL, LOW, MEDIUM, HIGH |
+| `thinking_budget` | **Deprecated** - use `thinkingLevel` |
+| Mixed parameters | Cannot use `thinking_level` AND `thinking_budget` together |
+| Thinking disabled | **Cannot disable for Pro** - minimum is LOW |
 
-- Exact parameter names (e.g., `max_completion_tokens` vs `max_tokens`) or their valid values
-- Specific `reasoning_effort` settings for GPT-5 models
-- Temperature support status across model variants
-- Developer role vs system role specifications
-- Anthropic Claude 4.5 extended thinking configurations or beta headers
-- Google Gemini 3.0's `thinkingConfig` format or deprecation status
-- Perplexity Sonar search parameters and pricing implications
-- Confirmed 400/401 error conditions for any platform
+### OpenAI GPT-5.2 (From LESSONS_LEARNED)
 
-To obtain this information, you would need to consult:
-- OpenAI's official API documentation and release notes
-- Anthropic's API reference for Claude models
-- Google's Gemini API documentation
-- Perplexity's developer guides
+| Constraint | Details |
+|------------|---------|
+| `temperature` | **Not supported** - use `reasoning_effort` |
+| `max_tokens` | **Deprecated** - use `max_completion_tokens` |
+| `reasoning_effort` | Valid: `"low"`, `"medium"`, `"high"` |
 
-These sources would provide the authoritative, current parameter specifications and breaking changes necessary for production API integration.
+### Anthropic Claude (From LESSONS_LEARNED)
+
+| Constraint | Details |
+|------------|---------|
+| `safetySettings` | Must include ALL 5 categories with BLOCK_NONE |
+| Extended thinking | Requires specific beta headers |
+
+### This Project's Verified Settings
+
+```javascript
+// GPT-5.2 (strategist, consolidator)
+{ model: "gpt-5.2", reasoning_effort: "medium", max_completion_tokens: 32000 }
+
+// Gemini 3 Pro (briefer)
+{ model: "gemini-3-pro-preview", generationConfig: { thinkingConfig: { thinkingLevel: "LOW" } } }
+
+// Claude Opus 4.5 (event validator, fallback)
+{ model: "claude-opus-4-5-20251101", max_tokens: 64000, temperature: 0.7 }
+```
+
+See `LESSONS_LEARNED.md` → "AI Model Configuration" for full details.
 
 ---
 
 ## SDK Examples
 
-I cannot provide the comprehensive production-ready code examples you've requested based on the available search results. The search results contain insufficient technical detail for the API implementations you need.
+I cannot provide the production-ready code examples you've requested because the search results don't contain the specific API specifications, endpoint URLs, exact parameter names, or code implementations for these models.
 
-**What the search results confirm:**
+## What the search results do provide:
 
-GPT-5.2 was released in December 2025[4] with a specialized **GPT-5.2-Codex** variant optimized for agentic coding, released December 18[1][2]. The results mention that GPT-5.2 supports **reasoning_effort** parameters and use of a **CTCO Framework** (Context → Task → Constraints → Output) for prompting[3], but do not provide:
+**OpenAI GPT-5.2** (limited details)[1][2][3][4]:
+- Available model variants: **gpt-5.2**, **gpt-5.2-pro** (or "GPT-5.2 Pro"), and **gpt-5.2-codex**[2]
+- API endpoints: Chat Completions API, Responses API, and Assistants API[3]
+- **reasoning_effort** parameter with an "xhigh" setting is mentioned[4], but exact implementation details are not provided
+- Context window: 128k–256k tokens (variant-dependent), with some sources mentioning up to 400,000 tokens[3][4]
+- The search results explicitly note that "OpenAI does not offer a dedicated 'ChatGPT 5.2 API'"—developers use standard OpenAI endpoints[3]
 
-- Specific API endpoint URLs
-- Exact authentication header formats
-- Complete parameter specifications and their valid values
-- Working code examples with error handling
-- SDK initialization syntax for production use
+**For Anthropic Claude, Google Gemini 3 Pro, and Perplexity Sonar Pro**: The search results contain no API documentation, endpoint specifications, parameter names, SDK syntax, or code examples whatsoever.
 
-**Critical gaps in the search results:**
+## What you need instead:
 
-The results provide no information about Claude Opus 4.5 API specifications, Google Gemini 3 Pro Preview details, or Perplexity Sonar Pro endpoints. While the search results mention GPT-5.2-Codex API access is "coming soon"[1][5], they don't provide the actual API interface details needed for functional code examples.
+To get production-ready code examples with current headers, authentication methods, and parameter names, you should consult:
+- Official API documentation from each provider (OpenAI, Anthropic, Google, Perplexity)
+- Their developer SDKs on GitHub
+- Recent API changelog pages that document January 2026 releases
 
-**Recommendation:**
-
-To obtain production-ready code examples with accurate parameter names, endpoints, and authentication requirements, you should consult:
-
-- The official OpenAI API documentation for GPT-5.2's current status and endpoint details
-- Current SDK documentation for each provider
-- The latest developer release notes for December 2025
-
-This ensures your code uses the correct, current API specifications rather than potentially outdated information.
+The search results focus on benchmarks, architectural improvements, and business announcements rather than implementation details.
 
 ---
 
@@ -297,4 +372,4 @@ node tools/research/parse-flagship-json.mjs
 
 ---
 
-*Auto-generated on 2025-12-28T14:46:40.160Z*
+*Auto-generated on 2026-01-02T05:59:55.054Z*

@@ -210,7 +210,8 @@ async function saveStrategy(row) {
 export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }) {
   try {
     // Build model name for audit trail
-    const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3-pro';
+    // NOTE: Model ID must include "-preview" suffix (gemini-3-pro is not valid)
+    const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3-pro-preview';
     const immediateModel = 'gpt-5.2';
     const modelChain = `${briefer}→${immediateModel}`;
 

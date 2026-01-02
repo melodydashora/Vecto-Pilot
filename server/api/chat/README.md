@@ -36,9 +36,35 @@ Both use `requireAuth` middleware to prevent unauthenticated API cost abuse.
 ## AI Coach Flow
 
 1. Client sends message via POST /api/chat
-2. Server enriches with snapshot context
-3. Calls Claude/GPT model via adapter
-4. Streams response back via SSE
+2. Server extracts user's timezone from `clientSnapshot.timezone`
+3. Server computes user's local date/time for system prompt
+4. Server enriches with snapshot context via CoachDAL
+5. Calls Gemini model with streaming
+6. Parses action tags from response (see below)
+7. Streams cleaned response back via SSE
+
+## Action Parsing
+
+The AI Coach can emit special action tags that are parsed and executed server-side:
+
+| Action | Purpose | Example |
+|--------|---------|---------|
+| `[SAVE_NOTE: {...}]` | Save note about driver | `{"type": "preference", "title": "...", "content": "..."}` |
+| `[SYSTEM_NOTE: {...}]` | AI observation for devs | `{"type": "pain_point", "category": "ui", "title": "..."}` |
+| `[DEACTIVATE_EVENT: {...}]` | Mark event inactive | `{"event_title": "...", "reason": "event_ended"}` |
+| `[REACTIVATE_EVENT: {...}]` | Undo mistaken deactivation | `{"event_title": "...", "reason": "wrong date"}` |
+| `[DEACTIVATE_NEWS: {...}]` | Hide news for user | `{"news_title": "...", "reason": "outdated"}` |
+| `[ZONE_INTEL: {...}]` | Crowd-sourced zone learning | `{"zone_type": "dead_zone", "zone_name": "..."}` |
+
+### Date/Time Awareness
+
+The Coach receives the user's local date/time prominently in the system prompt:
+```
+**⏰ CURRENT DATE & TIME (User's Local Time):**
+**Wednesday, January 1, 2026 at 11:45 PM** (America/Chicago)
+```
+
+This prevents date-related mistakes when deactivating events. If the Coach deactivates an event by mistake (e.g., wrong date assumption), it can use `[REACTIVATE_EVENT: {...}]` to undo.
 
 ## Voice Flow
 

@@ -25,13 +25,15 @@ function parseActions(responseText) {
     events: [],
     news: [],
     systemNotes: [],
-    zoneIntel: []
+    zoneIntel: [],
+    eventReactivations: []
   };
 
   // Pattern: [ACTION_TYPE: {...json...}]
   const patterns = [
     { type: 'note', regex: /\[SAVE_NOTE:\s*(\{[^}]+\})\]/g, key: 'notes' },
     { type: 'event', regex: /\[DEACTIVATE_EVENT:\s*(\{[^}]+\})\]/g, key: 'events' },
+    { type: 'eventReactivation', regex: /\[REACTIVATE_EVENT:\s*(\{[^}]+\})\]/g, key: 'eventReactivations' },
     { type: 'news', regex: /\[DEACTIVATE_NEWS:\s*(\{[^}]+\})\]/g, key: 'news' },
     { type: 'system', regex: /\[SYSTEM_NOTE:\s*(\{[^}]+\})\]/g, key: 'systemNotes' },
     { type: 'zone', regex: /\[ZONE_INTEL:\s*(\{[^}]+\})\]/g, key: 'zoneIntel' }
@@ -96,6 +98,23 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       console.log(`[chat/actions] Deactivated event: ${event.event_title}`);
     } catch (e) {
       results.errors.push(`Event: ${e.message}`);
+    }
+  }
+
+  // Reactivate events (undo mistaken deactivations)
+  for (const event of actions.eventReactivations) {
+    try {
+      await coachDAL.reactivateEvent({
+        user_id: userId,
+        event_title: event.event_title,
+        reason: event.reason,
+        notes: event.notes,
+        reactivated_by: 'ai_coach'
+      });
+      results.saved++;
+      console.log(`[chat/actions] Reactivated event: ${event.event_title}`);
+    } catch (e) {
+      results.errors.push(`EventReactivation: ${e.message}`);
     }
   }
 
@@ -281,7 +300,7 @@ router.get('/context/:snapshotId', requireAuth, async (req, res) => {
 // POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
 // SECURITY: requireAuth enforces user must be signed in
 router.post('/', requireAuth, async (req, res) => {
-  const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [], conversationId: clientConversationId } = req.body;
+  const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });
@@ -294,8 +313,27 @@ router.post('/', requireAuth, async (req, res) => {
   // Generate or use existing conversation_id for thread tracking
   const conversationId = clientConversationId || randomUUID();
 
+  // CRITICAL: Get user's local date/time from their timezone
+  // The client sends snapshot.timezone which is the user's ACTUAL timezone from GPS resolution
+  const userTimezone = clientSnapshot?.timezone || 'America/Chicago'; // Fallback only if no snapshot
+  const userLocalDate = new Date().toLocaleDateString('en-US', {
+    timeZone: userTimezone,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  const userLocalTime = new Date().toLocaleTimeString('en-US', {
+    timeZone: userTimezone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+  const userLocalDateTime = `${userLocalDate} at ${userLocalTime}`;
+
   console.log('[chat] User:', authUserId, isAuthenticated ? '(authenticated)' : '(anonymous)', '| Conversation:', conversationId.slice(0, 8));
   console.log('[chat] Thread:', threadHistory.length, 'messages | Attachments:', attachments.length, '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
+  console.log('[chat] User local time:', userLocalDateTime, '(timezone:', userTimezone + ')');
 
   try {
     // Use CoachDAL for full schema read access with ALL tables
@@ -468,6 +506,10 @@ router.post('/', requireAuth, async (req, res) => {
 - Motivation and encouragement during tough shifts
 - Just being someone to talk to on the road
 
+**⏰ CURRENT DATE & TIME (User's Local Time):**
+**${userLocalDateTime}** (${userTimezone})
+This is the driver's ACTUAL local date and time. Use this when discussing events, schedules, or anything time-sensitive.
+
 **Your Data Access (Current Session):**
 - Driver: ${fullContext?.driverProfile ? `${fullContext.driverProfile.first_name} ${fullContext.driverProfile.last_name}` : 'Unknown'} ${fullContext?.driverVehicle ? `driving ${fullContext.driverVehicle.year} ${fullContext.driverVehicle.make} ${fullContext.driverVehicle.model}` : ''}
 - Home: ${fullContext?.driverProfile?.city || 'Unknown'}, ${fullContext?.driverProfile?.state_territory || ''}
@@ -497,6 +539,13 @@ ${snapshotHistoryInfo}
 - Suggested reasons: event_ended, incorrect_time, cancelled, no_longer_relevant, duplicate
 - You can also use your own reason if none of these fit
 - If times are wrong, include the correct times in notes (e.g., "Actually starts at 8pm not 7pm")
+
+🔄 **Event Reactivation (Undo Deactivation):**
+- If you mistakenly deactivated an event (e.g., wrong date assumption), you can REACTIVATE it
+- To reactivate an event, format your response with:
+  \`[REACTIVATE_EVENT: {"event_title": "Event Name", "reason": "why you're reactivating", "notes": "Optional correction"}]\`
+- ALWAYS check the current date/time shown above before deactivating events!
+- If a driver corrects you about the date/time, reactivate the event immediately
 
 📰 **News Article Deactivation:**
 - When a driver reports news is outdated, irrelevant, or incorrect, you can hide it for them

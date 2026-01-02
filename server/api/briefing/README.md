@@ -31,9 +31,10 @@ GET  /api/briefing/airport/:snapshotId        - Airport conditions
 GET  /api/briefing/weather/:snapshotId        - Fresh weather data
 ```
 
-### Event Discovery
+### Daily Data Refresh
 ```
-POST /api/briefing/discover-events/:snapshotId  - Trigger event discovery
+POST /api/briefing/refresh-daily/:snapshotId    - Refresh events + news (recommended)
+POST /api/briefing/discover-events/:snapshotId  - DEPRECATED: Events only (use refresh-daily)
 GET  /api/briefing/discovered-events/:snapshotId - Raw discovered_events data
 POST /api/briefing/confirm-event-details        - Confirm TBD event details
 ```
@@ -51,14 +52,35 @@ GET  /api/briefing/weather/realtime   - Fresh weather (requires lat, lng)
 GET  /events                          - SSE stream
 ```
 
-## Event Discovery System
+## Daily Data Refresh System
 
-### POST /api/briefing/discover-events/:snapshotId
-Triggers on-demand event discovery using AI models.
+### POST /api/briefing/refresh-daily/:snapshotId (Recommended)
+Refreshes events AND news in a single call. Called when user clicks "Refresh Daily Data" in BriefingTab.
 
 **Query Parameters:**
-- `daily=true` (default) - Use all 6 models (comprehensive)
-- `daily=false` - Use only SerpAPI + GPT-5.2 (fast)
+- `daily=true` (default) - Use all 6 models for events (comprehensive)
+- `daily=false` - Use only SerpAPI + GPT-5.2 for events (fast)
+
+**Response:**
+```json
+{
+  "ok": true,
+  "snapshot_id": "uuid",
+  "mode": "daily",
+  "events": {
+    "total_discovered": 45,
+    "inserted": 12,
+    "skipped": 33
+  },
+  "news": {
+    "count": 5,
+    "items": [...]
+  }
+}
+```
+
+### POST /api/briefing/discover-events/:snapshotId (Deprecated)
+**DEPRECATED:** Use `/refresh-daily` instead. Events-only discovery.
 
 **Response:**
 ```json
@@ -153,12 +175,21 @@ Reactivate a previously deactivated event (shows on Map again).
 ```
 
 ### AI Coach Integration
-The AI Coach can deactivate events using a special format in responses:
+The AI Coach can deactivate and reactivate events using special formats in responses:
+
+**Deactivate an event:**
 ```
 [DEACTIVATE_EVENT: {"event_title": "Event Name", "reason": "event_ended", "notes": "Ended early"}]
 ```
 
-The client-side CoachChat component parses this format and calls the deactivation API automatically.
+**Reactivate an event (undo mistaken deactivation):**
+```
+[REACTIVATE_EVENT: {"event_title": "Event Name", "reason": "wrong date assumed", "notes": "Event is today, not yesterday"}]
+```
+
+The chat API parses these formats and calls the corresponding DAL functions automatically.
+
+**Date/Time Awareness:** The Coach receives the user's local date/time prominently in the system prompt (e.g., "Wednesday, January 1, 2026 at 3:45 PM") to prevent date-related mistakes when deactivating events.
 
 ## Data Flow
 
@@ -181,6 +212,29 @@ The client-side CoachChat component parses this format and calls the deactivatio
 2. Reads from `discovered_events` table (not briefings.events)
 3. Returns events for city/state, next 7 days
 4. UI displays in EventsComponent + MapTab markers
+
+### Venue Cache Integration (Jan 2026)
+During event discovery, venues are automatically cached for:
+1. **Precise Coordinates**: Full 15+ decimal precision stored in `venue_cache`
+2. **Deduplication**: Same venue from different LLMs → single cache entry
+3. **Event Linking**: `discovered_events.venue_id` → `venue_cache.id`
+4. **SmartBlocks**: "Event tonight" flag via venue join
+
+```
+Event Discovery Flow (with Venue Cache):
+syncEventsForLocation()
+    ↓
+1. LLM search (SerpAPI, GPT-5.2, Gemini, Claude, Perplexity)
+    ↓
+2. geocodeMissingCoordinates() - fill in missing lat/lng
+    ↓
+3. processEventsWithVenueCache() - NEW
+   ├── lookupVenueFuzzy() - find existing venue
+   ├── findOrCreateVenue() - create if new
+   └── Update event with precise coords + venue_id
+    ↓
+4. storeEvents() - insert with venue_id FK
+```
 
 ## Connections
 
@@ -206,6 +260,9 @@ import {
 
 // Event discovery
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
+
+// Venue cache (integrated into sync-events.mjs)
+import { findOrCreateVenue, lookupVenue, getEventsForVenue } from '../../lib/venue/venue-cache.js';
 
 // Middleware
 import { requireAuth } from '../../middleware/auth.js';
