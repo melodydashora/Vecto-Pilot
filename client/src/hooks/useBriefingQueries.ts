@@ -27,7 +27,7 @@ const RETRY_INTERVAL_MS = 2000; // Poll every 2 seconds
 
 // Special error to indicate snapshot ownership failure (different user)
 // This triggers a GPS refresh to create a new snapshot for the current user
-const SNAPSHOT_OWNERSHIP_ERROR = 'snapshot_ownership_error';
+const _SNAPSHOT_OWNERSHIP_ERROR = 'snapshot_ownership_error';
 
 // Dispatch event to clear stale snapshot and request fresh GPS
 function dispatchSnapshotOwnershipError() {

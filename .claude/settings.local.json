@@ -106,7 +106,18 @@
       "Bash(dmesg:*)",
       "mcp__plugin_serena_serena__write_memory",
       "mcp__plugin_serena_serena__activate_project",
-      "mcp__plugin_serena_serena__list_memories"
+      "mcp__plugin_serena_serena__list_memories",
+      "Bash(xxd:*)",
+      "Bash(for f in package.json client/package.json tsconfig.json client/tsconfig.json shared/schema.js)",
+      "Bash(if [ -f \"$f\" ])",
+      "Bash(then)",
+      "Bash(if [[ \"$f\" == *.json ]])",
+      "mcp__plugin_serena_serena__list_dir",
+      "mcp__plugin_serena_serena__read_file",
+      "mcp__plugin_serena_serena__search_for_pattern",
+      "Bash(/home/runner/workspace/todo.md )",
+      "Bash(/home/runner/workspace/COACH_DATA_ACCESS.md )",
+      "Bash(/home/runner/workspace/INTERACTIVE_REPO.md )"
     ],
     "deny": [],
     "ask": []

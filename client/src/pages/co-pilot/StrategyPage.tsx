@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import {
   MapPin,
   Navigation,
-  TrendingUp,
   Clock,
   Sparkles,
   Zap,
@@ -17,8 +16,7 @@ import {
   RefreshCw,
   ThumbsUp,
   ThumbsDown,
-  MessageSquare,
-  Filter
+  MessageSquare
 } from 'lucide-react';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/useToast';
@@ -35,7 +33,7 @@ import type { SmartBlock } from '@/types/co-pilot';
 export default function StrategyPage() {
   const locationContext = useLocationContext();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const _queryClient = useQueryClient();
 
   // Get shared state from context
   const {
@@ -195,7 +193,7 @@ export default function StrategyPage() {
     };
   }, [blocks, blocksData?.ranking_id]);
 
-  const toggleBlockSelection = (blockIndex: number) => {
+  const _toggleBlockSelection = (blockIndex: number) => {
     const block = blocks[blockIndex];
     if (!block) return;
 

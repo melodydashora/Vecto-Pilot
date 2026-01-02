@@ -65,6 +65,24 @@ model: "gemini-3-flash-preview"
 - **Gemini 3 Pro**: `LOW`, `HIGH` only
 - **Gemini 3 Flash**: `MINIMAL`, `LOW`, `MEDIUM`, `HIGH`
 
+## Gemini 3 Token Budget (Critical)
+
+> **Thinking consumes tokens from `maxOutputTokens`!**
+
+| thinkingLevel | Min maxOutputTokens | Error if too low |
+|---------------|---------------------|------------------|
+| `LOW` | 2048 | Usually OK |
+| `MEDIUM` | 4096 | May truncate |
+| `HIGH` | **8192+** | `MAX_TOKENS, parts: 0` |
+
+```javascript
+// WRONG - thinking uses all tokens, 0 left for response
+{ thinkingConfig: { thinkingLevel: "HIGH" }, maxOutputTokens: 2048 }
+
+// CORRECT
+{ thinkingConfig: { thinkingLevel: "HIGH" }, maxOutputTokens: 8192 }
+```
+
 ## Check Before Editing
 
 - [ ] Am I using `callModel()` not direct API calls?

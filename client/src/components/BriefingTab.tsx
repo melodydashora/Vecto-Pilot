@@ -128,6 +128,7 @@ interface NewsItem {
   snippet?: string;
   summary?: string;
   impact?: 'high' | 'medium' | 'low';
+  published_date?: string;
 }
 
 interface NewsData {

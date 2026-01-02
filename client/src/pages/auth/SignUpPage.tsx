@@ -141,42 +141,7 @@ export default function SignUpPage() {
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect authenticated users to the app - don't show signup page
-  useEffect(() => {
-    if (!authLoading && isAuthenticated) {
-      console.log('🔐 [SignUp] User already authenticated - redirecting to app');
-      navigate('/co-pilot/strategy', { replace: true });
-    }
-  }, [authLoading, isAuthenticated, navigate]);
-
-  // Show loading while checking auth state - prevents flash of signup form
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
-          <p className="text-slate-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Social login handlers - redirect to OAuth endpoints
-  const handleGoogleSignUp = () => {
-    setSocialLoading('google');
-    setError(null);
-    // Redirect to Google OAuth endpoint (signup mode)
-    window.location.href = '/api/auth/google?mode=signup';
-  };
-
-  const handleAppleSignUp = () => {
-    setSocialLoading('apple');
-    setError(null);
-    // Redirect to Apple OAuth endpoint (signup mode)
-    window.location.href = '/api/auth/apple?mode=signup';
-  };
-
-  // Data for dropdowns
+  // Data for dropdowns - IMPORTANT: All hooks must be called before any conditional returns
   const [countries, setCountries] = useState<DropdownOption[]>([]);
   const [regions, setRegions] = useState<DropdownOption[]>([]);
   const [markets, setMarkets] = useState<MarketOption[]>([]);
@@ -229,9 +194,21 @@ export default function SignUpPage() {
     },
   });
 
-  const watchYear = form.watch('vehicleYear');
+  const _watchYear = form.watch('vehicleYear');
   const watchPlatforms = form.watch('ridesharePlatforms');
   const watchCountry = form.watch('country');
+
+  // Check if selected country has platform data (for showing dropdown vs text input)
+  const _selectedCountryHasPlatformData = countries.find(c => c.value === watchCountry)?.hasPlatformData ?? false;
+  const isOtherCountry = watchCountry === 'OTHER';
+
+  // Redirect authenticated users to the app - don't show signup page
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      console.log('🔐 [SignUp] User already authenticated - redirecting to app');
+      navigate('/co-pilot/strategy', { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
 
   // Fetch countries on mount (all=true to show all countries, not just those with platform data)
   useEffect(() => {
@@ -247,10 +224,6 @@ export default function SignUpPage() {
         setIsLoadingCountries(false);
       });
   }, []);
-
-  // Check if selected country has platform data (for showing dropdown vs text input)
-  const selectedCountryHasPlatformData = countries.find(c => c.value === watchCountry)?.hasPlatformData ?? false;
-  const isOtherCountry = watchCountry === 'OTHER';
 
   // Fetch regions when country changes
   useEffect(() => {
@@ -297,6 +270,34 @@ export default function SignUpPage() {
       .then(data => setYears(data.years || []))
       .catch(err => console.error('Failed to fetch years:', err));
   }, []);
+
+  // Show loading while checking auth state - prevents flash of signup form
+  // IMPORTANT: All hooks must be called BEFORE this conditional return
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Social login handlers - redirect to OAuth endpoints
+  const handleGoogleSignUp = () => {
+    setSocialLoading('google');
+    setError(null);
+    // Redirect to Google OAuth endpoint (signup mode)
+    window.location.href = '/api/auth/google?mode=signup';
+  };
+
+  const handleAppleSignUp = () => {
+    setSocialLoading('apple');
+    setError(null);
+    // Redirect to Apple OAuth endpoint (signup mode)
+    window.location.href = '/api/auth/apple?mode=signup';
+  };
 
 
   // Validate current step before proceeding
