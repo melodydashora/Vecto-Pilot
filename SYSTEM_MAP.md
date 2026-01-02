@@ -1,6 +1,6 @@
 # VECTO PILOT™ - COMPLETE SYSTEM MAP
 
-**Last Updated:** 2026-01-01 UTC
+**Last Updated:** 2026-01-02 UTC
 
 This document provides a complete visual mapping of the Vecto Pilot system, showing how every component connects from UI to database and back.
 
@@ -314,6 +314,12 @@ users (GPS coordinates, location, auth)
         ├─→ venue_feedback (venue ratings)
         └─→ strategy_feedback (strategy ratings)
 
+coords_cache (geocode cache with 6-decimal precision)
+  └─→ Shared across devices for same location
+
+markets (102 global markets with pre-stored timezones)
+  └─→ 3,333 city aliases for suburb/neighborhood matching
+
 discovered_events (global event repository)
   └─→ venue_events (venue-event associations)
 
@@ -365,6 +371,8 @@ countries (ISO 3166-1 reference)
 8. **Snapshot-Centric:** All data scoped to snapshot_id for ML traceability
 9. **Real-Time Updates:** SSE for briefing_ready, strategy_ready, blocks_ready
 10. **Fail-Closed:** Missing data returns null/404, never hallucinated defaults
+11. **Global Markets:** 102 pre-stored markets (31 US + 71 international) skip Google Timezone API
+12. **Two-Phase UI Update:** Weather/AQI display before city/state resolution completes
 
 ---
 

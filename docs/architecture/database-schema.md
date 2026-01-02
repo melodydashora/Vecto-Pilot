@@ -243,6 +243,48 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 
 ---
 
+### `markets` - Global Rideshare Markets
+
+**Purpose:** Pre-stored timezone data for 102 major rideshare markets worldwide. Skips Google Timezone API for known markets.
+
+**Files:**
+- Schema: `shared/schema.js`
+- Seed: `server/scripts/seed-markets.js`
+- Query: `server/api/location/location.js` (lookupMarketTimezone function)
+
+**Key Columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `market_slug` | TEXT (PK) | Unique identifier (e.g., "dfw-metro", "london-uk") |
+| `market_name` | TEXT | Display name (e.g., "DFW Metro", "London") |
+| `primary_city` | TEXT | Main city (e.g., "Dallas", "London") |
+| `state` | TEXT | State/province/region |
+| `country_code` | VARCHAR(2) | ISO country code (e.g., "US", "GB") |
+| `timezone` | TEXT | IANA timezone (e.g., "America/Chicago") |
+| `primary_airport_code` | TEXT | Main airport (e.g., "DFW") |
+| `secondary_airports` | JSONB | Array of secondary airports |
+| `city_aliases` | JSONB | Array of suburb/neighborhood names |
+| `has_uber`, `has_lyft` | BOOLEAN | Platform availability |
+| `is_active` | BOOLEAN | Active market flag |
+
+**Coverage (Jan 2026):**
+- 31 US markets (1,465 city aliases)
+- 71 international markets (1,868 city aliases)
+- 54 unique timezones
+
+**Lookup Strategy:**
+1. Exact match: `primary_city` + `state`
+2. State match: `city_aliases @> [city]` + `state`
+3. City-only: `primary_city` (for city-states like Singapore)
+4. Alias-only: `city_aliases @> [city]` (for international suburbs)
+
+**Benefits:**
+- Saves ~200-300ms per request for known markets
+- Reduces Google Timezone API costs ($0.005/request)
+- Works offline for known markets
+
+---
+
 ### `discovered_events` - AI-Discovered Events
 
 **Purpose:** Events found by multi-model AI search (SerpAPI, GPT-5.2, Gemini, Claude, Perplexity) for rideshare demand prediction

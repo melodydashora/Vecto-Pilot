@@ -27,9 +27,10 @@ The `types/` subfolder contains shared TypeScript types.
 - `rankings` - Venue recommendations
 - `ranking_candidates` - Individual venues
 - `discovered_events` - **AI-discovered events** (multi-model search)
+- `markets` - **Global markets** with pre-stored timezones (102 markets, 3,333 aliases)
 - `feedback` - User feedback
 - `actions` - User interactions
-- `coords_cache` - Geocode cache
+- `coords_cache` - Geocode cache (6-decimal precision)
 
 ### discovered_events Table
 
@@ -65,6 +66,34 @@ export const discovered_events = pgTable("discovered_events", {
 **Deactivation**: Events can be marked inactive by AI Coach or users. Deactivated events are filtered out of Map tab displays but kept in database for audit.
 
 See [Event Discovery Architecture](../docs/architecture/event-discovery.md) for full documentation.
+
+### markets Table
+
+Stores 102 global rideshare markets with pre-stored timezones to skip Google Timezone API:
+
+```javascript
+export const markets = pgTable("markets", {
+  market_slug: text("market_slug").primaryKey(),           // "dfw-metro", "london-uk"
+  market_name: text("market_name").notNull(),              // "DFW Metro", "London"
+  primary_city: text("primary_city").notNull(),            // "Dallas", "London"
+  state: text("state").notNull(),                          // "TX", "England"
+  country_code: varchar("country_code", { length: 2 }),    // "US", "GB"
+  timezone: text("timezone").notNull(),                    // "America/Chicago", "Europe/London"
+  primary_airport_code: text("primary_airport_code"),      // "DFW", "LHR"
+  secondary_airports: jsonb("secondary_airports"),         // ["DAL", "AFW"]
+  city_aliases: jsonb("city_aliases"),                     // ["Frisco", "Plano", "Irving", ...]
+  has_uber: boolean("has_uber").default(true),
+  has_lyft: boolean("has_lyft").default(true),
+  is_active: boolean("is_active").default(true),
+  // ...
+});
+```
+
+**Coverage:** 31 US markets + 71 international markets with 3,333 city aliases.
+
+**Usage in location.js:** When resolving GPS coordinates, the system checks the markets table first. If the city matches a known market (via `primary_city` or `city_aliases`), the pre-stored timezone is used instead of calling Google Timezone API.
+
+See [server/scripts/README.md](../server/scripts/README.md) for seeding documentation.
 
 ## Usage
 

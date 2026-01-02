@@ -1,7 +1,7 @@
 # Workflow File Listing
 
-Generated: 2026-01-01T21:45:00.000Z
-**Last Review:** 2026-01-01 UTC
+Generated: 2026-01-02T12:00:00.000Z
+**Last Review:** 2026-01-02 UTC
 
 > ✅ **Updated:** This file reflects the current repository structure as of January 1, 2026:
 > - **Authentication System:** Full JWT-based auth with sign-up, sign-in, verification, password reset
@@ -109,6 +109,8 @@ Workflow files organized by event flow order. Non-active files appear at the end
 - [server/scripts/db-doctor.js](./server/scripts/db-doctor.js) (active)
 - [server/scripts/run-sql-migration.js](./server/scripts/run-sql-migration.js) (active)
 - [server/scripts/seed-dfw-venues.js](./server/scripts/seed-dfw-venues.js) (active)
+- [server/scripts/seed-markets.js](./server/scripts/seed-markets.js) (active) → Seeds 102 global markets with timezones
+- [server/scripts/seed-countries.js](./server/scripts/seed-countries.js) (active) → Seeds countries table
 - [server/scripts/self-healing-monitor.js](./server/scripts/self-healing-monitor.js) (active)
 - [server/scripts/workspace-startup.sh](./server/scripts/workspace-startup.sh) (active)
 - [scripts/capture-workflow-logs.js](./scripts/capture-workflow-logs.js) (not active)

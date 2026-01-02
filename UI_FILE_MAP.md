@@ -1,7 +1,7 @@
 
 # UI_FILE_MAP.md - Component, API, and Event Mapping
 
-**Last Updated:** 2026-01-01 UTC
+**Last Updated:** 2026-01-02 UTC
 
 This document provides a complete mapping of UI components to their source files, API calls, events, and identifies orphaned/redundant files.
 
@@ -34,7 +34,7 @@ This document provides a complete mapping of UI components to their source files
 |------|---------|--------|
 | `client/src/contexts/auth-context.tsx` | Authentication state, JWT tokens, user profile | ✅ Active (Core) |
 | `client/src/contexts/co-pilot-context.tsx` | Shared strategy, blocks, SSE state for all pages | ✅ Active (Core) |
-| `client/src/contexts/location-context-clean.tsx` | GPS, weather, AQ, snapshot management | ✅ Active (Core) |
+| `client/src/contexts/location-context-clean.tsx` | GPS, weather, AQ, snapshot management (two-phase UI update) | ✅ Active (Core) |
 
 ### Layouts
 
@@ -182,7 +182,7 @@ This document provides a complete mapping of UI components to their source files
 
 | Endpoint | Method | Called By | Purpose |
 |----------|--------|-----------|---------|
-| `/api/location/resolve` | GET | location-context-clean.tsx | GPS → Address resolution |
+| `/api/location/resolve` | GET | location-context-clean.tsx | GPS → Address resolution (market timezone fast-path) |
 | `/api/location/ip` | GET | location-context-clean.tsx | IP-based fallback |
 | `/api/location/weather` | GET | location-context-clean.tsx | Weather data |
 | `/api/location/airquality` | GET | location-context-clean.tsx | Air quality data |
@@ -430,7 +430,7 @@ main.tsx
 | Feature | Files |
 |---------|-------|
 | **Authentication** | `auth-context.tsx`, `AuthRedirect.tsx`, `ProtectedRoute.tsx`, auth pages |
-| **GPS & Location** | `location-context-clean.tsx`, `GlobalHeader.tsx` |
+| **GPS & Location** | `location-context-clean.tsx` (two-phase UI), `GlobalHeader.tsx` |
 | **Weather Display** | `GlobalHeader.tsx`, `BriefingTab.tsx` |
 | **Strategy Generation** | `co-pilot-context.tsx`, blocks-fast API |
 | **Venue Blocks** | `StrategyPage.tsx`, `BarsTable.tsx`, `SmartBlocksStatus.tsx` |

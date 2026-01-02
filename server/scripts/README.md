@@ -9,6 +9,8 @@ Server-side utility scripts for maintenance, operations, and event discovery.
 | Script | Purpose |
 |--------|---------|
 | `sync-events.mjs` | **Event Discovery** - Multi-model AI event search |
+| `seed-markets.js` | **Global Markets** - Seed 102 markets with timezones (31 US + 71 international) |
+| `seed-countries.js` | Seed countries table with ISO 3166-1 codes |
 | `holiday-override.js` | Manage holiday override configuration |
 | `db-doctor.js` | Database health checks and repairs |
 | `seed-dfw-venues.js` | Seed DFW area venue data |
@@ -98,9 +100,47 @@ node server/scripts/run-sql-migration.js
 node server/scripts/test-gemini-search.js
 ```
 
+## Global Markets (`seed-markets.js`)
+
+Seeds the `markets` table with 102 global rideshare markets and their pre-stored timezones. This allows the location API to skip Google Timezone API calls for known markets.
+
+### Coverage
+
+| Region | Markets | Notable Cities |
+|--------|---------|----------------|
+| **US** | 31 | DFW, NYC, LA, Chicago, Miami, Houston, Phoenix, Seattle, Denver |
+| **Canada** | 6 | Toronto, Vancouver, Montreal, Calgary, Edmonton, Ottawa |
+| **UK** | 5 | London, Manchester, Birmingham, Glasgow, Edinburgh |
+| **Australia** | 5 | Sydney, Melbourne, Brisbane, Perth, Adelaide |
+| **India** | 6 | Delhi NCR, Mumbai, Bangalore, Chennai, Hyderabad, Pune |
+| **Europe** | 15 | Paris, Berlin, Madrid, Barcelona, Milan, Rome, Amsterdam, + more |
+| **Asia-Pacific** | 12 | Tokyo, Singapore, Hong Kong, Seoul, Bangkok, Jakarta, + more |
+| **Latin America** | 9 | Mexico City, Sao Paulo, Buenos Aires, Bogota, Lima, + more |
+| **Middle East/Africa** | 8 | Dubai, Tel Aviv, Cairo, Lagos, Nairobi, Cape Town, + more |
+
+### Usage
+
+```bash
+# Seed/update all markets
+node server/scripts/seed-markets.js
+
+# Output shows:
+# - US markets added/updated
+# - International markets added/updated
+# - Timezone distribution summary
+# - Total city aliases count (3,333)
+```
+
+### Benefits
+
+- **API Cost Savings**: Each market hit skips one Google Timezone API call ($0.005/request)
+- **Latency Reduction**: ~200-300ms faster for known markets
+- **City Alias Matching**: Suburbs/neighborhoods map to parent market timezone
+
 ## Connections
 
 - **Related:** `../config/holiday-override.json`
-- **Related:** `../../shared/schema.js` (discovered_events table)
+- **Related:** `../../shared/schema.js` (discovered_events, markets tables)
 - **Related:** `../api/briefing/briefing.js` (event discovery endpoints)
+- **Related:** `../api/location/location.js` (market timezone lookup)
 - **Used for:** Manual system configuration, database operations, testing, event discovery

@@ -729,6 +729,44 @@ export const countries = pgTable("countries", {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MARKETS REFERENCE TABLE
+// Pre-resolved market data to skip Google API calls for known markets
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const markets = pgTable("markets", {
+  // Market identifier (slug format for URL-safety)
+  market_slug: text("market_slug").primaryKey(), // e.g., 'dfw', 'los-angeles', 'chicago'
+
+  // Display name
+  market_name: text("market_name").notNull(), // e.g., 'DFW Metro', 'Los Angeles', 'Chicago'
+
+  // Location identity (for matching resolved coords to market)
+  primary_city: text("primary_city").notNull(), // e.g., 'Dallas', 'Los Angeles', 'Chicago'
+  state: text("state").notNull(), // e.g., 'Texas', 'California', 'Illinois'
+  country_code: varchar("country_code", { length: 2 }).notNull().default('US'),
+
+  // Pre-resolved timezone (eliminates Google Timezone API calls for known markets)
+  timezone: text("timezone").notNull(), // IANA format: 'America/Chicago', 'America/Los_Angeles'
+
+  // Airport codes (primary + secondary) - to be populated later
+  primary_airport_code: text("primary_airport_code"), // e.g., 'DFW', 'LAX', 'ORD'
+  secondary_airports: jsonb("secondary_airports"), // e.g., ['DAL', 'AFW'] or ['SNA', 'BUR', 'ONT']
+
+  // Alternative city names that should match to this market
+  // e.g., DFW includes: Frisco, Plano, McKinney, Richardson, Irving, Arlington
+  city_aliases: jsonb("city_aliases").$type(), // Array of city names
+
+  // Platform coverage flags
+  has_uber: boolean("has_uber").notNull().default(true),
+  has_lyft: boolean("has_lyft").notNull().default(true),
+
+  // Status
+  is_active: boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // AUTHENTICATION & DRIVER PROFILES
 // ═══════════════════════════════════════════════════════════════════════════
 

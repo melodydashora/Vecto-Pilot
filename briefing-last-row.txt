@@ -2,10 +2,10 @@
 ================================================================================
 
 id:
-  "50f6b395-1818-4cd6-ae33-63ae9fc564ec"
+  "faeb8857-5661-460f-baf7-d51fc94f056a"
 
 snapshot_id:
-  "85cb25aa-08c6-4942-97f6-4079c303e779"
+  "9fb76685-b6ff-4d6c-954a-f770e411767c"
 
 news:
   {
@@ -44,7 +44,7 @@ news:
 
 weather_current:
   {
-  "tempF": 68,
+  "tempF": 64,
   "conditions": "Cloudy",
   "description": "Cloudy"
 }
@@ -54,19 +54,19 @@ weather_forecast:
 
 traffic_conditions:
   {
-  "jams": 8,
+  "jams": 9,
   "stats": {
-    "jams": 8,
-    "major": 4,
-    "total": 33,
+    "jams": 9,
+    "major": 6,
+    "total": 34,
     "closures": 12,
-    "highways": 25,
+    "highways": 24,
     "accidents": 0,
     "construction": 13
   },
-  "summary": "33 active traffic incidents near Frisco, 8 traffic jams, 12 road closures, 13 construction zones",
+  "summary": "34 active traffic incidents near Frisco, 9 traffic jams, 12 road closures, 13 construction zones",
   "analyzed": false,
-  "briefing": "33 active traffic incidents near Frisco, 8 traffic jams, 12 road closures, 13 construction zones",
+  "briefing": "34 active traffic incidents near Frisco, 9 traffic jams, 12 road closures, 13 construction zones",
   "closures": [
     {
       "road": "",
@@ -115,7 +115,7 @@ traffic_conditions:
       "location": "Doe Creek Rd to Hollyhock Rd",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.3
+      "distanceFromDriver": 6.2
     },
     {
       "road": "US-380 E",
@@ -126,17 +126,17 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
+      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.7
+      "distanceFromDriver": 7.6
     },
     {
       "road": "",
       "location": "N Cowan Ave to Benjamins Way",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.5
+      "distanceFromDriver": 8.6
     },
     {
       "road": "",
@@ -153,34 +153,10 @@ traffic_conditions:
       "distanceFromDriver": 3.1
     }
   ],
-  "headline": "33 active traffic incidents near Frisco, 8 traffic jams, 12 road closures, 13 construction zones",
+  "headline": "34 active traffic incidents near Frisco, 9 traffic jams, 12 road closures, 13 construction zones",
   "provider": "tomtom",
-  "fetchedAt": "2026-01-01T21:43:11.076Z",
+  "fetchedAt": "2026-01-01T23:47:42.396Z",
   "incidents": [
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Stone Circle Ln to FM-2281",
-      "priority": 156,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: Stone Circle Ln to FM-2281 [6.9 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 1,
-      "distanceFromDriver": 6.9
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "FM-2478 to FM-2478",
-      "priority": 142,
-      "severity": "medium",
-      "isHighway": true,
-      "description": "Jam: FM-2478 to FM-2478 [8.3 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 2,
-      "distanceFromDriver": 8.3
-    },
     {
       "road": "",
       "category": "Road Closed",
@@ -212,10 +188,10 @@ traffic_conditions:
       "priority": 135,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.6 mi]",
+      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 9.6
+      "distanceFromDriver": 9.7
     },
     {
       "road": "US-380 E, US-380 W",
@@ -236,10 +212,10 @@ traffic_conditions:
       "priority": 135,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [7.6 mi]",
+      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [8.3 mi]",
       "lengthMiles": 0,
       "delayMinutes": 0,
-      "distanceFromDriver": 7.6
+      "distanceFromDriver": 8.3
     },
     {
       "road": "US-380 W",
@@ -276,17 +252,41 @@ traffic_conditions:
       "lengthMiles": 0.4,
       "delayMinutes": 0,
       "distanceFromDriver": 4
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "US-380 W to Paloma Creek Blvd",
+      "priority": 130,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: US-380 W to Paloma Creek Blvd [7.2 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0,
+      "distanceFromDriver": 7.2
+    },
+    {
+      "road": "US-380 E",
+      "category": "Lane Closed",
+      "location": "US-377 (US-380) to FM-2931 (US-380)",
+      "priority": 125,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Lane Closed: US-380 E (US-377 (US-380) to FM-2931 (US-380)) [9.5 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.5
     }
   ],
   "keyIssues": [],
   "avoidAreas": [],
-  "safetyAlert": "8 active traffic jams in the area",
+  "safetyAlert": "9 active traffic jams in the area",
   "driverImpact": null,
   "surgePricing": true,
   "closuresCount": 12,
   "repositioning": null,
-  "incidentsCount": 33,
-  "totalIncidents": 33,
+  "incidentsCount": 34,
+  "totalIncidents": 34,
   "closuresSummary": "12 road closures",
   "congestionLevel": "high",
   "highDemandZones": [],
@@ -1235,18 +1235,18 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "General departure and arrival delays of 15 minutes or less. Traffic is experiencing minor gate hold and taxi delays.",
-      "status": "normal",
+      "delays": "High volume of flight delays and cancellations reported; identified as one of the hardest-hit airports nationwide today.",
+      "status": "severe_delays",
       "busyTimes": [
-        "07:00 AM - 09:00 AM",
-        "03:00 PM - 06:00 PM"
+        "05:00 AM - 08:00 AM",
+        "04:00 PM - 07:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Airborne and ground traffic experiencing minor delays of 15 minutes or less. Operations are generally normal.",
-      "status": "normal",
+      "delays": "Moderate to high delays reported; busy holiday travel period impacting schedules.",
+      "status": "delays",
       "busyTimes": [
         "05:00 AM - 08:00 AM",
         "04:00 PM - 07:00 PM"
@@ -1254,17 +1254,17 @@ airport_conditions:
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-01-01T21:43:40.058Z",
+  "fetchedAt": "2026-01-01T23:48:10.028Z",
   "busyPeriods": [
-    "Morning rush (7-9 AM) and late afternoon (3-7 PM) are standard peak times.",
-    "As it is New Year's Day, expect lighter traffic in the early morning and potentially heavier arrival volumes in the evening as travelers return."
+    "Morning rush (5-8 AM) and evening peak (4-7 PM) are seeing the highest congestion.",
+    "Post-holiday travel volume is contributing to extended wait times at security and baggage claim."
   ],
-  "recommendations": "For DFW: Pickups are at the lower level (Arrivals) at designated 'TNC/Rideshare' zones for each terminal (A-E). Drivers should utilize the staging lots near Terminal A to enter the queue. For DAL: **Crucial Note**: Rideshare pickups are located in Garage C, Level 1 (Valet Pavilion), not at the curbside. Drivers must follow signs to the designated TNC area in the garage. Curbside is generally restricted to drop-offs and accessibility needs."
+  "recommendations": "For DFW: Pickups are at the lower-level curbside 'Rideshare' zones (Terminals A-E); wait in the designated staging lots to enter the FIFO queue. For DAL: Pickups are strictly located at Garage C, Level 1 (Valet Pavilion); passengers have a longer walk, so expect potential delays in them reaching the vehicle."
 }
 
 created_at:
-  "Thu Jan 01 2026 21:43:10 GMT+0000 (Coordinated Universal Time)"
+  "Thu Jan 01 2026 23:47:41 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Thu Jan 01 2026 21:43:40 GMT+0000 (Coordinated Universal Time)"
+  "Thu Jan 01 2026 23:48:10 GMT+0000 (Coordinated Universal Time)"
 
