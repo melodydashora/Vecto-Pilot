@@ -1,11 +1,22 @@
 
 # Vecto Pilot - Architecture Reference
 
-**Last Updated:** 2026-01-01 UTC
+**Last Updated:** 2026-01-02 UTC
 
 This file provides navigation to focused architecture documentation. Each linked document is designed to be readable in a single pass.
 
-## Recent Changes (2026-01-01)
+## Recent Changes (2026-01-02)
+
+- **Global Markets Table**: 102 markets (31 US + 71 international) with pre-stored timezones
+  - Skips Google Timezone API for known markets (~200-300ms savings per request)
+  - 3,333 city aliases for suburb/neighborhood matching
+  - Countries: US, Canada, UK, Australia, Mexico, Brazil, India, Germany, France, Spain, Italy, Japan, Singapore, UAE, South Africa, + 20 more
+- **Location Optimization**: Two-phase UI update in LocationContext
+  - Weather/AQI display before city/state resolution completes
+  - Parallel DB writes for snapshot + user location update
+- **Coordinate Precision Fix**: Standardized 6-decimal precision across snapshot.js and location.js
+
+## Changes (2026-01-01)
 
 - **Server Reorganization Complete**: Moved from flat lib structure to domain-based organization
   - `server/lib/ai/` - AI adapters and providers

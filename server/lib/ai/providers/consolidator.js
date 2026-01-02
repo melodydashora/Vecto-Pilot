@@ -11,11 +11,90 @@
 //      - Uses snapshot + briefing data directly (no minstrategy)
 //      - Includes Claude Opus 4.5 fallback when Gemini fails
 
+import crypto from 'crypto';
 import { db } from '../../../db/drizzle.js';
-import { strategies, briefings } from '../../../../shared/schema.js';
+import { strategies, briefings, news_deactivations } from '../../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { callAnthropic } from '../adapters/anthropic-adapter.js';
 import { triadLog, aiLog, dbLog, OP } from '../../../logger/workflow.js';
+
+/**
+ * Normalize a news title for hash matching
+ * Strips common prefixes like "URGENT:", "BREAKING:", etc.
+ */
+function normalizeNewsTitle(title) {
+  if (!title) return '';
+  return title
+    .replace(/^(URGENT|BREAKING|ALERT|UPDATE|DEVELOPING|JUST IN):\s*/i, '')
+    .trim();
+}
+
+/**
+ * Generate a hash for news item matching
+ */
+function generateNewsHash(title, source, date) {
+  const normalizedTitle = normalizeNewsTitle(title);
+  const normalized = `${normalizedTitle}_${source || ''}_${date || ''}`.toLowerCase().trim();
+  return crypto.createHash('md5').update(normalized).digest('hex');
+}
+
+/**
+ * Get deactivated news hashes for a user
+ */
+async function getDeactivatedNewsHashes(userId) {
+  if (!userId) return new Set();
+
+  try {
+    const deactivations = await db
+      .select({ news_hash: news_deactivations.news_hash })
+      .from(news_deactivations)
+      .where(eq(news_deactivations.user_id, userId));
+
+    return new Set(deactivations.map(d => d.news_hash));
+  } catch (error) {
+    console.error('[consolidator] getDeactivatedNewsHashes error:', error);
+    return new Set();
+  }
+}
+
+/**
+ * Filter out deactivated news items for a user
+ * Handles both array format and {items: [...]} format
+ */
+async function filterDeactivatedNews(newsData, userId) {
+  if (!userId || !newsData) {
+    return newsData;
+  }
+
+  const deactivatedHashes = await getDeactivatedNewsHashes(userId);
+  if (deactivatedHashes.size === 0) {
+    return newsData;
+  }
+
+  // Handle both array format and {items: [...]} format
+  const newsItems = Array.isArray(newsData) ? newsData : newsData?.items;
+
+  if (!Array.isArray(newsItems) || newsItems.length === 0) {
+    return newsData;
+  }
+
+  const originalCount = newsItems.length;
+  const filteredItems = newsItems.filter(item => {
+    const itemHash = generateNewsHash(item.title, item.source, item.date);
+    return !deactivatedHashes.has(itemHash);
+  });
+
+  if (filteredItems.length < originalCount) {
+    triadLog.phase(3, `[consolidator] News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
+  }
+
+  // Return in the same format as received
+  if (Array.isArray(newsData)) {
+    return filteredItems;
+  } else {
+    return { ...newsData, items: filteredItems };
+  }
+}
 
 // Claude Opus fallback configuration
 const FALLBACK_MODEL = 'claude-opus-4-5-20251101';
@@ -366,10 +445,13 @@ export async function runConsolidator(snapshotId, options = {}) {
     // Parse briefing JSON fields
     const trafficData = parseJsonField(briefingRow.traffic_conditions);
     const eventsData = parseJsonField(briefingRow.events);
-    const newsData = parseJsonField(briefingRow.news);
+    const rawNewsData = parseJsonField(briefingRow.news);
     const weatherData = parseJsonField(briefingRow.weather_current);
     const closuresData = parseJsonField(briefingRow.school_closures);
     const airportData = parseJsonField(briefingRow.airport_conditions);
+
+    // Filter out deactivated news for this user
+    const newsData = await filterDeactivatedNews(rawNewsData, snapshot.user_id);
 
     triadLog.phase(3, `Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}, airport=${!!airportData}`);
 
@@ -574,11 +656,14 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     }
 
     // Parse ALL briefing data (not just traffic/events - include news, closures, and airport too)
+    const rawNews = parseJsonField(briefingRow.news);
+    const filteredNews = await filterDeactivatedNews(rawNews, snapshot.user_id);
+
     const briefing = {
       traffic: parseJsonField(briefingRow.traffic_conditions),
       events: parseJsonField(briefingRow.events),
       weather: parseJsonField(briefingRow.weather_current),
-      news: parseJsonField(briefingRow.news),
+      news: filteredNews,
       school_closures: parseJsonField(briefingRow.school_closures),
       airport: parseJsonField(briefingRow.airport_conditions)
     };

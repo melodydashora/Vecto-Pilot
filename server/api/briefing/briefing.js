@@ -1,12 +1,62 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, confirmTBDEventDetails, fetchWeatherConditions } from '../../lib/briefing/briefing-service.js';
 import { db } from '../../db/drizzle.js';
-import { snapshots, discovered_events } from '../../../shared/schema.js';
+import { snapshots, discovered_events, news_deactivations } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
+
+/**
+ * Normalize a news title for hash matching
+ * Strips common prefixes like "URGENT:", "BREAKING:", etc.
+ * @param {string} title - Original title
+ * @returns {string} Normalized title
+ */
+function normalizeNewsTitle(title) {
+  if (!title) return '';
+  // Strip common urgency prefixes for consistent matching
+  return title
+    .replace(/^(URGENT|BREAKING|ALERT|UPDATE|DEVELOPING|JUST IN):\s*/i, '')
+    .trim();
+}
+
+/**
+ * Generate a hash for news item matching
+ * Uses normalized title to handle prefix variations
+ * @param {string} title - News title
+ * @param {string} source - News source
+ * @param {string} date - News date
+ * @returns {string} MD5 hash
+ */
+function generateNewsHash(title, source, date) {
+  const normalizedTitle = normalizeNewsTitle(title);
+  const normalized = `${normalizedTitle}_${source || ''}_${date || ''}`.toLowerCase().trim();
+  return crypto.createHash('md5').update(normalized).digest('hex');
+}
+
+/**
+ * Get deactivated news hashes for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Set<string>>} Set of deactivated news hashes
+ */
+async function getDeactivatedNewsHashes(userId) {
+  if (!userId) return new Set();
+
+  try {
+    const deactivations = await db
+      .select({ news_hash: news_deactivations.news_hash })
+      .from(news_deactivations)
+      .where(eq(news_deactivations.user_id, userId));
+
+    return new Set(deactivations.map(d => d.news_hash));
+  } catch (error) {
+    console.error('[briefing] getDeactivatedNewsHashes error:', error);
+    return new Set();
+  }
+}
 
 const router = Router();
 
@@ -408,9 +458,48 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
       });
     }
 
+    // Filter out deactivated news items for this user
+    const userId = req.auth?.userId;
+    let filteredNews = briefing.news;
+
+    if (userId) {
+      const deactivatedHashes = await getDeactivatedNewsHashes(userId);
+
+      if (deactivatedHashes.size > 0) {
+        // Handle both array format and {items: [...]} format
+        const newsItems = Array.isArray(briefing.news) ? briefing.news : briefing.news?.items;
+
+        if (Array.isArray(newsItems)) {
+          const originalCount = newsItems.length;
+          const filteredItems = newsItems.filter(item => {
+            // Generate hash for this news item
+            const itemHash = generateNewsHash(item.title, item.source, item.date);
+            const isDeactivated = deactivatedHashes.has(itemHash);
+
+            if (isDeactivated) {
+              console.log(`[briefing] Filtering deactivated news: "${item.title?.slice(0, 50)}..."`);
+            }
+
+            return !isDeactivated;
+          });
+
+          // Return in the same format as received
+          if (Array.isArray(briefing.news)) {
+            filteredNews = filteredItems;
+          } else {
+            filteredNews = { ...briefing.news, items: filteredItems };
+          }
+
+          if (filteredItems.length < originalCount) {
+            console.log(`[briefing] News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
+          }
+        }
+      }
+    }
+
     res.json({
       success: true,
-      news: briefing.news,
+      news: filteredNews,
       timestamp: new Date().toISOString()
     });
   } catch (error) {

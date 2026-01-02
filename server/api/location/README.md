@@ -64,17 +64,25 @@ GPS coords → /api/location/resolve
 3. Enriches with airport proximity, holiday detection
 4. Stores complete context in snapshots table
 
-## Caching (Three-Tier)
+## Caching (Four-Tier)
 
-| Tier | Table | Precision | Use Case |
-|------|-------|-----------|----------|
+| Tier | Table/Source | Precision | Use Case |
+|------|--------------|-----------|----------|
 | 1 | `users` | ~100m (haversine) | Same device, hasn't moved much |
-| 2 | `coords_cache` | ~11m (4 decimal) | Different device, same location |
-| 3 | Google API | Exact | Cache miss, new location |
+| 2 | `coords_cache` | ~11cm (6 decimal) | Different device, same location |
+| 3 | `markets` | City/suburb | Known market → pre-stored timezone |
+| 4 | Google API | Exact | Cache miss, new location |
+
+**Market Timezone Fast-Path (New Jan 2026):**
+- 102 global markets with pre-stored timezones
+- 3,333 city aliases for suburb/neighborhood matching
+- Skips Google Timezone API for known markets (~200-300ms savings)
+- Progressive matching: city+state → city-only → alias
 
 **Benefits:**
 - Users table lookup = fastest (device-specific, no API call)
 - Coords cache = fast (shared across devices)
+- Market lookup = fast (timezone only, no Google API)
 - Google API = slowest (only when needed)
 
 ## Connections
@@ -90,7 +98,7 @@ GPS coords → /api/location/resolve
 ```javascript
 // Database
 import { db } from '../../db/drizzle.js';
-import { snapshots, users, coords_cache } from '../../../shared/schema.js';
+import { snapshots, users, coords_cache, markets } from '../../../shared/schema.js';
 
 // Location lib
 import { geocode, reverseGeocode } from '../../lib/location/geo.js';

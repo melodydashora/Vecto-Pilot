@@ -145,12 +145,27 @@ All data MUST link to `snapshot_id`:
 **Purpose:** Eliminate duplicate Google API calls
 
 **How it works:**
-1. Round coordinates to 4 decimals (~11m precision) for cache key
-2. Store full 6 decimal precision (~11cm) for data
+1. Round coordinates to 6 decimals (~11cm precision) for cache key
+2. Store full 6 decimal precision for consistency
 3. On cache hit: Return cached city/state/timezone (skip API calls)
 4. On cache miss: Call Google APIs, store result
 
 **Saves:** ~$0.005 per repeat lookup
+
+**FIXED (Jan 2026):** snapshot.js was using 4-decimal precision while location.js used 6-decimal. This caused cache misses. Now both use 6-decimal precision for consistent cache hits.
+
+### Global Markets Table (markets table)
+
+**Purpose:** Skip Google Timezone API for known rideshare markets
+
+**How it works:**
+1. lookupMarketTimezone() checks markets table BEFORE calling Google API
+2. Matches city via primary_city or city_aliases (3,333 suburbs/neighborhoods)
+3. Returns pre-stored IANA timezone if found
+
+**Coverage:** 102 markets (31 US + 71 international) across 54 timezones
+
+**Saves:** ~200-300ms + $0.005 per request for known markets
 
 ### Common Schema Mistakes
 

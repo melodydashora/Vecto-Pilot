@@ -270,11 +270,56 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const [locationRes, weatherRes, airRes] = await Promise.all([
-        fetch(resolveUrl, { headers }),
-        fetch(`/api/location/weather?lat=${lat}&lng=${lng}`),
-        fetch(`/api/location/airquality?lat=${lat}&lng=${lng}`)
-      ]);
+      // ═══════════════════════════════════════════════════════════════════════════
+      // TWO-PHASE UI UPDATE: Weather/AQI appear ~200-300ms before city/state
+      // Weather and AQI are faster (single Google API each), location is slower
+      // (Google Geocode + Timezone + DB writes)
+      // ═══════════════════════════════════════════════════════════════════════════
+
+      // Start all requests in parallel
+      const locationPromise = fetch(resolveUrl, { headers });
+      const weatherPromise = fetch(`/api/location/weather?lat=${lat}&lng=${lng}`);
+      const airPromise = fetch(`/api/location/airquality?lat=${lat}&lng=${lng}`);
+
+      // Track weather/air data for snapshot enrichment later
+      let weatherData: { available: boolean; temperature: number; conditions: string; description?: string } | null = null;
+      let airQualityData: { available: boolean; aqi: number; category: string } | null = null;
+
+      // PHASE 1: Update UI as soon as weather/air resolve (faster APIs)
+      // Don't await - let them update independently
+      weatherPromise.then(async (res) => {
+        if (currentGeneration !== generationCounterRef.current) return;
+        if (res.ok) {
+          const data = await res.json();
+          weatherData = data;
+          if (data?.available) {
+            setWeather({
+              temp: data.temperature,
+              conditions: data.conditions,
+              description: data.description
+            });
+            console.log('🌤️ [LocationContext] Weather updated (phase 1)');
+          }
+        }
+      }).catch((err) => console.warn('[LocationContext] Weather fetch failed:', err));
+
+      airPromise.then(async (res) => {
+        if (currentGeneration !== generationCounterRef.current) return;
+        if (res.ok) {
+          const data = await res.json();
+          airQualityData = data;
+          if (data?.available) {
+            setAirQuality({
+              aqi: data.aqi,
+              category: data.category
+            });
+            console.log('💨 [LocationContext] AQI updated (phase 1)');
+          }
+        }
+      }).catch((err) => console.warn('[LocationContext] AQI fetch failed:', err));
+
+      // PHASE 2: Wait for location resolve (slower due to DB writes)
+      const locationRes = await locationPromise;
 
       if (currentGeneration !== generationCounterRef.current) {
         console.log(`⏭️ Generation #${currentGeneration} superseded - ignoring results`);
@@ -294,31 +339,28 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       const locationData = await locationRes.json();
-      const weatherData = weatherRes.ok ? await weatherRes.json() : null;
-      const airQualityData = airRes.ok ? await airRes.json() : null;
 
-      // Set weather state for context consumers (prevents duplicate API calls in GlobalHeader)
-      if (weatherData?.available) {
-        setWeather({
-          temp: weatherData.temperature,
-          conditions: weatherData.conditions,
-          description: weatherData.description
-        });
+      // Ensure weather/air data is populated (in case location finished first)
+      if (!weatherData) {
+        try {
+          const res = await weatherPromise;
+          if (res.ok) weatherData = await res.json();
+        } catch (_e) { /* already logged */ }
+      }
+      if (!airQualityData) {
+        try {
+          const res = await airPromise;
+          if (res.ok) airQualityData = await res.json();
+        } catch (_e) { /* already logged */ }
       }
 
-      // Set air quality state for context consumers
-      if (airQualityData?.available) {
-        setAirQuality({
-          aqi: airQualityData.aqi,
-          category: airQualityData.category
-        });
-      }
-
+      // Update city/state (phase 2 - after location resolves)
       setCity(locationData.city);
       setState(locationData.state);
       setTimeZone(locationData.timeZone);
       setCurrentLocationString(`${locationData.city}, ${locationData.state}`);
       setLastUpdated(new Date().toISOString());
+      console.log('📍 [LocationContext] Location updated (phase 2):', locationData.city, locationData.state);
 
       // Mark location as resolved - gates downstream queries (Bar Tab, Strategy)
       if (locationData.city && locationData.formattedAddress) {

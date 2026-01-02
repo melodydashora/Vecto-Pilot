@@ -18,11 +18,12 @@ function uuid() {
   return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex");
 }
 
-// Helper: Generate cache key from coordinates (4 decimal places = ~11m precision)
+// Helper: Generate cache key from coordinates (6 decimal places = ~11cm precision)
+// Must match location.js and coords_cache schema for consistent cache hits
 function makeCoordsKey(lat, lng) {
-  const lat4d = lat.toFixed(4);
-  const lng4d = lng.toFixed(4);
-  return `${lat4d}_${lng4d}`;
+  const lat6d = lat.toFixed(6);
+  const lng6d = lng.toFixed(6);
+  return `${lat6d}_${lng6d}`;
 }
 
 // Helper: Validate all required snapshot fields are present before INSERT
