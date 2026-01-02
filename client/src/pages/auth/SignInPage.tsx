@@ -72,6 +72,15 @@ export default function SignInPage() {
   // Check if user just registered successfully
   const justRegistered = searchParams.get('registered') === 'true';
 
+  // IMPORTANT: All hooks must be called before any conditional returns
+  const form = useForm<SignInFormData>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
   // Redirect authenticated users to the app - don't show login page
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -91,14 +100,6 @@ export default function SignInPage() {
       </div>
     );
   }
-
-  const form = useForm<SignInFormData>({
-    resolver: zodResolver(signInSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
-  });
 
   const onSubmit = async (data: SignInFormData) => {
     setIsLoading(true);

@@ -143,6 +143,24 @@ For complete and current API specifications, consult the official Anthropic API 
 3. **Thinking cannot be disabled** for Gemini 3 Pro - minimum is LOW
 4. **Grounding billing starts Jan 5, 2026** - Google Search grounding will incur charges
 
+### Token Budget for Thinking (CRITICAL)
+
+> **Thinking consumes tokens from `maxOutputTokens`!** If budget is too low, thinking uses ALL tokens leaving 0 for response.
+
+| thinkingLevel | Minimum maxOutputTokens | Symptom if too low |
+|---------------|------------------------|-------------------|
+| `LOW` | 2048 | Usually OK |
+| `MEDIUM` | 4096 | May truncate |
+| `HIGH` | **8192+** | `MAX_TOKENS, parts: 0` |
+
+```javascript
+// WRONG - causes "finishReason: MAX_TOKENS, parts: 0"
+{ thinkingConfig: { thinkingLevel: "HIGH" }, maxOutputTokens: 2048 }
+
+// CORRECT
+{ thinkingConfig: { thinkingLevel: "HIGH" }, maxOutputTokens: 8192 }
+```
+
 ### Correct Usage
 
 **JavaScript:**

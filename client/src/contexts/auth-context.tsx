@@ -3,9 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type {
-  User,
   DriverProfile,
-  DriverVehicle,
   AuthState,
   LoginCredentials,
   RegisterData,

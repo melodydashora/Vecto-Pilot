@@ -81,17 +81,17 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Snapshot state
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
   // Track which snapshot the current strategy belongs to (for future refresh optimization)
-  const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null);
+  const [_strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null);
 
   // Strategy state
   const [persistentStrategy, setPersistentStrategy] = useState<string | null>(null);
   const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null);
 
   // Enriched reasonings for closed venues
-  const [enrichedReasonings, setEnrichedReasonings] = useState<Map<string, string>>(new Map());
+  const [enrichedReasonings, _setEnrichedReasonings] = useState<Map<string, string>>(new Map());
 
   // Ref to track polling status
-  const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
+  const _lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
 
   // DEDUPLICATION: Track which snapshot IDs have already triggered /api/blocks-fast
   // Prevents duplicate pipeline runs when both useEffect AND event handler fire

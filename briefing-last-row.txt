@@ -2,37 +2,70 @@
 ================================================================================
 
 id:
-  "ad3a1893-cf32-4048-9f54-8de48ffa0629"
+  "4fa94550-51f0-411f-b6c9-090c0ae157c7"
 
 snapshot_id:
-  "d252734d-4770-4f51-878e-aa3983e69a0a"
+  "6e96a8ff-7385-446b-bd9a-a575566db86a"
 
 news:
   {
-  "items": [],
+  "items": [
+    {
+      "link": "https://dallas.culturemap.com/news/city-life/texas-deadliest-states-new-years-crashes/",
+      "title": "Uber Partners with Frisco Police for $30 Sober Ride Vouchers",
+      "impact": "medium",
+      "source": "CultureMap Dallas",
+      "summary": "To reduce drunk driving during New Year's celebrations, Uber collaborated with TxDOT and the Frisco Police Department to offer $30 ride vouchers valid through January 2, 2026.",
+      "published_date": "2025-12-29"
+    },
+    {
+      "link": "https://secretdallas.com/new-texas-laws-2026/",
+      "title": "New Texas Laws on AI and Immigration Take Effect Jan 1, 2026",
+      "impact": "high",
+      "source": "Secret Dallas",
+      "summary": "New state regulations include an AI governance bill banning 'social scoring' and stricter immigration enforcement, which could impact gig platform algorithms and the driver pool.",
+      "published_date": "2025-12-31"
+    },
+    {
+      "link": "https://www.thestar.com.my/tech/tech-news/2025/12/31/flagged-for-sexual-misconduct-many-uber-drivers-stay-on-the-road",
+      "title": "Investigation Reveals Uber Drivers with Misconduct Flags Remained Active",
+      "impact": "high",
+      "source": "The Star",
+      "summary": "A report highlights lapses in Uber's safety protocols, citing a Texas case where a driver convicted of assaulting a minor had been previously flagged but not deactivated.",
+      "published_date": "2025-12-30"
+    },
+    {
+      "link": "https://www.uberpeople.net/threads/nye-2024-2025-is-uber-serious.492266/",
+      "title": "Drivers Report Low Surge Pay Despite High NYE Demand",
+      "impact": "medium",
+      "source": "UberPeople.net",
+      "summary": "Rideshare drivers in Texas and beyond reported a disconnect between high passenger fares and driver surge pay during New Year's Eve 2025 celebrations.",
+      "published_date": "2025-12-31"
+    }
+  ],
   "reason": null
 }
 
 weather_current:
   {
-  "tempC": 16,
-  "tempF": 61,
+  "tempC": 15,
+  "tempF": 60,
   "country": "United States",
   "uvIndex": 0,
-  "humidity": 40,
+  "humidity": 46,
   "tempUnit": "°F",
-  "feelsLike": 60,
+  "feelsLike": 58,
   "isDaytime": false,
-  "conditions": "Partly cloudy",
-  "feelsLikeC": 16,
-  "feelsLikeF": 60,
-  "observedAt": "2026-01-02T06:17:05.688073898Z",
+  "conditions": "Clear",
+  "feelsLikeC": 14,
+  "feelsLikeF": 58,
+  "observedAt": "2026-01-02T08:40:05.923778386Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 61,
-  "conditionType": "PARTLY_CLOUDY",
+  "temperature": 60,
+  "conditionType": "CLEAR",
   "precipitation": {
     "qpf": {
       "unit": "MILLIMETERS",
@@ -44,7 +77,7 @@ weather_current:
     },
     "probability": {
       "type": "RAIN",
-      "percent": 7
+      "percent": 0
     }
   },
   "windDirection": "SOUTH",
@@ -54,33 +87,20 @@ weather_current:
 weather_forecast:
   [
   {
-    "time": "2026-01-02T06:17:05.727Z",
+    "time": "2026-01-02T08:40:05.967Z",
     "tempC": 16,
-    "tempF": 62,
-    "tempUnit": "°F",
-    "isDaytime": false,
-    "windSpeed": null,
-    "conditions": "Mostly cloudy",
-    "temperature": 62,
-    "conditionType": "MOSTLY_CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-01-02T07:17:05.727Z",
-    "tempC": 16,
-    "tempF": 61,
+    "tempF": 60,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
     "conditions": "Clear",
-    "temperature": 61,
+    "temperature": 60,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-02T08:17:05.727Z",
+    "time": "2026-01-02T09:40:05.967Z",
     "tempC": 15,
     "tempF": 59,
     "tempUnit": "°F",
@@ -93,8 +113,8 @@ weather_forecast:
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-02T09:17:05.727Z",
-    "tempC": 15,
+    "time": "2026-01-02T10:40:05.967Z",
+    "tempC": 14,
     "tempF": 58,
     "tempUnit": "°F",
     "isDaytime": false,
@@ -106,7 +126,7 @@ weather_forecast:
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-02T10:17:05.727Z",
+    "time": "2026-01-02T11:40:05.967Z",
     "tempC": 14,
     "tempF": 56,
     "tempUnit": "°F",
@@ -119,7 +139,7 @@ weather_forecast:
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-02T11:17:05.727Z",
+    "time": "2026-01-02T12:40:05.967Z",
     "tempC": 13,
     "tempF": 55,
     "tempUnit": "°F",
@@ -130,24 +150,37 @@ weather_forecast:
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
+  },
+  {
+    "time": "2026-01-02T13:40:05.967Z",
+    "tempC": 12,
+    "tempF": 53,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Clear",
+    "temperature": 53,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
   }
 ]
 
 traffic_conditions:
   {
-  "jams": 1,
+  "jams": 0,
   "stats": {
-    "jams": 1,
-    "major": 1,
+    "jams": 0,
+    "major": 0,
     "total": 26,
     "closures": 12,
-    "highways": 22,
+    "highways": 21,
     "accidents": 0,
-    "construction": 13
+    "construction": 14
   },
-  "summary": "Frisco is experiencing heavy congestion with significant disruptions on major east-west arteries, particularly the US-380 corridor. Multiple lane closures and road works are active on US-380 between US-377 and Dallas Pkwy (6-9mi away), while FM-720 is blocked by closures within 3.2 miles. Drivers should shift operations south toward Stonebriar or Legacy West to maintain trip velocity and avoid the construction-heavy northern perimeter.",
+  "summary": "Frisco is experiencing heavy congestion with significant disruptions on major east-west arteries, particularly US-380 and FM-720. US-380 is heavily restricted by multiple lane closures and road works between US-377 and Dallas Pkwy (6-9mi away), while FM-720 has a complete closure 3.2mi away. Drivers should prioritize north-south travel via the Dallas North Tollway and avoid the US-380 corridor for time-sensitive pickups.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion with significant disruptions on major east-west arteries, particularly the US-380 corridor. Multiple lane closures and road works are active on US-380 between US-377 and Dallas Pkwy (6-9mi away), while FM-720 is blocked by closures within 3.2 miles. Drivers should shift operations south toward Stonebriar or Legacy West to maintain trip velocity and avoid the construction-heavy northern perimeter.",
+  "briefing": "Frisco is experiencing heavy congestion with significant disruptions on major east-west arteries, particularly US-380 and FM-720. US-380 is heavily restricted by multiple lane closures and road works between US-377 and Dallas Pkwy (6-9mi away), while FM-720 has a complete closure 3.2mi away. Drivers should prioritize north-south travel via the Dallas North Tollway and avoid the US-380 corridor for time-sensitive pickups.",
   "closures": [
     {
       "road": "",
@@ -196,7 +229,7 @@ traffic_conditions:
       "location": "Doe Creek Rd to Hollyhock Rd",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.3
+      "distanceFromDriver": 6.2
     },
     {
       "road": "US-380 E",
@@ -210,14 +243,14 @@ traffic_conditions:
       "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.7
+      "distanceFromDriver": 7.6
     },
     {
       "road": "",
       "location": "N Cowan Ave to Benjamins Way",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.5
+      "distanceFromDriver": 8.6
     },
     {
       "road": "",
@@ -234,22 +267,10 @@ traffic_conditions:
       "distanceFromDriver": 3.1
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion with significant disruptions on major east-west arteries, particularly the US-380 corridor.",
+  "headline": "Frisco is experiencing heavy congestion with significant disruptions on major east-west arteries, particularly US-380 and FM-720.",
   "provider": "tomtom",
-  "fetchedAt": "2026-01-02T06:17:05.875Z",
+  "fetchedAt": "2026-01-02T08:40:06.106Z",
   "incidents": [
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Coit Rd to US-380 E",
-      "priority": 148,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: Coit Rd to US-380 E [8.6 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 3,
-      "distanceFromDriver": 8.6
-    },
     {
       "road": "",
       "category": "Road Closed",
@@ -281,10 +302,10 @@ traffic_conditions:
       "priority": 135,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.6 mi]",
+      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 9.6
+      "distanceFromDriver": 9.7
     },
     {
       "road": "US-380 E, US-380 W",
@@ -357,19 +378,31 @@ traffic_conditions:
       "lengthMiles": 0.1,
       "delayMinutes": 0,
       "distanceFromDriver": 7.2
+    },
+    {
+      "road": "US-380 E",
+      "category": "Lane Closed",
+      "location": "US-377 (US-380) to FM-2931 (US-380)",
+      "priority": 125,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Lane Closed: US-380 E (US-377 (US-380) to FM-2931 (US-380)) [9.5 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.5
     }
   ],
   "keyIssues": [
-    "US-380 E/W: Multiple lane/road closures and works 6.2-9.6mi away - High risk of unpredictable delays",
-    "FM-720: Road closed 3.2mi away - Direct impact on local north-south transit near Little Elm",
-    "Dallas Pkwy: Road works at Eldorado and Panther Creek 3.4mi away - Potential service road bottlenecks"
+    "US-380 E/W: Multiple lane closures and road works 6.3-9.6mi away causing significant throughput reduction.",
+    "FM-720: Road closed 3.2mi away blocking primary local access toward Little Elm.",
+    "Dallas Pkwy: Road works from Main St to US-380 (3.4-5.1mi away) slowing the service road corridor."
   ],
   "avoidAreas": [
-    "US-380 Corridor: Heavy construction and lane closures from US-377 to Coit Rd",
-    "FM-720 / Main St area: Multiple road closures impacting local access and bridge crossings"
+    "US-380 Corridor: Heavy construction and lane closures from US-377 to Dallas Pkwy (6-10mi away).",
+    "FM-720 / Main St area: Local road closures 3.2-4.5mi away making navigation toward the lake difficult."
   ],
   "safetyAlert": null,
-  "driverImpact": "Northward movement is severely restricted by construction; prioritize short-haul trips in Central Frisco or head south toward Plano to avoid high-density construction zones and maintain earnings per hour.",
+  "driverImpact": "Focus on short-distance trips within central Frisco or use the Tollway for long-distance hauls; avoid US-380 and FM-720 as they are currently unreliable for efficient routing.",
   "surgePricing": true,
   "closuresCount": 12,
   "repositioning": null,
@@ -378,7 +411,7 @@ traffic_conditions:
   "closuresSummary": "6 closures within 10mi, most critical: FM-720 (3.2mi) and US-380 W at Paloma Creek Blvd (7.2mi).",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Extensive road works and lane closures are concentrated on US-380 and the Dallas Parkway (DNT) service roads, significantly impacting the northern Frisco/Prosper border."
+  "constructionSummary": "Extensive road works and lane closures dominate the US-380 corridor and the Dallas Parkway service roads, impacting nearly all northern Frisco routes."
 }
 
 events:
@@ -1415,36 +1448,36 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "High volume of flight delays reported, particularly affecting Southwest and SkyWest airlines due to winter weather and post-holiday traffic.",
-      "status": "delays",
+      "delays": "General departure and taxi delays of 15 minutes or less; minor gate holds reported.",
+      "status": "normal",
       "busyTimes": [
-        "05:00-08:00",
-        "16:00-19:00"
+        "05:00 AM - 08:00 AM",
+        "04:00 PM - 07:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Significant delays and cancellations observed; Southwest Airlines is experiencing major disruptions.",
-      "status": "severe_delays",
+      "delays": "Significant delays reported recently; check flight status for specific arrival/departure changes.",
+      "status": "delays",
       "busyTimes": [
-        "05:00-08:00",
-        "15:00-19:00"
+        "07:00 AM - 08:00 AM",
+        "08:00 PM - 09:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-01-02T06:17:40.721Z",
+  "fetchedAt": "2026-01-02T08:40:49.040Z",
   "busyPeriods": [
-    "Morning rush (5:00 AM - 8:00 AM) and late afternoon/evening (3:00 PM - 7:00 PM) are experiencing peak congestion.",
-    "Post-holiday travel volume is exacerbating wait times at security and curbside."
+    "Morning rush hour (5:00 AM - 8:00 AM) due to business travel and early departures.",
+    "Evening peak (4:00 PM - 8:00 PM) for returning flights and security lines."
   ],
-  "recommendations": "Drivers should monitor flight status closely as delays are pushing arrival times later. At Dallas Love Field (DAL), pickups are located at the Valet Pavilion and Garage C, Level 1 (passengers must walk ~6 mins from terminal). At DFW, use the designated 'Ride App Pickup' zones on the lower level curbside (Terminal B pickups are in the garage, Level 2). Expect high demand for rides due to flight disruptions."
+  "recommendations": "For DFW: Drivers should stage at the Terminal B Infield lot (overflow at Terminal E after 6 PM). Pickups are typically located on the Upper Level curbside at designated 'Ride App Pickup' zones; follow terminal signs carefully. For DAL: Pickups have relocated to the Valet Pavilion and Garage C (Level 1), a ~6-minute walk for passengers. Drivers must use the designated TNC holding lot and avoid circling. Expect high demand during the evening rush at DAL."
 }
 
 created_at:
-  "Fri Jan 02 2026 06:17:05 GMT+0000 (Coordinated Universal Time)"
+  "Fri Jan 02 2026 08:40:05 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Fri Jan 02 2026 06:17:47 GMT+0000 (Coordinated Universal Time)"
+  "Fri Jan 02 2026 08:40:49 GMT+0000 (Coordinated Universal Time)"
 

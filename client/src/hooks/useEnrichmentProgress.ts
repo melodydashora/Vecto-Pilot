@@ -2,7 +2,7 @@
 // Progress tracking for strategy/blocks generation pipeline
 // Uses real backend pipeline phases with dynamic time-based calculation
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { EnrichmentPhase, CoordData, StrategyData, PipelinePhase } from '@/types/co-pilot';
 
 interface UseEnrichmentProgressOptions {
@@ -57,7 +57,7 @@ const PHASE_TO_FRONTEND: Record<PipelinePhase, EnrichmentPhase> = {
 };
 
 // Strategy card progress caps (strategy is "done" once immediate phase completes)
-const STRATEGY_CARD_CAPS: Record<PipelinePhase, number> = {
+const _STRATEGY_CARD_CAPS: Record<PipelinePhase, number> = {
   starting: 100,      // Can go up to 100% during this phase
   resolving: 100,
   analyzing: 100,

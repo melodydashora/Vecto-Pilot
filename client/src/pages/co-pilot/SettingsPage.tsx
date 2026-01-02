@@ -139,7 +139,7 @@ export default function SettingsPage() {
 
   const watchYear = form.watch('vehicleYear');
   const watchMake = form.watch('vehicleMake');
-  const watchPlatforms = form.watch('ridesharePlatforms');
+  const _watchPlatforms = form.watch('ridesharePlatforms');
   const watchCountry = form.watch('country');
   const watchModel = form.watch('vehicleModel');
 
