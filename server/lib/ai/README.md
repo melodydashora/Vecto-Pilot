@@ -100,6 +100,41 @@ When primary model fails, certain roles automatically fall back to Claude Opus:
 - Fallback model: `claude-opus-4-5-20251101`
 - Logs: `[consolidator] 🔄 Trying Claude Opus fallback...`
 
+## CoachDAL (AI Coach Data Access)
+
+The `coach-dal.js` provides data access for the AI Coach chat, including context retrieval and action execution.
+
+### Key Methods
+
+| Method | Purpose |
+|--------|---------|
+| `getCompleteContext(snapshotId)` | Full context for AI Coach prompt |
+| `formatContextForPrompt(context)` | Format context as prompt text |
+| `saveUserNote(noteData)` | Save coach note about driver |
+| `deactivateEvent({ event_title, reason })` | Deactivate event by title (title-based lookup) |
+| `reactivateEvent({ event_title, reason })` | Reactivate mistakenly deactivated event |
+| `deactivateNews({ news_title, reason })` | Deactivate news item (hash-based) |
+| `saveZoneIntelligence(zoneData)` | Save crowd-sourced zone intel |
+| `getZoneIntelligenceSummary(marketSlug)` | Get zone intel for AI prompt |
+
+### Event Deactivation/Reactivation
+
+Events are looked up by title (case-insensitive), not ID:
+```javascript
+// Deactivate (sets is_active = false on discovered_events)
+await coachDAL.deactivateEvent({
+  event_title: "Holiday Lights at Legacy West",
+  reason: "event_ended",
+  notes: "Ended December 31st"
+});
+
+// Reactivate (sets is_active = true, clears deactivation fields)
+await coachDAL.reactivateEvent({
+  event_title: "Holiday Lights at Legacy West",
+  reason: "wrong date assumed"
+});
+```
+
 ## Import Paths
 
 ```javascript

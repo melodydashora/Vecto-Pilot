@@ -37,6 +37,7 @@ Complete frontend → backend API endpoint reference.
 | `/api/briefing/rideshare-news/:snapshotId` | GET | `server/api/briefing/briefing.js` | Rideshare-relevant news |
 | `/api/briefing/school-closures/:snapshotId` | GET | `server/api/briefing/briefing.js` | School/college closures |
 | `/api/briefing/airport/:snapshotId` | GET | `server/api/briefing/briefing.js` | Airport delays and conditions |
+| `/api/briefing/refresh-daily/:snapshotId` | POST | `server/api/briefing/briefing.js` | On-demand refresh of events + news (daily data) |
 
 ### Chat & Voice
 
@@ -65,11 +66,14 @@ The `/api/chat` POST endpoint parses special action tags from AI responses and e
 
 | Action Tag | Purpose | Example |
 |------------|---------|---------|
-| `[NOTE: {...}]` | Save coach note about user | `[NOTE: {"content": "Prefers airport runs"}]` |
-| `[SYSTEM_NOTE: {...}]` | AI-generated observation | `[SYSTEM_NOTE: {"content": "User seems tired"}]` |
-| `[DEACTIVATE_NEWS: {...}]` | Hide news item for user | `[DEACTIVATE_NEWS: {"hash": "abc123", "reason": "already knew"}]` |
-| `[DEACTIVATE_EVENT: {...}]` | Hide event for user | `[DEACTIVATE_EVENT: {"eventId": "uuid", "reason": "not interested"}]` |
+| `[SAVE_NOTE: {...}]` | Save coach note about user | `[SAVE_NOTE: {"type": "preference", "title": "Airport runs", "content": "Prefers DFW"}]` |
+| `[SYSTEM_NOTE: {...}]` | AI-generated observation | `[SYSTEM_NOTE: {"type": "pain_point", "title": "...", "description": "..."}]` |
+| `[DEACTIVATE_NEWS: {...}]` | Hide news item for user | `[DEACTIVATE_NEWS: {"news_title": "Article Title", "reason": "outdated"}]` |
+| `[DEACTIVATE_EVENT: {...}]` | Deactivate event (title-based lookup) | `[DEACTIVATE_EVENT: {"event_title": "Event Name", "reason": "event_ended"}]` |
+| `[REACTIVATE_EVENT: {...}]` | Undo mistaken event deactivation | `[REACTIVATE_EVENT: {"event_title": "Event Name", "reason": "wrong date assumed"}]` |
 | `[ZONE_INTEL: {...}]` | Crowd-sourced zone learning | `[ZONE_INTEL: {"zone_type": "dead_zone", "zone_name": "Airport Cellphone Lot", "reason": "No rides here after 10pm"}]` |
+
+**Date/Time Awareness:** The Coach receives the user's local date/time in the system prompt (e.g., "Wednesday, January 1, 2026 at 11:45 PM") to prevent date-related mistakes when deactivating events.
 
 **Zone Intelligence Types:**
 - `dead_zone` - Areas with no ride requests

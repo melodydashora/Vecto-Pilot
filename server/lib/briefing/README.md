@@ -120,16 +120,21 @@ Fields checked: `traffic_conditions`, `events`, `news`, `school_closures`
 
 | Data Type | Cache Duration | Refresh Trigger |
 |-----------|----------------|-----------------|
+| Weather (4-hour forecast) | **No cache** | Fresh on EVERY call (forecast changes) |
 | Traffic | **No cache** | Fresh on EVERY call (conditions change rapidly) |
-| Events | **No cache** | Fresh on EVERY call (AI coach may need to verify) |
+| Events | **No cache** | Fresh on EVERY call (AI coach may verify) |
+| Airport | **No cache** | Fresh on EVERY call (delays change rapidly) |
 | News | 24 hours by city | Same city within calendar day |
 | School Closures | 24 hours by city | Same city within calendar day |
-| Weather | From snapshot | Pre-captured at location resolution |
 
-### Why Traffic & Events Are Not Cached
+### Why Weather, Traffic, Events & Airport Are Not Cached
 
+- **Weather (4-hour forecast)**: Forecasts change throughout the day. Briefing needs fresh hourly predictions.
 - **Traffic**: Conditions change rapidly (accidents, congestion). Stale traffic data is dangerous.
 - **Events**: AI coach may need to double-check events. New events can be discovered throughout the day.
+- **Airport**: Delay status changes rapidly. Stale data could mislead drivers.
+
+**Note:** Current weather conditions are captured in the snapshot during location resolution. The briefing fetches the 4-hour FORECAST separately, which is different data.
 
 ### Daily Data (News, School Closures)
 

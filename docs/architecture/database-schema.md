@@ -268,9 +268,10 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 | `is_active` | BOOLEAN | Active market flag |
 
 **Coverage (Jan 2026):**
-- 31 US markets (1,465 city aliases)
+- 69 US markets (67 with airport codes, 1,569 city aliases)
 - 71 international markets (1,868 city aliases)
-- 54 unique timezones
+- 140 total markets, 3,437 city aliases
+- Multi-airport markets: Chicago (ORD+MDW), Dallas (DFW+DAL), Houston (IAH+HOU), NYC (JFK+LGA)
 
 **Lookup Strategy:**
 1. Exact match: `primary_city` + `state`
@@ -311,10 +312,76 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 | `source_model` | TEXT | SerpAPI, GPT-5.2, Gemini, etc. |
 | `event_hash` | TEXT (UNIQUE) | Deduplication key |
 | `is_active` | BOOLEAN | False if cancelled |
+| `venue_id` | UUID (FK) | Reference to venue_cache (for precise coords & SmartBlocks) |
 
 **Deduplication:** Uses MD5 hash of `normalize(title + venue + date + city)` to prevent duplicates across sources.
 
 See [Event Discovery Architecture](event-discovery.md) for full documentation.
+
+---
+
+### `venue_cache` - Venue Deduplication & Precision Coordinates
+
+**Purpose:** Central venue registry with precise coordinates, normalized names for fuzzy matching, and event linking. Eliminates repeated geocoding and enables SmartBlocks "event tonight" flagging.
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Query: `server/lib/venue/venue-cache.js`
+- Integration: `server/scripts/sync-events.mjs`
+
+**Key Columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `venue_name` | TEXT | Original venue name |
+| `normalized_name` | TEXT | Normalized for matching ("The Rustic" → "rustic") |
+| `city`, `state`, `country` | TEXT | Location (country defaults to 'USA') |
+| `lat`, `lng` | DOUBLE PRECISION | **Full precision coordinates** (15+ decimals) |
+| `coord_key` | TEXT | 4-decimal key for proximity lookup |
+| `address` | TEXT | Street address |
+| `formatted_address` | TEXT | Full formatted address |
+| `zip` | TEXT | ZIP code |
+| `place_id` | TEXT (UNIQUE) | Google Place ID |
+| `hours` | JSONB | Opening hours from Google Places |
+| `hours_source` | TEXT | Where hours came from |
+| `venue_type` | TEXT | stadium/arena/bar/restaurant/etc. |
+| `capacity_estimate` | INTEGER | Estimated capacity |
+| `source` | TEXT | Data source (e.g., 'sync_events_gpt52') |
+| `source_model` | TEXT | AI model if from LLM |
+| `access_count` | INTEGER | Cache hit counter |
+| `last_accessed_at` | TIMESTAMP | Last cache hit time |
+
+**Indexes:**
+| Index | Purpose |
+|-------|---------|
+| `UNIQUE (normalized_name, city, state)` | Prevent venue duplicates |
+| `UNIQUE (place_id)` | Google Place ID lookup |
+| `idx_venue_cache_coord_key` | Coordinate proximity lookup |
+| `idx_venue_cache_city_state` | Regional venue queries |
+| `idx_venue_cache_normalized_name` | Fuzzy name search |
+
+**Relationship:** `discovered_events.venue_id` → `venue_cache.id` (FK, ON DELETE SET NULL)
+
+**Normalization Algorithm:**
+```javascript
+// "AT&T Stadium" → "att stadium"
+// "The Rustic" → "rustic"
+function normalizeVenueName(name) {
+  return name
+    .toLowerCase()
+    .replace(/^the\s+/i, '')     // Remove "The"
+    .replace(/&/g, ' and ')      // AT&T → att
+    .replace(/[^\w\s]/g, '')     // Remove punctuation
+    .replace(/\s+/g, ' ')        // Collapse whitespace
+    .trim();
+}
+```
+
+**Benefits:**
+1. **Precise Coordinates**: Full 15+ decimal precision vs coord_cache's 4 decimals
+2. **Event Linking**: SmartBlocks can check "event tonight at this venue?" via FK join
+3. **Deduplication**: Same venue from different LLMs resolves to single cache entry
+4. **Reduced API Calls**: Reuse cached venue data instead of repeated geocoding
 
 ---
 

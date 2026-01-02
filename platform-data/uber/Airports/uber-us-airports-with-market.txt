@@ -1,0 +1,697 @@
+CSV File (uber_airports_by_market.csv)
+csvairport_code,airport_name,state,uber_market,country,market_id
+LAX,Los Angeles International Airport,California,Los Angeles,United States,los-angeles-ca
+SFO,San Francisco International Airport,California,San Francisco,United States,san-francisco-ca
+OAK,Metropolitan Oakland International Airport,California,Oakland,United States,oakland-ca
+SJC,Norman Y. Mineta San Jose International Airport,California,San Jose,United States,san-jose-ca
+SAN,San Diego International Airport,California,San Diego,United States,san-diego-ca
+BUR,Hollywood Burbank Airport,California,Burbank,United States,burbank-ca
+LGB,Long Beach Airport,California,Long Beach,United States,long-beach-ca
+SNA,John Wayne Airport-Orange County,California,Santa Ana,United States,santa-ana-ca
+ONT,Ontario International Airport,California,Ontario,United States,ontario-ca
+SMF,Sacramento International Airport,California,Sacramento,United States,sacramento-ca
+PSP,Palm Springs International Airport,California,Palm Springs,United States,palm-springs-ca
+FAT,Fresno Yosemite International Airport,California,Fresno,United States,fresno-ca
+JFK,John F. Kennedy International Airport,New York,Queens,United States,queens-ny
+LGA,LaGuardia Airport,New York,Queens,United States,queens-ny
+EWR,Newark Liberty International Airport,New Jersey,Newark,United States,newark-nj
+BUF,Buffalo Niagara International Airport,New York,Buffalo,United States,buffalo-ny
+SYR,Syracuse Hancock International Airport,New York,Syracuse,United States,syracuse-ny
+ORD,Chicago O'Hare International Airport,Illinois,Chicago,United States,chicago-il
+MDW,Chicago Midway International Airport,Illinois,Chicago,United States,chicago-il
+DFW,Dallas/Fort Worth International Airport,Texas,Dallas,United States,dallas-tx
+DAL,Dallas Love Field Airport,Texas,Dallas,United States,dallas-tx
+IAH,George Bush Intercontinental/Houston Airport,Texas,Houston,United States,houston-tx
+HOU,William P. Hobby Airport,Texas,Houston,United States,houston-tx
+AUS,Austin-Bergstrom International Airport,Texas,Austin,United States,austin-tx
+SAT,San Antonio International Airport,Texas,San Antonio,United States,san-antonio-tx
+ELP,El Paso International Airport,Texas,El Paso,United States,el-paso-tx
+MIA,Miami International Airport,Florida,Miami,United States,miami-fl
+FLL,Fort Lauderdale/Hollywood International Airport,Florida,Fort Lauderdale,United States,fort-lauderdale-fl
+MCO,Orlando International Airport,Florida,Orlando,United States,orlando-fl
+TPA,Tampa International Airport,Florida,Tampa,United States,tampa-fl
+JAX,Jacksonville International Airport,Florida,Jacksonville,United States,jacksonville-fl
+RSW,Southwest Florida International Airport,Florida,Fort Myers,United States,fort-myers-fl
+PBI,Palm Beach International Airport,Florida,West Palm Beach,United States,west-palm-beach-fl
+ATL,Hartsfield-Jackson Atlanta International Airport,Georgia,Atlanta,United States,atlanta-ga
+BOS,General Edward Lawrence Logan International Airport,Massachusetts,Boston,United States,boston-ma
+SEA,Seattle-Tacoma International Airport,Washington,Seatac,United States,seatac-wa
+DEN,Denver International Airport,Colorado,Denver,United States,denver-co
+PHX,Phoenix Sky Harbor International Airport,Arizona,Phoenix,United States,phoenix-az
+TUS,Tucson International Airport,Arizona,Tucson,United States,tucson-az
+LAS,McCarran International Airport,Nevada,Las Vegas,United States,las-vegas-nv
+RNO,Reno/Tahoe International Airport,Nevada,Reno,United States,reno-nv
+MSP,Minneapolis-St. Paul International Airport,Minnesota,Saint Paul,United States,saint-paul-mn
+DTW,Detroit Metropolitan Wayne County Airport,Michigan,Detroit,United States,detroit-mi
+PHL,Philadelphia International Airport,Pennsylvania,Philadelphia,United States,philadelphia-pa
+PIT,Pittsburgh International Airport,Pennsylvania,Pittsburgh,United States,pittsburgh-pa
+DCA,Ronald Reagan Washington National Airport,Virginia,Arlington,United States,arlington-va
+IAD,Washington Dulles International Airport,District of Columbia,Washington,United States,washington-dc
+BWI,Baltimore-Washington International Airport,Maryland,Baltimore,United States,baltimore-md
+CLT,Charlotte Douglas International Airport,North Carolina,Charlotte,United States,charlotte-nc
+RDU,Raleigh-Durham International Airport,North Carolina,Morrisville,United States,morrisville-nc
+PDX,Portland International Airport,Oregon,Portland,United States,portland-or
+SLC,Salt Lake City International Airport,Utah,Salt Lake City,United States,salt-lake-city-ut
+STL,Lambert-St Louis International Airport,Missouri,Saint Louis,United States,saint-louis-mo
+MCI,Kansas City International Airport,Missouri,Kansas City,United States,kansas-city-mo
+IND,Indianapolis International Airport,Indiana,Indianapolis,United States,indianapolis-in
+CVG,Cincinnati/Northern Kentucky International Airport,Kentucky,Hebron,United States,hebron-ky
+SDF,Louisville International Airport,Kentucky,Louisville,United States,louisville-ky
+CLE,Cleveland-Hopkins International Airport,Ohio,Cleveland,United States,cleveland-oh
+CMH,Port Columbus International Airport,Ohio,Columbus,United States,columbus-oh
+BNA,Nashville International Airport,Tennessee,Nashville,United States,nashville-tn
+MEM,Memphis International Airport,Tennessee,Memphis,United States,memphis-tn
+MSY,Louis Armstrong New Orleans International Airport,Louisiana,Kenner,United States,kenner-la
+OMA,Eppley Airfield,Nebraska,Omaha,United States,omaha-ne
+ABQ,Albuquerque International Sunport,New Mexico,Albuquerque,United States,albuquerque-nm
+HNL,Daniel K. Inouye International Airport,Hawaii,Honolulu,United States,honolulu-hi
+OGG,Kahului Airport,Hawaii,Kahului,United States,kahului-hi
+KOA,Ellison Onizuka Kona International Airport,Hawaii,Kailua Kona,United States,kailua-kona-hi
+ANC,Ted Stevens Anchorage International Airport,Alaska,Anchorage,United States,anchorage-ak
+MKE,General Mitchell International Airport,Wisconsin,Milwaukee,United States,milwaukee-wi
+GSP,Greenville-Spartanburg International Airport,South Carolina,Greer,United States,greer-sc
+CHS,Charleston AFB/International Airport,South Carolina,North Charleston,United States,north-charleston-sc
+
+JSON Seeding File with Market Meta Tags (uber_airports_by_market.json)
+json{
+  "metadata": {
+    "source": "Uber public airport pages",
+    "source_url_pattern": "https://www.uber.com/global/en/r/airports/{airport_code}/",
+    "date_collected": "2026-01-01",
+    "total_airports": 71,
+    "total_markets": 62,
+    "country": "United States"
+  },
+  "markets": {
+    "los-angeles-ca": {
+      "market_name": "Los Angeles",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "LAX", "name": "Los Angeles International Airport"}
+      ]
+    },
+    "san-francisco-ca": {
+      "market_name": "San Francisco",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "SFO", "name": "San Francisco International Airport"}
+      ]
+    },
+    "oakland-ca": {
+      "market_name": "Oakland",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "OAK", "name": "Metropolitan Oakland International Airport"}
+      ]
+    },
+    "san-jose-ca": {
+      "market_name": "San Jose",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "SJC", "name": "Norman Y. Mineta San Jose International Airport"}
+      ]
+    },
+    "san-diego-ca": {
+      "market_name": "San Diego",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "SAN", "name": "San Diego International Airport"}
+      ]
+    },
+    "burbank-ca": {
+      "market_name": "Burbank",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "BUR", "name": "Hollywood Burbank Airport"}
+      ]
+    },
+    "long-beach-ca": {
+      "market_name": "Long Beach",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "LGB", "name": "Long Beach Airport"}
+      ]
+    },
+    "santa-ana-ca": {
+      "market_name": "Santa Ana",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "SNA", "name": "John Wayne Airport-Orange County"}
+      ]
+    },
+    "ontario-ca": {
+      "market_name": "Ontario",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "ONT", "name": "Ontario International Airport"}
+      ]
+    },
+    "sacramento-ca": {
+      "market_name": "Sacramento",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "SMF", "name": "Sacramento International Airport"}
+      ]
+    },
+    "palm-springs-ca": {
+      "market_name": "Palm Springs",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "PSP", "name": "Palm Springs International Airport"}
+      ]
+    },
+    "fresno-ca": {
+      "market_name": "Fresno",
+      "state": "California",
+      "country": "United States",
+      "airports": [
+        {"code": "FAT", "name": "Fresno Yosemite International Airport"}
+      ]
+    },
+    "queens-ny": {
+      "market_name": "Queens",
+      "state": "New York",
+      "country": "United States",
+      "airports": [
+        {"code": "JFK", "name": "John F. Kennedy International Airport"},
+        {"code": "LGA", "name": "LaGuardia Airport"}
+      ]
+    },
+    "newark-nj": {
+      "market_name": "Newark",
+      "state": "New Jersey",
+      "country": "United States",
+      "airports": [
+        {"code": "EWR", "name": "Newark Liberty International Airport"}
+      ]
+    },
+    "buffalo-ny": {
+      "market_name": "Buffalo",
+      "state": "New York",
+      "country": "United States",
+      "airports": [
+        {"code": "BUF", "name": "Buffalo Niagara International Airport"}
+      ]
+    },
+    "syracuse-ny": {
+      "market_name": "Syracuse",
+      "state": "New York",
+      "country": "United States",
+      "airports": [
+        {"code": "SYR", "name": "Syracuse Hancock International Airport"}
+      ]
+    },
+    "chicago-il": {
+      "market_name": "Chicago",
+      "state": "Illinois",
+      "country": "United States",
+      "airports": [
+        {"code": "ORD", "name": "Chicago O'Hare International Airport"},
+        {"code": "MDW", "name": "Chicago Midway International Airport"}
+      ]
+    },
+    "dallas-tx": {
+      "market_name": "Dallas",
+      "state": "Texas",
+      "country": "United States",
+      "airports": [
+        {"code": "DFW", "name": "Dallas/Fort Worth International Airport"},
+        {"code": "DAL", "name": "Dallas Love Field Airport"}
+      ]
+    },
+    "houston-tx": {
+      "market_name": "Houston",
+      "state": "Texas",
+      "country": "United States",
+      "airports": [
+        {"code": "IAH", "name": "George Bush Intercontinental/Houston Airport"},
+        {"code": "HOU", "name": "William P. Hobby Airport"}
+      ]
+    },
+    "austin-tx": {
+      "market_name": "Austin",
+      "state": "Texas",
+      "country": "United States",
+      "airports": [
+        {"code": "AUS", "name": "Austin-Bergstrom International Airport"}
+      ]
+    },
+    "san-antonio-tx": {
+      "market_name": "San Antonio",
+      "state": "Texas",
+      "country": "United States",
+      "airports": [
+        {"code": "SAT", "name": "San Antonio International Airport"}
+      ]
+    },
+    "el-paso-tx": {
+      "market_name": "El Paso",
+      "state": "Texas",
+      "country": "United States",
+      "airports": [
+        {"code": "ELP", "name": "El Paso International Airport"}
+      ]
+    },
+    "miami-fl": {
+      "market_name": "Miami",
+      "state": "Florida",
+      "country": "United States",
+      "airports": [
+        {"code": "MIA", "name": "Miami International Airport"}
+      ]
+    },
+    "fort-lauderdale-fl": {
+      "market_name": "Fort Lauderdale",
+      "state": "Florida",
+      "country": "United States",
+      "airports": [
+        {"code": "FLL", "name": "Fort Lauderdale/Hollywood International Airport"}
+      ]
+    },
+    "orlando-fl": {
+      "market_name": "Orlando",
+      "state": "Florida",
+      "country": "United States",
+      "airports": [
+        {"code": "MCO", "name": "Orlando International Airport"}
+      ]
+    },
+    "tampa-fl": {
+      "market_name": "Tampa",
+      "state": "Florida",
+      "country": "United States",
+      "airports": [
+        {"code": "TPA", "name": "Tampa International Airport"}
+      ]
+    },
+    "jacksonville-fl": {
+      "market_name": "Jacksonville",
+      "state": "Florida",
+      "country": "United States",
+      "airports": [
+        {"code": "JAX", "name": "Jacksonville International Airport"}
+      ]
+    },
+    "fort-myers-fl": {
+      "market_name": "Fort Myers",
+      "state": "Florida",
+      "country": "United States",
+      "airports": [
+        {"code": "RSW", "name": "Southwest Florida International Airport"}
+      ]
+    },
+    "west-palm-beach-fl": {
+      "market_name": "West Palm Beach",
+      "state": "Florida",
+      "country": "United States",
+      "airports": [
+        {"code": "PBI", "name": "Palm Beach International Airport"}
+      ]
+    },
+    "atlanta-ga": {
+      "market_name": "Atlanta",
+      "state": "Georgia",
+      "country": "United States",
+      "airports": [
+        {"code": "ATL", "name": "Hartsfield-Jackson Atlanta International Airport"}
+      ]
+    },
+    "boston-ma": {
+      "market_name": "Boston",
+      "state": "Massachusetts",
+      "country": "United States",
+      "airports": [
+        {"code": "BOS", "name": "General Edward Lawrence Logan International Airport"}
+      ]
+    },
+    "seatac-wa": {
+      "market_name": "Seatac",
+      "state": "Washington",
+      "country": "United States",
+      "airports": [
+        {"code": "SEA", "name": "Seattle-Tacoma International Airport"}
+      ]
+    },
+    "denver-co": {
+      "market_name": "Denver",
+      "state": "Colorado",
+      "country": "United States",
+      "airports": [
+        {"code": "DEN", "name": "Denver International Airport"}
+      ]
+    },
+    "phoenix-az": {
+      "market_name": "Phoenix",
+      "state": "Arizona",
+      "country": "United States",
+      "airports": [
+        {"code": "PHX", "name": "Phoenix Sky Harbor International Airport"}
+      ]
+    },
+    "tucson-az": {
+      "market_name": "Tucson",
+      "state": "Arizona",
+      "country": "United States",
+      "airports": [
+        {"code": "TUS", "name": "Tucson International Airport"}
+      ]
+    },
+    "las-vegas-nv": {
+      "market_name": "Las Vegas",
+      "state": "Nevada",
+      "country": "United States",
+      "airports": [
+        {"code": "LAS", "name": "McCarran International Airport"}
+      ]
+    },
+    "reno-nv": {
+      "market_name": "Reno",
+      "state": "Nevada",
+      "country": "United States",
+      "airports": [
+        {"code": "RNO", "name": "Reno/Tahoe International Airport"}
+      ]
+    },
+    "saint-paul-mn": {
+      "market_name": "Saint Paul",
+      "state": "Minnesota",
+      "country": "United States",
+      "airports": [
+        {"code": "MSP", "name": "Minneapolis-St. Paul International Airport"}
+      ]
+    },
+    "detroit-mi": {
+      "market_name": "Detroit",
+      "state": "Michigan",
+      "country": "United States",
+      "airports": [
+        {"code": "DTW", "name": "Detroit Metropolitan Wayne County Airport"}
+      ]
+    },
+    "philadelphia-pa": {
+      "market_name": "Philadelphia",
+      "state": "Pennsylvania",
+      "country": "United States",
+      "airports": [
+        {"code": "PHL", "name": "Philadelphia International Airport"}
+      ]
+    },
+    "pittsburgh-pa": {
+      "market_name": "Pittsburgh",
+      "state": "Pennsylvania",
+      "country": "United States",
+      "airports": [
+        {"code": "PIT", "name": "Pittsburgh International Airport"}
+      ]
+    },
+    "arlington-va": {
+      "market_name": "Arlington",
+      "state": "Virginia",
+      "country": "United States",
+      "airports": [
+        {"code": "DCA", "name": "Ronald Reagan Washington National Airport"}
+      ]
+    },
+    "washington-dc": {
+      "market_name": "Washington",
+      "state": "District of Columbia",
+      "country": "United States",
+      "airports": [
+        {"code": "IAD", "name": "Washington Dulles International Airport"}
+      ]
+    },
+    "baltimore-md": {
+      "market_name": "Baltimore",
+      "state": "Maryland",
+      "country": "United States",
+      "airports": [
+        {"code": "BWI", "name": "Baltimore-Washington International Airport"}
+      ]
+    },
+    "charlotte-nc": {
+      "market_name": "Charlotte",
+      "state": "North Carolina",
+      "country": "United States",
+      "airports": [
+        {"code": "CLT", "name": "Charlotte Douglas International Airport"}
+      ]
+    },
+    "morrisville-nc": {
+      "market_name": "Morrisville",
+      "state": "North Carolina",
+      "country": "United States",
+      "airports": [
+        {"code": "RDU", "name": "Raleigh-Durham International Airport"}
+      ]
+    },
+    "portland-or": {
+      "market_name": "Portland",
+      "state": "Oregon",
+      "country": "United States",
+      "airports": [
+        {"code": "PDX", "name": "Portland International Airport"}
+      ]
+    },
+    "salt-lake-city-ut": {
+      "market_name": "Salt Lake City",
+      "state": "Utah",
+      "country": "United States",
+      "airports": [
+        {"code": "SLC", "name": "Salt Lake City International Airport"}
+      ]
+    },
+    "saint-louis-mo": {
+      "market_name": "Saint Louis",
+      "state": "Missouri",
+      "country": "United States",
+      "airports": [
+        {"code": "STL", "name": "Lambert-St Louis International Airport"}
+      ]
+    },
+    "kansas-city-mo": {
+      "market_name": "Kansas City",
+      "state": "Missouri",
+      "country": "United States",
+      "airports": [
+        {"code": "MCI", "name": "Kansas City International Airport"}
+      ]
+    },
+    "indianapolis-in": {
+      "market_name": "Indianapolis",
+      "state": "Indiana",
+      "country": "United States",
+      "airports": [
+        {"code": "IND", "name": "Indianapolis International Airport"}
+      ]
+    },
+    "hebron-ky": {
+      "market_name": "Hebron",
+      "state": "Kentucky",
+      "country": "United States",
+      "airports": [
+        {"code": "CVG", "name": "Cincinnati/Northern Kentucky International Airport"}
+      ]
+    },
+    "louisville-ky": {
+      "market_name": "Louisville",
+      "state": "Kentucky",
+      "country": "United States",
+      "airports": [
+        {"code": "SDF", "name": "Louisville International Airport"}
+      ]
+    },
+    "cleveland-oh": {
+      "market_name": "Cleveland",
+      "state": "Ohio",
+      "country": "United States",
+      "airports": [
+        {"code": "CLE", "name": "Cleveland-Hopkins International Airport"}
+      ]
+    },
+    "columbus-oh": {
+      "market_name": "Columbus",
+      "state": "Ohio",
+      "country": "United States",
+      "airports": [
+        {"code": "CMH", "name": "Port Columbus International Airport"}
+      ]
+    },
+    "nashville-tn": {
+      "market_name": "Nashville",
+      "state": "Tennessee",
+      "country": "United States",
+      "airports": [
+        {"code": "BNA", "name": "Nashville International Airport"}
+      ]
+    },
+    "memphis-tn": {
+      "market_name": "Memphis",
+      "state": "Tennessee",
+      "country": "United States",
+      "airports": [
+        {"code": "MEM", "name": "Memphis International Airport"}
+      ]
+    },
+    "kenner-la": {
+      "market_name": "Kenner",
+      "state": "Louisiana",
+      "country": "United States",
+      "airports": [
+        {"code": "MSY", "name": "Louis Armstrong New Orleans International Airport"}
+      ]
+    },
+    "omaha-ne": {
+      "market_name": "Omaha",
+      "state": "Nebraska",
+      "country": "United States",
+      "airports": [
+        {"code": "OMA", "name": "Eppley Airfield"}
+      ]
+    },
+    "albuquerque-nm": {
+      "market_name": "Albuquerque",
+      "state": "New Mexico",
+      "country": "United States",
+      "airports": [
+        {"code": "ABQ", "name": "Albuquerque International Sunport"}
+      ]
+    },
+    "honolulu-hi": {
+      "market_name": "Honolulu",
+      "state": "Hawaii",
+      "country": "United States",
+      "airports": [
+        {"code": "HNL", "name": "Daniel K. Inouye International Airport"}
+      ]
+    },
+    "kahului-hi": {
+      "market_name": "Kahului",
+      "state": "Hawaii",
+      "country": "United States",
+      "airports": [
+        {"code": "OGG", "name": "Kahului Airport"}
+      ]
+    },
+    "kailua-kona-hi": {
+      "market_name": "Kailua Kona",
+      "state": "Hawaii",
+      "country": "United States",
+      "airports": [
+        {"code": "KOA", "name": "Ellison Onizuka Kona International Airport"}
+      ]
+    },
+    "anchorage-ak": {
+      "market_name": "Anchorage",
+      "state": "Alaska",
+      "country": "United States",
+      "airports": [
+        {"code": "ANC", "name": "Ted Stevens Anchorage International Airport"}
+      ]
+    },
+    "milwaukee-wi": {
+      "market_name": "Milwaukee",
+      "state": "Wisconsin",
+      "country": "United States",
+      "airports": [
+        {"code": "MKE", "name": "General Mitchell International Airport"}
+      ]
+    },
+    "greer-sc": {
+      "market_name": "Greer",
+      "state": "South Carolina",
+      "country": "United States",
+      "airports": [
+        {"code": "GSP", "name": "Greenville-Spartanburg International Airport"}
+      ]
+    },
+    "north-charleston-sc": {
+      "market_name": "North Charleston",
+      "state": "South Carolina",
+      "country": "United States",
+      "airports": [
+        {"code": "CHS", "name": "Charleston AFB/International Airport"}
+      ]
+    }
+  },
+  "airports_flat": [
+    {"airport_code": "LAX", "airport_name": "Los Angeles International Airport", "state": "California", "uber_market": "Los Angeles", "market_id": "los-angeles-ca"},
+    {"airport_code": "SFO", "airport_name": "San Francisco International Airport", "state": "California", "uber_market": "San Francisco", "market_id": "san-francisco-ca"},
+    {"airport_code": "OAK", "airport_name": "Metropolitan Oakland International Airport", "state": "California", "uber_market": "Oakland", "market_id": "oakland-ca"},
+    {"airport_code": "SJC", "airport_name": "Norman Y. Mineta San Jose International Airport", "state": "California", "uber_market": "San Jose", "market_id": "san-jose-ca"},
+    {"airport_code": "SAN", "airport_name": "San Diego International Airport", "state": "California", "uber_market": "San Diego", "market_id": "san-diego-ca"},
+    {"airport_code": "BUR", "airport_name": "Hollywood Burbank Airport", "state": "California", "uber_market": "Burbank", "market_id": "burbank-ca"},
+    {"airport_code": "LGB", "airport_name": "Long Beach Airport", "state": "California", "uber_market": "Long Beach", "market_id": "long-beach-ca"},
+    {"airport_code": "SNA", "airport_name": "John Wayne Airport-Orange County", "state": "California", "uber_market": "Santa Ana", "market_id": "santa-ana-ca"},
+    {"airport_code": "ONT", "airport_name": "Ontario International Airport", "state": "California", "uber_market": "Ontario", "market_id": "ontario-ca"},
+    {"airport_code": "SMF", "airport_name": "Sacramento International Airport", "state": "California", "uber_market": "Sacramento", "market_id": "sacramento-ca"},
+    {"airport_code": "PSP", "airport_name": "Palm Springs International Airport", "state": "California", "uber_market": "Palm Springs", "market_id": "palm-springs-ca"},
+    {"airport_code": "FAT", "airport_name": "Fresno Yosemite International Airport", "state": "California", "uber_market": "Fresno", "market_id": "fresno-ca"},
+    {"airport_code": "JFK", "airport_name": "John F. Kennedy International Airport", "state": "New York", "uber_market": "Queens", "market_id": "queens-ny"},
+    {"airport_code": "LGA", "airport_name": "LaGuardia Airport", "state": "New York", "uber_market": "Queens", "market_id": "queens-ny"},
+    {"airport_code": "EWR", "airport_name": "Newark Liberty International Airport", "state": "New Jersey", "uber_market": "Newark", "market_id": "newark-nj"},
+    {"airport_code": "BUF", "airport_name": "Buffalo Niagara International Airport", "state": "New York", "uber_market": "Buffalo", "market_id": "buffalo-ny"},
+    {"airport_code": "SYR", "airport_name": "Syracuse Hancock International Airport", "state": "New York", "uber_market": "Syracuse", "market_id": "syracuse-ny"},
+    {"airport_code": "ORD", "airport_name": "Chicago O'Hare International Airport", "state": "Illinois", "uber_market": "Chicago", "market_id": "chicago-il"},
+    {"airport_code": "MDW", "airport_name": "Chicago Midway International Airport", "state": "Illinois", "uber_market": "Chicago", "market_id": "chicago-il"},
+    {"airport_code": "DFW", "airport_name": "Dallas/Fort Worth International Airport", "state": "Texas", "uber_market": "Dallas", "market_id": "dallas-tx"},
+    {"airport_code": "DAL", "airport_name": "Dallas Love Field Airport", "state": "Texas", "uber_market": "Dallas", "market_id": "dallas-tx"},
+    {"airport_code": "IAH", "airport_name": "George Bush Intercontinental/Houston Airport", "state": "Texas", "uber_market": "Houston", "market_id": "houston-tx"},
+    {"airport_code": "HOU", "airport_name": "William P. Hobby Airport", "state": "Texas", "uber_market": "Houston", "market_id": "houston-tx"},
+    {"airport_code": "AUS", "airport_name": "Austin-Bergstrom International Airport", "state": "Texas", "uber_market": "Austin", "market_id": "austin-tx"},
+    {"airport_code": "SAT", "airport_name": "San Antonio International Airport", "state": "Texas", "uber_market": "San Antonio", "market_id": "san-antonio-tx"},
+    {"airport_code": "ELP", "airport_name": "El Paso International Airport", "state": "Texas", "uber_market": "El Paso", "market_id": "el-paso-tx"},
+    {"airport_code": "MIA", "airport_name": "Miami International Airport", "state": "Florida", "uber_market": "Miami", "market_id": "miami-fl"},
+    {"airport_code": "FLL", "airport_name": "Fort Lauderdale/Hollywood International Airport", "state": "Florida", "uber_market": "Fort Lauderdale", "market_id": "fort-lauderdale-fl"},
+    {"airport_code": "MCO", "airport_name": "Orlando International Airport", "state": "Florida", "uber_market": "Orlando", "market_id": "orlando-fl"},
+    {"airport_code": "TPA", "airport_name": "Tampa International Airport", "state": "Florida", "uber_market": "Tampa", "market_id": "tampa-fl"},
+    {"airport_code": "JAX", "airport_name": "Jacksonville International Airport", "state": "Florida", "uber_market": "Jacksonville", "market_id": "jacksonville-fl"},
+    {"airport_code": "RSW", "airport_name": "Southwest Florida International Airport", "state": "Florida", "uber_market": "Fort Myers", "market_id": "fort-myers-fl"},
+    {"airport_code": "PBI", "airport_name": "Palm Beach International Airport", "state": "Florida", "uber_market": "West Palm Beach", "market_id": "west-palm-beach-fl"},
+    {"airport_code": "ATL", "airport_name": "Hartsfield-Jackson Atlanta International Airport", "state": "Georgia", "uber_market": "Atlanta", "market_id": "atlanta-ga"},
+    {"airport_code": "BOS", "airport_name": "General Edward Lawrence Logan International Airport", "state": "Massachusetts", "uber_market": "Boston", "market_id": "boston-ma"},
+    {"airport_code": "SEA", "airport_name": "Seattle-Tacoma International Airport", "state": "Washington", "uber_market": "Seatac", "market_id": "seatac-wa"},
+    {"airport_code": "DEN", "airport_name": "Denver International Airport", "state": "Colorado", "uber_market": "Denver", "market_id": "denver-co"},
+    {"airport_code": "PHX", "airport_name": "Phoenix Sky Harbor International Airport", "state": "Arizona", "uber_market": "Phoenix", "market_id": "phoenix-az"},
+    {"airport_code": "TUS", "airport_name": "Tucson International Airport", "state": "Arizona", "uber_market": "Tucson", "market_id": "tucson-az"},
+    {"airport_code": "LAS", "airport_name": "McCarran International Airport", "state": "Nevada", "uber_market": "Las Vegas", "market_id": "las-vegas-nv"},
+    {"airport_code": "RNO", "airport_name": "Reno/Tahoe International Airport", "state": "Nevada", "uber_market": "Reno", "market_id": "reno-nv"},
+    {"airport_code": "MSP", "airport_name": "Minneapolis-St. Paul International Airport", "state": "Minnesota", "uber_market": "Saint Paul", "market_id": "saint-paul-mn"},
+    {"airport_code": "DTW", "airport_name": "Detroit Metropolitan Wayne County Airport", "state": "Michigan", "uber_market": "Detroit", "market_id": "detroit-mi"},
+    {"airport_code": "PHL", "airport_name": "Philadelphia International Airport", "state": "Pennsylvania", "uber_market": "Philadelphia", "market_id": "philadelphia-pa"},
+    {"airport_code": "PIT", "airport_name": "Pittsburgh International Airport", "state": "Pennsylvania", "uber_market": "Pittsburgh", "market_id": "pittsburgh-pa"},
+    {"airport_code": "DCA", "airport_name": "Ronald Reagan Washington National Airport", "state": "Virginia", "uber_market": "Arlington", "market_id": "arlington-va"},
+    {"airport_code": "IAD", "airport_name": "Washington Dulles International Airport", "state": "District of Columbia", "uber_market": "Washington", "market_id": "washington-dc"},
+    {"airport_code": "BWI", "airport_name": "Baltimore-Washington International Airport", "state": "Maryland", "uber_market": "Baltimore", "market_id": "baltimore-md"},
+    {"airport_code": "CLT", "airport_name": "Charlotte Douglas International Airport", "state": "North Carolina", "uber_market": "Charlotte", "market_id": "charlotte-nc"},
+    {"airport_code": "RDU", "airport_name": "Raleigh-Durham International Airport", "state": "North Carolina", "uber_market": "Morrisville", "market_id": "morrisville-nc"},
+    {"airport_code": "PDX", "airport_name": "Portland International Airport", "state": "Oregon", "uber_market": "Portland", "market_id": "portland-or"},
+    {"airport_code": "SLC", "airport_name": "Salt Lake City International Airport", "state": "Utah", "uber_market": "Salt Lake City", "market_id": "salt-lake-city-ut"},
+    {"airport_code": "STL", "airport_name": "Lambert-St Louis International Airport", "state": "Missouri", "uber_market": "Saint Louis", "market_id": "saint-louis-mo"},
+    {"airport_code": "MCI", "airport_name": "Kansas City International Airport", "state": "Missouri", "uber_market": "Kansas City", "market_id": "kansas-city-mo"},
+    {"airport_code": "IND", "airport_name": "Indianapolis International Airport", "state": "Indiana", "uber_market": "Indianapolis", "market_id": "indianapolis-in"},
+    {"airport_code": "CVG", "airport_name": "Cincinnati/Northern Kentucky International Airport", "state": "Kentucky", "uber_market": "Hebron", "market_id": "hebron-ky"},
+    {"airport_code": "SDF", "airport_name": "Louisville International Airport", "state": "Kentucky", "uber_market": "Louisville", "market_id": "louisville-ky"},
+    {"airport_code": "CLE", "airport_name": "Cleveland-Hopkins International Airport", "state": "Ohio", "uber_market": "Cleveland", "market_id": "cleveland-oh"},
+    {"airport_code": "CMH", "airport_name": "Port Columbus International Airport", "state": "Ohio", "uber_market": "Columbus", "market_id": "columbus-oh"},
+    {"airport_code": "BNA", "airport_name": "Nashville International Airport", "state": "Tennessee", "uber_market": "Nashville", "market_id": "nashville-tn"},
+    {"airport_code": "MEM", "airport_name": "Memphis International Airport", "state": "Tennessee", "uber_market": "Memphis", "market_id": "memphis-tn"},
+    {"airport_code": "MSY", "airport_name": "Louis Armstrong New Orleans International Airport", "state": "Louisiana", "uber_market": "Kenner", "market_id": "kenner-la"},
+    {"airport_code": "OMA", "airport_name": "Eppley Airfield", "state": "Nebraska", "uber_market": "Omaha", "market_id": "omaha-ne"},
+    {"airport_code": "ABQ", "airport_name": "Albuquerque International Sunport", "state": "New Mexico", "uber_market": "Albuquerque", "market_id": "albuquerque-nm"},
+    {"airport_code": "HNL", "airport_name": "Daniel K. Inouye International Airport", "state": "Hawaii", "uber_market": "Honolulu", "market_id": "honolulu-hi"},
+    {"airport_code": "OGG", "airport_name": "Kahului Airport", "state": "Hawaii", "uber_market": "Kahului", "market_id": "kahului-hi"},
+    {"airport_code": "KOA", "airport_name": "Ellison Onizuka Kona International Airport", "state": "Hawaii", "uber_market": "Kailua Kona", "market_id": "kailua-kona-hi"},
+    {"airport_code": "ANC", "airport_name": "Ted Stevens Anchorage International Airport", "state": "Alaska", "uber_market": "Anchorage", "market_id": "anchorage-ak"},
+    {"airport_code": "MKE", "airport_name": "General Mitchell International Airport", "state": "Wisconsin", "uber_market": "Milwaukee", "market_id": "milwaukee-wi"},
+    {"airport_code": "GSP", "airport_name": "Greenville-Spartanburg

@@ -37,7 +37,19 @@ const client = new Anthropic();
 { temperature: 0.7 }                  // Not supported
 ```
 
-## Gemini 3 Pro Parameters
+## Gemini 3 Model IDs (Critical)
+
+```javascript
+// WRONG - causes 404 "model not found" error
+model: "gemini-3-pro"     // INVALID!
+model: "gemini-3-flash"   // INVALID!
+
+// CORRECT - must include -preview suffix
+model: "gemini-3-pro-preview"
+model: "gemini-3-flash-preview"
+```
+
+## Gemini 3 thinkingLevel Parameters
 
 ```javascript
 // CORRECT - Gemini 3 Pro only supports LOW or HIGH (not MEDIUM!)
@@ -51,7 +63,7 @@ const client = new Anthropic();
 
 **Valid thinkingLevel values:**
 - **Gemini 3 Pro**: `LOW`, `HIGH` only
-- **Gemini 3 Flash**: `minimal`, `low`, `medium`, `high`
+- **Gemini 3 Flash**: `MINIMAL`, `LOW`, `MEDIUM`, `HIGH`
 
 ## Check Before Editing
 

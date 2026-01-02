@@ -9,7 +9,8 @@ Server-side utility scripts for maintenance, operations, and event discovery.
 | Script | Purpose |
 |--------|---------|
 | `sync-events.mjs` | **Event Discovery** - Multi-model AI event search |
-| `seed-markets.js` | **Global Markets** - Seed 102 markets with timezones (31 US + 71 international) |
+| `seed-markets.js` | **Global Markets** - Seed 140 markets with timezones (69 US + 71 international) |
+| `seed-uber-airports.js` | **Uber Airports** - Sync 71 US airports with market data |
 | `seed-countries.js` | Seed countries table with ISO 3166-1 codes |
 | `holiday-override.js` | Manage holiday override configuration |
 | `db-doctor.js` | Database health checks and repairs |
@@ -102,13 +103,13 @@ node server/scripts/test-gemini-search.js
 
 ## Global Markets (`seed-markets.js`)
 
-Seeds the `markets` table with 102 global rideshare markets and their pre-stored timezones. This allows the location API to skip Google Timezone API calls for known markets.
+Seeds the `markets` table with 140 global rideshare markets and their pre-stored timezones. This allows the location API to skip Google Timezone API calls for known markets.
 
 ### Coverage
 
 | Region | Markets | Notable Cities |
 |--------|---------|----------------|
-| **US** | 31 | DFW, NYC, LA, Chicago, Miami, Houston, Phoenix, Seattle, Denver |
+| **US** | 69 | DFW, NYC, LA, Chicago, Miami, Houston, Phoenix, Seattle, Denver, + 60 more |
 | **Canada** | 6 | Toronto, Vancouver, Montreal, Calgary, Edmonton, Ottawa |
 | **UK** | 5 | London, Manchester, Birmingham, Glasgow, Edinburgh |
 | **Australia** | 5 | Sydney, Melbourne, Brisbane, Perth, Adelaide |
@@ -135,7 +136,34 @@ node server/scripts/seed-markets.js
 
 - **API Cost Savings**: Each market hit skips one Google Timezone API call ($0.005/request)
 - **Latency Reduction**: ~200-300ms faster for known markets
-- **City Alias Matching**: Suburbs/neighborhoods map to parent market timezone
+- **City Alias Matching**: 3,437 suburbs/neighborhoods map to parent market timezone
+
+## Uber Airports (`seed-uber-airports.js`)
+
+Syncs official Uber airport data with our markets table. Sources from `platform-data/uber/Airports/uber-us-airports-with-market.txt`.
+
+### Features
+
+- **71 US airports** mapped to Uber markets
+- **Multi-airport markets**: Chicago (ORD+MDW), Dallas (DFW+DAL), Houston (IAH+HOU), NYC (JFK+LGA)
+- **Uber market names**: Uses official Uber naming (Queens, Seatac, Kenner, Morrisville, Hebron)
+- **City aliases**: Adds suburb names for each market
+
+### Usage
+
+```bash
+# Sync Uber airport data
+node server/scripts/seed-uber-airports.js
+
+# Output:
+# - Updates existing markets with airport codes
+# - Adds new markets from Uber data
+# - Merges city aliases
+```
+
+### Data Source
+
+Data collected from Uber public airport pages: `https://www.uber.com/global/en/r/airports/{airport_code}/`
 
 ## Connections
 

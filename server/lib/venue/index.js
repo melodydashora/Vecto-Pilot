@@ -13,6 +13,19 @@ export { validateVenueEvent } from './venue-event-verifier.js';
 // Address resolution
 export { resolveVenueAddress } from './venue-address-resolver.js';
 
+// Venue cache operations
+export {
+  normalizeVenueName,
+  generateCoordKey,
+  lookupVenue,
+  lookupVenueFuzzy,
+  insertVenue,
+  upsertVenue,
+  linkEventToVenue,
+  getEventsForVenue,
+  findOrCreateVenue,
+} from './venue-cache.js';
+
 // Module summary:
 // - enhanced-smart-blocks.js: Main Smart Blocks generator (GPT-5.2 + Google APIs)
 // - venue-intelligence.js: Venue recommendations and analysis
@@ -20,3 +33,4 @@ export { resolveVenueAddress } from './venue-address-resolver.js';
 // - event-proximity-boost.js: Boost venues near active events
 // - venue-event-verifier.js: Validate venue-specific events
 // - venue-address-resolver.js: Address normalization and lookup
+// - venue-cache.js: Venue deduplication cache with precise coordinates

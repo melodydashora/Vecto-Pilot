@@ -26,6 +26,7 @@ interface BriefingEvent {
   location?: string;
   address?: string;
   event_date?: string;
+  event_end_date?: string;  // For multi-day events
   event_time?: string;
   event_end_time?: string;
   event_type?: string;
@@ -182,25 +183,24 @@ export default function BriefingTab({
     }
   }, [consolidatedStrategy]); // Intentionally exclude dailyStrategy to avoid loops
 
-  // Event discovery - on-demand fetch
-  const [isDiscoveringEvents, setIsDiscoveringEvents] = useState(false);
-  const [discoveredEventsResult, setDiscoveredEventsResult] = useState<{
-    total: number;
-    inserted: number;
-    skipped: number;
+  // Daily data refresh (events + news) - on-demand fetch
+  const [isRefreshingDaily, setIsRefreshingDaily] = useState(false);
+  const [dailyRefreshResult, setDailyRefreshResult] = useState<{
+    events: { total: number; inserted: number; skipped: number };
+    news: { count: number };
   } | null>(null);
-  const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
-  // Discover events on-demand (calls all AI models)
-  const discoverEvents = useCallback(async () => {
-    if (!snapshotId || isDiscoveringEvents) return;
+  // Refresh daily data on-demand (events + news via all AI models)
+  const refreshDailyData = useCallback(async () => {
+    if (!snapshotId || isRefreshingDaily) return;
 
-    setIsDiscoveringEvents(true);
-    setDiscoverError(null);
+    setIsRefreshingDaily(true);
+    setRefreshError(null);
 
     try {
-      console.log('[BriefingTab] Discovering events for snapshot:', snapshotId);
-      const response = await fetch(`/api/briefing/discover-events/${snapshotId}`, {
+      console.log('[BriefingTab] Refreshing daily data for snapshot:', snapshotId);
+      const response = await fetch(`/api/briefing/refresh-daily/${snapshotId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -211,26 +211,32 @@ export default function BriefingTab({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to discover events');
+        throw new Error(data.error || 'Failed to refresh daily data');
       }
 
       if (data.ok) {
-        console.log('[BriefingTab] Events discovered:', data.total_discovered, 'inserted:', data.inserted);
-        setDiscoveredEventsResult({
-          total: data.total_discovered,
-          inserted: data.inserted,
-          skipped: data.skipped
+        console.log('[BriefingTab] Daily refresh complete:', {
+          events: `${data.events.total_discovered} found, ${data.events.inserted} new`,
+          news: `${data.news.count} items`
+        });
+        setDailyRefreshResult({
+          events: {
+            total: data.events.total_discovered,
+            inserted: data.events.inserted,
+            skipped: data.events.skipped
+          },
+          news: { count: data.news.count }
         });
       } else {
-        throw new Error('No events returned');
+        throw new Error('No data returned');
       }
     } catch (err) {
-      console.error('[BriefingTab] Failed to discover events:', err);
-      setDiscoverError(err instanceof Error ? err.message : 'Failed to discover events');
+      console.error('[BriefingTab] Failed to refresh daily data:', err);
+      setRefreshError(err instanceof Error ? err.message : 'Failed to refresh daily data');
     } finally {
-      setIsDiscoveringEvents(false);
+      setIsRefreshingDaily(false);
     }
-  }, [snapshotId, isDiscoveringEvents]);
+  }, [snapshotId, isRefreshingDaily]);
 
   // Generate daily strategy on-demand
   const generateDailyStrategy = useCallback(async () => {
@@ -360,10 +366,35 @@ export default function BriefingTab({
     }
   };
 
-  const _isEventToday = (_event: BriefingEvent): boolean => {
-    // Always return true - show all events regardless of date
-    // The briefing service should already filter by date
-    return true;
+  /**
+   * Filter events for the Briefing tab:
+   * 1. Must have both event_time and event_end_time
+   * 2. Must be happening today (single-day OR today is within multi-day range)
+   */
+  const isEventForToday = (event: BriefingEvent): boolean => {
+    // Require both start and end times
+    if (!event.event_time || !event.event_end_time) {
+      return false;
+    }
+
+    // Require event_date
+    if (!event.event_date) {
+      return false;
+    }
+
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+
+      const eventStartDate = event.event_date; // YYYY-MM-DD format
+      const eventEndDate = event.event_end_date || event.event_date; // If no end date, use start date
+
+      // Check if today falls within the event date range (inclusive)
+      return todayStr >= eventStartDate && todayStr <= eventEndDate;
+    } catch {
+      return false;
+    }
   };
 
   if (!snapshotId) {
@@ -408,8 +439,20 @@ export default function BriefingTab({
     });
   }
   
-  // Show all events and news - backend already filters by relevance/date
-  const eventsToday = allEvents;
+  // Filter events to show only TODAY's events with valid start/end times
+  // Map tab shows full 7-day window; Briefing tab shows today only
+  const eventsToday = allEvents.filter(isEventForToday);
+
+  // Debug: Log event filtering
+  if (allEvents.length > 0) {
+    console.log('[BriefingTab] Events filter:', {
+      total: allEvents.length,
+      todayOnly: eventsToday.length,
+      filtered: allEvents.length - eventsToday.length,
+      today: new Date().toISOString().split('T')[0]
+    });
+  }
+
   const newsItems = (news?.filtered || news?.items || []);
   const newsReason = news?.reason || null;
 
@@ -576,13 +619,13 @@ export default function BriefingTab({
         </Card>
       )}
 
-      {/* Discover Events Card - ON-DEMAND AI search */}
-      {/* State 1: Not yet run, show discover button */}
-      {!discoveredEventsResult && !isDiscoveringEvents && (
+      {/* Refresh Daily Data Card - ON-DEMAND AI search for events + news */}
+      {/* State 1: Not yet run, show refresh button */}
+      {!dailyRefreshResult && !isRefreshingDaily && (
         <Card
           className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-emerald-300 border-dashed cursor-pointer hover:border-solid hover:shadow-lg transition-all group"
-          data-testid="discover-events-button"
-          onClick={discoverEvents}
+          data-testid="refresh-daily-button"
+          onClick={refreshDailyData}
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -591,8 +634,8 @@ export default function BriefingTab({
                   <CalendarSearch className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-emerald-900 text-lg">Discover Events</h3>
-                  <p className="text-sm text-emerald-600">AI-powered search across 6 models (SerpAPI, GPT-5.2, Gemini, Claude...)</p>
+                  <h3 className="font-semibold text-emerald-900 text-lg">Refresh Daily Data</h3>
+                  <p className="text-sm text-emerald-600">AI-powered search for events + news (SerpAPI, GPT-5.2, Gemini, Claude...)</p>
                 </div>
               </div>
               <Button
@@ -601,21 +644,21 @@ export default function BriefingTab({
                 className="bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 gap-2"
               >
                 <Zap className="w-4 h-4" />
-                Search Events
+                Refresh
               </Button>
             </div>
-            {discoverError && (
-              <p className="text-red-600 text-sm mt-3">{discoverError}</p>
+            {refreshError && (
+              <p className="text-red-600 text-sm mt-3">{refreshError}</p>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* State 2: Discovering events */}
-      {isDiscoveringEvents && (
+      {/* State 2: Refreshing daily data */}
+      {isRefreshingDaily && (
         <Card
           className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-emerald-300"
-          data-testid="discover-events-loading"
+          data-testid="refresh-daily-loading"
         >
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
@@ -623,19 +666,19 @@ export default function BriefingTab({
                 <Loader className="w-6 h-6 text-white animate-spin" />
               </div>
               <div>
-                <h3 className="font-semibold text-emerald-900 text-lg">Discovering Events...</h3>
-                <p className="text-sm text-emerald-600">Searching 6 AI models for local events (may take 30-60s)</p>
+                <h3 className="font-semibold text-emerald-900 text-lg">Refreshing Daily Data...</h3>
+                <p className="text-sm text-emerald-600">Fetching events + news across AI models (may take 30-60s)</p>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* State 3: Discovery complete - show results */}
-      {discoveredEventsResult && !isDiscoveringEvents && (
+      {/* State 3: Refresh complete - show results */}
+      {dailyRefreshResult && !isRefreshingDaily && (
         <Card
           className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 border-emerald-300 shadow-lg"
-          data-testid="discover-events-complete"
+          data-testid="refresh-daily-complete"
         >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -644,9 +687,9 @@ export default function BriefingTab({
                   <CalendarSearch className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-emerald-900 text-lg">Events Discovered</h3>
+                  <h3 className="font-semibold text-emerald-900 text-lg">Daily Data Refreshed</h3>
                   <p className="text-sm text-emerald-600">
-                    Found {discoveredEventsResult.total} events • {discoveredEventsResult.inserted} new • {discoveredEventsResult.skipped} already known
+                    Events: {dailyRefreshResult.events.total} found • {dailyRefreshResult.events.inserted} new | News: {dailyRefreshResult.news.count} items
                   </p>
                 </div>
               </div>
@@ -657,11 +700,11 @@ export default function BriefingTab({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={discoverEvents}
+                  onClick={refreshDailyData}
                   className="bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400 gap-2"
                 >
                   <Zap className="w-4 h-4" />
-                  Refresh
+                  Refresh Again
                 </Button>
               </div>
             </div>
@@ -1050,7 +1093,12 @@ export default function BriefingTab({
                     data-testid={`news-item-${idx}`}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <h4 className="font-medium text-gray-800 text-sm flex-1">{item.title}</h4>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-800 text-sm">{item.title}</h4>
+                        {item.published_date && (
+                          <span className="text-xs text-gray-400">{item.published_date}</span>
+                        )}
+                      </div>
                       <Badge variant="outline" className={getImpactColor(item.impact)}>
                         {item.impact}
                       </Badge>

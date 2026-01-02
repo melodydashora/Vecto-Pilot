@@ -21,6 +21,7 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | `venue-address-resolver.js` | Batch geocoding | `resolveAddresses()` |
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
 | `event-proximity-boost.js` | Airport proximity scoring | `calculateProximityBoost()` |
+| `venue-cache.js` | Venue deduplication cache | `findOrCreateVenue()`, `lookupVenue()` |
 
 ## Pipeline Flow
 
@@ -104,6 +105,45 @@ const venues = await discoverNearbyVenues(lat, lng, city, state, {
 
 - `rankings` table: Ranking session metadata
 - `ranking_candidates` table: Individual venue recommendations with enrichment data
+
+## Venue Cache (venue-cache.js)
+
+The venue cache provides precise coordinates, deduplication, and event-to-venue linking.
+
+**Features:**
+- Normalized venue names for fuzzy matching ("The Rustic" → "rustic")
+- Precise lat/lng coordinates (full decimal precision)
+- Links discovered events to cached venues via `venue_id`
+- Access tracking for cache efficiency
+
+**Usage:**
+```javascript
+import { findOrCreateVenue, lookupVenue, getEventsForVenue } from './venue-cache.js';
+
+// Find or create a venue during event discovery
+const venue = await findOrCreateVenue({
+  venue: "AT&T Stadium",
+  address: "1 AT&T Way, Arlington, TX",
+  latitude: 32.7473,
+  longitude: -97.0945,
+  city: "Arlington",
+  state: "TX"
+}, 'sync_events_gpt52');
+
+// Look up existing venue by name
+const cached = await lookupVenue({
+  venueName: "AT&T Stadium",
+  city: "Arlington",
+  state: "TX"
+});
+
+// Get all events at a venue (for SmartBlocks "event tonight" flag)
+const events = await getEventsForVenue(venueId, {
+  fromDate: "2026-01-01"
+});
+```
+
+**Database Table:** `venue_cache` with foreign key in `discovered_events.venue_id`
 
 ## Key Data Structures
 
