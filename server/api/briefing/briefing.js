@@ -8,6 +8,7 @@ import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
+import { filterFreshEvents } from '../../lib/strategy/strategy-utils.js';
 
 /**
  * Normalize a news title for hash matching
@@ -181,6 +182,11 @@ router.get('/current', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Briefing not yet generated - try again in a moment' });
     }
 
+    // Filter stale events from briefing data (2026-01-05)
+    const freshEvents = filterFreshEvents(
+      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || []
+    );
+
     res.json({
       snapshot_id: snapshot.snapshot_id,
       location: {
@@ -196,7 +202,7 @@ router.get('/current', requireAuth, async (req, res) => {
           forecast: briefing.weather_forecast
         },
         traffic: briefing.traffic_conditions,
-        events: briefing.events,
+        events: freshEvents,
         school_closures: briefing.school_closures,
         airport_conditions: briefing.airport_conditions
       },
@@ -230,6 +236,11 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
       return res.status(404).json({ error: 'Briefing not found or not yet generated' });
     }
 
+    // Filter stale events from briefing data (2026-01-05)
+    const freshEvents = filterFreshEvents(
+      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || []
+    );
+
     res.json({
       success: true,
       briefing: {
@@ -239,7 +250,7 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
           forecast: briefing.weather_forecast
         },
         traffic: briefing.traffic_conditions,
-        events: briefing.events,
+        events: freshEvents,
         school_closures: briefing.school_closures,
         airport_conditions: briefing.airport_conditions
       }
@@ -258,6 +269,11 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
       return res.status(404).json({ error: 'Briefing not yet generated - please wait a moment' });
     }
 
+    // Filter stale events from briefing data (2026-01-05)
+    const freshEvents = filterFreshEvents(
+      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || []
+    );
+
     res.json({
       snapshot_id: req.snapshot.snapshot_id,
       briefing: {
@@ -267,7 +283,7 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
           forecast: briefing.weather_forecast
         },
         traffic: briefing.traffic_conditions,
-        events: briefing.events,
+        events: freshEvents,
         school_closures: briefing.school_closures,
         airport_conditions: briefing.airport_conditions
       },
@@ -299,6 +315,11 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
     });
 
     if (result.success) {
+      // Filter stale events from refreshed briefing data (2026-01-05)
+      const freshEvents = filterFreshEvents(
+        Array.isArray(result.briefing.events) ? result.briefing.events : result.briefing.events?.items || []
+      );
+
       res.json({
         success: true,
         refreshed: true,
@@ -309,7 +330,7 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
             forecast: result.briefing.weather_forecast
           },
           traffic: result.briefing.traffic_conditions,
-          events: result.briefing.events,
+          events: freshEvents,
           school_closures: result.briefing.school_closures,
           airport_conditions: result.briefing.airport_conditions
         }
@@ -553,6 +574,15 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       latitude: e.lat,
       longitude: e.lng
     }));
+
+    // CRITICAL: Filter stale events and events without date info (2026-01-05)
+    // This catches events with incorrect dates (e.g., Christmas events with January dates)
+    // and events that lack proper start/end times
+    const beforeFreshFilter = allEvents.length;
+    allEvents = filterFreshEvents(allEvents);
+    if (beforeFreshFilter > allEvents.length) {
+      console.log(`[BriefingRoute] Freshness filter: ${beforeFreshFilter} → ${allEvents.length} events (removed ${beforeFreshFilter - allEvents.length} stale/invalid)`);
+    }
 
     // Apply "active" filter: show only events happening RIGHT NOW (during their duration)
     // Used by MapPage for real-time event display

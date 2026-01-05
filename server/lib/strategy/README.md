@@ -25,7 +25,7 @@ strategy/
 |------|---------|------------|
 | `strategy-generator.js` | Entry point | `generateStrategyForSnapshot(snapshotId, options)` |
 | `strategy-generator-parallel.js` | Parallel orchestrator | `runSimpleStrategyPipeline(params)` |
-| `strategy-utils.js` | Utilities | `ensureStrategyRow()`, `fallbackStrategy()` |
+| `strategy-utils.js` | Utilities | `ensureStrategyRow()`, `filterFreshEvents()`, `isEventFresh()` |
 | `strategyPrompt.js` | Prompts | Strategy system prompts |
 | `strategy-triggers.js` | Trigger detection | `detectTriggers()` |
 | `planner-gpt5.js` | Venue planning | `planVenues(snapshotId)` |
@@ -142,12 +142,37 @@ Writes to `briefings` table:
 - `weather_current` - Current weather
 - `school_closures` - School closure info
 
+## Event Freshness Filtering
+
+**Added 2026-01-05**: Prevents stale events (e.g., Christmas events in January) from appearing in briefings.
+
+```javascript
+import { filterFreshEvents, isEventFresh } from './strategy-utils.js';
+
+// Filter an array of events - removes stale + events without dates
+const freshEvents = filterFreshEvents(allEvents);
+
+// Check a single event
+if (isEventFresh(event)) {
+  // Event hasn't ended yet
+}
+```
+
+**Key behaviors:**
+- **Rejects events without date info** - Events must have at least a `start_time`, `event_date`, or equivalent
+- **Filters already-ended events** - Uses `end_time` if present, or `start_time + 4 hours` as default
+- **Handles multiple field names** - Supports `end_time`, `endTime`, `ends_at`, `event_end_date`, etc.
+
+**Applied in:**
+- `server/api/briefing/briefing.js` - All endpoints returning events
+- See `docs/EVENT_FRESHNESS_AND_TTL.md` for full architecture
+
 ## Import Paths
 
 ```javascript
 // From server/api/*/
 import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
-import { ensureStrategyRow } from '../../lib/strategy/strategy-utils.js';
+import { ensureStrategyRow, filterFreshEvents } from '../../lib/strategy/strategy-utils.js';
 
 // From server/lib/*/
 import { generateStrategyForSnapshot } from '../strategy/strategy-generator.js';
