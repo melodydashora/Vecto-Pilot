@@ -23,6 +23,29 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2026-01-05 Codebase Audit Findings
+
+**Health Score: 🟢 92/100 (Excellent)**
+
+### Critical Security Issue (FIXED)
+
+| Issue | Severity | Status |
+|-------|----------|--------|
+| JWT_SECRET fallback mismatch between auth.js and location.js | HIGH | ✅ FIXED |
+| `resolveVenueAddressString` deprecated (no callers) | LOW | Can remove |
+| Verify `JWT_SECRET` set in production env | HIGH | **CHECK REQUIRED** |
+
+### Confirmed Working
+
+- ✅ Venue Consolidation (venue_catalog unified)
+- ✅ Highlander Session Model (one session per user)
+- ✅ PostgreSQL Advisory Locks (horizontal scaling ready)
+- ✅ Gemini 3 adapter upgraded (@google/genai SDK)
+- ✅ Timezone-aware event filtering
+- ✅ BarsTable trusts server's isOpen calculation
+
+---
+
 ## Currently Pending
 
 ### High Priority
@@ -650,6 +673,45 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 #### Medium Priority
 - [ ] `docs/architecture/api-reference.md` - Briefing API changes (server/api/briefing/briefing.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (scripts/test-news-fetch.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-05 Analysis
+
+**Generated:** 2026-01-05T21:19:34.875Z
+**Branch:** main
+**Last Commit:** 15297f6 Fix CRITICAL auth bug: login/logout CASCADE deletes all user data
+
+### Recent Commit Changes (14)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `briefing-last-row.txt` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| `docs/review-queue/2026-01-05.md` | Modified |
+| `docs/review-queue/IN_PROGRESS_WORKSTREAM.md` | Added |
+| `docs/review-queue/pending.md` | Modified |
+| `scripts/test-news-fetch.js` | Added |
+| `server/api/auth/auth.js` | Modified |
+| `server/api/briefing/briefing.js` | Modified |
+| `server/lib/briefing/README.md` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| `server/lib/strategy/strategy-utils.js` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
 
 #### Low Priority
 - [ ] Consider adding documentation - New file added (scripts/test-news-fetch.js)
