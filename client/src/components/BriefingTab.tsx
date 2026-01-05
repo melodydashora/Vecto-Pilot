@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -160,6 +161,9 @@ export default function BriefingTab({
   airportData,
   consolidatedStrategy
 }: BriefingTabProps) {
+  // React Query client for cache invalidation after refresh
+  const queryClient = useQueryClient();
+
   const [_expandedWeather, _setExpandedWeather] = useState(true);
   const [expandedTraffic, setExpandedTraffic] = useState(true);
   const [expandedIncidents, setExpandedIncidents] = useState(false); // Collapsed by default
@@ -228,6 +232,11 @@ export default function BriefingTab({
           },
           news: { count: data.news.count }
         });
+
+        // 2026-01-05: Invalidate React Query cache so UI shows fresh data
+        console.log('[BriefingTab] Invalidating query cache for fresh data...');
+        queryClient.invalidateQueries({ queryKey: ['/api/briefing/rideshare-news', snapshotId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/briefing/events', snapshotId] });
       } else {
         throw new Error('No data returned');
       }
@@ -237,7 +246,7 @@ export default function BriefingTab({
     } finally {
       setIsRefreshingDaily(false);
     }
-  }, [snapshotId, isRefreshingDaily]);
+  }, [snapshotId, isRefreshingDaily, queryClient]);
 
   // Generate daily strategy on-demand
   const generateDailyStrategy = useCallback(async () => {

@@ -38,10 +38,20 @@ export const MODEL_ROLES = {
   BRIEFING_NEWS: {
     envKey: 'BRIEFING_NEWS_MODEL',
     default: 'gemini-3-pro-preview',
-    purpose: 'Local news research (last 7 days)',
+    purpose: 'Local news research (last 7 days) - Gemini + Google Search',
     maxTokens: 8192,
     temperature: 0.4,
     features: ['google_search'],
+  },
+  // 2026-01-05: Added for dual-model news fetching
+  // GPT-5.2 runs in PARALLEL with Gemini, results are consolidated
+  BRIEFING_NEWS_GPT: {
+    envKey: 'BRIEFING_NEWS_GPT_MODEL',
+    default: 'gpt-5.2',
+    purpose: 'Local news research - GPT-5.2 + OpenAI web search (parallel with Gemini)',
+    maxTokens: 8192,
+    reasoningEffort: 'medium',
+    features: ['openai_web_search'],
   },
   BRIEFING_EVENTS_DISCOVERY: {
     envKey: 'BRIEFING_EVENTS_MODEL',
@@ -331,6 +341,18 @@ export function roleUsesWebSearch(role) {
   const canonicalRole = resolveRoleName(role);
   const config = MODEL_ROLES[canonicalRole];
   return config?.features?.includes('web_search') || false;
+}
+
+/**
+ * Check if a role uses OpenAI Web Search (GPT-5.2)
+ * 2026-01-05: Added for dual-model news fetching
+ * @param {string} role - Role name
+ * @returns {boolean}
+ */
+export function roleUsesOpenAIWebSearch(role) {
+  const canonicalRole = resolveRoleName(role);
+  const config = MODEL_ROLES[canonicalRole];
+  return config?.features?.includes('openai_web_search') || false;
 }
 
 /**

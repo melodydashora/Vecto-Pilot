@@ -1,7 +1,7 @@
 
 import { db } from '../../db/drizzle.js';
-import { briefings, snapshots, discovered_events } from '../../../shared/schema.js';
-import { eq, and, desc, sql, gte, lte } from 'drizzle-orm';
+import { briefings, snapshots, discovered_events, us_market_cities } from '../../../shared/schema.js';
+import { eq, and, desc, sql, gte, lte, ilike } from 'drizzle-orm';
 import { z } from 'zod';
 // Event validation disabled - Gemini handles event discovery, Claude is fallback only
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
@@ -1664,6 +1664,15 @@ function filterRecentNews(newsItems, todayDate) {
   return filtered;
 }
 
+/**
+ * Fetch rideshare news using DUAL-MODEL parallel fetch
+ * 2026-01-05: Refactored to use both Gemini + Google Search AND GPT-5.2 + web search
+ * Results are consolidated with deduplication and relevance filtering
+ *
+ * @param {Object} params
+ * @param {Object} params.snapshot - Snapshot with city, state, timezone
+ * @returns {Promise<{items: Array, reason?: string, provider: string}>}
+ */
 export async function fetchRideshareNews({ snapshot }) {
   // Require valid location data - no hardcoded defaults for global app
   if (!snapshot?.city || !snapshot?.state) {
@@ -1682,50 +1691,164 @@ export async function fetchRideshareNews({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
-  if (!process.env.GEMINI_API_KEY) {
-    // Try Claude web search as fallback if Gemini not configured
+  // 2026-01-05: Look up market from us_market_cities table
+  let market = null;
+  try {
+    const [marketResult] = await db
+      .select({ market_name: us_market_cities.market_name })
+      .from(us_market_cities)
+      .where(and(
+        ilike(us_market_cities.city, city),
+        eq(us_market_cities.state, state)
+      ))
+      .limit(1);
+
+    if (marketResult?.market_name) {
+      market = marketResult.market_name;
+      briefingLog.info(`Market resolved: ${city}, ${state} → ${market}`, OP.DB);
+    } else {
+      // Fallback: use city name as market (e.g., "Dallas" for Dallas, TX)
+      market = city;
+      briefingLog.info(`No market found for ${city}, ${state} - using city as market`, OP.DB);
+    }
+  } catch (dbErr) {
+    console.warn('[news] Market lookup failed (non-fatal):', dbErr.message);
+    market = city; // Fallback to city
+  }
+
+  // Build the enhanced prompt with Market, City, Airport, Headlines
+  const newsPrompt = buildNewsPrompt({ city, state, market, date });
+  const system = `You are a rideshare news research assistant for drivers on platforms like Uber, Lyft, ridehail, taxis, and private car services. Search for recent news and return structured JSON with publication dates. Focus on news that IMPACTS driver earnings, strategy, and working conditions.`;
+
+  // 2026-01-05: DUAL-MODEL PARALLEL FETCH
+  // Run Gemini + Google Search AND GPT-5.2 + web search in parallel
+  briefingLog.phase(2, `Dual-model news fetch: ${city}, ${state} (market: ${market})`, OP.AI);
+
+  const hasGemini = !!process.env.GEMINI_API_KEY;
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
+
+  if (!hasGemini && !hasOpenAI) {
+    // Try Claude web search as last resort
     if (process.env.ANTHROPIC_API_KEY) {
       briefingLog.ai(2, 'Claude', `news for ${city}, ${state} - web search fallback`);
       return fetchNewsWithClaudeWebSearch({ city, state, date });
     }
-    briefingLog.warn(2, `Neither GEMINI_API_KEY nor ANTHROPIC_API_KEY set`, OP.AI);
+    briefingLog.warn(2, `No API keys configured for news search`, OP.AI);
     return { items: [], reason: 'No API keys configured for news search' };
   }
 
-  briefingLog.ai(2, 'Gemini', `news for ${city}, ${state}`);
+  // Launch parallel fetches
+  const fetchPromises = [];
 
-  // 2026-01-05: Updated prompt to prioritize TODAY's news, require dates, and explain why news matters to drivers
-  const prompt = `Search for news published TODAY (${date}) that MATTERS to rideshare drivers.
+  if (hasGemini) {
+    briefingLog.ai(2, 'Gemini', `news for ${market}`);
+    fetchPromises.push(
+      callModel('BRIEFING_NEWS', { system, user: newsPrompt })
+        .then(result => ({ provider: 'gemini', result }))
+        .catch(err => ({ provider: 'gemini', result: { ok: false, error: err.message } }))
+    );
+  }
 
-Location: ${city}, ${state}
-Today's Date: ${date}
+  if (hasOpenAI) {
+    briefingLog.ai(2, 'GPT-5.2', `news for ${market}`);
+    fetchPromises.push(
+      callModel('BRIEFING_NEWS_GPT', { system, user: newsPrompt })
+        .then(result => ({ provider: 'gpt', result }))
+        .catch(err => ({ provider: 'gpt', result: { ok: false, error: err.message } }))
+    );
+  }
 
-WHAT MATTERS TO RIDESHARE DRIVERS:
-- Traffic disruptions, road closures, construction
-- Weather events affecting driving conditions
-- Major events (concerts, sports, conventions) that create ride demand
-- Uber/Lyft policy changes, earnings updates, promotions
-- Gas prices, toll changes, airport pickup rules
-- Local regulations affecting gig workers
+  // Wait for all fetches to complete
+  const results = await Promise.all(fetchPromises);
 
-PRIORITY: News published TODAY (${date}). If no news from today, include yesterday's news.
-Also search the broader market/metro area - news from nearby cities in the same metro is relevant.
+  // Process and consolidate results
+  const allNewsItems = [];
+  const providers = [];
 
-SEARCH QUERIES:
-1. "${city} traffic road closure ${date}"
-2. "${state} Uber Lyft driver news today"
-3. "${city} events concerts today"
-4. "rideshare gig economy ${state} ${date}"
+  for (const { provider, result } of results) {
+    if (!result.ok) {
+      briefingLog.warn(2, `${provider} news failed: ${result.error}`, OP.AI);
+      continue;
+    }
 
-Return JSON object:
+    try {
+      const parsed = safeJsonParse(result.output);
+      const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
+
+      if (newsArray.length > 0) {
+        // Tag each item with its source provider
+        const taggedItems = newsArray.map(item => ({
+          ...item,
+          _provider: provider
+        }));
+        allNewsItems.push(...taggedItems);
+        providers.push(provider);
+        briefingLog.info(`${provider}: ${newsArray.length} news items found`, OP.AI);
+      }
+    } catch (parseErr) {
+      briefingLog.warn(2, `${provider} news parse failed: ${parseErr.message}`, OP.AI);
+    }
+  }
+
+  // If no news from either model, try Claude fallback
+  if (allNewsItems.length === 0) {
+    if (process.env.ANTHROPIC_API_KEY) {
+      briefingLog.warn(2, `Both models returned 0 news - trying Claude web search`, OP.FALLBACK);
+      return fetchNewsWithClaudeWebSearch({ city, state, date });
+    }
+    return { items: [], reason: `No rideshare news found for ${market} market`, provider: 'dual-model' };
+  }
+
+  // Consolidate: dedupe by title similarity + filter recent + sort by impact
+  const consolidated = consolidateNewsItems(allNewsItems, date);
+
+  briefingLog.done(2, `Dual-model: ${consolidated.length} unique news items (from ${allNewsItems.length} raw, providers: ${providers.join('+')})`, OP.AI);
+
+  return {
+    items: consolidated,
+    reason: null,
+    provider: providers.join('+'),
+    rawCount: allNewsItems.length
+  };
+}
+
+/**
+ * Build the enhanced news prompt with Market, City, Airport, Headlines
+ * 2026-01-05: Expanded scope for rideshare drivers
+ */
+function buildNewsPrompt({ city, state, market, date }) {
+  return `Search for news relevant to RIDESHARE DRIVERS (Uber, Lyft, ridehail, taxi, private car service).
+
+LOCATION CONTEXT:
+- City: ${city}, ${state}
+- Market: ${market} (search the entire ${market} metro area)
+- Date: ${date}
+
+SEARCH SCOPE - Include ALL of these:
+1. AIRPORT NEWS: Delays, TSA changes, pickup/dropoff rules, terminal construction, airline schedules affecting ${market} airports
+2. MAJOR HEADLINES: Big local news that creates ride demand (sports events, concerts, conventions, protests, emergencies)
+3. TRAFFIC & ROAD: Road closures, construction, accidents, new toll roads, bridge closures in ${market} area
+4. UBER/LYFT UPDATES: Platform policy changes, earnings bonuses, promotions, rate changes, deactivation news
+5. GIG ECONOMY: Regulations, lawsuits, union activity, insurance changes affecting rideshare drivers
+6. WEATHER IMPACTS: Severe weather that affects driving conditions or creates surge opportunities
+7. GAS & COSTS: Fuel prices, EV charging news, vehicle costs that impact driver earnings
+
+SEARCH THE ENTIRE ${market.toUpperCase()} MARKET - not just ${city}. News from nearby cities in the metro is highly relevant.
+
+PUBLICATION DATE REQUIREMENT:
+- Include news from the last 48 hours (prefer TODAY ${date})
+- EVEN IF older, include if STILL RELEVANT to drivers (e.g., ongoing construction, multi-day events)
+- Each item MUST have a published_date - if you can't determine the date, exclude it
+
+Return JSON:
 {
   "items": [
     {
       "title": "News Title",
-      "summary": "One sentence explaining HOW this affects rideshare drivers",
+      "summary": "HOW this affects rideshare drivers - be specific about impact on earnings or strategy",
       "published_date": "YYYY-MM-DD",
       "impact": "high" | "medium" | "low",
+      "category": "airport" | "traffic" | "event" | "platform" | "regulation" | "weather" | "cost",
       "source": "Source Name",
       "link": "url"
     }
@@ -1733,64 +1856,81 @@ Return JSON object:
   "reason": null
 }
 
-CRITICAL REQUIREMENTS:
-1. "published_date" is REQUIRED - extract the actual date from each article
-2. If you cannot determine the publication date, DO NOT include that article
-3. ONLY return articles from the last 3 days (prefer today's)
-4. Each summary MUST explain why a rideshare driver should care
-5. If NO news with valid dates found, return: {"items": [], "reason": "No rideshare-relevant news with publication dates found for ${city}, ${state} market today"}
-6. Return 2-5 items maximum`;
+REQUIREMENTS:
+1. published_date is REQUIRED - extract from each article
+2. summary MUST explain the DRIVER IMPACT (not just what happened)
+3. Return 3-8 items maximum, sorted by impact (high first)
+4. If no news found: {"items": [], "reason": "No rideshare-relevant news for ${market} market"}`;
+}
 
-  const system = `You are a rideshare news research assistant. Search for recent news relevant to rideshare drivers and return structured JSON data with publication dates.`;
-  // Uses BRIEFING_NEWS role (Gemini with google_search)
-  const result = await callModel('BRIEFING_NEWS', { system, user: prompt });
-
-  // Graceful degradation - try Claude fallback
-  if (!result.ok) {
-    if (process.env.ANTHROPIC_API_KEY) {
-      briefingLog.warn(2, `Gemini news failed - trying Claude web search`, OP.FALLBACK);
-      return fetchNewsWithClaudeWebSearch({ city, state, date });
-    }
-    briefingLog.warn(2, `Gemini news failed: ${result.error}`, OP.FALLBACK);
-    return { items: [], reason: `News fetch failed: ${result.error}`, provider: 'gemini' };
+/**
+ * Consolidate news items from multiple providers
+ * Deduplicates by title similarity, filters stale news, sorts by impact
+ *
+ * @param {Array} items - All news items from all providers
+ * @param {string} todayDate - Today's date in YYYY-MM-DD format
+ * @returns {Array} Consolidated, deduplicated news items
+ */
+function consolidateNewsItems(items, todayDate) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [];
   }
 
-  try {
-    const parsed = safeJsonParse(result.output);
+  // Step 1: Deduplicate by title similarity (fuzzy match)
+  const seen = new Map(); // normalized title -> item
+  const deduplicated = [];
 
-    // 2026-01-05: Handle new format {items, reason} or old format [array]
-    const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
-    const llmReason = parsed?.reason || null;
+  for (const item of items) {
+    if (!item.title) continue;
 
-    if (newsArray.length === 0 || !newsArray[0]?.title) {
-      // If LLM provided a reason, use it instead of falling back
-      if (llmReason) {
-        briefingLog.info(`Gemini: ${llmReason}`);
-        return { items: [], reason: llmReason, provider: 'gemini' };
+    // Normalize title for comparison
+    const normalizedTitle = item.title
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '') // Remove punctuation
+      .replace(/\s+/g, ' ')    // Normalize whitespace
+      .trim()
+      .substring(0, 50);       // First 50 chars for matching
+
+    // Check if we've seen a similar title
+    let isDuplicate = false;
+    for (const [seenTitle] of seen) {
+      // Simple Jaccard-like similarity: shared words / total words
+      const seenWords = new Set(seenTitle.split(' '));
+      const itemWords = new Set(normalizedTitle.split(' '));
+      const intersection = [...seenWords].filter(w => itemWords.has(w)).length;
+      const union = new Set([...seenWords, ...itemWords]).size;
+      const similarity = intersection / union;
+
+      if (similarity > 0.6) { // 60% word overlap = duplicate
+        isDuplicate = true;
+        break;
       }
-      // TRY CLAUDE WEB SEARCH AS FALLBACK
-      if (process.env.ANTHROPIC_API_KEY) {
-        briefingLog.warn(2, `Gemini returned 0 news - trying Claude web search`, OP.FALLBACK);
-        return fetchNewsWithClaudeWebSearch({ city, state, date });
-      }
-      briefingLog.info(`No news found for ${city}, ${state}`);
-      return { items: [], reason: 'No rideshare news found for this location', provider: 'gemini' };
     }
 
-    // Filter out stale news (older than 7 days) as safety net
-    const filteredNews = filterRecentNews(newsArray, date);
-
-    briefingLog.done(2, `Gemini: ${filteredNews.length} news items (${newsArray.length - filteredNews.length} filtered as stale)`, OP.AI);
-    return { items: filteredNews, reason: llmReason, provider: 'gemini' };
-  } catch (parseErr) {
-    // TRY CLAUDE WEB SEARCH AS FALLBACK
-    if (process.env.ANTHROPIC_API_KEY) {
-      briefingLog.warn(2, `Gemini news parse failed - trying Claude web search`, OP.FALLBACK);
-      return fetchNewsWithClaudeWebSearch({ city, state, date });
+    if (!isDuplicate) {
+      seen.set(normalizedTitle, item);
+      deduplicated.push(item);
     }
-    briefingLog.error(2, `Gemini news parse failed`, parseErr, OP.AI);
-    return { items: [], reason: `Parse error: ${parseErr.message}`, provider: 'gemini' };
   }
+
+  // Step 2: Filter out very stale news (older than 7 days) unless still relevant
+  const filtered = filterRecentNews(deduplicated, todayDate);
+
+  // Step 3: Sort by impact (high > medium > low), then by date
+  const impactOrder = { high: 0, medium: 1, low: 2 };
+  filtered.sort((a, b) => {
+    const impactA = impactOrder[a.impact] ?? 2;
+    const impactB = impactOrder[b.impact] ?? 2;
+    if (impactA !== impactB) return impactA - impactB;
+
+    // Secondary sort by date (newest first)
+    const dateA = a.published_date || '0000-00-00';
+    const dateB = b.published_date || '0000-00-00';
+    return dateB.localeCompare(dateA);
+  });
+
+  // Step 4: Limit to 8 items max
+  return filtered.slice(0, 8);
 }
 
 export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
