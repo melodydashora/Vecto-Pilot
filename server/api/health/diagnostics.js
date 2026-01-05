@@ -458,28 +458,33 @@ router.get('/model-ping', requireAuth, async (req, res) => {
     results.claude = { status: 'error', message: err.message };
   }
 
-  // Gemini (Google)
+  // Gemini (Google) - Updated 2026-01-05: Using new @google/genai SDK
   try {
     const start = Date.now();
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    
-    if (!process.env.GOOGLEAQ_API_KEY) {
+    const { GoogleGenAI } = await import('@google/genai');
+
+    // Note: GOOGLEAQ_API_KEY is a typo in env, but keeping for backwards compat
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLEAQ_API_KEY;
+    if (!apiKey) {
       results.gemini = { status: 'no_api_key' };
     } else {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       try {
-        const genAI = new GoogleGenerativeAI(process.env.GOOGLEAQ_API_KEY);
+        const ai = new GoogleGenAI({ apiKey });
         const modelId = process.env.GEMINI_MODEL || 'gemini-3-pro-preview';
-        const model = genAI.getGenerativeModel({ model: modelId });
-        const result = await model.generateContent('ping', { signal: controller.signal });
-        
+        const result = await ai.models.generateContent({
+          model: modelId,
+          contents: 'ping'
+        });
+
         clearTimeout(timeoutId);
+        const responseText = result?.text || result?.response?.text?.() || '';
         results.gemini = {
           status: 'ok',
           latency_ms: Date.now() - start,
-          response_preview: result.response.text()?.substring(0, 50)
+          response_preview: responseText.substring(0, 50)
         };
       } catch (err) {
         clearTimeout(timeoutId);
