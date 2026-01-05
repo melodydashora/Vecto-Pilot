@@ -1,6 +1,7 @@
 // server/lib/venue-event-verifier.js
-// Verify venue events using Gemini 2.5 Pro after enrichment
-import { callGeminiGenerateContent } from '../ai/adapters/gemini-2.5-pro.js';
+// Verify venue events using AI after SmartBlocks enrichment
+// Updated 2026-01-05: Migrated from gemini-2.5-pro.js to callModel with VENUE_EVENT_VERIFIER role
+import { callModel } from '../ai/adapters/index.js';
 
 /**
  * Verify a single venue event - confirm it's real and relevant
@@ -37,14 +38,18 @@ Respond with JSON: {
 - impact: high (major event, expect surge), medium (notable event), low (minor event)
 - reasoning: brief explanation`;
 
-    const result = await callGeminiGenerateContent({
-      systemInstruction: 'You are an event intelligence analyst for rideshare demand. Verify events and assess their impact on driver demand.',
-      userText: prompt,
-      maxOutputTokens: 256,
-      temperature: 0.1
+    // Use VENUE_EVENT_VERIFIER role from model-registry.js
+    // Updated 2026-01-05: Migrated from callGeminiGenerateContent to callModel
+    const result = await callModel('VENUE_EVENT_VERIFIER', {
+      system: 'You are an event intelligence analyst for rideshare demand. Verify events and assess their impact on driver demand.',
+      user: prompt
     });
 
-    const parsed = JSON.parse(result);
+    if (!result.ok) {
+      throw new Error(result.error || 'Event verification failed');
+    }
+
+    const parsed = JSON.parse(result.output);
     console.log(`[event-verifier] Verified ${venueName}: ${parsed.verified} (confidence=${parsed.confidence}, impact=${parsed.impact})`);
     
     return {

@@ -1,12 +1,17 @@
-// server/lib/venue-intelligence.js
+// server/lib/venue/venue-intelligence.js
 // Real-time venue intelligence using Google Places API (New) for bar discovery
 // Provides: upscale bars/lounges sorted by expense, filtered by operating hours
 // Uses Haiku for fast filtering of non-bar venues
+//
+// Updated 2026-01-05: Migrated from nearby_venues to venue_catalog
+// See: /home/runner/.claude/plans/noble-purring-yeti.md
 
 import { db } from '../../db/drizzle.js';
-import { nearby_venues } from '../../../shared/schema.js';
+import { venue_catalog } from '../../../shared/schema.js';
+import { eq, and, or } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
 import { barsLog, placesLog, venuesLog, aiLog } from '../../logger/workflow.js';
+import { generateCoordKey, normalizeVenueName } from './venue-utils.js';
 
 // API Keys
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -485,10 +490,14 @@ export async function getSmartBlocksIntelligence({ lat, lng, city, state, radius
 }
 
 /**
- * Persist venue data to database for ML training and user feedback
- * @param {Array} venues - Venues from Gemini discovery
- * @param {Object} context - Context {snapshot_id, city, state, is_holiday, holiday_name, day_of_week}
- * @returns {Promise<Array>} - Inserted venue records
+ * Persist venue data to venue_catalog for caching and deduplication.
+ * Uses upsert pattern: update existing venues, insert new ones.
+ *
+ * Updated 2026-01-05: Migrated from nearby_venues to venue_catalog
+ *
+ * @param {Array} venues - Venues from Google Places discovery
+ * @param {Object} context - Context {city, state}
+ * @returns {Promise<Array>} - Upserted venue records
  */
 export async function persistVenuesToDatabase(venues, context) {
   if (!venues || !Array.isArray(venues) || venues.length === 0) {
@@ -497,43 +506,92 @@ export async function persistVenuesToDatabase(venues, context) {
 
   try {
     const now = new Date();
-    const dayOfWeek = now.getDay();
-    
-    const records = venues.map(v => ({
-      snapshot_id: context.snapshot_id,
-      name: v.name,
-      venue_type: v.type,
-      address: v.address,
-      lat: v.lat,
-      lng: v.lng,
-      distance_miles: v.distance_miles || null,
-      expense_level: v.expense_level,
-      expense_rank: v.expense_rank,
-      phone: v.phone || null,
-      is_open: v.is_open,
-      hours_today: v.hours_today,
-      hours_full_week: v.hours_full_week || null,
-      closing_soon: v.closing_soon,
-      minutes_until_close: v.minutes_until_close || null,
-      opens_in_minutes: v.opens_in_minutes || null,
-      opens_in_future: v.opens_in_minutes && v.opens_in_minutes <= 15,
-      was_filtered: v.was_filtered || false,
-      crowd_level: v.crowd_level,
-      rideshare_potential: v.rideshare_potential,
-      city: context.city,
-      state: context.state,
-      day_of_week: dayOfWeek,
-      is_holiday: context.is_holiday || false,
-      holiday_name: context.holiday_name || null,
-      search_sources: v.search_sources || null,
-      user_corrections: [],
-      correction_count: 0,
-    }));
+    const upserted = [];
 
-    // Use onConflictDoNothing to make batch insert resilient to unique key violations
-    const inserted = await db.insert(nearby_venues).values(records).onConflictDoNothing().returning();
-    venuesLog.done(4, `Persisted ${inserted?.length || 0} venues to database`);
-    return inserted || [];
+    for (const v of venues) {
+      const coordKey = generateCoordKey(v.lat, v.lng);
+      const normalizedName = normalizeVenueName(v.name);
+
+      // Check if venue already exists by coord_key or (normalized_name + city + state)
+      const conditions = [];
+      if (coordKey) {
+        conditions.push(eq(venue_catalog.coord_key, coordKey));
+      }
+      if (normalizedName && context.city && context.state) {
+        conditions.push(and(
+          eq(venue_catalog.normalized_name, normalizedName),
+          eq(venue_catalog.city, context.city),
+          eq(venue_catalog.state, context.state?.toUpperCase())
+        ));
+      }
+
+      let existing = null;
+      if (conditions.length > 0) {
+        const [found] = await db.select()
+          .from(venue_catalog)
+          .where(conditions.length === 1 ? conditions[0] : or(...conditions))
+          .limit(1);
+        existing = found;
+      }
+
+      if (existing) {
+        // Update existing venue with latest bar data
+        const venueTypes = Array.isArray(existing.venue_types) ? existing.venue_types : [];
+        if (!venueTypes.includes('bar')) {
+          venueTypes.push('bar');
+        }
+
+        const [updated] = await db.update(venue_catalog)
+          .set({
+            expense_rank: v.expense_rank || existing.expense_rank,
+            crowd_level: v.crowd_level || existing.crowd_level,
+            rideshare_potential: v.rideshare_potential || existing.rideshare_potential,
+            venue_types: venueTypes,
+            access_count: (existing.access_count || 0) + 1,
+            last_accessed_at: now,
+            updated_at: now
+          })
+          .where(eq(venue_catalog.venue_id, existing.venue_id))
+          .returning();
+
+        if (updated) upserted.push(updated);
+      } else {
+        // Insert new venue
+        const venueType = v.type === 'nightclub' ? 'nightclub' :
+                          v.type === 'wine_bar' ? 'wine_bar' : 'bar';
+
+        const [inserted] = await db.insert(venue_catalog)
+          .values({
+            venue_name: v.name,
+            normalized_name: normalizedName,
+            address: v.address,
+            lat: v.lat,
+            lng: v.lng,
+            coord_key: coordKey,
+            city: context.city,
+            state: context.state?.toUpperCase(),
+            formatted_address: v.address,
+            place_id: v.place_id,
+            venue_types: [venueType],
+            category: venueType,
+            expense_rank: v.expense_rank,
+            crowd_level: v.crowd_level,
+            rideshare_potential: v.rideshare_potential,
+            source: 'google_places',
+            discovery_source: 'bar_discovery',
+            access_count: 1,
+            last_accessed_at: now,
+            updated_at: now
+          })
+          .onConflictDoNothing()
+          .returning();
+
+        if (inserted) upserted.push(inserted);
+      }
+    }
+
+    venuesLog.done(4, `Persisted ${upserted.length} venues to venue_catalog`);
+    return upserted;
   } catch (error) {
     venuesLog.warn(4, `Failed to persist venues: ${error.message}`);
     // Don't throw - allow API to continue even if DB persistence fails

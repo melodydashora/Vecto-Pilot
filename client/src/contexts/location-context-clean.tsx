@@ -179,6 +179,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const isInitialMountRef = useRef(true);
   const lastEnrichmentCoordsRef = useRef<string | null>(null);
   const sessionRestoreAttemptedRef = useRef(false);
+  // AbortController for request cancellation - prevents stale responses from overwriting fresh data
+  // Updated 2026-01-05: Fixes network waste when users tap refresh rapidly
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Restore DISPLAY data from sessionStorage on mount (for immediate UX)
   // IMPORTANT: Do NOT restore snapshot_id - always create fresh snapshot!
@@ -257,6 +260,15 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     lastEnrichmentCoordsRef.current = coordKey;
 
+    // Cancel any pending requests before starting new ones
+    // Updated 2026-01-05: Prevents network waste when users tap refresh rapidly
+    if (abortControllerRef.current) {
+      console.log('🛑 [LocationContext] Cancelling previous enrichment request');
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const deviceId = localStorage.getItem('vecto_device_id') || crypto.randomUUID();
     localStorage.setItem('vecto_device_id', deviceId);
 
@@ -289,10 +301,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // (Google Geocode + Timezone + DB writes)
       // ═══════════════════════════════════════════════════════════════════════════
 
-      // Start all requests in parallel
-      const locationPromise = fetch(resolveUrl, { headers });
-      const weatherPromise = fetch(`/api/location/weather?lat=${lat}&lng=${lng}`);
-      const airPromise = fetch(`/api/location/airquality?lat=${lat}&lng=${lng}`);
+      // Start all requests in parallel with abort signal
+      // Updated 2026-01-05: Added signal for request cancellation
+      const locationPromise = fetch(resolveUrl, { headers, signal: controller.signal });
+      const weatherPromise = fetch(`/api/location/weather?lat=${lat}&lng=${lng}`, { signal: controller.signal });
+      const airPromise = fetch(`/api/location/airquality?lat=${lat}&lng=${lng}`, { signal: controller.signal });
 
       // Track weather/air data for snapshot enrichment later
       let weatherData: { available: boolean; temperature: number; conditions: string; description?: string } | null = null;
@@ -410,10 +423,16 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                   aqi: airQualityData.aqi,
                   category: airQualityData.category
                 } : undefined
-              })
+              }),
+              signal: controller.signal
             });
             console.log(`📸 [LocationContext] Snapshot enriched with weather/air`);
           } catch (enrichErr) {
+            // Ignore AbortError - request was intentionally cancelled
+            if (enrichErr instanceof Error && enrichErr.name === 'AbortError') {
+              console.log('🛑 [LocationContext] Enrich request cancelled');
+              return;
+            }
             console.warn('[LocationContext] Failed to enrich snapshot:', enrichErr);
           }
         }
@@ -470,7 +489,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const snapshotRes = await fetch('/api/location/snapshot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(snapshot)
+          body: JSON.stringify(snapshot),
+          signal: controller.signal
         });
 
         if (snapshotRes.ok) {
@@ -483,6 +503,12 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
     } catch (error) {
+      // Ignore AbortError - request was intentionally cancelled (user tapped refresh rapidly)
+      // Updated 2026-01-05: Graceful handling of cancelled requests
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('🛑 [LocationContext] Enrichment cancelled by newer request');
+        return;
+      }
       console.error('[LocationContext] Enrichment failed:', error);
     }
   }, [token, user]);

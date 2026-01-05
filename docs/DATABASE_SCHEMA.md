@@ -5,7 +5,7 @@
 
 | Metric | Value |
 |--------|-------|
-| **Generated** | 2026-01-05 02:26:55 |
+| **Generated** | 2026-01-05 04:18:10 |
 | **Tables** | 47 |
 | **Total Columns** | 735 |
 | **Database** | PostgreSQL |

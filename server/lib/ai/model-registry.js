@@ -143,6 +143,14 @@ export const MODEL_ROLES = {
     temperature: 0.1,
     features: ['google_search'],
   },
+  VENUE_EVENT_VERIFIER: {
+    envKey: 'VENUE_EVENT_VERIFIER_MODEL',
+    default: 'gemini-3-pro-preview',
+    purpose: 'Verify venue events during SmartBlocks enrichment',
+    maxTokens: 256,
+    temperature: 0.1,
+    // No search needed - just validation of existing data
+  },
 
   // ==========================
   // 4. COACH_CONVERSATIONS
@@ -391,4 +399,55 @@ export function hasQuirk(model, quirk) {
     }
   }
   return false;
+}
+
+// ==========================
+// LLM DIAGNOSTICS
+// ==========================
+// Replaces routerDiagnosticsV2 from deprecated llm-router-v2.js
+// Updated 2026-01-05
+
+/**
+ * Get LLM diagnostics for health check endpoints
+ * Reports which AI providers are configured based on API keys
+ * @returns {{ providers: Array<{key: string, model: string}>, preferred: string, fallbacks: string }}
+ */
+export function getLLMDiagnostics() {
+  const providers = [];
+
+  // Check Anthropic
+  if (process.env.ANTHROPIC_API_KEY) {
+    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-5-20251101';
+    providers.push({ key: 'anthropic', model });
+  }
+
+  // Check OpenAI
+  if (process.env.OPENAI_API_KEY) {
+    const model = process.env.OPENAI_MODEL || 'gpt-5.2';
+    providers.push({ key: 'openai', model });
+  }
+
+  // Check Gemini
+  if (process.env.GEMINI_API_KEY) {
+    const model = process.env.GEMINI_MODEL || 'gemini-3-pro-preview';
+    providers.push({ key: 'google', model });
+  }
+
+  return {
+    providers,
+    preferred: process.env.PREFERRED_MODEL || 'google:gemini-3-pro-preview',
+    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.2,anthropic:claude-opus-4-5-20251101',
+  };
+}
+
+/**
+ * Get simple LLM status for monitoring
+ * @returns {{ configured: number, providers: string[] }}
+ */
+export function getLLMStatus() {
+  const diag = getLLMDiagnostics();
+  return {
+    configured: diag.providers.length,
+    providers: diag.providers.map(p => p.key),
+  };
 }

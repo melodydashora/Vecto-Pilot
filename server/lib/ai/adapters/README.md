@@ -12,7 +12,6 @@ Model-agnostic API adapters that normalize calls to different AI providers. **Al
 | `anthropic-adapter.js` | Claude API calls + web search | Anthropic |
 | `openai-adapter.js` | GPT-5.2 / o1 calls | OpenAI |
 | `gemini-adapter.js` | Gemini 3.0 Pro calls + Google Search | Google |
-| `gemini-2.5-pro.js` | Gemini 2.5 Pro (venue-event-verifier only) | Google |
 | `anthropic-sonnet45.js` | Claude Sonnet 4.5 raw calls | Anthropic |
 
 ## Usage
@@ -60,6 +59,7 @@ if (result.ok) {
 | `VENUE_SCORER` | Smart Blocks venue scoring | GPT-5.2 |
 | `VENUE_FILTER` | Fast venue filtering | Claude Haiku |
 | `VENUE_TRAFFIC` | Venue traffic intel | Gemini 3 Pro |
+| `VENUE_EVENT_VERIFIER` | Venue event verification | Gemini 3 Pro |
 | **COACH TABLE** |||
 | `COACH_CHAT` | AI Coach conversation | Gemini 3 Pro |
 | **UTILITIES** |||

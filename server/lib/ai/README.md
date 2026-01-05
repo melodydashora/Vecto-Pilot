@@ -15,8 +15,7 @@ ai/
 │   └── consolidator.js # Strategy generation (GPT-5.2 + Gemini)
 ├── coach-dal.js        # Data access layer for AI Coach chat
 ├── index.js            # Barrel exports for ai module
-├── llm-router-v2.js    # LLM status/routing (used by health endpoint)
-├── model-registry.js   # Model configuration registry
+├── model-registry.js   # Model configuration registry (+ LLM diagnostics)
 ├── models-dictionary.js # Model metadata registry
 └── unified-ai-capabilities.js # AI capability manager
 ```
@@ -47,8 +46,7 @@ const legacy = await callModel('strategist', { system, user }); // → STRATEGY_
 | `providers/consolidator.js` | Strategy generation | `runImmediateStrategy()`, `runConsolidator()` |
 | `coach-dal.js` | Chat data access layer | `CoachDAL` class |
 | `index.js` | Barrel exports for ai module | Module re-exports |
-| `llm-router-v2.js` | LLM status for health checks | `getLLMStatus()` |
-| `model-registry.js` | Model configuration registry | Model config lookup |
+| `model-registry.js` | Model configuration + LLM diagnostics | `getRoleConfig()`, `getLLMStatus()`, `getLLMDiagnostics()` |
 | `models-dictionary.js` | Model metadata registry | `MODELS` dictionary |
 | `unified-ai-capabilities.js` | AI capability manager | `unifiedCapabilities` |
 
@@ -157,7 +155,7 @@ await coachDAL.reactivateEvent({
 ```javascript
 // From server/api/*/
 import { callModel } from '../../lib/ai/adapters/index.js';
-import { getLLMStatus } from '../../lib/ai/llm-router-v2.js';
+import { getLLMStatus, getLLMDiagnostics } from '../../lib/ai/model-registry.js';
 import { CoachDAL } from '../../lib/ai/coach-dal.js';
 
 // From server/lib/*/
@@ -165,3 +163,6 @@ import { callModel } from '../ai/adapters/index.js';
 import { runBriefing } from '../ai/providers/briefing.js';
 import { runImmediateStrategy, runConsolidator } from '../ai/providers/consolidator.js';
 ```
+
+---
+*Updated 2026-01-05: Removed deprecated llm-router-v2.js and gemini-2.5-pro.js. LLM diagnostics now in model-registry.js.*
