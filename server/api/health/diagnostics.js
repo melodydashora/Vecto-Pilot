@@ -507,7 +507,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const modelId = process.env.OPENAI_MODEL || 'gpt-5';
+        const modelId = process.env.OPENAI_MODEL || 'gpt-5.2';
         const response = await openai.chat.completions.create({
           model: modelId,
           max_tokens: 10,

@@ -1,6 +1,10 @@
-// Google Gemini 2.5 Pro — v1beta generateContent
-// Model ID from env: GEMINI_MODEL (required)
+// Google Gemini Adapter — v1beta generateContent
+// Updated 2026-01-05: Now uses gemini-3-pro-preview by default
+// Model ID from env: GEMINI_MODEL (default: gemini-3-pro-preview)
 // Temperature from env: GEMINI_TEMPERATURE (default: 0.2)
+//
+// NOTE: File name kept as gemini-2.5-pro.js for backward compatibility
+// with venue-event-verifier.js imports. Consider renaming in future cleanup.
 export async function callGeminiGenerateContent({
   apiKey = process.env.GEMINI_API_KEY,
   model = process.env.GEMINI_MODEL,

@@ -126,7 +126,7 @@ function buildProviders() {
       cooldownMs: Number(cfg('CIRCUIT_COOLDOWN_MS','60000')),
     });
     const gate = new Gate(Number(cfg('OPENAI_MAX_CONCURRENCY','12')));
-    const openaiModel = cfg('OPENAI_MODEL','gpt-5');
+    const openaiModel = cfg('OPENAI_MODEL','gpt-5.2');
     P.push({
       key: 'openai', model: openaiModel, breaker, gate,
       call: async ({ system, user, perCallMs, signal }) => {
@@ -233,8 +233,8 @@ function buildProviders() {
 }
 
 function desiredOrder(providers) {
-  const primary = (cfg('PREFERRED_MODEL','google:gemini-2.5-pro')||'').split(':')[0];
-  const fallbacks = (cfg('FALLBACK_MODELS','openai:gpt-5,anthropic:claude-opus-4-5-20251101')||'')
+  const primary = (cfg('PREFERRED_MODEL','google:gemini-3-pro-preview')||'').split(':')[0];
+  const fallbacks = (cfg('FALLBACK_MODELS','openai:gpt-5.2,anthropic:claude-opus-4-5-20251101')||'')
     .split(',').map(s => s.trim().split(':')[0]).filter(Boolean);
   const map = Object.fromEntries(providers.map(p => [p.key, p]));
   const ordered = [primary, ...fallbacks].map(k => map[k]).filter(Boolean);
@@ -249,7 +249,7 @@ export async function routeLLMTextV2({ system, user, log = console, overrides = 
 
   // Testing override: force single model with custom parameter
   if (overrides?.modelKey && overrides?.modelParam) {
-    const modelMap = { 'gemini': 'google', 'gpt-5': 'openai', 'claude': 'anthropic' };
+    const modelMap = { 'gemini': 'google', 'gpt-5.2': 'openai', 'claude': 'anthropic' };
     const providerKey = modelMap[overrides.modelKey];
     providers = providers.filter(p => p.key === providerKey);
     

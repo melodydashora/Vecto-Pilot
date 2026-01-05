@@ -362,7 +362,7 @@ export function getRolesByTable() {
  * Model-specific quirks and limitations
  */
 export const MODEL_QUIRKS = {
-  'gpt-5': {
+  'gpt-5.2': {
     noTemperature: true,
     useReasoningEffort: true,
     useMaxCompletionTokens: true,

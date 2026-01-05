@@ -42,7 +42,7 @@ router.post('/', requireAuth, async (req, res) => {
 
     // Call VENUE_REASONING role (model configured via env var)
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-5',
+      model: process.env.OPENAI_MODEL || 'gpt-5.2',
       max_completion_tokens: 200,
       messages,
     });
