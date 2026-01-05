@@ -1651,7 +1651,7 @@ export class CoachDAL {
           .select({ id: discovered_events.id, title: discovered_events.title })
           .from(discovered_events)
           .where(eq(discovered_events.is_active, true))
-          .orderBy(desc(discovered_events.created_at))
+          .orderBy(desc(discovered_events.discovered_at))
           .limit(100); // Check recent events
 
         // Find best match (exact or close)
@@ -1739,7 +1739,7 @@ export class CoachDAL {
         const matchingEvents = await db
           .select({ id: discovered_events.id, title: discovered_events.title, is_active: discovered_events.is_active })
           .from(discovered_events)
-          .orderBy(desc(discovered_events.created_at))
+          .orderBy(desc(discovered_events.discovered_at))
           .limit(200); // Check more events since we need inactive ones too
 
         // Prioritize inactive events (the ones we want to reactivate)

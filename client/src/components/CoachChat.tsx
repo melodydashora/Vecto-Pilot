@@ -2,8 +2,28 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageSquare, Send, Loader, Zap, Paperclip, X } from "lucide-react";
+import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle } from "lucide-react";
 import { useMemory } from "@/hooks/useMemory";
+
+// 2026-01-05: Added for AI Coach notes panel feature
+interface UserNote {
+  id: string;
+  note_type: 'preference' | 'insight' | 'tip' | 'feedback' | 'pattern' | 'market_update';
+  category?: string;
+  title: string;
+  content: string;
+  importance: number;
+  is_pinned: boolean;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ValidationError {
+  field: string;
+  message: string;
+}
 
 interface Message {
   role: "user" | "assistant";
@@ -60,11 +80,122 @@ export default function CoachChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const _audioContextRef = useRef<AudioContext | null>(null);
 
+  // 2026-01-05: Notes panel state for AI Coach memory feature
+  const [notes, setNotes] = useState<UserNote[]>([]);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+
   // Memory integration for persistent context
   const { logConversation, summarizeConversation, context: _context } = useMemory({
     userId,
     loadOnMount: true
   });
+
+  // 2026-01-05: Notes CRUD functions with optimistic UI
+  const fetchNotes = useCallback(async () => {
+    setNotesLoading(true);
+    try {
+      const token = localStorage.getItem('vectopilot_auth_token');
+      const res = await fetch('/api/coach/notes?sort=pinned&limit=50', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotes(data.notes || []);
+      }
+    } catch (err) {
+      console.error('[CoachChat] Failed to fetch notes:', err);
+    } finally {
+      setNotesLoading(false);
+    }
+  }, []);
+
+  // Load notes when panel opens
+  useEffect(() => {
+    if (notesOpen && notes.length === 0) {
+      fetchNotes();
+    }
+  }, [notesOpen, notes.length, fetchNotes]);
+
+  // Optimistic delete with rollback
+  const deleteNote = useCallback(async (noteId: string) => {
+    const original = notes;
+    setNotes(prev => prev.filter(n => n.id !== noteId));
+
+    try {
+      const token = localStorage.getItem('vectopilot_auth_token');
+      const res = await fetch(`/api/coach/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      console.log('[CoachChat] Note deleted:', noteId);
+    } catch (err) {
+      console.error('[CoachChat] Delete failed, rolling back:', err);
+      setNotes(original); // Rollback on error
+    }
+  }, [notes]);
+
+  // Optimistic pin toggle with rollback
+  const togglePinNote = useCallback(async (noteId: string) => {
+    const original = notes;
+    setNotes(prev => prev.map(n =>
+      n.id === noteId ? { ...n, is_pinned: !n.is_pinned } : n
+    ));
+
+    try {
+      const token = localStorage.getItem('vectopilot_auth_token');
+      const res = await fetch(`/api/coach/notes/${noteId}/pin`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Pin toggle failed');
+      console.log('[CoachChat] Note pin toggled:', noteId);
+    } catch (err) {
+      console.error('[CoachChat] Pin toggle failed, rolling back:', err);
+      setNotes(original);
+    }
+  }, [notes]);
+
+  // Update note content
+  const saveNoteEdit = useCallback(async (noteId: string) => {
+    if (!editContent.trim()) return;
+
+    const original = notes;
+    setNotes(prev => prev.map(n =>
+      n.id === noteId ? { ...n, content: editContent } : n
+    ));
+    setEditingNote(null);
+
+    try {
+      const token = localStorage.getItem('vectopilot_auth_token');
+      const res = await fetch(`/api/coach/notes/${noteId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: editContent })
+      });
+      if (!res.ok) throw new Error('Update failed');
+      console.log('[CoachChat] Note updated:', noteId);
+    } catch (err) {
+      console.error('[CoachChat] Update failed, rolling back:', err);
+      setNotes(original);
+    }
+    setEditContent("");
+  }, [notes, editContent]);
+
+  // Handle validation errors from chat API (ready for future use)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handleValidationErrors = useCallback((errors: ValidationError[]) => {
+    setValidationErrors(errors);
+    // Clear after 5 seconds
+    setTimeout(() => setValidationErrors([]), 5000);
+  }, []);
 
   // Handle event deactivation commands from AI Coach
   const handleEventDeactivation = useCallback(async (content: string) => {
@@ -487,17 +618,170 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
   ];
 
   return (
-    <Card className="flex flex-col h-[500px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 overflow-hidden shadow-lg rounded-xl">
-      {/* Clean Header */}
+    <Card className="relative flex flex-col h-[500px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 overflow-hidden shadow-lg rounded-xl">
+      {/* Clean Header with Notes Button */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
         <div className="flex items-center justify-center h-8 w-8 rounded-full bg-white/20">
           <Zap className="h-4 w-4" />
         </div>
-        <div>
+        <div className="flex-1">
           <h3 className="font-semibold text-sm">Rideshare Coach</h3>
           <p className="text-xs text-white/80">AI Strategy Assistant</p>
         </div>
+        {/* 2026-01-05: Notes Panel Toggle */}
+        <Button
+          onClick={() => setNotesOpen(!notesOpen)}
+          size="sm"
+          variant="ghost"
+          className="text-white hover:bg-white/20 relative"
+          title="View Coach's Notes About You"
+          data-testid="button-toggle-notes"
+        >
+          <BookOpen className="h-4 w-4" />
+          {notes.length > 0 && (
+            <span className="absolute -top-1 -right-1 h-4 w-4 bg-yellow-400 text-blue-900 rounded-full text-[10px] font-bold flex items-center justify-center">
+              {notes.length > 9 ? '9+' : notes.length}
+            </span>
+          )}
+        </Button>
       </div>
+
+      {/* Validation Errors Banner */}
+      {validationErrors.length > 0 && (
+        <div className="px-4 py-2 bg-red-50 dark:bg-red-900/50 border-b border-red-200 dark:border-red-800">
+          <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <div className="text-xs">
+              {validationErrors.map((err, i) => (
+                <span key={i}>
+                  <strong>{err.field}:</strong> {err.message}
+                  {i < validationErrors.length - 1 && ' | '}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notes Panel (Slide-out) */}
+      {notesOpen && (
+        <div className="absolute inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setNotesOpen(false)}
+          />
+          {/* Panel */}
+          <div className="relative ml-auto w-80 h-full bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-gray-700 flex flex-col shadow-xl animate-slide-in-right">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                <h3 className="font-semibold text-sm">Coach's Notes</h3>
+              </div>
+              <Button
+                onClick={() => setNotesOpen(false)}
+                size="sm"
+                variant="ghost"
+                className="text-white hover:bg-white/20"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
+              Things I've learned about you from our chats
+            </p>
+            <div className="flex-1 overflow-auto p-3 space-y-2">
+              {notesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader className="h-5 w-5 animate-spin text-amber-500" />
+                </div>
+              ) : notes.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No notes yet</p>
+                  <p className="text-xs">Chat with me to build your profile!</p>
+                </div>
+              ) : (
+                notes.map(note => (
+                  <div
+                    key={note.id}
+                    className={`p-3 rounded-lg border text-sm ${
+                      note.is_pinned
+                        ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-700'
+                        : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                        note.note_type === 'preference' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                        note.note_type === 'insight' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' :
+                        note.note_type === 'tip' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                        'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                      }`}>
+                        {note.note_type}
+                      </span>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => togglePinNote(note.id)}
+                          className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 ${
+                            note.is_pinned ? 'text-amber-500' : 'text-gray-400'
+                          }`}
+                          title={note.is_pinned ? 'Unpin' : 'Pin'}
+                        >
+                          <Pin className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingNote(note.id);
+                            setEditContent(note.content);
+                          }}
+                          className="p-1 rounded text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-blue-500"
+                          title="Edit"
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => deleteNote(note.id)}
+                          className="p-1 rounded text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-red-500"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                    <h4 className="font-medium text-gray-900 dark:text-white text-sm mb-1">{note.title}</h4>
+                    {editingNote === note.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editContent}
+                          onChange={e => setEditContent(e.target.value)}
+                          className="w-full p-2 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                          rows={3}
+                        />
+                        <div className="flex gap-1">
+                          <Button size="sm" onClick={() => saveNoteEdit(note.id)} className="text-xs h-6">
+                            Save
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditingNote(null)} className="text-xs h-6">
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-gray-600 dark:text-gray-300 text-xs leading-relaxed">{note.content}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2 text-[10px] text-gray-400">
+                      <span>{note.created_by === 'ai_coach' ? '🤖 AI' : '👤 You'}</span>
+                      <span>•</span>
+                      <span>{new Date(note.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages Area - Light background for readability */}
       <div className="flex-1 overflow-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-800">
