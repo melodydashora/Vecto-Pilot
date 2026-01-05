@@ -37,44 +37,24 @@ export default defineConfig(async () => {
       emptyOutDir: true,
       sourcemap: false,
       // Increase warning limit - heavy deps like Charts/Maps are expected
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 1200, // Main chunk ~1.12MB due to React+charts in same chunk
       // 2026-01-05: Feature-based code splitting for optimal caching
       rollupOptions: {
         output: {
+          // 2026-01-05: Conservative chunking to avoid React dependency issues
+          // Only split packages that are truly independent (no React deps)
           manualChunks(id) {
             if (id.includes('node_modules')) {
-              // Group 1: React Core (Stable) - cached long-term
-              if (
-                id.includes('react') ||
-                id.includes('react-dom') ||
-                id.includes('react-router') ||
-                id.includes('@tanstack')
-              ) {
-                return 'vendor-react-core';
-              }
-              // Group 2: UI & Design System - 25+ @radix-ui packages
-              if (
-                id.includes('@radix-ui') ||
-                id.includes('lucide-react') ||
-                id.includes('class-variance-authority') ||
-                id.includes('tailwind-merge')
-              ) {
+              // UI components - independent from each other
+              if (id.includes('@radix-ui') || id.includes('lucide-react')) {
                 return 'vendor-ui';
               }
-              // Group 3: Data Visualization (Heavy)
-              if (id.includes('recharts') || id.includes('chart.js') || id.includes('d3')) {
-                return 'vendor-charts';
+              // CSS utilities - no dependencies
+              if (id.includes('tailwind-merge') || id.includes('class-variance-authority') || id.includes('clsx')) {
+                return 'vendor-css';
               }
-              // Group 4: Maps (Heavy)
-              if (id.includes('@googlemaps')) {
-                return 'vendor-maps';
-              }
-              // Group 5: Form & Validation
-              if (id.includes('react-hook-form') || id.includes('zod') || id.includes('drizzle-zod')) {
-                return 'vendor-forms';
-              }
-              // Default: Everything else from node_modules
-              return 'vendor-utils';
+              // Let Rollup handle React, charts, and everything else naturally
+              // This prevents forwardRef errors from chunk load ordering issues
             }
           }
         }
