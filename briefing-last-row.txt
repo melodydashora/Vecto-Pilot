@@ -2,93 +2,93 @@
 ================================================================================
 
 id:
-  "64bd41c5-4d4f-4fe0-ab01-3c2213ab6719"
+  "80408038-4af9-4093-98a7-11303468d97c"
 
 snapshot_id:
-  "6b6b79ec-fb75-4343-a7be-2646cbd0f8b8"
+  "09809b9a-65ae-4f1e-9d16-c7fa1e7ce9e7"
 
 news:
   {
   "items": [
     {
-      "link": "https://www.dart.org/news",
-      "title": "DART Convention Center Station Closes Today - Major Demand Shift",
+      "link": "https://www.texastribune.org",
+      "title": "Major Strategy Alert: Plano & Irving Pushing to Replace DART Buses with Rideshare",
       "impact": "high",
-      "source": "DART News Release",
-      "summary": "Starting TODAY (Jan 5), the DART Convention Center Station is CLOSED for long-term construction. This will force thousands of commuters and convention-goers to find alternative transport. Expect a significant SPIKE in ride requests around the Kay Bailey Hutchison Convention Center and downtown Dallas as public transit riders switch to rideshare.",
-      "category": "traffic",
+      "source": "The Texas Tribune / Dallas Observer",
+      "summary": "A major developing story today (Jan 5) confirms Plano and Irving officials are advancing plans to withdraw from DART and replace fixed bus routes with 'microtransit'—essentially city-subsidized Uber/Lyft rides. While the vote is in May, this signals a potential massive future shift in demand for drivers in these suburbs. Expect increased discussion and potential pilot programs.",
+      "category": "regulation",
       "_provider": "gemini",
       "published_date": "2026-01-05"
     },
     {
-      "link": "https://10times.com/dallas-us",
-      "title": "SEEK Conference Ending at Gaylord Texan - Airport Demand Surge",
+      "link": "https://www.friscoisd.org",
+      "title": "School Holiday Today: No Morning School Runs in Frisco or Plano",
       "impact": "high",
-      "source": "10Times Conference Alerts",
-      "summary": "The massive SEEK Conference (Jan 1-5) at the Gaylord Texan in Grapevine ends today. Expect high volume of ride requests from the Gaylord to DFW Airport and Dallas Love Field throughout the day as thousands of attendees depart. Position yourself near Grapevine for long airport trips.",
+      "source": "Frisco ISD / Plano ISD Calendars",
+      "summary": "Frisco ISD and Plano ISD have a 'Student Holiday/Staff Development Day' today, Monday, Jan 5. Classes do not resume until tomorrow, Jan 6. DRIVER IMPACT: Do not position for morning school drop-off surges. Morning rush hour will be lighter than usual. Expect higher demand for midday errands or teen transport to malls/movies.",
       "category": "event",
       "_provider": "gemini",
       "published_date": "2026-01-05"
     },
     {
-      "link": "https://www.dfwairport.com",
-      "title": "Major DFW Airport Delays: Terminal C & Bridge Construction",
+      "link": "https://www.cbsnews.com/texas/news/dallas-love-field-airport-moves-rideshare-pickup-location/",
+      "title": "Dallas Love Field Moves Uber/Lyft Pickup Closer to Terminal",
       "impact": "high",
-      "source": "DFW Airport / NBC DFW",
-      "summary": "Ongoing construction at DFW Airport (Terminal C south parking garage closed; new bridge work) is causing severe congestion. Terminal C drop-offs are taking longer. Strategy: Use the 'arrivals' level for drop-offs if 'departures' is gridlocked, or advise passengers to arrive 3 hours early. International Parkway traffic is heavy.",
+      "source": "Dallas News / CBS Texas",
+      "summary": "Effective January 3, 2025, Dallas Love Field Airport relocated the pickup area for app-based rideshares (Uber, Lyft, Wingz) from Garage B to the Valet Pavilion and Garage C (Level 1), on the terminal’s southeast side. The new spot shortens the walk for passengers (about 6 minutes instead of ~10), making pickups quicker. For drivers, this reduces drive‐time waiting or locating passengers, speeds up turnover, and may reduce idle time. Could lead to more ride acceptance from Love Field if pickups become less frustrating for both drivers and riders. ([fox4news.com](https://www.fox4news.com/news/dallas-love-field-rideshare-pickup?utm_source=openai))",
       "category": "airport",
+      "_provider": "gpt",
+      "published_date": "2025-12-30"
+    },
+    {
+      "link": "https://www.nfl.com",
+      "title": "No Monday Night Football Tonight",
+      "impact": "medium",
+      "source": "NFL Schedule / FBSchedules",
+      "summary": "The NFL regular season concluded yesterday (Jan 4). There is NO Monday Night Football game tonight (Jan 5). The Wild Card round begins Saturday, Jan 10. DRIVER IMPACT: Do not expect the usual Monday evening sports bar rush or demand at The Star/Ford Center related to game watch parties.",
+      "category": "event",
       "_provider": "gemini",
       "published_date": "2026-01-05"
     },
     {
-      "link": "http://www.ntxe-news.com",
-      "title": "US 75 Northbound Frontage Road Closure Starts Today",
+      "link": "https://www.gasbuddy.com",
+      "title": "Gas Price Update: Frisco Stations Averaging $1.85 - $2.19",
       "impact": "medium",
-      "source": "North Texas e-News",
-      "summary": "The northbound frontage road of US 75 (north of Jerdy Gary Ave) closes today, Jan 5, until March. This will force traffic onto the main highway or alternative routes, likely causing surges on parallel surface streets during rush hour. Avoid this specific frontage road for pickups.",
-      "category": "traffic",
-      "_provider": "gemini",
-      "published_date": "2026-01-05"
-    },
-    {
-      "link": "https://www.friscotexas.gov",
-      "title": "Frisco Roadwork: Kings Ridge & Hillcrest Rd Updates",
-      "impact": "medium",
-      "source": "FriscoTexas.gov",
-      "summary": "Weekly roadwork starting today in Frisco includes pavement replacement on Kings Ridge Rd (between Castle Dr & Camelot Dr) and a traffic switch on Hillcrest Rd. Expect delays and potential rerouting for neighborhood pickups in these specific Frisco zones.",
-      "category": "traffic",
-      "_provider": "gemini",
-      "published_date": "2026-01-05"
-    },
-    {
-      "link": "https://gasprices.aaa.com",
-      "title": "Gas Prices Dropping: Texas Average ~$2.46/gal",
-      "impact": "medium",
-      "source": "AAA / GasBuddy",
-      "summary": "Fuel costs are trending down, improving net earnings. The Texas average is approx. $2.46/gallon, with some stations in the Frisco/Plano area reporting prices as low as $1.85/gallon. Fill up at competitive stations like Costco or Murphy USA to maximize profit margins.",
+      "source": "GasBuddy / AAA Texas",
+      "summary": "Gas prices in Frisco are currently running below the Texas average ($2.40). Lowest prices found at stations on Main St and Preston Rd, ranging from $1.85 to $2.19/gallon. Fill up locally before heading to DFW Airport or Dallas where prices may be higher.",
       "category": "cost",
       "_provider": "gemini",
       "published_date": "2026-01-05"
     },
     {
-      "link": "https://www.mysanantonio.com/news/weather/article/cold-front-texas-21272968.php([mysanantonio.com](https://www.mysanantonio.com/news/weather/article/cold-front-texas-21272968.php?utm_source=openai))",
-      "title": "Texas Weak Cold Front Brings Brief Cool-Down Followed By Midweek Rain Risk",
+      "link": "https://www.uber.com",
+      "title": "Uber 'Go Electric' Incentive: $4,000 Bonus Active",
       "impact": "medium",
-      "source": "MySanAntonio / National Weather Service",
-      "summary": "A weak cold front moved into the Dallas-Fort Worth area the afternoon of January 2, causing cooler temperatures through Saturday, then warming again into midweek. Wet weather risk increases Wednesday-Thursday for North Texas. ([mysanantonio.com](https://www.mysanantonio.com/news/weather/article/cold-front-texas-21272968.php?utm_source=openai)) This affects rideshare drivers by lowering demand during cooler weekend days, but creating higher demand for rides once rain begins midweek. Also, fog and damp roads during cool front transitions can slow rides and raise risk; prep vehicle gear accordingly.",
-      "category": "weather",
-      "_provider": "gpt",
-      "published_date": "2026-01-02"
+      "source": "Uber Driver Portal",
+      "summary": "Uber's 'Go Electric' incentive is active for Dallas-area drivers. Diamond drivers who switch to an eligible EV and complete 100 trips by April 2026 can earn a $4,000 bonus. Check your driver app 'Opportunities' tab to see if you qualify for enrollment.",
+      "category": "platform",
+      "_provider": "gemini",
+      "published_date": "2026-01-05"
     },
     {
-      "link": "https://greaterocchadd.org",
-      "title": "New Senior Driver Rules Boosting Rideshare Demand",
+      "link": "https://www.friscotexas.gov",
+      "title": "Frisco Rail District Construction: Main Street & Hillcrest Rd Closures",
       "impact": "medium",
-      "source": "Greater Occhadd News",
-      "summary": "A new federal rule effective Jan 1, 2026, requiring stricter license renewals for seniors (70+) is reportedly driving an uptick in rideshare usage by older adults. Be patient with senior passengers and look for increased daytime demand in residential areas and medical centers.",
-      "category": "regulation",
+      "source": "FriscoTexas.gov",
+      "summary": "Ongoing major construction in downtown Frisco. Main Street (Rail District) has lane closures between 3rd and 5th Streets. A traffic switch on Hillcrest Rd (between PGA Pkwy and Panther Creek) is in effect as of last week, confusing GPS for some riders. Avoid these areas during peak times if possible to prevent dead miles.",
+      "category": "traffic",
       "_provider": "gemini",
-      "published_date": "2026-01-01"
+      "published_date": "2026-01-04"
+    },
+    {
+      "link": "https://www.newschannel6now.com/texas/gasbuddy-average-texas-gas-prices-have-risen",
+      "title": "Gas Prices Rising Slightly Across Texas",
+      "impact": "medium",
+      "source": "GasBuddy / NewsChannel6Now",
+      "summary": "As of early January 2026, average gasoline prices in Texas have risen by about 3.9 cents per gallon in the past week, and are 4.1¢/gal higher than a month ago, though slightly lower year-over-year. For Frisco area drivers, that means fuel costs are increasing—compressing profit margins and raising the importance of planning fuel‐efficient trips or seeking bonuses that cover fuel costs. Earnings per ride may need to be higher to maintain same take-home. ([newschannel6now.com](https://www.newschannel6now.com/2025/01/06/gasbuddy-average-texas-gas-prices-have-risen/?utm_source=openai))",
+      "category": "cost",
+      "_provider": "gpt",
+      "published_date": "2026-01-04"
     }
   ],
   "reason": null
@@ -96,24 +96,24 @@ news:
 
 weather_current:
   {
-  "tempC": 22,
-  "tempF": 71,
+  "tempC": 20,
+  "tempF": 68,
   "country": "United States",
   "uvIndex": 0,
-  "humidity": 53,
+  "humidity": 64,
   "tempUnit": "°F",
   "feelsLike": 76,
-  "isDaytime": true,
-  "conditions": "Mostly sunny",
-  "feelsLikeC": 24,
+  "isDaytime": false,
+  "conditions": "Mostly cloudy",
+  "feelsLikeC": 25,
   "feelsLikeF": 76,
-  "observedAt": "2026-01-05T21:09:58.564190465Z",
+  "observedAt": "2026-01-05T23:35:49.484913325Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 71,
-  "conditionType": "MOSTLY_CLEAR",
+  "temperature": 68,
+  "conditionType": "MOSTLY_CLOUDY",
   "precipitation": {
     "qpf": {
       "unit": "MILLIMETERS",
@@ -125,7 +125,7 @@ weather_current:
     },
     "probability": {
       "type": "RAIN",
-      "percent": 0
+      "percent": 8
     }
   },
   "windDirection": "SOUTH",
@@ -135,47 +135,21 @@ weather_current:
 weather_forecast:
   [
   {
-    "time": "2026-01-05T21:09:58.638Z",
-    "tempC": 22,
-    "tempF": 71,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Mostly sunny",
-    "temperature": 71,
-    "conditionType": "MOSTLY_CLEAR",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 0
-  },
-  {
-    "time": "2026-01-05T22:09:58.638Z",
-    "tempC": 22,
-    "tempF": 71,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Partly sunny",
-    "temperature": 71,
-    "conditionType": "PARTLY_CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 0
-  },
-  {
-    "time": "2026-01-05T23:09:58.638Z",
+    "time": "2026-01-05T23:35:49.548Z",
     "tempC": 21,
-    "tempF": 70,
+    "tempF": 69,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
     "conditions": "Partly sunny",
-    "temperature": 70,
+    "temperature": 69,
     "conditionType": "PARTLY_CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 5
   },
   {
-    "time": "2026-01-06T00:09:58.638Z",
-    "tempC": 20,
+    "time": "2026-01-06T00:35:49.548Z",
+    "tempC": 19,
     "tempF": 67,
     "tempUnit": "°F",
     "isDaytime": false,
@@ -187,20 +161,20 @@ weather_forecast:
     "precipitationProbability": 10
   },
   {
-    "time": "2026-01-06T01:09:58.639Z",
+    "time": "2026-01-06T01:35:49.548Z",
     "tempC": 19,
     "tempF": 66,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Mostly cloudy",
+    "conditions": "Cloudy",
     "temperature": 66,
-    "conditionType": "MOSTLY_CLOUDY",
+    "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
   },
   {
-    "time": "2026-01-06T02:09:58.639Z",
+    "time": "2026-01-06T02:35:49.548Z",
     "tempC": 18,
     "tempF": 65,
     "tempUnit": "°F",
@@ -211,24 +185,50 @@ weather_forecast:
     "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-06T03:35:49.548Z",
+    "tempC": 18,
+    "tempF": 65,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 65,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-06T04:35:49.548Z",
+    "tempC": 18,
+    "tempF": 64,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 64,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
   }
 ]
 
 traffic_conditions:
   {
-  "jams": 30,
+  "jams": 55,
   "stats": {
-    "jams": 30,
-    "major": 20,
-    "total": 53,
-    "closures": 12,
-    "highways": 32,
+    "jams": 55,
+    "major": 37,
+    "total": 80,
+    "closures": 13,
+    "highways": 57,
     "accidents": 0,
-    "construction": 11
+    "construction": 12
   },
-  "summary": "Frisco is experiencing heavy congestion with 53 total incidents, notably impacting major local arteries like FM-423 and the FM-720 corridor. Major jams are active on FM-423 (1.9mi) and McKinney/FM-720 (8.3mi), while multiple road closures are blocking access near Lamar Hunt Way (3.1mi). Drivers should avoid the FM-423/Lebanon Rd intersection and use the Dallas North Tollway for north-south transit, bypassing the Dallas Pkwy construction zones.",
+  "summary": "Frisco is currently under heavy congestion with 80 total incidents, primarily impacting north-south surface arteries. Major jams are concentrated on FM-423 within 2.5 miles of your location and Legacy Drive near the Tollway, which is seeing the highest individual delay of 6 minutes. Use the Dallas North Tollway for north-south transit to bypass surface street bottlenecks on FM-423 and US-380.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion with 53 total incidents, notably impacting major local arteries like FM-423 and the FM-720 corridor. Major jams are active on FM-423 (1.9mi) and McKinney/FM-720 (8.3mi), while multiple road closures are blocking access near Lamar Hunt Way (3.1mi). Drivers should avoid the FM-423/Lebanon Rd intersection and use the Dallas North Tollway for north-south transit, bypassing the Dallas Pkwy construction zones.",
+  "briefing": "Frisco is currently under heavy congestion with 80 total incidents, primarily impacting north-south surface arteries. Major jams are concentrated on FM-423 within 2.5 miles of your location and Legacy Drive near the Tollway, which is seeing the highest individual delay of 6 minutes. Use the Dallas North Tollway for north-south transit to bypass surface street bottlenecks on FM-423 and US-380.",
   "closures": [
     {
       "road": "I-35E N, US-77 S, US-77 N, I-35E S",
@@ -273,6 +273,13 @@ traffic_conditions:
       "distanceFromDriver": 6.8
     },
     {
+      "road": "",
+      "location": "Dallas Pkwy to Dallas North Tollway S",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 5.4
+    },
+    {
       "road": "US-380 E",
       "location": "Doe Creek Rd to Hollyhock Rd",
       "severity": "low",
@@ -315,152 +322,151 @@ traffic_conditions:
       "distanceFromDriver": 8.4
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion with 53 total incidents, notably impacting major local arteries like FM-423 and the FM-720 corridor.",
+  "headline": "Frisco is currently under heavy congestion with 80 total incidents, primarily impacting north-south surface arteries.",
   "provider": "tomtom",
-  "fetchedAt": "2026-01-05T21:09:58.784Z",
+  "fetchedAt": "2026-01-05T23:35:49.735Z",
   "incidents": [
     {
-      "road": "",
+      "road": "FM-720",
       "category": "Jam",
-      "location": "McKinney to FM-720",
-      "priority": 158,
+      "location": "Rasorite St to Fishtrap Rd",
+      "priority": 159,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: McKinney to FM-720 [8.3 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 3,
-      "distanceFromDriver": 8.3
-    },
-    {
-      "road": "FM-423",
-      "category": "Jam",
-      "location": "Lebanon Rd (TX-423) to FM-720/W Main St (TX-423)",
-      "priority": 157,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: FM-423 (Lebanon Rd (TX-423) to FM-720/W Main St (TX-423)) [1.9 mi]",
+      "description": "Jam: FM-720 (Rasorite St to Fishtrap Rd) [9.8 mi]",
       "lengthMiles": 0.2,
-      "delayMinutes": 2,
-      "distanceFromDriver": 1.9
-    },
-    {
-      "road": "TX-121 Bus",
-      "category": "Jam",
-      "location": "Corporate Dr (TX-121) to I-35E/US-77/Stemmons Fwy (TX-121)",
-      "priority": 144,
-      "severity": "medium",
-      "isHighway": true,
-      "description": "Jam: TX-121 Bus (Corporate Dr (TX-121) to I-35E/US-77/Stemmons Fwy (TX-121)) [9.8 mi]",
-      "lengthMiles": 0.4,
       "delayMinutes": 4,
       "distanceFromDriver": 9.8
     },
     {
-      "road": "I-35E N, US-77 S, US-77 N, I-35E S",
-      "category": "Road Closed",
-      "location": "FM-1171/W Main St (Texpress Lanes/I-35) to E Corporate Dr (Texpress Lanes/I-35)",
-      "priority": 140,
-      "severity": "low",
+      "road": "FM-1385",
+      "category": "Jam",
+      "location": "US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)",
+      "priority": 159,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: I-35E N, US-77 S, US-77 N, I-35E S (FM-1171/W Main St (Texpress Lanes/I-35) to E Corporate Dr (Texpress Lanes/I-35)) [9.6 mi]",
+      "description": "Jam: FM-1385 (US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)) [7.4 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 4,
+      "distanceFromDriver": 7.4
+    },
+    {
+      "road": "FM-423",
+      "category": "Jam",
+      "location": "FM-720/W Main St (TX-423) to Lebanon Rd (TX-423)",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-423 (FM-720/W Main St (TX-423) to Lebanon Rd (TX-423)) [2.5 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 4,
+      "distanceFromDriver": 2.5
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Dallas North Tollway (W Parker Rd/FM-2514) to TX-289/Preston Rd (W Parker Rd/FM-2514)",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Dallas North Tollway (W Parker Rd/FM-2514) to TX-289/Preston Rd (W Parker Rd/FM-2514) [6.8 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 4,
+      "distanceFromDriver": 6.8
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Fox Ave (S Edmonds Ln) to FM-1171/W Main St (S Edmonds Ln)",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Fox Ave (S Edmonds Ln) to FM-1171/W Main St (S Edmonds Ln) [9.7 mi]",
       "lengthMiles": 0.1,
-      "delayMinutes": 0,
+      "delayMinutes": 3,
+      "distanceFromDriver": 9.7
+    },
+    {
+      "road": "I-35E N, US-77 S, US-77 N, I-35E S",
+      "category": "Jam",
+      "location": "E Corporate Dr (Texpress Lanes/I-35) to W Valley Ridge Blvd (Texpress Lanes/I-35)",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: I-35E N, US-77 S, US-77 N, I-35E S (E Corporate Dr (Texpress Lanes/I-35) to W Valley Ridge Blvd (Texpress Lanes/I-35)) [9.6 mi]",
+      "lengthMiles": 0.8,
+      "delayMinutes": 2,
       "distanceFromDriver": 9.6
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "Denton Way to FM-1385",
+      "priority": 157,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln [5.1 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 5.1
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Lamar Hunt Way to FM-720",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Lamar Hunt Way to FM-720 [3.1 mi]",
+      "description": "Jam: Denton Way to FM-1385 [8.2 mi]",
       "lengthMiles": 0.2,
-      "delayMinutes": 0,
-      "distanceFromDriver": 3.1
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "FM-720 to FM-720",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720 [3.1 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 0,
-      "distanceFromDriver": 3.1
-    },
-    {
-      "road": "FM-1171",
-      "category": "Road Works",
-      "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 9.7
-    },
-    {
-      "road": "US-380 W",
-      "category": "Road Works",
-      "location": "FM-1385 (US-380) to FM-2931 (US-380)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [8.2 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 0,
+      "delayMinutes": 2,
       "distanceFromDriver": 8.2
     },
     {
-      "road": "US-380 W",
-      "category": "Road Works",
-      "location": "Gee Rd (US-380) to FM-1385 (US-380)",
-      "priority": 135,
-      "severity": "low",
+      "road": "FM-423",
+      "category": "Jam",
+      "location": "N Colony Blvd (FM-423/Main St/TX-423) to Lebanon Rd (TX-423)",
+      "priority": 157,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Works: US-380 W (Gee Rd (US-380) to FM-1385 (US-380)) [6.8 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 0,
-      "distanceFromDriver": 6.8
+      "description": "Jam: FM-423 (N Colony Blvd (FM-423/Main St/TX-423) to Lebanon Rd (TX-423)) [1.3 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 2,
+      "distanceFromDriver": 1.3
+    },
+    {
+      "road": "FM-720",
+      "category": "Jam",
+      "location": "Dallas Pkwy (W Main St/FM-720) to Teel Pkwy (W Main St/FM-720)",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-720 (Dallas Pkwy (W Main St/FM-720) to Teel Pkwy (W Main St/FM-720)) [2.6 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 2,
+      "distanceFromDriver": 2.6
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Lewisville-Flower Mound to S Charles St",
+      "priority": 154,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Lewisville-Flower Mound to S Charles St [9.5 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 4,
+      "distanceFromDriver": 9.5
     }
   ],
   "keyIssues": [
-    "FM-423 at Lebanon Rd: Major jam 1.9mi away - High severity delay",
-    "FM-720 at Lamar Hunt Way: Road closure 3.1mi away - Total blockage",
-    "I-35E/US-77: Road closures 9.6mi away - Texpress lanes and Main St impacted"
+    "FM-423 jam 1.3mi - 2.5mi south/north - 4min delays impacting local pickups",
+    "Legacy Dr at TX-121 jam 3.5mi south - 6min delay affecting business district access",
+    "US-380 at FM-1385 jam 6.7mi north - 4min delay impacting northern boundary trips"
   ],
   "avoidAreas": [
-    "FM-423 Corridor: Major congestion and jams 1.9mi away",
-    "FM-720/Main St Area: Multiple road closures between 3.1mi and 5.1mi away",
-    "US-380 West: Extensive road works and jams between 6.8mi and 8.2mi away"
+    "FM-423 Corridor (Main St to Lebanon Rd): Heavy localized congestion within 3 miles of current position",
+    "Legacy Drive near the Tollway: Significant 6-minute delay impacting the Legacy West/Corporate area"
   ],
-  "safetyAlert": "30 active traffic jams in the area",
-  "driverImpact": "West Frisco and Little Elm access is severely restricted; shift operations toward the Stonebriar or Legacy West areas to maintain ride frequency and avoid gridlock.",
+  "safetyAlert": "55 active traffic jams in the area",
+  "driverImpact": "Short-range rides near FM-423 will be less profitable due to idle time; prioritize longer trips using the Dallas North Tollway to maintain high turnover and avoid the US-380 and FM-423 gridlock.",
   "surgePricing": true,
-  "closuresCount": 12,
+  "closuresCount": 13,
   "repositioning": null,
-  "incidentsCount": 53,
-  "totalIncidents": 53,
-  "closuresSummary": "4 closures within 10mi, most critical: I-35E Texpress lanes at FM-1171 and the FM-720/Lamar Hunt Way intersection.",
+  "incidentsCount": 80,
+  "totalIncidents": 80,
+  "closuresSummary": "0 closures within 10mi, most critical: traffic is entirely volume and jam-based.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Significant road works are active on US-380 W and Dallas Pkwy (near Eldorado and Panther Creek), creating potential bottlenecks for north-bound trips."
+  "constructionSummary": "No specific construction zones reported; delays are primarily due to heavy peak-hour volume on major FM roads."
 }
 
 events:
@@ -483,19 +489,19 @@ events:
   },
   {
     "title": "The Matrix in Shared Reality",
-    "venue": "Cosm Dallas",
-    "impact": "medium",
-    "source": "Gemini-3-Pro",
+    "venue": "Cosm Dallas (Grandscape)",
+    "impact": "high",
+    "source": "GPT-5.2",
     "address": "5776 Grandscape Blvd, The Colony, TX 75056",
     "subtype": "theater",
-    "summary": "The Matrix in Shared Reality • Cosm Dallas • 2026-01-05 • 8:30 PM",
-    "latitude": 33.0772,
-    "location": "Cosm Dallas, 5776 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8601,
+    "summary": "The Matrix in Shared Reality • Cosm Dallas (Grandscape) • 2026-01-05 • 8:30 PM",
+    "latitude": 33.0818,
+    "location": "Cosm Dallas (Grandscape), 5776 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8258,
     "event_date": "2026-01-05",
     "event_time": "8:30 PM",
     "event_type": "theater",
-    "event_end_time": "10:30 PM"
+    "event_end_time": "10:00 PM"
   },
   {
     "title": "All-Day Happy Hour",
@@ -546,32 +552,16 @@ events:
     "event_end_time": null
   },
   {
-    "title": "“O” by Cirque du Soleil in Shared Reality",
+    "title": "\"O\" by Cirque du Soleil at Cosm",
     "venue": "Cosm Dallas (Grandscape)",
     "impact": "high",
     "source": "GPT-5.2",
-    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
+    "address": "5772 Grandscape Blvd, The Colony, TX 75056",
     "subtype": "theater",
-    "summary": "“O” by Cirque du Soleil in Shared Reality • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 33.0818,
-    "location": "Cosm Dallas (Grandscape), 5776 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8258,
-    "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
-    "event_type": "theater",
-    "event_end_time": "5:30 PM"
-  },
-  {
-    "title": "“O” by Cirque du Soleil in Shared Reality",
-    "venue": "Cosm (Grandscape)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "“O” by Cirque du Soleil in Shared Reality • Cosm (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 33.077072,
-    "location": "Cosm (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.859258,
+    "summary": "\"O\" by Cirque du Soleil at Cosm • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
+    "latitude": 33.0796,
+    "location": "Cosm Dallas (Grandscape), 5772 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8239,
     "event_date": "2026-01-05",
     "event_time": "3:30 PM",
     "event_type": "theater",
@@ -674,52 +664,20 @@ events:
     "event_end_time": "2:00 PM"
   },
   {
-    "title": "O by Cirque du Soleil in Shared Reality",
-    "venue": "Cosm Dallas",
-    "impact": "medium",
-    "source": "Gemini-3-Pro",
-    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "O by Cirque du Soleil in Shared Reality • Cosm Dallas • 2026-01-05 • 3:30 PM",
-    "latitude": 33.0772,
-    "location": "Cosm Dallas, 5776 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8601,
-    "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
-    "event_type": "theater",
-    "event_end_time": "5:30 PM"
-  },
-  {
-    "title": "\"O\" by Cirque du Soleil (Shared Reality) at Cosm",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "\"O\" by Cirque du Soleil (Shared Reality) at Cosm • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 32.959222,
-    "location": "Cosm Dallas (Grandscape), 5776 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.853877,
-    "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
-    "event_type": "theater",
-    "event_end_time": "5:30 PM"
-  },
-  {
-    "title": "January 5th Camp (Ages 6–14)",
+    "title": "January 5th Camp",
     "venue": "Frisco Athletic Center",
     "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5828 Nancy Jane Ln, Frisco, TX 75035",
+    "source": "SerpAPI",
+    "address": "Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX",
     "subtype": "other",
-    "summary": "January 5th Camp (Ages 6–14) • Frisco Athletic Center • 2026-01-05 • 9:00 AM",
-    "latitude": 33.162757,
-    "location": "Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX 75035",
-    "longitude": -96.729867,
+    "summary": "January 5th Camp • Frisco Athletic Center • 2026-01-05 • 9:00 AM",
+    "latitude": 33.1264428,
+    "location": "Frisco Athletic Center, Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX",
+    "longitude": -96.8007718,
     "event_date": "2026-01-05",
     "event_time": "9:00 AM",
     "event_type": "other",
-    "event_end_time": "3:15 PM"
+    "event_end_time": null
   },
   {
     "title": "Rail District Advisory Board Meeting",
@@ -818,22 +776,6 @@ events:
     "event_end_time": "12:30 PM"
   },
   {
-    "title": "The Matrix in Shared Reality",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "The Matrix in Shared Reality • Cosm Dallas (Grandscape) • 2026-01-05 • 8:30 PM",
-    "latitude": 33.0818,
-    "location": "Cosm Dallas (Grandscape), 5776 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8258,
-    "event_date": "2026-01-05",
-    "event_time": "8:30 PM",
-    "event_type": "theater",
-    "event_end_time": "10:00 PM"
-  },
-  {
     "title": "Snow Globe Experience",
     "venue": "The Westin Dallas Stonebriar Golf Resort & Spa",
     "impact": "low",
@@ -864,54 +806,6 @@ events:
     "event_time": "TBD",
     "event_type": "festival",
     "event_end_time": null
-  },
-  {
-    "title": "“O” by Cirque du Soleil at Cosm (Shared Reality)",
-    "venue": "Cosm (Grandscape)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "“O” by Cirque du Soleil at Cosm (Shared Reality) • Cosm (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 33.099709,
-    "location": "Cosm (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.816246,
-    "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
-    "event_type": "theater",
-    "event_end_time": "5:30 PM"
-  },
-  {
-    "title": "The Matrix in Shared Reality at Cosm",
-    "venue": "Cosm (Grandscape)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "The Matrix in Shared Reality at Cosm • Cosm (Grandscape) • 2026-01-05 • 8:30 PM",
-    "latitude": 33.099709,
-    "location": "Cosm (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.816246,
-    "event_date": "2026-01-05",
-    "event_time": "8:30 PM",
-    "event_type": "theater",
-    "event_end_time": "10:00 PM"
-  },
-  {
-    "title": "\"O\" by Cirque du Soleil at Cosm (Shared Reality)",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "\"O\" by Cirque du Soleil at Cosm (Shared Reality) • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 33.0829,
-    "location": "Cosm Dallas (Grandscape), 5776 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8266,
-    "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
-    "event_type": "theater",
-    "event_end_time": "5:30 PM"
   },
   {
     "title": "Arts and Culture Advisory Board Meeting",
@@ -962,22 +856,6 @@ events:
     "event_end_time": "9:00 PM"
   },
   {
-    "title": "“O” by Cirque du Soleil in Shared Reality at Cosm",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "“O” by Cirque du Soleil in Shared Reality at Cosm • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 33.0807,
-    "location": "Cosm Dallas (Grandscape), 5776 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8259,
-    "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
-    "event_type": "theater",
-    "event_end_time": "5:30 PM"
-  },
-  {
     "title": "Winter Scholastic (Chess Tournament)",
     "venue": "Texas Chess Center (Frisco)",
     "impact": "medium",
@@ -1026,22 +904,6 @@ events:
     "event_end_time": null
   },
   {
-    "title": "The Matrix in Shared Reality",
-    "venue": "Cosm (Grandscape)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "The Matrix in Shared Reality • Cosm (Grandscape) • 2026-01-05 • 8:30 PM",
-    "latitude": 33.077072,
-    "location": "Cosm (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.859258,
-    "event_date": "2026-01-05",
-    "event_time": "8:30 PM",
-    "event_type": "theater",
-    "event_end_time": "10:00 PM"
-  },
-  {
     "title": "Winter Wonderland Igloo Experience",
     "venue": "Stonebriar Country Club",
     "impact": "low",
@@ -1074,22 +936,6 @@ events:
     "event_end_time": null
   },
   {
-    "title": "January 5th Camp",
-    "venue": "Frisco Athletic Center",
-    "impact": "medium",
-    "source": "SerpAPI",
-    "address": "Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX",
-    "subtype": "other",
-    "summary": "January 5th Camp • Frisco Athletic Center • 2026-01-05 • 9:00 AM",
-    "latitude": 33.1264428,
-    "location": "Frisco Athletic Center, Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX",
-    "longitude": -96.8007718,
-    "event_date": "2026-01-05",
-    "event_time": "9:00 AM",
-    "event_type": "other",
-    "event_end_time": null
-  },
-  {
     "title": "Winter Scholastic 2026 (Chess Tournament)",
     "venue": "Texas Chess Center - Frisco",
     "impact": "medium",
@@ -1106,22 +952,6 @@ events:
     "event_end_time": "4:30 PM"
   },
   {
-    "title": "The Matrix in Shared Reality at Cosm",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5772 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "The Matrix in Shared Reality at Cosm • Cosm Dallas (Grandscape) • 2026-01-05 • 8:30 PM",
-    "latitude": 33.0796,
-    "location": "Cosm Dallas (Grandscape), 5772 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8239,
-    "event_date": "2026-01-05",
-    "event_time": "8:30 PM",
-    "event_type": "theater",
-    "event_end_time": "10:00 PM"
-  },
-  {
     "title": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily)",
     "venue": "Frisco Art Gallery (Frisco Discovery Center)",
     "impact": "medium",
@@ -1136,22 +966,6 @@ events:
     "event_time": "10:00 AM",
     "event_type": "festival",
     "event_end_time": "5:00 PM"
-  },
-  {
-    "title": "\"O\" by Cirque du Soleil at Cosm",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "5772 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "\"O\" by Cirque du Soleil at Cosm • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 33.0796,
-    "location": "Cosm Dallas (Grandscape), 5772 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8239,
-    "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
-    "event_type": "theater",
-    "event_end_time": "5:30 PM"
   },
   {
     "title": "Blitzen's Bar at Lounge by Topgolf",
@@ -1453,36 +1267,36 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Moderate delays reported (approx. 132 delays today) with minor cancellations. Security wait times are currently averaging 10-20 minutes.",
-      "status": "delays",
+      "delays": "Low delays reported. FlightAware indicates approximately 5 cancellations today with minimal active delays. Overall status is stable.",
+      "status": "normal",
       "busyTimes": [
-        "06:00 AM - 09:00 AM",
+        "05:00 AM - 08:00 AM",
         "04:00 PM - 07:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Southwest Airlines reporting scattered delays; terminal reported as crowded. Security lines may exceed 20 minutes during peak banks.",
-      "status": "delays",
+      "delays": "Very low delay volume. Southwest Airlines reports minor delays (approx. 5 flights) but no significant cancellations. Delay status is currently rated as low but slightly increasing.",
+      "status": "normal",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
+        "06:00 AM - 09:00 AM",
         "04:00 PM - 07:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-01-05T21:10:24.149Z",
+  "fetchedAt": "2026-01-05T23:36:11.420Z",
   "busyPeriods": [
-    "Evening rush hour (4 PM - 7 PM) is seeing high congestion at both airports due to accumulated flight delays from earlier in the day.",
-    "Monday mornings are typically high-volume for business travel departures."
+    "Morning Rush: High volume of business traveler departures between 6:00 AM and 9:00 AM.",
+    "Evening Rush: Peak arrival and departure traffic expected between 4:00 PM and 7:00 PM."
   ],
-  "recommendations": "For DFW: Drivers should wait in the designated staging lot near Terminal A. Pickups are at the 'Green Curb' on the lower level for Terminals A, D, and E, and inside the parking garages for B and C. \n\nFor DAL: **Important:** Rideshare pickups are located at the Valet Pavilion and Garage C (Level 1). Do not wait at the curbside arrivals area unless picking up an ADA/accessible ride. The walk for passengers to the pickup zone takes about 6 minutes, so verify they are at the 'Ride App Pickup' zone before pulling up."
+  "recommendations": "For DFW: Rideshare drivers must use the designated infield waiting lots (Terminal B for general use; Terminal E overflow available 6 PM-Midnight). Do not wait at the curb. For DAL: Pickups are strictly located at Garage C, Level 1 (Valet Pavilion). Drivers should anticipate congestion on Mockingbird Lane during the evening rush."
 }
 
 created_at:
-  "Mon Jan 05 2026 21:09:58 GMT+0000 (Coordinated Universal Time)"
+  "Mon Jan 05 2026 23:35:49 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Mon Jan 05 2026 21:11:03 GMT+0000 (Coordinated Universal Time)"
+  "Mon Jan 05 2026 23:36:48 GMT+0000 (Coordinated Universal Time)"
 
