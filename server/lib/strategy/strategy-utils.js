@@ -467,34 +467,46 @@ function hasValidPublicationDate(newsItem) {
   return getNewsPublicationDate(newsItem) !== null;
 }
 
+// 2026-01-05: Changed from "today only" to "last 3 days" - yesterday's roadwork is still relevant
+const NEWS_FRESHNESS_DAYS = 3;
+
 /**
- * Check if a news item is from today (same calendar date)
+ * Check if a news item is fresh (within the last NEWS_FRESHNESS_DAYS days)
  * @param {Object} newsItem - News item object
  * @param {Date} now - Reference time for comparison
  * @param {string} timezone - Timezone for date comparison (e.g., 'America/Chicago')
- * @returns {boolean} - True if news is from today
+ * @returns {boolean} - True if news is within freshness window
  */
-export function isNewsFromToday(newsItem, now = new Date(), timezone = 'UTC') {
+export function isNewsFresh(newsItem, now = new Date(), timezone = 'UTC') {
   if (!newsItem) return false;
 
   const pubDate = getNewsPublicationDate(newsItem);
   if (!pubDate) return false;
 
-  // Compare calendar dates in the specified timezone
-  const todayStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
-  const pubDateStr = pubDate.toLocaleDateString('en-CA', { timeZone: timezone });
+  // Calculate the cutoff date (NEWS_FRESHNESS_DAYS days ago at midnight)
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - NEWS_FRESHNESS_DAYS);
+  cutoff.setHours(0, 0, 0, 0);
 
-  return todayStr === pubDateStr;
+  return pubDate >= cutoff;
 }
 
 /**
- * Filter news to only include today's news with valid publication dates
- * CRITICAL: Rejects news without publication date entirely (2026-01-05)
+ * @deprecated Use isNewsFresh instead - renamed for clarity
+ */
+export function isNewsFromToday(newsItem, now = new Date(), timezone = 'UTC') {
+  return isNewsFresh(newsItem, now, timezone);
+}
+
+/**
+ * Filter news to only include fresh news (last 3 days) with valid publication dates
+ * 2026-01-05: Changed from "today only" to "last 3 days" - roadwork/traffic news stays relevant
+ * CRITICAL: Rejects news without publication date entirely
  *
  * @param {Array} newsItems - Array of news item objects
  * @param {Date} now - Reference time for comparison (default: current time)
  * @param {string} timezone - Timezone for date comparison (default: 'UTC')
- * @returns {Array} - Filtered array of today's news
+ * @returns {Array} - Filtered array of fresh news (last 3 days with valid dates)
  */
 export function filterFreshNews(newsItems, now = new Date(), timezone = 'UTC') {
   if (!Array.isArray(newsItems)) {
@@ -506,14 +518,14 @@ export function filterFreshNews(newsItems, now = new Date(), timezone = 'UTC') {
   let noDateCount = 0;
 
   for (const item of newsItems) {
-    // Check for valid publication date first
+    // Check for valid publication date first - REQUIRED
     if (!hasValidPublicationDate(item)) {
       noDateCount++;
       continue;
     }
 
-    // Check if news is from today
-    if (isNewsFromToday(item, now, timezone)) {
+    // Check if news is fresh (within last 3 days)
+    if (isNewsFresh(item, now, timezone)) {
       freshNews.push(item);
     } else {
       staleCount++;

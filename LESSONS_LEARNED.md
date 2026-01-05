@@ -919,6 +919,40 @@ const message = `Context: ${snapshotHistoryInfo}`;
 
 ---
 
+## News Freshness Filtering (Jan 2026)
+
+### Problem
+News was showing as "0 items" even though Gemini returned 4 news articles. The `filterFreshNews` function was filtering to **TODAY only**, but the LLM was returning news from the last 7 days.
+
+### Root Cause
+Two-stage filtering was too strict:
+1. **Stage 1** (`filterRecentNews`): At storage time, keeps news from last 7 days ✅
+2. **Stage 2** (`filterFreshNews`): At display time, keeps only TODAY's news ❌ Too strict!
+
+### Solution (2026-01-05)
+
+1. **Expanded freshness window from "today only" to "last 3 days"**
+   - `isNewsFresh()` replaces `isNewsFromToday()`
+   - News from yesterday is still relevant (roadwork, construction, etc.)
+   - Configurable via `NEWS_FRESHNESS_DAYS = 3`
+
+2. **Updated LLM prompts to prioritize TODAY's news**
+   - Prompt now says "Search for news published TODAY"
+   - Includes fallback: "If no news from today, include yesterday's"
+   - Requires publication dates: "If you cannot determine the publication date, DO NOT include that article"
+   - Added reason field: `{"items": [], "reason": "No rideshare-relevant news found for market today"}`
+
+3. **Emphasized driver relevance**
+   - Prompt lists what matters to drivers: traffic, events, policy changes
+   - Each summary must explain HOW it affects rideshare drivers
+   - Allows market-level search (metro area, not just city)
+
+### Files Changed
+- `server/lib/strategy/strategy-utils.js` - `isNewsFresh()`, `filterFreshNews()`
+- `server/lib/briefing/briefing-service.js` - Gemini & Claude news prompts
+
+---
+
 ## Known Issues / Future Work
 
 ### Market Data Quality (Dec 2025)

@@ -149,6 +149,7 @@ export default function SignUpPage() {
   const [isLoadingCountries, setIsLoadingCountries] = useState(false);
   const [isLoadingRegions, setIsLoadingRegions] = useState(false);
   const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
+  const [customMarket, setCustomMarket] = useState(''); // For "Other" market input
 
   const form = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
@@ -197,10 +198,12 @@ export default function SignUpPage() {
   const _watchYear = form.watch('vehicleYear');
   const watchPlatforms = form.watch('ridesharePlatforms');
   const watchCountry = form.watch('country');
+  const watchMarket = form.watch('market');
 
   // Check if selected country has platform data (for showing dropdown vs text input)
   const _selectedCountryHasPlatformData = countries.find(c => c.value === watchCountry)?.hasPlatformData ?? false;
   const isOtherCountry = watchCountry === 'OTHER';
+  const isOtherMarket = watchMarket === '__OTHER__'; // 2026-01-05: Track if "Other" market selected
 
   // Redirect authenticated users to the app - don't show signup page
   useEffect(() => {
@@ -243,15 +246,28 @@ export default function SignUpPage() {
         });
 
       // Also fetch markets for the selected country
+      // 2026-01-05: Use intelligence endpoint for US markets (has 243 markets with "Other" support)
       setIsLoadingMarkets(true);
-      fetch(`/api/platform/markets-dropdown?country=${encodeURIComponent(watchCountry)}`)
+      const marketsEndpoint = watchCountry === 'US'
+        ? '/api/intelligence/markets-dropdown'
+        : `/api/platform/markets-dropdown?country=${encodeURIComponent(watchCountry)}`;
+
+      fetch(marketsEndpoint)
         .then(res => res.json())
         .then(data => {
-          setMarkets(data.markets || []);
+          // Convert to MarketOption format and add "Other" option
+          const marketList: MarketOption[] = (data.markets || []).map((m: string | MarketOption) =>
+            typeof m === 'string' ? { value: m, label: m } : m
+          );
+          // Add "Other" option at the end for all countries
+          marketList.push({ value: '__OTHER__', label: '➕ Other (add new market)' });
+          setMarkets(marketList);
           setIsLoadingMarkets(false);
         })
         .catch(err => {
           console.error('Failed to fetch markets:', err);
+          // Still add "Other" option even if fetch fails
+          setMarkets([{ value: '__OTHER__', label: '➕ Other (add new market)' }]);
           setIsLoadingMarkets(false);
         });
     } else if (watchCountry === 'OTHER') {
@@ -320,6 +336,13 @@ export default function SignUpPage() {
     }
 
     const result = await form.trigger(fieldsToValidate);
+
+    // 2026-01-05: Additional validation for custom market
+    if (step === 2 && form.getValues('market') === '__OTHER__' && !customMarket.trim()) {
+      setError('Please enter your market name');
+      return false;
+    }
+
     return result;
   };
 
@@ -342,8 +365,39 @@ export default function SignUpPage() {
     setIsLoading(true);
     setError(null);
 
+    // 2026-01-05: Handle custom market ("Other" selection)
+    let finalMarket = data.market;
+    if (data.market === '__OTHER__' && customMarket.trim()) {
+      // Add the new market to the database first
+      try {
+        const addMarketRes = await fetch('/api/intelligence/add-market', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            market_name: customMarket.trim(),
+            city: data.city,
+            state: data.stateTerritory,
+          }),
+        });
+        const addMarketData = await addMarketRes.json();
+        if (addMarketData.success) {
+          finalMarket = addMarketData.market_name;
+        } else {
+          setError('Failed to add custom market');
+          setIsLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to add custom market:', err);
+        setError('Failed to add custom market');
+        setIsLoading(false);
+        return;
+      }
+    }
+
     const registerData: RegisterData = {
       ...data,
+      market: finalMarket, // Use the resolved market name
     };
 
     const result = await registerUser(registerData);
@@ -742,30 +796,50 @@ export default function SignUpPage() {
                         <FormLabel className="text-slate-200">Market *</FormLabel>
                         {/* Show dropdown if markets available, otherwise show text input */}
                         {markets.length > 0 && !isOtherCountry ? (
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
-                            disabled={!watchCountry || isLoadingMarkets}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                                <SelectValue placeholder={
-                                  !watchCountry
-                                    ? 'Select country first'
-                                    : isLoadingMarkets
-                                    ? 'Loading...'
-                                    : 'Select your market'
-                                } />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-[200px] overflow-y-auto">
-                              {markets.map((market) => (
-                                <SelectItem key={market.value} value={market.value}>
-                                  {market.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <>
+                            <Select
+                              onValueChange={(val) => {
+                                field.onChange(val);
+                                // Clear custom market if switching away from "Other"
+                                if (val !== '__OTHER__') setCustomMarket('');
+                              }}
+                              value={field.value}
+                              disabled={!watchCountry || isLoadingMarkets}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                                  <SelectValue placeholder={
+                                    !watchCountry
+                                      ? 'Select country first'
+                                      : isLoadingMarkets
+                                      ? 'Loading...'
+                                      : 'Select your market'
+                                  } />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-[200px] overflow-y-auto">
+                                {markets.map((market) => (
+                                  <SelectItem key={market.value} value={market.value}>
+                                    {market.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {/* 2026-01-05: Show text input when "Other" is selected */}
+                            {isOtherMarket && (
+                              <div className="mt-2">
+                                <Input
+                                  placeholder="Enter your market name (e.g., Timbuktu)"
+                                  className="bg-slate-700/50 border-slate-600 text-white"
+                                  value={customMarket}
+                                  onChange={(e) => setCustomMarket(e.target.value)}
+                                />
+                                <FormDescription className="text-slate-400 text-xs mt-1">
+                                  Your market will be added to our database
+                                </FormDescription>
+                              </div>
+                            )}
+                          </>
                         ) : (
                           <>
                             <FormControl>

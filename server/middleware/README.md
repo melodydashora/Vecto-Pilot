@@ -8,7 +8,7 @@ Express middleware for authentication, validation, rate limiting, and request pr
 
 | File | Purpose | Key Export |
 |------|---------|------------|
-| `auth.js` | JWT authentication | `requireAuth()` |
+| `auth.js` | JWT + session authentication | `requireAuth()`, `optionalAuth()` |
 | `validation.js` | Zod schema validation | `validate(schema)` |
 | `rate-limit.js` | Request throttling | `generalLimiter`, `expensiveLimiter`, `chatLimiter` |
 | `bot-blocker.js` | Block web crawlers | `apiOnlyBotBlocker`, `botBlocker` |
@@ -23,18 +23,44 @@ Express middleware for authentication, validation, rate limiting, and request pr
 
 ## Usage
 
-### Authentication
+### Authentication + Session Management
+
 ```javascript
 import { requireAuth } from './auth.js';
 import { requireSnapshotOwnership } from './require-snapshot-ownership.js';
 
-// Require valid JWT for all protected routes
+// Require valid JWT + active session for all protected routes
 router.get('/protected', requireAuth, handler);
 
 // For snapshot-based routes: verify auth + snapshot ownership
 router.get('/data/:snapshotId', requireAuth, requireSnapshotOwnership, handler);
 // → req.auth.userId from JWT
+// → req.auth.sessionId from users table
+// → req.auth.currentSnapshotId from users table
 // → req.snapshot from ownership check
+```
+
+#### Session Architecture (2026-01-05)
+
+`requireAuth` now validates both JWT AND active session:
+
+1. **JWT Verification** - Token signature must be valid
+2. **Session Lookup** - User must have a row in `users` table
+3. **TTL Check (Sliding Window)** - `last_active_at` must be < 60 min ago
+4. **TTL Check (Hard Limit)** - `session_start_at` must be < 2 hours ago
+5. **Extend Session** - Update `last_active_at = NOW()` (non-blocking)
+
+If session is expired, `requireAuth`:
+- Deletes the `users` row (lazy cleanup)
+- Returns 401 with `{ error: 'session_expired' }`
+
+```javascript
+// Request object after requireAuth
+req.auth = {
+  userId: 'uuid',           // From JWT
+  sessionId: 'uuid',        // From users table
+  currentSnapshotId: 'uuid' // From users table (if set)
+}
 ```
 
 **Note:** `optionalAuth` exists for legacy support but is no longer used.

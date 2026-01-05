@@ -149,10 +149,14 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
       };
     }
 
-    return null;
+    // 2026-01-05: With valid lat/lng, geocoding should ALWAYS return a result
+    // If we reach here, something is wrong upstream (API key, network, rate limit)
+    // Throw instead of returning null - fail loudly per NO FALLBACKS rule
+    throw new Error(`[venue-address-resolver] Failed to resolve address for coords (${lat}, ${lng}) with name "${venueName}" - all resolution methods exhausted`);
   } catch (err) {
-    console.warn('[venue-address-resolver] Error resolving address:', err.message);
-    return null;
+    // Re-throw with context - don't mask the error
+    console.error('[venue-address-resolver] Address resolution failed:', err.message);
+    throw err;
   }
 }
 
@@ -357,13 +361,11 @@ export async function resolveVenueAddressesBatch(venues) {
   for (const chunk of chunks) {
     const promises = chunk.map(async (v) => {
       const key = `${v.lat},${v.lng}`;
-      try {
-        const result = await resolveVenueAddress(v.lat, v.lng, v.name);
-        return { key, result };
-      } catch (err) {
-        console.warn(`[venue-resolver] Failed for ${v.name}:`, err.message);
-        return { key, result: null };
-      }
+      // 2026-01-05: With name + 6-decimal coords, resolution should NEVER fail
+      // If it does, it's an upstream issue (API key, network) that must be fixed
+      // Let errors propagate - don't mask with null
+      const result = await resolveVenueAddress(v.lat, v.lng, v.name);
+      return { key, result };
     });
 
     const resolved = await Promise.all(promises);

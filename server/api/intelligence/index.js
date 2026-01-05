@@ -10,17 +10,24 @@
  *
  * Routes:
  *   GET /api/intelligence                    - List all intelligence (with filters)
+ *   GET /api/intelligence/markets            - List all markets with intel count
+ *   GET /api/intelligence/for-location       - Get intel for a city → market lookup (2026-01-05)
  *   GET /api/intelligence/market/:slug       - Get intelligence for a specific market
+ *   GET /api/intelligence/coach/:market      - Get AI Coach context for a market
+ *   GET /api/intelligence/staging-areas      - Get staging areas from ranking_candidates
  *   GET /api/intelligence/:id                - Get a specific intelligence item
  *   POST /api/intelligence                   - Create new intelligence (admin/coach)
  *   PUT /api/intelligence/:id                - Update intelligence item
- *   GET /api/intelligence/coach/:market      - Get AI Coach context for a market
- *   GET /api/intelligence/staging-areas      - Get staging areas from ranking_candidates
+ *
+ * City → Market Lookup (2026-01-05):
+ *   - Uses us_market_cities table to map cities to their market anchor
+ *   - Example: Frisco, TX → Dallas market
+ *   - Supports both full state names ("Texas") and abbreviations ("TX")
  */
 
 import express from 'express';
 import { db } from '../../db/drizzle.js';
-import { market_intelligence, platform_data, ranking_candidates } from '../../../shared/schema.js';
+import { market_intelligence, platform_data, ranking_candidates, us_market_cities, market_intel } from '../../../shared/schema.js';
 import { eq, and, or, ilike, sql, desc, asc, isNotNull } from 'drizzle-orm';
 
 const router = express.Router();
@@ -183,6 +190,266 @@ router.get('/markets', async (_req, res) => {
   } catch (error) {
     console.error('Error fetching intelligence markets:', error);
     res.status(500).json({ error: 'Failed to fetch markets' });
+  }
+});
+
+/**
+ * GET /api/intelligence/markets-dropdown
+ * Get list of all US markets for signup dropdown
+ *
+ * 2026-01-05: Returns unique market names from us_market_cities table
+ *
+ * Returns array of markets sorted alphabetically, with "Other" option hint
+ * Client should add "Other" as final option and show free-text input if selected
+ */
+router.get('/markets-dropdown', async (_req, res) => {
+  try {
+    const result = await db
+      .selectDistinct({ market_name: us_market_cities.market_name })
+      .from(us_market_cities)
+      .orderBy(asc(us_market_cities.market_name));
+
+    res.json({
+      markets: result.map(r => r.market_name),
+      total: result.length,
+      hint: 'Add "Other" as final option in dropdown. If selected, show free-text input for new market.'
+    });
+  } catch (error) {
+    console.error('Error fetching markets dropdown:', error);
+    res.status(500).json({ error: 'Failed to fetch markets' });
+  }
+});
+
+/**
+ * POST /api/intelligence/add-market
+ * Add a new market when user selects "Other" during signup
+ *
+ * 2026-01-05: Allows capturing new markets from user input
+ *
+ * Body:
+ *   market_name - New market name (e.g., "Timbuktu")
+ *   city        - User's city (optional, to create first city mapping)
+ *   state       - User's state (optional)
+ */
+router.post('/add-market', async (req, res) => {
+  try {
+    const { market_name, city, state, state_abbr } = req.body;
+
+    if (!market_name || market_name.trim().length < 2) {
+      return res.status(400).json({ error: 'Market name is required (min 2 characters)' });
+    }
+
+    const trimmedMarket = market_name.trim();
+
+    // Check if market already exists
+    const existing = await db
+      .select()
+      .from(us_market_cities)
+      .where(ilike(us_market_cities.market_name, trimmedMarket))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return res.json({
+        success: true,
+        message: 'Market already exists',
+        market_name: existing[0].market_name,
+        already_existed: true
+      });
+    }
+
+    // Add new market with optional city mapping
+    const newEntry = {
+      market_name: trimmedMarket,
+      city: city?.trim() || trimmedMarket, // Default city to market name
+      state: state?.trim() || 'Unknown',
+      state_abbr: state_abbr?.trim() || null,
+      region_type: 'Core', // New market, user's city is the core
+      source_ref: 'user_signup'
+    };
+
+    await db.insert(us_market_cities).values(newEntry);
+
+    res.json({
+      success: true,
+      message: 'New market added',
+      market_name: trimmedMarket,
+      already_existed: false
+    });
+  } catch (error) {
+    console.error('Error adding new market:', error);
+    res.status(500).json({ error: 'Failed to add market' });
+  }
+});
+
+/**
+ * GET /api/intelligence/for-location
+ * Get market intelligence for a specific city/state
+ *
+ * 2026-01-05: New endpoint that uses us_market_cities lookup
+ *
+ * Query params:
+ *   city     - City name (e.g., "Frisco")
+ *   state    - State name or abbreviation (e.g., "Texas" or "TX")
+ *   type     - Filter by intel_type (optional)
+ *   platform - Filter by platform (optional)
+ *   limit    - Max results (default: 20)
+ *
+ * Returns:
+ *   - The resolved market for the city
+ *   - Market intelligence items
+ *   - Market-level intel from market_intel table
+ *
+ * Example: GET /api/intelligence/for-location?city=Frisco&state=TX
+ *   → Returns Dallas market intel (Frisco is a satellite of Dallas)
+ */
+router.get('/for-location', async (req, res) => {
+  try {
+    const { city, state, type, platform, limit = 20 } = req.query;
+
+    // Validate required params
+    if (!city || !state) {
+      return res.status(400).json({
+        error: 'Missing required parameters',
+        message: 'Both city and state are required',
+        example: '/api/intelligence/for-location?city=Frisco&state=TX'
+      });
+    }
+
+    // Normalize state: could be "Texas" or "TX"
+    // We store both state (full name) and state_abbr (abbreviation) in us_market_cities
+    const stateCondition = state.length === 2
+      ? eq(us_market_cities.state_abbr, state.toUpperCase())
+      : ilike(us_market_cities.state, state);
+
+    // Look up the market for this city
+    const [marketMapping] = await db
+      .select()
+      .from(us_market_cities)
+      .where(and(
+        ilike(us_market_cities.city, city),
+        stateCondition
+      ))
+      .limit(1);
+
+    if (!marketMapping) {
+      return res.status(404).json({
+        error: 'City not found in market database',
+        city,
+        state,
+        message: 'This city is not in our US market cities database. Intel not available.',
+        suggestion: 'Try a nearby major city or the market anchor city.'
+      });
+    }
+
+    const { market_name, region_type, state: fullState, state_abbr } = marketMapping;
+
+    // Now look up intel for this market
+    // IMPORTANT: market_intelligence uses different naming conventions:
+    //   - "Dallas-Fort Worth" (combined) vs us_market_cities "Dallas" or "Fort Worth" (separate)
+    //   - market_slug: "dallas-fort-worth"
+    //
+    // 2026-01-05: Use flexible matching to handle naming mismatches:
+    //   - "Dallas" should match "Dallas-Fort Worth"
+    //   - "Fort Worth" should match "Dallas-Fort Worth"
+    //   - Also match "Universal" intel that applies to all markets
+    const marketPattern = `%${market_name}%`;  // "Dallas" → "%Dallas%"
+    const slugPattern = market_name.toLowerCase().replace(/\s+/g, '-'); // "Fort Worth" → "fort-worth"
+
+    const conditions = [
+      eq(market_intelligence.is_active, true),
+      or(
+        // Exact match on market name
+        ilike(market_intelligence.market, market_name),
+        // Partial match: "Dallas" matches "Dallas-Fort Worth"
+        ilike(market_intelligence.market, marketPattern),
+        // Partial match on slug: "dallas" matches "dallas-fort-worth"
+        sql`${market_intelligence.market_slug} LIKE '%' || ${slugPattern} || '%'`,
+        // Universal intel applies to ALL markets
+        eq(market_intelligence.market_slug, 'universal')
+      )
+    ];
+
+    if (type && ['regulatory', 'strategy', 'zone', 'timing', 'airport', 'safety', 'algorithm', 'vehicle', 'general'].includes(type)) {
+      conditions.push(eq(market_intelligence.intel_type, type));
+    }
+
+    if (platform && ['uber', 'lyft', 'both'].includes(platform)) {
+      conditions.push(
+        or(
+          eq(market_intelligence.platform, platform),
+          eq(market_intelligence.platform, 'both')
+        )
+      );
+    }
+
+    const intelligence = await db
+      .select()
+      .from(market_intelligence)
+      .where(and(...conditions))
+      .orderBy(desc(market_intelligence.priority))
+      .limit(Math.min(parseInt(limit) || 20, 50));
+
+    // Also fetch from market_intel (our new simplified intel table)
+    const marketInsights = await db
+      .select()
+      .from(market_intel)
+      .where(and(
+        eq(market_intel.is_active, true),
+        ilike(market_intel.market_name, market_name)
+      ))
+      .orderBy(asc(market_intel.priority))
+      .limit(Math.min(parseInt(limit) || 20, 50));
+
+    // Get all cities in this market (for context)
+    const marketCities = await db
+      .select({
+        city: us_market_cities.city,
+        region_type: us_market_cities.region_type
+      })
+      .from(us_market_cities)
+      .where(eq(us_market_cities.market_name, market_name))
+      .orderBy(desc(sql`CASE WHEN region_type = 'Core' THEN 1 ELSE 2 END`), asc(us_market_cities.city));
+
+    // Group intelligence by type
+    const byType = {};
+    for (const item of intelligence) {
+      if (!byType[item.intel_type]) {
+        byType[item.intel_type] = [];
+      }
+      byType[item.intel_type].push(item);
+    }
+
+    res.json({
+      // Location resolution
+      location: {
+        input_city: city,
+        input_state: state,
+        resolved_market: market_name,
+        region_type: region_type,
+        full_state: fullState,
+        state_abbr: state_abbr,
+      },
+      // Market context
+      market: {
+        name: market_name,
+        total_cities: marketCities.length,
+        core_cities: marketCities.filter(c => c.region_type === 'Core').map(c => c.city),
+        satellite_cities_sample: marketCities
+          .filter(c => c.region_type === 'Satellite')
+          .slice(0, 10)
+          .map(c => c.city),
+      },
+      // Intelligence data
+      intel_count: intelligence.length,
+      insights_count: marketInsights.length,
+      by_type: byType,
+      intelligence,
+      // Market-level insights from market_intel table
+      market_insights: marketInsights,
+    });
+  } catch (error) {
+    console.error('Error fetching intelligence for location:', error);
+    res.status(500).json({ error: 'Failed to fetch intelligence for location' });
   }
 });
 

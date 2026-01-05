@@ -268,18 +268,22 @@ router.post('/register', async (req, res) => {
       console.warn('[auth] Market lookup failed (non-fatal):', marketErr.message);
     }
 
-    // Create user record with geocoded coordinates if available
+    // 2026-01-05: Simplified session architecture - users table is session-only
+    // Location data lives in snapshots, not users. See SAVE-IMPORTANT.md
+    const newUserId = crypto.randomUUID();
+    const newSessionId = crypto.randomUUID();
+    const newDeviceId = `web-${crypto.randomUUID().substring(0, 8)}`;
+    const now = new Date();
+
     const [newUser] = await db.insert(users).values({
-      user_id: crypto.randomUUID(),
-      device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
-      lat: geocodeResult?.lat || 0,
-      lng: geocodeResult?.lng || 0,
-      coord_source: geocodeResult ? 'geocoded' : 'pending',
-      city: geocodeResult ? city.trim() : null,
-      state: geocodeResult ? stateTerritory.trim() : null,
-      country: geocodeResult ? country.trim() : null,
-      timezone: geocodeResult?.timezone || null,
-      formatted_address: geocodeResult?.formattedAddress || null
+      user_id: newUserId,
+      device_id: newDeviceId,
+      session_id: newSessionId,
+      current_snapshot_id: null, // Set when first snapshot created
+      session_start_at: now,
+      last_active_at: now,
+      created_at: now,
+      updated_at: now
     }).returning();
 
     // Create driver profile with geocoded home coordinates
@@ -531,6 +535,29 @@ router.post('/login', async (req, res) => {
         updated_at: new Date()
       })
       .where(eq(auth_credentials.user_id, profile.user_id));
+
+    // 2026-01-05: Session Architecture - Create/reset users row on login
+    // Highlander Rule: one session per user. Delete any existing row, insert fresh.
+    // This handles multiple devices/tabs - new login supersedes old session.
+    const newSessionId = crypto.randomUUID();
+    const now = new Date();
+
+    // Delete existing session (if any) - Highlander rule
+    await db.delete(users).where(eq(users.user_id, profile.user_id));
+
+    // Create fresh session row
+    await db.insert(users).values({
+      user_id: profile.user_id,
+      device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
+      session_id: newSessionId,
+      current_snapshot_id: null, // Set when first snapshot created
+      session_start_at: now,
+      last_active_at: now,
+      created_at: now,
+      updated_at: now
+    });
+
+    authLog.phase(1, `Session created for user: ${profile.user_id.substring(0, 8)} (session: ${newSessionId.substring(0, 8)})`);
 
     // Generate token
     const token = generateAuthToken(profile.user_id, email);
@@ -1113,13 +1140,22 @@ router.put('/profile', requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// POST /api/auth/logout - Logout (client-side token removal)
+// POST /api/auth/logout - Logout (deletes session row)
 // ═══════════════════════════════════════════════════════════════════════════
 router.post('/logout', requireAuth, async (req, res) => {
-  // With stateless JWT, logout is client-side (remove token from localStorage)
-  // This endpoint exists for future session invalidation if needed
-  authLog.done(1, `User logged out: ${req.auth.userId.substring(0, 8)}`);
-  res.json({ ok: true, message: 'Logged out successfully' });
+  try {
+    const userId = req.auth.userId;
+
+    // 2026-01-05: Session Architecture - Delete users row on logout
+    // This immediately invalidates the session. User must re-login.
+    await db.delete(users).where(eq(users.user_id, userId));
+
+    authLog.done(1, `User logged out, session deleted: ${userId.substring(0, 8)}`);
+    res.json({ ok: true, message: 'Logged out successfully' });
+  } catch (err) {
+    authLog.error(1, `Logout failed`, err);
+    res.status(500).json({ error: 'LOGOUT_FAILED', message: err.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

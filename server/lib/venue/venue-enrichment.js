@@ -417,11 +417,13 @@ function calculateIsOpen(weekdayTexts, timezone = "UTC") {
 }
 
 /**
- * Generate cache key from coordinates (rounded to ~10m precision)
+ * Generate cache key from coordinates
+ * 2026-01-05: Use 6-decimal precision to match canonical coord_key format
+ * Previously used 4 decimals (~11m) but this caused inconsistencies with venue_catalog lookups
  */
 function getCoordsKey(lat, lng) {
-  // Round to 4 decimal places (~11m precision) for cache hits on nearby coords
-  return `${lat.toFixed(4)}_${lng.toFixed(4)}`;
+  // 6 decimal places (~11cm precision) - matches generateCoordKey in venue-utils.js
+  return `${Number(lat).toFixed(6)}_${Number(lng).toFixed(6)}`;
 }
 
 /**

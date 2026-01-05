@@ -505,35 +505,43 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
  * Fetch news using Claude web search (fallback when Gemini fails)
  */
 async function fetchNewsWithClaudeWebSearch({ city, state, date }) {
-  const prompt = `Search the web for RECENT rideshare-relevant news in ${city}, ${state}. Today is ${date}.
+  // 2026-01-05: Updated to match Gemini prompt - prioritize TODAY, require dates, explain relevance
+  const prompt = `Search for news published TODAY (${date}) that MATTERS to rideshare drivers in ${city}, ${state}.
 
-CRITICAL: Only return news from the LAST 7 DAYS. Do NOT return outdated articles.
+WHAT MATTERS TO RIDESHARE DRIVERS:
+- Traffic disruptions, road closures, construction
+- Weather events affecting driving conditions
+- Major events (concerts, sports, conventions) that create ride demand
+- Uber/Lyft policy changes, earnings updates, promotions
+- Gas prices, toll changes, airport pickup rules
+- Local regulations affecting gig workers
 
-SEARCH FOR:
-1. "${city} ${state} rideshare driver news today"
-2. "Uber Lyft driver earnings ${city}"
-3. "${state} gig economy news rideshare"
-4. "rideshare regulation update ${state}"
+PRIORITY: News published TODAY (${date}). If no news from today, include yesterday's news.
+Also search the broader market/metro area - news from nearby cities in the same metro is relevant.
 
-Return a JSON array of 2-5 news items:
-[
-  {
-    "title": "News Title",
-    "summary": "One sentence summary with driver impact",
-    "published_date": "YYYY-MM-DD",
-    "impact": "high" | "medium" | "low",
-    "source": "Source Name",
-    "link": "url"
-  }
-]
+Return a JSON object:
+{
+  "items": [
+    {
+      "title": "News Title",
+      "summary": "One sentence explaining HOW this affects rideshare drivers",
+      "published_date": "YYYY-MM-DD",
+      "impact": "high" | "medium" | "low",
+      "source": "Source Name",
+      "link": "url"
+    }
+  ],
+  "reason": null
+}
 
-IMPORTANT:
-- The "published_date" field is REQUIRED - extract the actual publication date
-- Only include articles published within the last 7 days
-- If you cannot determine the publication date, DO NOT include that article
-- If no recent news found, return empty array []`;
+CRITICAL REQUIREMENTS:
+1. "published_date" is REQUIRED - extract the actual date from each article
+2. If you cannot determine the publication date, DO NOT include that article
+3. ONLY return articles from the last 3 days (prefer today's)
+4. Each summary MUST explain why a rideshare driver should care
+5. If NO news with valid dates found, return: {"items": [], "reason": "No rideshare-relevant news with publication dates found for ${city}, ${state} market today"}`;
 
-  const system = `You are a news search assistant for rideshare drivers. Search the web for RECENT relevant news (last 7 days only) and return structured JSON data with publication dates. Focus on news that impacts driver earnings, regulations, and working conditions. Do NOT return outdated articles.`;
+  const system = `You are a news search assistant for rideshare drivers. Search for TODAY's news and return structured JSON with publication dates. Focus on news that impacts driver earnings, regulations, and working conditions. If no date can be extracted from an article, exclude it.`;
 
   try {
     // Uses BRIEFING_FALLBACK role (Claude with web_search) for news fallback
@@ -545,17 +553,20 @@ IMPORTANT:
     }
 
     const parsed = safeJsonParse(result.output);
-    const newsArray = Array.isArray(parsed) ? parsed : [];
+
+    // 2026-01-05: Handle new format {items, reason} or old format [array]
+    const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
+    const llmReason = parsed?.reason || null;
 
     if (newsArray.length === 0 || !newsArray[0]?.title) {
-      return { items: [], reason: 'No news found via Claude web search', provider: 'claude' };
+      return { items: [], reason: llmReason || 'No news found via Claude web search', provider: 'claude' };
     }
 
     // Filter out stale news (older than 7 days) as safety net
     const filteredNews = filterRecentNews(newsArray, date);
 
     briefingLog.done(2, `Claude: ${filteredNews.length} news items (${newsArray.length - filteredNews.length} filtered), ${result.citations?.length || 0} citations`, OP.FALLBACK);
-    return { items: filteredNews, citations: result.citations, reason: null, provider: 'claude' };
+    return { items: filteredNews, citations: result.citations, reason: llmReason, provider: 'claude' };
   } catch (err) {
     briefingLog.error(2, `Claude news failed`, err, OP.FALLBACK);
     return { items: [], reason: err.message, provider: 'claude' };
@@ -1684,36 +1695,51 @@ export async function fetchRideshareNews({ snapshot }) {
 
   briefingLog.ai(2, 'Gemini', `news for ${city}, ${state}`);
 
-  const prompt = `You MUST search for and find RECENT rideshare-relevant news. Search the web NOW.
+  // 2026-01-05: Updated prompt to prioritize TODAY's news, require dates, and explain why news matters to drivers
+  const prompt = `Search for news published TODAY (${date}) that MATTERS to rideshare drivers.
 
 Location: ${city}, ${state}
 Today's Date: ${date}
 
-CRITICAL: Only return news from the LAST 7 DAYS. Do NOT return outdated articles.
+WHAT MATTERS TO RIDESHARE DRIVERS:
+- Traffic disruptions, road closures, construction
+- Weather events affecting driving conditions
+- Major events (concerts, sports, conventions) that create ride demand
+- Uber/Lyft policy changes, earnings updates, promotions
+- Gas prices, toll changes, airport pickup rules
+- Local regulations affecting gig workers
 
-MANDATORY SEARCH QUERIES:
-1. Search: "${city} ${state} rideshare driver news today"
-2. Search: "Uber Lyft driver earnings ${city}"
-3. Search: "${state} gig economy news rideshare"
-4. Search: "rideshare regulation update ${state}"
+PRIORITY: News published TODAY (${date}). If no news from today, include yesterday's news.
+Also search the broader market/metro area - news from nearby cities in the same metro is relevant.
 
-Return JSON array:
-[
-  {
-    "title": "News Title",
-    "summary": "One sentence summary with driver impact",
-    "published_date": "YYYY-MM-DD",
-    "impact": "high" | "medium" | "low",
-    "source": "Source Name",
-    "link": "url"
-  }
-]
+SEARCH QUERIES:
+1. "${city} traffic road closure ${date}"
+2. "${state} Uber Lyft driver news today"
+3. "${city} events concerts today"
+4. "rideshare gig economy ${state} ${date}"
 
-IMPORTANT:
-- The "published_date" field is REQUIRED - extract the actual publication date from the article
-- Only include articles published within the last 7 days of ${date}
-- If you cannot determine the publication date, DO NOT include that article
-- Return 2-5 items if found. If no recent news found, return empty array []`;
+Return JSON object:
+{
+  "items": [
+    {
+      "title": "News Title",
+      "summary": "One sentence explaining HOW this affects rideshare drivers",
+      "published_date": "YYYY-MM-DD",
+      "impact": "high" | "medium" | "low",
+      "source": "Source Name",
+      "link": "url"
+    }
+  ],
+  "reason": null
+}
+
+CRITICAL REQUIREMENTS:
+1. "published_date" is REQUIRED - extract the actual date from each article
+2. If you cannot determine the publication date, DO NOT include that article
+3. ONLY return articles from the last 3 days (prefer today's)
+4. Each summary MUST explain why a rideshare driver should care
+5. If NO news with valid dates found, return: {"items": [], "reason": "No rideshare-relevant news with publication dates found for ${city}, ${state} market today"}
+6. Return 2-5 items maximum`;
 
   const system = `You are a rideshare news research assistant. Search for recent news relevant to rideshare drivers and return structured JSON data with publication dates.`;
   // Uses BRIEFING_NEWS role (Gemini with google_search)
@@ -1731,9 +1757,17 @@ IMPORTANT:
 
   try {
     const parsed = safeJsonParse(result.output);
-    const newsArray = Array.isArray(parsed) ? parsed : [];
+
+    // 2026-01-05: Handle new format {items, reason} or old format [array]
+    const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
+    const llmReason = parsed?.reason || null;
 
     if (newsArray.length === 0 || !newsArray[0]?.title) {
+      // If LLM provided a reason, use it instead of falling back
+      if (llmReason) {
+        briefingLog.info(`Gemini: ${llmReason}`);
+        return { items: [], reason: llmReason, provider: 'gemini' };
+      }
       // TRY CLAUDE WEB SEARCH AS FALLBACK
       if (process.env.ANTHROPIC_API_KEY) {
         briefingLog.warn(2, `Gemini returned 0 news - trying Claude web search`, OP.FALLBACK);
@@ -1747,7 +1781,7 @@ IMPORTANT:
     const filteredNews = filterRecentNews(newsArray, date);
 
     briefingLog.done(2, `Gemini: ${filteredNews.length} news items (${newsArray.length - filteredNews.length} filtered as stale)`, OP.AI);
-    return { items: filteredNews, reason: null, provider: 'gemini' };
+    return { items: filteredNews, reason: llmReason, provider: 'gemini' };
   } catch (parseErr) {
     // TRY CLAUDE WEB SEARCH AS FALLBACK
     if (process.env.ANTHROPIC_API_KEY) {

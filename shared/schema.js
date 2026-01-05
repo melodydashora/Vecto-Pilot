@@ -1,34 +1,29 @@
 import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 
-// Users table: Source of truth for WHO + WHERE + CURRENT SESSION
-// Authority on:
-//   - Location identity (city, state, formatted_address, timezone) - via coord_key FK to coords_cache
-//   - Current snapshot (current_snapshot_id) - links to active session
-// Snapshots table: Time-varying data (weather, air, hour, dow, strategy)
+// Users table: SESSION TRACKING ONLY (Ephemeral)
+// 2026-01-05: Simplified per SAVE-IMPORTANT.md architecture
+//
+// Three Tables, Three Purposes:
+//   - driver_profiles: Identity (who you are) - FOREVER
+//   - users: Session (who's online now) - TEMPORARY (60 min TTL)
+//   - snapshots: Activity (what you did when) - FOREVER
+//
+// Session Rules:
+//   - Created on login, deleted on logout or 60 min inactivity
+//   - Sliding window: last_active_at updates on every request
+//   - Highlander Rule: One device per user (login on new device kills old session)
+//   - Lazy Cleanup: Expired sessions deleted on next requireAuth check
+//
+// NO LOCATION DATA - all location goes to snapshots table
 export const users = pgTable("users", {
-  user_id: uuid("user_id").primaryKey().defaultRandom(),
-  device_id: text("device_id").notNull(),
-  session_id: uuid("session_id"),
-  // Current active snapshot - links user to their latest data request
-  current_snapshot_id: uuid("current_snapshot_id"),
-  // Coordinates (lat/lng pair) - the core GPS data
-  lat: doublePrecision("lat").notNull(),
-  lng: doublePrecision("lng").notNull(),
-  accuracy_m: doublePrecision("accuracy_m"),
-  coord_source: text("coord_source").notNull().default('gps'), // 'gps' | 'manual_city_search' | 'api'
-  // Updated coordinates (current position when user moves/refreshes)
-  new_lat: doublePrecision("new_lat"),
-  new_lng: doublePrecision("new_lng"),
-  new_accuracy_m: doublePrecision("new_accuracy_m"),
-  // FK to coords_cache - resolves location identity (city, state, country, formatted_address, timezone)
-  coord_key: text("coord_key"), // Format: "lat6d_lng6d" e.g., "33.128400_-96.868800" - 6 decimal precision
-  // LEGACY: Resolved location identity (kept for backward compat, will be removed in Phase 7)
-  formatted_address: text("formatted_address"), // Full street address
-  city: text("city"),
-  state: text("state"),
-  country: text("country"),
-  timezone: text("timezone"), // IANA timezone for time calculations
+  user_id: uuid("user_id").primaryKey().defaultRandom(), // Links to driver_profiles
+  device_id: text("device_id").notNull(),                // Device making request
+  session_id: uuid("session_id"),                        // Current session UUID
+  current_snapshot_id: uuid("current_snapshot_id"),      // Their ONE active snapshot
+  // Session timing (sliding window)
+  session_start_at: timestamp("session_start_at", { withTimezone: true }).notNull().defaultNow(), // When session began
+  last_active_at: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),     // Last activity (60 min TTL from here)
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -780,6 +775,104 @@ export const markets = pgTable("markets", {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// US MARKET CITIES (City → Market Lookup Table)
+// Enables efficient: "User is in Frisco, TX → Show Dallas market intel"
+// ═══════════════════════════════════════════════════════════════════════════
+
+// US Market Cities: Maps every US city to its Uber/Lyft market anchor
+// This replaces the need to scan city_aliases JSONB arrays
+// Source: Official Uber market listings + GPT analysis (Jan 2026)
+export const us_market_cities = pgTable("us_market_cities", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Location identity
+  state: text("state").notNull(),           // Full state name: "Texas", "California"
+  state_abbr: text("state_abbr"),           // Abbreviation: "TX", "CA" (computed on insert)
+  city: text("city").notNull(),             // City name: "Frisco", "Plano", "Dallas"
+
+  // Market mapping
+  market_name: text("market_name").notNull(), // Uber market name: "Dallas", "Houston", "Phoenix"
+
+  // Region classification (based on market gravity model)
+  region_type: text("region_type").notNull().default('Satellite'), // 'Core' | 'Satellite' | 'Rural'
+  // Core: The anchor city that defines the market (Dallas in Dallas market)
+  // Satellite: Suburbs and smaller cities within the metro (Frisco, Plano, Irving)
+  // Rural: Distant towns loosely connected to the market
+
+  // Data provenance
+  source_ref: text("source_ref"),           // 'uber.com', 'ridester.com', 'gpt-analysis'
+
+  // Metadata
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  // Fast city lookup: WHERE state = 'TX' AND city = 'Frisco'
+  idxStateCity: sql`create unique index if not exists idx_us_market_cities_state_city on ${table} (state, city)`,
+  // Market grouping: Find all cities in a market
+  idxMarketName: sql`create index if not exists idx_us_market_cities_market_name on ${table} (market_name)`,
+  // Region filtering
+  idxRegionType: sql`create index if not exists idx_us_market_cities_region_type on ${table} (region_type)`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARKET INTEL (Market-Level Intelligence & Insights)
+// Stores rideshare intel at the market level for efficient access
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Market Intel: Intelligence data linked to markets (not individual cities)
+// When user is in Frisco → lookup Dallas market → show Dallas market intel
+export const market_intel = pgTable("market_intel", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Market linkage
+  market_name: text("market_name").notNull(), // e.g., "Dallas", "Houston", "Austin"
+
+  // Intel categorization
+  intel_type: text("intel_type").notNull(), // 'surge_pattern', 'traffic_pattern', 'event_intel', 'airport_tips', 'driver_tip', 'market_trend'
+
+  // Intel content
+  title: text("title").notNull(),           // Brief headline: "DFW Late-Night Surge Pattern"
+  content: text("content").notNull(),       // Full intel text
+  insight_data: jsonb("insight_data"),      // Structured data (charts, zones, timing)
+
+  // Validity window
+  valid_from: timestamp("valid_from", { withTimezone: true }), // When this intel becomes valid
+  valid_until: timestamp("valid_until", { withTimezone: true }), // When this intel expires (null = evergreen)
+
+  // Applicability
+  day_of_week: text("day_of_week"),         // 'monday', 'saturday', 'weekend', 'weekday', null (all)
+  time_of_day: text("time_of_day"),         // 'morning', 'evening', 'late_night', null (all)
+
+  // Source tracking
+  source: text("source").notNull().default('ai_coach'), // 'ai_coach', 'driver_contribution', 'platform_data', 'analysis'
+  source_model: text("source_model"),       // AI model if applicable: 'gpt-5.2', 'claude-opus'
+  contributed_by: uuid("contributed_by"),   // user_id if driver-contributed
+
+  // Priority/Ranking
+  priority: integer("priority").notNull().default(5), // 1-10 (1 = highest priority)
+  confidence_score: doublePrecision("confidence_score"), // 0.0-1.0 AI confidence
+
+  // Status
+  is_active: boolean("is_active").notNull().default(true),
+  view_count: integer("view_count").notNull().default(0),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  // Fast market lookup
+  idxMarketName: sql`create index if not exists idx_market_intel_market_name on ${table} (market_name)`,
+  // Filter by intel type
+  idxIntelType: sql`create index if not exists idx_market_intel_intel_type on ${table} (intel_type)`,
+  // Active intel only
+  idxActive: sql`create index if not exists idx_market_intel_active on ${table} (is_active) where is_active = true`,
+  // Time-based queries (find currently valid intel)
+  idxValidWindow: sql`create index if not exists idx_market_intel_valid_window on ${table} (valid_from, valid_until)`,
+  // Day/time filtering
+  idxDayTime: sql`create index if not exists idx_market_intel_day_time on ${table} (day_of_week, time_of_day)`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
 // AUTHENTICATION & DRIVER PROFILES
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1385,13 +1478,8 @@ export const zone_intelligence = pgTable("zone_intelligence", {
 // DRIZZLE RELATIONS: Enable eager loading via `with: { coords: true }`
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Users → coords_cache relation (for location identity lookup)
-export const usersRelations = relations(users, ({ one }) => ({
-  coords: one(coords_cache, {
-    fields: [users.coord_key],
-    references: [coords_cache.coord_key],
-  }),
-}));
+// 2026-01-05: usersRelations removed - users table no longer has location data
+// All location is now in snapshots table per SAVE-IMPORTANT.md architecture
 
 // Snapshots → coords_cache relation (for location identity lookup)
 export const snapshotsRelations = relations(snapshots, ({ one }) => ({

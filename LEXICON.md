@@ -195,7 +195,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **Naming Convention:** `{TABLE}_{FUNCTION}`
 - `BRIEFING_*` - Roles that populate the `briefings` table
 - `STRATEGY_*` - Roles that populate the `strategies` table
-- `VENUE_*` - Roles that populate `ranking_candidates` (Smart Blocks)
+- `VENUE_*` - Roles that populate `ranking_candidates` (Venue Candidates)
 - `COACH_*` - Roles that populate `coach_conversations`
 - `UTIL_*` - Utility roles for validation/parsing (no direct DB write)
 
@@ -216,7 +216,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 | `STRATEGY_TACTICAL` | Immediate 1-hour tactical strategy | `STRATEGY_TACTICAL_MODEL` | gpt-5.2 |
 | `STRATEGY_DAILY` | Long-term 8-12hr daily strategy | `STRATEGY_DAILY_MODEL` | gemini-3-pro |
 | **RANKING_CANDIDATES TABLE** ||||
-| `VENUE_SCORER` | Smart Blocks venue scoring | `VENUE_SCORER_MODEL` | gpt-5.2 |
+| `VENUE_SCORER` | Venue Candidate scoring | `VENUE_SCORER_MODEL` | gpt-5.2 |
 | `VENUE_FILTER` | Fast low-cost venue filtering | `VENUE_FILTER_MODEL` | claude-haiku |
 | `VENUE_TRAFFIC` | Venue-specific traffic intelligence | `VENUE_TRAFFIC_MODEL` | gemini-3-pro |
 | **COACH_CONVERSATIONS TABLE** ||||
@@ -454,21 +454,52 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 
 ## 📊 Data Pipeline
 
-### Smart Blocks (Tactical Recommendations)
-**What it is:** AI-generated venue recommendations with event context.
+### Smart Blocks (Intelligence Modules)
+**What it is:** Modular units of contextual market data (Traffic, Events, Weather, News) used to inform strategy. These are the **inputs** to the decision process.
+
+**⚠️ NOT to be confused with:** Venue Candidates (see below) - which are the **outputs**.
 
 **Codebase Files:**
-- `server/lib/strategy/enhanced-smart-blocks.js` - Generation engine
-- `server/api/strategy/blocks-fast.js` - HTTP endpoint
-- `client/src/components/SmartBlocksStatus.tsx` - UI component
+- `server/lib/strategy/content-blocks.js` - Block generation
+- `server/api/strategy/blocks-fast.js` - HTTP endpoint (pipeline trigger)
+- `client/src/components/SmartBlocksStatus.tsx` - Pipeline status UI
+- `client/src/components/_future/SmartBlocks.tsx` - Renders briefing blocks (Events, Traffic, News)
+
+**What Smart Blocks ARE:**
+- Traffic intelligence blocks
+- Event discovery blocks
+- Weather condition blocks
+- News/disruption blocks
+
+**What Smart Blocks are NOT:**
+- Specific bar or restaurant locations (those are Venue Candidates)
+- The "Upscale Bars" list in BarTab.tsx (that's Venue Intelligence output)
+
+---
+
+### Venue Candidates (Tactical Opportunities)
+**What it is:** Specific high-value locations (Bars, Restaurants, Staging Areas) identified as tactical opportunities. These are the **outputs** of the Venue Intelligence system.
+
+**Codebase Files:**
+- `server/lib/venue/venue-intelligence.js` - Discovery engine (Google Places API)
+- `server/lib/venue/enhanced-smart-blocks.js` - Venue scoring and ranking
+- `client/src/components/BarsTable.tsx` - "Late Night Hotspots" UI display
+- `client/src/components/BarTab.tsx` - "Upscale Bars" driver UI
 
 **Database Tables:**
-- `rankings` - Recommendation sets
-- `venue_candidates` - Individual venue recommendations
+- `ranking_candidates` - Scored venue recommendations linked to a strategy
+- `venue_catalog` - Persistent library of all known venues
+
+**Key Distinction:**
+| Term | Meaning | Example |
+|------|---------|---------|
+| Smart Block | Intelligence input | "Traffic is heavy on I-35" |
+| Venue Candidate | Tactical output | "Concrete Cowboy bar, $$$, 2.3 mi away" |
 
 **API Endpoints:**
-- `POST /api/blocks-fast` - Trigger generation
-- `GET /api/blocks-fast?snapshot_id=<id>` - Fetch results
+- `GET /api/venues/nearby` - Discover nearby venues
+- `POST /api/blocks-fast` - Generate venue recommendations
+- `GET /api/blocks-fast?snapshot_id=<id>` - Fetch venue results
 
 ---
 
@@ -585,6 +616,23 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 
 ---
 
-**Version:** 1.1.0
-**Last Updated:** December 10, 2025
+**Version:** 1.2.0
+**Last Updated:** January 5, 2026
 **Maintainer:** Vecto Pilot Development Team
+
+---
+
+## 📝 Lexicon Update Protocol
+
+When you notice terminology confusion, use this command:
+
+```
+Lexicon Update: [Term] should be [Correct Definition]
+```
+
+Example: `Lexicon Update: Bar venues should be called "Venue Candidates" not "Smart Blocks"`
+
+The AI will:
+1. Open LEXICON.md
+2. Apply the correction
+3. Re-read the file to update its understanding
