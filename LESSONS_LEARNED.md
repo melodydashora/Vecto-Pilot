@@ -1018,6 +1018,44 @@ Two-stage filtering was too strict:
 - `client/src/pages/auth/SignUpPage.tsx` - conditional dropdown/text input rendering
 - `shared/schema.js` - countries table schema
 
+### Bug: Events not showing in briefing UI (Timezone Parsing)
+
+**Added:** 2026-01-05
+
+**Cause:** Server runs in UTC, but event times like "3:30 PM" are stored as local strings. When parsed without timezone context, they were interpreted as UTC.
+
+**Symptoms:**
+- Events discovered by the AI appear in the database
+- But the Briefing tab shows "No events found"
+- Evening events (e.g., 7 PM local time) show up correctly in the morning
+- Morning/afternoon events never show up
+
+**Root Cause:**
+```javascript
+// OLD (WRONG) - Parses "3:30 PM" as UTC, which is 9:30 AM in CST
+const eventTime = new Date(`${event_date}T${parsed_time}:00`);
+
+// This means a 3:30 PM CST event becomes 3:30 PM UTC = 9:30 AM CST
+// If it's currently 10 AM CST, the event appears to have already passed!
+```
+
+**Fix:** Created `createDateInTimezone()` helper that properly interprets local times:
+```javascript
+function createDateInTimezone(year, month, day, hours, minutes, timezone) {
+  // Uses Intl.DateTimeFormat to calculate UTC offset for the timezone
+  // Returns a Date object that correctly represents 3:30 PM in CST
+}
+
+// Updated all filterFreshEvents() calls to pass snapshot.timezone
+const freshEvents = filterFreshEvents(allEvents, new Date(), snapshot.timezone);
+```
+
+**Files Changed:**
+- `server/lib/strategy/strategy-utils.js` - Added timezone-aware event filtering
+- `server/api/briefing/briefing.js` - Pass timezone to filterFreshEvents()
+
+**Key Insight:** When storing local times as strings (e.g., "3:30 PM"), you MUST also store/pass the timezone to correctly convert back to UTC for comparisons. Never assume the server's timezone matches the user's.
+
 ---
 
 ## Testing Checklist

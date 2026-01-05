@@ -121,46 +121,46 @@ Fields checked: `traffic_conditions`, `events`, `news`, `school_closures`
 }
 ```
 
-## Cache Strategy
+## Cache Strategy (Updated 2026-01-05)
 
 | Data Type | Cache Duration | Refresh Trigger |
 |-----------|----------------|-----------------|
-| Weather (4-hour forecast) | **No cache** | Fresh on EVERY call (forecast changes) |
+| Weather | **No cache** | Fresh on EVERY call (forecast changes) |
 | Traffic | **No cache** | Fresh on EVERY call (conditions change rapidly) |
-| Events | **No cache** | Fresh on EVERY call (AI coach may verify) |
+| Events | **From DB table** | Read from `discovered_events` (daily sync) |
 | Airport | **No cache** | Fresh on EVERY call (delays change rapidly) |
-| News | 24 hours by city | Same city within calendar day |
+| News | **No cache** | Fresh on EVERY call (dual-model fetch is fast) |
 | School Closures | 24 hours by city | Same city within calendar day |
 
-### Why Weather, Traffic, Events & Airport Are Not Cached
+### Why Most Data Is Not Cached
 
-- **Weather (4-hour forecast)**: Forecasts change throughout the day. Briefing needs fresh hourly predictions.
+- **Weather**: Forecasts change throughout the day. Briefing needs fresh hourly predictions.
 - **Traffic**: Conditions change rapidly (accidents, congestion). Stale traffic data is dangerous.
-- **Events**: AI coach may need to double-check events. New events can be discovered throughout the day.
+- **Events**: Served from `discovered_events` table (instant DB read, no API call).
 - **Airport**: Delay status changes rapidly. Stale data could mislead drivers.
+- **News**: Dual-model fetch (Gemini + GPT-5.2 in parallel) is fast enough (~2-3s) for per-request refresh. News relevance decays quickly.
 
 **Note:** Current weather conditions are captured in the snapshot during location resolution. The briefing fetches the 4-hour FORECAST separately, which is different data.
 
-### Daily Data (News, School Closures)
+### Daily Data (School Closures Only)
 
-Only news and school_closures are cached (24h by city) because they don't change frequently.
+Only school_closures are cached (24h by city) because school schedules rarely change intraday.
 
 ### City-Level Cache Lookup
 
-News and school_closures are cached by city+state (same for all users in area):
+School closures are cached by city+state (same for all users in area):
 
 ```sql
 -- Cache lookup excludes current snapshot and incomplete rows
 SELECT * FROM briefings
 WHERE city = 'Dallas' AND state = 'TX'
   AND snapshot_id != 'current-snapshot-id'  -- Exclude self
-  AND news IS NOT NULL                       -- Exclude placeholders
-  AND school_closures IS NOT NULL            -- Require complete data
+  AND school_closures IS NOT NULL            -- Require closures data
 ORDER BY updated_at DESC
 LIMIT 1
 ```
 
-**Note**: Cache query requires BOTH `news` AND `school_closures` to be non-NULL to prevent returning incomplete cached data.
+**Note**: Cache query only requires `school_closures` to be non-NULL. News is always fetched fresh.
 
 ## Event Validation (DISABLED)
 
