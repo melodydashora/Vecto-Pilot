@@ -183,13 +183,17 @@ router.get('/current', requireAuth, async (req, res) => {
     }
 
     // Filter stale events from briefing data (2026-01-05)
+    // 2026-01-05: Pass snapshot timezone for proper local time parsing
+    const tz = snapshot.timezone || 'America/Chicago';
     const freshEvents = filterFreshEvents(
-      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || []
+      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || [],
+      new Date(),
+      tz
     );
 
     // Filter stale news - only today's news with valid publication dates (2026-01-05)
     const newsItems = Array.isArray(briefing.news) ? briefing.news : briefing.news?.items || [];
-    const freshNews = filterFreshNews(newsItems, new Date(), snapshot.timezone || 'UTC');
+    const freshNews = filterFreshNews(newsItems, new Date(), tz);
 
     res.json({
       snapshot_id: snapshot.snapshot_id,
@@ -241,14 +245,18 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
     }
 
     // Filter stale events from briefing data (2026-01-05)
+    // 2026-01-05: Pass snapshot timezone for proper local time parsing
+    const snapshot = snapshotCheck[0];
+    const tz2 = snapshot.timezone || 'America/Chicago';
     const freshEvents = filterFreshEvents(
-      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || []
+      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || [],
+      new Date(),
+      tz2
     );
 
     // Filter stale news - only today's news with valid publication dates (2026-01-05)
-    const snapshot = snapshotCheck[0];
     const newsItems = Array.isArray(briefing.news) ? briefing.news : briefing.news?.items || [];
-    const freshNews = filterFreshNews(newsItems, new Date(), snapshot.timezone || 'UTC');
+    const freshNews = filterFreshNews(newsItems, new Date(), tz2);
 
     res.json({
       success: true,
@@ -279,13 +287,17 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
     }
 
     // Filter stale events from briefing data (2026-01-05)
+    // 2026-01-05: Pass snapshot timezone for proper local time parsing
+    const tz3 = req.snapshot.timezone || 'America/Chicago';
     const freshEvents = filterFreshEvents(
-      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || []
+      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || [],
+      new Date(),
+      tz3
     );
 
     // Filter stale news - only today's news with valid publication dates (2026-01-05)
     const newsItems = Array.isArray(briefing.news) ? briefing.news : briefing.news?.items || [];
-    const freshNews = filterFreshNews(newsItems, new Date(), req.snapshot.timezone || 'UTC');
+    const freshNews = filterFreshNews(newsItems, new Date(), tz3);
 
     res.json({
       snapshot_id: req.snapshot.snapshot_id,
@@ -329,13 +341,17 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
 
     if (result.success) {
       // Filter stale events from refreshed briefing data (2026-01-05)
+      // 2026-01-05: Pass snapshot timezone for proper local time parsing
+      const tz4 = snapshot.timezone || 'America/Chicago';
       const freshEvents = filterFreshEvents(
-        Array.isArray(result.briefing.events) ? result.briefing.events : result.briefing.events?.items || []
+        Array.isArray(result.briefing.events) ? result.briefing.events : result.briefing.events?.items || [],
+        new Date(),
+        tz4
       );
 
       // Filter stale news - only today's news with valid publication dates (2026-01-05)
       const newsItems = Array.isArray(result.briefing.news) ? result.briefing.news : result.briefing.news?.items || [];
-      const freshNews = filterFreshNews(newsItems, new Date(), snapshot.timezone || 'UTC');
+      const freshNews = filterFreshNews(newsItems, new Date(), tz4);
 
       res.json({
         success: true,
@@ -603,8 +619,10 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     // CRITICAL: Filter stale events and events without date info (2026-01-05)
     // This catches events with incorrect dates (e.g., Christmas events with January dates)
     // and events that lack proper start/end times
+    // 2026-01-05: Pass snapshot timezone for proper local time parsing
+    const snapshotTz = snapshot.timezone || 'America/Chicago';
     const beforeFreshFilter = allEvents.length;
-    allEvents = filterFreshEvents(allEvents);
+    allEvents = filterFreshEvents(allEvents, new Date(), snapshotTz);
     if (beforeFreshFilter > allEvents.length) {
       console.log(`[BriefingRoute] Freshness filter: ${beforeFreshFilter} → ${allEvents.length} events (removed ${beforeFreshFilter - allEvents.length} stale/invalid)`);
     }

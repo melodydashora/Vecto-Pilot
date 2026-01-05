@@ -2,45 +2,93 @@
 ================================================================================
 
 id:
-  "8eb65237-c567-49af-91d9-8ac3c1fd09cc"
+  "e3665de8-2542-421b-99d9-d98429560120"
 
 snapshot_id:
-  "dfe143a5-de1d-4715-9731-cc1ba8e7e4bb"
+  "76c4eda4-afbd-40fe-b5da-802dceb3a69c"
 
 news:
   {
   "items": [
     {
-      "link": "https://dallas.culturemap.com/news/city-life/texas-deadliest-states-new-years-eve-traffic-deaths/",
-      "title": "Uber Offers $30 Vouchers in Frisco for Safe New Year's Rides",
+      "link": "https://www.friscoisd.org/calendar",
+      "title": "Back-to-School Traffic Shift: Monday Holiday, Tuesday Rush",
       "impact": "high",
-      "source": "CultureMap Dallas",
-      "summary": "In partnership with TxDOT and the Frisco Police Department, Uber provided $30 vouchers to residents to discourage drunk driving during the New Year's holiday, likely increasing local ride demand.",
-      "published_date": "2025-12-30"
+      "source": "Frisco ISD / Plano ISD Calendars",
+      "summary": "Frisco ISD and Plano ISD have a 'Student Holiday/Staff Day' on Monday, Jan 5. School zones will be empty Monday morning. The real morning rush returns Tuesday, Jan 6, when the second semester officially begins. Expect heavy congestion around schools and high demand for rides starting 7:00 AM Tuesday.",
+      "category": "traffic",
+      "_provider": "gemini",
+      "published_date": "2026-01-05"
     },
     {
-      "link": "https://www.friscotexas.gov/CivicAlerts.aspx?AID=2085",
-      "title": "Frisco Weekly Roadwork Roundup: Hillcrest Road Traffic Switch",
+      "link": "https://www.potato-expo.com/",
+      "title": "Major Convention: Potato Expo 2026 at Gaylord Texan",
+      "impact": "high",
+      "source": "Potato Expo / Gaylord Texan",
+      "summary": "High demand expected at the Gaylord Texan in Grapevine (20 min from Frisco) for the 'Potato Expo 2026' running Jan 5-9. Thousands of attendees will need rides to/from DFW Airport on Monday/Tuesday and evening dining trips throughout the week. This replaces the lack of sports demand this week.",
+      "category": "event",
+      "_provider": "gemini",
+      "published_date": "2026-01-05"
+    },
+    {
+      "link": "https://www.dfwairport.com/traffic/",
+      "title": "DFW Airport Construction & Holiday Return Rush",
+      "impact": "high",
+      "source": "DFW Airport / NBC DFW",
+      "summary": "Monday, Jan 5 is the final peak travel day for holiday returns. Expect high volume at DFW Airport arrivals. ongoing construction at Terminal C (closed parking garages) and Terminal A (bridge work) is causing severe congestion. Drivers should use the 'right-hand exit' detours on International Parkway and anticipate 20+ minute delays at curbside.",
+      "category": "airport",
+      "_provider": "gemini",
+      "published_date": "2026-01-05"
+    },
+    {
+      "link": "https://www.courthousenews.com/new-texas-rideshare-law-victory-for-uber-and-lyft/",
+      "title": "HB 100 Signed: State-wide Ride-Hailing Rules Replace Local Ordinances",
+      "impact": "high",
+      "source": "Courthouse News Service",
+      "summary": "On 2026-01-05, Texas Gov. Greg Abbott signed HB 100, giving the state exclusive authority over regulation of transportation network companies (Uber, Lyft, etc.). Local governments may no longer impose separate permits, rate controls, or operational requirements beyond state law. For Frisco drivers, this means fewer city-specific licensing requirements and potentially lower costs of compliance. It may also standardize driver eligibility and earnings expectations across the metro rather than having patchwork rules.",
+      "category": "regulation",
+      "_provider": "gpt",
+      "published_date": "2026-01-05"
+    },
+    {
+      "link": "https://dallasmarketcenter.com/markets/",
+      "title": "Dallas Total Home & Gift Market Starts Wednesday",
       "impact": "medium",
-      "source": "City of Frisco Official Website",
-      "summary": "A major traffic pattern switch occurred on Hillcrest Road between PGA Parkway and Panther Creek Parkway on Dec 30, with new lane configurations affecting navigation for drivers in the area.",
+      "source": "Dallas Market Center",
+      "summary": "A massive wholesale trade event begins Jan 7 (Wednesday) at the Dallas Market Center. While not in Frisco, many attendees stay in North Dallas/Plano hotels. Expect early morning airport runs to DFW/Love Field on Jan 6-7 and evening demand from Market Center to hotels/restaurants.",
+      "category": "event",
+      "_provider": "gemini",
+      "published_date": "2026-01-05"
+    },
+    {
+      "link": "https://gasprices.aaa.com/?state=TX",
+      "title": "Gas Prices Trending Lower in Texas ($2.38/gal)",
+      "impact": "medium",
+      "source": "AAA Texas / GasBuddy",
+      "summary": "Good news for driver expenses: Texas gas prices have stabilized near $2.38-$2.43/gallon, down significantly from last year. Drivers should fill up at Costco or Sam's Club in Plano/Frisco for rates as low as $1.85-$2.15/gallon.",
+      "category": "cost",
+      "_provider": "gemini",
+      "published_date": "2026-01-05"
+    },
+    {
+      "link": "https://www.friscotexas.gov/CivicAlerts.aspx",
+      "title": "Frisco Roadwork: Hillcrest Road Traffic Switch",
+      "impact": "medium",
+      "source": "Frisco Weekly Roadwork Roundup",
+      "summary": "Ongoing major roadwork on Hillcrest Rd between PGA Pkwy and Panther Creek Pkwy has shifted traffic patterns. Lanes are reduced, and delays are likely during the evening rush. Avoid this route for pickups at the Omni PGA Resort if possible.",
+      "category": "traffic",
+      "_provider": "gemini",
       "published_date": "2026-01-04"
     },
     {
-      "link": "https://secretdallas.com/new-texas-laws-2026/",
-      "title": "New Texas AI Law (HB 149) Takes Effect, Regulating Algorithmic Use",
-      "impact": "medium",
-      "source": "Secret Dallas",
-      "summary": "The 'Texas Responsible Artificial Intelligence Governance Act' is now in effect, establishing a framework for AI oversight that prohibits 'social scoring' and could influence future regulations on gig economy algorithms.",
-      "published_date": "2025-12-31"
-    },
-    {
-      "link": "https://www.friscotexas.gov/1173/Dallas-North-Tollway-Widening",
-      "title": "Dallas North Tollway Widening Continues with Lane Closures",
-      "impact": "medium",
-      "source": "City of Frisco / NTTA",
-      "summary": "Ongoing construction on the DNT in Frisco includes lane closures and a traffic switch on the frontage roads, with completion expected in early 2026; drivers should anticipate delays near Stonebrook and Warren Parkways.",
-      "published_date": "2026-01-04"
+      "link": "https://weather.com/weather/tenday/l/Frisco+TX",
+      "title": "Weather Alert: Rain Chances Increase Late Week",
+      "impact": "low",
+      "source": "Weather.com / AccuWeather",
+      "summary": "Monday and Tuesday will be mild (highs in 50s) and dry. Rain chances increase significantly by Thursday, Jan 8. Plan for slower traffic and higher surge potential during Thursday/Friday commute hours due to wet roads.",
+      "category": "weather",
+      "_provider": "gemini",
+      "published_date": "2026-01-05"
     }
   ],
   "reason": null
@@ -48,23 +96,23 @@ news:
 
 weather_current:
   {
-  "tempC": 12,
-  "tempF": 54,
+  "tempC": 20,
+  "tempF": 69,
   "country": "United States",
-  "uvIndex": 0,
-  "humidity": 85,
+  "uvIndex": 2,
+  "humidity": 60,
   "tempUnit": "°F",
-  "feelsLike": 52,
+  "feelsLike": 76,
   "isDaytime": true,
   "conditions": "Mostly sunny",
-  "feelsLikeC": 11,
-  "feelsLikeF": 52,
-  "observedAt": "2026-01-05T14:45:05.431541408Z",
+  "feelsLikeC": 25,
+  "feelsLikeF": 76,
+  "observedAt": "2026-01-05T19:50:46.920102814Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 54,
+  "temperature": 69,
   "conditionType": "MOSTLY_CLEAR",
   "precipitation": {
     "qpf": {
@@ -87,149 +135,163 @@ weather_current:
 weather_forecast:
   [
   {
-    "time": "2026-01-05T14:45:05.473Z",
-    "tempC": 11,
-    "tempF": 51,
+    "time": "2026-01-05T19:50:46.963Z",
+    "tempC": 19,
+    "tempF": 66,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
     "conditions": "Mostly sunny",
-    "temperature": 51,
+    "temperature": 66,
     "conditionType": "MOSTLY_CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-05T15:45:05.473Z",
-    "tempC": 13,
-    "tempF": 55,
+    "time": "2026-01-05T20:50:46.963Z",
+    "tempC": 21,
+    "tempF": 69,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
     "conditions": "Mostly sunny",
-    "temperature": 55,
+    "temperature": 69,
     "conditionType": "MOSTLY_CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-05T16:45:05.473Z",
-    "tempC": 15,
-    "tempF": 59,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Mostly sunny",
-    "temperature": 59,
-    "conditionType": "MOSTLY_CLEAR",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 0
-  },
-  {
-    "time": "2026-01-05T17:45:05.473Z",
-    "tempC": 17,
-    "tempF": 62,
+    "time": "2026-01-05T21:50:46.963Z",
+    "tempC": 22,
+    "tempF": 71,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
     "conditions": "Partly sunny",
-    "temperature": 62,
+    "temperature": 71,
     "conditionType": "PARTLY_CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-05T18:45:05.473Z",
-    "tempC": 19,
-    "tempF": 65,
+    "time": "2026-01-05T22:50:46.963Z",
+    "tempC": 22,
+    "tempF": 71,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
     "conditions": "Partly sunny",
-    "temperature": 65,
+    "temperature": 71,
     "conditionType": "PARTLY_CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 5
   },
   {
-    "time": "2026-01-05T19:45:05.473Z",
-    "tempC": 20,
-    "tempF": 68,
+    "time": "2026-01-05T23:50:46.963Z",
+    "tempC": 21,
+    "tempF": 69,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
-    "conditions": "Partly sunny",
-    "temperature": 68,
-    "conditionType": "PARTLY_CLOUDY",
+    "conditions": "Mostly cloudy",
+    "temperature": 69,
+    "conditionType": "MOSTLY_CLOUDY",
     "windSpeedUnit": "mph",
-    "precipitationProbability": 0
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-06T00:50:46.963Z",
+    "tempC": 19,
+    "tempF": 67,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Mostly cloudy",
+    "temperature": 67,
+    "conditionType": "MOSTLY_CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
   }
 ]
 
 traffic_conditions:
   {
-  "jams": 19,
+  "jams": 20,
   "stats": {
-    "jams": 19,
-    "major": 11,
-    "total": 41,
-    "closures": 11,
-    "highways": 28,
+    "jams": 20,
+    "major": 10,
+    "total": 45,
+    "closures": 13,
+    "highways": 33,
     "accidents": 0,
-    "construction": 11
+    "construction": 12
   },
-  "summary": "Frisco is experiencing heavy congestion with 41 active incidents, primarily impacting major north-south and east-west arteries. Major delays are concentrated on FM-423 southbound (8-minute delay) and Eldorado Pkwy, while FM-720 is heavily restricted by multiple closures. Drivers should avoid the FM-423/TX-121 interchange and use the Dallas North Tollway or Preston Road for more reliable travel times.",
+  "summary": "Frisco is experiencing heavy congestion with 45 active incidents, primarily impacting major north-south arteries. Significant closures on FM-720 (3.1mi) and the I-35E Texpress lanes (9.6mi) are creating localized bottlenecks. Drivers should avoid the Dallas Parkway corridor near Eldorado and prioritize local residential pickups to maintain trip frequency.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion with 41 active incidents, primarily impacting major north-south and east-west arteries. Major delays are concentrated on FM-423 southbound (8-minute delay) and Eldorado Pkwy, while FM-720 is heavily restricted by multiple closures. Drivers should avoid the FM-423/TX-121 interchange and use the Dallas North Tollway or Preston Road for more reliable travel times.",
+  "briefing": "Frisco is experiencing heavy congestion with 45 active incidents, primarily impacting major north-south arteries. Significant closures on FM-720 (3.1mi) and the I-35E Texpress lanes (9.6mi) are creating localized bottlenecks. Drivers should avoid the Dallas Parkway corridor near Eldorado and prioritize local residential pickups to maintain trip frequency.",
   "closures": [
+    {
+      "road": "I-35E N, US-77 S, US-77 N, I-35E S",
+      "location": "FM-1171/W Main St (Texpress Lanes/I-35) to E Corporate Dr (Texpress Lanes/I-35)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 9.6
+    },
     {
       "road": "",
       "location": "Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 5.1
+      "distanceFromDriver": 4.5
     },
     {
       "road": "",
-      "location": "FM-720 to Lamar Hunt Way",
+      "location": "Lamar Hunt Way to FM-720",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3
+      "distanceFromDriver": 3.1
     },
     {
       "road": "",
       "location": "FM-720 to FM-720",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3.1
+      "distanceFromDriver": 3.2
+    },
+    {
+      "road": "US-380 E",
+      "location": "US-377 (US-380) to FM-2931 (US-380)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 9.5
     },
     {
       "road": "US-380 E",
       "location": "FM-2931 (US-380) to FM-1385 (US-380)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.8
+      "distanceFromDriver": 7.2
     },
     {
       "road": "US-380 E",
       "location": "FM-1385 (US-380) to Gee Rd (US-380)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.8
+      "distanceFromDriver": 6.3
     },
     {
       "road": "US-380 E",
       "location": "Doe Creek Rd to Hollyhock Rd",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.8
+      "distanceFromDriver": 6.3
     },
     {
       "road": "US-380 E",
       "location": "Gee Rd (US-380) to Dallas Pkwy (US-380)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.7
+      "distanceFromDriver": 6.3
     },
     {
       "road": "",
@@ -243,98 +305,98 @@ traffic_conditions:
       "location": "Navo Rd to Paloma Creek Blvd",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 7.8
+      "distanceFromDriver": 7.3
     },
     {
       "road": "",
       "location": "N Cowan Ave to Benjamins Way",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.6
+      "distanceFromDriver": 8.5
     },
     {
       "road": "",
       "location": "Lakewood Dr to Main St / N Hook St",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.4
+      "distanceFromDriver": 8.1
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion with 41 active incidents, primarily impacting major north-south and east-west arteries.",
+  "headline": "Frisco is experiencing heavy congestion with 45 active incidents, primarily impacting major north-south arteries.",
   "provider": "tomtom",
-  "fetchedAt": "2026-01-05T14:45:05.675Z",
+  "fetchedAt": "2026-01-05T19:50:47.105Z",
   "incidents": [
-    {
-      "road": "FM-423",
-      "category": "Jam",
-      "location": "N Colony Blvd (FM-423/Main St/TX-423) to TX-121 (FM-423/Main St/TX-423)",
-      "priority": 163,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: FM-423 (N Colony Blvd (FM-423/Main St/TX-423) to TX-121 (FM-423/Main St/TX-423)) [2.7 mi]",
-      "lengthMiles": 0.7,
-      "delayMinutes": 8,
-      "distanceFromDriver": 2.7
-    },
     {
       "road": "",
       "category": "Jam",
-      "location": "FM-2934 / Pearl Dr to Pilot Point-Aubrey",
+      "location": "Dallas Pkwy to FM-2934 / Woodsboro Way",
       "priority": 159,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: FM-2934 / Pearl Dr to Pilot Point-Aubrey [3.8 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 4,
-      "distanceFromDriver": 3.8
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Gee Rd (1st St) to FM-1385 (1st St)",
-      "priority": 158,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: Gee Rd (1st St) to FM-1385 (1st St) [7.5 mi]",
-      "lengthMiles": 0.3,
-      "delayMinutes": 3,
-      "distanceFromDriver": 7.5
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "FM-720 to FM-2478",
-      "priority": 158,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: FM-720 to FM-2478 [8.2 mi]",
+      "description": "Jam: Dallas Pkwy to FM-2934 / Woodsboro Way [3.9 mi]",
       "lengthMiles": 0.1,
-      "delayMinutes": 3,
+      "delayMinutes": 4,
+      "distanceFromDriver": 3.9
+    },
+    {
+      "road": "FM-720",
+      "category": "Jam",
+      "location": "McKinney to FM-2478",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-720 (McKinney to FM-2478) [8.5 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 4,
+      "distanceFromDriver": 8.5
+    },
+    {
+      "road": "FM-1171",
+      "category": "Jam",
+      "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.8 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 2,
+      "distanceFromDriver": 9.8
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-2478 to FM-2478",
+      "priority": 156,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-2478 to FM-2478 [8.2 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 1,
       "distanceFromDriver": 8.2
     },
     {
-      "road": "",
+      "road": "FM-2931",
       "category": "Jam",
-      "location": "N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd)",
-      "priority": 143,
+      "location": "FM-428 (FM-2931) to US-380 (FM-2931)",
+      "priority": 144,
       "severity": "medium",
       "isHighway": true,
-      "description": "Jam: N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd) [9.6 mi]",
-      "lengthMiles": 0.3,
-      "delayMinutes": 3,
-      "distanceFromDriver": 9.6
+      "description": "Jam: FM-2931 (FM-428 (FM-2931) to US-380 (FM-2931)) [8.4 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 4,
+      "distanceFromDriver": 8.4
     },
     {
-      "road": "",
-      "category": "Jam",
-      "location": "FM-720 to Independence Pkwy",
-      "priority": 141,
-      "severity": "medium",
+      "road": "I-35E N, US-77 S, US-77 N, I-35E S",
+      "category": "Road Closed",
+      "location": "FM-1171/W Main St (Texpress Lanes/I-35) to E Corporate Dr (Texpress Lanes/I-35)",
+      "priority": 140,
+      "severity": "low",
       "isHighway": true,
-      "description": "Jam: FM-720 to Independence Pkwy [7.1 mi]",
+      "description": "Road Closed: I-35E N, US-77 S, US-77 N, I-35E S (FM-1171/W Main St (Texpress Lanes/I-35) to E Corporate Dr (Texpress Lanes/I-35)) [9.6 mi]",
       "lengthMiles": 0.1,
-      "delayMinutes": 1,
-      "distanceFromDriver": 7.1
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.6
     },
     {
       "road": "",
@@ -343,22 +405,22 @@ traffic_conditions:
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln [5.1 mi]",
+      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln [4.5 mi]",
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 5.1
+      "distanceFromDriver": 4.5
     },
     {
       "road": "",
       "category": "Road Closed",
-      "location": "FM-720 to Lamar Hunt Way",
+      "location": "Lamar Hunt Way to FM-720",
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to Lamar Hunt Way [3 mi]",
+      "description": "Road Closed: Lamar Hunt Way to FM-720 [3.1 mi]",
       "lengthMiles": 0.2,
       "delayMinutes": 0,
-      "distanceFromDriver": 3
+      "distanceFromDriver": 3.1
     },
     {
       "road": "",
@@ -367,10 +429,10 @@ traffic_conditions:
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720 [3.1 mi]",
+      "description": "Road Closed: FM-720 to FM-720 [3.2 mi]",
       "lengthMiles": 0,
       "delayMinutes": 0,
-      "distanceFromDriver": 3.1
+      "distanceFromDriver": 3.2
     },
     {
       "road": "FM-1171",
@@ -379,69 +441,37 @@ traffic_conditions:
       "priority": 135,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
+      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.6 mi]",
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 9.7
+      "distanceFromDriver": 9.6
     }
   ],
   "keyIssues": [
-    "FM-423 (N Colony to TX-121) jam 2.7mi south - 8min delay",
-    "FM-2934 (Eldorado Pkwy) jam 3.8mi away - 4min delay",
-    "FM-720 multiple road closures 3.1mi west - total blockage"
+    "Dallas Pkwy jam 3.9mi away - Major severity with 4min delays near FM-2934",
+    "FM-720 multiple closures 3.1mi-4.5mi away - Total blockages near Lamar Hunt Way and Main St",
+    "I-35E Texpress Lanes closure 9.6mi away - Full closure affecting high-speed transit to Lewisville"
   ],
   "avoidAreas": [
-    "FM-423 Southbound: Major congestion and 8-minute delays starting 2.7mi away",
-    "FM-720 Corridor: Multiple road closures between Main St and Lamar Hunt Way 3-5mi away",
-    "US-380 Corridor: Extensive road works and lane closures 6-8mi north"
+    "FM-720 / Main St Corridor: Multiple road closures and jams within 5 miles",
+    "Dallas Pkwy (Northbound): Heavy congestion and road works between Main St and Panther Creek",
+    "US-380 Westbound: Extensive construction zones between Gee Rd and FM-2931"
   ],
-  "safetyAlert": "19 active traffic jams in the area",
-  "driverImpact": "Heavy congestion on FM-423 and Eldorado Pkwy will significantly slow down short-range pickups; prioritize long-haul trips via the Dallas North Tollway to maintain earnings-per-hour.",
+  "safetyAlert": "20 active traffic jams in the area",
+  "driverImpact": "Heavy congestion on Dallas Pkwy and FM-720 will significantly lower your hourly earnings; stay east of the Tollway or focus on short-distance local trips to avoid the 380 and I-35E construction traps.",
   "surgePricing": true,
-  "closuresCount": 11,
+  "closuresCount": 13,
   "repositioning": null,
-  "incidentsCount": 41,
-  "totalIncidents": 41,
-  "closuresSummary": "4 closures within 10mi, most critical: FM-720 at Lamar Hunt Way and FM-720 at Lighthouse Beach Dr.",
+  "incidentsCount": 45,
+  "totalIncidents": 45,
+  "closuresSummary": "4 closures within 10mi, most critical: I-35E Texpress Lanes and FM-720 at Lamar Hunt Way.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Significant road works on US-380 (multiple segments) and Dallas Parkway near Panther Creek Pkwy causing potential lane restrictions."
+  "constructionSummary": "Extensive road works active on US-380 (6.3mi-9.6mi away) and Dallas Pkwy near Eldorado Pkwy, causing unpredictable flow."
 }
 
 events:
   [
-  {
-    "title": "\"O\" by Cirque du Soleil at Cosm",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "5772 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "\"O\" by Cirque du Soleil at Cosm • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 33.0796,
-    "location": "Cosm Dallas (Grandscape), 5772 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8239,
-    "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
-    "event_type": "theater",
-    "event_end_time": "5:30 PM"
-  },
-  {
-    "title": "New Year New You Challenge",
-    "venue": "Stonebriar Country Club",
-    "impact": "low",
-    "source": "GPT-5.2",
-    "address": "5050 Country Club Dr, Frisco, TX 75034",
-    "subtype": "other",
-    "summary": "New Year New You Challenge • Stonebriar Country Club • 2026-01-05 • 6:00 AM",
-    "latitude": 33.10946,
-    "location": "Stonebriar Country Club, 5050 Country Club Dr, Frisco, TX 75034",
-    "longitude": -96.83973,
-    "event_date": "2026-01-05",
-    "event_time": "6:00 AM",
-    "event_type": "other",
-    "event_end_time": null
-  },
   {
     "title": "Dinosaurs Live! (Life-Size Animatronic Dinosaur Exhibit)",
     "venue": "Heard Natural Science Museum & Wildlife Sanctuary",
@@ -459,67 +489,35 @@ events:
     "event_end_time": "4:00 PM"
   },
   {
-    "title": "Blitzen's Bar at Lounge by Topgolf",
-    "venue": "Lounge by Topgolf (PGA District)",
+    "title": "The Matrix in Shared Reality",
+    "venue": "Cosm Dallas",
     "impact": "medium",
     "source": "Gemini-3-Pro",
-    "address": "3255 PGA Parkway, Frisco, TX 75033",
-    "subtype": "nightlife",
-    "summary": "Blitzen's Bar at Lounge by Topgolf • Lounge by Topgolf (PGA District) • 2026-01-05 • 4:00 PM",
-    "latitude": 33.1644,
-    "location": "Lounge by Topgolf (PGA District), 3255 PGA Parkway, Frisco, TX 75033",
-    "longitude": -96.8917,
-    "event_date": "2026-01-05",
-    "event_time": "4:00 PM",
-    "event_type": "nightlife",
-    "event_end_time": "11:00 PM"
-  },
-  {
-    "title": "Winter Scholastic 2026 (Chess Tournament)",
-    "venue": "Texas Chess Center - Frisco",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "11547 Independence Pkwy #530, Frisco, TX 75035",
-    "subtype": "academic",
-    "summary": "Winter Scholastic 2026 (Chess Tournament) • Texas Chess Center - Frisco • 2026-01-05 • 9:30 AM",
-    "latitude": 33.172285,
-    "location": "Texas Chess Center - Frisco, 11547 Independence Pkwy #530, Frisco, TX 75035",
-    "longitude": -96.73933,
-    "event_date": "2026-01-05",
-    "event_time": "9:30 AM",
-    "event_type": "academic",
-    "event_end_time": "4:30 PM"
-  },
-  {
-    "title": "January 5th Camp",
-    "venue": "Frisco Athletic Center",
-    "impact": "medium",
-    "source": "SerpAPI",
-    "address": "Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX",
-    "subtype": "other",
-    "summary": "January 5th Camp • Frisco Athletic Center • 2026-01-05 • 9:00 AM",
-    "latitude": 33.1264428,
-    "location": "Frisco Athletic Center, Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX",
-    "longitude": -96.8007718,
-    "event_date": "2026-01-05",
-    "event_time": "9:00 AM",
-    "event_type": "other",
-    "event_end_time": null
-  },
-  {
-    "title": "The Matrix in Shared Reality",
-    "venue": "Cosm (Grandscape)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
+    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
     "subtype": "theater",
-    "summary": "The Matrix in Shared Reality • Cosm (Grandscape) • 2026-01-05 • 8:30 PM",
-    "latitude": 33.077072,
-    "location": "Cosm (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.859258,
+    "summary": "The Matrix in Shared Reality • Cosm Dallas • 2026-01-05 • 8:30 PM",
+    "latitude": 33.0772,
+    "location": "Cosm Dallas, 5776 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8601,
     "event_date": "2026-01-05",
     "event_time": "8:30 PM",
     "event_type": "theater",
+    "event_end_time": "10:30 PM"
+  },
+  {
+    "title": "All-Day Happy Hour",
+    "venue": "Del Frisco's Grille",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "7200 Bishop Rd Suite D9, Plano, TX 75024",
+    "subtype": "nightlife",
+    "summary": "All-Day Happy Hour • Del Frisco's Grille • 2026-01-05 • 11:00 AM",
+    "latitude": 33.0833,
+    "location": "Del Frisco's Grille, 7200 Bishop Rd Suite D9, Plano, TX 75024",
+    "longitude": -96.8253,
+    "event_date": "2026-01-05",
+    "event_time": "11:00 AM",
+    "event_type": "nightlife",
     "event_end_time": "10:00 PM"
   },
   {
@@ -555,51 +553,115 @@ events:
     "event_end_time": null
   },
   {
-    "title": "The Matrix in Shared Reality",
-    "venue": "Cosm Dallas",
-    "impact": "medium",
-    "source": "Gemini-3-Pro",
+    "title": "“O” by Cirque du Soleil in Shared Reality",
+    "venue": "Cosm Dallas (Grandscape)",
+    "impact": "high",
+    "source": "GPT-5.2",
     "address": "5776 Grandscape Blvd, The Colony, TX 75056",
     "subtype": "theater",
-    "summary": "The Matrix in Shared Reality • Cosm Dallas • 2026-01-05 • 8:30 PM",
-    "latitude": 33.0772,
-    "location": "Cosm Dallas, 5776 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8601,
+    "summary": "“O” by Cirque du Soleil in Shared Reality • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
+    "latitude": 33.0818,
+    "location": "Cosm Dallas (Grandscape), 5776 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8258,
     "event_date": "2026-01-05",
-    "event_time": "8:30 PM",
+    "event_time": "3:30 PM",
     "event_type": "theater",
-    "event_end_time": "10:30 PM"
+    "event_end_time": "5:30 PM"
   },
   {
-    "title": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily)",
-    "venue": "Frisco Art Gallery (Frisco Discovery Center)",
-    "impact": "medium",
+    "title": "“O” by Cirque du Soleil in Shared Reality",
+    "venue": "Cosm (Grandscape)",
+    "impact": "high",
     "source": "GPT-5.2",
-    "address": "8004 N Dallas Pkwy, Frisco, TX 75034",
-    "subtype": "festival",
-    "summary": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily) • Frisco Art Gallery (Frisco Discovery Center) • 2026-01-05 • 10:00 AM",
-    "latitude": 33.1507,
-    "location": "Frisco Art Gallery (Frisco Discovery Center), 8004 N Dallas Pkwy, Frisco, TX 75034",
-    "longitude": -96.8233,
+    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "theater",
+    "summary": "“O” by Cirque du Soleil in Shared Reality • Cosm (Grandscape) • 2026-01-05 • 3:30 PM",
+    "latitude": 33.077072,
+    "location": "Cosm (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.859258,
     "event_date": "2026-01-05",
-    "event_time": "10:00 AM",
-    "event_type": "festival",
+    "event_time": "3:30 PM",
+    "event_type": "theater",
+    "event_end_time": "5:30 PM"
+  },
+  {
+    "title": "Service Industry Night (SIN)",
+    "venue": "Bottled in Bond",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "5285 Dallas Pkwy Suite 420, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "Service Industry Night (SIN) • Bottled in Bond • 2026-01-05 • 4:00 PM",
+    "latitude": 33.1219,
+    "location": "Bottled in Bond, 5285 Dallas Pkwy Suite 420, Frisco, TX 75034",
+    "longitude": -96.8273,
+    "event_date": "2026-01-05",
+    "event_time": "4:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "Craft Time (Hora de manualidad)",
+    "venue": "Little Elm Public Library",
+    "impact": "low",
+    "source": "Gemini-2.5-Pro",
+    "address": "100 W Eldorado Pkwy, Little Elm, TX 75068",
+    "subtype": "other",
+    "summary": "Craft Time (Hora de manualidad) • Little Elm Public Library • 2026-01-05 • 04:30 PM",
+    "latitude": 33.1579245,
+    "location": "Little Elm Public Library, 100 W Eldorado Pkwy, Little Elm, TX 75068",
+    "longitude": -96.93999869999999,
+    "event_date": "2026-01-05",
+    "event_time": "04:30 PM",
+    "event_type": "other",
+    "event_end_time": null
+  },
+  {
+    "title": "PGM 3.0/3.1 Level 2 Golf Operations Seminar",
+    "venue": "PGA Frisco (Coaching Center)",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "1916 PGA Pkwy, Frisco, TX 75033",
+    "subtype": "conference",
+    "summary": "PGM 3.0/3.1 Level 2 Golf Operations Seminar • PGA Frisco (Coaching Center) • 2026-01-05 • 8:00 AM",
+    "latitude": 33.193,
+    "location": "PGA Frisco (Coaching Center), 1916 PGA Pkwy, Frisco, TX 75033",
+    "longitude": -96.84,
+    "event_date": "2026-01-05",
+    "event_time": "8:00 AM",
+    "event_type": "conference",
     "event_end_time": "5:00 PM"
   },
   {
-    "title": "The Matrix in Shared Reality at Cosm",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "medium",
+    "title": "Leecie Paige – Acoustic (Live Music)",
+    "venue": "Truck Yard The Colony",
+    "impact": "low",
     "source": "GPT-5.2",
-    "address": "5772 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "The Matrix in Shared Reality at Cosm • Cosm Dallas (Grandscape) • 2026-01-05 • 8:30 PM",
-    "latitude": 33.0796,
-    "location": "Cosm Dallas (Grandscape), 5772 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8239,
+    "address": "5959 Grove Ln, The Colony, TX 75056",
+    "subtype": "concert",
+    "summary": "Leecie Paige – Acoustic (Live Music) • Truck Yard The Colony • 2026-01-05 • 6:00 PM",
+    "latitude": 33.0725,
+    "location": "Truck Yard The Colony, 5959 Grove Ln, The Colony, TX 75056",
+    "longitude": -96.864,
     "event_date": "2026-01-05",
-    "event_time": "8:30 PM",
-    "event_type": "theater",
+    "event_time": "6:00 PM",
+    "event_type": "concert",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Skate the Square (Outdoor Ice Rink)",
+    "venue": "Frisco Square (Skate the Square)",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "Corner of Main St & Coleman Blvd, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Skate the Square (Outdoor Ice Rink) • Frisco Square (Skate the Square) • 2026-01-05 • 2:00 PM",
+    "latitude": 33.150907,
+    "location": "Frisco Square (Skate the Square), Corner of Main St & Coleman Blvd, Frisco, TX 75034",
+    "longitude": -96.8317501,
+    "event_date": "2026-01-05",
+    "event_time": "2:00 PM",
+    "event_type": "festival",
     "event_end_time": "10:00 PM"
   },
   {
@@ -651,36 +713,36 @@ events:
     "event_end_time": "5:30 PM"
   },
   {
-    "title": "“O” by Cirque du Soleil in Shared Reality",
-    "venue": "Cosm (Grandscape)",
-    "impact": "high",
+    "title": "January 5th Camp (Ages 6–14)",
+    "venue": "Frisco Athletic Center",
+    "impact": "medium",
     "source": "GPT-5.2",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "theater",
-    "summary": "“O” by Cirque du Soleil in Shared Reality • Cosm (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 33.077072,
-    "location": "Cosm (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.859258,
+    "address": "5828 Nancy Jane Ln, Frisco, TX 75035",
+    "subtype": "other",
+    "summary": "January 5th Camp (Ages 6–14) • Frisco Athletic Center • 2026-01-05 • 9:00 AM",
+    "latitude": 33.162757,
+    "location": "Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX 75035",
+    "longitude": -96.729867,
     "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
-    "event_type": "theater",
-    "event_end_time": "5:30 PM"
+    "event_time": "9:00 AM",
+    "event_type": "other",
+    "event_end_time": "3:15 PM"
   },
   {
-    "title": "PGM 3.0/3.1 Level 2 Golf Operations Seminar",
-    "venue": "PGA Frisco (Coaching Center)",
-    "impact": "medium",
+    "title": "Rail District Advisory Board Meeting",
+    "venue": "George A. Purefoy Municipal Center",
+    "impact": "low",
     "source": "Gemini-3-Pro",
-    "address": "1916 PGA Pkwy, Frisco, TX 75033",
-    "subtype": "conference",
-    "summary": "PGM 3.0/3.1 Level 2 Golf Operations Seminar • PGA Frisco (Coaching Center) • 2026-01-05 • 8:00 AM",
-    "latitude": 33.193,
-    "location": "PGA Frisco (Coaching Center), 1916 PGA Pkwy, Frisco, TX 75033",
-    "longitude": -96.84,
+    "address": "6101 Frisco Square Blvd, Frisco, TX 75034",
+    "subtype": "civic",
+    "summary": "Rail District Advisory Board Meeting • George A. Purefoy Municipal Center • 2026-01-05 • 12:00 PM",
+    "latitude": 33.151,
+    "location": "George A. Purefoy Municipal Center, 6101 Frisco Square Blvd, Frisco, TX 75034",
+    "longitude": -96.833,
     "event_date": "2026-01-05",
-    "event_time": "8:00 AM",
-    "event_type": "conference",
-    "event_end_time": "5:00 PM"
+    "event_time": "12:00 PM",
+    "event_type": "civic",
+    "event_end_time": "1:00 PM"
   },
   {
     "title": "NO LIMITS Karaoke & Open Mic Night",
@@ -699,68 +761,68 @@ events:
     "event_end_time": "11:00 PM"
   },
   {
-    "title": "Leecie Paige – Acoustic (Live Music)",
-    "venue": "Truck Yard The Colony",
-    "impact": "low",
-    "source": "GPT-5.2",
-    "address": "5959 Grove Ln, The Colony, TX 75056",
-    "subtype": "concert",
-    "summary": "Leecie Paige – Acoustic (Live Music) • Truck Yard The Colony • 2026-01-05 • 6:00 PM",
-    "latitude": 33.0725,
-    "location": "Truck Yard The Colony, 5959 Grove Ln, The Colony, TX 75056",
-    "longitude": -96.864,
-    "event_date": "2026-01-05",
-    "event_time": "6:00 PM",
-    "event_type": "concert",
-    "event_end_time": "9:00 PM"
-  },
-  {
-    "title": "Skate the Square (Outdoor Ice Rink)",
-    "venue": "Frisco Square (Skate the Square)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "Corner of Main St & Coleman Blvd, Frisco, TX 75034",
-    "subtype": "festival",
-    "summary": "Skate the Square (Outdoor Ice Rink) • Frisco Square (Skate the Square) • 2026-01-05 • 2:00 PM",
-    "latitude": 33.150907,
-    "location": "Frisco Square (Skate the Square), Corner of Main St & Coleman Blvd, Frisco, TX 75034",
-    "longitude": -96.8317501,
-    "event_date": "2026-01-05",
-    "event_time": "2:00 PM",
-    "event_type": "festival",
-    "event_end_time": "10:00 PM"
-  },
-  {
-    "title": "“O” by Cirque du Soleil in Shared Reality",
-    "venue": "Cosm Dallas (Grandscape)",
-    "impact": "high",
-    "source": "GPT-5.2",
-    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
+    "title": "Secret Flix (Mystery Movie)",
+    "venue": "Flix Brewhouse Frisco/Little Elm",
+    "impact": "medium",
+    "source": "Gemini-2.5-Pro",
+    "address": "1660 FM 423, Frisco, TX 75033",
     "subtype": "theater",
-    "summary": "“O” by Cirque du Soleil in Shared Reality • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
-    "latitude": 33.0818,
-    "location": "Cosm Dallas (Grandscape), 5776 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8258,
+    "summary": "Secret Flix (Mystery Movie) • Flix Brewhouse Frisco/Little Elm • 2026-01-05 • 07:00 PM",
+    "latitude": 33.1568602,
+    "location": "Flix Brewhouse Frisco/Little Elm, 1660 FM 423, Frisco, TX 75033",
+    "longitude": -96.8919053,
     "event_date": "2026-01-05",
-    "event_time": "3:30 PM",
+    "event_time": "07:00 PM",
     "event_type": "theater",
-    "event_end_time": "5:30 PM"
+    "event_end_time": null
   },
   {
-    "title": "Jr. Golf Clinic at PGA of America Coaching Center",
-    "venue": "PGA of America Coaching Center (PGA Frisco)",
-    "impact": "low",
-    "source": "GPT-5.2",
-    "address": "3255 PGA Pkwy, Frisco, TX 75033",
-    "subtype": "sports",
-    "summary": "Jr. Golf Clinic at PGA of America Coaching Center • PGA of America Coaching Center (PGA Frisco) • 2026-01-05 • 5:00 PM",
-    "latitude": 33.1872,
-    "location": "PGA of America Coaching Center (PGA Frisco), 3255 PGA Pkwy, Frisco, TX 75033",
-    "longitude": -96.8408,
+    "title": "Starship Troopers",
+    "venue": "Flix Brewhouse Frisco/Little Elm",
+    "impact": "medium",
+    "source": "Gemini-2.5-Pro",
+    "address": "1660 FM 423, Frisco, TX 75033",
+    "subtype": "theater",
+    "summary": "Starship Troopers • Flix Brewhouse Frisco/Little Elm • 2026-01-05 • 07:30 PM",
+    "latitude": 33.1568602,
+    "location": "Flix Brewhouse Frisco/Little Elm, 1660 FM 423, Frisco, TX 75033",
+    "longitude": -96.8919053,
     "event_date": "2026-01-05",
-    "event_time": "5:00 PM",
-    "event_type": "sports",
-    "event_end_time": "6:00 PM"
+    "event_time": "07:30 PM",
+    "event_type": "theater",
+    "event_end_time": null
+  },
+  {
+    "title": "Intro to Lasercutting",
+    "venue": "Little Elm Public Library",
+    "impact": "low",
+    "source": "Gemini-2.5-Pro",
+    "address": "100 W Eldorado Pkwy, Little Elm, TX 75068",
+    "subtype": "other",
+    "summary": "Intro to Lasercutting • Little Elm Public Library • 2026-01-05 • 06:00 PM",
+    "latitude": 33.1579245,
+    "location": "Little Elm Public Library, 100 W Eldorado Pkwy, Little Elm, TX 75068",
+    "longitude": -96.93999869999999,
+    "event_date": "2026-01-05",
+    "event_time": "06:00 PM",
+    "event_type": "other",
+    "event_end_time": null
+  },
+  {
+    "title": "SMC 2026 (StuMo Conference) - Closing Day",
+    "venue": "Comerica Center",
+    "impact": "high",
+    "source": "Gemini-3-Pro",
+    "address": "2601 Avenue of the Stars, Frisco, TX 75034",
+    "subtype": "conference",
+    "summary": "SMC 2026 (StuMo Conference) - Closing Day • Comerica Center • 2026-01-05 • 9:00 AM",
+    "latitude": 33.1082,
+    "location": "Comerica Center, 2601 Avenue of the Stars, Frisco, TX 75034",
+    "longitude": -96.8283,
+    "event_date": "2026-01-05",
+    "event_time": "9:00 AM",
+    "event_type": "conference",
+    "event_end_time": "12:30 PM"
   },
   {
     "title": "The Matrix in Shared Reality",
@@ -939,20 +1001,20 @@ events:
     "event_end_time": "4:30 PM"
   },
   {
-    "title": "January 5th Camp (Ages 6–14)",
-    "venue": "Frisco Athletic Center",
+    "title": "First Meet + Greet of the Year (The Litas Dallas)",
+    "venue": "The Rackhouse",
     "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "5828 Nancy Jane Ln, Frisco, TX 75035",
-    "subtype": "other",
-    "summary": "January 5th Camp (Ages 6–14) • Frisco Athletic Center • 2026-01-05 • 9:00 AM",
-    "latitude": 33.162757,
-    "location": "Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX 75035",
-    "longitude": -96.729867,
+    "source": "Gemini-3-Pro",
+    "address": "5300 State Hwy 121, The Colony, TX 75056",
+    "subtype": "community",
+    "summary": "First Meet + Greet of the Year (The Litas Dallas) • The Rackhouse • 2026-01-05 • 7:00 PM",
+    "latitude": 33.0778,
+    "location": "The Rackhouse, 5300 State Hwy 121, The Colony, TX 75056",
+    "longitude": -96.8872,
     "event_date": "2026-01-05",
-    "event_time": "9:00 AM",
-    "event_type": "other",
-    "event_end_time": "3:15 PM"
+    "event_time": "7:00 PM",
+    "event_type": "community",
+    "event_end_time": "10:00 PM"
   },
   {
     "title": "Karaoke & Open Mic Night",
@@ -971,20 +1033,20 @@ events:
     "event_end_time": null
   },
   {
-    "title": "SMC 2026 (StuMo Conference) - Closing Day",
-    "venue": "Comerica Center",
-    "impact": "high",
-    "source": "Gemini-3-Pro",
-    "address": "2601 Avenue of the Stars, Frisco, TX 75034",
-    "subtype": "conference",
-    "summary": "SMC 2026 (StuMo Conference) - Closing Day • Comerica Center • 2026-01-05 • 9:00 AM",
-    "latitude": 33.1082,
-    "location": "Comerica Center, 2601 Avenue of the Stars, Frisco, TX 75034",
-    "longitude": -96.8283,
+    "title": "The Matrix in Shared Reality",
+    "venue": "Cosm (Grandscape)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "theater",
+    "summary": "The Matrix in Shared Reality • Cosm (Grandscape) • 2026-01-05 • 8:30 PM",
+    "latitude": 33.077072,
+    "location": "Cosm (Grandscape), 5752 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.859258,
     "event_date": "2026-01-05",
-    "event_time": "9:00 AM",
-    "event_type": "conference",
-    "event_end_time": "12:30 PM"
+    "event_time": "8:30 PM",
+    "event_type": "theater",
+    "event_end_time": "10:00 PM"
   },
   {
     "title": "Winter Wonderland Igloo Experience",
@@ -1001,6 +1063,150 @@ events:
     "event_time": "10:00 AM",
     "event_type": "other",
     "event_end_time": null
+  },
+  {
+    "title": "New Year New You Challenge",
+    "venue": "Stonebriar Country Club",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "5050 Country Club Dr, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "New Year New You Challenge • Stonebriar Country Club • 2026-01-05 • 6:00 AM",
+    "latitude": 33.10946,
+    "location": "Stonebriar Country Club, 5050 Country Club Dr, Frisco, TX 75034",
+    "longitude": -96.83973,
+    "event_date": "2026-01-05",
+    "event_time": "6:00 AM",
+    "event_type": "other",
+    "event_end_time": null
+  },
+  {
+    "title": "January 5th Camp",
+    "venue": "Frisco Athletic Center",
+    "impact": "medium",
+    "source": "SerpAPI",
+    "address": "Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX",
+    "subtype": "other",
+    "summary": "January 5th Camp • Frisco Athletic Center • 2026-01-05 • 9:00 AM",
+    "latitude": 33.1264428,
+    "location": "Frisco Athletic Center, Frisco Athletic Center, 5828 Nancy Jane Ln, Frisco, TX",
+    "longitude": -96.8007718,
+    "event_date": "2026-01-05",
+    "event_time": "9:00 AM",
+    "event_type": "other",
+    "event_end_time": null
+  },
+  {
+    "title": "Winter Scholastic 2026 (Chess Tournament)",
+    "venue": "Texas Chess Center - Frisco",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "11547 Independence Pkwy #530, Frisco, TX 75035",
+    "subtype": "academic",
+    "summary": "Winter Scholastic 2026 (Chess Tournament) • Texas Chess Center - Frisco • 2026-01-05 • 9:30 AM",
+    "latitude": 33.172285,
+    "location": "Texas Chess Center - Frisco, 11547 Independence Pkwy #530, Frisco, TX 75035",
+    "longitude": -96.73933,
+    "event_date": "2026-01-05",
+    "event_time": "9:30 AM",
+    "event_type": "academic",
+    "event_end_time": "4:30 PM"
+  },
+  {
+    "title": "The Matrix in Shared Reality at Cosm",
+    "venue": "Cosm Dallas (Grandscape)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "5772 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "theater",
+    "summary": "The Matrix in Shared Reality at Cosm • Cosm Dallas (Grandscape) • 2026-01-05 • 8:30 PM",
+    "latitude": 33.0796,
+    "location": "Cosm Dallas (Grandscape), 5772 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8239,
+    "event_date": "2026-01-05",
+    "event_time": "8:30 PM",
+    "event_type": "theater",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily)",
+    "venue": "Frisco Art Gallery (Frisco Discovery Center)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "8004 N Dallas Pkwy, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily) • Frisco Art Gallery (Frisco Discovery Center) • 2026-01-05 • 10:00 AM",
+    "latitude": 33.1507,
+    "location": "Frisco Art Gallery (Frisco Discovery Center), 8004 N Dallas Pkwy, Frisco, TX 75034",
+    "longitude": -96.8233,
+    "event_date": "2026-01-05",
+    "event_time": "10:00 AM",
+    "event_type": "festival",
+    "event_end_time": "5:00 PM"
+  },
+  {
+    "title": "\"O\" by Cirque du Soleil at Cosm",
+    "venue": "Cosm Dallas (Grandscape)",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "5772 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "theater",
+    "summary": "\"O\" by Cirque du Soleil at Cosm • Cosm Dallas (Grandscape) • 2026-01-05 • 3:30 PM",
+    "latitude": 33.0796,
+    "location": "Cosm Dallas (Grandscape), 5772 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8239,
+    "event_date": "2026-01-05",
+    "event_time": "3:30 PM",
+    "event_type": "theater",
+    "event_end_time": "5:30 PM"
+  },
+  {
+    "title": "Blitzen's Bar at Lounge by Topgolf",
+    "venue": "Lounge by Topgolf (PGA District)",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "3255 PGA Parkway, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Blitzen's Bar at Lounge by Topgolf • Lounge by Topgolf (PGA District) • 2026-01-05 • 4:00 PM",
+    "latitude": 33.1644,
+    "location": "Lounge by Topgolf (PGA District), 3255 PGA Parkway, Frisco, TX 75033",
+    "longitude": -96.8917,
+    "event_date": "2026-01-05",
+    "event_time": "4:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "Christmas in the Square (Holiday Lights & Music Show - Final Night)",
+    "venue": "Frisco Square",
+    "impact": "high",
+    "source": "Claude",
+    "address": "8874 Coleman Blvd, Frisco, TX 75034",
+    "subtype": "festival",
+    "summary": "Christmas in the Square (Holiday Lights & Music Show - Final Night) • Frisco Square • 2026-01-05 • 6:00 PM",
+    "latitude": 33.150907,
+    "location": "Frisco Square, 8874 Coleman Blvd, Frisco, TX 75034",
+    "longitude": -96.8317501,
+    "event_date": "2026-01-05",
+    "event_time": "6:00 PM",
+    "event_type": "festival",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Jr. Golf Clinic at PGA of America Coaching Center",
+    "venue": "PGA of America Coaching Center (PGA Frisco)",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "3255 PGA Pkwy, Frisco, TX 75033",
+    "subtype": "sports",
+    "summary": "Jr. Golf Clinic at PGA of America Coaching Center • PGA of America Coaching Center (PGA Frisco) • 2026-01-05 • 5:00 PM",
+    "latitude": 33.1872,
+    "location": "PGA of America Coaching Center (PGA Frisco), 3255 PGA Pkwy, Frisco, TX 75033",
+    "longitude": -96.8408,
+    "event_date": "2026-01-05",
+    "event_time": "5:00 PM",
+    "event_type": "sports",
+    "event_end_time": "6:00 PM"
   },
   {
     "title": "$1,000 Progressive Cash Pot Music Bingo & Street Taco Tuesday",
@@ -1065,150 +1271,6 @@ events:
     "event_time": "05:00 PM",
     "event_type": "other",
     "event_end_time": null
-  },
-  {
-    "title": "IMANI DENAE (Stand-Up Comedy, 21+)",
-    "venue": "Mic Drop Comedy Plano",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "7301 Lone Star Dr, Suite A-110, Plano, TX 75024",
-    "subtype": "theater",
-    "summary": "IMANI DENAE (Stand-Up Comedy, 21+) • Mic Drop Comedy Plano • 2026-01-06 • 7:30 PM",
-    "latitude": 33.0829,
-    "location": "Mic Drop Comedy Plano, 7301 Lone Star Dr, Suite A-110, Plano, TX 75024",
-    "longitude": -96.8256,
-    "event_date": "2026-01-06",
-    "event_time": "7:30 PM",
-    "event_type": "theater",
-    "event_end_time": "9:00 PM"
-  },
-  {
-    "title": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily)",
-    "venue": "Frisco Art Gallery (Frisco Discovery Center)",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "8004 N Dallas Pkwy, Frisco, TX 75034",
-    "subtype": "festival",
-    "summary": "Winter Art Show & Boreal: An Indoor Forest (Art Exhibition - Daily) • Frisco Art Gallery (Frisco Discovery Center) • 2026-01-06 • 10:00 AM",
-    "latitude": 33.1507,
-    "location": "Frisco Art Gallery (Frisco Discovery Center), 8004 N Dallas Pkwy, Frisco, TX 75034",
-    "longitude": -96.8233,
-    "event_date": "2026-01-06",
-    "event_time": "10:00 AM",
-    "event_type": "festival",
-    "event_end_time": "5:00 PM"
-  },
-  {
-    "title": "Women’s Golf Clinic at PGA of America Coaching Center",
-    "venue": "PGA of America Coaching Center (PGA Frisco)",
-    "impact": "low",
-    "source": "GPT-5.2",
-    "address": "3255 PGA Pkwy, Frisco, TX 75033",
-    "subtype": "sports",
-    "summary": "Women’s Golf Clinic at PGA of America Coaching Center • PGA of America Coaching Center (PGA Frisco) • 2026-01-06 • 2:00 PM",
-    "latitude": 33.1872,
-    "location": "PGA of America Coaching Center (PGA Frisco), 3255 PGA Pkwy, Frisco, TX 75033",
-    "longitude": -96.8408,
-    "event_date": "2026-01-06",
-    "event_time": "2:00 PM",
-    "event_type": "sports",
-    "event_end_time": "3:00 PM"
-  },
-  {
-    "title": "Game Design Basics",
-    "venue": "Frisco Library",
-    "impact": "low",
-    "source": "GPT-5.2",
-    "address": "8000 Dallas Pkwy, Frisco, TX 75034",
-    "subtype": "academic",
-    "summary": "Game Design Basics • Frisco Library • 2026-01-06 • 4:30 PM",
-    "latitude": 33.1046,
-    "location": "Frisco Library, 8000 Dallas Pkwy, Frisco, TX 75034",
-    "longitude": -96.8247,
-    "event_date": "2026-01-06",
-    "event_time": "4:30 PM",
-    "event_type": "academic",
-    "event_end_time": "5:30 PM"
-  },
-  {
-    "title": "The Office Trivia Night at Rollertown!",
-    "venue": "Rollertown Beerworks",
-    "impact": "medium",
-    "source": "GPT-5.2",
-    "address": "6450 Main Street, Frisco, TX 75033",
-    "subtype": "nightlife",
-    "summary": "The Office Trivia Night at Rollertown! • Rollertown Beerworks • 2026-01-06 • 7:00 PM",
-    "latitude": 33.1567,
-    "location": "Rollertown Beerworks, 6450 Main Street, Frisco, TX 75033",
-    "longitude": -96.8219,
-    "event_date": "2026-01-06",
-    "event_time": "7:00 PM",
-    "event_type": "nightlife",
-    "event_end_time": null
-  },
-  {
-    "title": "Santa's Last Stop Holiday Pop-Up (Through Jan 11)",
-    "venue": "Grandscape",
-    "impact": "medium",
-    "source": "Claude",
-    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
-    "subtype": "festival",
-    "summary": "Santa's Last Stop Holiday Pop-Up (Through Jan 11) • Grandscape • 2026-01-06 • 10:00 AM",
-    "latitude": 33.0868,
-    "location": "Grandscape, 5752 Grandscape Blvd, The Colony, TX 75056",
-    "longitude": -96.8839,
-    "event_date": "2026-01-06",
-    "event_time": "10:00 AM",
-    "event_type": "festival",
-    "event_end_time": "9:00 PM"
-  },
-  {
-    "title": "Winter Wonderland Igloo Experience",
-    "venue": "Stonebriar Country Club",
-    "impact": "low",
-    "source": "GPT-5.2",
-    "address": "5050 Country Club Dr, Frisco, TX 75034",
-    "subtype": "other",
-    "summary": "Winter Wonderland Igloo Experience • Stonebriar Country Club • 2026-01-06 • 10:00 AM",
-    "latitude": 33.10946,
-    "location": "Stonebriar Country Club, 5050 Country Club Dr, Frisco, TX 75034",
-    "longitude": -96.83973,
-    "event_date": "2026-01-06",
-    "event_time": "10:00 AM",
-    "event_type": "other",
-    "event_end_time": null
-  },
-  {
-    "title": "Music Bingo & Taco Tuesday",
-    "venue": "The Revel Patio Grill",
-    "impact": "low",
-    "source": "Gemini-2.5-Pro",
-    "address": "9305 Preston Rd, Frisco, TX 75033",
-    "subtype": "nightlife",
-    "summary": "Music Bingo & Taco Tuesday • The Revel Patio Grill • 2026-01-06 • 07:00 PM",
-    "latitude": 33.1552065,
-    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
-    "longitude": -96.8044103,
-    "event_date": "2026-01-06",
-    "event_time": "07:00 PM",
-    "event_type": "nightlife",
-    "event_end_time": null
-  },
-  {
-    "title": "Game Design Basics",
-    "venue": "Frisco Public Library (Frisco Library)",
-    "impact": "low",
-    "source": "GPT-5.2",
-    "address": "8000 Dallas Pkwy, Frisco, TX 75034",
-    "subtype": "academic",
-    "summary": "Game Design Basics • Frisco Public Library (Frisco Library) • 2026-01-06 • 4:30 PM",
-    "latitude": 33.1445006,
-    "location": "Frisco Public Library (Frisco Library), 8000 Dallas Pkwy, Frisco, TX 75034",
-    "longitude": -96.8350065,
-    "event_date": "2026-01-06",
-    "event_time": "4:30 PM",
-    "event_type": "academic",
-    "event_end_time": "5:30 PM"
   }
 ]
 
@@ -1398,7 +1460,7 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Minor delays reported; 5 cancellations today. Overall operations are running smoothly despite broader national airspace issues.",
+      "delays": "Normal operations. Standard Monday morning congestion at security checkpoints (Terminals A, C). No major weather-related delays reported.",
       "status": "normal",
       "busyTimes": [
         "05:00 AM - 08:00 AM",
@@ -1408,27 +1470,26 @@ airport_conditions:
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Moderate delays reported. News outlets indicate delays are more prevalent here today compared to other regional hubs.",
-      "status": "delays",
+      "delays": "Normal operations. High passenger volume expected for Monday morning departures. Security wait times approx. 15-25 minutes.",
+      "status": "normal",
       "busyTimes": [
-        "06:00 AM - 09:00 AM",
-        "11:00 AM - 02:00 PM",
-        "04:00 PM - 07:00 PM"
+        "05:30 AM - 08:30 AM",
+        "04:00 PM - 06:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-01-05T14:45:36.696Z",
+  "fetchedAt": "2026-01-05T19:51:27.153Z",
   "busyPeriods": [
-    "Morning rush (6:00-9:00 AM) is currently high volume at both airports.",
-    "Evening return bank (4:00-7:00 PM) expected to be the busiest period for arrivals."
+    "Monday mornings (5:00-9:00 AM) are the busiest time of the week for business travel departures at both airports.",
+    "Evening rush (4:00-7:00 PM) sees high arrival volume and commuter traffic on surrounding highways (SH 114 for DFW, Mockingbird Ln for DAL)."
   ],
-  "recommendations": "For DFW: Drivers should wait in the designated FIFO staging lots; pickups are generally curbside on the lower level (Terminal B pickups are often in the garage). For DAL: CRITICAL UPDATE - Rideshare pickups have moved to Garage C, Level 1 (adjacent to the Valet Pavilion). Do not wait at the terminal curbside; you must proceed to the designated zone in Garage C."
+  "recommendations": "For DFW: Drivers must use the designated Terminal B or E infield lots to enter the FIFO queue. Do not circle terminals. 'Pre-Match' alerts may prompt you to move toward terminals before a request comes in. \n\nFor DAL: All rideshare pickups are located at Garage C, Level 1 (Valet Pavilion). Do not attempt curbside pickups at the terminal baggage claim; you will be ticketed. Monday mornings are high-demand; position yourself in the staging area by 5:00 AM for early airport runs."
 }
 
 created_at:
-  "Mon Jan 05 2026 14:45:05 GMT+0000 (Coordinated Universal Time)"
+  "Mon Jan 05 2026 19:50:46 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Mon Jan 05 2026 14:45:36 GMT+0000 (Coordinated Universal Time)"
+  "Mon Jan 05 2026 19:51:27 GMT+0000 (Coordinated Universal Time)"
 
