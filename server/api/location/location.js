@@ -473,7 +473,8 @@ router.get('/resolve', async (req, res) => {
         }
 
         // Verify HMAC signature
-        const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'vecto-dev-secret';
+        // 2026-01-05: Must match fallback in auth.js for consistency
+        const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'dev-secret-change-in-production';
         const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
 
         if (signature !== expectedSig) {
