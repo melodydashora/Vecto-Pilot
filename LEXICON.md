@@ -189,20 +189,89 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 ---
 
+### AI Pipeline Roles
+**What it is:** Canonical role names for AI capabilities following `{TABLE}_{FUNCTION}` convention. Code references ROLES, not model names - models are swappable via environment variables.
+
+**Naming Convention:** `{TABLE}_{FUNCTION}`
+- `BRIEFING_*` - Roles that populate the `briefings` table
+- `STRATEGY_*` - Roles that populate the `strategies` table
+- `VENUE_*` - Roles that populate `ranking_candidates` (Smart Blocks)
+- `COACH_*` - Roles that populate `coach_conversations`
+- `UTIL_*` - Utility roles for validation/parsing (no direct DB write)
+
+**Role Registry:**
+
+| Role | Purpose | Env Variable | Default Model |
+|------|---------|--------------|---------------|
+| **BRIEFINGS TABLE** ||||
+| `BRIEFING_WEATHER` | Weather intelligence with web search | `BRIEFING_WEATHER_MODEL` | gemini-3-pro |
+| `BRIEFING_TRAFFIC` | Traffic conditions analysis | `BRIEFING_TRAFFIC_MODEL` | gemini-3-flash |
+| `BRIEFING_NEWS` | Local news research | `BRIEFING_NEWS_MODEL` | gemini-3-pro |
+| `BRIEFING_EVENTS_DISCOVERY` | Event discovery (parallel category search) | `BRIEFING_EVENTS_MODEL` | gemini-3-pro |
+| `BRIEFING_EVENTS_VALIDATOR` | Event schedule verification | `BRIEFING_VALIDATOR_MODEL` | claude-opus-4.5 |
+| `BRIEFING_FALLBACK` | General fallback for failed briefing calls | `BRIEFING_FALLBACK_MODEL` | claude-opus-4.5 |
+| **STRATEGIES TABLE** ||||
+| `STRATEGY_CORE` | Core strategic plan generation | `STRATEGY_CORE_MODEL` | claude-opus-4.5 |
+| `STRATEGY_CONTEXT` | Real-time context gathering | `STRATEGY_CONTEXT_MODEL` | gemini-3-pro |
+| `STRATEGY_TACTICAL` | Immediate 1-hour tactical strategy | `STRATEGY_TACTICAL_MODEL` | gpt-5.2 |
+| `STRATEGY_DAILY` | Long-term 8-12hr daily strategy | `STRATEGY_DAILY_MODEL` | gemini-3-pro |
+| **RANKING_CANDIDATES TABLE** ||||
+| `VENUE_SCORER` | Smart Blocks venue scoring | `VENUE_SCORER_MODEL` | gpt-5.2 |
+| `VENUE_FILTER` | Fast low-cost venue filtering | `VENUE_FILTER_MODEL` | claude-haiku |
+| `VENUE_TRAFFIC` | Venue-specific traffic intelligence | `VENUE_TRAFFIC_MODEL` | gemini-3-pro |
+| **COACH_CONVERSATIONS TABLE** ||||
+| `COACH_CHAT` | AI Strategy Coach conversation | `COACH_CHAT_MODEL` | gemini-3-pro |
+| **UTILITIES** ||||
+| `UTIL_WEATHER_VALIDATOR` | Validate weather data structure | `UTIL_WEATHER_VALIDATOR_MODEL` | gemini-3-pro |
+| `UTIL_TRAFFIC_VALIDATOR` | Validate traffic data structure | `UTIL_TRAFFIC_VALIDATOR_MODEL` | gemini-3-pro |
+| `UTIL_MARKET_PARSER` | Parsing unstructured market research | `UTIL_PARSER_MODEL` | gpt-5.2 |
+
+**Usage Pattern:**
+```javascript
+import { callModel } from './lib/ai/adapters/index.js';
+
+// NEW: Use {TABLE}_{FUNCTION} role names
+const result = await callModel('STRATEGY_CORE', { system, user });
+const filtered = await callModel('VENUE_FILTER', { system, user });
+const events = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
+
+// LEGACY (still works via automatic mapping):
+const result = await callModel('strategist', { system, user });  // → STRATEGY_CORE
+const filtered = await callModel('consolidator', { system, user });  // → STRATEGY_TACTICAL
+```
+
+**Legacy Role Mapping:**
+| Legacy Name | Maps To |
+|-------------|---------|
+| `strategist` | `STRATEGY_CORE` |
+| `briefer` | `STRATEGY_CONTEXT` |
+| `consolidator` | `STRATEGY_TACTICAL` |
+| `event_validator` | `BRIEFING_EVENTS_VALIDATOR` |
+| `venue_planner` | `VENUE_SCORER` |
+| `venue_filter` | `VENUE_FILTER` |
+| `coach` | `COACH_CHAT` |
+
+**Key Principles:**
+1. Role names indicate **output destination** (table) + **function**
+2. Code references **ROLES**, never model names
+3. Model assignments are **configuration** (env vars)
+4. Adapters folder is the only place model names appear in code
+5. Legacy role names are supported but deprecated
+
+**Codebase Files:**
+- `server/lib/ai/model-registry.js` - Canonical role definitions with `{TABLE}_{FUNCTION}` convention
+- `server/lib/ai/adapters/index.js` - Role dispatcher with legacy support
+
+---
+
 ### Model Dictionary
-**What it is:** Centralized model configuration registry.
+**What it is:** Reference catalog of model configurations (for documentation purposes).
 
 **Codebase Files:**
 - `server/lib/ai/models-dictionary.js` - JavaScript implementation
-- `models-dictionary.json` - JSON configuration
 - `agent-ai-config.js` - Gateway AI configuration
 
-**Model Roles:**
-- `replit_agent` - Claude Sonnet 4.5 (workspace intelligence)
-- `strategist` - Claude Sonnet 4.5 (strategic overview)
-- `tactical_planner` - GPT-5 (venue recommendations)
-- `validator` - Gemini 2.5 Pro (validation/enrichment)
-- `research_engine` - Perplexity Sonar Pro (event research)
+**Note:** The authoritative source for role→model mapping is `model-registry.js`, not this dictionary.
 
 **Documentation:**
 - `MODEL.md` - Model capabilities and parameters

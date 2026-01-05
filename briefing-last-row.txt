@@ -2,10 +2,10 @@
 ================================================================================
 
 id:
-  "4fa94550-51f0-411f-b6c9-090c0ae157c7"
+  "8c32160c-b803-4cf1-85f9-a2552d4a88b0"
 
 snapshot_id:
-  "6e96a8ff-7385-446b-bd9a-a575566db86a"
+  "4381f564-482b-45fd-abe9-31a689f80449"
 
 news:
   {
@@ -48,23 +48,23 @@ news:
 
 weather_current:
   {
-  "tempC": 15,
-  "tempF": 60,
+  "tempC": 22,
+  "tempF": 72,
   "country": "United States",
-  "uvIndex": 0,
-  "humidity": 46,
+  "uvIndex": 1,
+  "humidity": 30,
   "tempUnit": "°F",
-  "feelsLike": 58,
-  "isDaytime": false,
-  "conditions": "Clear",
-  "feelsLikeC": 14,
-  "feelsLikeF": 58,
-  "observedAt": "2026-01-02T08:40:05.923778386Z",
+  "feelsLike": 74,
+  "isDaytime": true,
+  "conditions": "Sunny",
+  "feelsLikeC": 23,
+  "feelsLikeF": 74,
+  "observedAt": "2026-01-02T20:40:35.758304445Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 60,
+  "temperature": 72,
   "conditionType": "CLEAR",
   "precipitation": {
     "qpf": {
@@ -80,86 +80,86 @@ weather_current:
       "percent": 0
     }
   },
-  "windDirection": "SOUTH",
+  "windDirection": "WEST_NORTHWEST",
   "windSpeedUnit": "mph"
 }
 
 weather_forecast:
   [
   {
-    "time": "2026-01-02T08:40:05.967Z",
-    "tempC": 16,
-    "tempF": 60,
+    "time": "2026-01-02T20:40:35.799Z",
+    "tempC": 22,
+    "tempF": 71,
     "tempUnit": "°F",
-    "isDaytime": false,
+    "isDaytime": true,
     "windSpeed": null,
-    "conditions": "Clear",
-    "temperature": 60,
+    "conditions": "Sunny",
+    "temperature": 71,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-02T09:40:05.967Z",
-    "tempC": 15,
-    "tempF": 59,
+    "time": "2026-01-02T21:40:35.799Z",
+    "tempC": 23,
+    "tempF": 73,
     "tempUnit": "°F",
-    "isDaytime": false,
+    "isDaytime": true,
     "windSpeed": null,
-    "conditions": "Clear",
-    "temperature": 59,
+    "conditions": "Sunny",
+    "temperature": 73,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-02T10:40:05.967Z",
-    "tempC": 14,
-    "tempF": 58,
+    "time": "2026-01-02T22:40:35.799Z",
+    "tempC": 22,
+    "tempF": 72,
     "tempUnit": "°F",
-    "isDaytime": false,
+    "isDaytime": true,
     "windSpeed": null,
-    "conditions": "Clear",
-    "temperature": 58,
+    "conditions": "Sunny",
+    "temperature": 72,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-02T11:40:05.967Z",
-    "tempC": 14,
-    "tempF": 56,
+    "time": "2026-01-02T23:40:35.799Z",
+    "tempC": 21,
+    "tempF": 70,
     "tempUnit": "°F",
-    "isDaytime": false,
+    "isDaytime": true,
     "windSpeed": null,
-    "conditions": "Clear",
-    "temperature": 56,
+    "conditions": "Sunny",
+    "temperature": 70,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-02T12:40:05.967Z",
-    "tempC": 13,
-    "tempF": 55,
+    "time": "2026-01-03T00:40:35.799Z",
+    "tempC": 18,
+    "tempF": 65,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
     "conditions": "Clear",
-    "temperature": 55,
+    "temperature": 65,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-02T13:40:05.967Z",
-    "tempC": 12,
-    "tempF": 53,
+    "time": "2026-01-03T01:40:35.799Z",
+    "tempC": 17,
+    "tempF": 62,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
     "conditions": "Clear",
-    "temperature": 53,
+    "temperature": 62,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
@@ -168,19 +168,19 @@ weather_forecast:
 
 traffic_conditions:
   {
-  "jams": 0,
+  "jams": 25,
   "stats": {
-    "jams": 0,
-    "major": 0,
-    "total": 26,
-    "closures": 12,
-    "highways": 21,
+    "jams": 25,
+    "major": 18,
+    "total": 51,
+    "closures": 13,
+    "highways": 36,
     "accidents": 0,
-    "construction": 14
+    "construction": 13
   },
-  "summary": "Frisco is experiencing heavy congestion with significant disruptions on major east-west arteries, particularly US-380 and FM-720. US-380 is heavily restricted by multiple lane closures and road works between US-377 and Dallas Pkwy (6-9mi away), while FM-720 has a complete closure 3.2mi away. Drivers should prioritize north-south travel via the Dallas North Tollway and avoid the US-380 corridor for time-sensitive pickups.",
+  "summary": "Frisco is experiencing heavy congestion with 51 total incidents, primarily concentrated along the FM-720/Main St corridor and US-380. Multiple road closures near Lamar Hunt Way (3mi) and Lighthouse Beach Dr (4.5mi) are severely disrupting east-west traffic flow. Drivers should avoid the FM-720 bottleneck and utilize the Dallas North Tollway or FM-423 for more reliable travel times.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion with significant disruptions on major east-west arteries, particularly US-380 and FM-720. US-380 is heavily restricted by multiple lane closures and road works between US-377 and Dallas Pkwy (6-9mi away), while FM-720 has a complete closure 3.2mi away. Drivers should prioritize north-south travel via the Dallas North Tollway and avoid the US-380 corridor for time-sensitive pickups.",
+  "briefing": "Frisco is experiencing heavy congestion with 51 total incidents, primarily concentrated along the FM-720/Main St corridor and US-380. Multiple road closures near Lamar Hunt Way (3mi) and Lighthouse Beach Dr (4.5mi) are severely disrupting east-west traffic flow. Drivers should avoid the FM-720 bottleneck and utilize the Dallas North Tollway or FM-423 for more reliable travel times.",
   "closures": [
     {
       "road": "",
@@ -188,6 +188,13 @@ traffic_conditions:
       "severity": "low",
       "isHighway": true,
       "distanceFromDriver": 4.5
+    },
+    {
+      "road": "",
+      "location": "Lamar Hunt Way to FM-720",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 3
     },
     {
       "road": "",
@@ -240,10 +247,10 @@ traffic_conditions:
     },
     {
       "road": "",
-      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
+      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.6
+      "distanceFromDriver": 7.7
     },
     {
       "road": "",
@@ -267,10 +274,106 @@ traffic_conditions:
       "distanceFromDriver": 3.1
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion with significant disruptions on major east-west arteries, particularly US-380 and FM-720.",
+  "headline": "Frisco is experiencing heavy congestion with 51 total incidents, primarily concentrated along the FM-720/Main St corridor and US-380.",
   "provider": "tomtom",
-  "fetchedAt": "2026-01-02T08:40:06.106Z",
+  "fetchedAt": "2026-01-02T20:40:35.837Z",
   "incidents": [
+    {
+      "road": "FM-1385",
+      "category": "Jam",
+      "location": "FM-428 (Aubrey) (FM-1385) to US-380 (FM-1385)",
+      "priority": 160,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-1385 (FM-428 (Aubrey) (FM-1385) to US-380 (FM-1385)) [6.8 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 5,
+      "distanceFromDriver": 6.8
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "McKinney to FM-720",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: McKinney to FM-720 [8.5 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 4,
+      "distanceFromDriver": 8.5
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-2478 to Timberlake Dr",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-2478 to Timberlake Dr [10 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 3,
+      "distanceFromDriver": 10
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Legacy Dr to FM-2934",
+      "priority": 156,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Legacy Dr to FM-2934 [3.6 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 1,
+      "distanceFromDriver": 3.6
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-2478 to TX-121",
+      "priority": 156,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-2478 to TX-121 [8.2 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 1,
+      "distanceFromDriver": 8.2
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "US-380 W to US-380 W",
+      "priority": 148,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: US-380 W to US-380 W [6.3 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 3,
+      "distanceFromDriver": 6.3
+    },
+    {
+      "road": "FM-720",
+      "category": "Jam",
+      "location": "Frisco St (W Main St/FM-720) to TX-289/Preston Rd (W Main St/FM-720)",
+      "priority": 142,
+      "severity": "medium",
+      "isHighway": true,
+      "description": "Jam: FM-720 (Frisco St (W Main St/FM-720) to TX-289/Preston Rd (W Main St/FM-720)) [3.2 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 2,
+      "distanceFromDriver": 3.2
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "E University Dr to FM-1385",
+      "priority": 141,
+      "severity": "medium",
+      "isHighway": true,
+      "description": "Jam: E University Dr to FM-1385 [6.5 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 1,
+      "distanceFromDriver": 6.5
+    },
     {
       "road": "",
       "category": "Road Closed",
@@ -286,132 +389,36 @@ traffic_conditions:
     {
       "road": "",
       "category": "Road Closed",
-      "location": "FM-720 to FM-720",
+      "location": "Lamar Hunt Way to FM-720",
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720 [3.2 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 0,
-      "distanceFromDriver": 3.2
-    },
-    {
-      "road": "FM-1171",
-      "category": "Road Works",
-      "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 9.7
-    },
-    {
-      "road": "US-380 E, US-380 W",
-      "category": "Road Works",
-      "location": "FM-2931 (US-380) to US-377 (US-380)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: US-380 E, US-380 W (FM-2931 (US-380) to US-377 (US-380)) [9.6 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 9.6
-    },
-    {
-      "road": "US-380 W",
-      "category": "Road Works",
-      "location": "FM-1385 (US-380) to FM-2931 (US-380)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [8.3 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 0,
-      "distanceFromDriver": 8.3
-    },
-    {
-      "road": "US-380 W",
-      "category": "Road Works",
-      "location": "Gee Rd (US-380) to FM-1385 (US-380)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: US-380 W (Gee Rd (US-380) to FM-1385 (US-380)) [6.3 mi]",
+      "description": "Road Closed: Lamar Hunt Way to FM-720 [3 mi]",
       "lengthMiles": 0.2,
       "delayMinutes": 0,
-      "distanceFromDriver": 6.3
-    },
-    {
-      "road": "",
-      "category": "Road Works",
-      "location": "W Main St (Dallas Pkwy) to FM-2934/Eldorado Pkwy (Dallas Pkwy)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: W Main St (Dallas Pkwy) to FM-2934/Eldorado Pkwy (Dallas Pkwy) [3.4 mi]",
-      "lengthMiles": 0.4,
-      "delayMinutes": 0,
-      "distanceFromDriver": 3.4
-    },
-    {
-      "road": "",
-      "category": "Road Works",
-      "location": "FM-2934/Eldorado Pkwy (Dallas Pkwy) to Panther Creek Pkwy (Dallas Pkwy)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: FM-2934/Eldorado Pkwy (Dallas Pkwy) to Panther Creek Pkwy (Dallas Pkwy) [4 mi]",
-      "lengthMiles": 0.4,
-      "delayMinutes": 0,
-      "distanceFromDriver": 4
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "US-380 W to Paloma Creek Blvd",
-      "priority": 130,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: US-380 W to Paloma Creek Blvd [7.2 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 7.2
-    },
-    {
-      "road": "US-380 E",
-      "category": "Lane Closed",
-      "location": "US-377 (US-380) to FM-2931 (US-380)",
-      "priority": 125,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Lane Closed: US-380 E (US-377 (US-380) to FM-2931 (US-380)) [9.5 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 9.5
+      "distanceFromDriver": 3
     }
   ],
   "keyIssues": [
-    "US-380 E/W: Multiple lane closures and road works 6.3-9.6mi away causing significant throughput reduction.",
-    "FM-720: Road closed 3.2mi away blocking primary local access toward Little Elm.",
-    "Dallas Pkwy: Road works from Main St to US-380 (3.4-5.1mi away) slowing the service road corridor."
+    "FM-720/Main St: Multiple closures and moderate jams 3.2mi away causing local gridlock",
+    "US-380 West: Major jams and extensive roadworks 6.3mi to 9.6mi away with 3min+ delays",
+    "FM-1385: Major jam at FM-428 6.8mi away causing 5min delays"
   ],
   "avoidAreas": [
-    "US-380 Corridor: Heavy construction and lane closures from US-377 to Dallas Pkwy (6-10mi away).",
-    "FM-720 / Main St area: Local road closures 3.2-4.5mi away making navigation toward the lake difficult."
+    "FM-720/Main St Corridor: Three active road closures and moderate jams within 4.5 miles",
+    "US-380 Westbound: Heavy construction and major jams between FM-1385 and US-377"
   ],
-  "safetyAlert": null,
-  "driverImpact": "Focus on short-distance trips within central Frisco or use the Tollway for long-distance hauls; avoid US-380 and FM-720 as they are currently unreliable for efficient routing.",
+  "safetyAlert": "25 active traffic jams in the area",
+  "driverImpact": "Prioritize north-south trips using the Tollway and avoid the Main St/FM-720 area where closures will likely lead to high cancellation rates and dead miles.",
   "surgePricing": true,
-  "closuresCount": 12,
+  "closuresCount": 13,
   "repositioning": null,
-  "incidentsCount": 26,
-  "totalIncidents": 26,
-  "closuresSummary": "6 closures within 10mi, most critical: FM-720 (3.2mi) and US-380 W at Paloma Creek Blvd (7.2mi).",
+  "incidentsCount": 51,
+  "totalIncidents": 51,
+  "closuresSummary": "3 closures within 10mi, most critical: Lamar Hunt Way to FM-720 and Lighthouse Beach Dr to FM-720.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Extensive road works and lane closures dominate the US-380 corridor and the Dallas Parkway service roads, impacting nearly all northern Frisco routes."
+  "constructionSummary": "Significant roadworks on US-380 (multiple zones) and FM-1171 are impacting the northern and western perimeters of the service area."
 }
 
 events:
@@ -1448,36 +1455,36 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "General departure and taxi delays of 15 minutes or less; minor gate holds reported.",
-      "status": "normal",
+      "delays": "General departure and arrival delays of 15 minutes or less due to gate holds and taxiing. Approximately 45 delays and 10 cancellations reported today.",
+      "status": "delays",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
-        "04:00 PM - 07:00 PM"
+        "08:00 - 11:00",
+        "16:00 - 19:00"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Significant delays reported recently; check flight status for specific arrival/departure changes.",
-      "status": "delays",
+      "delays": "Operations are largely normal with some minor gate hold and taxi delays of less than 15 minutes. 87% of flights are on time.",
+      "status": "normal",
       "busyTimes": [
-        "07:00 AM - 08:00 AM",
-        "08:00 PM - 09:00 PM"
+        "05:00 - 08:00",
+        "16:00 - 19:00"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-01-02T08:40:49.040Z",
+  "fetchedAt": "2026-01-02T20:41:13.357Z",
   "busyPeriods": [
-    "Morning rush hour (5:00 AM - 8:00 AM) due to business travel and early departures.",
-    "Evening peak (4:00 PM - 8:00 PM) for returning flights and security lines."
+    "Morning rush (5:00 AM - 11:00 AM) across both airports",
+    "Evening peak (4:00 PM - 7:00 PM) for arrivals and departures"
   ],
-  "recommendations": "For DFW: Drivers should stage at the Terminal B Infield lot (overflow at Terminal E after 6 PM). Pickups are typically located on the Upper Level curbside at designated 'Ride App Pickup' zones; follow terminal signs carefully. For DAL: Pickups have relocated to the Valet Pavilion and Garage C (Level 1), a ~6-minute walk for passengers. Drivers must use the designated TNC holding lot and avoid circling. Expect high demand during the evening rush at DAL."
+  "recommendations": "For DFW, drivers must use the Terminal B infield waiting lot (or Terminal E infield lot between 6 PM and midnight) and wait for the FIFO queue; 'Pre-Match' may prompt you to head to a terminal early. For DAL, pickups have moved to Garage C (Level 1) and the Valet Pavilion; drivers must wait in the designated ground transportation staging area near the airport entrance to receive requests."
 }
 
 created_at:
-  "Fri Jan 02 2026 08:40:05 GMT+0000 (Coordinated Universal Time)"
+  "Fri Jan 02 2026 20:40:35 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Fri Jan 02 2026 08:40:49 GMT+0000 (Coordinated Universal Time)"
+  "Fri Jan 02 2026 20:41:13 GMT+0000 (Coordinated Universal Time)"
 

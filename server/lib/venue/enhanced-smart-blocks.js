@@ -3,14 +3,14 @@
 // ENHANCED SMART BLOCKS - Venue Generation Engine
 // ============================================================================
 //
-// PURPOSE: Generates venue recommendations using GPT-5.2 + Google APIs
+// PURPOSE: Generates venue recommendations using VENUE_SCORER role + Google APIs
 //
 // PIPELINE:
 //   1. Input: immediateStrategy (strategy_for_now) + briefing + snapshot
-//   2. GPT-5.2 Tactical Planner → 4-6 venue recommendations with coords
+//   2. VENUE_SCORER role → 4-6 venue recommendations with coords
 //   3. Google Routes API → accurate distances and drive times
 //   4. Google Places API → business hours, addresses, open/closed status
-//   5. Gemini 2.5 Pro → event verification (optional)
+//   5. BRIEFING_EVENTS_VALIDATOR role → event verification (optional)
 //   6. Output: rankings + ranking_candidates tables populated
 //
 // CALLED BY:
@@ -34,7 +34,7 @@ import { matchVenuesToEvents } from './event-matcher.js';
 import { venuesLog } from '../../logger/workflow.js';
 
 /**
- * Generate enhanced smart blocks using GPT-5 venue planner
+ * Generate enhanced smart blocks using VENUE_SCORER role
  * Takes IMMEDIATE strategy (where to go NOW) + briefing + user location → venue recommendations
  *
  * @param {Object} params
@@ -66,7 +66,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
   venuesLog.phase(1, `Input ready: strategy=${immediateStrategy.length}chars, briefing=${Object.keys(briefing).filter(k => briefing[k]).length} fields`);
 
   try {
-    // Step 1: Call GPT-5.2 Venue Planner with IMMEDIATE strategy (where to go NOW)
+    // Step 1: Call VENUE_SCORER role with IMMEDIATE strategy (where to go NOW)
     // Phase: 'venues' - AI venue recommendation
     await updatePhase(snapshotId, 'venues', { phaseEmitter });
 
@@ -78,10 +78,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     const plannerMs = Date.now() - plannerStart;
 
     if (!venuesPlan || !venuesPlan.recommended_venues || venuesPlan.recommended_venues.length === 0) {
-      throw new Error('GPT-5.2 planner returned no venues');
+      throw new Error('VENUE_SCORER role returned no venues');
     }
 
-    venuesLog.done(1, `GPT-5.2 planner returned ${venuesPlan.recommended_venues.length} venues`, plannerMs);
+    venuesLog.done(1, `VENUE_SCORER returned ${venuesPlan.recommended_venues.length} venues`, plannerMs);
 
     // Step 2: Enrich venues with Google APIs (Places, Routes, Geocoding)
     // Phase: 'routing' - Google Routes + Places APIs

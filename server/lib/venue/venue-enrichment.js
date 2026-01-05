@@ -1,11 +1,11 @@
 /**
  * VENUE ENRICHMENT LAYER
  *
- * Takes minimal GPT-5 output (coords + category + tips) and enriches with Google APIs:
+ * Takes minimal VENUE_SCORER output (coords + category + tips) and enriches with Google APIs:
  * - Places API (New): Resolve addresses, business status, place details
  * - Routes API (New): Calculate accurate distances and drive times with traffic
  *
- * Architecture: Separate AI reasoning (GPT-5) from factual lookups (Google)
+ * Architecture: Separate AI reasoning (VENUE_SCORER role) from factual lookups (Google)
  *
  * District Fallback (Dec 2025):
  *   When coordinate-based Places API search fails (name match < 20%),
@@ -32,8 +32,8 @@ const placesMemoryCache = new Map();
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 /**
- * Enrich GPT-5 venue recommendations with Google API data
- * @param {Array} venues - GPT-5 output: [{name, lat, lng, category, pro_tips}]
+ * Enrich VENUE_SCORER role output with Google API data
+ * @param {Array} venues - VENUE_SCORER output: [{name, lat, lng, category, pro_tips}]
  * @param {Object} driverLocation - {lat, lng}
  * @param {Object} snapshot - Full snapshot with timezone for accurate hours calculation
  * @returns {Promise<Array>} Enriched venues with addresses, distances, drive times
@@ -163,12 +163,12 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
       } catch (error) {
         venuesLog.error(3, `"${venueName}" enrichment failed`, error, OP.API);
 
-        // CRITICAL: Always preserve GPT-5 coords even if enrichment fails
+        // CRITICAL: Always preserve VENUE_SCORER coords even if enrichment fails
         return {
           ...venue,
           rank: index + 1,
-          lat: venue.lat, // Preserve GPT-5 coords
-          lng: venue.lng, // Preserve GPT-5 coords
+          lat: venue.lat, // Preserve VENUE_SCORER coords
+          lng: venue.lng, // Preserve VENUE_SCORER coords
           address: "Unavailable",
           placeId: null,
           distanceMeters: null,
@@ -625,7 +625,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
 /**
  * Calculate similarity between two venue names (0-1 scale)
  * Uses simple word overlap - accounts for variations like "City Square" vs "Cinemark City Square"
- * @param {string} name1 - GPT-5 venue name
+ * @param {string} name1 - VENUE_SCORER role venue name
  * @param {string} name2 - Google venue name
  * @returns {number} Similarity score 0-1 (0=no match, 1=perfect match)
  */

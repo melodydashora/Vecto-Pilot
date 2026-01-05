@@ -9,6 +9,7 @@ Authentication-related UI components for protecting routes and managing auth sta
 | File | LOC | Purpose |
 |------|-----|---------|
 | `ProtectedRoute.tsx` | 36 | Route guard that redirects unauthenticated users |
+| `AuthRedirect.tsx` | ~50 | Handles post-authentication redirects |
 
 ## ProtectedRoute
 
@@ -33,6 +34,23 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
     </ProtectedRoute>
   }
 />
+```
+
+## AuthRedirect
+
+Handles redirects after successful authentication.
+
+**Behavior:**
+1. Checks for saved redirect location in session storage
+2. Redirects to saved location or default (`/co-pilot/strategy`)
+3. Clears saved location after redirect
+
+**Usage:**
+```tsx
+import AuthRedirect from '@/components/auth/AuthRedirect';
+
+// In auth callback route
+<Route path="/auth/callback" element={<AuthRedirect />} />
 ```
 
 ## Dependencies

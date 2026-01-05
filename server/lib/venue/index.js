@@ -27,7 +27,7 @@ export {
 } from './venue-cache.js';
 
 // Module summary:
-// - enhanced-smart-blocks.js: Main Smart Blocks generator (GPT-5.2 + Google APIs)
+// - enhanced-smart-blocks.js: Main Smart Blocks generator (VENUE_SCORER role + Google APIs)
 // - venue-intelligence.js: Venue recommendations and analysis
 // - venue-enrichment.js: Google Places/Routes enrichment
 // - event-proximity-boost.js: Boost venues near active events

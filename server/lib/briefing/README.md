@@ -10,6 +10,11 @@ Real-time briefing service for events, traffic, weather, and news. Provides the 
 |------|---------|------------|
 | `briefing-service.js` | Main briefing orchestrator | `getOrGenerateBriefing(snapshotId)` |
 | `event-schedule-validator.js` | Event verification (DISABLED) | `validateEventSchedules(events)` |
+| `index.js` | Module barrel exports | All briefing exports |
+| `dump-last-briefing.js` | Debug utility: dump last briefing | CLI script |
+| `dump-latest.js` | Debug utility: dump latest briefing | CLI script |
+| `dump-traffic-format.js` | Debug utility: traffic format check | CLI script |
+| `test-api.js` | API testing utility | Test helpers |
 
 ## Event Discovery Integration
 

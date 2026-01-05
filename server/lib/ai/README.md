@@ -28,8 +28,13 @@ ai/
 ```javascript
 import { callModel } from './adapters/index.js';
 
-// Role-based dispatch - adapter handles model selection, params, fallbacks
-const result = await callModel('strategist', { system, user });
+// Use {TABLE}_{FUNCTION} role names for clarity
+const result = await callModel('STRATEGY_CORE', { system, user });
+const events = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
+
+// Legacy names still work (auto-mapped to new names)
+const legacy = await callModel('strategist', { system, user }); // → STRATEGY_CORE
+
 // Returns: { ok: boolean, output: string, citations?: array }
 ```
 
@@ -52,16 +57,28 @@ const result = await callModel('strategist', { system, user });
 - **Imports from:** `../location/`, `../../db/`, `shared/schema.js`
 - **Exported to:** `../strategy/`, `../briefing/`, `../../api/strategy/`
 
-## Model-Role Mapping
+## Model-Role Mapping (`{TABLE}_{FUNCTION}` Convention)
 
-Configured via environment variables:
+Roles follow the `{TABLE}_{FUNCTION}` naming convention where the prefix indicates the output destination:
+- `BRIEFING_*` → `briefings` table
+- `STRATEGY_*` → `strategies` table
+- `VENUE_*` → `ranking_candidates` table
+- `COACH_*` → `coach_conversations` table
+- `UTIL_*` → Validation/parsing (no direct DB write)
+
+**Key Roles:**
 
 | Role | Env Variable | Default Model | Purpose |
 |------|--------------|---------------|---------|
-| `strategist` | `STRATEGY_STRATEGIST` | Claude Opus 4.5 | Minstrategy (longer-term analysis) |
-| `briefer` | `STRATEGY_BRIEFER` | Gemini 3.0 Pro | Events, traffic, news (with Google Search) |
-| `consolidator` | `STRATEGY_CONSOLIDATOR` | GPT-5.2 | Immediate strategy (1hr tactical) |
-| `event_validator` | `STRATEGY_EVENT_VALIDATOR` | Claude Opus 4.5 | Event validation (disabled) |
+| `STRATEGY_CORE` | `STRATEGY_CORE_MODEL` | Claude Opus 4.5 | Core strategic plan generation |
+| `STRATEGY_CONTEXT` | `STRATEGY_CONTEXT_MODEL` | Gemini 3 Pro | Real-time context gathering |
+| `STRATEGY_TACTICAL` | `STRATEGY_TACTICAL_MODEL` | GPT-5.2 | Immediate 1hr tactical strategy |
+| `STRATEGY_DAILY` | `STRATEGY_DAILY_MODEL` | Gemini 3 Pro | Long-term 8-12hr daily strategy |
+| `BRIEFING_EVENTS_VALIDATOR` | `BRIEFING_VALIDATOR_MODEL` | Claude Opus 4.5 | Event schedule verification |
+| `VENUE_SCORER` | `VENUE_SCORER_MODEL` | GPT-5.2 | Smart Blocks venue scoring |
+| `VENUE_FILTER` | `VENUE_FILTER_MODEL` | Claude Haiku | Fast venue filtering |
+
+**Legacy Support:** Old role names (`strategist`, `briefer`, `consolidator`) are automatically mapped to new names. See `model-registry.js` for the complete mapping.
 
 ## TRIAD Pipeline (Strategy Generation)
 
@@ -69,20 +86,20 @@ The TRIAD pipeline generates strategies in 4 phases:
 
 ```
 POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
-├── Phase 1 (Parallel): Strategist + Briefer + Holiday Check
-│   ├── minstrategy (Claude Opus 4.5) → strategies.minstrategy
-│   ├── briefing.js (Gemini 3.0 Pro) → briefings table
+├── Phase 1 (Parallel): STRATEGY_CORE + STRATEGY_CONTEXT + Holiday Check
+│   ├── STRATEGY_CORE → strategies.minstrategy
+│   ├── STRATEGY_CONTEXT → briefings table
 │   └── holiday-checker → holiday context
 │
-├── Phase 2 (Parallel): Daily + Immediate Consolidator
-│   ├── runConsolidator (Gemini) → strategies.consolidated_strategy
-│   └── runImmediateStrategy (GPT-5.2) → strategies.strategy_for_now
+├── Phase 2 (Parallel): STRATEGY_DAILY + STRATEGY_TACTICAL
+│   ├── STRATEGY_DAILY → strategies.consolidated_strategy
+│   └── STRATEGY_TACTICAL → strategies.strategy_for_now
 │
-├── Phase 3: Venue Planner + Enrichment
-│   └── enhanced-smart-blocks.js → rankings + ranking_candidates
+├── Phase 3: VENUE_SCORER + Enrichment
+│   └── VENUE_SCORER → rankings + ranking_candidates
 │
-└── Phase 4: Event Validator (disabled)
-    └── Claude Opus 4.5 web search validation
+└── Phase 4: BRIEFING_EVENTS_VALIDATOR
+    └── Event schedule verification with web search
 ```
 
 **Phase Timing (expected durations):**
@@ -96,9 +113,9 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 ## Fallback System
 
 When primary model fails, certain roles automatically fall back to Claude Opus:
-- Roles with fallback: `consolidator`
+- Roles with fallback: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY`, `BRIEFING_EVENTS_DISCOVERY`, `BRIEFING_NEWS`
 - Fallback model: `claude-opus-4-5-20251101`
-- Logs: `[consolidator] 🔄 Trying Claude Opus fallback...`
+- Configured in: `model-registry.js` → `FALLBACK_ENABLED_ROLES`
 
 ## CoachDAL (AI Coach Data Access)
 

@@ -12,6 +12,7 @@ Strategy generation pipeline - the core endpoint for venue recommendations.
 | `strategy.js` | `/api/strategy/*` | Strategy fetching, retry, daily strategy |
 | `content-blocks.js` | `/api/blocks/*` | Block status polling |
 | `strategy-events.js` | `/events/*` | SSE real-time strategy updates |
+| `tactical-plan.js` | `/api/strategy/tactical-plan` | AI tactical analysis for missions |
 
 ## Endpoints
 

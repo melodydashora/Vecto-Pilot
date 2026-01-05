@@ -2,20 +2,14 @@
 import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './auth-context';
 
-// SessionStorage persistence for snapshot data
-// Prevents data loss when switching between apps (Uber ↔ Vecto)
-const SNAPSHOT_STORAGE_KEY = 'vecto_snapshot';
-// TTL for session storage - KEEP SHORT for real-time intelligence
-// 2 minutes allows quick app switches (Uber ↔ Vecto) but ensures fresh data otherwise
-// LESSON LEARNED: 1-hour TTL caused 49-minute-old stale strategies to appear
-const SNAPSHOT_TTL_MS = 2 * 60 * 1000; // 2 minutes TTL (was 1 hour - too long!)
-
-// Clear sessionStorage - called when driver clicks GPS refresh button
-// Driver does this when returning to staging area to get fresh data
-function clearSnapshotStorage(): void {
-  sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
-  console.log('🔄 [LocationContext] Cleared sessionStorage - fresh data requested');
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// SNAPSHOT ARCHITECTURE (2026-01-02)
+// ═══════════════════════════════════════════════════════════════════════════
+// Server owns snapshot management via users.current_snapshot_id
+// Client does NOT track snapshot_id - just fires events when snapshot is ready
+// One authenticated user = one snapshot at a time (no duplicates from GPS drift)
+// Manual refresh (force=true) creates fresh snapshot for testing workflow
+// ═══════════════════════════════════════════════════════════════════════════
 
 // Inline geolocation helper with manual timeout fallback
 // Browser's geolocation timeout can hang in some environments (previews, permission blocked)
@@ -131,8 +125,6 @@ interface LocationContextType {
   // Location resolution gate - true when city/formattedAddress are available
   // Use this to gate downstream queries (Bar Tab, Strategy) to prevent race conditions
   isLocationResolved: boolean;
-  // Last snapshot ID created - fallback for co-pilot if event is missed
-  lastSnapshotId: string | null;
   isLoading: boolean;
   setOverrideCoords: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
 }
@@ -240,10 +232,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     console.log('💾 [LocationContext] Persisted snapshot to sessionStorage:', lastSnapshotId.slice(0, 8));
   }, [lastSnapshotId, currentCoords, city, state, timeZone, currentLocationString, weather, airQuality, isLocationResolved, lastUpdated]);
 
-  const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number) => {
+  const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number, forceRefresh = false) => {
     // Prevent duplicate enrichment for same coordinates (debounce)
+    // Skip debounce check if force refresh (user clicked button)
     const coordKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-    if (lastEnrichmentCoordsRef.current === coordKey) {
+    if (!forceRefresh && lastEnrichmentCoordsRef.current === coordKey) {
       console.log('⏭️ Skipping duplicate enrichment for same coordinates:', coordKey);
       return;
     }
@@ -262,6 +255,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       let resolveUrl = `/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${encodeURIComponent(deviceId)}&accuracy=${accuracy}&coord_source=gps`;
       if (user?.userId) {
         resolveUrl += `&user_id=${encodeURIComponent(user.userId)}`;
+      }
+      // Force refresh bypasses server-side snapshot reuse (60 min TTL)
+      // This is used when user explicitly clicks the refresh button
+      if (forceRefresh) {
+        resolveUrl += '&force=true';
       }
 
       // Prepare headers - include auth token if logged in
@@ -474,30 +472,38 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [token, user]);
 
-  const refreshGPS = useCallback(async () => {
+  // refreshGPS: Fetch GPS and resolve location
+  // forceNewSnapshot: true = user clicked refresh button, always create new snapshot
+  //                   false = initial mount, allow server to reuse existing snapshot if < 60 min
+  const refreshGPS = useCallback(async (forceNewSnapshot = true) => {
     setIsUpdating(true);
     setOverrideCoords(null);
     setIsLocationResolved(false); // Reset - gates queries until new location resolves
 
-    // Clear sessionStorage - driver clicked refresh to get fresh data at staging area
-    clearSnapshotStorage();
+    // Only clear storage when user explicitly requests fresh data
+    if (forceNewSnapshot) {
+      // Clear sessionStorage - driver clicked refresh to get fresh data at staging area
+      clearSnapshotStorage();
 
-    // Clear old strategy
-    localStorage.removeItem('vecto_persistent_strategy');
-    localStorage.removeItem('vecto_strategy_snapshot_id');
-    window.dispatchEvent(new CustomEvent('vecto-strategy-cleared'));
+      // Clear old strategy
+      localStorage.removeItem('vecto_persistent_strategy');
+      localStorage.removeItem('vecto_strategy_snapshot_id');
+      window.dispatchEvent(new CustomEvent('vecto-strategy-cleared'));
+    }
 
     try {
       const coords = await getGeoPosition();
       if (coords) {
         console.log('📍 [LocationContext] GPS success - using live location');
         setCurrentCoords({ latitude: coords.latitude, longitude: coords.longitude });
-        await enrichLocation(coords.latitude, coords.longitude, coords.accuracy);
+        // Pass forceNewSnapshot to server - controls whether to reuse existing snapshot
+        await enrichLocation(coords.latitude, coords.longitude, coords.accuracy, forceNewSnapshot);
       } else if (profile?.homeLat && profile?.homeLng) {
         // Fallback to home location from user's profile (set during registration)
         console.log('🏠 [LocationContext] GPS unavailable - using home location from profile');
         setCurrentCoords({ latitude: profile.homeLat, longitude: profile.homeLng });
-        await enrichLocation(profile.homeLat, profile.homeLng, 100); // 100m accuracy for geocoded address
+        // Pass forceNewSnapshot to server - controls whether to reuse existing snapshot
+        await enrichLocation(profile.homeLat, profile.homeLng, 100, forceNewSnapshot); // 100m accuracy for geocoded address
       } else {
         // No GPS and no home location - user needs to enable GPS
         console.warn('[LocationContext] No GPS and no home location - cannot proceed');
@@ -533,7 +539,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return;
       }
       console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
-      refreshGPS();
+      // Initial mount: allow server to reuse existing snapshot if < 60 min old
+      refreshGPS(false);
     }, 50);
     return () => clearTimeout(timer);
   }, [authLoading, user?.userId, token]);
@@ -549,8 +556,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       clearSnapshotStorage();
       // Clear the coord tracking so enrichment can run again
       lastEnrichmentCoordsRef.current = null;
-      // Trigger fresh GPS fetch → creates new snapshot for current user
-      refreshGPS();
+      // Trigger fresh GPS fetch → force new snapshot for current user
+      refreshGPS(true);
     };
 
     window.addEventListener('snapshot-ownership-error', handleOwnershipError);

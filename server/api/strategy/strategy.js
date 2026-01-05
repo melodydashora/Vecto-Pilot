@@ -277,7 +277,7 @@ router.get('/history', async (req, res) => {
  * On-demand daily strategy generation (8-12 hour planning)
  *
  * Called when user clicks "Generate Daily Strategy" button in BriefingTab.
- * Uses: snapshot + briefing → Gemini 3 Pro → consolidated_strategy
+ * Uses: snapshot + briefing → STRATEGY_DAILY role → consolidated_strategy
  *
  * Prerequisites:
  *   - snapshot must exist (location/time context)

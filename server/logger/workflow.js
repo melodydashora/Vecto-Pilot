@@ -26,13 +26,13 @@
  *    [SNAPSHOT 2/2] Enrichment (airport, holiday)
  *
  * 3. STRATEGY PIPELINE (TRIAD)
- *    [TRIAD 1/4 - Strategist] Claude Opus strategic analysis
- *    [TRIAD 2/4 - Briefer] Gemini events/traffic/news
- *    [TRIAD 3/4 - Consolidator] GPT-5.2 tactical synthesis
+ *    [TRIAD 1/4 - STRATEGY_CORE] Core strategic analysis
+ *    [TRIAD 2/4 - STRATEGY_CONTEXT] Events/traffic/news gathering
+ *    [TRIAD 3/4 - STRATEGY_TACTICAL] Immediate strategy synthesis
  *    [TRIAD 4/4 - SmartBlocks] Venue planning + enrichment
  *
  * 4. SMARTBLOCKS (Venue Pipeline)
- *    [VENUES 1/4] Tactical planner
+ *    [VENUES 1/4] VENUE_SCORER role
  *    [VENUES 2/4] Google Routes API (distances)
  *    [VENUES 3/4] Google Places API (hours/status)
  *    [VENUES 4/4] DB store

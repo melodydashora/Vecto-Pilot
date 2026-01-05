@@ -10,7 +10,7 @@ const router = Router();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Voice model configuration
-// GPT-5.2: Latest flagship model for voice chat
+// COACH_VOICE role: Real-time voice chat with snapshot context
 const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-5.2';
 const TOKEN_EXPIRY_SECONDS = 3600; // 1 hour
 

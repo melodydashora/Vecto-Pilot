@@ -40,6 +40,16 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | [auth-system.md](auth-system.md) | ~100 | Legacy auth overview (see authentication.md) | Quick reference |
 | [logging.md](logging.md) | ~100 | Workflow logging conventions | Adding logging |
 
+### Domain-Specific
+
+| Document | Lines | Purpose | Read When... |
+|----------|-------|---------|--------------|
+| [Briefing.md](Briefing.md) | ~150 | Briefing tab architecture | Modifying briefing |
+| [Location.md](Location.md) | ~150 | Location resolution flow | Modifying location |
+| [Strategy.md](Strategy.md) | ~150 | Strategy generation overview | Modifying strategy |
+| [intel-tab-architecture.md](intel-tab-architecture.md) | ~200 | Market Command Center design | Modifying intel tab |
+| [progress-bar-and-snapshot-flow.md](progress-bar-and-snapshot-flow.md) | ~150 | UX progress tracking | Modifying progress UI |
+
 ## Quick Reference
 
 ### TRIAD Pipeline Phases
@@ -122,6 +132,7 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the complete folder README inde
 | AI System | 6 | ~2230 |
 | System Rules | 3 | ~450 |
 | Infrastructure | 3 | ~850 |
-| **Total** | **16** | **~4290** |
+| Domain-Specific | 5 | ~800 |
+| **Total** | **21** | **~5090** |
 
 Most documents are under 400 lines, making them readable in a single pass. The driver-intelligence-system.md (~800 lines) and authentication.md (~650 lines) are comprehensive architecture documents.

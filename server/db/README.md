@@ -21,7 +21,14 @@ Database connection management and Drizzle ORM configuration.
 |------|---------|
 | `001_init.sql` | Initial schema creation |
 | `002_seed_dfw.sql` | DFW area seed data |
-| `sql/` | Additional SQL scripts |
+
+### Migration Scripts (`sql/`)
+
+| File | Purpose |
+|------|---------|
+| `2025-10-31_strategy_generic.sql` | Strategy table generalization |
+| `2025-11-03_blocks_ready_notify.sql` | Blocks ready notification trigger |
+| `2025-12-27_event_deactivation_fields.sql` | Event deactivation field additions |
 
 ## Usage
 

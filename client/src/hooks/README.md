@@ -8,8 +8,10 @@ Custom React hooks for data fetching and UI state.
 
 | File | Purpose |
 |------|---------|
+| `useBarsQuery.ts` | Fetches bar/venue data for the Bar Tab |
 | `useBriefingQueries.ts` | Fetches weather, traffic, news, events |
 | `useEnrichmentProgress.ts` | Tracks briefing enrichment progress |
+| `useMarketIntelligence.ts` | Market intel data (demand patterns, zone analysis) |
 | `useMemory.ts` | Cross-session memory management |
 | `useMobile.tsx` | Mobile device detection |
 | `usePlatformData.ts` | Rideshare platform data (Uber/Lyft coverage) |
@@ -109,6 +111,26 @@ Manages cross-session persistent memory via the Eidolon memory system.
 const { markets, stats, searchCities, isLoading } = usePlatformData();
 ```
 Fetches rideshare platform coverage data (Uber/Lyft markets, cities).
+
+### useBarsQuery
+```typescript
+const { bars, isLoading, error } = useBarsQuery({ snapshotId, enabled });
+```
+Fetches premium bar/venue data for the Bar Tab sidebar.
+
+### useMarketIntelligence
+```typescript
+const {
+  demandPatterns,
+  zoneAnalysis,
+  marketBoundaries,
+  isLoading
+} = useMarketIntelligence({ marketSlug });
+```
+Fetches market intelligence data including:
+- **Demand patterns**: Hourly demand by day of week
+- **Zone analysis**: Core/satellite/rural zone categorization
+- **Market boundaries**: Geographic market limits and deadhead risk
 
 ## Connections
 

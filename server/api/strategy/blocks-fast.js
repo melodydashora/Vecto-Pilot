@@ -11,22 +11,22 @@
 //   GET /api/blocks-fast?snapshotId=X - Get blocks (generates if missing)
 //
 // PIPELINE (POST):
-//   1. Briefing (Gemini 3.0 Pro) → events, traffic, news
-//   2. Immediate Strategy (GPT-5.2) → strategy_for_now (for Strategy Tab)
-//   3. Venue Planner (GPT-5.2) → venue recommendations
+//   1. STRATEGY_CONTEXT role → events, traffic, news (briefings table)
+//   2. STRATEGY_TACTICAL role → strategy_for_now (strategies table)
+//   3. VENUE_SCORER role → venue recommendations (ranking_candidates table)
 //   4. Google APIs → distances, business hours, enrichment
 //
-// NOTE: Daily strategy (consolidated_strategy) is NOT generated automatically.
+// NOTE: Daily strategy (STRATEGY_DAILY) is NOT generated automatically.
 //       It's on-demand via POST /api/strategy/daily/:snapshotId when user requests it.
 //
 // RACE CONDITION PREVENTION:
-//   Uses `generationLocks` Map to prevent duplicate GPT-5 calls when
+//   Uses `generationLocks` Map to prevent duplicate AI calls when
 //   multiple requests arrive simultaneously for the same snapshot.
 //
 // RELATED:
 //   - /api/blocks/strategy/:snapshotId (read-only polling, see content-blocks.js)
 //   - server/lib/venue/enhanced-smart-blocks.js (venue generation logic)
-//   - server/lib/strategy/tactical-planner.js (GPT-5 venue planner)
+//   - server/lib/strategy/tactical-planner.js (VENUE_SCORER role)
 //
 // ============================================================================
 import { Router } from 'express';
@@ -487,13 +487,13 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           // Continue - immediate strategy can still work with snapshot weather data
         }
 
-        // Phase 3: Immediate Strategy (GPT-5.2 with snapshot + briefing)
+        // Phase 3: Immediate Strategy (STRATEGY_TACTICAL role)
         await updatePhase(snapshotId, 'immediate', { phaseEmitter });
 
         triadLog.phase(3, `[blocks-fast] Calling runImmediateStrategy for ${snapshot.city}, ${snapshot.state}`);
 
         try {
-          // GPT-5.2 → strategy_for_now (immediate 1hr strategy for Strategy Tab)
+          // STRATEGY_TACTICAL → strategy_for_now (immediate 1hr strategy for Strategy Tab)
           // Uses snapshot data + briefing (traffic, events) directly
           await runImmediateStrategy(snapshotId, { snapshot });
 

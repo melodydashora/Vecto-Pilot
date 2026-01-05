@@ -185,7 +185,7 @@ ${section.content.substring(0, 12000)}
 Return a JSON array of intelligence objects. Be thorough - extract ALL actionable insights.`;
 
   try {
-    const response = await callModel('consolidator', {
+    const response = await callModel('UTIL_MARKET_PARSER', {
       system: systemPrompt,
       user: userPrompt,
     });

@@ -16,6 +16,9 @@ Build, development, and operational utility scripts.
 | `create-all-tables.sql` | Database table creation SQL |
 | `populate-market-data.js` | Populate market data |
 | `import-platform-data.js` | Import platform data |
+| `load-market-research.js` | Load market research data from files |
+| `memory-cli.mjs` | CLI for memory system operations |
+| `seed-market-intelligence.js` | Seed market intelligence data |
 
 ## Usage
 

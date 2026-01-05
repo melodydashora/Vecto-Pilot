@@ -17,6 +17,15 @@ Detailed technical documentation split by domain:
 | [Server Structure](architecture/server-structure.md) | Backend architecture |
 | [Decisions](architecture/decisions.md) | Architecture decision log |
 
+## Additional Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [AI Partnership Plan](AI_PARTNERSHIP_PLAN.md) | Documentation improvement roadmap |
+| [API Routes Registry](api-routes-registry.md) | Complete API route listing |
+| [Event Freshness & TTL](EVENT_FRESHNESS_AND_TTL.md) | Event caching and freshness rules |
+| [Monthly Review Checklist](MONTHLY_REVIEW_CHECKLIST.md) | Documentation maintenance checklist |
+
 ## Quick Links
 
 ### Folder Documentation

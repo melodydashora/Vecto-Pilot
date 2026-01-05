@@ -613,14 +613,14 @@ You're a powerful AI companion with research-backed market intelligence and pers
 
     console.log(`[chat] Sending ${messageHistory.length} messages to Gemini...`);
 
-    // Call Gemini 3.0 Pro with web search via HTTP
+    // Call COACH_CHAT role with web search via HTTP
     if (!process.env.GEMINI_API_KEY) {
       res.write(`data: ${JSON.stringify({ error: 'GEMINI_API_KEY not configured' })}\n\n`);
       return res.end();
     }
 
     try {
-      console.log(`[chat] Calling Gemini 3.0 Pro with streaming...`);
+      console.log(`[chat] Calling COACH_CHAT role with streaming...`);
 
       // Create abort controller with 90 second timeout (web search needs more time)
       const abortController = new AbortController();

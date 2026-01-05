@@ -202,8 +202,7 @@ STRATEGY_STRATEGIST=claude-opus-4-5-20251101
 STRATEGY_BRIEFER=gemini-3-pro-preview
 STRATEGY_CONSOLIDATOR=gpt-5.2
 STRATEGY_HOLIDAY_CHECKER=gemini-3-pro-preview
-STRATEGY_VALIDATOR=gemini-2.5-pro
-STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
+STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101  # Event validation with web search
 
 # API keys
 ANTHROPIC_API_KEY=...
@@ -254,4 +253,4 @@ eventSource.addEventListener('blocks_ready', (event) => {
 });
 ```
 
-**Last Updated:** 2025-12-27
+**Last Updated:** 2026-01-04

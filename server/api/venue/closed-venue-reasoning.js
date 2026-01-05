@@ -1,5 +1,5 @@
 // server/api/venue/closed-venue-reasoning.js
-// Parallel enrichment: GPT-5 explains why closed venues are still worth visiting
+// Parallel enrichment: VENUE_REASONING role explains why closed venues are still worth visiting
 import express from 'express';
 import { OpenAI } from 'openai';
 import { requireAuth } from '../../middleware/auth.js';
@@ -40,7 +40,7 @@ router.post('/', requireAuth, async (req, res) => {
       }
     ];
 
-    // Call GPT-5 (model-agnostic in architecture, using GPT-5 for now)
+    // Call VENUE_REASONING role (model configured via env var)
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-5',
       max_completion_tokens: 200,

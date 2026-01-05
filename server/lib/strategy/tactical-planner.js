@@ -1,6 +1,6 @@
 // server/lib/strategy/tactical-planner.js
 // ============================================================================
-// GPT-5.2 TACTICAL VENUE PLANNER (with reasoning_effort control)
+// VENUE_SCORER ROLE - Tactical Venue Planner
 // ============================================================================
 //
 // PURPOSE: Converts strategic overview into specific venue recommendations
@@ -19,7 +19,7 @@
 //   - Best central staging location
 //   - Tactical summary
 //
-// MODEL: GPT-5.2 via STRATEGY_CONSOLIDATOR env var (with reasoning_effort: medium)
+// ROLE: VENUE_SCORER via VENUE_SCORER_MODEL env var
 // TIMEOUT: PLANNER_DEADLINE_MS (default 180s)
 //
 // CALLED BY: enhanced-smart-blocks.js
@@ -30,7 +30,7 @@ import { callModel } from "../ai/adapters/index.js";
 import { z } from "zod";
 import { safeJsonParse } from "../../api/utils/http-helpers.js";
 
-// GPT-5 response schema: venue coords + staging coords + category + district + pro tips
+// VENUE_SCORER response schema: venue coords + staging coords + category + district + pro tips
 // Addresses, distances, and place details resolved via Google Places API (New) + Routes API (New)
 // District field enables text search fallback when coord-based matching fails
 const VenueRecommendationSchema = z.object({
@@ -60,7 +60,7 @@ const GPT5ResponseSchema = z.object({
 });
 
 /**
- * Generate tactical venue recommendations using GPT-5 reasoning
+ * Generate tactical venue recommendations using VENUE_SCORER role
  * @param {Object} params
  * @param {string} params.strategy - AI-generated strategic overview
  * @param {Object} params.snapshot - Context snapshot data
@@ -193,19 +193,19 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
 
   console.log(`🏢 [VENUES 1/4 - Tactical Planner] Calling AI for venue recommendations...`);
 
-  // Call GPT-5 with temperature instead of reasoning_effort
+  // Call VENUE_SCORER role with temperature instead of reasoning_effort
   const abortCtrl = new AbortController();
-  
+
   // Use environment variable for timeout (increased to 180s for per-venue staging coords)
   const timeoutMs = Number(process.env.PLANNER_DEADLINE_MS || process.env.GPT5_TIMEOUT_MS || 180000);
-  
+
   const timeout = setTimeout(() => {
-    console.error(`[GPT-5 Tactical Planner] ⏱️ Request timed out after ${timeoutMs}ms (${Math.round(timeoutMs/1000)}s)`);
+    console.error(`[VENUE_SCORER] ⏱️ Request timed out after ${timeoutMs}ms (${Math.round(timeoutMs/1000)}s)`);
     abortCtrl.abort();
   }, timeoutMs);
   
   try {
-    const rawResponse = await callModel('consolidator', {
+    const rawResponse = await callModel('VENUE_SCORER', {
       system: developer,
       user
     });

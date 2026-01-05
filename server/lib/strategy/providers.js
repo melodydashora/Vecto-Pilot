@@ -6,7 +6,7 @@ import { generateStrategyForSnapshot } from './strategy-generator.js';
 
 // Provider map - all strategy generators registered here
 export const providers = {
-  // Primary strategy generator (Claude Opus 4.1 → Gemini → GPT-5 consolidation)
+  // Primary strategy generator (STRATEGY_CORE → STRATEGY_CONTEXT → STRATEGY_TACTICAL consolidation)
   triad: generateStrategyForSnapshot,
   
   // Alias for backward compatibility

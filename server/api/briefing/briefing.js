@@ -683,12 +683,12 @@ router.post('/confirm-event-details', requireAuth, async (req, res) => {
  *
  * Called when user clicks "Refresh Daily Data" button in BriefingTab.
  * Runs in parallel:
- *   - Event discovery: SerpAPI + GPT-5.2 + Gemini + Claude + Perplexity → discovered_events table
- *   - News refresh: Gemini with Google Search → briefings.news
+ *   - Event discovery: BRIEFING_EVENTS_DISCOVERY role → discovered_events table
+ *   - News refresh: BRIEFING_NEWS role → briefings.news
  *
  * Query params:
- *   - daily=true: Run ALL models (default)
- *   - daily=false: Run only SerpAPI + GPT-5.2
+ *   - daily=true: Run ALL sources (default)
+ *   - daily=false: Run limited sources
  *
  * Returns:
  *   - 200: { ok: true, events: {...}, news: {...} }

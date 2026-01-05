@@ -7,6 +7,7 @@ Reference data for rideshare platforms.
 | Folder | Purpose |
 |--------|---------|
 | `uber/` | Uber market and city data |
+| `Lyft/` | Lyft market data (placeholder for future) |
 
 ## Purpose
 

@@ -28,8 +28,8 @@ export { safeAssertStrategies, maybeWarmCaches } from './assert-safe.js';
 // - strategy-generator.js: Entry point, routes to parallel pipeline
 // - strategy-generator-parallel.js: TRIAD orchestrator (Phase 1-4)
 // - strategy-utils.js: DB operations, phase tracking, fallbacks
-// - planner-gpt5.js: Venue planning with GPT-5.2
-// - tactical-planner.js: Tactical guidance generation
+// - planner-gpt5.js: Venue planning with STRATEGY_TACTICAL role
+// - tactical-planner.js: VENUE_SCORER role - tactical guidance generation
 // - strategy-triggers.js: Trigger condition detection
 // - providers.js: Strategy provider registry
 // - assert-safe.js: Async validation, cache warming
