@@ -6,13 +6,14 @@
 //
 // Last updated: 2026-01-05
 
-import { callOpenAI } from "./openai-adapter.js";
+import { callOpenAI, callOpenAIWithWebSearch } from "./openai-adapter.js";
 import { callAnthropic, callAnthropicWithWebSearch } from "./anthropic-adapter.js";
 import { callGemini } from "./gemini-adapter.js";
 import {
   getRoleConfig,
   roleUsesGoogleSearch,
   roleUsesWebSearch,
+  roleUsesOpenAIWebSearch,
   isFallbackEnabled,
   FALLBACK_CONFIG,
 } from "../model-registry.js";
@@ -91,14 +92,27 @@ export async function callModel(role, { system, user }) {
       const isReasoningModel = model.includes('gpt-5') || model.startsWith('o1-');
       const tempToPass = isReasoningModel ? undefined : temperature;
 
-      result = await callOpenAI({
-        model,
-        system,
-        user,
-        maxTokens,
-        temperature: tempToPass,
-        reasoningEffort,
-      });
+      // 2026-01-05: Check for OpenAI web search feature
+      const useOpenAIWebSearch = roleUsesOpenAIWebSearch(role);
+
+      if (useOpenAIWebSearch) {
+        result = await callOpenAIWithWebSearch({
+          model,
+          system,
+          user,
+          maxTokens,
+          reasoningEffort,
+        });
+      } else {
+        result = await callOpenAI({
+          model,
+          system,
+          user,
+          maxTokens,
+          temperature: tempToPass,
+          reasoningEffort,
+        });
+      }
 
     } else if (model.startsWith("claude-")) {
       // Check registry for web search feature flag
