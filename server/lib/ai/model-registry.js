@@ -194,6 +194,7 @@ export const LEGACY_ROLE_MAP = {
   'event_validator': 'BRIEFING_EVENTS_VALIDATOR',
   'venue_planner': 'VENUE_SCORER',
   'venue_filter': 'VENUE_FILTER',
+  'haiku': 'VENUE_FILTER',  // Legacy name for fast venue filtering
   'coach': 'COACH_CHAT',
 };
 
