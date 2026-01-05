@@ -11,6 +11,21 @@ import { useAuth } from './auth-context';
 // Manual refresh (force=true) creates fresh snapshot for testing workflow
 // ═══════════════════════════════════════════════════════════════════════════
 
+// SessionStorage persistence for snapshot data
+// Prevents data loss when switching between apps (Uber ↔ Vecto)
+const SNAPSHOT_STORAGE_KEY = 'vecto_snapshot';
+// TTL for session storage - KEEP SHORT for real-time intelligence
+// 2 minutes allows quick app switches (Uber ↔ Vecto) but ensures fresh data otherwise
+// LESSON LEARNED: 1-hour TTL caused 49-minute-old stale strategies to appear
+const SNAPSHOT_TTL_MS = 2 * 60 * 1000; // 2 minutes TTL (was 1 hour - too long!)
+
+// Clear sessionStorage - called when driver clicks GPS refresh button
+// Driver does this when returning to staging area to get fresh data
+function clearSnapshotStorage(): void {
+  sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+  console.log('🔄 [LocationContext] Cleared sessionStorage - fresh data requested');
+}
+
 // Inline geolocation helper with manual timeout fallback
 // Browser's geolocation timeout can hang in some environments (previews, permission blocked)
 function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
