@@ -140,7 +140,7 @@ const RESEARCH_BASED_RULES = {
   // Long trip warning manipulation detection
   longTripWarningReliability: (pingData, driverHistory) => {
     // Research: Uber removes warning after multiple declines
-    if (driverHistory.recentDeclines > 3 &&
+    if (driverHistory?.recentDeclines > 3 &&
         !pingData.messageArea?.includes('Long Trip')) {
       return {
         warningMayBeHidden: true,
