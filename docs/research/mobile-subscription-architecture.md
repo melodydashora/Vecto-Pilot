@@ -249,6 +249,7 @@ const MOBILE_RESPONSE = {
 app.post('/api/ping/analyze-text', async (req, res) => {
   const { compact = true } = req.query;
 
+  // analyzeText is implemented in the analysis service layer and imported in real code.
   const result = await analyzeText(req.body);
 
   if (compact) {
