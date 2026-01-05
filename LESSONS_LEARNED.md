@@ -49,10 +49,10 @@ This document captures historical issues, pitfalls, and best practices discovere
 **CORRECT:**
 ```javascript
 {
-  model: "gpt-5.1",
+  model: "gpt-5.2",
   messages: [...],
-  reasoning: { effort: "medium" },  // Use this instead of temperature
-  max_completion_tokens: 32000,     // NOT max_tokens
+  reasoning_effort: "medium",      // Top-level, NOT nested under reasoning
+  max_completion_tokens: 32000,    // NOT max_tokens
 }
 ```
 
@@ -64,6 +64,44 @@ This document captures historical issues, pitfalls, and best practices discovere
   top_p: 0.95,             // NOT supported
 }
 ```
+
+### GPT-5-search-api (OpenAI Web Search)
+
+**Added 2026-01-05: For web search, use the dedicated `gpt-5-search-api` model.**
+
+OpenAI's web search capability requires a dedicated search model, NOT `gpt-5.2` with a tool.
+
+**CORRECT:**
+```javascript
+{
+  model: "gpt-5-search-api",  // Dedicated search model
+  messages: [...],
+  max_completion_tokens: 8192,
+  web_search_options: {
+    search_context_size: "medium",  // low, medium, high
+    user_location: {
+      type: "approximate",
+      approximate: { country: "US" }
+    }
+  }
+  // NOTE: NO reasoning_effort - not supported by search model!
+}
+```
+
+**WRONG (causes 400 errors):**
+```javascript
+{
+  model: "gpt-5.2",                    // WRONG - use gpt-5-search-api
+  tools: [{ type: "web_search_preview" }],  // WRONG - not a tool
+  reasoning_effort: "medium",          // WRONG - not supported by search model
+}
+```
+
+**Key differences from regular GPT-5.2:**
+- Model ID: `gpt-5-search-api` (not `gpt-5.2`)
+- Web search via `web_search_options` (not tools array)
+- `reasoning_effort` is NOT supported
+- Response includes `annotations` array with URL citations
 
 ### Gemini 3 Pro Preview (Google)
 
