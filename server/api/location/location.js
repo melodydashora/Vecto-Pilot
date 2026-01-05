@@ -1183,6 +1183,114 @@ router.get('/airquality', async (req, res) => {
   }
 });
 
+// GET /api/location/pollen?lat=&lng=
+// Get pollen forecast for coordinates (useful for drivers with allergies)
+// 2026-01-05: Added using Google Pollen API
+router.get('/pollen', async (req, res) => {
+  try {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const days = Math.min(Number(req.query.days) || 1, 5); // Max 5 days
+
+    if (!isFinite(lat) || !isFinite(lng)) {
+      return res.status(400).json({ error: 'lat/lng required' });
+    }
+
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn('[location] No Google Maps API key configured for Pollen');
+      return res.json({
+        available: false,
+        error: 'API key not configured'
+      });
+    }
+
+    const url = `https://pollen.googleapis.com/v1/forecast:lookup?location.latitude=${lat}&location.longitude=${lng}&days=${days}&key=${GOOGLE_MAPS_API_KEY}`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[location] Pollen API error:', response.status, errorData);
+      return res.json({
+        available: false,
+        error: errorData.error?.message || `API error: ${response.status}`
+      });
+    }
+
+    const data = await response.json();
+
+    // Extract pollen data
+    const dailyInfo = data.dailyInfo || [];
+    const pollenTypes = data.pollenTypeInfo || [];
+
+    // Find today's info
+    const today = dailyInfo[0];
+
+    // Calculate overall severity (1-5 scale)
+    let maxSeverity = 0;
+    let dominantType = null;
+    const alerts = [];
+
+    if (today?.pollenTypeInfo) {
+      for (const pollen of today.pollenTypeInfo) {
+        const severity = pollen.indexInfo?.value || 0;
+        if (severity > maxSeverity) {
+          maxSeverity = severity;
+          dominantType = pollen.code;
+        }
+
+        // Add alerts for high pollen (severity 3+)
+        if (severity >= 3) {
+          alerts.push({
+            type: pollen.code,
+            name: pollen.displayName || pollen.code,
+            severity,
+            category: pollen.indexInfo?.category || 'Unknown',
+            healthRecommendations: pollen.healthRecommendations || []
+          });
+        }
+      }
+    }
+
+    // Severity category mapping
+    const severityLabels = ['None', 'Very Low', 'Low', 'Moderate', 'High', 'Very High'];
+
+    const pollenData = {
+      available: true,
+      date: today?.date,
+      overallSeverity: maxSeverity,
+      overallCategory: severityLabels[Math.min(maxSeverity, 5)] || 'Unknown',
+      dominantPollen: dominantType,
+      alerts, // High pollen alerts
+      forecast: dailyInfo.slice(0, days).map(day => ({
+        date: day.date,
+        types: (day.pollenTypeInfo || []).map(p => ({
+          type: p.code,
+          name: p.displayName || p.code,
+          severity: p.indexInfo?.value || 0,
+          category: p.indexInfo?.category || 'Unknown'
+        }))
+      })),
+      // Summary for drivers
+      driverAlert: maxSeverity >= 3
+        ? `⚠️ High ${dominantType || 'pollen'} levels today. Consider keeping windows closed.`
+        : maxSeverity >= 2
+        ? `Moderate pollen levels. Allergy sufferers may want to take precautions.`
+        : null
+    };
+
+    locationLog.done(1, `Pollen: ${pollenData.overallCategory} (severity ${maxSeverity})`, OP.API);
+
+    res.json(pollenData);
+  } catch (err) {
+    console.error('[location] pollen error', err);
+    res.status(500).json({
+      available: false,
+      error: 'pollen-fetch-failed'
+    });
+  }
+});
+
 // POST /api/location/snapshot
 // Save a context snapshot for ML/analytics (SnapshotV1 format)
 // Supports minimal mode: if only lat/lng provided, resolves city/timezone server-side
