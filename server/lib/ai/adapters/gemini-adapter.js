@@ -13,7 +13,7 @@ export async function callGemini({
   topP,
   topK,
   useSearch = false,
-  thinkingLevel = "high" // Gemini 3: "low", "medium" (Flash only), "high"
+  thinkingLevel = null // Gemini 3: "low", "medium" (Flash only), "high" - null = disabled
 }) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -38,9 +38,10 @@ export async function callGemini({
       ...(topK !== undefined && { topK }),
     };
 
-    // Gemini 3 Thinking support (thinkingLevel: "low", "medium", "high")
-    // Note: Gemini 3 Pro only supports "low" and "high" (no "medium")
-    if (model.includes('gemini-3')) {
+    // Gemini 3 Thinking support - ONLY if explicitly requested
+    // thinkingLevel: "low", "medium" (Flash only), "high"
+    // Note: Applying thinkingConfig to models that don't support it causes 400 errors
+    if (thinkingLevel && model.includes('gemini-3')) {
       config.thinkingConfig = {
         thinkingLevel: thinkingLevel.toLowerCase() // SDK expects lowercase
       };
