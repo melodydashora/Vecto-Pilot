@@ -15,12 +15,13 @@
  *   POST /api/intelligence                   - Create new intelligence (admin/coach)
  *   PUT /api/intelligence/:id                - Update intelligence item
  *   GET /api/intelligence/coach/:market      - Get AI Coach context for a market
+ *   GET /api/intelligence/staging-areas      - Get staging areas from ranking_candidates
  */
 
 import express from 'express';
 import { db } from '../../db/drizzle.js';
-import { market_intelligence, platform_data } from '../../../shared/schema.js';
-import { eq, and, or, ilike, sql, desc, asc } from 'drizzle-orm';
+import { market_intelligence, platform_data, ranking_candidates } from '../../../shared/schema.js';
+import { eq, and, or, ilike, sql, desc, asc, isNotNull } from 'drizzle-orm';
 
 const router = express.Router();
 
@@ -756,6 +757,390 @@ router.get('/market-structure/:anchor', async (req, res) => {
   } catch (error) {
     console.error('Error fetching market structure:', error);
     res.status(500).json({ error: 'Failed to fetch market structure' });
+  }
+});
+
+/**
+ * GET /api/intelligence/staging-areas
+ * Get pre-computed staging areas from ranking_candidates for the tactical map
+ *
+ * Query params:
+ *   snapshotId - The snapshot ID to fetch staging areas for (required)
+ *
+ * Returns staging areas with venue context for map display
+ */
+router.get('/staging-areas', async (req, res) => {
+  try {
+    const { snapshotId } = req.query;
+
+    if (!snapshotId) {
+      return res.status(400).json({ error: 'snapshotId is required' });
+    }
+
+    // Fetch staging areas from ranking_candidates that have staging coordinates
+    const stagingAreas = await db
+      .select({
+        id: ranking_candidates.id,
+        venueName: ranking_candidates.name,
+        venueLat: ranking_candidates.lat,
+        venueLng: ranking_candidates.lng,
+        stagingLat: ranking_candidates.staging_lat,
+        stagingLng: ranking_candidates.staging_lng,
+        stagingName: ranking_candidates.staging_name,
+        stagingTips: ranking_candidates.staging_tips,
+        category: sql`${ranking_candidates.features}->>'category'`,
+        district: ranking_candidates.district,
+        proTips: ranking_candidates.pro_tips,
+        valueGrade: ranking_candidates.value_grade,
+        driveTimeMin: ranking_candidates.drive_time_min,
+        distanceMiles: ranking_candidates.distance_miles,
+      })
+      .from(ranking_candidates)
+      .where(and(
+        eq(ranking_candidates.snapshot_id, snapshotId),
+        isNotNull(ranking_candidates.staging_lat),
+        isNotNull(ranking_candidates.staging_lng)
+      ))
+      .orderBy(ranking_candidates.rank);
+
+    // Transform to tactical map format
+    const zones = stagingAreas.map(area => ({
+      id: area.id,
+      type: 'staging',
+      name: area.stagingName || `${area.venueName} Staging`,
+      lat: area.stagingLat,
+      lng: area.stagingLng,
+      notes: area.stagingTips || `Staging area for ${area.venueName}`,
+      source: 'ranking_candidates',
+      // Include venue context for reference
+      venue: {
+        name: area.venueName,
+        lat: area.venueLat,
+        lng: area.venueLng,
+        category: area.category,
+        district: area.district,
+        valueGrade: area.valueGrade,
+        driveTimeMin: area.driveTimeMin,
+        distanceMiles: area.distanceMiles,
+        proTips: area.proTips,
+      }
+    }));
+
+    res.json({
+      success: true,
+      snapshotId,
+      count: zones.length,
+      stagingZones: zones,
+    });
+  } catch (error) {
+    console.error('Error fetching staging areas:', error);
+    res.status(500).json({ error: 'Failed to fetch staging areas' });
+  }
+});
+
+// ============================================================================
+// DEMAND PATTERNS API
+// ============================================================================
+
+/**
+ * Default demand patterns by archetype
+ * Used when no market-specific data is available
+ *
+ * Each archetype has hourly demand values (0-100) for each day of the week
+ * Plus strategic insight and peak periods for each day
+ */
+const ARCHETYPE_PATTERNS = {
+  sprawl: {
+    name: 'Sprawl City',
+    description: 'High mileage, airport-centric mornings, evening suburban sprawl',
+    peakDays: ['Fri', 'Sat'],
+    patterns: {
+      Mon: {
+        hours: [15, 30, 25, 20, 25, 55, 75, 85, 80, 65, 50, 45, 50, 55, 60, 70, 80, 85, 75, 60, 50, 40, 30, 20],
+        insight: 'Monday morning airport runs dominate. Position near airport or business districts by 5 AM.',
+        peakPeriods: ['5-9 AM', '4-7 PM'],
+        recommendedZones: ['Airport', 'Business District', 'Medical Center'],
+      },
+      Tue: {
+        hours: [15, 25, 20, 18, 22, 50, 70, 80, 75, 60, 48, 42, 48, 52, 58, 68, 78, 82, 72, 58, 48, 38, 28, 18],
+        insight: 'Similar pattern to Monday. Medical appointments spike mid-morning.',
+        peakPeriods: ['5-9 AM', '4-7 PM'],
+        recommendedZones: ['Airport', 'Medical Center', 'Universities'],
+      },
+      Wed: {
+        hours: [18, 28, 22, 20, 25, 52, 72, 82, 78, 62, 50, 45, 50, 55, 60, 70, 80, 85, 75, 62, 52, 42, 32, 22],
+        insight: 'Mid-week business travel peaks. Restaurant corridors active for dinner.',
+        peakPeriods: ['5-9 AM', '5-8 PM'],
+        recommendedZones: ['Airport', 'Restaurant Row', 'Hotels'],
+      },
+      Thu: {
+        hours: [20, 30, 25, 22, 28, 55, 75, 88, 82, 65, 52, 48, 55, 60, 65, 75, 85, 90, 82, 68, 58, 48, 38, 28],
+        insight: 'Business travel ramps up for weekend. Restaurant and bar demand increases.',
+        peakPeriods: ['5-9 AM', '5-9 PM'],
+        recommendedZones: ['Airport', 'Entertainment District', 'Restaurants'],
+      },
+      Fri: {
+        hours: [25, 35, 30, 25, 32, 58, 78, 90, 85, 68, 55, 52, 58, 65, 72, 82, 92, 95, 90, 85, 78, 68, 55, 40],
+        insight: 'PEAK DAY. Airport is packed morning. Entertainment districts explode 8 PM+.',
+        peakPeriods: ['5-9 AM', '7 PM-12 AM'],
+        recommendedZones: ['Airport', 'Downtown', 'Entertainment District', 'Sports Venues'],
+      },
+      Sat: {
+        hours: [35, 45, 40, 30, 25, 28, 35, 45, 55, 65, 70, 72, 70, 68, 72, 80, 88, 95, 98, 95, 88, 78, 65, 50],
+        insight: 'Sleep late, work late. Brunch runs 10 AM-2 PM. Evening is the money shift.',
+        peakPeriods: ['10 AM-2 PM', '6 PM-2 AM'],
+        recommendedZones: ['Brunch Spots', 'Shopping Centers', 'Entertainment District', 'Sports Venues'],
+      },
+      Sun: {
+        hours: [40, 45, 40, 30, 25, 22, 28, 35, 45, 58, 68, 72, 70, 68, 62, 55, 50, 48, 45, 40, 35, 30, 25, 20],
+        insight: 'Late morning brunch, then airport runs for returning travelers. Dead by 7 PM.',
+        peakPeriods: ['10 AM-3 PM', '4-7 PM'],
+        recommendedZones: ['Brunch Spots', 'Airport', 'Suburbs'],
+      },
+    },
+  },
+  dense: {
+    name: 'Dense Metro',
+    description: 'Short trips, constant demand, transit supplements rideshare',
+    peakDays: ['Thu', 'Fri', 'Sat'],
+    patterns: {
+      Mon: {
+        hours: [20, 25, 20, 18, 25, 55, 80, 95, 90, 75, 65, 60, 65, 70, 72, 78, 85, 90, 85, 75, 65, 55, 45, 30],
+        insight: 'High morning commute demand. Transit alternative positioning works well.',
+        peakPeriods: ['6-10 AM', '4-8 PM'],
+        recommendedZones: ['Financial District', 'Transit Hubs', 'Medical Centers'],
+      },
+      Tue: {
+        hours: [18, 22, 18, 16, 22, 52, 78, 92, 88, 72, 62, 58, 62, 68, 70, 76, 82, 88, 82, 72, 62, 52, 42, 28],
+        insight: 'Steady business day. Position near office buildings.',
+        peakPeriods: ['6-10 AM', '4-8 PM'],
+        recommendedZones: ['Downtown', 'Tech Campuses', 'Financial District'],
+      },
+      Wed: {
+        hours: [20, 25, 20, 18, 24, 54, 80, 94, 90, 74, 64, 60, 64, 70, 72, 78, 84, 90, 84, 74, 64, 54, 44, 30],
+        insight: 'Mid-week restaurant surge for dinner. Theater district active.',
+        peakPeriods: ['6-10 AM', '5-9 PM'],
+        recommendedZones: ['Downtown', 'Restaurant Row', 'Theater District'],
+      },
+      Thu: {
+        hours: [22, 28, 22, 20, 28, 58, 82, 96, 92, 76, 66, 62, 66, 72, 75, 82, 90, 95, 92, 85, 75, 65, 52, 38],
+        insight: 'Pre-weekend energy builds. Bar hopping starts early.',
+        peakPeriods: ['6-10 AM', '5-11 PM'],
+        recommendedZones: ['Downtown', 'Bar District', 'Sports Venues'],
+      },
+      Fri: {
+        hours: [25, 32, 28, 24, 30, 60, 85, 98, 95, 78, 68, 65, 70, 75, 80, 88, 95, 100, 98, 95, 88, 78, 65, 48],
+        insight: 'PEAK DAY. Commute + nightlife = non-stop. Position flexibility is key.',
+        peakPeriods: ['6-10 AM', '6 PM-2 AM'],
+        recommendedZones: ['Everywhere is busy', 'Transit Hubs', 'Entertainment Districts'],
+      },
+      Sat: {
+        hours: [38, 48, 45, 38, 32, 30, 35, 45, 58, 72, 80, 85, 82, 78, 82, 88, 95, 100, 100, 98, 92, 82, 70, 55],
+        insight: 'Brunch to bar crawl. Continuous demand with evening peak.',
+        peakPeriods: ['10 AM-2 PM', '7 PM-3 AM'],
+        recommendedZones: ['Brunch Districts', 'Shopping', 'Nightlife'],
+      },
+      Sun: {
+        hours: [45, 52, 48, 40, 32, 28, 32, 40, 55, 70, 80, 85, 82, 78, 70, 62, 55, 50, 48, 45, 40, 35, 30, 25],
+        insight: 'Brunch dominates morning. Airport returns in afternoon. Early dead.',
+        peakPeriods: ['9 AM-3 PM'],
+        recommendedZones: ['Brunch Areas', 'Airport', 'Parks'],
+      },
+    },
+  },
+  party: {
+    name: 'Party/Tourism',
+    description: 'Extreme peaks, dead mornings, safety paramount at night',
+    peakDays: ['Fri', 'Sat', 'Sun'],
+    patterns: {
+      Mon: {
+        hours: [30, 35, 30, 22, 18, 20, 25, 35, 45, 55, 60, 58, 55, 52, 55, 58, 62, 68, 72, 65, 55, 45, 38, 32],
+        insight: 'Recovery Monday. Tourist stragglers and business conventions.',
+        peakPeriods: ['9 AM-1 PM', '6-9 PM'],
+        recommendedZones: ['Hotels', 'Convention Center', 'Airport'],
+      },
+      Tue: {
+        hours: [25, 30, 25, 20, 16, 18, 22, 32, 42, 52, 58, 55, 52, 50, 52, 55, 60, 65, 68, 62, 52, 42, 35, 28],
+        insight: 'Slowest day. Focus on conventions and business travelers.',
+        peakPeriods: ['10 AM-2 PM', '6-9 PM'],
+        recommendedZones: ['Convention Center', 'Hotels', 'Restaurants'],
+      },
+      Wed: {
+        hours: [28, 32, 28, 22, 18, 20, 25, 35, 45, 55, 62, 60, 58, 55, 58, 62, 68, 75, 78, 72, 62, 52, 42, 35],
+        insight: 'Mid-week tourists arrive. Restaurant reservations increase.',
+        peakPeriods: ['10 AM-2 PM', '6-10 PM'],
+        recommendedZones: ['Hotels', 'Tourist Attractions', 'Restaurants'],
+      },
+      Thu: {
+        hours: [32, 38, 32, 25, 20, 22, 28, 38, 50, 62, 70, 68, 65, 62, 68, 75, 82, 90, 95, 88, 78, 65, 52, 42],
+        insight: 'Weekend warriors arrive. Bachelor/bachelorette parties start.',
+        peakPeriods: ['10 AM-2 PM', '7 PM-12 AM'],
+        recommendedZones: ['Airport', 'Hotels', 'Party District'],
+      },
+      Fri: {
+        hours: [40, 50, 45, 35, 28, 25, 30, 42, 55, 68, 78, 80, 78, 75, 80, 88, 95, 100, 100, 98, 95, 88, 75, 60],
+        insight: 'PARTY STARTS. Airport arrivals all day. Night shift is where the money is.',
+        peakPeriods: ['11 AM-3 PM', '8 PM-4 AM'],
+        recommendedZones: ['Airport', 'Hotels', 'Strip/Main St', 'Clubs'],
+      },
+      Sat: {
+        hours: [55, 65, 60, 50, 40, 35, 38, 48, 60, 75, 85, 88, 85, 82, 85, 92, 98, 100, 100, 100, 98, 92, 82, 68],
+        insight: 'ALL DAY DEMAND. Pool parties → dinner → clubs. Stay out until 4 AM.',
+        peakPeriods: ['11 AM-3 PM', '8 PM-5 AM'],
+        recommendedZones: ['Pool Parties', 'Strip/Main St', 'Clubs', 'After-hours spots'],
+      },
+      Sun: {
+        hours: [60, 70, 65, 55, 45, 38, 42, 52, 65, 78, 88, 90, 88, 82, 75, 68, 62, 58, 55, 52, 48, 42, 38, 32],
+        insight: 'Brunch and recovery. Airport departures 2-7 PM. Dead by 9 PM.',
+        peakPeriods: ['10 AM-3 PM', '3-7 PM'],
+        recommendedZones: ['Brunch spots', 'Airport', 'Hotels'],
+      },
+    },
+  },
+};
+
+/**
+ * Detect market archetype from city name
+ */
+function detectArchetype(city) {
+  if (!city) return 'sprawl';
+
+  const cityLower = city.toLowerCase();
+
+  // Dense metros
+  const denseMetros = ['new york', 'manhattan', 'brooklyn', 'san francisco', 'chicago', 'boston', 'philadelphia', 'washington', 'dc'];
+  if (denseMetros.some(d => cityLower.includes(d))) return 'dense';
+
+  // Party/Tourism cities
+  const partyCities = ['miami', 'las vegas', 'new orleans', 'nashville', 'austin', 'key west', 'atlantic city', 'scottsdale'];
+  if (partyCities.some(p => cityLower.includes(p))) return 'party';
+
+  // Default to sprawl
+  return 'sprawl';
+}
+
+/**
+ * GET /api/intelligence/demand-patterns/:marketSlug
+ * Get demand patterns for a specific market
+ *
+ * Params:
+ *   marketSlug - Market identifier (e.g., 'dallas', 'los-angeles')
+ *
+ * Query:
+ *   city - Optional city name to detect archetype
+ *
+ * Returns:
+ *   Hourly demand patterns by day of week with strategic insights
+ *   Falls back to archetype defaults if no market-specific data exists
+ */
+router.get('/demand-patterns/:marketSlug', async (req, res) => {
+  try {
+    const { marketSlug } = req.params;
+    const { city } = req.query;
+
+    // Try to find market-specific patterns from market_intelligence
+    const marketPatterns = await db
+      .select({
+        id: market_intelligence.id,
+        title: market_intelligence.title,
+        time_context: market_intelligence.time_context,
+        content: market_intelligence.content,
+      })
+      .from(market_intelligence)
+      .where(and(
+        eq(market_intelligence.market_slug, marketSlug),
+        eq(market_intelligence.intel_type, 'timing'),
+        eq(market_intelligence.is_active, true),
+      ))
+      .orderBy(desc(market_intelligence.priority))
+      .limit(10);
+
+    // Detect archetype for this market
+    const archetype = detectArchetype(city || marketSlug);
+    const archetypeData = ARCHETYPE_PATTERNS[archetype];
+
+    // If we have market-specific timing data, try to extract patterns
+    if (marketPatterns.length > 0) {
+      // Check if any pattern has structured time_context data
+      const patternWithData = marketPatterns.find(p => p.time_context?.patterns);
+
+      if (patternWithData?.time_context?.patterns) {
+        // Use market-specific patterns
+        return res.json({
+          market: marketSlug,
+          archetype,
+          source: 'market_intelligence',
+          archetypeInfo: {
+            name: archetypeData.name,
+            description: archetypeData.description,
+            peakDays: archetypeData.peakDays,
+          },
+          patterns: patternWithData.time_context.patterns,
+          insights: marketPatterns.map(p => ({
+            title: p.title,
+            content: p.content,
+          })),
+        });
+      }
+    }
+
+    // Fall back to archetype defaults
+    res.json({
+      market: marketSlug,
+      archetype,
+      source: 'archetype_default',
+      archetypeInfo: {
+        name: archetypeData.name,
+        description: archetypeData.description,
+        peakDays: archetypeData.peakDays,
+      },
+      patterns: archetypeData.patterns,
+      insights: marketPatterns.map(p => ({
+        title: p.title,
+        content: p.content,
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching demand patterns:', error);
+    res.status(500).json({ error: 'Failed to fetch demand patterns' });
+  }
+});
+
+/**
+ * GET /api/intelligence/demand-patterns
+ * Get demand patterns based on archetype (no market specified)
+ *
+ * Query:
+ *   archetype - Archetype to use (sprawl, dense, party)
+ */
+router.get('/demand-patterns', async (req, res) => {
+  try {
+    const { archetype = 'sprawl' } = req.query;
+
+    // Validate archetype
+    if (!ARCHETYPE_PATTERNS[archetype]) {
+      return res.status(400).json({
+        error: `Invalid archetype. Must be one of: ${Object.keys(ARCHETYPE_PATTERNS).join(', ')}`,
+      });
+    }
+
+    const archetypeData = ARCHETYPE_PATTERNS[archetype];
+
+    res.json({
+      market: null,
+      archetype,
+      source: 'archetype_default',
+      archetypeInfo: {
+        name: archetypeData.name,
+        description: archetypeData.description,
+        peakDays: archetypeData.peakDays,
+      },
+      patterns: archetypeData.patterns,
+      insights: [],
+    });
+  } catch (error) {
+    console.error('Error fetching demand patterns:', error);
+    res.status(500).json({ error: 'Failed to fetch demand patterns' });
   }
 });
 

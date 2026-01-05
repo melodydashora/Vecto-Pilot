@@ -1,20 +1,20 @@
 // server/lib/briefing/event-schedule-validator.js
 // ============================================================================
-// EVENT SCHEDULE VALIDATOR - Claude Opus 4.5 with Web Search
+// EVENT SCHEDULE VALIDATOR - BRIEFING_EVENTS_VALIDATOR Role with Web Search
 // ============================================================================
 //
 // PURPOSE: Validates event schedules before they're used in strategy generation
 //
-// PROBLEM SOLVED: Gemini web search can return outdated or incorrect event
+// PROBLEM SOLVED: Web search can return outdated or incorrect event
 // schedules (e.g., saying an event is "tonight" when it's actually dark that day)
 //
-// SOLUTION: Use Claude Opus 4.5 with web search tool to verify each event's
+// SOLUTION: Use BRIEFING_EVENTS_VALIDATOR role with web search tool to verify each event's
 // actual schedule against authoritative sources (official websites, ticketing)
 //
 // INPUT: Array of events from briefing-service.js
 // OUTPUT: Same array with verified: true/false and verification_note fields
 //
-// MODEL: Claude Opus 4.5 via STRATEGY_EVENT_VALIDATOR env var
+// ROLE: BRIEFING_EVENTS_VALIDATOR via BRIEFING_VALIDATOR_MODEL env var
 // TOOLS: web_search (Anthropic built-in)
 //
 // ============================================================================
@@ -22,7 +22,7 @@
 import { callModel } from '../ai/adapters/index.js';
 
 /**
- * Validate event schedules using Claude Opus 4.5 with web search
+ * Validate event schedules using BRIEFING_EVENTS_VALIDATOR role with web search
  * Checks each "tonight" event against real schedules to catch errors
  *
  * @param {Array} events - Events from briefing service
@@ -103,7 +103,7 @@ Return JSON array ONLY:
 ]`;
 
   try {
-    const result = await callModel('event_validator', { system, user });
+    const result = await callModel('BRIEFING_EVENTS_VALIDATOR', { system, user });
 
     if (!result.ok) {
       console.warn(`[EventValidator] ⚠️ Validation API failed: ${result.error}`);

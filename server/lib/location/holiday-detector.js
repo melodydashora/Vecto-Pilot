@@ -1,5 +1,5 @@
 // server/lib/holiday-detector.js
-// Fast holiday detection using Gemini 3.0 Pro Preview with Google Search
+// Fast holiday detection using BRIEFING_HOLIDAY role with Google Search
 // explicitly configured with tools and safety overrides.
 //
 // Supports holiday overrides via server/config/holiday-override.json
@@ -61,7 +61,7 @@ function getHolidayOverride(date) {
 }
 
 /**
- * Detect holiday for a given date/location using Gemini 3.0 Pro
+ * Detect holiday for a given date/location using BRIEFING_HOLIDAY role
  * @param {Object} context - { created_at, city, state, country, timezone }
  * @returns {Promise<{ holiday: string, is_holiday: boolean }>} holiday is 'none' or holiday name
  */
@@ -125,7 +125,7 @@ export async function detectHoliday(context) {
   }`;
 
   try {
-    // 3. Raw Fetch to Gemini 3.0 Pro Preview with specific arguments
+    // 3. Raw Fetch to BRIEFING_HOLIDAY role model with specific arguments
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
       {

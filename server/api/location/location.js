@@ -887,8 +887,34 @@ router.get('/resolve', async (req, res) => {
         locationLog.done(1, `Users table: ${city}, ${state}`, OP.DB);
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // CREATE SNAPSHOT: Runs in PARALLEL with users table update for ~50-100ms savings
-        // userId is already determined, so snapshot doesn't depend on users write completing
+        // SNAPSHOT REUSE: One snapshot per authenticated session
+        //
+        // Rules:
+        //   - User authenticates + accepts GPS → ONE snapshot created
+        //   - GPS drift / re-renders → return SAME snapshot (no duplicates)
+        //   - Manual refresh (force=true) → create new snapshot
+        //   - 60 min session timeout → sign out, next login creates new
+        //
+        // The snapshot persists in users.current_snapshot_id until:
+        //   - User manually refreshes (force=true)
+        //   - User logs out (auth clears)
+        //   - Session expires (60 min)
+        // ═══════════════════════════════════════════════════════════════════════════
+        const forceRefresh = req.query.force === 'true';
+
+        // If user already has a snapshot and this isn't a forced refresh → return existing
+        if (!forceRefresh && existingUser?.current_snapshot_id) {
+          console.log(`📸 [SNAPSHOT] ♻️ Reusing existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} for ${city} (same session)`);
+          resolvedData.snapshot_id = existingUser.current_snapshot_id;
+          resolvedData.snapshot_reused = true;
+
+          // Return existing - no new snapshot needed
+          res.setHeader('Content-Type', 'application/json');
+          return res.json(resolvedData);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // CREATE SNAPSHOT: Only if no valid recent snapshot exists
         // ═══════════════════════════════════════════════════════════════════════════
         const snapshotId = crypto.randomUUID();
         snapshotLog.phase(1, `Creating for ${city}, ${state}`, OP.DB);

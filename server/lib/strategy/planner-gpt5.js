@@ -1,4 +1,5 @@
 // server/lib/planner-gpt5.js
+// STRATEGY_TACTICAL role: Generates tactical execution plans from strategist guidance
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export function plannerSystem() {

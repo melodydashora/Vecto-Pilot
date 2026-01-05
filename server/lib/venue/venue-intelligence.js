@@ -161,8 +161,8 @@ Return ONLY a JSON array of the numbers to KEEP. Example: [1, 3, 5, 7]
 If none qualify, return: []`;
 
   try {
-    barsLog.phase(1, `Filtering ${venues.length} venues with Haiku...`);
-    const result = await callModel('haiku', {
+    barsLog.phase(1, `Filtering ${venues.length} venues with VENUE_FILTER role...`);
+    const result = await callModel('VENUE_FILTER', {
       system: 'You are a venue filter. Return ONLY a JSON array of numbers. No explanation.',
       user: prompt,
       maxTokens: 200,
@@ -170,7 +170,7 @@ If none qualify, return: []`;
     });
 
     if (!result.ok) {
-      aiLog.warn(1, `Haiku venue filter failed: ${result.error}`);
+      aiLog.warn(1, `VENUE_FILTER role failed: ${result.error}`);
       return venues; // Return unfiltered on error
     }
 

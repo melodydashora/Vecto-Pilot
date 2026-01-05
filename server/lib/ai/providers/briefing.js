@@ -1,5 +1,5 @@
 // server/lib/providers/briefing.js
-// Briefer provider - Uses Gemini 3.0 Pro for all briefing data (events, traffic, weather, news, closures)
+// BRIEFING_* roles provider - All briefing data (events, traffic, weather, news, closures)
 
 import { db } from '../../../db/drizzle.js';
 import { snapshots } from '../../../../shared/schema.js';
@@ -8,14 +8,14 @@ import { generateAndStoreBriefing } from '../../briefing/briefing-service.js';
 import { briefingLog, OP } from '../../../logger/workflow.js';
 
 /**
- * Generate comprehensive briefing using Gemini 3.0 Pro
+ * Generate comprehensive briefing using BRIEFING_* roles
  *
  * DATA COVERAGE:
- * - Events (Gemini 3.0 Pro with Google Search)
- * - Traffic (Gemini 3.0 Pro with Google Search)
+ * - Events (BRIEFING_EVENTS_DISCOVERY role with Google Search)
+ * - Traffic (BRIEFING_TRAFFIC role with Google Search)
  * - Weather (Google Weather API)
- * - Rideshare News (Gemini 3.0 Pro with Google Search)
- * - School Closures (Gemini 3.0 Pro with Google Search)
+ * - Rideshare News (BRIEFING_NEWS role with Google Search)
+ * - School Closures (BRIEFING_CLOSURES role with Google Search)
  *
  * @param {string} snapshotId - UUID of snapshot
  * @param {Object} options - Optional parameters

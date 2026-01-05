@@ -12,7 +12,7 @@ Model-agnostic API adapters that normalize calls to different AI providers. **Al
 | `anthropic-adapter.js` | Claude API calls + web search | Anthropic |
 | `openai-adapter.js` | GPT-5.2 / o1 calls | OpenAI |
 | `gemini-adapter.js` | Gemini 3.0 Pro calls + Google Search | Google |
-| `gemini-2.5-pro.js` | Gemini 2.5 Pro specific calls | Google |
+| `gemini-2.5-pro.js` | Gemini 2.5 Pro (venue-event-verifier only) | Google |
 | `anthropic-sonnet45.js` | Claude Sonnet 4.5 raw calls | Anthropic |
 
 ## Usage
@@ -20,11 +20,19 @@ Model-agnostic API adapters that normalize calls to different AI providers. **Al
 ```javascript
 import { callModel } from './index.js';
 
-// Call by role - adapter handles everything
-const result = await callModel('strategist', {
+// Use {TABLE}_{FUNCTION} role names
+const result = await callModel('STRATEGY_CORE', {
   system: 'You are a helpful assistant',
   user: 'Generate a strategy for...'
 });
+
+const events = await callModel('BRIEFING_EVENTS_DISCOVERY', {
+  system: 'You are an event researcher',
+  user: 'Find events in Dallas, TX'
+});
+
+// Legacy names still work (auto-mapped to new names)
+const legacy = await callModel('strategist', { system, user }); // → STRATEGY_CORE
 
 if (result.ok) {
   console.log(result.output);
@@ -32,6 +40,30 @@ if (result.ok) {
   console.error(result.error);
 }
 ```
+
+## Available Roles
+
+| Role | Purpose | Default Model |
+|------|---------|---------------|
+| **BRIEFINGS TABLE** |||
+| `BRIEFING_WEATHER` | Weather intelligence | Gemini 3 Pro |
+| `BRIEFING_TRAFFIC` | Traffic conditions | Gemini 3 Flash |
+| `BRIEFING_NEWS` | Local news research | Gemini 3 Pro |
+| `BRIEFING_EVENTS_DISCOVERY` | Event discovery | Gemini 3 Pro |
+| `BRIEFING_EVENTS_VALIDATOR` | Event verification | Claude Opus 4.5 |
+| **STRATEGIES TABLE** |||
+| `STRATEGY_CORE` | Core strategic plan | Claude Opus 4.5 |
+| `STRATEGY_CONTEXT` | Real-time context | Gemini 3 Pro |
+| `STRATEGY_TACTICAL` | 1-hour tactical strategy | GPT-5.2 |
+| `STRATEGY_DAILY` | 8-12hr daily strategy | Gemini 3 Pro |
+| **VENUES TABLE** |||
+| `VENUE_SCORER` | Smart Blocks venue scoring | GPT-5.2 |
+| `VENUE_FILTER` | Fast venue filtering | Claude Haiku |
+| `VENUE_TRAFFIC` | Venue traffic intel | Gemini 3 Pro |
+| **COACH TABLE** |||
+| `COACH_CHAT` | AI Coach conversation | Gemini 3 Pro |
+| **UTILITIES** |||
+| `UTIL_MARKET_PARSER` | Market research parsing | GPT-5.2 |
 
 ## Response Format
 
@@ -54,33 +86,49 @@ if (result.ok) {
 
 ### Gemini 3.0 Pro
 - Use nested `thinkingConfig`, NOT flat `thinking_budget`
-- Google Search enabled for `briefer` and `consolidator` roles
+- Google Search enabled for roles with `features: ['google_search']`
 
 ### Claude Opus
 - Supports web search via `web_search_20250305` tool
-- Web search enabled for `event_validator` role
+- Web search enabled for roles with `features: ['web_search']`
 
 ## Fallback Chain
 
 ```
-Primary Model (from env)
+Primary Model (from env via model-registry.js)
     ↓ (if fails)
-Claude Opus fallback (for consolidator, briefer roles)
+Claude Opus fallback (for FALLBACK_ENABLED_ROLES)
     ↓ (if fails)
 Return error
 ```
 
+Fallback-enabled roles: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY`, `BRIEFING_EVENTS_DISCOVERY`, `BRIEFING_NEWS`
+
 ## Environment Variables
 
 ```bash
-# Role → Model mapping
-STRATEGY_STRATEGIST=claude-opus-4-5-20251101
-STRATEGY_BRIEFER=gemini-3-pro-preview
-STRATEGY_CONSOLIDATOR=gpt-5.2
-STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
-
-# Per-role parameters (optional)
-STRATEGY_STRATEGIST_MAX_TOKENS=8000
-STRATEGY_STRATEGIST_TEMPERATURE=0.7
-STRATEGY_CONSOLIDATOR_REASONING_EFFORT=medium
+# Role → Model mapping (new {TABLE}_{FUNCTION} convention)
+STRATEGY_CORE_MODEL=claude-opus-4-5-20251101
+STRATEGY_CONTEXT_MODEL=gemini-3-pro-preview
+STRATEGY_TACTICAL_MODEL=gpt-5.2
+STRATEGY_DAILY_MODEL=gemini-3-pro-preview
+BRIEFING_EVENTS_MODEL=gemini-3-pro-preview
+BRIEFING_VALIDATOR_MODEL=claude-opus-4-5-20251101
+VENUE_SCORER_MODEL=gpt-5.2
+VENUE_FILTER_MODEL=claude-3-5-haiku-20241022
+COACH_CHAT_MODEL=gemini-3-pro-preview
 ```
+
+## Legacy Role Mapping
+
+Old role names are automatically mapped to new names:
+
+| Legacy | Maps To |
+|--------|---------|
+| `strategist` | `STRATEGY_CORE` |
+| `briefer` | `STRATEGY_CONTEXT` |
+| `consolidator` | `STRATEGY_TACTICAL` |
+| `event_validator` | `BRIEFING_EVENTS_VALIDATOR` |
+| `venue_planner` | `VENUE_SCORER` |
+| `venue_filter` | `VENUE_FILTER` |
+| `coach` | `COACH_CHAT` |

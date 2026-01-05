@@ -22,9 +22,48 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## Session Summary (2026-01-04)
+
+### Event Validator Model Documentation Sync
+
+| Change | Files Modified | Status |
+|--------|----------------|--------|
+| `models-dictionary.js` triad_validator | Changed from Gemini 2.5 Pro to Claude Opus 4.5 | REVIEWED |
+| `docs/architecture/ai-pipeline.md` | Removed legacy STRATEGY_VALIDATOR=gemini-2.5-pro | REVIEWED |
+| `mono-mode.env.example` | Changed STRATEGY_VALIDATOR to STRATEGY_EVENT_VALIDATOR | REVIEWED |
+| `server/lib/ai/adapters/README.md` | Clarified gemini-2.5-pro.js is for venue-event-verifier only | REVIEWED |
+
+**Background:**
+- Repo analysis found documentation referenced Gemini 2.5 Pro as Event Validator
+- Actual runtime code (model-registry.js) uses Claude Opus 4.5 with web search
+- `event-schedule-validator.js` explains WHY: Gemini returned outdated/incorrect schedules
+- This fix synchronizes documentation with actual code behavior
+
+**Files NOT changed (still uses Gemini 2.5 Pro for different purpose):**
+- `gemini-2.5-pro.js` - Still used by `venue-event-verifier.js` for venue event verification (separate from main strategy event validation)
+
+---
+
 ## Session Summary (2026-01-02)
 
-### Changes Made This Session
+### Intel Tab Enhancement - "Market Command Center"
+
+| Change | Files Created/Modified | Docs Updated |
+|--------|------------------------|--------------|
+| Demand Patterns Types | `client/src/types/demand-patterns.ts` | `client/src/types/README.md` |
+| Demand Rhythm Chart | `client/src/components/intel/DemandRhythmChart.tsx` | `client/src/components/intel/README.md` |
+| Market Boundary Grid | `client/src/components/intel/MarketBoundaryGrid.tsx` | `client/src/components/intel/README.md` |
+| Market Deadhead Calculator | `client/src/components/intel/MarketDeadheadCalculator.tsx` | `client/src/components/intel/README.md` |
+| Demand Patterns API | `server/api/intelligence/index.js` | (inline) |
+| RideshareIntelTab Integration | `client/src/components/RideshareIntelTab.tsx` | - |
+
+**Features Added:**
+- **DemandRhythmChart**: Recharts bar chart with day-of-week selector, 24-hour demand visualization, color-coded intensity, strategic insights per day
+- **MarketBoundaryGrid**: CSS grid showing Core/Satellite/Rural zones, current position highlight, deadhead risk matrix
+- **MarketDeadheadCalculator**: Market-specific calculator with real cities, zone-to-zone risk calculation
+- **Demand Patterns API**: `GET /api/intelligence/demand-patterns/:marketSlug` with archetype fallbacks (sprawl/dense/party)
+
+### Previous Changes This Session
 
 | Change | Files Modified | Docs Updated |
 |--------|----------------|--------------|
@@ -742,6 +781,1707 @@ Implemented crowd-sourced zone learning from driver conversations:
 #### Medium Priority
 - [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
 - [ ] `docs/architecture/api-reference.md` - Briefing API changes (server/api/briefing/briefing.js)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T18:29:10.185Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (8)
+| File | Status |
+|------|--------|
+| `lient/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/intel/TacticalStagingMap.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T18:31:57.320Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (13)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T18:42:22.779Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (13)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T18:46:40.806Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (13)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T19:09:06.681Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (13)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T19:43:11.983Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (13)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:01:49.848Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (17)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:09:36.821Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (17)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:14:15.717Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (17)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:17:54.789Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (17)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:19:53.656Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (17)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:24:45.720Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (18)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:26:48.278Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (18)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:28:31.989Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (18)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:30:05.701Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (18)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:40:32.041Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (18)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:45:22.538Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (18)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:47:10.514Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (18)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:48:21.522Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (18)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T20:55:50.777Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (19)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/hooks/useMarketIntelligence.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T21:09:41.590Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (19)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/hooks/useMarketIntelligence.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-markets.js)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-02 Analysis
+
+**Generated:** 2026-01-02T21:18:24.260Z
+**Branch:** main
+**Last Commit:** 3e2d676 Published your App
+
+### Uncommitted Changes (19)
+| File | Status |
+|------|--------|
+| `riefing-last-row.txt` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/hooks/useMarketIntelligence.ts` | Modified |
+| `client/src/types/README.md` | Modified |
+| `docs/review-queue/2026-01-02.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/intelligence/index.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/index.js` | Modified |
+| `server/bootstrap/routes.js` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Untracked |
+| `client/src/components/intel/MarketBoundaryGrid.tsx` | Untracked |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Untracked |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Untracked |
+| `client/src/types/demand-patterns.ts` | Untracked |
+| `client/src/types/tactical-map.ts` | Untracked |
+| `server/api/strategy/tactical-plan.js` | Untracked |
+
+### Recent Commit Changes (64)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| `REPO_FILE_LISTING.md` | Deleted |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| ... and 44 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/intelligence/index.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
 - [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/index.js)
 
 #### Low Priority

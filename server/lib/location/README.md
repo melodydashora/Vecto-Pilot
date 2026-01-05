@@ -9,8 +9,10 @@ Location services including geocoding utilities, holiday detection, snapshot con
 ```
 location/
 ├── geo.js                      # Geocoding utilities (Haversine distance)
+├── geocode.js                  # Google Geocoding API wrapper
 ├── get-snapshot-context.js     # Snapshot context builder (minimal + full)
 ├── holiday-detector.js         # Holiday detection + overrides
+├── index.js                    # Module barrel exports
 ├── validation-gates.js         # Location freshness checks
 └── weather-traffic-validator.js # Weather/traffic validation
 ```
@@ -20,8 +22,10 @@ location/
 | File | Purpose | Key Export |
 |------|---------|------------|
 | `geo.js` | Distance calculation | `haversineKm()`, `haversineDistanceMeters()`, `haversineDistanceMiles()` |
+| `geocode.js` | Google Geocoding API | `geocodeAddress()`, `reverseGeocode()` |
 | `get-snapshot-context.js` | Context builder | `getSnapshotContext()`, `getFullSnapshot()` |
 | `holiday-detector.js` | Holiday detection | `detectHoliday(city, state, date)` |
+| `index.js` | Module barrel exports | All location exports |
 | `validation-gates.js` | Freshness checks | `isLocationFresh()`, `isSnapshotValid()` |
 | `weather-traffic-validator.js` | Data validation | `validateConditions()` |
 

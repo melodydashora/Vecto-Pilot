@@ -9,6 +9,7 @@ Core business logic organized by domain. Each subfolder is self-contained with i
 ```
 lib/
 ├── ai/              # AI model adapters and providers
+├── auth/            # Authentication utilities (JWT, bearer tokens)
 ├── briefing/        # Real-time briefing service
 ├── change-analyzer/ # Documentation maintenance system
 ├── external/        # Third-party API integrations
@@ -30,6 +31,7 @@ lib/
 | Folder | Purpose | Key Export |
 |--------|---------|------------|
 | `ai/` | Model dispatching, adapters, providers | `callModel(role, {system, user})` |
+| `auth/` | Authentication utilities | `verifyJWT()`, `extractBearerToken()` |
 | `briefing/` | Events, traffic, weather, news | `getOrGenerateBriefing()` |
 | `change-analyzer/` | Documentation maintenance | `findAffectedDocs()` |
 | `external/` | FAA, TTS, semantic search | `fetchFAAStatus()`, `synthesizeSpeech()` |

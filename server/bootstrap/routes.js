@@ -72,6 +72,7 @@ export async function mountRoutes(app, server) {
     { path: '/api/blocks-fast', module: './server/api/strategy/blocks-fast.js', desc: 'Blocks Fast' },
     { path: '/api/blocks', module: './server/api/strategy/content-blocks.js', desc: 'Content Blocks' },
     { path: '/api/strategy', module: './server/api/strategy/strategy.js', desc: 'Strategy' },
+    { path: '/api/strategy/tactical-plan', module: './server/api/strategy/tactical-plan.js', desc: 'Tactical Plan' },
 
     // Feedback (server/api/feedback/)
     { path: '/api/feedback', module: './server/api/feedback/feedback.js', desc: 'Feedback' },

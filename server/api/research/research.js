@@ -1,4 +1,4 @@
-// Research API endpoint - Internet-powered research via Gemini 3 Pro Preview
+// Research API endpoint - Internet-powered research via UTIL_RESEARCH role
 import express from 'express';
 
 const router = express.Router();

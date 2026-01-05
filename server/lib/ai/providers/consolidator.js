@@ -2,14 +2,14 @@
 // Strategy generation provider
 //
 // TWO FUNCTIONS:
-//   1. runImmediateStrategy() - GPT-5.2 generates "strategy_for_now" (1-hour tactical)
+//   1. runImmediateStrategy() - STRATEGY_TACTICAL role → "strategy_for_now" (1-hour tactical)
 //      - Called by blocks-fast.js during initial pipeline
 //      - Uses snapshot + briefing data directly (no minstrategy)
 //
-//   2. runConsolidator() - Gemini 3 Pro generates "consolidated_strategy" (8-12hr daily)
+//   2. runConsolidator() - STRATEGY_DAILY role → "consolidated_strategy" (8-12hr daily)
 //      - Called on-demand via POST /api/strategy/daily/:snapshotId
 //      - Uses snapshot + briefing data directly (no minstrategy)
-//      - Includes Claude Opus 4.5 fallback when Gemini fails
+//      - Includes BRIEFING_FALLBACK role when primary fails
 
 import crypto from 'crypto';
 import { db } from '../../../db/drizzle.js';
@@ -96,14 +96,14 @@ async function filterDeactivatedNews(newsData, userId) {
   }
 }
 
-// Claude Opus fallback configuration
+// BRIEFING_FALLBACK role configuration
 const FALLBACK_MODEL = 'claude-opus-4-5-20251101';
 const FALLBACK_MAX_TOKENS = 8000;
 const FALLBACK_TEMPERATURE = 0.3;
 
 /**
- * Call GPT-5.2 to generate immediate strategy from snapshot + briefing data
- * NO minstrategy required - GPT-5.2 has all the context it needs
+ * Call STRATEGY_TACTICAL role to generate immediate strategy from snapshot + briefing data
+ * NO minstrategy required - STRATEGY_TACTICAL has all the context it needs
  * @param {Object} snapshot - Full snapshot row from DB
  * @param {Object} briefing - Briefing data { traffic, events, weather }
  */
@@ -136,7 +136,7 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
     localTime = `${snapshot.local_iso} (timezone unknown)`;
   }
 
-  // 60s timeout - fail fast if GPT-5.2 hangs
+  // 60s timeout - fail fast if STRATEGY_TACTICAL role hangs
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
@@ -180,8 +180,8 @@ RULES:
 - Do NOT list specific venues (venue cards handle that separately)`;
 
 
-    // GPT-5.2 with medium reasoning for strategic analysis
-    // Note: GPT-5.2 requires max_completion_tokens and reasoning_effort
+    // STRATEGY_TACTICAL role with medium reasoning for strategic analysis
+    // Note: This model requires max_completion_tokens and reasoning_effort
     // Use "developer" role instead of "system" for newer models
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -196,7 +196,7 @@ RULES:
           { role: 'user', content: prompt }
         ],
         reasoning_effort: 'medium',
-        max_completion_tokens: 2000  // GPT-5.2 needs tokens for reasoning + output
+        max_completion_tokens: 2000  // Model needs tokens for reasoning + output
       }),
       signal: controller.signal  // Abort after 60s timeout
     });
@@ -204,7 +204,7 @@ RULES:
 
     if (!response.ok) {
       const errText = await response.text();
-      aiLog.warn(1, `[GPT-5.2] Immediate strategy failed (${response.status}): ${errText.substring(0, 200)}`, OP.AI);
+      aiLog.warn(1, `[STRATEGY_TACTICAL] Immediate strategy failed (${response.status}): ${errText.substring(0, 200)}`, OP.AI);
       return { strategy: '' };
     }
 
@@ -212,11 +212,11 @@ RULES:
     const strategy = data.choices?.[0]?.message?.content || '';
 
     if (strategy) {
-      aiLog.done(1, `[GPT-5.2] Immediate strategy (${strategy.length} chars)`, OP.AI);
+      aiLog.done(1, `[STRATEGY_TACTICAL] Immediate strategy (${strategy.length} chars)`, OP.AI);
       return { strategy };
     }
 
-    aiLog.warn(1, `[GPT-5.2] Empty response. Response: ${JSON.stringify(data).substring(0, 300)}`, OP.AI);
+    aiLog.warn(1, `[STRATEGY_TACTICAL] Empty response. Response: ${JSON.stringify(data).substring(0, 300)}`, OP.AI);
     return { strategy: '' };
   } catch (error) {
     clearTimeout(timeoutId);  // Clean up timeout on error
@@ -227,7 +227,7 @@ RULES:
 }
 
 /**
- * Call Gemini 3 Pro Preview with Google Search tool and Retry Logic
+ * Call STRATEGY_DAILY role with Google Search tool and Retry Logic
  * Handles 503/429 overload errors with exponential backoff
  */
 async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 0.2 }) {
@@ -270,7 +270,7 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
             ],
             generationConfig: {
               thinkingConfig: {
-                // Gemini 3 Pro only supports LOW or HIGH (MEDIUM is only for Flash)
+                // STRATEGY_DAILY role model only supports LOW or HIGH thinking levels
                 thinkingLevel: "LOW"
               },
               temperature,
@@ -397,7 +397,7 @@ function parseJsonField(field) {
 }
 
 /**
- * Run consolidation using Gemini 3 Pro Preview as "Tactical Dispatcher"
+ * Run consolidation using STRATEGY_DAILY role as "Tactical Dispatcher"
  * Generates 8-12 hour daily strategy from snapshot + briefing data
  * Writes to strategies.consolidated_strategy
  *
@@ -542,17 +542,17 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
 
     aiLog.info(`Consolidator prompt size: ${prompt.length} chars`);
     
-    // Step 5: Call Gemini (with Claude Opus fallback)
+    // Step 5: Call STRATEGY_DAILY role (with BRIEFING_FALLBACK role on failure)
     let result = await callGeminiConsolidator({
       prompt,
       maxTokens: 2048,
       temperature: 0.3
     });
 
-    // If Gemini failed, try Claude Opus fallback
+    // If STRATEGY_DAILY failed, try BRIEFING_FALLBACK role
     if (!result.ok) {
-      aiLog.warn(1, `Gemini consolidator failed: ${result.error}`);
-      aiLog.info(`Trying Claude Opus fallback...`);
+      aiLog.warn(1, `STRATEGY_DAILY role failed: ${result.error}`);
+      aiLog.info(`Trying BRIEFING_FALLBACK role...`);
 
       const fallbackResult = await callAnthropic({
         model: FALLBACK_MODEL,
@@ -563,11 +563,11 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
       });
 
       if (fallbackResult.ok) {
-        aiLog.info(`Claude Opus fallback succeeded`);
+        aiLog.info(`BRIEFING_FALLBACK role succeeded`);
         result = { ok: true, output: fallbackResult.output, usedFallback: true };
       } else {
         aiLog.error(1, `Fallback also failed: ${fallbackResult.error}`);
-        throw new Error(result.error || 'Gemini consolidator failed (fallback also failed)');
+        throw new Error(result.error || 'STRATEGY_DAILY role failed (BRIEFING_FALLBACK also failed)');
       }
     }
 
@@ -671,11 +671,11 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     triadLog.phase(3, `[consolidator] ${snapshot.formatted_address}`);
     triadLog.phase(3, `[consolidator] Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}, airport=${!!briefing.airport}`);
 
-    // Call GPT-5.2 with snapshot + briefing (NO minstrategy)
+    // Call STRATEGY_TACTICAL role with snapshot + briefing (NO minstrategy)
     const result = await callGPT5ForImmediateStrategy({ snapshot, briefing });
 
     if (!result.strategy) {
-      throw new Error('GPT-5.2 returned empty strategy');
+      throw new Error('STRATEGY_TACTICAL role returned empty strategy');
     }
 
     // Write to strategies table

@@ -6,6 +6,7 @@
  * zone information, strategies, safety tips, and regulatory context.
  */
 
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from '@/contexts/location-context-clean';
 
@@ -421,19 +422,57 @@ export function useMarketIntelligence() {
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // Helper to filter intelligence by type
-  const getByType = (type: IntelType): IntelligenceItem[] => {
-    return intelligenceQuery.data?.by_type?.[type] || [];
-  };
-
-  // Helper to get zones by subtype
-  const getZonesBySubtype = (subtype: ZoneSubtype): IntelligenceItem[] => {
-    const zones = getByType('zone');
-    return zones.filter(z => z.intel_subtype === subtype);
-  };
-
   // Extract market lookup data
   const marketLookup = marketLookupQuery.data;
+  const intelligenceData = intelligenceQuery.data;
+
+  // ---------------------------------------------------------------------------
+  // 🛡️ CRITICAL FIX: Single useMemo to prevent infinite re-render loops
+  //
+  // Problem: Individual useMemos with array dependencies (like [zones])
+  // still cause loops because the array REFERENCE changes every render.
+  //
+  // Solution: Bundle ALL array processing in ONE useMemo with intelligenceData
+  // as the single dependency. React Query keeps intelligenceData reference
+  // stable between renders.
+  // ---------------------------------------------------------------------------
+  const processedData = useMemo(() => {
+    // Stable empty array - same reference reused for all empty returns
+    const EMPTY: IntelligenceItem[] = [];
+
+    // Helper to safely get by type (uses stable empty array)
+    const getByType = (type: IntelType) => intelligenceData?.by_type?.[type] || EMPTY;
+
+    const zones = getByType('zone');
+
+    return {
+      // Type-based accessors
+      zones,
+      strategies: getByType('strategy'),
+      regulatory: getByType('regulatory'),
+      safety: getByType('safety'),
+      timing: getByType('timing'),
+      airport: getByType('airport'),
+      algorithm: getByType('algorithm'),
+
+      // Zone subtypes (filtered from memoized zones)
+      honeyHoles: zones.filter(z => z.intel_subtype === 'honey_hole'),
+      dangerZones: zones.filter(z => z.intel_subtype === 'danger_zone'),
+      deadZones: zones.filter(z => z.intel_subtype === 'dead_zone'),
+      safeCorridor: zones.filter(z => z.intel_subtype === 'safe_corridor'),
+      cautionZones: zones.filter(z => z.intel_subtype === 'caution_zone'),
+    };
+  }, [intelligenceData]); // Single stable dependency from React Query
+
+  // Memoize markets list separately (different query)
+  const markets = useMemo(() => {
+    return marketsQuery.data?.markets || [];
+  }, [marketsQuery.data]);
+
+  // Memoize market cities separately (from lookup query)
+  const marketCities = useMemo(() => {
+    return marketLookup?.market_cities || [];
+  }, [marketLookup]);
 
   return {
     // Location info
@@ -446,41 +485,26 @@ export function useMarketIntelligence() {
     archetype,
     archetypeInfo,
 
-    // NEW: Market structure data from research
+    // Market structure data from research
     marketAnchor: marketLookup?.market_anchor || null,
     regionType: marketLookup?.region_type || null,
     deadheadRisk: marketLookup?.deadhead_risk || null,
     marketStats: marketLookup?.market_stats || null,
-    marketCities: marketLookup?.market_cities || [],
+    marketCities,
     isMarketLookupLoading: marketLookupQuery.isLoading,
 
     // Intelligence data
-    intelligence: intelligenceQuery.data,
+    intelligence: intelligenceData,
     isLoading: intelligenceQuery.isLoading || marketLookupQuery.isLoading,
     error: intelligenceQuery.error,
 
     // Markets list
-    markets: marketsQuery.data?.markets || [],
+    markets,
     marketsLoading: marketsQuery.isLoading,
 
-    // Helper functions
-    getByType,
-    getZonesBySubtype,
-
-    // Convenience accessors
-    zones: getByType('zone'),
-    strategies: getByType('strategy'),
-    regulatory: getByType('regulatory'),
-    safety: getByType('safety'),
-    timing: getByType('timing'),
-    airport: getByType('airport'),
-    algorithm: getByType('algorithm'),
-
-    // Zone shortcuts
-    honeyHoles: getZonesBySubtype('honey_hole'),
-    dangerZones: getZonesBySubtype('danger_zone'),
-    deadZones: getZonesBySubtype('dead_zone'),
-    safeCorridor: getZonesBySubtype('safe_corridor'),
-    cautionZones: getZonesBySubtype('caution_zone'),
+    // Spread all memoized arrays from processedData
+    // (zones, strategies, regulatory, safety, timing, airport, algorithm,
+    //  honeyHoles, dangerZones, deadZones, safeCorridor, cautionZones)
+    ...processedData,
   };
 }

@@ -191,9 +191,9 @@ export function normalizeBriefingShape(briefing) {
 export const PHASE_EXPECTED_DURATIONS = {
   starting: 500,      // Nearly instant
   resolving: 2000,    // Location resolution
-  analyzing: 25000,   // Briefing (Gemini + traffic analysis) - can take 20-45s
-  immediate: 8000,    // GPT-5.2 immediate strategy (5-10s)
-  venues: 90000,      // GPT-5.2 tactical planner - SLOWEST (~60-90s with medium reasoning)
+  analyzing: 25000,   // Briefing (STRATEGY_CONTEXT role + traffic analysis) - can take 20-45s
+  immediate: 8000,    // STRATEGY_TACTICAL role immediate strategy (5-10s)
+  venues: 90000,      // VENUE_SCORER role tactical planner - SLOWEST (~60-90s with medium reasoning)
   routing: 2000,      // Google Routes API batch (fast)
   places: 2000,       // Event matching + Places lookup (fast)
   verifying: 1000,    // Event verification (fast when no events)

@@ -22,6 +22,9 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
 | `event-proximity-boost.js` | Airport proximity scoring | `calculateProximityBoost()` |
 | `venue-cache.js` | Venue deduplication cache | `findOrCreateVenue()`, `lookupVenue()` |
+| `district-detection.js` | Entertainment district identification | `detectDistrict()` |
+| `event-matcher.js` | Event-to-venue matching | `matchEventsToVenues()` |
+| `index.js` | Module barrel exports | All venue exports |
 
 ## Pipeline Flow
 

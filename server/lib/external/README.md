@@ -13,6 +13,10 @@ Third-party API integrations that don't fit into other domain modules.
 | `routes-api.js` | Google Routes API | `getRouteMatrix()`, `getDriveTime()` |
 | `semantic-search.js` | Vector/semantic search | `indexFeedback()`, `searchSimilar()` |
 | `tts-handler.js` | Text-to-speech | `synthesizeSpeech(text)` |
+| `perplexity-api.js` | Perplexity AI API | `queryPerplexity()` |
+| `serper-api.js` | SerpAPI web search | `searchSerper()` |
+| `streetview-api.js` | Google Street View API | `getStreetViewImage()` |
+| `index.js` | Module barrel exports | All external exports |
 
 ## Usage
 

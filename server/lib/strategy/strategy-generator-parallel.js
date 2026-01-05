@@ -28,13 +28,13 @@ Air Quality: AQI ${snapshot.air?.aqi || 'unknown'}
 
 Provide strategic positioning advice for a rideshare driver right now.`;
 
-    const result = await callModel("strategist", {
+    const result = await callModel("STRATEGY_CORE", {
       system: systemPrompt,
       user: userPrompt
     });
 
     if (!result.ok) {
-      return { ok: false, reason: 'strategist_failed' };
+      return { ok: false, reason: 'STRATEGY_CORE_failed' };
     }
 
     return {
@@ -71,13 +71,13 @@ Return JSON with arrays:
 
 Return JSON with events[], news[], traffic[] arrays.`;
 
-    const result = await callModel("briefer", {
+    const result = await callModel("STRATEGY_CONTEXT", {
       system: systemPrompt,
       user: userPrompt
     });
 
     if (!result.ok) {
-      return { ok: false, events: [], news: [], traffic: [], reason: 'briefer_failed' };
+      return { ok: false, events: [], news: [], traffic: [], reason: 'STRATEGY_CONTEXT_failed' };
     }
 
     // Robust JSON parsing with fallback to empty arrays
@@ -115,7 +115,7 @@ Return JSON with events[], news[], traffic[] arrays.`;
 }
 
 /**
- * Call GPT-5 to consolidate strategist + briefer outputs
+ * Call STRATEGY_TACTICAL role to consolidate strategist + briefer outputs
  * ROLE-PURE: Only receives address + strategist output + briefer output
  */
 async function consolidateWithGPT5Thinking({ plan, briefing, userAddress, city, state }) {
@@ -136,14 +136,14 @@ ${briefing ? JSON.stringify(briefing, null, 2) : 'No briefer output'}
 
 Task: Merge these into a final consolidated strategy considering the driver's specific address and local conditions.`;
 
-    const result = await callModel("consolidator", {
+    const result = await callModel("STRATEGY_TACTICAL", {
       system: developerPrompt,
       user: userPrompt
     });
 
     if (!result.ok) {
-      const errorMsg = result.error || 'consolidator_failed';
-      triadLog.error(3, `Consolidator failed: ${errorMsg}`, null, OP.AI);
+      const errorMsg = result.error || 'STRATEGY_TACTICAL_failed';
+      triadLog.error(3, `STRATEGY_TACTICAL failed: ${errorMsg}`, null, OP.AI);
       return { ok: false, reason: errorMsg };
     }
 
@@ -202,8 +202,8 @@ async function saveStrategy(row) {
 
 /**
  * NEW ARCHITECTURE: Briefing + Immediate Strategy (NO minstrategy)
- * 1. Run briefing provider (Gemini) to get events, traffic, news
- * 2. Run immediate strategy (GPT-5.2) with snapshot + briefing
+ * 1. Run briefing provider (STRATEGY_CONTEXT role) to get events, traffic, news
+ * 2. Run immediate strategy (STRATEGY_TACTICAL role) with snapshot + briefing
  *
  * Daily consolidated_strategy is user-request only (not part of this pipeline)
  */
@@ -272,7 +272,7 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }
       // Continue - immediate strategy can still work with snapshot weather data
     }
 
-    // Step 2: Run immediate strategy (GPT-5.2 with snapshot + briefing)
+    // Step 2: Run immediate strategy (STRATEGY_TACTICAL role with snapshot + briefing)
     const { runImmediateStrategy } = await import('../ai/providers/consolidator.js');
 
     // Phase: immediate - AI strategy generation
@@ -362,7 +362,7 @@ export async function generateMultiStrategy(ctx) {
   triadLog.done(1, `Strategist: ${plan.substring(0, 80)}...`, OP.AI);
   triadLog.done(2, `Briefer: events=${events.length} news=${news.length} traffic=${traffic.length}`, OP.AI);
 
-  // GPT-5 CONSOLIDATION
+  // STRATEGY_TACTICAL CONSOLIDATION
   const consolidated = await consolidateWithGPT5Thinking({ plan, events, news, traffic });
 
   if (!consolidated.ok) {

@@ -27,7 +27,7 @@ export { unifiedCapabilities } from './unified-ai-capabilities.js';
 // - adapters/index.js: Main dispatcher - callModel(role, {system, user})
 // - adapters/*: Provider-specific adapters
 // - providers/briefing.js: Gemini-based briefing generation
-// - providers/consolidator.js: Strategy consolidation (GPT-5.2 + Gemini)
+// - providers/consolidator.js: Strategy consolidation (STRATEGY_TACTICAL + STRATEGY_DAILY roles)
 // - coach-dal.js: Data access layer for AI Coach
 // - llm-router-v2.js: LLM status for health checks
 // - models-dictionary.js: Model metadata registry

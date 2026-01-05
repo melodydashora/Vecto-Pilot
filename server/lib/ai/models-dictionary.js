@@ -1,7 +1,7 @@
 
 // Vecto Pilot™ Models Dictionary
 // Centralized source of truth for all AI models used in the system
-// Last updated: November 20, 2025
+// Last updated: January 4, 2026
 
 export const MODELS_DICTIONARY = {
 // ===== REPLIT AGENT ASSISTANT (Claude Sonnet 4.5) =====
@@ -123,35 +123,37 @@ replit_agent: {
   },
 
   // ==========================================
-  // TRIAD PIPELINE - STAGE 3: VALIDATOR
+  // TRIAD PIPELINE - STAGE 3: EVENT VALIDATOR
   // ==========================================
+  // NOTE: Changed from Gemini 2.5 Pro to Claude Opus 4.5 in Dec 2025
+  // Reason: Gemini web search returned outdated/incorrect event schedules
+  // See: server/lib/briefing/event-schedule-validator.js for implementation
   triad_validator: {
-    provider: 'google',
-    model_id: 'gemini-2.5-pro',
-    model_name: 'Gemini 2.5 Pro (Validator)',
-    context_window: 1048576, // 1M tokens
-    max_output_tokens: 8192,
-    api_endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
-    timeout_ms: 20000,
+    provider: 'anthropic',
+    model_id: 'claude-opus-4-5-20251101',
+    model_name: 'Claude Opus 4.5 (Event Validator)',
+    context_window: 200000,
+    max_output_tokens: 4096,
+    api_endpoint: 'https://api.anthropic.com/v1/messages',
+    timeout_ms: 30000,
     parameters: {
-      temperature: 0.2,
-      maxOutputTokens: 2048,
-      responseMimeType: 'application/json',
+      temperature: 0.3,
+      max_tokens: 4096,
       supports_temperature: true,
       supports_top_p: true,
-      supports_top_k: true
+      supports_web_search: true  // Key feature: Claude web search for verification
     },
     pricing: {
-      input_per_million: 3.50,
-      output_per_million: 10.50,
+      input_per_million: 3.00,
+      output_per_million: 15.00,
       currency: 'USD'
     },
     env_vars: {
-      api_key: 'GEMINI_API_KEY',
-      model: 'GEMINI_MODEL',
-      timeout: 'GEMINI_TIMEOUT_MS',
-      max_tokens: 'GEMINI_MAX_TOKENS',
-      temperature: 'GEMINI_TEMPERATURE'
+      api_key: 'ANTHROPIC_API_KEY',
+      model: 'STRATEGY_EVENT_VALIDATOR',
+      timeout: 'CLAUDE_TIMEOUT_MS',
+      max_tokens: 'ANTHROPIC_MAX_TOKENS',
+      temperature: 'ANTHROPIC_TEMPERATURE'
     }
   },
 
@@ -290,11 +292,12 @@ replit_agent: {
     }
   },
 
-  // VENUE_GENERATOR - Smart venue recommendations
-  venue_generator: {
+  // VENUE_PLANNER - Smart Blocks venue recommendations
+  // Note: Standardized from "venue_generator" in Jan 2026 to match model-registry.js
+  venue_planner: {
     provider: 'openai',
     model_id: 'gpt-5',
-    model_name: 'GPT-5 (Venue Generator)',
+    model_name: 'VENUE_PLANNER role',
     context_window: 272000,
     max_output_tokens: 2000,
     api_endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -311,9 +314,9 @@ replit_agent: {
     },
     env_vars: {
       api_key: 'OPENAI_API_KEY',
-      model: 'STRATEGY_VENUE_GENERATOR',
-      reasoning_effort: 'STRATEGY_VENUE_GENERATOR_REASONING_EFFORT',
-      max_tokens: 'STRATEGY_VENUE_GENERATOR_MAX_TOKENS'
+      model: 'STRATEGY_VENUE_PLANNER',
+      reasoning_effort: 'STRATEGY_VENUE_PLANNER_REASONING_EFFORT',
+      max_tokens: 'STRATEGY_VENUE_PLANNER_MAX_TOKENS'
     }
   }
 };
