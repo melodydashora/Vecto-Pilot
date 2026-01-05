@@ -107,7 +107,7 @@ const RESEARCH_BASED_RULES = {
     let risk = 0.1; // baseline
 
     // Fare shown as range = high stop risk
-    if (pingData.fare.includes('-') || pingData.fare.includes('$12-18')) {
+    if (pingData.fare.includes('-') || pingData.fare.includes('$12-$18')) {
       risk += 0.35;
     }
 
