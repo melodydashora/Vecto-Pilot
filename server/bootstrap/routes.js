@@ -85,6 +85,9 @@ export async function mountRoutes(app, server) {
     // Platform Data (server/api/platform/)
     { path: '/api/platform', module: './server/api/platform/index.js', desc: 'Platform Data' },
 
+    // Market Intelligence (server/api/intelligence/)
+    { path: '/api/intelligence', module: './server/api/intelligence/index.js', desc: 'Market Intelligence' },
+
     // Vehicle Data (server/api/vehicle/)
     { path: '/api/vehicle', module: './server/api/vehicle/vehicle.js', desc: 'Vehicle Data' },
 
