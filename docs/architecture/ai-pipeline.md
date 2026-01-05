@@ -9,15 +9,22 @@ Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligenc
 | Role | Model | Provider | Purpose |
 |------|-------|----------|---------|
 | Strategist | Claude Opus 4.5 | Anthropic | Generate strategic overview |
-| Briefer (Primary) | Gemini 3.0 Pro | Google | Events, traffic, news, airport (with Google Search grounding) |
-| Briefer (Fallback) | Claude Opus 4.5 | Anthropic | Web search fallback when Gemini fails |
+| Events | SerpAPI + GPT-5.2 | OpenAI | Event discovery (daily sync) |
+| News (Dual-Model) | Gemini 3.0 Pro + GPT-5.2 | Google + OpenAI | Parallel news fetch (both run, results merged) |
 | Traffic (Primary) | TomTom | TomTom | Real-time traffic data |
+| Traffic (Analysis) | Gemini 3.0 Flash | Google | Analyze traffic data for driver briefing |
+| Weather | Google Weather API | Google | 4-hour forecast |
+| Airport | Gemini 3.0 Pro | Google | Flight delays, airport conditions |
+| School Closures | Gemini 3.0 Pro | Google | School calendar data |
 | Holiday Checker | Gemini 3.0 Pro | Google | Holiday detection |
 | Daily Consolidator | Gemini 3.0 Pro | Google | 8-12hr strategy |
 | Immediate Consolidator | GPT-5.2 | OpenAI | 1hr tactical strategy |
 | Venue Planner | GPT-5.2 | OpenAI | Smart Blocks generation |
 
-**Note:** Perplexity was replaced with Gemini 3 Pro Preview (with Google Search tool) as the primary briefing provider in December 2024. Claude web search serves as the fallback when Gemini fails.
+**Note (Updated 2026-01-05):**
+- News uses dual-model parallel fetch (Gemini + GPT-5.2) with result consolidation
+- Events are discovered via SerpAPI + GPT-5.2 and stored in `discovered_events` table
+- Traffic uses TomTom for raw data, then Gemini Flash for driver-focused analysis
 
 ## Pipeline Flow
 

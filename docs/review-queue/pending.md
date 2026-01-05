@@ -495,11 +495,11 @@ Items flagged by the Change Analyzer for human-AI validation.
 - [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
 - [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/auth.js)
 - [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/index.js)
-- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [x] `docs/architecture/ai-pipeline.md` - ✅ Updated 2026-01-05 (dual-model news, event discovery)
 - [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/index.js)
 - [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/address-validation.js)
 - [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/address-validation.js)
-- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [x] `docs/architecture/strategy-framework.md` - ✅ strategy-utils.js updated for timezone-aware event filtering
 
 #### Medium Priority
 - [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
@@ -507,7 +507,62 @@ Items flagged by the Change Analyzer for human-AI validation.
 #### Low Priority
 - [ ] Consider adding documentation - New file added (scripts/test-news-fetch.js)
 
-### Status: PENDING
+### Status: PARTIALLY REVIEWED
+
+---
+
+## 2026-01-05 Analysis
+
+**Generated:** 2026-01-05T20:40:34.238Z
+**Branch:** main
+**Last Commit:** 02f7a7b Update review queue with Change Analyzer findings
+
+### Uncommitted Changes (1)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+
+### Recent Commit Changes (18)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `briefing-last-row.txt` | Modified |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `docs/review-queue/2026-01-05.md` | Modified |
+| `docs/review-queue/IN_PROGRESS_WORKSTREAM.md` | Added |
+| `docs/review-queue/pending.md` | Modified |
+| `scripts/test-news-fetch.js` | Added |
+| `server/api/auth/auth.js` | Modified |
+| `server/api/briefing/briefing.js` | Modified |
+| `server/api/location/location.js` | Modified |
+| `server/lib/ai/adapters/index.js` | Modified |
+| `server/lib/ai/adapters/openai-adapter.js` | Modified |
+| `server/lib/ai/model-registry.js` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| `server/lib/location/address-validation.js` | Added |
+| `server/lib/strategy/strategy-utils.js` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [x] `docs/architecture/ai-pipeline.md` - ✅ Updated 2026-01-05 (dual-model news, event discovery)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/address-validation.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/address-validation.js)
+- [x] `docs/architecture/strategy-framework.md` - ✅ strategy-utils.js updated for timezone-aware event filtering
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (scripts/test-news-fetch.js)
+
+### Status: PARTIALLY REVIEWED
 
 ---
 
