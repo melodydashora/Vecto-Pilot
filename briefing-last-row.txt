@@ -2,93 +2,93 @@
 ================================================================================
 
 id:
-  "e3665de8-2542-421b-99d9-d98429560120"
+  "64bd41c5-4d4f-4fe0-ab01-3c2213ab6719"
 
 snapshot_id:
-  "76c4eda4-afbd-40fe-b5da-802dceb3a69c"
+  "6b6b79ec-fb75-4343-a7be-2646cbd0f8b8"
 
 news:
   {
   "items": [
     {
-      "link": "https://www.friscoisd.org/calendar",
-      "title": "Back-to-School Traffic Shift: Monday Holiday, Tuesday Rush",
+      "link": "https://www.dart.org/news",
+      "title": "DART Convention Center Station Closes Today - Major Demand Shift",
       "impact": "high",
-      "source": "Frisco ISD / Plano ISD Calendars",
-      "summary": "Frisco ISD and Plano ISD have a 'Student Holiday/Staff Day' on Monday, Jan 5. School zones will be empty Monday morning. The real morning rush returns Tuesday, Jan 6, when the second semester officially begins. Expect heavy congestion around schools and high demand for rides starting 7:00 AM Tuesday.",
+      "source": "DART News Release",
+      "summary": "Starting TODAY (Jan 5), the DART Convention Center Station is CLOSED for long-term construction. This will force thousands of commuters and convention-goers to find alternative transport. Expect a significant SPIKE in ride requests around the Kay Bailey Hutchison Convention Center and downtown Dallas as public transit riders switch to rideshare.",
       "category": "traffic",
       "_provider": "gemini",
       "published_date": "2026-01-05"
     },
     {
-      "link": "https://www.potato-expo.com/",
-      "title": "Major Convention: Potato Expo 2026 at Gaylord Texan",
+      "link": "https://10times.com/dallas-us",
+      "title": "SEEK Conference Ending at Gaylord Texan - Airport Demand Surge",
       "impact": "high",
-      "source": "Potato Expo / Gaylord Texan",
-      "summary": "High demand expected at the Gaylord Texan in Grapevine (20 min from Frisco) for the 'Potato Expo 2026' running Jan 5-9. Thousands of attendees will need rides to/from DFW Airport on Monday/Tuesday and evening dining trips throughout the week. This replaces the lack of sports demand this week.",
+      "source": "10Times Conference Alerts",
+      "summary": "The massive SEEK Conference (Jan 1-5) at the Gaylord Texan in Grapevine ends today. Expect high volume of ride requests from the Gaylord to DFW Airport and Dallas Love Field throughout the day as thousands of attendees depart. Position yourself near Grapevine for long airport trips.",
       "category": "event",
       "_provider": "gemini",
       "published_date": "2026-01-05"
     },
     {
-      "link": "https://www.dfwairport.com/traffic/",
-      "title": "DFW Airport Construction & Holiday Return Rush",
+      "link": "https://www.dfwairport.com",
+      "title": "Major DFW Airport Delays: Terminal C & Bridge Construction",
       "impact": "high",
       "source": "DFW Airport / NBC DFW",
-      "summary": "Monday, Jan 5 is the final peak travel day for holiday returns. Expect high volume at DFW Airport arrivals. ongoing construction at Terminal C (closed parking garages) and Terminal A (bridge work) is causing severe congestion. Drivers should use the 'right-hand exit' detours on International Parkway and anticipate 20+ minute delays at curbside.",
+      "summary": "Ongoing construction at DFW Airport (Terminal C south parking garage closed; new bridge work) is causing severe congestion. Terminal C drop-offs are taking longer. Strategy: Use the 'arrivals' level for drop-offs if 'departures' is gridlocked, or advise passengers to arrive 3 hours early. International Parkway traffic is heavy.",
       "category": "airport",
       "_provider": "gemini",
       "published_date": "2026-01-05"
     },
     {
-      "link": "https://www.courthousenews.com/new-texas-rideshare-law-victory-for-uber-and-lyft/",
-      "title": "HB 100 Signed: State-wide Ride-Hailing Rules Replace Local Ordinances",
-      "impact": "high",
-      "source": "Courthouse News Service",
-      "summary": "On 2026-01-05, Texas Gov. Greg Abbott signed HB 100, giving the state exclusive authority over regulation of transportation network companies (Uber, Lyft, etc.). Local governments may no longer impose separate permits, rate controls, or operational requirements beyond state law. For Frisco drivers, this means fewer city-specific licensing requirements and potentially lower costs of compliance. It may also standardize driver eligibility and earnings expectations across the metro rather than having patchwork rules.",
-      "category": "regulation",
-      "_provider": "gpt",
-      "published_date": "2026-01-05"
-    },
-    {
-      "link": "https://dallasmarketcenter.com/markets/",
-      "title": "Dallas Total Home & Gift Market Starts Wednesday",
+      "link": "http://www.ntxe-news.com",
+      "title": "US 75 Northbound Frontage Road Closure Starts Today",
       "impact": "medium",
-      "source": "Dallas Market Center",
-      "summary": "A massive wholesale trade event begins Jan 7 (Wednesday) at the Dallas Market Center. While not in Frisco, many attendees stay in North Dallas/Plano hotels. Expect early morning airport runs to DFW/Love Field on Jan 6-7 and evening demand from Market Center to hotels/restaurants.",
-      "category": "event",
+      "source": "North Texas e-News",
+      "summary": "The northbound frontage road of US 75 (north of Jerdy Gary Ave) closes today, Jan 5, until March. This will force traffic onto the main highway or alternative routes, likely causing surges on parallel surface streets during rush hour. Avoid this specific frontage road for pickups.",
+      "category": "traffic",
       "_provider": "gemini",
       "published_date": "2026-01-05"
     },
     {
-      "link": "https://gasprices.aaa.com/?state=TX",
-      "title": "Gas Prices Trending Lower in Texas ($2.38/gal)",
+      "link": "https://www.friscotexas.gov",
+      "title": "Frisco Roadwork: Kings Ridge & Hillcrest Rd Updates",
       "impact": "medium",
-      "source": "AAA Texas / GasBuddy",
-      "summary": "Good news for driver expenses: Texas gas prices have stabilized near $2.38-$2.43/gallon, down significantly from last year. Drivers should fill up at Costco or Sam's Club in Plano/Frisco for rates as low as $1.85-$2.15/gallon.",
+      "source": "FriscoTexas.gov",
+      "summary": "Weekly roadwork starting today in Frisco includes pavement replacement on Kings Ridge Rd (between Castle Dr & Camelot Dr) and a traffic switch on Hillcrest Rd. Expect delays and potential rerouting for neighborhood pickups in these specific Frisco zones.",
+      "category": "traffic",
+      "_provider": "gemini",
+      "published_date": "2026-01-05"
+    },
+    {
+      "link": "https://gasprices.aaa.com",
+      "title": "Gas Prices Dropping: Texas Average ~$2.46/gal",
+      "impact": "medium",
+      "source": "AAA / GasBuddy",
+      "summary": "Fuel costs are trending down, improving net earnings. The Texas average is approx. $2.46/gallon, with some stations in the Frisco/Plano area reporting prices as low as $1.85/gallon. Fill up at competitive stations like Costco or Murphy USA to maximize profit margins.",
       "category": "cost",
       "_provider": "gemini",
       "published_date": "2026-01-05"
     },
     {
-      "link": "https://www.friscotexas.gov/CivicAlerts.aspx",
-      "title": "Frisco Roadwork: Hillcrest Road Traffic Switch",
+      "link": "https://www.mysanantonio.com/news/weather/article/cold-front-texas-21272968.php([mysanantonio.com](https://www.mysanantonio.com/news/weather/article/cold-front-texas-21272968.php?utm_source=openai))",
+      "title": "Texas Weak Cold Front Brings Brief Cool-Down Followed By Midweek Rain Risk",
       "impact": "medium",
-      "source": "Frisco Weekly Roadwork Roundup",
-      "summary": "Ongoing major roadwork on Hillcrest Rd between PGA Pkwy and Panther Creek Pkwy has shifted traffic patterns. Lanes are reduced, and delays are likely during the evening rush. Avoid this route for pickups at the Omni PGA Resort if possible.",
-      "category": "traffic",
-      "_provider": "gemini",
-      "published_date": "2026-01-04"
+      "source": "MySanAntonio / National Weather Service",
+      "summary": "A weak cold front moved into the Dallas-Fort Worth area the afternoon of January 2, causing cooler temperatures through Saturday, then warming again into midweek. Wet weather risk increases Wednesday-Thursday for North Texas. ([mysanantonio.com](https://www.mysanantonio.com/news/weather/article/cold-front-texas-21272968.php?utm_source=openai)) This affects rideshare drivers by lowering demand during cooler weekend days, but creating higher demand for rides once rain begins midweek. Also, fog and damp roads during cool front transitions can slow rides and raise risk; prep vehicle gear accordingly.",
+      "category": "weather",
+      "_provider": "gpt",
+      "published_date": "2026-01-02"
     },
     {
-      "link": "https://weather.com/weather/tenday/l/Frisco+TX",
-      "title": "Weather Alert: Rain Chances Increase Late Week",
-      "impact": "low",
-      "source": "Weather.com / AccuWeather",
-      "summary": "Monday and Tuesday will be mild (highs in 50s) and dry. Rain chances increase significantly by Thursday, Jan 8. Plan for slower traffic and higher surge potential during Thursday/Friday commute hours due to wet roads.",
-      "category": "weather",
+      "link": "https://greaterocchadd.org",
+      "title": "New Senior Driver Rules Boosting Rideshare Demand",
+      "impact": "medium",
+      "source": "Greater Occhadd News",
+      "summary": "A new federal rule effective Jan 1, 2026, requiring stricter license renewals for seniors (70+) is reportedly driving an uptick in rideshare usage by older adults. Be patient with senior passengers and look for increased daytime demand in residential areas and medical centers.",
+      "category": "regulation",
       "_provider": "gemini",
-      "published_date": "2026-01-05"
+      "published_date": "2026-01-01"
     }
   ],
   "reason": null
@@ -96,23 +96,23 @@ news:
 
 weather_current:
   {
-  "tempC": 20,
-  "tempF": 69,
+  "tempC": 22,
+  "tempF": 71,
   "country": "United States",
-  "uvIndex": 2,
-  "humidity": 60,
+  "uvIndex": 0,
+  "humidity": 53,
   "tempUnit": "°F",
   "feelsLike": 76,
   "isDaytime": true,
   "conditions": "Mostly sunny",
-  "feelsLikeC": 25,
+  "feelsLikeC": 24,
   "feelsLikeF": 76,
-  "observedAt": "2026-01-05T19:50:46.920102814Z",
+  "observedAt": "2026-01-05T21:09:58.564190465Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 69,
+  "temperature": 71,
   "conditionType": "MOSTLY_CLEAR",
   "precipitation": {
     "qpf": {
@@ -135,33 +135,20 @@ weather_current:
 weather_forecast:
   [
   {
-    "time": "2026-01-05T19:50:46.963Z",
-    "tempC": 19,
-    "tempF": 66,
+    "time": "2026-01-05T21:09:58.638Z",
+    "tempC": 22,
+    "tempF": 71,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
     "conditions": "Mostly sunny",
-    "temperature": 66,
+    "temperature": 71,
     "conditionType": "MOSTLY_CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-05T20:50:46.963Z",
-    "tempC": 21,
-    "tempF": 69,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Mostly sunny",
-    "temperature": 69,
-    "conditionType": "MOSTLY_CLEAR",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 0
-  },
-  {
-    "time": "2026-01-05T21:50:46.963Z",
+    "time": "2026-01-05T22:09:58.638Z",
     "tempC": 22,
     "tempF": 71,
     "tempUnit": "°F",
@@ -174,34 +161,21 @@ weather_forecast:
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-05T22:50:46.963Z",
-    "tempC": 22,
-    "tempF": 71,
+    "time": "2026-01-05T23:09:58.638Z",
+    "tempC": 21,
+    "tempF": 70,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
     "conditions": "Partly sunny",
-    "temperature": 71,
+    "temperature": 70,
     "conditionType": "PARTLY_CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 5
   },
   {
-    "time": "2026-01-05T23:50:46.963Z",
-    "tempC": 21,
-    "tempF": 69,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Mostly cloudy",
-    "temperature": 69,
-    "conditionType": "MOSTLY_CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-01-06T00:50:46.963Z",
-    "tempC": 19,
+    "time": "2026-01-06T00:09:58.638Z",
+    "tempC": 20,
     "tempF": 67,
     "tempUnit": "°F",
     "isDaytime": false,
@@ -211,24 +185,50 @@ weather_forecast:
     "conditionType": "MOSTLY_CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-06T01:09:58.639Z",
+    "tempC": 19,
+    "tempF": 66,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Mostly cloudy",
+    "temperature": 66,
+    "conditionType": "MOSTLY_CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-06T02:09:58.639Z",
+    "tempC": 18,
+    "tempF": 65,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 65,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
   }
 ]
 
 traffic_conditions:
   {
-  "jams": 20,
+  "jams": 30,
   "stats": {
-    "jams": 20,
-    "major": 10,
-    "total": 45,
-    "closures": 13,
-    "highways": 33,
+    "jams": 30,
+    "major": 20,
+    "total": 53,
+    "closures": 12,
+    "highways": 32,
     "accidents": 0,
-    "construction": 12
+    "construction": 11
   },
-  "summary": "Frisco is experiencing heavy congestion with 45 active incidents, primarily impacting major north-south arteries. Significant closures on FM-720 (3.1mi) and the I-35E Texpress lanes (9.6mi) are creating localized bottlenecks. Drivers should avoid the Dallas Parkway corridor near Eldorado and prioritize local residential pickups to maintain trip frequency.",
+  "summary": "Frisco is experiencing heavy congestion with 53 total incidents, notably impacting major local arteries like FM-423 and the FM-720 corridor. Major jams are active on FM-423 (1.9mi) and McKinney/FM-720 (8.3mi), while multiple road closures are blocking access near Lamar Hunt Way (3.1mi). Drivers should avoid the FM-423/Lebanon Rd intersection and use the Dallas North Tollway for north-south transit, bypassing the Dallas Pkwy construction zones.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion with 45 active incidents, primarily impacting major north-south arteries. Significant closures on FM-720 (3.1mi) and the I-35E Texpress lanes (9.6mi) are creating localized bottlenecks. Drivers should avoid the Dallas Parkway corridor near Eldorado and prioritize local residential pickups to maintain trip frequency.",
+  "briefing": "Frisco is experiencing heavy congestion with 53 total incidents, notably impacting major local arteries like FM-423 and the FM-720 corridor. Major jams are active on FM-423 (1.9mi) and McKinney/FM-720 (8.3mi), while multiple road closures are blocking access near Lamar Hunt Way (3.1mi). Drivers should avoid the FM-423/Lebanon Rd intersection and use the Dallas North Tollway for north-south transit, bypassing the Dallas Pkwy construction zones.",
   "closures": [
     {
       "road": "I-35E N, US-77 S, US-77 N, I-35E S",
@@ -242,7 +242,7 @@ traffic_conditions:
       "location": "Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 4.5
+      "distanceFromDriver": 5.1
     },
     {
       "road": "",
@@ -256,135 +256,104 @@ traffic_conditions:
       "location": "FM-720 to FM-720",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3.2
-    },
-    {
-      "road": "US-380 E",
-      "location": "US-377 (US-380) to FM-2931 (US-380)",
-      "severity": "low",
-      "isHighway": true,
-      "distanceFromDriver": 9.5
+      "distanceFromDriver": 3.1
     },
     {
       "road": "US-380 E",
       "location": "FM-2931 (US-380) to FM-1385 (US-380)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.2
+      "distanceFromDriver": 7.8
     },
     {
       "road": "US-380 E",
       "location": "FM-1385 (US-380) to Gee Rd (US-380)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.3
+      "distanceFromDriver": 6.8
     },
     {
       "road": "US-380 E",
       "location": "Doe Creek Rd to Hollyhock Rd",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.3
+      "distanceFromDriver": 6.8
     },
     {
       "road": "US-380 E",
       "location": "Gee Rd (US-380) to Dallas Pkwy (US-380)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.3
+      "distanceFromDriver": 6.7
     },
     {
       "road": "",
-      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
+      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.7
+      "distanceFromDriver": 7.8
     },
     {
       "road": "",
       "location": "Navo Rd to Paloma Creek Blvd",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 7.3
+      "distanceFromDriver": 7.8
     },
     {
       "road": "",
       "location": "N Cowan Ave to Benjamins Way",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.5
+      "distanceFromDriver": 8.6
     },
     {
       "road": "",
       "location": "Lakewood Dr to Main St / N Hook St",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.1
+      "distanceFromDriver": 8.4
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion with 45 active incidents, primarily impacting major north-south arteries.",
+  "headline": "Frisco is experiencing heavy congestion with 53 total incidents, notably impacting major local arteries like FM-423 and the FM-720 corridor.",
   "provider": "tomtom",
-  "fetchedAt": "2026-01-05T19:50:47.105Z",
+  "fetchedAt": "2026-01-05T21:09:58.784Z",
   "incidents": [
     {
       "road": "",
       "category": "Jam",
-      "location": "Dallas Pkwy to FM-2934 / Woodsboro Way",
-      "priority": 159,
+      "location": "McKinney to FM-720",
+      "priority": 158,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Dallas Pkwy to FM-2934 / Woodsboro Way [3.9 mi]",
+      "description": "Jam: McKinney to FM-720 [8.3 mi]",
       "lengthMiles": 0.1,
-      "delayMinutes": 4,
-      "distanceFromDriver": 3.9
+      "delayMinutes": 3,
+      "distanceFromDriver": 8.3
     },
     {
-      "road": "FM-720",
+      "road": "FM-423",
       "category": "Jam",
-      "location": "McKinney to FM-2478",
-      "priority": 159,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: FM-720 (McKinney to FM-2478) [8.5 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 4,
-      "distanceFromDriver": 8.5
-    },
-    {
-      "road": "FM-1171",
-      "category": "Jam",
-      "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
+      "location": "Lebanon Rd (TX-423) to FM-720/W Main St (TX-423)",
       "priority": 157,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.8 mi]",
+      "description": "Jam: FM-423 (Lebanon Rd (TX-423) to FM-720/W Main St (TX-423)) [1.9 mi]",
       "lengthMiles": 0.2,
       "delayMinutes": 2,
-      "distanceFromDriver": 9.8
+      "distanceFromDriver": 1.9
     },
     {
-      "road": "",
+      "road": "TX-121 Bus",
       "category": "Jam",
-      "location": "FM-2478 to FM-2478",
-      "priority": 156,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: FM-2478 to FM-2478 [8.2 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 1,
-      "distanceFromDriver": 8.2
-    },
-    {
-      "road": "FM-2931",
-      "category": "Jam",
-      "location": "FM-428 (FM-2931) to US-380 (FM-2931)",
+      "location": "Corporate Dr (TX-121) to I-35E/US-77/Stemmons Fwy (TX-121)",
       "priority": 144,
       "severity": "medium",
       "isHighway": true,
-      "description": "Jam: FM-2931 (FM-428 (FM-2931) to US-380 (FM-2931)) [8.4 mi]",
-      "lengthMiles": 0.2,
+      "description": "Jam: TX-121 Bus (Corporate Dr (TX-121) to I-35E/US-77/Stemmons Fwy (TX-121)) [9.8 mi]",
+      "lengthMiles": 0.4,
       "delayMinutes": 4,
-      "distanceFromDriver": 8.4
+      "distanceFromDriver": 9.8
     },
     {
       "road": "I-35E N, US-77 S, US-77 N, I-35E S",
@@ -405,10 +374,10 @@ traffic_conditions:
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln [4.5 mi]",
+      "description": "Road Closed: Lighthouse Beach Dr / Main St to FM-720 / Lobo Ln [5.1 mi]",
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 4.5
+      "distanceFromDriver": 5.1
     },
     {
       "road": "",
@@ -429,10 +398,10 @@ traffic_conditions:
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720 [3.2 mi]",
+      "description": "Road Closed: FM-720 to FM-720 [3.1 mi]",
       "lengthMiles": 0,
       "delayMinutes": 0,
-      "distanceFromDriver": 3.2
+      "distanceFromDriver": 3.1
     },
     {
       "road": "FM-1171",
@@ -441,33 +410,57 @@ traffic_conditions:
       "priority": 135,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.6 mi]",
+      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 9.6
+      "distanceFromDriver": 9.7
+    },
+    {
+      "road": "US-380 W",
+      "category": "Road Works",
+      "location": "FM-1385 (US-380) to FM-2931 (US-380)",
+      "priority": 135,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [8.2 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 0,
+      "distanceFromDriver": 8.2
+    },
+    {
+      "road": "US-380 W",
+      "category": "Road Works",
+      "location": "Gee Rd (US-380) to FM-1385 (US-380)",
+      "priority": 135,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Works: US-380 W (Gee Rd (US-380) to FM-1385 (US-380)) [6.8 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 0,
+      "distanceFromDriver": 6.8
     }
   ],
   "keyIssues": [
-    "Dallas Pkwy jam 3.9mi away - Major severity with 4min delays near FM-2934",
-    "FM-720 multiple closures 3.1mi-4.5mi away - Total blockages near Lamar Hunt Way and Main St",
-    "I-35E Texpress Lanes closure 9.6mi away - Full closure affecting high-speed transit to Lewisville"
+    "FM-423 at Lebanon Rd: Major jam 1.9mi away - High severity delay",
+    "FM-720 at Lamar Hunt Way: Road closure 3.1mi away - Total blockage",
+    "I-35E/US-77: Road closures 9.6mi away - Texpress lanes and Main St impacted"
   ],
   "avoidAreas": [
-    "FM-720 / Main St Corridor: Multiple road closures and jams within 5 miles",
-    "Dallas Pkwy (Northbound): Heavy congestion and road works between Main St and Panther Creek",
-    "US-380 Westbound: Extensive construction zones between Gee Rd and FM-2931"
+    "FM-423 Corridor: Major congestion and jams 1.9mi away",
+    "FM-720/Main St Area: Multiple road closures between 3.1mi and 5.1mi away",
+    "US-380 West: Extensive road works and jams between 6.8mi and 8.2mi away"
   ],
-  "safetyAlert": "20 active traffic jams in the area",
-  "driverImpact": "Heavy congestion on Dallas Pkwy and FM-720 will significantly lower your hourly earnings; stay east of the Tollway or focus on short-distance local trips to avoid the 380 and I-35E construction traps.",
+  "safetyAlert": "30 active traffic jams in the area",
+  "driverImpact": "West Frisco and Little Elm access is severely restricted; shift operations toward the Stonebriar or Legacy West areas to maintain ride frequency and avoid gridlock.",
   "surgePricing": true,
-  "closuresCount": 13,
+  "closuresCount": 12,
   "repositioning": null,
-  "incidentsCount": 45,
-  "totalIncidents": 45,
-  "closuresSummary": "4 closures within 10mi, most critical: I-35E Texpress Lanes and FM-720 at Lamar Hunt Way.",
+  "incidentsCount": 53,
+  "totalIncidents": 53,
+  "closuresSummary": "4 closures within 10mi, most critical: I-35E Texpress lanes at FM-1171 and the FM-720/Lamar Hunt Way intersection.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Extensive road works active on US-380 (6.3mi-9.6mi away) and Dallas Pkwy near Eldorado Pkwy, causing unpredictable flow."
+  "constructionSummary": "Significant road works are active on US-380 W and Dallas Pkwy (near Eldorado and Panther Creek), creating potential bottlenecks for north-bound trips."
 }
 
 events:
@@ -1460,36 +1453,36 @@ airport_conditions:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Normal operations. Standard Monday morning congestion at security checkpoints (Terminals A, C). No major weather-related delays reported.",
-      "status": "normal",
+      "delays": "Moderate delays reported (approx. 132 delays today) with minor cancellations. Security wait times are currently averaging 10-20 minutes.",
+      "status": "delays",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
+        "06:00 AM - 09:00 AM",
         "04:00 PM - 07:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Normal operations. High passenger volume expected for Monday morning departures. Security wait times approx. 15-25 minutes.",
-      "status": "normal",
+      "delays": "Southwest Airlines reporting scattered delays; terminal reported as crowded. Security lines may exceed 20 minutes during peak banks.",
+      "status": "delays",
       "busyTimes": [
-        "05:30 AM - 08:30 AM",
-        "04:00 PM - 06:00 PM"
+        "05:00 AM - 08:00 AM",
+        "04:00 PM - 07:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-01-05T19:51:27.153Z",
+  "fetchedAt": "2026-01-05T21:10:24.149Z",
   "busyPeriods": [
-    "Monday mornings (5:00-9:00 AM) are the busiest time of the week for business travel departures at both airports.",
-    "Evening rush (4:00-7:00 PM) sees high arrival volume and commuter traffic on surrounding highways (SH 114 for DFW, Mockingbird Ln for DAL)."
+    "Evening rush hour (4 PM - 7 PM) is seeing high congestion at both airports due to accumulated flight delays from earlier in the day.",
+    "Monday mornings are typically high-volume for business travel departures."
   ],
-  "recommendations": "For DFW: Drivers must use the designated Terminal B or E infield lots to enter the FIFO queue. Do not circle terminals. 'Pre-Match' alerts may prompt you to move toward terminals before a request comes in. \n\nFor DAL: All rideshare pickups are located at Garage C, Level 1 (Valet Pavilion). Do not attempt curbside pickups at the terminal baggage claim; you will be ticketed. Monday mornings are high-demand; position yourself in the staging area by 5:00 AM for early airport runs."
+  "recommendations": "For DFW: Drivers should wait in the designated staging lot near Terminal A. Pickups are at the 'Green Curb' on the lower level for Terminals A, D, and E, and inside the parking garages for B and C. \n\nFor DAL: **Important:** Rideshare pickups are located at the Valet Pavilion and Garage C (Level 1). Do not wait at the curbside arrivals area unless picking up an ADA/accessible ride. The walk for passengers to the pickup zone takes about 6 minutes, so verify they are at the 'Ride App Pickup' zone before pulling up."
 }
 
 created_at:
-  "Mon Jan 05 2026 19:50:46 GMT+0000 (Coordinated Universal Time)"
+  "Mon Jan 05 2026 21:09:58 GMT+0000 (Coordinated Universal Time)"
 
 updated_at:
-  "Mon Jan 05 2026 19:51:27 GMT+0000 (Coordinated Universal Time)"
+  "Mon Jan 05 2026 21:11:03 GMT+0000 (Coordinated Universal Time)"
 
