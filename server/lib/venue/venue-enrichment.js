@@ -95,30 +95,29 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           venuesLog.done(2, `"${venueName}" → ${(route.distanceMeters * 0.000621371).toFixed(1)}mi, ${Math.ceil(route.durationSeconds / 60)}min`, OP.API);
         }
 
-        // 3. Get place details from Google Places API (New) with timezone
-        const placeDetails = await getPlaceDetails(
+        // 3. Get place details using Fallback Logic (Coordinate -> Text Search)
+        // This fixes the issue where strict coordinate search rejects valid venues 151m away
+        const effectiveDistrict = venue.district || extractDistrictFromVenueName(venue.name);
+
+        const placeDetails = await getPlaceDetailsWithFallback(
           venue.lat,
           venue.lng,
           venue.name,
-          timezone,
+          effectiveDistrict,
+          snapshot?.city || null,
+          snapshot?.state || null,
+          timezone
         );
 
-        // 3a. Validate name matches - REJECT low-confidence matches to avoid wrong venues
-        // Threshold: 20% minimum similarity required to accept Google's result
-        const MIN_SIMILARITY_THRESHOLD = 0.20;
-        let useGoogleDetails = true;
+        // 3a. Validate results based on the placeVerified flag returned by the fallback function
+        const useGoogleDetails = placeDetails?.placeVerified === true;
 
-        if (placeDetails?.google_name && placeDetails.google_name !== venue.name) {
-          const similarity = calculateNameSimilarity(venue.name, placeDetails.google_name);
-
-          if (similarity < MIN_SIMILARITY_THRESHOLD) {
-            // REJECT: Match quality too low - Google found a different business
-            venuesLog.warn(3, `"${venue.name}" → Google found "${placeDetails.google_name}" (${(similarity * 100).toFixed(0)}% match) - REJECTED (below ${MIN_SIMILARITY_THRESHOLD * 100}% threshold)`, OP.API);
-            useGoogleDetails = false;
-          } else if (similarity < 0.4) {
-            // ACCEPT with warning: Low but acceptable match
-            venuesLog.warn(3, `"${venue.name}" → Google found "${placeDetails.google_name}" (${(similarity * 100).toFixed(0)}% match) - accepting with caution`, OP.API);
-          }
+        if (placeDetails && !useGoogleDetails) {
+          venuesLog.warn(3, `"${venue.name}" → Google found "${placeDetails.google_name}" but verification failed (Method: ${placeDetails.matchMethod})`, OP.API);
+        } else if (placeDetails) {
+          // Log the successful match method for debugging
+          const matchInfo = placeDetails.matchMethod === 'text_search' ? ` [via ${placeDetails.district || 'text'}]` : '';
+          venuesLog.info(`Match confirmed: "${venue.name}" ↔ "${placeDetails.google_name}"${matchInfo}`, OP.API);
         }
 
         // 4. Cache stable data in database - REMOVED (places table doesn't exist)
@@ -494,7 +493,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
                 latitude: lat,
                 longitude: lng,
               },
-              radius: 150.0, // 150m radius - GPT coords can be slightly off, find nearest venue
+              radius: 500.0, // 500m radius - Increased from 150m to catch venues with slight LLM coord mismatch
             },
           },
           maxResultCount: 3, // Get top 3 and pick closest match

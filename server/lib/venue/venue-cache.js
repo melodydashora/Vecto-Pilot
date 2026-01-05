@@ -14,6 +14,7 @@ import {
   generateCoordKey,
   mergeVenueTypes
 } from './venue-utils.js';
+import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 
 // Re-export utils for backward compatibility
 export { normalizeVenueName, generateCoordKey };
@@ -157,6 +158,7 @@ export async function lookupVenueFuzzy(criteria) {
  * @param {number} [venue.expenseRank] - 1-4 expense ranking
  * @param {string} [venue.category] - Category for venue_catalog
  * @param {string} [venue.country] - Country code (default: USA)
+ * @param {string} [venue.district] - Explicit district name
  * @returns {Promise<Object>} Inserted venue record
  */
 export async function insertVenue(venue) {
@@ -166,6 +168,10 @@ export async function insertVenue(venue) {
   // Determine venue_types array
   const venueTypes = venue.venueTypes ||
     (venue.venueType ? [venue.venueType] : ['venue']);
+
+  // Auto-detect district if not provided (e.g., "Legacy Hall (Legacy West)" → "Legacy West")
+  const district = venue.district || extractDistrictFromVenueName(venue.venueName);
+  const districtSlug = district ? normalizeDistrictSlug(district) : null;
 
   const [inserted] = await db
     .insert(venue_catalog)
@@ -192,6 +198,8 @@ export async function insertVenue(venue) {
       source_model: venue.sourceModel,
       expense_rank: venue.expenseRank,
       discovery_source: venue.source,
+      district: district,
+      district_slug: districtSlug,
       access_count: 1,
       last_accessed_at: new Date(),
       updated_at: new Date()
@@ -230,6 +238,11 @@ export async function upsertVenue(venue) {
       venue.venueTypes || (venue.venueType ? [venue.venueType] : [])
     );
 
+    // District logic: Use new if available, fallback to existing, fallback to extraction
+    const newDistrict = venue.district || extractDistrictFromVenueName(venue.venueName);
+    const finalDistrict = newDistrict || existing.district;
+    const finalDistrictSlug = finalDistrict ? normalizeDistrictSlug(finalDistrict) : existing.district_slug;
+
     const [updated] = await db
       .update(venue_catalog)
       .set({
@@ -245,6 +258,8 @@ export async function upsertVenue(venue) {
         venue_types: mergedTypes,
         capacity_estimate: venue.capacityEstimate || existing.capacity_estimate,
         expense_rank: venue.expenseRank || existing.expense_rank,
+        district: finalDistrict,
+        district_slug: finalDistrictSlug,
         updated_at: new Date(),
         access_count: sql`COALESCE(access_count, 0) + 1`,
         last_accessed_at: new Date()
@@ -362,7 +377,9 @@ export async function findOrCreateVenue(eventData, source) {
     return null;
   }
 
-  // Create new venue
+  // Create new venue with District Tagging
+  const district = extractDistrictFromVenueName(venueName);
+
   const created = await insertVenue({
     venueName,
     city,
@@ -373,6 +390,7 @@ export async function findOrCreateVenue(eventData, source) {
     source,
     venueTypes: ['event_host'],
     category: guessVenueType(venueName),
+    district: district  // Explicitly pass extracted district
   });
 
   return created;
