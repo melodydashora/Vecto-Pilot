@@ -8,9 +8,11 @@
  * Architecture: Separate AI reasoning (VENUE_SCORER role) from factual lookups (Google)
  *
  * District Fallback (Dec 2025):
- *   When coordinate-based Places API search fails (name match < 20%),
- *   falls back to text search using: "venue_name district city"
- *   This handles LLM coordinate imprecision (50-150m off target).
+ * When coordinate-based Places API search fails (name match < 20%),
+ * falls back to text search using: "venue_name district city"
+ * This handles LLM coordinate imprecision (50-150m off target).
+ *
+ * 2026-01-05: Radius increased from 150m to 500m for better venue matching
  */
 
 import { getRouteWithTraffic, getRouteMatrix } from "../external/routes-api.js";
@@ -113,16 +115,12 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
         const useGoogleDetails = placeDetails?.placeVerified === true;
 
         if (placeDetails && !useGoogleDetails) {
-          venuesLog.warn(3, `"${venue.name}" → Google found "${placeDetails.google_name}" but verification failed (Method: ${placeDetails.matchMethod})`, OP.API);
+             venuesLog.warn(3, `"${venue.name}" → Google found "${placeDetails.google_name}" but verification failed (Method: ${placeDetails.matchMethod})`, OP.API);
         } else if (placeDetails) {
-          // Log the successful match method for debugging
-          const matchInfo = placeDetails.matchMethod === 'text_search' ? ` [via ${placeDetails.district || 'text'}]` : '';
-          venuesLog.info(`Match confirmed: "${venue.name}" ↔ "${placeDetails.google_name}"${matchInfo}`, OP.API);
+             // Log the successful match method for debugging
+             const matchInfo = placeDetails.matchMethod === 'text_search' ? ` [via ${placeDetails.district || 'text'}]` : '';
+             venuesLog.info(`Match confirmed: "${venue.name}" ↔ "${placeDetails.google_name}"${matchInfo}`, OP.API);
         }
-
-        // 4. Cache stable data in database - REMOVED (places table doesn't exist)
-        // Only places_cache table exists for storing business hours
-        // Coordinates are preserved in venue_catalog and rankings tables
 
         // CRITICAL FIX: Filter out permanently closed venues before recommending to drivers
         if (placeDetails?.business_status === 'CLOSED_PERMANENTLY') {
@@ -304,7 +302,7 @@ function calculateIsOpen(weekdayTexts, timezone = "UTC") {
       console.warn(`[calculateIsOpen] Invalid timezone "${timezone}", falling back to UTC`);
       timezone = "UTC";
     }
-    
+
     const formatter = new Intl.DateTimeFormat("en-US", {
       timeZone: timezone,
       weekday: "long",
@@ -478,6 +476,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       // Use Places API (New) - Search Nearby with PRECISE location
+      // 2026-01-05: Radius increased from 150m to 500m to catch venues with slight coord mismatch
       const response = await fetch(PLACES_NEW_URL, {
         method: "POST",
         headers: {
@@ -493,7 +492,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
                 latitude: lat,
                 longitude: lng,
               },
-              radius: 500.0, // 500m radius - Increased from 150m to catch venues with slight LLM coord mismatch
+              radius: 500.0, // 500m radius - Increased from 150m to catch venues with slight coord mismatch
             },
           },
           maxResultCount: 3, // Get top 3 and pick closest match
@@ -511,7 +510,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
           await new Promise(resolve => setTimeout(resolve, delay));
           continue; // Retry
         }
-        
+
         const errorText = await response.text();
         console.error(
           `[Places API (New)] HTTP ${response.status} for "${name}":`,
@@ -604,7 +603,8 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
         return result;
       }
 
-      venuesLog.warn(3, `Places API: No results for "${name}" at ${lat.toFixed(4)},${lng.toFixed(4)}`, OP.API);
+      // 2026-01-05: Use 6 decimals in logs for consistency
+      venuesLog.warn(3, `Places API: No results for "${name}" at ${lat.toFixed(6)},${lng.toFixed(6)}`, OP.API);
 
       return null;
     } catch (error) {
