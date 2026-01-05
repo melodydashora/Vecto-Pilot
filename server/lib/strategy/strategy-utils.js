@@ -311,30 +311,192 @@ function getEventEndTime(event) {
 }
 
 /**
+ * Parse a human-readable time string like "3:30 PM" into hours and minutes
+ * @param {string} timeStr - Time string like "3:30 PM", "15:30", "9:00 AM"
+ * @returns {{hours: number, minutes: number}|null} - Parsed time or null
+ */
+function parseTimeString(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+
+  const time = timeStr.trim().toUpperCase();
+
+  // Handle 12-hour format: "3:30 PM", "9:00 AM"
+  const match12 = time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (match12) {
+    let hours = parseInt(match12[1], 10);
+    const minutes = parseInt(match12[2], 10);
+    const isPM = match12[3] === 'PM';
+
+    if (isPM && hours !== 12) hours += 12;
+    if (!isPM && hours === 12) hours = 0;
+
+    return { hours, minutes };
+  }
+
+  // Handle 24-hour format: "15:30", "09:00"
+  const match24 = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (match24) {
+    return {
+      hours: parseInt(match24[1], 10),
+      minutes: parseInt(match24[2], 10)
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Convert a date/time in a specific timezone to UTC Date object
+ * Handles the case where server runs in UTC but events are in local timezone
+ *
+ * @param {number} year - Year
+ * @param {number} month - Month (1-12)
+ * @param {number} day - Day
+ * @param {number} hours - Hours (0-23)
+ * @param {number} minutes - Minutes
+ * @param {string} timezone - IANA timezone like "America/Chicago"
+ * @returns {Date} - Date object in UTC
+ */
+function createDateInTimezone(year, month, day, hours, minutes, timezone) {
+  // Create ISO string with the time we want
+  const pad = (n) => String(n).padStart(2, '0');
+  const isoBase = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
+
+  // Use Intl.DateTimeFormat to figure out the UTC offset for this timezone at this date/time
+  // Create a reference date to get the timezone offset
+  const refDate = new Date(`${isoBase}Z`); // Start with UTC interpretation
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+
+  // Get what time it would be in the target timezone if refDate was UTC
+  // Then calculate the offset
+  const parts = formatter.formatToParts(refDate);
+  const getPart = (type) => parts.find(p => p.type === type)?.value;
+
+  const tzYear = parseInt(getPart('year'));
+  const tzMonth = parseInt(getPart('month'));
+  const tzDay = parseInt(getPart('day'));
+  const tzHour = parseInt(getPart('hour'));
+  const tzMinute = parseInt(getPart('minute'));
+
+  // Calculate the offset in minutes between UTC and target timezone
+  // We want: localTime = UTC + offset, so offset = localTime - UTC
+  const utcMinutes = refDate.getUTCHours() * 60 + refDate.getUTCMinutes();
+  const tzMinutes = tzHour * 60 + tzMinute;
+
+  // Handle day boundary (timezone might be different day)
+  let offsetMinutes = tzMinutes - utcMinutes;
+  if (tzDay > refDate.getUTCDate() || (tzDay === 1 && refDate.getUTCDate() > 27)) {
+    offsetMinutes += 24 * 60; // Next day in timezone
+  } else if (tzDay < refDate.getUTCDate() || (refDate.getUTCDate() === 1 && tzDay > 27)) {
+    offsetMinutes -= 24 * 60; // Previous day in timezone
+  }
+
+  // Now create the correct UTC time
+  // We have the LOCAL time (hours, minutes) and need to convert to UTC
+  // UTC = local - offset
+  const localMs = new Date(year, month - 1, day, hours, minutes).getTime();
+  const utcMs = localMs - (offsetMinutes * 60 * 1000);
+
+  return new Date(utcMs);
+}
+
+/**
  * Extract start time from event object (handles multiple field naming conventions)
+ *
+ * 2026-01-05: Fixed critical bug where event_date "2026-01-05" was parsed as midnight UTC,
+ * causing Central Time events to appear as 6 PM previous day. Now combines event_date + event_time
+ * with proper timezone handling.
+ *
  * @param {Object} event - Event object
+ * @param {string} timezone - IANA timezone like "America/Chicago" (default: server local)
  * @returns {Date|null} - Parsed start time or null if not available
  */
-function getEventStartTime(event) {
+function getEventStartTime(event, timezone = null) {
   if (!event) return null;
 
-  const startTimeFields = [
-    'start_time',
-    'startTime',
+  // PRIORITY 1: Try ISO datetime fields first (already include time)
+  const isoFields = [
     'start_time_iso',
     'startsAt',
     'starts_at',
+    'start_time',
+    'startTime'
+  ];
+
+  for (const field of isoFields) {
+    if (event[field]) {
+      const parsed = new Date(event[field]);
+      if (!isNaN(parsed.getTime())) {
+        // Verify it's a full datetime, not just a date (has time component)
+        const str = String(event[field]);
+        if (str.includes('T') || str.includes(':')) {
+          return parsed;
+        }
+      }
+    }
+  }
+
+  // PRIORITY 2: Combine event_date + event_time (briefing events pattern)
+  // event_date: "2026-01-05", event_time: "3:30 PM"
+  if (event.event_date && event.event_time) {
+    const timeParts = parseTimeString(event.event_time);
+    if (timeParts) {
+      const dateStr = event.event_date; // "2026-01-05"
+      const [year, month, day] = dateStr.split('-').map(Number);
+
+      // If timezone provided, use it for proper UTC conversion
+      if (timezone) {
+        try {
+          return createDateInTimezone(year, month, day, timeParts.hours, timeParts.minutes, timezone);
+        } catch (e) {
+          // Fall back to server local time if timezone conversion fails
+        }
+      }
+
+      // No timezone - use server local time (will be UTC on most servers)
+      const combined = new Date(year, month - 1, day, timeParts.hours, timeParts.minutes);
+      if (!isNaN(combined.getTime())) {
+        return combined;
+      }
+    }
+  }
+
+  // PRIORITY 3: Fall back to date-only fields (use noon in timezone or local time)
+  const dateFields = [
     'event_date',
     'startDate',
     'start_date',
     'date'
   ];
 
-  for (const field of startTimeFields) {
+  for (const field of dateFields) {
     if (event[field]) {
-      const parsed = new Date(event[field]);
-      if (!isNaN(parsed.getTime())) {
-        return parsed;
+      const dateStr = String(event[field]);
+      // Only use if it looks like a date (not datetime)
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = dateStr.split('-').map(Number);
+
+        // Use noon in the specified timezone to avoid edge cases
+        if (timezone) {
+          try {
+            return createDateInTimezone(year, month, day, 12, 0, timezone);
+          } catch (e) {
+            // Fall back to server local time
+          }
+        }
+
+        const parsed = new Date(year, month - 1, day, 12, 0, 0);
+        if (!isNaN(parsed.getTime())) {
+          return parsed;
+        }
       }
     }
   }
@@ -345,21 +507,27 @@ function getEventStartTime(event) {
 /**
  * Check if an event has valid date/time information
  * @param {Object} event - Event object
+ * @param {string} timezone - IANA timezone (optional)
  * @returns {boolean} - True if event has at least start time
  */
-function hasValidDateInfo(event) {
-  const startTime = getEventStartTime(event);
+function hasValidDateInfo(event, timezone = null) {
+  const startTime = getEventStartTime(event, timezone);
   // Require at least a start time - we can infer end from start + duration
   return startTime !== null;
 }
 
 /**
  * Check if an event is still fresh (not yet ended)
+ *
+ * 2026-01-05: Added timezone parameter to properly handle events in local timezones
+ * when server runs in UTC.
+ *
  * @param {Object} event - Event object
  * @param {Date} now - Reference time for comparison
+ * @param {string} timezone - IANA timezone like "America/Chicago" for parsing event times
  * @returns {boolean} - True if event is still active/upcoming
  */
-export function isEventFresh(event, now = new Date()) {
+export function isEventFresh(event, now = new Date(), timezone = null) {
   if (!event) return false;
 
   const endTime = getEventEndTime(event);
@@ -370,7 +538,7 @@ export function isEventFresh(event, now = new Date()) {
   }
 
   // If no end time, use start time + default duration (4 hours)
-  const startTime = getEventStartTime(event);
+  const startTime = getEventStartTime(event, timezone);
   if (startTime) {
     const inferredEnd = new Date(startTime.getTime() + 4 * 60 * 60 * 1000);
     return inferredEnd > now;
@@ -384,11 +552,15 @@ export function isEventFresh(event, now = new Date()) {
  * Filter events to only include fresh (not-yet-ended) events with valid dates
  * CRITICAL: Rejects events without date/time info entirely (2026-01-05)
  *
+ * 2026-01-05: Added timezone parameter to properly handle events stored with local
+ * times (e.g., "3:30 PM") when server runs in UTC. Pass snapshot.timezone for correct filtering.
+ *
  * @param {Array} events - Array of event objects
  * @param {Date} now - Reference time for comparison (default: current time)
+ * @param {string} timezone - IANA timezone like "America/Chicago" for parsing event times
  * @returns {Array} - Filtered array of fresh events
  */
-export function filterFreshEvents(events, now = new Date()) {
+export function filterFreshEvents(events, now = new Date(), timezone = null) {
   if (!Array.isArray(events)) {
     return [];
   }
@@ -399,13 +571,13 @@ export function filterFreshEvents(events, now = new Date()) {
 
   for (const event of events) {
     // Check for valid date info first
-    if (!hasValidDateInfo(event)) {
+    if (!hasValidDateInfo(event, timezone)) {
       noDateCount++;
       continue;
     }
 
     // Check if event is still fresh
-    if (isEventFresh(event, now)) {
+    if (isEventFresh(event, now, timezone)) {
       freshEvents.push(event);
     } else {
       staleCount++;
@@ -414,7 +586,7 @@ export function filterFreshEvents(events, now = new Date()) {
 
   // Log filtering stats if we removed events
   if (staleCount > 0 || noDateCount > 0) {
-    console.log(`[filterFreshEvents] Filtered: ${staleCount} stale, ${noDateCount} missing dates (kept ${freshEvents.length}/${events.length})`);
+    console.log(`[filterFreshEvents] Filtered: ${staleCount} stale, ${noDateCount} missing dates (kept ${freshEvents.length}/${events.length}) tz=${timezone || 'local'}`);
   }
 
   return freshEvents;
