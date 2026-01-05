@@ -271,3 +271,151 @@ export async function getPhaseTimingInfo(snapshotId) {
     return { phase: 'starting', phase_started_at: null, pipeline_started_at: null };
   }
 }
+
+// ============================================================================
+// EVENT FRESHNESS FILTERING
+// Added 2026-01-05: Filter stale events from briefing data
+// Events must have date/time info and must not have ended yet
+// ============================================================================
+
+/**
+ * Extract end time from event object (handles multiple field naming conventions)
+ * @param {Object} event - Event object
+ * @returns {Date|null} - Parsed end time or null if not available
+ */
+function getEventEndTime(event) {
+  if (!event) return null;
+
+  // Try various field names used across the codebase
+  const endTimeFields = [
+    'end_time',
+    'endTime',
+    'end_time_iso',
+    'endsAt',
+    'ends_at',
+    'event_end_date',
+    'endDate',
+    'end_date'
+  ];
+
+  for (const field of endTimeFields) {
+    if (event[field]) {
+      const parsed = new Date(event[field]);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract start time from event object (handles multiple field naming conventions)
+ * @param {Object} event - Event object
+ * @returns {Date|null} - Parsed start time or null if not available
+ */
+function getEventStartTime(event) {
+  if (!event) return null;
+
+  const startTimeFields = [
+    'start_time',
+    'startTime',
+    'start_time_iso',
+    'startsAt',
+    'starts_at',
+    'event_date',
+    'startDate',
+    'start_date',
+    'date'
+  ];
+
+  for (const field of startTimeFields) {
+    if (event[field]) {
+      const parsed = new Date(event[field]);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Check if an event has valid date/time information
+ * @param {Object} event - Event object
+ * @returns {boolean} - True if event has at least start time
+ */
+function hasValidDateInfo(event) {
+  const startTime = getEventStartTime(event);
+  // Require at least a start time - we can infer end from start + duration
+  return startTime !== null;
+}
+
+/**
+ * Check if an event is still fresh (not yet ended)
+ * @param {Object} event - Event object
+ * @param {Date} now - Reference time for comparison
+ * @returns {boolean} - True if event is still active/upcoming
+ */
+export function isEventFresh(event, now = new Date()) {
+  if (!event) return false;
+
+  const endTime = getEventEndTime(event);
+
+  // If we have an end time, check if event has ended
+  if (endTime) {
+    return endTime > now;
+  }
+
+  // If no end time, use start time + default duration (4 hours)
+  const startTime = getEventStartTime(event);
+  if (startTime) {
+    const inferredEnd = new Date(startTime.getTime() + 4 * 60 * 60 * 1000);
+    return inferredEnd > now;
+  }
+
+  // No date info at all - not fresh (reject per user requirement)
+  return false;
+}
+
+/**
+ * Filter events to only include fresh (not-yet-ended) events with valid dates
+ * CRITICAL: Rejects events without date/time info entirely (2026-01-05)
+ *
+ * @param {Array} events - Array of event objects
+ * @param {Date} now - Reference time for comparison (default: current time)
+ * @returns {Array} - Filtered array of fresh events
+ */
+export function filterFreshEvents(events, now = new Date()) {
+  if (!Array.isArray(events)) {
+    return [];
+  }
+
+  const freshEvents = [];
+  let staleCount = 0;
+  let noDateCount = 0;
+
+  for (const event of events) {
+    // Check for valid date info first
+    if (!hasValidDateInfo(event)) {
+      noDateCount++;
+      continue;
+    }
+
+    // Check if event is still fresh
+    if (isEventFresh(event, now)) {
+      freshEvents.push(event);
+    } else {
+      staleCount++;
+    }
+  }
+
+  // Log filtering stats if we removed events
+  if (staleCount > 0 || noDateCount > 0) {
+    console.log(`[filterFreshEvents] Filtered: ${staleCount} stale, ${noDateCount} missing dates (kept ${freshEvents.length}/${events.length})`);
+  }
+
+  return freshEvents;
+}
