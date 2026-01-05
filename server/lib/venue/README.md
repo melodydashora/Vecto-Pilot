@@ -22,6 +22,7 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
 | `event-proximity-boost.js` | Airport proximity scoring | `calculateProximityBoost()` |
 | `venue-cache.js` | Venue deduplication cache | `findOrCreateVenue()`, `lookupVenue()` |
+| `venue-utils.js` | Venue consolidation utilities | `parseAddressComponents()`, `generateCoordKey()`, `calculateIsOpen()` |
 | `district-detection.js` | Entertainment district identification | `detectDistrict()` |
 | `event-matcher.js` | Event-to-venue matching | `matchEventsToVenues()` |
 | `index.js` | Module barrel exports | All venue exports |
@@ -109,19 +110,20 @@ const venues = await discoverNearbyVenues(lat, lng, city, state, {
 - `rankings` table: Ranking session metadata
 - `ranking_candidates` table: Individual venue recommendations with enrichment data
 
-## Venue Cache (venue-cache.js)
+## Venue Catalog (venue-cache.js)
 
-The venue cache provides precise coordinates, deduplication, and event-to-venue linking.
+**Updated 2026-01-05**: The venue system now uses a single `venue_catalog` table (consolidated from `venue_cache` + `nearby_venues`).
 
 **Features:**
-- Normalized venue names for fuzzy matching ("The Rustic" → "rustic")
-- Precise lat/lng coordinates (full decimal precision)
-- Links discovered events to cached venues via `venue_id`
-- Access tracking for cache efficiency
+- **Deduplication**: Normalized venue names + `coord_key` (6 decimal precision ~11cm)
+- **Multi-role tagging**: `venue_types` JSONB array (e.g., `['bar', 'event_host']`)
+- **Bar Markers**: `expense_rank`, `hours_full_week` for is_open/closing_soon logic
+- **Address parsing**: Granular fields (`address_1`, `city`, `state`, `zip`)
+- **Event linking**: `discovered_events.venue_id` FK to `venue_catalog.venue_id`
 
 **Usage:**
 ```javascript
-import { findOrCreateVenue, lookupVenue, getEventsForVenue } from './venue-cache.js';
+import { findOrCreateVenue, lookupVenue, getEventsForVenue, getVenuesByType } from './venue-cache.js';
 
 // Find or create a venue during event discovery
 const venue = await findOrCreateVenue({
@@ -133,7 +135,7 @@ const venue = await findOrCreateVenue({
   state: "TX"
 }, 'sync_events_gpt52');
 
-// Look up existing venue by name
+// Look up existing venue by name, coords, or place_id
 const cached = await lookupVenue({
   venueName: "AT&T Stadium",
   city: "Arlington",
@@ -144,9 +146,19 @@ const cached = await lookupVenue({
 const events = await getEventsForVenue(venueId, {
   fromDate: "2026-01-01"
 });
+
+// Get bars/restaurants by type (for Bar Tab)
+const bars = await getVenuesByType({
+  venueTypes: ['bar', 'restaurant'],
+  city: 'Dallas',
+  state: 'TX',
+  limit: 50
+});
 ```
 
-**Database Table:** `venue_cache` with foreign key in `discovered_events.venue_id`
+**Database Table:** `venue_catalog` with FK in `discovered_events.venue_id`
+
+**Deprecated Tables:** `venue_cache` and `nearby_venues` are consolidated into `venue_catalog`
 
 ## Key Data Structures
 

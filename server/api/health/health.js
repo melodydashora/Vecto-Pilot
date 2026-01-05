@@ -1,6 +1,7 @@
 // server/api/health/health.js
+// Updated 2026-01-05: Migrated from llm-router-v2.js to model-registry.js
 import { Router } from "express";
-import { routerDiagnosticsV2 } from "../../lib/ai/llm-router-v2.js";
+import { getLLMDiagnostics } from "../../lib/ai/model-registry.js";
 import { getPoolStats, getSharedPool } from "../../db/pool.js";
 import { getAgentState } from "../../db/connection-manager.js";
 import { providers } from "../../lib/strategy/providers.js";
@@ -10,7 +11,7 @@ const router = Router();
 
 // Root diagnostics endpoint
 router.get("/", (req, res) => {
-  const diag = routerDiagnosticsV2();
+  const diag = getLLMDiagnostics();
   const poolStats = getPoolStats();
   res.json({
     ok: true,

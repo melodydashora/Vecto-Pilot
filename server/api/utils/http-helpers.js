@@ -3,7 +3,10 @@ export function httpError(res, status, code, message, reqId, extra = {}) {
 }
 
 export function isPlusCode(address) {
-  if (!address) return false;
+  // Defensive: check for string type, not just truthiness
+  // Fix for: TypeError: address.trim is not a function
+  // Updated 2026-01-05
+  if (!address || typeof address !== 'string') return false;
   const trimmed = address.trim();
   return /^[A-Z0-9]{4,6}\+[A-Z0-9]{2,3}(\s|$)/.test(trimmed);
 }

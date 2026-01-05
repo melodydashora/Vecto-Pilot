@@ -253,7 +253,53 @@ export const venue_catalog = pgTable("venue_catalog", {
   consecutive_closed_checks: integer("consecutive_closed_checks").default(0),
   auto_suppressed: boolean("auto_suppressed").default(false),
   suppression_reason: text("suppression_reason"),
-});
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // VENUE CONSOLIDATION (2026-01-05)
+  // Columns added to consolidate venue_cache + nearby_venues into venue_catalog
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Granular Address Fields (for Google Places API New integration)
+  state: text("state"),                  // State abbreviation (e.g., "TX")
+  address_1: text("address_1"),          // Street number + route (e.g., "123 Main St")
+  address_2: text("address_2"),          // Suite, floor, unit (optional)
+  zip: text("zip"),                      // Postal code
+  country: text("country").default('USA'), // Country code
+  formatted_address: text("formatted_address"), // Full Google-formatted address
+
+  // Lookup & Deduplication
+  normalized_name: text("normalized_name"),  // Lowercase alphanumeric for fuzzy matching
+  coord_key: text("coord_key").unique(),     // "33.123456_-96.123456" (6 decimal precision)
+
+  // Multi-Role Tagging (replaces single venue_type from venue_cache)
+  venue_types: jsonb("venue_types").default(sql`'[]'`), // ['bar', 'event_host', 'restaurant', 'stadium']
+
+  // Market Linkage
+  market_slug: text("market_slug"),  // References markets(market_slug) - FK added via ALTER
+
+  // Bar Marker Fields (FROM nearby_venues - CRITICAL for Map Features)
+  expense_rank: integer("expense_rank"),     // 1-4 for $/$$/$$$/$$$$ filtering
+  hours_full_week: jsonb("hours_full_week"), // {monday: "4:00 PM - 2:00 AM", ...} for is_open calc
+  crowd_level: text("crowd_level"),          // 'low' | 'medium' | 'high'
+  rideshare_potential: text("rideshare_potential"), // 'low' | 'medium' | 'high'
+
+  // Cache Metadata (FROM venue_cache)
+  hours_source: text("hours_source"),        // 'google_places', 'manual', 'inferred'
+  capacity_estimate: integer("capacity_estimate"), // Venue capacity for surge prediction
+  source: text("source"),                    // 'google_places', 'serpapi', 'llm', 'manual'
+  source_model: text("source_model"),        // Which AI model discovered this venue
+  access_count: integer("access_count").default(0), // Cache hit tracking
+  last_accessed_at: timestamp("last_accessed_at", { withTimezone: true }), // Last cache access
+  updated_at: timestamp("updated_at", { withTimezone: true }).default(sql`NOW()`), // Update tracking
+}, (table) => ({
+  // Indexes for efficient lookups
+  idxCoordKey: sql`create unique index if not exists idx_venue_catalog_coord_key on ${table} (coord_key) where coord_key is not null`,
+  idxNormalizedName: sql`create index if not exists idx_venue_catalog_normalized_name on ${table} (normalized_name)`,
+  idxCityState: sql`create index if not exists idx_venue_catalog_city_state on ${table} (city, state)`,
+  idxMarketSlug: sql`create index if not exists idx_venue_catalog_market_slug on ${table} (market_slug)`,
+  idxVenueTypes: sql`create index if not exists idx_venue_catalog_venue_types on ${table} using gin (venue_types)`,
+  idxExpenseRank: sql`create index if not exists idx_venue_catalog_expense_rank on ${table} (expense_rank) where expense_rank is not null`,
+}));
 
 export const venue_metrics = pgTable("venue_metrics", {
   venue_id: uuid("venue_id").primaryKey().references(() => venue_catalog.venue_id),
@@ -301,71 +347,8 @@ export const places_cache = pgTable("places_cache", {
   access_count: integer("access_count").notNull().default(0),
 });
 
-/**
- * Venue Cache - Centralized venue data for events + bars + restaurants
- *
- * Purposes:
- * 1. Avoid repeated geocoding/Places API calls for same venues
- * 2. Deduplicate events by venue (multiple events at AT&T Stadium share one venue)
- * 3. Enable SmartBlocks "event tonight" flag by joining venues to events
- * 4. Store full-precision coordinates for accurate mapping
- *
- * Lookup patterns:
- * - By place_id (Google Places) - fastest, exact match
- * - By normalized_name + city + state - for event venues without place_id
- * - By coord_key - for nearby venue matching
- */
-export const venue_cache = pgTable("venue_cache", {
-  id: uuid("id").primaryKey().defaultRandom(),
-
-  // Identity
-  venue_name: text("venue_name").notNull(),
-  normalized_name: text("normalized_name").notNull(), // lowercase, alphanumeric only for fuzzy matching
-
-  // Location
-  city: text("city").notNull(),
-  state: text("state").notNull(),
-  country: text("country").default('USA'),
-
-  // Coordinates (full precision - 15+ decimal places)
-  lat: doublePrecision("lat").notNull(),
-  lng: doublePrecision("lng").notNull(),
-  coord_key: text("coord_key"), // Format: "lat6d_lng6d" e.g., "33.128400_-96.868800" for fast lookup
-
-  // Address
-  address: text("address"), // Street address
-  formatted_address: text("formatted_address"), // Full formatted address from Google
-  zip: text("zip"),
-
-  // Google Places (if available)
-  place_id: text("place_id").unique(), // Google Places ID
-
-  // Hours (if available)
-  hours: jsonb("hours"), // { monday: "9:00 AM - 5:00 PM", tuesday: "...", ... }
-  hours_source: text("hours_source"), // 'google_places', 'manual', 'inferred'
-
-  // Venue type hints
-  venue_type: text("venue_type"), // 'stadium', 'arena', 'theater', 'bar', 'restaurant', 'convention_center', 'outdoor', 'other'
-  capacity_estimate: integer("capacity_estimate"), // Estimated capacity for surge prediction
-
-  // Source & metadata
-  source: text("source").notNull(), // 'google_places', 'geocoding', 'serpapi', 'llm', 'manual'
-  source_model: text("source_model"), // Which LLM if source='llm'
-
-  // Cache management
-  cached_at: timestamp("cached_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  access_count: integer("access_count").notNull().default(0),
-  last_accessed_at: timestamp("last_accessed_at", { withTimezone: true }),
-}, (table) => ({
-  // Unique constraint: one venue per normalized name + city + state
-  uniqueVenue: sql`unique nulls not distinct (normalized_name, city, state)`,
-  // Indexes for fast lookup
-  idxPlaceId: sql`create index if not exists idx_venue_cache_place_id on ${table} (place_id) where place_id is not null`,
-  idxCoordKey: sql`create index if not exists idx_venue_cache_coord_key on ${table} (coord_key) where coord_key is not null`,
-  idxCityState: sql`create index if not exists idx_venue_cache_city_state on ${table} (city, state)`,
-  idxNormalizedName: sql`create index if not exists idx_venue_cache_normalized_name on ${table} (normalized_name)`,
-}));
+// venue_cache table DELETED 2026-01-05 - Consolidated into venue_catalog
+// See: /home/runner/.claude/plans/noble-purring-yeti.md
 
 // Per-venue thumbs up/down feedback (tied to rankings)
 export const venue_feedback = pgTable("venue_feedback", {
@@ -575,8 +558,9 @@ export const discovered_events = pgTable("discovered_events", {
   city: text("city").notNull(),
   state: text("state").notNull(),
   zip: text("zip"),
-  // Reference to cached venue (enables venue → events queries for SmartBlocks)
-  venue_id: uuid("venue_id").references(() => venue_cache.id, { onDelete: 'set null' }),
+  // Reference to venue_catalog (enables venue → events queries for SmartBlocks)
+  // Updated 2026-01-05: FK changed from venue_cache.id to venue_catalog.venue_id
+  venue_id: uuid("venue_id").references(() => venue_catalog.venue_id, { onDelete: 'set null' }),
   // Event timing
   event_date: text("event_date").notNull(), // YYYY-MM-DD format
   event_time: text("event_time"), // e.g., "7:00 PM", "All Day"
@@ -634,49 +618,8 @@ export const traffic_zones = pgTable("traffic_zones", {
   idxCity: sql`create index if not exists idx_traffic_zones_city on ${table} (city)`,
 }));
 
-// Nearby venues discovered via Gemini web search (bars/restaurants)
-// ML training data: enriched with opening/closing times and user corrections
-export const nearby_venues = pgTable("nearby_venues", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
-  name: text("name").notNull(),
-  venue_type: text("venue_type").notNull(), // 'bar' | 'restaurant' | 'bar_restaurant'
-  address: text("address"),
-  lat: doublePrecision("lat").notNull(),
-  lng: doublePrecision("lng").notNull(),
-  distance_miles: doublePrecision("distance_miles"),
-  expense_level: text("expense_level"), // '$' | '$$' | '$$$' | '$$$$'
-  expense_rank: integer("expense_rank"), // 1-4 (4 = most expensive)
-  phone: text("phone"),
-  is_open: boolean("is_open").default(true),
-  hours_today: text("hours_today"),
-  hours_full_week: jsonb("hours_full_week"), // Mon-Sun schedule for learning
-  closing_soon: boolean("closing_soon").default(false), // True if closing within 1 hour
-  minutes_until_close: integer("minutes_until_close"),
-  opens_in_minutes: integer("opens_in_minutes"), // Null if open or >15 mins away
-  opens_in_future: boolean("opens_in_future"), // True if venue opens within 15 mins
-  was_filtered: boolean("was_filtered").default(false), // True if closed 30-45+ mins ago
-  crowd_level: text("crowd_level"), // 'low' | 'medium' | 'high'
-  rideshare_potential: text("rideshare_potential"), // 'low' | 'medium' | 'high'
-  city: text("city"),
-  state: text("state"),
-  // ML training data
-  day_of_week: integer("day_of_week"), // 0=Sunday, 1=Monday, etc
-  is_holiday: boolean("is_holiday").default(false),
-  holiday_name: text("holiday_name"),
-  search_sources: jsonb("search_sources"), // Gemini grounding sources
-  // User corrections for ML feedback
-  user_corrections: jsonb("user_corrections").default(sql`'[]'`), // [{user_id, field, old_value, new_value, corrected_at}]
-  correction_count: integer("correction_count").default(0),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  idxSnapshotId: sql`create index if not exists idx_nearby_venues_snapshot_id on ${table} (snapshot_id)`,
-  idxExpenseRank: sql`create index if not exists idx_nearby_venues_expense_rank on ${table} (expense_rank)`,
-  idxClosingSoon: sql`create index if not exists idx_nearby_venues_closing_soon on ${table} (closing_soon)`,
-  idxCoords: sql`create index if not exists idx_nearby_venues_coords on ${table} (lat, lng)`,
-  idxCityState: sql`create index if not exists idx_nearby_venues_city_state on ${table} (city, state)`,
-  idxOpen: sql`create index if not exists idx_nearby_venues_is_open on ${table} (is_open)`,
-}));
+// nearby_venues table DELETED 2026-01-05 - Consolidated into venue_catalog
+// See: /home/runner/.claude/plans/noble-purring-yeti.md
 
 export const agent_changes = pgTable("agent_changes", {
   id: uuid("id").primaryKey().defaultRandom(),

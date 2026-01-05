@@ -20,8 +20,10 @@
 //       It's on-demand via POST /api/strategy/daily/:snapshotId when user requests it.
 //
 // RACE CONDITION PREVENTION:
-//   Uses `generationLocks` Map to prevent duplicate AI calls when
+//   Uses PostgreSQL Advisory Locks to prevent duplicate AI calls when
 //   multiple requests arrive simultaneously for the same snapshot.
+//   This supports horizontal scaling across multiple servers.
+//   Updated 2026-01-05: Replaced in-memory Map with pg_advisory_xact_lock
 //
 // RELATED:
 //   - /api/blocks/strategy/:snapshotId (read-only polling, see content-blocks.js)
@@ -47,9 +49,45 @@ import { sseLog, venuesLog, triadLog, dbLog, briefingLog } from '../../logger/wo
 
 const router = Router();
 
-// In-memory lock to prevent duplicate SmartBlocks generation for same snapshot
-// Key: snapshotId, Value: Promise that resolves when generation is complete
-const generationLocks = new Map();
+// PostgreSQL Advisory Lock helpers for cross-server coordination
+// Updated 2026-01-05: Replaced in-memory Map for horizontal scaling support
+
+/**
+ * Try to acquire a PostgreSQL advisory lock for a snapshot.
+ * Returns immediately with true/false (non-blocking).
+ *
+ * @param {string} snapshotId - Snapshot UUID to lock
+ * @returns {Promise<boolean>} true if lock acquired, false if already held
+ */
+async function tryAcquireGenerationLock(snapshotId) {
+  const result = await db.execute(
+    sql`SELECT pg_try_advisory_lock(hashtext(${snapshotId})) as acquired`
+  );
+  return result.rows[0]?.acquired === true;
+}
+
+/**
+ * Wait to acquire a PostgreSQL advisory lock for a snapshot.
+ * Blocks until lock is available (blocking wait).
+ *
+ * @param {string} snapshotId - Snapshot UUID to lock
+ */
+async function waitForGenerationLock(snapshotId) {
+  await db.execute(
+    sql`SELECT pg_advisory_lock(hashtext(${snapshotId}))`
+  );
+}
+
+/**
+ * Release a PostgreSQL advisory lock for a snapshot.
+ *
+ * @param {string} snapshotId - Snapshot UUID to unlock
+ */
+async function releaseGenerationLock(snapshotId) {
+  await db.execute(
+    sql`SELECT pg_advisory_unlock(hashtext(${snapshotId}))`
+  );
+}
 
 // ============================================================================
 // SHARED HELPERS - DRY principle: single source of truth for blocks logic
@@ -75,12 +113,19 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     return { ranking: existingRanking, generated: false, error: null };
   }
 
-  // Check if generation is already in progress for this snapshot (race condition prevention)
-  if (generationLocks.has(snapshotId)) {
-    venuesLog.info(`Generation already in progress for ${snapshotId.slice(0, 8)}, waiting...`);
+  // Try to acquire PostgreSQL advisory lock (non-blocking check)
+  // Updated 2026-01-05: Replaced in-memory Map for horizontal scaling
+  const lockAcquired = await tryAcquireGenerationLock(snapshotId);
+
+  if (!lockAcquired) {
+    // Another process is generating - wait for it to complete
+    venuesLog.info(`Generation locked by another process for ${snapshotId.slice(0, 8)}, waiting...`);
     try {
-      await generationLocks.get(snapshotId);
-      // After waiting, check for the ranking again
+      await waitForGenerationLock(snapshotId);
+      // Lock acquired means other process finished, release immediately
+      await releaseGenerationLock(snapshotId);
+
+      // Check for the ranking created by the other process
       const [ranking] = await db.select().from(rankings)
         .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       return { ranking: ranking || null, generated: false, error: ranking ? null : 'generation_in_progress_completed_without_ranking' };
@@ -89,11 +134,13 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     }
   }
 
+  // We have the lock - proceed with generation
   // Fetch required data (use provided or fetch fresh)
   const strategyRow = options.strategyRow || (await db.select().from(strategies)
     .where(eq(strategies.snapshot_id, snapshotId)).limit(1))[0];
 
   if (!strategyRow?.strategy_for_now) {
+    await releaseGenerationLock(snapshotId);
     return { ranking: null, generated: false, error: 'missing_immediate_strategy' };
   }
 
@@ -101,6 +148,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     .where(eq(briefings.snapshot_id, snapshotId)).limit(1))[0];
 
   if (!briefingRow) {
+    await releaseGenerationLock(snapshotId);
     return { ranking: null, generated: false, error: 'missing_briefing' };
   }
 
@@ -108,16 +156,9 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     .where(eq(snapshots.snapshot_id, snapshotId)).limit(1))[0];
 
   if (!snapshot) {
+    await releaseGenerationLock(snapshotId);
     return { ranking: null, generated: false, error: 'missing_snapshot' };
   }
-
-  // Create a lock for this snapshot to prevent duplicate generation
-  let resolveLock, rejectLock;
-  const lockPromise = new Promise((resolve, reject) => {
-    resolveLock = resolve;
-    rejectLock = reject;
-  });
-  generationLocks.set(snapshotId, lockPromise);
 
   // Generate SmartBlocks
   venuesLog.info(`[blocks-fast] Generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
@@ -139,9 +180,8 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     const [newRanking] = await db.select().from(rankings)
       .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
 
-    // Release lock
-    generationLocks.delete(snapshotId);
-    resolveLock();
+    // Release PostgreSQL advisory lock
+    await releaseGenerationLock(snapshotId);
 
     if (newRanking) {
       venuesLog.done(4, `SmartBlocks generated for ${snapshotId.slice(0, 8)}`);
@@ -153,9 +193,8 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       return { ranking: null, generated: true, error: 'ranking_not_created' };
     }
   } catch (err) {
-    // Release lock on error
-    generationLocks.delete(snapshotId);
-    rejectLock(err);
+    // Release PostgreSQL advisory lock on error
+    await releaseGenerationLock(snapshotId).catch(() => {});
     venuesLog.error(4, `SmartBlocks generation failed`, err);
     return { ranking: null, generated: false, error: err.message };
   }

@@ -1,9 +1,11 @@
-// server/lib/holiday-detector.js
+// server/lib/location/holiday-detector.js
 // Fast holiday detection using BRIEFING_HOLIDAY role with Google Search
 // explicitly configured with tools and safety overrides.
 //
 // Supports holiday overrides via server/config/holiday-override.json
 // Overrides can be superseded by actual holidays (e.g., Christmas overrides "Happy Holidays")
+//
+// Updated 2026-01-05: Added L1 cache with 24h TTL to reduce API costs
 
 import { readFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
@@ -11,6 +13,79 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// ============================================================================
+// L1 CACHE - In-memory cache for holiday detection results
+// Key: "YYYY-MM-DD|City|Country", Value: { result, expiresAt }
+// TTL: 24 hours (86400000 ms)
+// Updated 2026-01-05: Reduces redundant Gemini API calls
+// ============================================================================
+const HOLIDAY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const holidayCache = new Map();
+
+/**
+ * Generate cache key for holiday detection
+ * @param {Date} date - The date to check
+ * @param {string} city - City name
+ * @param {string} country - Country code
+ * @returns {string} Cache key
+ */
+function getHolidayCacheKey(date, city, country) {
+  const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+  return `${dateStr}|${city?.toLowerCase() || 'unknown'}|${country?.toLowerCase() || 'us'}`;
+}
+
+/**
+ * Check L1 cache for holiday result
+ * @param {string} key - Cache key
+ * @returns {{ holiday: string, is_holiday: boolean } | null}
+ */
+function getFromHolidayCache(key) {
+  const cached = holidayCache.get(key);
+  if (!cached) return null;
+
+  if (Date.now() > cached.expiresAt) {
+    holidayCache.delete(key);
+    return null;
+  }
+
+  console.log(`[holiday-detector] 🎯 Cache HIT: ${key}`);
+  return cached.result;
+}
+
+/**
+ * Store holiday result in L1 cache
+ * @param {string} key - Cache key
+ * @param {{ holiday: string, is_holiday: boolean }} result - Detection result
+ */
+function setHolidayCache(key, result) {
+  holidayCache.set(key, {
+    result,
+    expiresAt: Date.now() + HOLIDAY_CACHE_TTL
+  });
+  console.log(`[holiday-detector] 💾 Cache SET: ${key} (TTL: 24h)`);
+}
+
+/**
+ * Clear expired entries from holiday cache (garbage collection)
+ * Called periodically to prevent memory leaks
+ */
+function cleanupHolidayCache() {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const [key, value] of holidayCache.entries()) {
+    if (now > value.expiresAt) {
+      holidayCache.delete(key);
+      cleaned++;
+    }
+  }
+  if (cleaned > 0) {
+    console.log(`[holiday-detector] 🧹 Cleaned ${cleaned} expired cache entries`);
+  }
+}
+
+// Run cleanup every hour
+setInterval(cleanupHolidayCache, 60 * 60 * 1000);
 
 /**
  * Check if there's an active holiday override for the current date
@@ -67,6 +142,14 @@ function getHolidayOverride(date) {
  */
 export async function detectHoliday(context) {
   const checkDate = context.created_at ? new Date(context.created_at) : new Date();
+
+  // L1 Cache Check - before any API calls
+  // Updated 2026-01-05: Reduces redundant Gemini API calls
+  const cacheKey = getHolidayCacheKey(checkDate, context.city, context.country || 'us');
+  const cached = getFromHolidayCache(cacheKey);
+  if (cached) {
+    return cached;
+  }
 
   // Check for holiday override first
   const override = getHolidayOverride(checkDate);
@@ -196,22 +279,22 @@ export async function detectHoliday(context) {
       // If an actual holiday is detected, it supersedes the override
       if (isHoliday) {
         console.log(`[holiday-detector] 🎉 Actual holiday "${holidayName}" supersedes any override`);
-        return {
-          holiday: holidayName,
-          is_holiday: true
-        };
+        const result = { holiday: holidayName, is_holiday: true };
+        setHolidayCache(cacheKey, result); // Cache successful API result
+        return result;
       }
 
       // No actual holiday detected - use override if available
       if (override) {
         console.log(`[holiday-detector] 📌 No actual holiday, using override: "${override.holiday}"`);
-        return { holiday: override.holiday, is_holiday: true };
+        const result = { holiday: override.holiday, is_holiday: true };
+        setHolidayCache(cacheKey, result); // Cache override result
+        return result;
       }
 
-      return {
-        holiday: 'none',
-        is_holiday: false
-      };
+      const result = { holiday: 'none', is_holiday: false };
+      setHolidayCache(cacheKey, result); // Cache no-holiday result
+      return result;
     } catch (parseErr) {
       console.error('[holiday-detector] JSON Parse Failed:', parseErr.message, 'Raw:', text.substring(0, 100));
       // Fall back to override on parse error
