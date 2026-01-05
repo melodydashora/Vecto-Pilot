@@ -121,6 +121,8 @@ export async function callModel(role, { system, user }) {
         maxTokens,
         temperature,
         useSearch,
+        // Pass thinkingLevel if defined in registry (null = disabled by default)
+        thinkingLevel: config.thinkingLevel || null,
       });
 
     } else {
