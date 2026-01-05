@@ -8,7 +8,7 @@
  */
 
 import { execSync } from 'child_process';
-import { writeFileSync, readFileSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync } from 'fs';
 
 const OUTPUT_FILE = process.argv[2] || 'docs/DATABASE_SCHEMA.md';
 const DATA_FLOW_FILE = 'docs/DATA_FLOW_MAP.json';
