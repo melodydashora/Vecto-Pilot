@@ -1,7 +1,8 @@
 // server/lib/adapters/gemini-adapter.js
 // Generic Gemini adapter - returns { ok, output } shape
+// Updated 2026-01-05: Migrated to @google/genai SDK for Gemini 3 thinkingLevel support
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 export async function callGemini({
   model,
@@ -12,7 +13,7 @@ export async function callGemini({
   topP,
   topK,
   useSearch = false,
-  thinkingLevel = "HIGH" // Default to HIGH for Gemini 3
+  thinkingLevel = "high" // Gemini 3: "low", "medium" (Flash only), "high"
 }) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -21,7 +22,7 @@ export async function callGemini({
       return { ok: false, error: 'GEMINI_API_KEY not configured' };
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const ai = new GoogleGenAI({ apiKey });
     console.log(`[model/gemini] calling ${model} with max_tokens=${maxTokens}`);
 
     // Use lower temperature for JSON responses
@@ -29,44 +30,45 @@ export async function callGemini({
                         (system && system.toLowerCase().includes('json'));
     const finalTemperature = expectsJson ? 0.2 : (temperature || 0.7);
 
-    // Construct generation config
-    const generationConfig = {
+    // Build config object for new SDK
+    const config = {
       maxOutputTokens: maxTokens,
       temperature: finalTemperature,
       ...(topP !== undefined && { topP }),
       ...(topK !== undefined && { topK }),
     };
 
-    // Gemini 3.0 Thinking support (requires @google/generative-ai >= 0.25.0)
-    // Set GEMINI_THINKING_ENABLED=true to enable, disabled by default for SDK compatibility
-    // IMPORTANT: Gemini 3 Pro only supports LOW or HIGH (MEDIUM is Flash-only!)
-    const thinkingEnabled = process.env.GEMINI_THINKING_ENABLED === 'true';
-    if (thinkingEnabled && model.includes('gemini-3')) {
-      generationConfig.thinkingConfig = {
-        thinkingLevel: thinkingLevel // "HIGH" or "LOW" for Pro, +MEDIUM for Flash
+    // Gemini 3 Thinking support (thinkingLevel: "low", "medium", "high")
+    // Note: Gemini 3 Pro only supports "low" and "high" (no "medium")
+    if (model.includes('gemini-3')) {
+      config.thinkingConfig = {
+        thinkingLevel: thinkingLevel.toLowerCase() // SDK expects lowercase
       };
+      console.log(`[model/gemini] 🧠 Thinking enabled: ${thinkingLevel}`);
     }
 
-    const generativeModel = genAI.getGenerativeModel({
+    // Add Google Search if requested
+    if (useSearch) {
+      config.tools = [{ googleSearch: {} }];
+    }
+
+    // Build contents with system instruction
+    const contents = system
+      ? [
+          { role: "user", parts: [{ text: `${system}\n\n${user}` }] }
+        ]
+      : [
+          { role: "user", parts: [{ text: user }] }
+        ];
+
+    const result = await ai.models.generateContent({
       model,
-      systemInstruction: system ? { parts: [{ text: system }] } : undefined,
-      generationConfig,
-      safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" }
-      ]
+      contents,
+      config
     });
 
-    const result = await generativeModel.generateContent({
-      contents: [{ role: "user", parts: [{ text: user }] }],
-      // CORRECT: Use 'googleSearch' (camelCase) for the JS SDK
-      ...(useSearch && { tools: [{ googleSearch: {} }] })
-    });
-
-    let output = result?.response?.text()?.trim() || "";
+    // New SDK response: result.text or result.response.text()
+    let output = (result?.text || result?.response?.text?.() || "").trim();
 
     // GEMINI CLEANUP: Remove markdown code blocks and wrapper text
     if (output) {

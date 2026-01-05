@@ -136,7 +136,10 @@
       "Bash(git config:*)",
       "Bash(~/.git-credentials)",
       "Bash(chmod:*)",
-      "Bash(yes:*)"
+      "Bash(yes:*)",
+      "Bash(npm view:*)",
+      "Bash(npm info:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []
