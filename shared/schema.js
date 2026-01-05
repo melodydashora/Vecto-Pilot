@@ -878,9 +878,12 @@ export const market_intel = pgTable("market_intel", {
 
 // Driver profiles: Extended user information for registered drivers
 // Links to users table via user_id for authenticated users
+// 2026-01-05: Changed onDelete from 'cascade' to 'restrict' to prevent data loss
+// When users table row is deleted, driver_profile MUST be preserved
+// The users table is ephemeral (session tracking), but driver_profiles is permanent identity
 export const driver_profiles = pgTable("driver_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
-  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'cascade' }),
+  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'restrict' }),
 
   // Personal information
   first_name: text("first_name").notNull(),
@@ -991,9 +994,11 @@ export const driver_vehicles = pgTable("driver_vehicles", {
 }));
 
 // Auth credentials: Password and security information for authenticated users
+// 2026-01-05: Changed onDelete from 'cascade' to 'restrict' to prevent credential loss
+// Login credentials are permanent and MUST NOT be deleted when session/user row changes
 export const auth_credentials = pgTable("auth_credentials", {
   id: uuid("id").primaryKey().defaultRandom(),
-  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'cascade' }),
+  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'restrict' }),
 
   // Password (bcrypt hashed)
   password_hash: text("password_hash").notNull(),
@@ -1018,9 +1023,11 @@ export const auth_credentials = pgTable("auth_credentials", {
 }));
 
 // Verification codes: Email and SMS verification codes
+// 2026-01-05: Changed onDelete from 'cascade' to 'set null' - codes are temporary
+// but shouldn't cascade delete; they'll expire naturally via expires_at
 export const verification_codes = pgTable("verification_codes", {
   id: uuid("id").primaryKey().defaultRandom(),
-  user_id: uuid("user_id").references(() => users.user_id, { onDelete: 'cascade' }),
+  user_id: uuid("user_id").references(() => users.user_id, { onDelete: 'set null' }),
 
   // Code details
   code: text("code").notNull(),
@@ -1185,11 +1192,12 @@ export const market_intelligence = pgTable("market_intelligence", {
  * - pattern: Detected patterns in user behavior/questions
  * - market_update: Market-specific updates relevant to user
  */
+// 2026-01-05: Changed onDelete from 'cascade' to 'set null' - preserve coach's learnings
 export const user_intel_notes = pgTable("user_intel_notes", {
   id: uuid("id").primaryKey().defaultRandom(),
 
   // User identification
-  user_id: uuid("user_id").references(() => users.user_id, { onDelete: 'cascade' }),
+  user_id: uuid("user_id").references(() => users.user_id, { onDelete: 'set null' }),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'set null' }),
 
   // Note classification
@@ -1250,11 +1258,12 @@ export const user_intel_notes = pgTable("user_intel_notes", {
  * - Thread grouping via conversation_id
  * - Supports message editing/regeneration tracking
  */
+// 2026-01-05: Changed onDelete from 'cascade' to 'restrict' - preserve conversation history
 export const coach_conversations = pgTable("coach_conversations", {
   id: uuid("id").primaryKey().defaultRandom(),
 
   // User identification (required for user-level memory)
-  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'restrict' }),
 
   // Context at time of conversation (optional - some messages may be context-free)
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'set null' }),
@@ -1377,11 +1386,12 @@ export const coach_system_notes = pgTable("coach_system_notes", {
  * - A user deactivating an old carjacking story affects only their view
  * - Other users may still want to see the same story
  */
+// 2026-01-05: Changed onDelete from 'cascade' to 'restrict' - preserve user preferences
 export const news_deactivations = pgTable("news_deactivations", {
   id: uuid("id").primaryKey().defaultRandom(),
 
   // User who deactivated this news item
-  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'restrict' }),
 
   // News item identification (matches items in briefings.news JSONB)
   news_hash: text("news_hash").notNull(), // MD5 of normalized(title + source + date)
