@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, confirmTBDEventDetails, fetchWeatherConditions, fetchRideshareNews } from '../../lib/briefing/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, confirmTBDEventDetails, fetchWeatherConditions, fetchRideshareNews, deduplicateEvents } from '../../lib/briefing/briefing-service.js';
 import { db } from '../../db/drizzle.js';
 import { snapshots, discovered_events, news_deactivations, briefings } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
@@ -615,6 +615,14 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       latitude: e.lat,
       longitude: e.lng
     }));
+
+    // 2026-01-05: Deduplicate events with similar names, addresses, and times
+    // Matches the logic in briefing-service.js fetchEventsForBriefing
+    const beforeDedup = allEvents.length;
+    allEvents = deduplicateEvents(allEvents);
+    if (beforeDedup > allEvents.length) {
+      console.log(`[BriefingRoute] Dedup: ${beforeDedup} → ${allEvents.length} events (removed ${beforeDedup - allEvents.length} duplicates)`);
+    }
 
     // CRITICAL: Filter stale events and events without date info (2026-01-05)
     // This catches events with incorrect dates (e.g., Christmas events with January dates)
