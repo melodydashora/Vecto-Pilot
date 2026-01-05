@@ -37,9 +37,11 @@ export async function callGemini({
       ...(topK !== undefined && { topK }),
     };
 
-    // ADDED: Support for Gemini 3.0 Thinking (Only for gemini-3-* models)
+    // Gemini 3.0 Thinking support (requires @google/generative-ai >= 0.25.0)
+    // Set GEMINI_THINKING_ENABLED=true to enable, disabled by default for SDK compatibility
     // IMPORTANT: Gemini 3 Pro only supports LOW or HIGH (MEDIUM is Flash-only!)
-    if (model.includes('gemini-3')) {
+    const thinkingEnabled = process.env.GEMINI_THINKING_ENABLED === 'true';
+    if (thinkingEnabled && model.includes('gemini-3')) {
       generationConfig.thinkingConfig = {
         thinkingLevel: thinkingLevel // "HIGH" or "LOW" for Pro, +MEDIUM for Flash
       };
