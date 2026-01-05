@@ -15,7 +15,12 @@ interface BusinessHours {
 // This caused late-night venues to show as closed in production
 // Server calculates isOpen in venue-enrichment.js using Intl.DateTimeFormat with snapshot timezone
 
-interface Block {
+// 2026-01-05: TERMINOLOGY FIX
+// This interface represents a "Venue Candidate" (tactical opportunity) - NOT a "Smart Block"
+// Smart Blocks are intelligence INPUTS (traffic, events, weather)
+// Venue Candidates are tactical OUTPUTS (specific bars/restaurants to visit)
+// See LEXICON.md for the authoritative terminology definitions
+interface VenueCandidate {
   name: string;
   address?: string;
   category?: string;
@@ -29,14 +34,16 @@ interface Block {
   businessHours?: BusinessHours | string;
 }
 
+// Props use "blocks" for backward compatibility with parent components
+// Internally these are Venue Candidates, not Smart Blocks
 interface BarsTableProps {
-  blocks?: Block[];
+  blocks?: VenueCandidate[];
 }
 
 // Convert value metrics to price tier display
-function getPriceTier(block: Block): { tier: string; color: string; priority: number } {
-  const grade = block.value_grade;
-  const valuePerMin = block.value_per_min || 0;
+function getPriceTier(venue: VenueCandidate): { tier: string; color: string; priority: number } {
+  const grade = venue.value_grade;
+  const valuePerMin = venue.value_per_min || 0;
 
   if (grade === "A" && valuePerMin > 0.8) {
     return { tier: "$$$$$", color: "text-amber-600", priority: 5 };
@@ -129,13 +136,13 @@ function getCategoryColor(name: string, category?: string): string {
 }
 
 // Open navigation (uses Apple Maps on iOS/macOS, Google Maps elsewhere)
-function handleNavigation(block: Block) {
+function handleNavigation(venue: VenueCandidate) {
   openNavigation({
-    lat: block.coordinates?.lat,
-    lng: block.coordinates?.lng,
-    placeId: block.placeId,
-    name: block.name,
-    address: block.address
+    lat: venue.coordinates?.lat,
+    lng: venue.coordinates?.lng,
+    placeId: venue.placeId,
+    name: venue.name,
+    address: venue.address
   });
 }
 

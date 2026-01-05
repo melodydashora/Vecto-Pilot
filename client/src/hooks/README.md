@@ -121,16 +121,47 @@ Fetches premium bar/venue data for the Bar Tab sidebar.
 ### useMarketIntelligence
 ```typescript
 const {
-  demandPatterns,
-  zoneAnalysis,
-  marketBoundaries,
-  isLoading
-} = useMarketIntelligence({ marketSlug });
+  city,
+  state,
+  marketSlug,
+  isLocationResolved,
+  archetype,           // 'sprawl' | 'dense' | 'party'
+  archetypeInfo,       // Market archetype details
+  intelligence,        // Full intelligence response
+  isLoading,
+  error,
+  // Market structure
+  marketAnchor,        // Resolved market name (e.g., "Dallas")
+  regionType,          // 'Core' | 'Satellite' | 'Rural'
+  marketStats,         // { total_cities, core_count, satellite_count }
+  marketCities,        // Array of cities in the market
+  // Intelligence by type
+  zones,               // Zone intelligence items
+  strategies,          // Strategy items
+  regulatory,          // Regulatory items
+  safety,              // Safety items
+  timing,              // Timing items
+  airport,             // Airport items
+  // Zone subtypes
+  honeyHoles,          // High-demand areas
+  dangerZones,         // Safety risk areas
+  deadZones,           // Low-demand areas
+  // Raw response
+  forLocationData,     // Full /api/intelligence/for-location response
+} = useMarketIntelligence();
 ```
+
+**2026-01-05 Update:** Now uses `/api/intelligence/for-location` endpoint which:
+- Maps **723 cities** to their markets via `us_market_cities` table
+- Properly resolves suburbs (Frisco, TX → Dallas market)
+- Returns market info + intelligence in a single API call
+
 Fetches market intelligence data including:
-- **Demand patterns**: Hourly demand by day of week
-- **Zone analysis**: Core/satellite/rural zone categorization
-- **Market boundaries**: Geographic market limits and deadhead risk
+- **Zone analysis**: Honey holes, danger zones, dead zones, safe corridors
+- **Strategy items**: Time-based strategies, positioning advice
+- **Regulatory context**: Prop 22, TLC rules, local regulations
+- **Safety information**: High-risk areas, warnings
+- **Market structure**: Core cities, satellite cities, region types
 
 ## Connections
 

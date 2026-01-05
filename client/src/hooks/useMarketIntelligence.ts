@@ -55,7 +55,7 @@ export interface IntelligenceMarketsResponse {
   }>;
 }
 
-// Market lookup response from /api/intelligence/lookup
+// Market lookup response from /api/intelligence/lookup (legacy)
 export interface MarketLookupResponse {
   found: boolean;
   city?: string;
@@ -87,6 +87,38 @@ export interface MarketLookupResponse {
     city: string;
     state: string;
     market: string;
+  }>;
+}
+
+// 2026-01-05: New response from /api/intelligence/for-location
+// Uses us_market_cities table (723 cities mapped to markets)
+// Resolves suburbs to their market anchor (e.g., Frisco → Dallas)
+export interface ForLocationResponse {
+  location: {
+    input_city: string;
+    input_state: string;
+    resolved_market: string;
+    region_type: 'Core' | 'Satellite' | 'Rural';
+    full_state: string;
+    state_abbr: string;
+  };
+  market: {
+    name: string;
+    total_cities: number;
+    core_cities: string[];
+    satellite_cities_sample: string[];
+  };
+  intel_count: number;
+  insights_count: number;
+  by_type: Record<IntelType, IntelligenceItem[]>;
+  intelligence: IntelligenceItem[];
+  market_insights: Array<{
+    id: string;
+    market_name: string;
+    intel_type: string;
+    title: string;
+    content: string;
+    priority: number;
   }>;
 }
 
@@ -369,7 +401,7 @@ async function fetchIntelligenceMarkets(): Promise<IntelligenceMarketsResponse> 
 }
 
 /**
- * Fetches market lookup data for a city/state
+ * Fetches market lookup data for a city/state (legacy endpoint)
  */
 async function fetchMarketLookup(city: string, state: string): Promise<MarketLookupResponse> {
   const params = new URLSearchParams({ city, state });
@@ -384,47 +416,122 @@ async function fetchMarketLookup(city: string, state: string): Promise<MarketLoo
 }
 
 /**
+ * 2026-01-05: Fetches market intel using city→market resolution
+ * Uses us_market_cities table (723 cities) for better suburb coverage
+ * Example: Frisco, TX → Dallas market → Dallas-Fort Worth intel
+ */
+async function fetchForLocation(city: string, state: string): Promise<ForLocationResponse | null> {
+  const params = new URLSearchParams({ city, state });
+  const response = await fetch(`/api/intelligence/for-location?${params}`);
+
+  if (!response.ok) {
+    console.warn(`[useMarketIntelligence] No market data for ${city}, ${state}`);
+    return null;
+  }
+
+  return response.json();
+}
+
+/**
  * Main hook for fetching market intelligence
+ *
+ * 2026-01-05: Updated to use /api/intelligence/for-location endpoint
+ * This uses us_market_cities table (723 cities) for better suburb coverage.
+ * Example: Frisco, TX → resolves to Dallas market → shows Dallas-Fort Worth intel
  */
 export function useMarketIntelligence() {
   const { city, state, isLocationResolved } = useLocation();
 
-  // Derive market slug from location
-  const marketSlug = deriveMarketSlug(city, state);
+  // Derive market slug from location (fallback if API fails)
+  const fallbackMarketSlug = deriveMarketSlug(city, state);
   const archetype = detectMarketArchetype(city);
   const archetypeInfo = MARKET_ARCHETYPES[archetype];
 
-  // Fetch market lookup data (includes region type, deadhead risk, etc.)
-  const marketLookupQuery = useQuery({
-    queryKey: ['marketLookup', city, state],
-    queryFn: () => city && state ? fetchMarketLookup(city, state) : Promise.resolve({ found: false }),
+  // 2026-01-05: Single query using /api/intelligence/for-location
+  // This endpoint:
+  // 1. Maps city → market using us_market_cities table (723 cities)
+  // 2. Returns market info + intelligence in one response
+  // 3. Handles suburbs properly (Frisco → Dallas market)
+  const forLocationQuery = useQuery({
+    queryKey: ['marketForLocation', city, state],
+    queryFn: () => city && state ? fetchForLocation(city, state) : Promise.resolve(null),
     enabled: !!city && !!state && isLocationResolved,
     staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
   });
 
-  // Use market slug from lookup if available, otherwise derive it
-  const effectiveMarketSlug = marketLookupQuery.data?.market_slug || marketSlug;
+  // Extract data from the for-location response
+  const forLocationData = forLocationQuery.data;
 
-  // Fetch intelligence for the detected market
-  const intelligenceQuery = useQuery({
-    queryKey: ['marketIntelligence', effectiveMarketSlug],
-    queryFn: () => effectiveMarketSlug ? fetchMarketIntelligence(effectiveMarketSlug) : Promise.resolve(null),
-    enabled: !!effectiveMarketSlug && isLocationResolved,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
-  });
+  // Derive effective market slug from API response or fallback
+  const effectiveMarketSlug = forLocationData?.location?.resolved_market
+    ? forLocationData.location.resolved_market.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    : fallbackMarketSlug;
 
-  // Fetch all available markets
+  // Fetch all available markets (for market selector UI)
   const marketsQuery = useQuery({
     queryKey: ['intelligenceMarkets'],
     queryFn: fetchIntelligenceMarkets,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // Extract market lookup data
-  const marketLookup = marketLookupQuery.data;
-  const intelligenceData = intelligenceQuery.data;
+  // Map forLocationData to existing intelligenceData shape for backward compatibility
+  const intelligenceData: MarketIntelligenceResponse | null = useMemo(() => {
+    if (!forLocationData) return null;
+
+    return {
+      market: effectiveMarketSlug || '',
+      market_name: forLocationData.location?.resolved_market || '',
+      total_items: forLocationData.intel_count || 0,
+      by_type: forLocationData.by_type || {} as Record<IntelType, IntelligenceItem[]>,
+      intelligence: forLocationData.intelligence || []
+    };
+  }, [forLocationData, effectiveMarketSlug]);
+
+  // Map forLocationData to existing marketLookup shape for backward compatibility
+  const marketLookup: MarketLookupResponse | null = useMemo(() => {
+    if (!forLocationData) return null;
+
+    const loc = forLocationData.location;
+    const mkt = forLocationData.market;
+
+    // Build market_cities array from core + satellite cities
+    const marketCities: Array<{ city: string; region: string; region_type: string }> = [];
+
+    if (mkt?.core_cities) {
+      mkt.core_cities.forEach(c => marketCities.push({
+        city: c,
+        region: loc?.resolved_market || '',
+        region_type: 'Core'
+      }));
+    }
+
+    if (mkt?.satellite_cities_sample) {
+      mkt.satellite_cities_sample.forEach(c => marketCities.push({
+        city: c,
+        region: loc?.resolved_market || '',
+        region_type: 'Satellite'
+      }));
+    }
+
+    return {
+      found: true,
+      city: loc?.input_city,
+      state: loc?.full_state || loc?.input_state,
+      market: loc?.resolved_market,
+      market_anchor: loc?.resolved_market,
+      region_type: loc?.region_type,
+      market_slug: effectiveMarketSlug || undefined,
+      market_stats: mkt ? {
+        total_cities: String(mkt.total_cities || 0),
+        core_count: String(mkt.core_cities?.length || 0),
+        satellite_count: String(mkt.satellite_cities_sample?.length || 0),
+        rural_count: '0' // Not provided in new endpoint
+      } : undefined,
+      market_cities: marketCities.length > 0 ? marketCities : undefined,
+      // Note: deadhead_risk not available in for-location endpoint
+    };
+  }, [forLocationData, effectiveMarketSlug]);
 
   // ---------------------------------------------------------------------------
   // 🛡️ CRITICAL FIX: Single useMemo to prevent infinite re-render loops
@@ -486,21 +593,26 @@ export function useMarketIntelligence() {
     archetypeInfo,
 
     // Market structure data from research
+    // 2026-01-05: Now populated from /api/intelligence/for-location response
     marketAnchor: marketLookup?.market_anchor || null,
     regionType: marketLookup?.region_type || null,
-    deadheadRisk: marketLookup?.deadhead_risk || null,
+    deadheadRisk: marketLookup?.deadhead_risk || null, // Note: Not available in new endpoint
     marketStats: marketLookup?.market_stats || null,
     marketCities,
-    isMarketLookupLoading: marketLookupQuery.isLoading,
+    isMarketLookupLoading: forLocationQuery.isLoading,
 
     // Intelligence data
+    // 2026-01-05: Now comes from single /api/intelligence/for-location call
     intelligence: intelligenceData,
-    isLoading: intelligenceQuery.isLoading || marketLookupQuery.isLoading,
-    error: intelligenceQuery.error,
+    isLoading: forLocationQuery.isLoading,
+    error: forLocationQuery.error,
 
     // Markets list
     markets,
     marketsLoading: marketsQuery.isLoading,
+
+    // Raw response for advanced usage (market insights, etc.)
+    forLocationData,
 
     // Spread all memoized arrays from processedData
     // (zones, strategies, regulatory, safety, timing, airport, algorithm,

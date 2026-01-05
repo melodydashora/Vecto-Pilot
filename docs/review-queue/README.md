@@ -15,7 +15,7 @@ Automated change analysis for documentation maintenance. This folder contains fi
 |------|---------|
 | `YYYY-MM-DD.md` | Daily analysis logs (historical record) |
 | `pending.md` | Current items needing review |
-| `resolved.md` | Completed reviews (optional archive) |
+| `../reviewed-queue/` | **Completed work** - rules extracted, summaries archived |
 
 ## Validation Workflow
 
@@ -26,7 +26,24 @@ Automated change analysis for documentation maintenance. This folder contains fi
 3. Decide: Does the doc need updating?
 4. If yes → Update the doc
 5. If no → Mark as "reviewed, no change needed"
-6. Move completed items to `resolved.md` or delete
+6. **Extract rules** to `../reviewed-queue/RULES_FROM_COMPLETED_WORK.md`
+7. **Delete** completed items from `pending.md`
+
+### Completion Workflow (2026-01-05)
+
+When work is completed:
+
+```
+pending.md (completed items)
+    │
+    ├──► ../reviewed-queue/RULES_FROM_COMPLETED_WORK.md  (extract actionable patterns)
+    │
+    ├──► ../reviewed-queue/YYYY-MM-DD-summary.md         (archive details)
+    │
+    └──► DELETE from pending.md                           (keep it clean)
+```
+
+**Key Principle:** Don't just archive completed work—extract actionable rules from it.
 
 ### For Claude Review
 
@@ -107,5 +124,7 @@ npm run dev
 
 ## See Also
 
+- [../reviewed-queue/](../reviewed-queue/) - Completed work with extracted rules
+- [../reviewed-queue/RULES_FROM_COMPLETED_WORK.md](../reviewed-queue/RULES_FROM_COMPLETED_WORK.md) - Actionable patterns
 - [MONTHLY_REVIEW_CHECKLIST.md](../MONTHLY_REVIEW_CHECKLIST.md) - Full review process
 - [CLAUDE.md](../../CLAUDE.md) - Project guidelines

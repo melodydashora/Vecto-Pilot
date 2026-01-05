@@ -25,8 +25,9 @@ const ROUTE_CACHE_MAX_SIZE = 500; // Max cache entries
  * @returns {Promise<{distanceMeters: number, durationSeconds: number, staticDurationSeconds: number, trafficDelaySeconds: number}>}
  */
 export async function getRouteWithTraffic(origin, destination, options = {}) {
-  // Create cache key (round to 3 decimals for ~110m precision)
-  const cacheKey = `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}|${destination.lat.toFixed(3)},${destination.lng.toFixed(3)}`;
+  // 2026-01-05: Use 6-decimal precision to match canonical coord_key format
+  // Previously used 3 decimals (~110m) but this caused inconsistencies
+  const cacheKey = `${Number(origin.lat).toFixed(6)},${Number(origin.lng).toFixed(6)}|${Number(destination.lat).toFixed(6)},${Number(destination.lng).toFixed(6)}`;
   
   // Check cache first (with TTL check)
   const cached = routeCache.get(cacheKey);

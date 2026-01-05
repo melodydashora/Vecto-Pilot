@@ -3,12 +3,24 @@ import React, { createContext, useState, useEffect, useCallback, useRef } from '
 import { useAuth } from './auth-context';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SNAPSHOT ARCHITECTURE (2026-01-02)
+// SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
 // ═══════════════════════════════════════════════════════════════════════════
-// Server owns snapshot management via users.current_snapshot_id
-// Client does NOT track snapshot_id - just fires events when snapshot is ready
-// One authenticated user = one snapshot at a time (no duplicates from GPS drift)
-// Manual refresh (force=true) creates fresh snapshot for testing workflow
+// Three-table architecture (per SAVE-IMPORTANT.md):
+//   - driver_profiles: Identity (forever)
+//   - users: Session (login → logout/60min TTL)
+//   - snapshots: Activity (forever)
+//
+// Session rules:
+//   - Login creates users row with session_id, current_snapshot_id=null
+//   - Snapshot creation updates users.current_snapshot_id
+//   - Every authenticated request updates users.last_active_at (60 min sliding window)
+//   - Hard limit: 2 hours from session_start_at = force re-login
+//   - Logout deletes users row immediately
+//
+// Client behavior:
+//   - Does NOT persist snapshot_id across reloads (server owns it)
+//   - Fires 'vecto-snapshot-saved' event for downstream components
+//   - Manual refresh (force=true) creates fresh snapshot
 // ═══════════════════════════════════════════════════════════════════════════
 
 // SessionStorage persistence for snapshot data

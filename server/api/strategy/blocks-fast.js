@@ -221,8 +221,12 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
   return candidates.map(c => {
     const coordKey = `${c.lat},${c.lng}`;
 
+    // 2026-01-05: Extract string from venue object returned by resolveVenueAddressesBatch
+    // The resolver returns {formatted_address, address, city, state, ...} but blocks need a string
+    const venueData = addressMap[coordKey];
+    let resolvedAddress = venueData?.formatted_address || venueData?.address || null;
+
     // Filter out Plus Codes - use resolved address if it exists and is not a Plus Code
-    let resolvedAddress = addressMap[coordKey];
     if (resolvedAddress && isPlusCode(resolvedAddress)) {
       if (logPlusCodes) {
         console.log(`[blocks-fast] ⚠️ Filtering Plus Code: "${resolvedAddress}" for ${c.name}`);

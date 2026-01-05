@@ -1343,39 +1343,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         snapshot_id 
       });
     } else {
-      // ═══════════════════════════════════════════════════════════════════════════
-      // USERS TABLE FALLBACK: If client has device_id but missing resolved data,
-      // try to pull from users table (source of truth for location identity)
-      // ═══════════════════════════════════════════════════════════════════════════
-      if (snapshotV1.device_id && (!snapshotV1.resolved?.city || !snapshotV1.resolved?.formattedAddress)) {
-        try {
-          const existingUser = await db.query.users.findFirst({
-            where: eq(users.device_id, snapshotV1.device_id),
-          });
-
-          if (existingUser?.city && existingUser?.formatted_address) {
-            console.log(`📍 [SNAPSHOT] ✅ Pulling location from users table for device ${snapshotV1.device_id.slice(0, 8)}`);
-            snapshotV1.resolved = {
-              ...snapshotV1.resolved,
-              city: existingUser.city,
-              state: existingUser.state,
-              country: existingUser.country,
-              formattedAddress: existingUser.formatted_address,
-              timezone: existingUser.timezone
-            };
-            // Update coords from users table if available
-            if (existingUser.new_lat && existingUser.new_lng) {
-              snapshotV1.coord = {
-                ...snapshotV1.coord,
-                lat: existingUser.new_lat,
-                lng: existingUser.new_lng
-              };
-            }
-          }
-        } catch (userLookupErr) {
-          console.warn('[SNAPSHOT] Users table lookup failed:', userLookupErr.message);
-        }
-      }
+      // 2026-01-05: Users table no longer stores location data (simplified session architecture)
+      // Location must be resolved from GPS via Google APIs - NO FALLBACKS
 
       // Full SnapshotV1 validation
       const v = validateSnapshotV1(snapshotV1);
@@ -1682,6 +1651,32 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 
       await db.insert(snapshots).values(dbSnapshot);
       console.log('[Snapshot DB] ✅ Snapshot successfully written to database');
+
+      // 2026-01-05: Session Architecture - Link snapshot to user's session
+      // This updates current_snapshot_id and extends the sliding window TTL
+      const snapshotUserId = snapshotV1.userId || dbSnapshot.user_id;
+      if (snapshotUserId) {
+        try {
+          const updateResult = await db.update(users)
+            .set({
+              current_snapshot_id: dbSnapshot.snapshot_id,
+              last_active_at: new Date(),
+              updated_at: new Date()
+            })
+            .where(eq(users.user_id, snapshotUserId))
+            .returning({ user_id: users.user_id });
+
+          if (updateResult.length > 0) {
+            console.log(`[Snapshot DB] ✅ Session updated: user=${snapshotUserId.substring(0, 8)}, snapshot=${dbSnapshot.snapshot_id.substring(0, 8)}`);
+          } else {
+            // User not found in users table - session may have expired
+            console.warn(`[Snapshot DB] ⚠️ User ${snapshotUserId.substring(0, 8)} has no active session (may have expired)`);
+          }
+        } catch (sessionErr) {
+          // Non-blocking - log but don't fail the snapshot
+          console.warn('[Snapshot DB] Session update failed (non-blocking):', sessionErr.message);
+        }
+      }
     } catch (dbError) {
       console.error('[Snapshot DB] ❌ Database insert failed:', dbError);
       console.error('[Snapshot DB] Failed snapshot data:', JSON.stringify(dbSnapshot, null, 2));

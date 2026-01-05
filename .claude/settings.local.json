@@ -139,7 +139,11 @@
       "Bash(yes:*)",
       "Bash(npm view:*)",
       "Bash(npm info:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(history:*)",
+      "Bash(head:*)",
+      "Bash(npm run typecheck:client:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []
