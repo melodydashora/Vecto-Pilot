@@ -87,7 +87,7 @@ BRIEFING_VALIDATOR_MODEL = "claude-opus-4-5-20251101"
 
 # VENUES TABLE (ranking_candidates)
 VENUE_SCORER_MODEL = "gpt-5.2"
-VENUE_FILTER_MODEL = "claude-3-5-haiku-20241022"
+VENUE_FILTER_MODEL = "claude-3-5-haiku-latest"
 VENUE_TRAFFIC_MODEL = "gemini-3-pro-preview"
 
 # COACH TABLE
