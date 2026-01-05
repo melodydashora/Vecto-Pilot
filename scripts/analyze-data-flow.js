@@ -9,8 +9,8 @@
  */
 
 import { execSync } from 'child_process';
-import { writeFileSync, readFileSync, existsSync } from 'fs';
-import { join, relative } from 'path';
+import { writeFileSync } from 'fs';
+import { relative } from 'path';
 
 const ROOT = process.cwd();
 const OUTPUT_FILE = 'docs/DATA_FLOW_MAP.json';
