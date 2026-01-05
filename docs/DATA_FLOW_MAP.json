@@ -1,0 +1,479 @@
+{
+  "actions": {
+    "push": [
+      "agent/enhanced-context.js",
+      "api/feedback/actions.js",
+      "api/feedback/feedback.js",
+      "assistant/enhanced-context.js",
+      "eidolon/enhanced-context.js"
+    ],
+    "fetch": [
+      "agent/context-awareness.js",
+      "agent/enhanced-context.js",
+      "api/feedback/actions.js",
+      "api/feedback/feedback.js",
+      "assistant/enhanced-context.js",
+      "eidolon/enhanced-context.js",
+      "lib/ai/coach-dal.js"
+    ]
+  },
+  "agent_changes": {
+    "push": [],
+    "fetch": []
+  },
+  "agent_memory": {
+    "push": [],
+    "fetch": []
+  },
+  "app_feedback": {
+    "push": [
+      "api/feedback/feedback.js"
+    ],
+    "fetch": [
+      "api/feedback/feedback.js"
+    ]
+  },
+  "assistant_memory": {
+    "push": [],
+    "fetch": []
+  },
+  "auth_credentials": {
+    "push": [
+      "api/auth/auth.js"
+    ],
+    "fetch": []
+  },
+  "block_jobs": {
+    "push": [],
+    "fetch": []
+  },
+  "briefings": {
+    "push": [
+      "api/briefing/briefing.js",
+      "api/strategy/blocks-fast.js",
+      "api/strategy/strategy.js",
+      "lib/ai/providers/consolidator.js",
+      "lib/briefing/briefing-service.js",
+      "lib/briefing/dump-last-briefing.js"
+    ],
+    "fetch": [
+      "api/briefing/briefing.js",
+      "api/health/diagnostics-strategy.js",
+      "api/health/diagnostics.js",
+      "api/strategy/blocks-fast.js",
+      "api/strategy/content-blocks.js",
+      "api/strategy/strategy.js",
+      "jobs/triad-worker.js",
+      "lib/ai/coach-dal.js",
+      "lib/ai/providers/consolidator.js",
+      "lib/briefing/briefing-service.js",
+      "lib/briefing/dump-last-briefing.js",
+      "lib/briefing/dump-latest.js",
+      "lib/briefing/dump-traffic-format.js",
+      "lib/briefing/test-api.js"
+    ]
+  },
+  "coach_conversations": {
+    "push": [
+      "lib/ai/coach-dal.js"
+    ],
+    "fetch": [
+      "lib/ai/coach-dal.js"
+    ]
+  },
+  "coach_system_notes": {
+    "push": [
+      "lib/ai/coach-dal.js"
+    ],
+    "fetch": [
+      "lib/ai/coach-dal.js"
+    ]
+  },
+  "connection_audit": {
+    "push": [],
+    "fetch": []
+  },
+  "coords_cache": {
+    "push": [
+      "api/location/location.js",
+      "api/location/snapshot.js"
+    ],
+    "fetch": [
+      "api/location/location.js",
+      "api/location/snapshot.js"
+    ]
+  },
+  "countries": {
+    "push": [],
+    "fetch": []
+  },
+  "cross_thread_memory": {
+    "push": [],
+    "fetch": []
+  },
+  "discovered_events": {
+    "push": [
+      "api/briefing/briefing.js",
+      "jobs/event-sync-job.js",
+      "lib/ai/coach-dal.js",
+      "lib/briefing/briefing-service.js",
+      "lib/venue/venue-cache.js"
+    ],
+    "fetch": [
+      "api/briefing/briefing.js",
+      "jobs/event-sync-job.js",
+      "lib/ai/coach-dal.js",
+      "lib/briefing/briefing-service.js",
+      "lib/venue/event-matcher.js",
+      "lib/venue/venue-cache.js"
+    ]
+  },
+  "driver_profiles": {
+    "push": [
+      "api/auth/auth.js"
+    ],
+    "fetch": [
+      "lib/ai/coach-dal.js"
+    ]
+  },
+  "driver_vehicles": {
+    "push": [
+      "api/auth/auth.js"
+    ],
+    "fetch": [
+      "lib/ai/coach-dal.js"
+    ]
+  },
+  "eidolon_memory": {
+    "push": [],
+    "fetch": []
+  },
+  "eidolon_snapshots": {
+    "push": [],
+    "fetch": []
+  },
+  "events_facts": {
+    "push": [],
+    "fetch": []
+  },
+  "http_idem": {
+    "push": [
+      "middleware/idempotency.js"
+    ],
+    "fetch": [
+      "middleware/idempotency.js"
+    ]
+  },
+  "llm_venue_suggestions": {
+    "push": [],
+    "fetch": []
+  },
+  "market_intelligence": {
+    "push": [
+      "api/intelligence/index.js",
+      "lib/ai/coach-dal.js",
+      "scripts/parse-market-research.js"
+    ],
+    "fetch": [
+      "api/intelligence/index.js",
+      "lib/ai/coach-dal.js",
+      "scripts/parse-market-research.js"
+    ]
+  },
+  "markets": {
+    "push": [
+      "api/location/location.js"
+    ],
+    "fetch": [
+      "api/location/location.js"
+    ]
+  },
+  "nearby_venues": {
+    "push": [
+      "lib/venue/venue-intelligence.js"
+    ],
+    "fetch": [
+      "lib/venue/venue-intelligence.js"
+    ]
+  },
+  "news_deactivations": {
+    "push": [
+      "api/briefing/briefing.js",
+      "lib/ai/coach-dal.js",
+      "lib/ai/providers/consolidator.js"
+    ],
+    "fetch": [
+      "api/briefing/briefing.js",
+      "lib/ai/coach-dal.js",
+      "lib/ai/providers/consolidator.js"
+    ]
+  },
+  "places_cache": {
+    "push": [
+      "lib/venue/venue-enrichment.js"
+    ],
+    "fetch": [
+      "lib/venue/venue-enrichment.js"
+    ]
+  },
+  "platform_data": {
+    "push": [
+      "api/intelligence/index.js"
+    ],
+    "fetch": [
+      "api/auth/auth.js",
+      "api/intelligence/index.js",
+      "api/platform/index.js",
+      "lib/ai/coach-dal.js"
+    ]
+  },
+  "ranking_candidates": {
+    "push": [
+      "api/feedback/feedback.js",
+      "api/intelligence/index.js",
+      "api/strategy/blocks-fast.js",
+      "lib/venue/enhanced-smart-blocks.js"
+    ],
+    "fetch": [
+      "api/chat/chat-context.js",
+      "api/feedback/feedback.js",
+      "api/intelligence/index.js",
+      "api/strategy/blocks-fast.js",
+      "api/strategy/content-blocks.js",
+      "lib/ai/coach-dal.js",
+      "lib/venue/enhanced-smart-blocks.js"
+    ]
+  },
+  "rankings": {
+    "push": [
+      "api/feedback/actions.js",
+      "api/strategy/blocks-fast.js",
+      "lib/venue/enhanced-smart-blocks.js"
+    ],
+    "fetch": [
+      "agent/context-awareness.js",
+      "api/chat/chat-context.js",
+      "api/feedback/actions.js",
+      "api/strategy/blocks-fast.js",
+      "api/strategy/content-blocks.js",
+      "lib/ai/coach-dal.js",
+      "lib/external/semantic-search.js",
+      "lib/venue/enhanced-smart-blocks.js"
+    ]
+  },
+  "snapshots": {
+    "push": [
+      "agent/enhanced-context.js",
+      "api/briefing/briefing.js",
+      "api/chat/chat.js",
+      "api/feedback/actions.js",
+      "api/location/location.js",
+      "api/location/snapshot.js",
+      "api/strategy/blocks-fast.js",
+      "api/strategy/strategy.js",
+      "api/strategy/tactical-plan.js",
+      "assistant/enhanced-context.js",
+      "bootstrap/enqueue-initial.js",
+      "eidolon/enhanced-context.js",
+      "jobs/event-sync-job.js",
+      "lib/briefing/briefing-service.js",
+      "lib/strategy/strategy-generator-parallel.js"
+    ],
+    "fetch": [
+      "agent/context-awareness.js",
+      "agent/enhanced-context.js",
+      "api/briefing/briefing.js",
+      "api/chat/chat-context.js",
+      "api/chat/chat.js",
+      "api/feedback/actions.js",
+      "api/health/diagnostics-strategy.js",
+      "api/health/diagnostics.js",
+      "api/location/location.js",
+      "api/location/snapshot.js",
+      "api/strategy/blocks-fast.js",
+      "api/strategy/content-blocks.js",
+      "api/strategy/strategy.js",
+      "api/strategy/tactical-plan.js",
+      "assistant/enhanced-context.js",
+      "bootstrap/enqueue-initial.js",
+      "eidolon/enhanced-context.js",
+      "jobs/event-sync-job.js",
+      "jobs/triad-worker.js",
+      "lib/ai/coach-dal.js",
+      "lib/ai/providers/briefing.js",
+      "lib/ai/providers/consolidator.js",
+      "lib/briefing/briefing-service.js",
+      "lib/external/semantic-search.js",
+      "lib/location/get-snapshot-context.js",
+      "lib/strategy/strategy-generator-parallel.js",
+      "lib/strategy/strategy-generator.js",
+      "lib/strategy/strategy-utils.js",
+      "middleware/require-snapshot-ownership.js",
+      "scripts/self-healing-monitor.js"
+    ]
+  },
+  "strategies": {
+    "push": [
+      "agent/enhanced-context.js",
+      "api/chat/chat.js",
+      "api/location/location.js",
+      "api/location/snapshot.js",
+      "api/strategy/blocks-fast.js",
+      "api/strategy/strategy.js",
+      "assistant/enhanced-context.js",
+      "eidolon/enhanced-context.js",
+      "lib/ai/providers/consolidator.js",
+      "lib/strategy/dump-last-strategy.js",
+      "lib/strategy/strategy-generator-parallel.js",
+      "lib/strategy/strategy-utils.js"
+    ],
+    "fetch": [
+      "agent/context-awareness.js",
+      "agent/enhanced-context.js",
+      "api/chat/chat-context.js",
+      "api/chat/chat.js",
+      "api/health/diagnostics-strategy.js",
+      "api/health/diagnostics.js",
+      "api/location/location.js",
+      "api/location/snapshot.js",
+      "api/strategy/blocks-fast.js",
+      "api/strategy/content-blocks.js",
+      "api/strategy/strategy.js",
+      "assistant/enhanced-context.js",
+      "eidolon/enhanced-context.js",
+      "jobs/triad-worker.js",
+      "lib/ai/coach-dal.js",
+      "lib/ai/providers/consolidator.js",
+      "lib/external/semantic-search.js",
+      "lib/strategy/dump-last-strategy.js",
+      "lib/strategy/strategy-generator-parallel.js",
+      "lib/strategy/strategy-utils.js",
+      "scripts/self-healing-monitor.js"
+    ]
+  },
+  "strategy_feedback": {
+    "push": [
+      "api/feedback/feedback.js"
+    ],
+    "fetch": [
+      "api/feedback/feedback.js",
+      "lib/ai/coach-dal.js"
+    ]
+  },
+  "traffic_zones": {
+    "push": [],
+    "fetch": []
+  },
+  "travel_disruptions": {
+    "push": [
+      "api/location/location.js"
+    ],
+    "fetch": []
+  },
+  "triad_jobs": {
+    "push": [
+      "api/strategy/blocks-fast.js",
+      "bootstrap/enqueue-initial.js"
+    ],
+    "fetch": [
+      "api/strategy/blocks-fast.js",
+      "bootstrap/enqueue-initial.js"
+    ]
+  },
+  "user_intel_notes": {
+    "push": [
+      "api/chat/chat.js",
+      "lib/ai/coach-dal.js"
+    ],
+    "fetch": [
+      "lib/ai/coach-dal.js"
+    ]
+  },
+  "users": {
+    "push": [
+      "api/auth/auth.js",
+      "api/location/location.js"
+    ],
+    "fetch": [
+      "api/location/location.js",
+      "lib/ai/coach-dal.js",
+      "lib/strategy/strategy-generator.js"
+    ]
+  },
+  "vehicle_makes_cache": {
+    "push": [
+      "api/vehicle/vehicle.js"
+    ],
+    "fetch": [
+      "api/vehicle/vehicle.js"
+    ]
+  },
+  "vehicle_models_cache": {
+    "push": [
+      "api/vehicle/vehicle.js"
+    ],
+    "fetch": [
+      "api/vehicle/vehicle.js"
+    ]
+  },
+  "venue_cache": {
+    "push": [
+      "lib/venue/venue-cache.js"
+    ],
+    "fetch": [
+      "lib/venue/venue-cache.js"
+    ]
+  },
+  "venue_catalog": {
+    "push": [
+      "api/feedback/actions.js",
+      "lib/ai/coach-dal.js",
+      "lib/venue/district-detection.js",
+      "scripts/seed-dfw-venues.js"
+    ],
+    "fetch": [
+      "api/feedback/actions.js",
+      "lib/ai/coach-dal.js",
+      "lib/venue/district-detection.js",
+      "scripts/seed-dfw-venues.js"
+    ]
+  },
+  "venue_events": {
+    "push": [],
+    "fetch": []
+  },
+  "venue_feedback": {
+    "push": [
+      "api/feedback/feedback.js"
+    ],
+    "fetch": [
+      "api/feedback/feedback.js",
+      "lib/ai/coach-dal.js",
+      "lib/external/semantic-search.js"
+    ]
+  },
+  "venue_metrics": {
+    "push": [
+      "api/feedback/actions.js",
+      "scripts/seed-dfw-venues.js"
+    ],
+    "fetch": [
+      "api/feedback/actions.js",
+      "scripts/seed-dfw-venues.js"
+    ]
+  },
+  "verification_codes": {
+    "push": [
+      "api/auth/auth.js"
+    ],
+    "fetch": []
+  },
+  "zone_intelligence": {
+    "push": [
+      "lib/ai/coach-dal.js"
+    ],
+    "fetch": [
+      "lib/ai/coach-dal.js"
+    ]
+  }
+}

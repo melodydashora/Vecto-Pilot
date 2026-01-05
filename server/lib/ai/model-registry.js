@@ -67,6 +67,22 @@ export const MODEL_ROLES = {
     temperature: 0.3,
     features: ['web_search'],
   },
+  BRIEFING_SCHOOLS: {
+    envKey: 'BRIEFING_SCHOOLS_MODEL',
+    default: 'gemini-3-pro-preview',
+    purpose: 'School closures and calendar lookup',
+    maxTokens: 8192,
+    temperature: 0.2,
+    features: ['google_search'],
+  },
+  BRIEFING_AIRPORT: {
+    envKey: 'BRIEFING_AIRPORT_MODEL',
+    default: 'gemini-3-pro-preview',
+    purpose: 'Airport conditions and flight status',
+    maxTokens: 4096,
+    temperature: 0.1,
+    features: ['google_search'],
+  },
 
   // ==========================
   // 2. STRATEGIES TABLE

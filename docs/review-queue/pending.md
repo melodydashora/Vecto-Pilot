@@ -2496,4 +2496,142 @@ Implemented crowd-sourced zone learning from driver conversations:
 
 ---
 
+## 2026-01-05 Analysis
+
+**Generated:** 2026-01-05T01:32:55.455Z
+**Branch:** main
+**Last Commit:** 3c753ec Updated documentation and renamed model calls
+
+### Recent Commit Changes (113)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE-OPUS-4.5-FULL-ANALYSIS.md` | Added |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `README.md` | Modified |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| ... and 93 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
+- [ ] `docs/architecture/api-reference.md` - Briefing API changes (server/api/briefing/briefing.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (client/src/types/demand-patterns.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/tactical-map.ts)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
+## 2026-01-05 Analysis
+
+**Generated:** 2026-01-05T02:30:58.135Z
+**Branch:** main
+**Last Commit:** 3c753ec Updated documentation and renamed model calls
+
+### Uncommitted Changes (14)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+| `briefing-last-row.txt` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/lib/ai/llm-router-v2.js` | Modified |
+| `server/lib/ai/model-registry.js` | Modified |
+| `server/lib/ai/models-dictionary.js` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| `docs/DATABASE_SCHEMA.md` | Untracked |
+| `docs/DATA_FLOW_MAP.json` | Untracked |
+| `docs/review-queue/2026-01-05.md` | Untracked |
+| `scripts/analyze-data-flow.js` | Untracked |
+| `scripts/generate-schema-docs.js` | Untracked |
+| `scripts/generate-schema-docs.sh` | Untracked |
+
+### Recent Commit Changes (113)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `.serena/.gitignore` | Added |
+| `.serena/memories/bug_gemini_model_ids_and_tokens_2026_01_02.md` | Added |
+| `.serena/memories/decision_refresh_daily_endpoint_2026_01_01.md` | Added |
+| `.serena/memories/decision_venue_cache_2026_01_02.md` | Added |
+| `.serena/project.yml` | Added |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE-OPUS-4.5-FULL-ANALYSIS.md` | Added |
+| `COACH_DATA_ACCESS.md` | Deleted |
+| `ERRORS.md` | Deleted |
+| `INTERACTIVE_REPO.md` | Deleted |
+| `ISSUES.md` | Deleted |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `MODEL.md` | Modified |
+| `NEWERRORSFOUND.md` | Deleted |
+| `PRODISSUES.md` | Deleted |
+| `README.md` | Modified |
+| `REORGANIZATION_PLAN.md` | Deleted |
+| ... and 93 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/client-structure.md` - Context provider changes (client/src/contexts/location-context-clean.tsx)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/llm-router-v2.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/llm-router-v2.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/api-reference.md` - Briefing API changes (server/api/briefing/briefing.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (.serena/.gitignore)
+- [ ] Consider adding documentation - New file added (.serena/project.yml)
+- [ ] Consider adding documentation - New file added (client/src/types/demand-patterns.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/tactical-map.ts)
+- [ ] Consider adding documentation - New file added (platform-data/uber/Airports/uber-us-airports-with-market.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/seed-uber-airports.js)
+- [ ] Consider adding documentation - New file added (tools/research/flagship-models-2026-01-02.json)
+
+### Status: PENDING
+
+---
+
 ---

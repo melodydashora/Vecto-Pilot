@@ -1,7 +1,20 @@
 
 // Vecto Pilot™ Models Dictionary
-// Centralized source of truth for all AI models used in the system
-// Last updated: January 4, 2026
+// ═══════════════════════════════════════════════════════════════════════════
+// ARCHITECTURE NOTE (2026-01-05)
+// ═══════════════════════════════════════════════════════════════════════════
+// This file provides DETAILED MODEL METADATA (capabilities, limits, parameters).
+// For ROLE-TO-MODEL MAPPING, use model-registry.js instead.
+//
+// Usage:
+// - Need model capabilities/limits? → Use this file (MODELS_DICTIONARY)
+// - Need to call an AI by role? → Use callModel() from adapters/index.js
+// - Need to configure which model handles a role? → Use model-registry.js
+//
+// The registry (model-registry.js) is the source of truth for role assignments.
+// This dictionary is the source of truth for model specifications.
+// ═══════════════════════════════════════════════════════════════════════════
+// Last updated: January 5, 2026
 
 export const MODELS_DICTIONARY = {
 // ===== REPLIT AGENT ASSISTANT (Claude Sonnet 4.5) =====

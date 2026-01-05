@@ -9,6 +9,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { briefingLog, OP } from '../../logger/workflow.js';
+// Centralized AI adapter - use for all model calls
+import { callModel } from '../ai/adapters/index.js';
 // SerpAPI + GPT-5.2 event discovery (replaces Gemini for events)
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
 // Dump last briefing row to file for debugging
@@ -49,77 +51,6 @@ const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.e
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
-// Claude Opus fallback configuration
-const FALLBACK_MODEL = 'claude-opus-4-5-20251101';
-const FALLBACK_MAX_TOKENS = 8192;
-const FALLBACK_TEMPERATURE = 0.2;
-
-// Initialize Anthropic client for Claude web search
-const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-/**
- * Call Claude Opus with web_search tool for grounded responses
- * Used as secondary fallback for news, events, and other web searches
- * @param {Object} params - { system, prompt, maxTokens, temperature }
- * @returns {Promise<{ok: boolean, output: string, citations?: array, error?: string}>}
- */
-async function callClaudeWithWebSearch({ system, prompt, maxTokens = 4096, temperature = 0.2 }) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    briefingLog.warn(2, `ANTHROPIC_API_KEY not configured`, OP.AI);
-    return { ok: false, output: '', citations: [], error: 'ANTHROPIC_API_KEY not configured' };
-  }
-
-  try {
-    briefingLog.ai(2, 'Claude Opus', `web search with ${maxTokens} tokens`);
-
-    // Use assistant prefill to force JSON array output
-    const messages = [
-      { role: 'user', content: prompt },
-      { role: 'assistant', content: '[' }
-    ];
-
-    const res = await anthropicClient.messages.create({
-      model: FALLBACK_MODEL,
-      max_tokens: maxTokens,
-      temperature,
-      system,
-      messages,
-      tools: [
-        {
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 5
-        }
-      ]
-    });
-
-    // Extract text from response (may have tool_use blocks interspersed)
-    let output = '';
-    const citations = [];
-
-    for (const block of res?.content || []) {
-      if (block.type === 'text') {
-        output += block.text;
-        if (block.citations) {
-          citations.push(...block.citations);
-        }
-      }
-    }
-
-    // Prepend the opening bracket from prefill
-    output = '[' + output.trim();
-
-    briefingLog.done(2, `Claude Opus: ${output.length} chars, ${citations.length} citations`, OP.AI);
-
-    return output
-      ? { ok: true, output, citations }
-      : { ok: false, output: '', citations: [], error: 'Empty response from Claude' };
-  } catch (err) {
-    briefingLog.error(2, `Claude web search failed: ${err.message}`, err, OP.AI);
-    return { ok: false, output: '', citations: [], error: err.message };
-  }
-}
-
 /**
  * Fetch events using Claude web search (fallback when Gemini fails)
  * Uses parallel category searches similar to Gemini approach
@@ -141,7 +72,8 @@ Return an empty array [] if no events found.`;
     const system = `You are an event search assistant. Search the web for local events and return structured JSON data. Only include events happening TODAY. Be accurate with venue names and times.`;
 
     try {
-      const result = await callClaudeWithWebSearch({ system, prompt, maxTokens: 2048 });
+      // Uses BRIEFING_FALLBACK role (Claude with web_search) for parallel event discovery
+      const result = await callModel('BRIEFING_FALLBACK', { system, user: prompt });
 
       if (!result.ok) {
         return { category: category.name, items: [], error: result.error };
@@ -608,7 +540,8 @@ IMPORTANT:
   const system = `You are a news search assistant for rideshare drivers. Search the web for RECENT relevant news (last 7 days only) and return structured JSON data with publication dates. Focus on news that impacts driver earnings, regulations, and working conditions. Do NOT return outdated articles.`;
 
   try {
-    const result = await callClaudeWithWebSearch({ system, prompt, maxTokens: 2048 });
+    // Uses BRIEFING_FALLBACK role (Claude with web_search) for news fallback
+    const result = await callModel('BRIEFING_FALLBACK', { system, user: prompt });
 
     if (!result.ok) {
       briefingLog.warn(2, `Claude news failed: ${result.error}`, OP.FALLBACK);
@@ -630,170 +563,6 @@ IMPORTANT:
   } catch (err) {
     briefingLog.error(2, `Claude news failed`, err, OP.FALLBACK);
     return { items: [], reason: err.message, provider: 'claude' };
-  }
-}
-
-/**
- * Claude Opus fallback when Gemini fails
- * Uses web search tool for grounded responses
- */
-async function callClaudeOpusFallback({ prompt, maxTokens = FALLBACK_MAX_TOKENS }) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return { ok: false, error: 'ANTHROPIC_API_KEY not configured for fallback' };
-  }
-
-  try {
-    briefingLog.phase(2, `Claude fallback for events`, OP.FALLBACK);
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const res = await client.messages.create({
-      model: FALLBACK_MODEL,
-      max_tokens: maxTokens,
-      temperature: FALLBACK_TEMPERATURE,
-      system: "You are a helpful assistant that provides accurate, real-time information. Return responses as valid JSON only, no markdown formatting.",
-      messages: [{ role: "user", content: prompt }],
-      tools: [
-        {
-          type: "web_search_20250305",
-          name: "web_search",
-          max_uses: 5
-        }
-      ]
-    });
-
-    // Extract text from response
-    let output = "";
-    for (const block of res?.content || []) {
-      if (block.type === "text") {
-        output += block.text;
-      }
-    }
-    output = output.trim();
-
-    if (!output) {
-      return { ok: false, error: 'Empty response from Claude fallback' };
-    }
-
-    // Clean markdown if present
-    const cleanOutput = output.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    briefingLog.done(2, `Claude fallback: ${cleanOutput.length} chars`, OP.FALLBACK);
-    return { ok: true, output: cleanOutput, usedFallback: true };
-
-  } catch (err) {
-    briefingLog.error(2, `Claude fallback failed`, err, OP.FALLBACK);
-    return { ok: false, error: `Claude fallback failed: ${err.message}` };
-  }
-}
-
-/**
- * Unified helper for Gemini 3.0 Pro calls with Retry Logic
- * Handles authentication, safety settings, JSON parsing, and 503/429 backoff
- */
-async function callGeminiWithSearch({ prompt, maxTokens = 4096, temperature = 0.1, responseMimeType = "application/json" }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    briefingLog.error(2, `GEMINI_API_KEY not configured`, null, OP.AI);
-    return { ok: false, error: 'GEMINI_API_KEY not configured' };
-  }
-
-  // RETRY CONFIGURATION: 3 attempts with 2s, 4s, 8s delays
-  const MAX_RETRIES = 3;
-  const BASE_DELAY_MS = 2000;
-
-  for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
-    try {
-      if (attempt > 1) {
-        briefingLog.phase(2, `Gemini retry ${attempt-1}/${MAX_RETRIES}`, OP.RETRY);
-      }
-
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            tools: [{ google_search: {} }],
-            safetySettings: [
-              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
-            ],
-            generationConfig: {
-              thinkingConfig: {
-                thinkingLevel: "HIGH"
-              },
-              temperature,
-              maxOutputTokens: maxTokens,
-              responseMimeType
-            }
-          })
-        }
-      );
-
-      // Handle Overloaded (503) or Rate Limited (429)
-      if (response.status === 503 || response.status === 429) {
-        if (attempt <= MAX_RETRIES) {
-          const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
-          briefingLog.warn(2, `Gemini ${response.status} - retry in ${delay}ms`, OP.RETRY);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-        return { ok: false, error: `Gemini Overloaded after ${MAX_RETRIES} retries` };
-      }
-
-      if (!response.ok) {
-        const err = await response.text();
-        return { ok: false, error: `Gemini API ${response.status}: ${err}` };
-      }
-
-      const data = await response.json();
-
-      const candidate = data.candidates?.[0];
-      if (!candidate) {
-        briefingLog.error(2, `No candidates in Gemini response`, null, OP.AI);
-        return { ok: false, error: `No candidates in response: ${data.error?.message || 'unknown'}` };
-      }
-
-      if (candidate.finishReason === 'SAFETY') {
-        briefingLog.warn(2, `Gemini response blocked by safety filter`, OP.AI);
-        return { ok: false, error: `Response blocked by safety filter` };
-      }
-
-      // With thinkingConfig enabled, text may be in different parts
-      // Look for the actual text content (not thinking content)
-      const parts = candidate.content?.parts || [];
-      let text = null;
-
-      for (const part of parts) {
-        // Skip thinking parts (they have a 'thought' field)
-        if (part.thought) continue;
-        // Get the text content
-        if (part.text) {
-          text = part.text;
-          break;
-        }
-      }
-
-      if (!text) {
-        briefingLog.error(2, `Empty Gemini response (finishReason: ${candidate.finishReason}, parts: ${parts.length})`, null, OP.AI);
-        return { ok: false, error: `Empty response from Gemini (finishReason: ${candidate.finishReason || 'unknown'}, parts: ${parts.length})` };
-      }
-
-      const cleanText = text.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      return { ok: true, output: cleanText };
-
-    } catch (error) {
-      if (attempt <= MAX_RETRIES) {
-        briefingLog.warn(2, `Gemini network error - retry ${attempt}/${MAX_RETRIES}`, OP.RETRY);
-        await new Promise(resolve => setTimeout(resolve, BASE_DELAY_MS));
-        continue;
-      }
-      briefingLog.error(2, `Gemini network error`, error, OP.AI);
-      return { ok: false, error: error.message };
-    }
   }
 }
 
@@ -1006,8 +775,9 @@ Return JSON array (max 3 events):
 Return [] if none found.`;
 
   try {
-    // Use callGeminiForEvents with LOW thinking for speed (parallel searches)
-    const result = await callGeminiForEvents({ prompt, maxTokens: 4096 });
+    const system = `You are an event discovery assistant. Search for local events and return structured JSON data.`;
+    // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
+    const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user: prompt });
 
     if (!result.ok) {
       return { category: category.name, items: [], error: result.error };
@@ -1018,78 +788,6 @@ Return [] if none found.`;
     return { category: category.name, items: items.filter(e => e.title && e.venue) };
   } catch (err) {
     return { category: category.name, items: [], error: err.message };
-  }
-}
-
-/**
- * Specialized Gemini call for event searches - uses LOW thinking for speed
- */
-async function callGeminiForEvents({ prompt, maxTokens = 4096 }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return { ok: false, error: 'GEMINI_API_KEY not configured' };
-  }
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
-          safetySettings: [
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
-          ],
-          generationConfig: {
-            // No thinkingConfig = no thinking (avoids MAX_TOKENS issues)
-            temperature: 0.1,
-            maxOutputTokens: maxTokens,
-            responseMimeType: "application/json"
-          }
-        })
-      }
-    );
-
-    if (!response.ok) {
-      const err = await response.text();
-      return { ok: false, error: `Gemini API ${response.status}: ${err.substring(0, 100)}` };
-    }
-
-    const data = await response.json();
-    const candidate = data.candidates?.[0];
-
-    if (!candidate) {
-      return { ok: false, error: 'No candidates in response' };
-    }
-
-    if (candidate.finishReason === 'MAX_TOKENS') {
-      // Still try to extract what we got
-      const parts = candidate.content?.parts || [];
-      for (const part of parts) {
-        if (part.text && !part.thought) {
-          return { ok: true, output: part.text, truncated: true };
-        }
-      }
-      return { ok: false, error: `Empty response from Gemini (finishReason: MAX_TOKENS, parts: ${parts.length})` };
-    }
-
-    // Extract text content (skip thinking parts)
-    const parts = candidate.content?.parts || [];
-    for (const part of parts) {
-      if (part.text && !part.thought) {
-        return { ok: true, output: part.text };
-      }
-    }
-
-    return { ok: false, error: `Empty response from Gemini (finishReason: ${candidate.finishReason}, parts: ${parts.length})` };
-  } catch (err) {
-    return { ok: false, error: err.message };
   }
 }
 
@@ -1201,10 +899,12 @@ async function _fetchEventsWithGemini3ProPreviewLegacy({ snapshot }) {
   const timeContext = hour >= 17 ? 'tonight' : 'today';
   const dayOfWeek = new Date().toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
 
-  const prompt = `Find events in ${city}, ${state} ${timeContext} (${date}, ${dayOfWeek}).
+  const system = `You are an event discovery assistant. Search for local events and return structured JSON data.`;
+  const user = `Find events in ${city}, ${state} ${timeContext} (${date}, ${dayOfWeek}).
 Return JSON array of events with title, venue, address, event_time, event_end_time, subtype, impact.`;
 
-  const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
+  // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
+  const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
 
   if (!result.ok) {
     if (result.error?.includes('Empty response')) {
@@ -1307,7 +1007,8 @@ export async function confirmTBDEventDetails(events) {
   briefingLog.phase(2, `Confirming ${tbdEvents.length} TBD events`, OP.AI);
 
   const eventDetails = tbdEvents.map(e => `- Title: "${e.title}"\n  Location: "${e.location || 'TBD'}"\n  Time: "${e.event_time || 'TBD'}"`).join('\n\n');
-  const prompt = `Review these events with incomplete data and provide confirmed details. For each event, return JSON:
+  const system = `You are an event verification assistant. Search to confirm event details and return structured JSON data.`;
+  const user = `Review these events with incomplete data and provide confirmed details. For each event, return JSON:
 {
   "title": "exact event name",
   "confirmed_venue": "full venue name and address or 'Unable to confirm'",
@@ -1320,8 +1021,8 @@ ${eventDetails}
 
 Return JSON array with one object per event.`;
 
-  // NOTE: With thinkingLevel: HIGH, thinking uses tokens from maxOutputTokens budget
-  const result = await callGeminiWithSearch({ prompt, temperature: 0.2, maxTokens: 8192 });
+  // Uses BRIEFING_EVENTS_DISCOVERY role for TBD confirmation
+  const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
 
   if (!result.ok) {
     briefingLog.warn(2, `TBD confirmation failed: ${result.error}`, OP.AI);
@@ -1354,7 +1055,8 @@ export async function fetchWeatherForecast({ snapshot }) {
   }
 
   const { city, state, date } = snapshot;
-  const prompt = `Get the 4-6 hour weather forecast for ${city}, ${state} for ${date}. Return ONLY valid JSON:
+  const system = `You are a weather intelligence assistant. Search for current weather conditions and return structured JSON data. Be accurate with temperature and conditions.`;
+  const user = `Get the 4-6 hour weather forecast for ${city}, ${state} for ${date}. Return ONLY valid JSON:
 {
   "current": {
     "tempF": number,
@@ -1367,9 +1069,8 @@ export async function fetchWeatherForecast({ snapshot }) {
   ]
 }`;
 
-  // NOTE: With thinkingLevel: HIGH, thinking uses tokens from maxOutputTokens budget
-  // 1000 was way too low - increased to 4096 (weather responses are small)
-  const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
+  // Uses BRIEFING_WEATHER role (Gemini with google_search)
+  const result = await callModel('BRIEFING_WEATHER', { system, user });
 
   if (!result.ok) {
     briefingLog.warn(1, `Weather forecast failed: ${result.error}`, OP.AI);
@@ -1558,7 +1259,9 @@ NOTES:
 - "impact" should be "high" for large districts/universities, "medium" for mid-size, "low" for small private schools
 - If no closures are found, return an empty array []`;
 
-  const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
+  const system = `You are a school calendar research assistant. Search for school closures, holidays, and academic schedules. Return structured JSON data.`;
+  // Uses BRIEFING_SCHOOLS role (Gemini with google_search)
+  const result = await callModel('BRIEFING_SCHOOLS', { system, user: prompt });
 
   if (!result.ok) {
     briefingLog.warn(2, `School closures failed: ${result.error}`, OP.AI);
@@ -1765,7 +1468,8 @@ export async function fetchTrafficConditions({ snapshot }) {
 
   briefingLog.ai(1, 'Gemini', `traffic for ${city}, ${state}`);
 
-  const prompt = `Search for current traffic conditions in ${city}, ${state} as of today ${date}. Return traffic data as JSON ONLY with ALL these fields:
+  const system = `You are a traffic intelligence assistant for rideshare drivers. Search for current traffic conditions and return structured JSON data.`;
+  const user = `Search for current traffic conditions in ${city}, ${state} as of today ${date}. Return traffic data as JSON ONLY with ALL these fields:
 
 {
   "summary": "One sentence about overall traffic status",
@@ -1779,7 +1483,8 @@ export async function fetchTrafficConditions({ snapshot }) {
 
 CRITICAL: Include highDemandZones and repositioning.`;
 
-  const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
+  // Uses BRIEFING_TRAFFIC role (Gemini with google_search)
+  const result = await callModel('BRIEFING_TRAFFIC', { system, user });
 
   // Graceful fallback if Gemini fails (don't crash waterfall)
   if (!result.ok) {
@@ -1858,7 +1563,8 @@ async function fetchAirportConditions({ snapshot }) {
   try {
     briefingLog.ai(2, 'Gemini', `airport conditions for ${city}, ${state}`);
 
-    const prompt = `Search for current airport conditions near ${city}, ${state} as of ${date}.
+    const system = `You are an airport conditions assistant. Search for current flight status and airport conditions. Return structured JSON data.`;
+    const user = `Search for current airport conditions near ${city}, ${state} as of ${date}.
 
 Find airports within 50 miles and report:
 1. Flight delays and cancellations
@@ -1880,7 +1586,8 @@ Return JSON (use actual airport codes and names for the location):
   "recommendations": "<driver tips for airport pickups>"
 }`;
 
-    const result = await callGeminiWithSearch({ prompt, maxTokens: 4096 });
+    // Uses BRIEFING_AIRPORT role (Gemini with google_search)
+    const result = await callModel('BRIEFING_AIRPORT', { system, user });
 
     if (!result.ok) {
       briefingLog.warn(2, `Gemini airport failed: ${result.error}`, OP.FALLBACK);
@@ -2012,9 +1719,9 @@ IMPORTANT:
 - If you cannot determine the publication date, DO NOT include that article
 - Return 2-5 items if found. If no recent news found, return empty array []`;
 
-  // NOTE: With thinkingLevel: HIGH, thinking uses tokens from maxOutputTokens budget
-  // 2048 was too low - thinking consumed all tokens leaving 0 for response
-  const result = await callGeminiWithSearch({ prompt, maxTokens: 8192 });
+  const system = `You are a rideshare news research assistant. Search for recent news relevant to rideshare drivers and return structured JSON data with publication dates.`;
+  // Uses BRIEFING_NEWS role (Gemini with google_search)
+  const result = await callModel('BRIEFING_NEWS', { system, user: prompt });
 
   // Graceful degradation - try Claude fallback
   if (!result.ok) {

@@ -1,4 +1,17 @@
 // server/lib/llm-router-v2.js
+// ═══════════════════════════════════════════════════════════════════════════
+// DEPRECATION NOTICE (2026-01-05)
+// ═══════════════════════════════════════════════════════════════════════════
+// The routeLLMTextV2() function is DEPRECATED. Use callModel() from
+// adapters/index.js instead, which handles role-based routing and fallbacks.
+//
+// STILL IN USE:
+// - routerDiagnosticsV2() - Health check diagnostics (used by /api/health)
+// - getLLMStatus() - Model status reporting
+//
+// DO NOT use routeLLMTextV2() for new code.
+// ═══════════════════════════════════════════════════════════════════════════
+//
 // Multi-model hedged router with strict total budget, proper cancellation,
 // and failure classification so circuit breakers don't trip on aborts.
 // ESM. Requires Node 18+ (global fetch).
