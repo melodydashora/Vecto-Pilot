@@ -7,14 +7,14 @@ Research findings on rideshare platform algorithmic behaviors that directly info
 ## Table of Contents
 
 1. [High-Impact Enhancements](#high-impact-enhancements)
-2. [Screenshot Analysis Improvements](#1-screenshot-analysis-prompt-improvements)
-3. [Detection Rules](#2-new-detection-rules-from-research)
-4. [Dead Zone Detection](#3-enhanced-dead-zone-detection)
-5. [Surge Stability Scoring](#4-new-surge-stability-scoring)
-6. [Market-Specific Rate Cards](#5-market-specific-rate-cards)
-7. [Enhanced Recommendations](#6-enhanced-recommendation-response)
-8. [iOS Shortcut Integration](#7-ios-shortcut-integration)
-9. [Implementation Priority](#8-priority-implementation-order)
+2. [Screenshot Analysis Improvements](#1.-screenshot-analysis-prompt-improvements)
+3. [Detection Rules](#2.-new-detection-rules-from-research)
+4. [Dead Zone Detection](#3.-enhanced-dead-zone-detection)
+5. [Surge Stability Scoring](#4.-new-surge-stability-scoring)
+6. [Market-Specific Rate Cards](#5.-market-specific-rate-cards)
+7. [Enhanced Recommendations](#6.-enhanced-recommendation-response)
+8. [iOS Shortcut Integration](#7.-ios-shortcut-integration)
+9. [Implementation Priority](#8.-priority-implementation-order)
 
 ---
 
