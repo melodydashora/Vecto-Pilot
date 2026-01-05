@@ -12,6 +12,7 @@ import { eq, and, or } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
 import { barsLog, placesLog, venuesLog, aiLog } from '../../logger/workflow.js';
 import { generateCoordKey, normalizeVenueName } from './venue-utils.js';
+import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 
 // API Keys
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -307,57 +308,71 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
       venues = await filterVenuesWithLLM(venues);
     }
 
-    // Filter to only open venues or those with unknown status
-    const openVenues = venues.filter(v => v.is_open === true || v.is_open === null);
+    // Step 4: "CLOSED GO ANYWAY" Logic
+    // Filter to only open venues OR closed high-value venues (for staging)
+    // - Open or Unknown status: Always keep
+    // - Closed status: Only keep if Expense Rank >= 3 ($$$ or $$$$)
+    const relevantVenues = venues.filter(v => {
+      // 1. Open or Unknown status
+      if (v.is_open === true || v.is_open === null) return true;
+
+      // 2. Closed Go Anyway: High value venues ($$$+) worth staging near
+      if (v.is_open === false && v.expense_rank >= 3) {
+        v.closed_go_anyway = true; // Flag for UI/Strategy
+        v.closed_reason = "High-value venue - good for staging spillover";
+        return true;
+      }
+
+      return false; // Skip low-value closed venues
+    });
 
     // Strategic sort for drivers:
-    // 1. Open venues with time to work (not closing soon) - sorted by expense ($$$ first)
+    // 1. Open venues with time to work (not closing soon) - sorted by expense ($$$$ first)
     // 2. Last call venues (closing soon) - still valuable for quick pickups
-    // 3. Unknown status venues - might be open
-    // Within each group: highest expense first (better tips)
-    openVenues.sort((a, b) => {
+    // 3. Unknown status venues
+    // 4. Closed High-Value Venues (Go Anyway)
+    relevantVenues.sort((a, b) => {
       const aOpen = a.is_open === true;
       const bOpen = b.is_open === true;
-      const aClosingSoon = a.closing_soon === true;
-      const bClosingSoon = b.closing_soon === true;
+      const aClosed = a.is_open === false;
+      const bClosed = b.is_open === false;
 
-      // Both are confirmed open
+      // Open venues first
+      if (aOpen && !bOpen) return -1;
+      if (!aOpen && bOpen) return 1;
+
       if (aOpen && bOpen) {
+        // Within open venues:
         // Put non-closing-soon venues first (more time to work them)
-        if (aClosingSoon !== bClosingSoon) {
-          return aClosingSoon ? 1 : -1;
-        }
-        // Both same closing status - sort by expense (highest first)
+        const aClosingSoon = a.closing_soon === true;
+        const bClosingSoon = b.closing_soon === true;
+        if (aClosingSoon !== bClosingSoon) return aClosingSoon ? 1 : -1;
+
+        // Then sort by expense (highest first)
         if ((b.expense_rank || 0) !== (a.expense_rank || 0)) {
           return (b.expense_rank || 0) - (a.expense_rank || 0);
         }
-        // If both closing soon, prefer the one with more time
-        if (aClosingSoon && bClosingSoon) {
-          return (b.minutes_until_close || 0) - (a.minutes_until_close || 0);
-        }
-        // Finally by rating
         return (b.rating || 0) - (a.rating || 0);
       }
 
-      // Open venues before unknown status
-      if (aOpen !== bOpen) {
-        return aOpen ? -1 : 1;
-      }
+      // Closed venues last (after unknown)
+      if (aClosed && !bClosed) return 1;
+      if (!aClosed && bClosed) return -1;
 
-      // Both unknown - sort by expense
+      // Both same status (Unknown or Closed) - sort by expense
       return (b.expense_rank || 0) - (a.expense_rank || 0);
     });
 
     // Extract last-call venues
-    const lastCallVenues = openVenues.filter(v => v.is_open && v.closing_soon);
+    const lastCallVenues = relevantVenues.filter(v => v.is_open && v.closing_soon);
 
-    barsLog.complete(`${openVenues.length} open venues, ${lastCallVenues.length} closing soon`);
+    barsLog.complete(`${relevantVenues.length} venues (incl. ${relevantVenues.filter(v => v.is_open === false).length} closed high-value)`);
 
     return {
       query_time: new Date().toLocaleTimeString(),
       location: `${city}, ${state}`,
-      total_venues: openVenues.length,
-      venues: openVenues,
+      total_venues: relevantVenues.length,
+      venues: relevantVenues,
       last_call_venues: lastCallVenues,
       search_sources: ['Google Places API']
     };
@@ -534,8 +549,12 @@ export async function persistVenuesToDatabase(venues, context) {
         existing = found;
       }
 
+      // District Extraction (from venue name)
+      const district = extractDistrictFromVenueName(v.name);
+      const districtSlug = district ? normalizeDistrictSlug(district) : null;
+
       if (existing) {
-        // Update existing venue with latest bar data
+        // Update existing venue with latest bar data + district info
         const venueTypes = Array.isArray(existing.venue_types) ? existing.venue_types : [];
         if (!venueTypes.includes('bar')) {
           venueTypes.push('bar');
@@ -547,6 +566,9 @@ export async function persistVenuesToDatabase(venues, context) {
             crowd_level: v.crowd_level || existing.crowd_level,
             rideshare_potential: v.rideshare_potential || existing.rideshare_potential,
             venue_types: venueTypes,
+            // Prefer existing district if set, otherwise try new extraction
+            district: existing.district || district,
+            district_slug: existing.district_slug || districtSlug,
             access_count: (existing.access_count || 0) + 1,
             last_accessed_at: now,
             updated_at: now
@@ -556,7 +578,7 @@ export async function persistVenuesToDatabase(venues, context) {
 
         if (updated) upserted.push(updated);
       } else {
-        // Insert new venue
+        // Insert new venue with district
         const venueType = v.type === 'nightclub' ? 'nightclub' :
                           v.type === 'wine_bar' ? 'wine_bar' : 'bar';
 
@@ -577,6 +599,8 @@ export async function persistVenuesToDatabase(venues, context) {
             expense_rank: v.expense_rank,
             crowd_level: v.crowd_level,
             rideshare_potential: v.rideshare_potential,
+            district: district,
+            district_slug: districtSlug,
             source: 'google_places',
             discovery_source: 'bar_discovery',
             access_count: 1,
