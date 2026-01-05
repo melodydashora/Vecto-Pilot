@@ -376,14 +376,3 @@ export async function resolveVenueAddressesBatch(venues) {
 
   return results;
 }
-
-/**
- * Legacy wrapper for backward compatibility
- * Returns just the formatted address string instead of full object
- *
- * @deprecated Use resolveVenueAddress() which returns full venue object
- */
-export async function resolveVenueAddressString(lat, lng, venueName = null) {
-  const result = await resolveVenueAddress(lat, lng, venueName);
-  return result?.formatted_address || null;
-}

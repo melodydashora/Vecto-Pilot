@@ -162,6 +162,7 @@
     "typescript": "^5.9.2"
   },
   "overrides": {
-    "underscore": "^1.13.6"
+    "underscore": "^1.13.6",
+    "esbuild": "^0.25.0"
   }
 }
