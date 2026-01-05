@@ -565,6 +565,43 @@ await db.update(strategies).set({
 });
 ```
 
+### Bug: Login/Logout destroys all user data (CASCADE DELETE)
+
+**Added: 2026-01-05**
+
+**Symptom:** User signs up successfully, logs in, but subsequent requests fail with "No session found". Database shows 0 profiles, 0 credentials.
+
+**Root Cause:** The schema has CASCADE delete rules on foreign keys:
+```sql
+auth_credentials.user_id → users.user_id → CASCADE
+driver_profiles.user_id → users.user_id → CASCADE
+driver_vehicles.driver_profile_id → driver_profiles.id → CASCADE
+```
+
+The login code was doing:
+```javascript
+await db.delete(users).where(eq(users.user_id, profile.user_id));  // CASCADE deletes profiles & credentials!
+await db.insert(users).values({...});  // Creates orphan session with no profile
+```
+
+**Fix:** Use UPDATE instead of DELETE+INSERT:
+```javascript
+// Login: Check if users row exists, UPDATE if yes, INSERT if no
+const existingUser = await db.query.users.findFirst({...});
+if (existingUser) {
+  await db.update(users).set({...}).where(eq(users.user_id, profile.user_id));
+} else {
+  await db.insert(users).values({...});
+}
+
+// Logout: Clear session instead of DELETE
+await db.update(users).set({ session_id: null, current_snapshot_id: null });
+```
+
+**Key Lesson:** Always check CASCADE rules in schema before DELETE operations. The `users` table is a foreign key parent for many tables.
+
+---
+
 ### Bug: "401 Unauthorized" from AI APIs
 
 **Causes:**

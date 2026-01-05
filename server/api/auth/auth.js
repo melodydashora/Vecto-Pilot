@@ -603,25 +603,43 @@ router.post('/login', async (req, res) => {
       .where(eq(auth_credentials.user_id, profile.user_id));
 
     // 2026-01-05: Session Architecture - Create/reset users row on login
-    // Highlander Rule: one session per user. Delete any existing row, insert fresh.
-    // This handles multiple devices/tabs - new login supersedes old session.
+    // Highlander Rule: one session per user.
+    // CRITICAL FIX (2026-01-05): Use UPSERT instead of DELETE+INSERT!
+    // DELETE causes CASCADE delete of driver_profiles and auth_credentials.
+    // This was destroying all user data on login!
     const newSessionId = crypto.randomUUID();
     const now = new Date();
 
-    // Delete existing session (if any) - Highlander rule
-    await db.delete(users).where(eq(users.user_id, profile.user_id));
-
-    // Create fresh session row
-    await db.insert(users).values({
-      user_id: profile.user_id,
-      device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
-      session_id: newSessionId,
-      current_snapshot_id: null, // Set when first snapshot created
-      session_start_at: now,
-      last_active_at: now,
-      created_at: now,
-      updated_at: now
+    // Check if users row exists
+    const existingUser = await db.query.users.findFirst({
+      where: eq(users.user_id, profile.user_id)
     });
+
+    if (existingUser) {
+      // UPDATE existing session - preserves foreign key relationships
+      await db.update(users)
+        .set({
+          device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
+          session_id: newSessionId,
+          current_snapshot_id: null,
+          session_start_at: now,
+          last_active_at: now,
+          updated_at: now
+        })
+        .where(eq(users.user_id, profile.user_id));
+    } else {
+      // INSERT new session row (first login after registration)
+      await db.insert(users).values({
+        user_id: profile.user_id,
+        device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
+        session_id: newSessionId,
+        current_snapshot_id: null,
+        session_start_at: now,
+        last_active_at: now,
+        created_at: now,
+        updated_at: now
+      });
+    }
 
     authLog.phase(1, `Session created for user: ${profile.user_id.substring(0, 8)} (session: ${newSessionId.substring(0, 8)})`);
 
@@ -1206,17 +1224,25 @@ router.put('/profile', requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// POST /api/auth/logout - Logout (deletes session row)
+// POST /api/auth/logout - Logout (clears session, preserves user data)
 // ═══════════════════════════════════════════════════════════════════════════
 router.post('/logout', requireAuth, async (req, res) => {
   try {
     const userId = req.auth.userId;
 
-    // 2026-01-05: Session Architecture - Delete users row on logout
-    // This immediately invalidates the session. User must re-login.
-    await db.delete(users).where(eq(users.user_id, userId));
+    // 2026-01-05: CRITICAL FIX - Use UPDATE instead of DELETE!
+    // DELETE causes CASCADE delete of driver_profiles and auth_credentials.
+    // This was destroying all user data on logout!
+    // Instead, we clear the session_id to invalidate the session while preserving user data.
+    await db.update(users)
+      .set({
+        session_id: null,
+        current_snapshot_id: null,
+        updated_at: new Date()
+      })
+      .where(eq(users.user_id, userId));
 
-    authLog.done(1, `User logged out, session deleted: ${userId.substring(0, 8)}`);
+    authLog.done(1, `User logged out, session cleared: ${userId.substring(0, 8)}`);
     res.json({ ok: true, message: 'Logged out successfully' });
   } catch (err) {
     authLog.error(1, `Logout failed`, err);
