@@ -8,7 +8,7 @@ import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
-import { filterFreshEvents } from '../../lib/strategy/strategy-utils.js';
+import { filterFreshEvents, filterFreshNews } from '../../lib/strategy/strategy-utils.js';
 
 /**
  * Normalize a news title for hash matching
@@ -187,6 +187,10 @@ router.get('/current', requireAuth, async (req, res) => {
       Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || []
     );
 
+    // Filter stale news - only today's news with valid publication dates (2026-01-05)
+    const newsItems = Array.isArray(briefing.news) ? briefing.news : briefing.news?.items || [];
+    const freshNews = filterFreshNews(newsItems, new Date(), snapshot.timezone || 'UTC');
+
     res.json({
       snapshot_id: snapshot.snapshot_id,
       location: {
@@ -196,7 +200,7 @@ router.get('/current', requireAuth, async (req, res) => {
         lng: snapshot.lng
       },
       briefing: {
-        news: briefing.news,
+        news: freshNews,
         weather: {
           current: briefing.weather_current,
           forecast: briefing.weather_forecast
@@ -241,10 +245,15 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
       Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || []
     );
 
+    // Filter stale news - only today's news with valid publication dates (2026-01-05)
+    const snapshot = snapshotCheck[0];
+    const newsItems = Array.isArray(briefing.news) ? briefing.news : briefing.news?.items || [];
+    const freshNews = filterFreshNews(newsItems, new Date(), snapshot.timezone || 'UTC');
+
     res.json({
       success: true,
       briefing: {
-        news: briefing.news,
+        news: freshNews,
         weather: {
           current: briefing.weather_current,
           forecast: briefing.weather_forecast
@@ -274,10 +283,14 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
       Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || []
     );
 
+    // Filter stale news - only today's news with valid publication dates (2026-01-05)
+    const newsItems = Array.isArray(briefing.news) ? briefing.news : briefing.news?.items || [];
+    const freshNews = filterFreshNews(newsItems, new Date(), req.snapshot.timezone || 'UTC');
+
     res.json({
       snapshot_id: req.snapshot.snapshot_id,
       briefing: {
-        news: briefing.news,
+        news: freshNews,
         weather: {
           current: briefing.weather_current,
           forecast: briefing.weather_forecast
@@ -320,11 +333,15 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
         Array.isArray(result.briefing.events) ? result.briefing.events : result.briefing.events?.items || []
       );
 
+      // Filter stale news - only today's news with valid publication dates (2026-01-05)
+      const newsItems = Array.isArray(result.briefing.news) ? result.briefing.news : result.briefing.news?.items || [];
+      const freshNews = filterFreshNews(newsItems, new Date(), snapshot.timezone || 'UTC');
+
       res.json({
         success: true,
         refreshed: true,
         briefing: {
-          news: result.briefing.news,
+          news: freshNews,
           weather: {
             current: result.briefing.weather_current,
             forecast: result.briefing.weather_forecast
@@ -518,9 +535,17 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
       }
     }
 
+    // Filter stale news - only today's news with valid publication dates (2026-01-05)
+    // Apply after deactivation filtering
+    const newsItemsToFilter = Array.isArray(filteredNews) ? filteredNews : filteredNews?.items || [];
+    const freshNewsItems = filterFreshNews(newsItemsToFilter, new Date(), req.snapshot.timezone || 'UTC');
+
+    // Return in same format as filtered news
+    const finalNews = Array.isArray(filteredNews) ? freshNewsItems : { ...filteredNews, items: freshNewsItems };
+
     res.json({
       success: true,
-      news: filteredNews,
+      news: finalNews,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -774,6 +799,9 @@ router.post('/refresh-daily/:snapshotId', expensiveEndpointLimiter, requireAuth,
       console.log(`[BriefingRoute] ✅ Briefings table updated with ${newsResult.items.length} news items`);
     }
 
+    // Filter stale news - only today's news with valid publication dates (2026-01-05)
+    const freshNewsItems = filterFreshNews(newsResult?.items || [], new Date(), userTimezone);
+
     // Return both events and news results
     res.json({
       ok: true,
@@ -785,8 +813,8 @@ router.post('/refresh-daily/:snapshotId', expensiveEndpointLimiter, requireAuth,
         skipped: eventsResult.skipped
       },
       news: {
-        count: newsResult?.items?.length || 0,
-        items: newsResult?.items?.slice(0, 10) || []  // Return first 10 for display
+        count: freshNewsItems.length,
+        items: freshNewsItems.slice(0, 10)  // Return first 10 for display
       }
     });
   } catch (error) {

@@ -419,3 +419,111 @@ export function filterFreshEvents(events, now = new Date()) {
 
   return freshEvents;
 }
+
+// ============================================================================
+// NEWS FRESHNESS FILTERING
+// Added 2026-01-05: Filter stale news from briefing data
+// News must have publication date and must be from today only
+// ============================================================================
+
+/**
+ * Extract publication date from news item (handles multiple field naming conventions)
+ * @param {Object} newsItem - News item object
+ * @returns {Date|null} - Parsed publication date or null if not available
+ */
+function getNewsPublicationDate(newsItem) {
+  if (!newsItem) return null;
+
+  // Try various field names used for news publication dates
+  const dateFields = [
+    'published_date',
+    'publishedDate',
+    'pubDate',
+    'pub_date',
+    'publication_date',
+    'date',
+    'created_at',
+    'createdAt'
+  ];
+
+  for (const field of dateFields) {
+    if (newsItem[field]) {
+      const parsed = new Date(newsItem[field]);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Check if a news item has a valid publication date
+ * @param {Object} newsItem - News item object
+ * @returns {boolean} - True if news item has a publication date
+ */
+function hasValidPublicationDate(newsItem) {
+  return getNewsPublicationDate(newsItem) !== null;
+}
+
+/**
+ * Check if a news item is from today (same calendar date)
+ * @param {Object} newsItem - News item object
+ * @param {Date} now - Reference time for comparison
+ * @param {string} timezone - Timezone for date comparison (e.g., 'America/Chicago')
+ * @returns {boolean} - True if news is from today
+ */
+export function isNewsFromToday(newsItem, now = new Date(), timezone = 'UTC') {
+  if (!newsItem) return false;
+
+  const pubDate = getNewsPublicationDate(newsItem);
+  if (!pubDate) return false;
+
+  // Compare calendar dates in the specified timezone
+  const todayStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
+  const pubDateStr = pubDate.toLocaleDateString('en-CA', { timeZone: timezone });
+
+  return todayStr === pubDateStr;
+}
+
+/**
+ * Filter news to only include today's news with valid publication dates
+ * CRITICAL: Rejects news without publication date entirely (2026-01-05)
+ *
+ * @param {Array} newsItems - Array of news item objects
+ * @param {Date} now - Reference time for comparison (default: current time)
+ * @param {string} timezone - Timezone for date comparison (default: 'UTC')
+ * @returns {Array} - Filtered array of today's news
+ */
+export function filterFreshNews(newsItems, now = new Date(), timezone = 'UTC') {
+  if (!Array.isArray(newsItems)) {
+    return [];
+  }
+
+  const freshNews = [];
+  let staleCount = 0;
+  let noDateCount = 0;
+
+  for (const item of newsItems) {
+    // Check for valid publication date first
+    if (!hasValidPublicationDate(item)) {
+      noDateCount++;
+      continue;
+    }
+
+    // Check if news is from today
+    if (isNewsFromToday(item, now, timezone)) {
+      freshNews.push(item);
+    } else {
+      staleCount++;
+    }
+  }
+
+  // Log filtering stats if we removed news items
+  if (staleCount > 0 || noDateCount > 0) {
+    console.log(`[filterFreshNews] Filtered: ${staleCount} stale, ${noDateCount} missing dates (kept ${freshNews.length}/${newsItems.length})`);
+  }
+
+  return freshNews;
+}
