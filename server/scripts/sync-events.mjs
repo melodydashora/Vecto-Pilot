@@ -621,7 +621,7 @@ Return ONLY a valid JSON array (no markdown, no explanation, just the array):
 Search for: concerts, sports games, festivals, theater, comedy shows, conventions, holiday events, nightlife.`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -638,7 +638,7 @@ Search for: concerts, sports games, festivals, theater, comedy shows, convention
 
     if (!response.ok) {
       const err = await response.text();
-      console.log(`  [Gemini 2.5 Pro] Error ${response.status}: ${err.slice(0, 100)}`);
+      console.log(`  [Gemini 3 Pro] Error ${response.status}: ${err.slice(0, 100)}`);
       return [];
     }
 
@@ -707,7 +707,7 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = [], opti
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-opus-4-5-20251101',
         max_tokens: 32000,
         tools: [{
           type: 'web_search_20250305',

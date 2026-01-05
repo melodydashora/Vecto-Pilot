@@ -102,8 +102,8 @@ replit_agent: {
   // ==========================================
   triad_planner: {
     provider: 'openai',
-    model_id: 'gpt-5',
-    model_name: 'GPT-5 (Tactical Planner)',
+    model_id: 'gpt-5.2',
+    model_name: 'GPT-5.2 (Tactical Planner)',
     context_window: 272000,
     max_output_tokens: 128000,
     api_endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -309,8 +309,8 @@ replit_agent: {
   // Note: Standardized from "venue_generator" in Jan 2026 to match model-registry.js
   venue_planner: {
     provider: 'openai',
-    model_id: 'gpt-5',
-    model_name: 'VENUE_PLANNER role',
+    model_id: 'gpt-5.2',
+    model_name: 'GPT-5.2 (VENUE_PLANNER role)',
     context_window: 272000,
     max_output_tokens: 2000,
     api_endpoint: 'https://api.openai.com/v1/chat/completions',
