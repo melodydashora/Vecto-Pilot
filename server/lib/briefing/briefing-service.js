@@ -45,6 +45,124 @@ function getSchoolSearchTerms(country) {
   return { authority: 'School District/ISD', terms: 'school district calendar, student holidays, professional development', type: 'district' };
 }
 
+/**
+ * Deduplicate events based on normalized name, address, and time
+ *
+ * Problem: LLMs discover the same event multiple times with slight name variations:
+ * - "O" by Cirque du Soleil in Shared Reality
+ * - O by Cirque du Soleil at Cosm (Shared Reality)
+ * - "O" by Cirque du Soleil (Shared Reality) at Cosm
+ *
+ * All at same venue (5776 Grandscape Blvd) with same time (3:30 PM - 5:30 PM)
+ *
+ * Solution: Normalize and group by (name_key + address_base + start_time)
+ * Keep highest impact event from each group.
+ *
+ * @param {Array} events - Array of normalized events
+ * @returns {Array} Deduplicated events
+ */
+function deduplicateEvents(events) {
+  if (!events || events.length === 0) return events;
+
+  /**
+   * Normalize event name for comparison:
+   * - Remove quotes and special chars
+   * - Remove parenthetical content like "(Shared Reality)"
+   * - Remove common suffixes like "at Cosm", "in Shared Reality"
+   * - Lowercase and trim
+   */
+  function normalizeEventName(name) {
+    if (!name) return '';
+    return name
+      .toLowerCase()
+      .replace(/["'"]/g, '')                          // Remove quotes
+      .replace(/\s*\([^)]*\)\s*/g, ' ')              // Remove (parenthetical content)
+      .replace(/\s+(at|in|from|@)\s+.+$/i, '')       // Remove "at Cosm", "in Shared Reality" suffixes
+      .replace(/[^a-z0-9\s]/g, ' ')                  // Remove special chars
+      .replace(/\s+/g, ' ')                          // Collapse spaces
+      .trim();
+  }
+
+  /**
+   * Extract base address for comparison:
+   * - Get first number sequence (street number)
+   * - Get street name words
+   * - Allows matching "5776 Grandscape Blvd" with "5752 Grandscape Blvd" (same venue block)
+   */
+  function normalizeAddress(address) {
+    if (!address) return '';
+    const lower = address.toLowerCase();
+    // Extract street name (after street number)
+    const streetMatch = lower.match(/\d+\s+(.+?)(?:,|$)/);
+    const streetName = streetMatch ? streetMatch[1].split(/[,#]/)[0].trim() : lower;
+    // Get first few significant words
+    const words = streetName.split(/\s+/).slice(0, 2).join(' ');
+    return words;
+  }
+
+  /**
+   * Normalize time to comparable format (e.g., "3:30 PM" -> "1530")
+   */
+  function normalizeTime(timeStr) {
+    if (!timeStr) return '';
+    const match = timeStr.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/i);
+    if (!match) return timeStr.toLowerCase();
+    let hour = parseInt(match[1]);
+    const min = match[2] || '00';
+    const period = (match[3] || '').toLowerCase();
+    if (period === 'pm' && hour !== 12) hour += 12;
+    if (period === 'am' && hour === 12) hour = 0;
+    return `${hour.toString().padStart(2, '0')}${min}`;
+  }
+
+  // Create deduplication key
+  function getDedupeKey(event) {
+    const name = normalizeEventName(event.title);
+    const addr = normalizeAddress(event.address);
+    const time = normalizeTime(event.event_time);
+    return `${name}|${addr}|${time}`;
+  }
+
+  // Group events by dedupe key
+  const groups = new Map();
+  for (const event of events) {
+    const key = getDedupeKey(event);
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(event);
+  }
+
+  // From each group, keep the best event (highest impact, or first if same)
+  const impactOrder = { high: 3, medium: 2, low: 1 };
+  const deduplicated = [];
+
+  for (const [key, group] of groups) {
+    if (group.length === 1) {
+      deduplicated.push(group[0]);
+    } else {
+      // Sort by impact (high first), then by title length (shorter = cleaner)
+      group.sort((a, b) => {
+        const impactDiff = (impactOrder[b.impact] || 0) - (impactOrder[a.impact] || 0);
+        if (impactDiff !== 0) return impactDiff;
+        return (a.title?.length || 0) - (b.title?.length || 0);
+      });
+      deduplicated.push(group[0]);
+
+      // Log deduplication for debugging
+      if (group.length > 1) {
+        briefingLog.info(`[Dedup] Merged ${group.length} variants of "${group[0].title?.slice(0, 40)}..."`);
+      }
+    }
+  }
+
+  const removed = events.length - deduplicated.length;
+  if (removed > 0) {
+    briefingLog.done(2, `Events deduped: ${events.length} → ${deduplicated.length} (${removed} duplicates removed)`, OP.DB);
+  }
+
+  return deduplicated;
+}
 
 // Initialize OpenAI client for GPT-5.2 fallback
 const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
@@ -993,8 +1111,12 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         longitude: e.lng
       }));
 
-      briefingLog.done(2, `Events: ${normalizedEvents.length} from discovered_events table`, OP.DB);
-      return { items: normalizedEvents, reason: null, provider: 'discovered_events' };
+      // 2026-01-05: Deduplicate events with similar names, addresses, and times
+      // Fixes issue where LLMs discover same event multiple times with slight name variations
+      const deduplicatedEvents = deduplicateEvents(normalizedEvents);
+
+      briefingLog.done(2, `Events: ${deduplicatedEvents.length} from discovered_events table`, OP.DB);
+      return { items: deduplicatedEvents, reason: null, provider: 'discovered_events' };
     }
 
     briefingLog.info(`No events found for ${city}, ${state}`);
