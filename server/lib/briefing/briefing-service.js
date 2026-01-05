@@ -61,7 +61,8 @@ function getSchoolSearchTerms(country) {
  * @param {Array} events - Array of normalized events
  * @returns {Array} Deduplicated events
  */
-function deduplicateEvents(events) {
+// 2026-01-05: Exported for use in briefing.js events endpoint
+export function deduplicateEvents(events) {
   if (!events || events.length === 0) return events;
 
   /**

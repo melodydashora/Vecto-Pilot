@@ -140,7 +140,8 @@ export const MODEL_ROLES = {
   },
   VENUE_FILTER: {
     envKey: 'VENUE_FILTER_MODEL',
-    default: 'claude-3-5-haiku-20241022',
+    // 2026-01-05: Updated from deprecated claude-3-5-haiku-20241022 to latest
+    default: 'claude-3-5-haiku-latest',
     purpose: 'Fast low-cost venue filtering',
     maxTokens: 200,
     temperature: 0,
