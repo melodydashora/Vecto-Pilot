@@ -2035,19 +2035,20 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   const { city, state } = snapshot;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // BRIEFING CACHING STRATEGY:
+  // BRIEFING CACHING STRATEGY (Updated 2026-01-05):
   // ═══════════════════════════════════════════════════════════════════════════
-  // ALWAYS FRESH (every request):  Weather (4-hr forecast), Traffic, Events, Airport
-  // CACHED (24-hour, same city):   News, School Closures
+  // ALWAYS FRESH (every request):  Weather, Traffic, News, Airport
+  // CACHED (24-hour, same city):   School Closures
+  // CACHED (from DB table):        Events
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Step 1: Check for cached NEWS + SCHOOL CLOSURES only (city-level, 24-hour cache)
-  // Weather, traffic, events, and airport are NEVER cached - always fetched fresh
+  // Step 1: Check for cached SCHOOL CLOSURES only (city-level, 24-hour cache)
+  // News, Weather, traffic, and airport are NEVER cached - always fetched fresh
   // JOIN briefings with snapshots to get city/state (briefings table no longer stores location)
   let cachedDailyData = null;
   try {
     // Exclude current snapshotId - we want cached data from OTHER snapshots in same city
-    // Also exclude placeholder rows (NULL news) by checking in the result
+    // Also exclude placeholder rows (NULL closures) by checking in the result
     const existingBriefings = await db.select({
       briefing: briefings,
       city: snapshots.city,
@@ -2059,8 +2060,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
         eq(snapshots.city, city),
         eq(snapshots.state, state),
         sql`${briefings.snapshot_id} != ${snapshotId}`,  // Exclude current snapshot
-        sql`${briefings.news} IS NOT NULL`,  // Exclude placeholder rows
-        sql`${briefings.school_closures} IS NOT NULL`  // Require school_closures too
+        sql`${briefings.school_closures} IS NOT NULL`  // Require school_closures
       ))
       .orderBy(desc(briefings.updated_at))  // DESC = newest first
       .limit(1);
@@ -2071,16 +2071,13 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       const userTimezone = snapshot.timezone;
 
       // Check if cached data actually has content (not just empty arrays)
-      const newsItems = existing.news?.items || [];
       const closureItems = existing.school_closures?.items || existing.school_closures || [];
-      const hasActualNewsContent = Array.isArray(newsItems) && newsItems.length > 0;
       const hasActualClosuresContent = Array.isArray(closureItems) && closureItems.length > 0;
 
       // Only use cache if it has ACTUAL content AND is same day
-      if (!isDailyBriefingStale(existing, userTimezone) && (hasActualNewsContent || hasActualClosuresContent)) {
-        briefingLog.info(`Cache hit: news=${newsItems.length}, closures=${closureItems.length}`, OP.CACHE);
+      if (!isDailyBriefingStale(existing, userTimezone) && hasActualClosuresContent) {
+        briefingLog.info(`Cache hit: closures=${closureItems.length}`, OP.CACHE);
         cachedDailyData = {
-          news: existing.news,
           school_closures: existing.school_closures
         };
       }
@@ -2089,41 +2086,37 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     console.warn(`[BriefingService] Cache lookup failed:`, cacheErr.message);
   }
 
-  // Step 2: ALWAYS fetch fresh weather (4-hour forecast), traffic, events, AND airport conditions
-  // NOTE: The snapshot has current conditions from location resolution, but the briefing needs the 4-hour forecast
-  // which must be fetched fresh from Google Weather API - just like traffic, events, and airport.
-  briefingLog.phase(1, `Fetching weather + traffic + events + airport`, OP.AI);
+  // Step 2: ALWAYS fetch fresh weather, traffic, events, airport, AND NEWS
+  // 2026-01-05: News moved to fresh fetch (dual-model is fast enough)
+  briefingLog.phase(1, `Fetching weather + traffic + events + airport + news`, OP.AI);
 
-  let weatherResult, trafficResult, eventsResult, airportResult;
+  let weatherResult, trafficResult, eventsResult, airportResult, newsResult;
   try {
-    [weatherResult, trafficResult, eventsResult, airportResult] = await Promise.all([
+    [weatherResult, trafficResult, eventsResult, airportResult, newsResult] = await Promise.all([
       fetchWeatherConditions({ snapshot }),
       fetchTrafficConditions({ snapshot }),
       snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
-      fetchAirportConditions({ snapshot })
+      fetchAirportConditions({ snapshot }),
+      fetchRideshareNews({ snapshot })
     ]);
   } catch (freshErr) {
-    console.error(`[BriefingService] ❌ FAIL-FAST: Weather/Traffic/Events/Airport fetch failed:`, freshErr.message);
+    console.error(`[BriefingService] ❌ FAIL-FAST: Fresh data fetch failed:`, freshErr.message);
     throw freshErr;
   }
 
-  // Step 3: Get cached data (news, closures) or fetch fresh if cache miss
-  let newsResult, schoolClosures;
+  // Step 3: Get cached school closures or fetch fresh if cache miss
+  let schoolClosures;
 
   if (cachedDailyData) {
-    // CACHE HIT: Use cached news and closures only
-    newsResult = { items: cachedDailyData.news?.items || [] };
+    // CACHE HIT: Use cached closures
     schoolClosures = cachedDailyData.school_closures?.items || cachedDailyData.school_closures || [];
   } else {
-    // CACHE MISS: Fetch news and closures from Gemini
-    briefingLog.phase(2, `Fetching news + closures`, OP.AI);
+    // CACHE MISS: Fetch closures from Gemini
+    briefingLog.phase(2, `Fetching school closures`, OP.AI);
     try {
-      [newsResult, schoolClosures] = await Promise.all([
-        fetchRideshareNews({ snapshot }),
-        fetchSchoolClosures({ snapshot })
-      ]);
+      schoolClosures = await fetchSchoolClosures({ snapshot });
     } catch (dailyErr) {
-      console.error(`[BriefingService] ❌ FAIL-FAST: News/Closures fetch failed:`, dailyErr.message);
+      console.error(`[BriefingService] ❌ FAIL-FAST: Closures fetch failed:`, dailyErr.message);
       throw dailyErr;
     }
   }
@@ -2365,16 +2358,52 @@ async function refreshTrafficInBriefing(briefing, snapshot) {
 }
 
 /**
+ * Refresh news data in existing briefing (volatile data)
+ * 2026-01-05: Added to ensure news is always fresh on request
+ * News uses dual-model fetch (Gemini + GPT-5.2) which is fast enough for per-request refresh
+ * @param {object} briefing - Current briefing object
+ * @param {object} snapshot - Snapshot with location data
+ * @returns {Promise<object>} Briefing with updated news
+ */
+async function refreshNewsInBriefing(briefing, snapshot) {
+  try {
+    const newsResult = await fetchRideshareNews({ snapshot });
+    const newsItems = newsResult?.items || [];
+
+    briefing.news = { items: newsItems, reason: newsResult?.reason || null };
+    briefing.updated_at = new Date();
+
+    try {
+      await db.update(briefings)
+        .set({
+          news: briefing.news,
+          updated_at: new Date()
+        })
+        .where(eq(briefings.snapshot_id, briefing.snapshot_id));
+      briefingLog.done(1, `News refreshed: ${newsItems.length} items`, OP.DB);
+    } catch (dbErr) {
+      briefingLog.warn(1, `News DB update failed`, OP.DB);
+    }
+
+    return briefing;
+  } catch (err) {
+    briefingLog.warn(1, `News refresh failed: ${err.message}`, OP.AI);
+    return briefing;
+  }
+}
+
+/**
  * Get existing briefing or generate if missing/stale
- * SPLIT CACHE STRATEGY:
- * - Daily briefing (news, events, closures): 24-hour cache
- * - Traffic: Always refreshes on app open or manual refresh
- * 
- * @param {string} snapshotId 
+ * SPLIT CACHE STRATEGY (2026-01-05 Updated):
+ * - ALWAYS FRESH: Traffic, News (refreshed every request)
+ * - CACHED 24h: School Closures
+ * - FROM DB: Events (from discovered_events table)
+ *
+ * @param {string} snapshotId
  * @param {object} snapshot - Full snapshot object
  * @param {object} options - Options for cache behavior
  * @param {boolean} options.forceRefresh - Force full regeneration even if cached (default: false)
- * @returns {Promise<object|null>} Parsed briefing data with fresh traffic
+ * @returns {Promise<object|null>} Parsed briefing data with fresh traffic and news
  */
 export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) {
   const { forceRefresh = false } = options;
@@ -2420,9 +2449,11 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
     } catch (genErr) {
       briefingLog.error(1, `Generation failed`, genErr);
     }
-  } else if (!isDailyBriefingStale(briefing)) {
+  } else if (!isDailyBriefingStale(briefing, snapshot.timezone)) {
     // Daily briefing is still fresh (within 24h)
+    // Refresh volatile data: Traffic AND News (always fresh per request)
     briefing = await refreshTrafficInBriefing(briefing, snapshot);
+    briefing = await refreshNewsInBriefing(briefing, snapshot);
 
     // CRITICAL: If events are EMPTY, fetch immediately
     if (areEventsEmpty(briefing)) {
