@@ -7,7 +7,7 @@ import { z } from 'zod';
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { briefingLog, OP } from '../../logger/workflow.js';
 // Centralized AI adapter - use for all model calls
 import { callModel } from '../ai/adapters/index.js';
@@ -398,16 +398,7 @@ async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress,
   briefingLog.ai(1, modelLabel, `analyzing traffic for ${city}, ${state}`);
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: trafficModel,
-      generationConfig: {
-        maxOutputTokens: 2048,
-        temperature: 0.2,
-        // Flash supports MEDIUM thinking, Pro only LOW/HIGH
-        thinkingConfig: { thinkingLevel: trafficModel.includes('flash') ? 'MEDIUM' : 'LOW' }
-      }
-    });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     // Prepare incident data with distance information
     const stats = tomtomData.stats || {};
@@ -463,11 +454,16 @@ Return ONLY a JSON object with this structure:
 
 Focus on ACTIONABLE intelligence: what should the driver DO based on this traffic?`;
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    const result = await ai.models.generateContent({
+      model: trafficModel,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        maxOutputTokens: 2048,
+        temperature: 0.2,
+      }
     });
 
-    const content = result?.response?.text()?.trim() || '';
+    const content = (result?.text || result?.response?.text?.() || '').trim();
 
     // Parse JSON from response
     let jsonMatch = content.match(/\{[\s\S]*\}/);
