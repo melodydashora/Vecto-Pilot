@@ -106,13 +106,19 @@ const RESEARCH_BASED_RULES = {
   multipleStopsLikelihood: (pingData) => {
     let risk = 0.1; // baseline
 
+    // If no ping data, return baseline risk
+    if (!pingData) {
+      return risk;
+    }
+
     // Fare shown as range = high stop risk
-    if (pingData.fare.includes('-') || pingData.fare.includes('$12-$18')) {
+    if (pingData.fare &&
+        (pingData.fare.includes('-') || pingData.fare.includes('$12-18'))) {
       risk += 0.35;
     }
 
     // Time estimate has "+" = uncertainty = stops
-    if (pingData.tripTime.includes('+')) {
+    if (pingData.tripTime && pingData.tripTime.includes('+')) {
       risk += 0.25;
     }
 
