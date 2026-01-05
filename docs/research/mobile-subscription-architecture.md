@@ -94,6 +94,10 @@ App Components:
 
 ```kotlin
 class PingAnalyzerService : Service() {
+
+    companion object {
+        private const val NOTIFICATION_ID = 1
+    }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
