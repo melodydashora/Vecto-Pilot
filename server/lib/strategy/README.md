@@ -25,7 +25,7 @@ strategy/
 |------|---------|------------|
 | `strategy-generator.js` | Entry point | `generateStrategyForSnapshot(snapshotId, options)` |
 | `strategy-generator-parallel.js` | Parallel orchestrator | `runSimpleStrategyPipeline(params)` |
-| `strategy-utils.js` | Utilities | `ensureStrategyRow()`, `filterFreshEvents()`, `isEventFresh()` |
+| `strategy-utils.js` | Utilities | `ensureStrategyRow()`, `filterFreshEvents()`, `filterFreshNews()` |
 | `strategyPrompt.js` | Prompts | Strategy system prompts |
 | `strategy-triggers.js` | Trigger detection | `detectTriggers()` |
 | `planner-gpt5.js` | Venue planning | `planVenues(snapshotId)` |
@@ -167,12 +167,37 @@ if (isEventFresh(event)) {
 - `server/api/briefing/briefing.js` - All endpoints returning events
 - See `docs/EVENT_FRESHNESS_AND_TTL.md` for full architecture
 
+## News Freshness Filtering
+
+**Added 2026-01-05**: Ensures only today's news with valid publication dates appears in briefings.
+
+```javascript
+import { filterFreshNews, isNewsFromToday } from './strategy-utils.js';
+
+// Filter an array of news items - removes stale + news without publication dates
+const freshNews = filterFreshNews(allNews, new Date(), 'America/Chicago');
+
+// Check a single news item
+if (isNewsFromToday(newsItem, new Date(), 'America/Chicago')) {
+  // News was published today
+}
+```
+
+**Key behaviors:**
+- **Rejects news without publication date** - News must have `published_date`, `pubDate`, or equivalent
+- **Filters non-today news** - Only returns news from the current calendar date
+- **Timezone-aware** - Uses snapshot timezone for accurate date comparison
+- **Handles multiple field names** - Supports `published_date`, `publishedDate`, `pubDate`, `pub_date`, etc.
+
+**Applied in:**
+- `server/api/briefing/briefing.js` - All endpoints returning news (`/current`, `/generate`, `/snapshot/:snapshotId`, `/refresh`, `/rideshare-news/:snapshotId`, `/refresh-daily/:snapshotId`)
+
 ## Import Paths
 
 ```javascript
 // From server/api/*/
 import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
-import { ensureStrategyRow, filterFreshEvents } from '../../lib/strategy/strategy-utils.js';
+import { ensureStrategyRow, filterFreshEvents, filterFreshNews } from '../../lib/strategy/strategy-utils.js';
 
 // From server/lib/*/
 import { generateStrategyForSnapshot } from '../strategy/strategy-generator.js';
