@@ -146,7 +146,14 @@
       "Bash(npm run:*)",
       "Bash(timeout 15 npm run dev:*)",
       "Bash(__NEW_LINE__ echo \"\")",
-      "mcp__plugin_serena_serena__find_symbol"
+      "mcp__plugin_serena_serena__find_symbol",
+      "Bash(server/api/chat/chat.js )",
+      "Bash(server/bootstrap/routes.js )",
+      "Bash(server/lib/ai/coach-dal.js )",
+      "Bash(client/src/components/CoachChat.tsx )",
+      "Bash(docs/architecture/ai-coach.md )",
+      "Bash(tests/coach-validation.test.js )",
+      "Bash(tests/coach-schema.test.js)"
     ],
     "deny": [],
     "ask": []
