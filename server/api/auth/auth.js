@@ -27,6 +27,7 @@ import { sendPasswordResetSMS, isSmsConfigured, validatePhoneNumber } from '../.
 import { requireAuth } from '../../middleware/auth.js';
 import { authLog } from '../../logger/workflow.js';
 import { geocodeAddress } from '../../lib/location/geocode.js';
+import { validateAddress } from '../../lib/location/address-validation.js';
 
 const router = Router();
 
@@ -225,25 +226,88 @@ router.post('/register', async (req, res) => {
     const passwordHash = await hashPassword(password);
     authLog.phase(1, `Password hashed for: ${email} (hash length: ${passwordHash.length})`);
 
-    // Geocode the address to get lat/lng (non-blocking, don't fail registration if this fails)
+    // 2026-01-05: Validate address using Google Address Validation API
+    // This provides better accuracy than geocoding alone:
+    // - Verifies the address exists
+    // - Corrects typos and standardizes formatting
+    // - Returns precise coordinates (often ROOFTOP level)
+    let addressValidation = null;
     let geocodeResult = null;
+    let finalAddress = {
+      address1: address1.trim(),
+      address2: address2?.trim() || null,
+      city: city.trim(),
+      state: stateTerritory.trim(),
+      zipCode: zipCode?.trim() || null,
+      country: country.trim(),
+    };
+
     try {
-      geocodeResult = await geocodeAddress({
+      addressValidation = await validateAddress({
         address1: address1.trim(),
         address2: address2?.trim(),
         city: city.trim(),
-        stateTerritory: stateTerritory.trim(),
+        state: stateTerritory.trim(),
         zipCode: zipCode?.trim(),
-        country: country.trim()
+        country: country.trim(),
       });
-      if (geocodeResult) {
-        authLog.done(1, `Address geocoded: ${geocodeResult.lat}, ${geocodeResult.lng}`);
+
+      if (addressValidation && !addressValidation.skipped) {
+        authLog.phase(1, `Address validation: ${addressValidation.validationStatus}`);
+
+        // Use corrected address if available
+        if (addressValidation.corrected?.address1) {
+          finalAddress = {
+            address1: addressValidation.corrected.address1,
+            address2: addressValidation.corrected.address2 || null,
+            city: addressValidation.corrected.city,
+            state: addressValidation.corrected.state,
+            zipCode: addressValidation.corrected.zipCode,
+            country: addressValidation.corrected.country,
+          };
+          authLog.done(1, `Address standardized: ${addressValidation.formattedAddress}`);
+        }
+
+        // Use validation coordinates if available (often more precise than geocoding)
+        if (addressValidation.lat && addressValidation.lng) {
+          geocodeResult = {
+            lat: addressValidation.lat,
+            lng: addressValidation.lng,
+            formattedAddress: addressValidation.formattedAddress,
+            // Note: Address Validation doesn't return timezone, will get from geocode if needed
+          };
+          authLog.done(1, `Coords from validation: ${geocodeResult.lat}, ${geocodeResult.lng} (${addressValidation.geocodePrecision || 'unknown precision'})`);
+        }
+
+        // Log warnings if any
+        if (addressValidation.warnings?.length > 0) {
+          console.warn('[auth] Address warnings:', addressValidation.warnings);
+        }
       }
-    } catch (geoErr) {
-      console.warn('[auth] Geocoding failed (non-fatal):', geoErr.message);
+    } catch (validationErr) {
+      console.warn('[auth] Address validation failed (non-fatal):', validationErr.message);
     }
 
-    // Look up market from platform_data based on city
+    // Fallback to geocoding if validation didn't provide coordinates
+    if (!geocodeResult) {
+      try {
+        geocodeResult = await geocodeAddress({
+          address1: finalAddress.address1,
+          address2: finalAddress.address2,
+          city: finalAddress.city,
+          stateTerritory: finalAddress.state,
+          zipCode: finalAddress.zipCode,
+          country: finalAddress.country
+        });
+        if (geocodeResult) {
+          authLog.done(1, `Address geocoded (fallback): ${geocodeResult.lat}, ${geocodeResult.lng}`);
+        }
+      } catch (geoErr) {
+        console.warn('[auth] Geocoding failed (non-fatal):', geoErr.message);
+      }
+    }
+
+    // Look up market from platform_data based on validated city
     let resolvedMarket = market?.trim() || null;
     try {
       const [marketData] = await db
@@ -253,7 +317,7 @@ router.post('/register', async (req, res) => {
         })
         .from(platform_data)
         .where(and(
-          eq(platform_data.city, city.trim()),
+          eq(platform_data.city, finalAddress.city),
           eq(platform_data.platform, 'uber')
         ))
         .limit(1);
@@ -262,7 +326,7 @@ router.post('/register', async (req, res) => {
         resolvedMarket = marketData.market_anchor;
         authLog.done(1, `Market resolved: ${resolvedMarket} (${marketData.region_type})`);
       } else {
-        console.log(`[auth] No market found for city: ${city.trim()}, using provided: ${market}`);
+        console.log(`[auth] No market found for city: ${finalAddress.city}, using provided: ${market}`);
       }
     } catch (marketErr) {
       console.warn('[auth] Market lookup failed (non-fatal):', marketErr.message);
@@ -286,20 +350,22 @@ router.post('/register', async (req, res) => {
       updated_at: now
     }).returning();
 
-    // Create driver profile with geocoded home coordinates
+    // Create driver profile with validated/geocoded home coordinates
+    // 2026-01-05: Using finalAddress from Address Validation API (corrected/standardized)
     const [profile] = await db.insert(driver_profiles).values({
       user_id: newUser.user_id,
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       email: email.toLowerCase().trim(),
       phone: phoneCheck.formatted,
-      address_1: address1.trim(),
-      address_2: address2?.trim() || null,
-      city: city.trim(),
-      state_territory: stateTerritory.trim(),
-      zip_code: zipCode?.trim() || null,
-      country: country.trim(),
-      // Store geocoded home coordinates
+      // Use validated/standardized address (or original if validation skipped)
+      address_1: finalAddress.address1,
+      address_2: finalAddress.address2,
+      city: finalAddress.city,
+      state_territory: finalAddress.state,
+      zip_code: finalAddress.zipCode,
+      country: finalAddress.country,
+      // Store geocoded home coordinates (from validation or geocoding fallback)
       home_lat: geocodeResult?.lat || null,
       home_lng: geocodeResult?.lng || null,
       home_formatted_address: geocodeResult?.formattedAddress || null,
