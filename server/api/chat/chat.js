@@ -1,5 +1,6 @@
 // server/api/chat/chat.js
 // AI Strategy Coach - Conversational assistant for drivers with web search
+// Updated 2026-01-05: Added schema awareness and action validation
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
@@ -7,6 +8,7 @@ import { snapshots, strategies } from '../../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 import { coachDAL } from '../../lib/ai/coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { validateAction } from '../coach/validate.js';
 
 const router = Router();
 
@@ -64,38 +66,61 @@ function parseActions(responseText) {
 async function executeActions(actions, userId, snapshotId, conversationId) {
   const results = { saved: 0, errors: [] };
 
-  // Save user notes
+  // Save user notes (with validation)
   for (const note of actions.notes) {
     try {
+      // 2026-01-05: Validate before execution
+      const validation = validateAction('SAVE_NOTE', {
+        note_type: note.type || 'insight',
+        title: note.title || 'Untitled note',
+        content: note.content,
+        importance: note.importance || 50
+      });
+      if (!validation.ok) {
+        results.errors.push(`Note validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
       await coachDAL.saveUserNote({
         user_id: userId,
         snapshot_id: snapshotId,
-        note_type: note.type || 'insight',
-        title: note.title || null,
-        content: note.content,
-        importance: note.importance || 50,
+        note_type: validation.data.note_type,
+        title: validation.data.title,
+        content: validation.data.content,
+        importance: validation.data.importance,
         confidence: 80,
         created_by: 'ai_coach'
       });
       results.saved++;
-      console.log(`[chat/actions] Saved note: ${note.title || 'untitled'}`);
+      console.log(`[chat/actions] Saved note: ${validation.data.title}`);
     } catch (e) {
       results.errors.push(`Note: ${e.message}`);
     }
   }
 
-  // Deactivate events
+  // Deactivate events (with validation)
   for (const event of actions.events) {
     try {
+      // 2026-01-05: Validate before execution
+      const validation = validateAction('DEACTIVATE_EVENT', {
+        event_title: event.event_title,
+        reason: event.reason || 'other',
+        notes: event.notes
+      });
+      if (!validation.ok) {
+        results.errors.push(`Event validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
       await coachDAL.deactivateEvent({
         user_id: userId,
-        event_title: event.event_title,
-        reason: event.reason,
-        notes: event.notes,
+        event_title: validation.data.event_title,
+        reason: validation.data.reason,
+        notes: validation.data.notes,
         deactivated_by: 'ai_coach'
       });
       results.saved++;
-      console.log(`[chat/actions] Deactivated event: ${event.event_title}`);
+      console.log(`[chat/actions] Deactivated event: ${validation.data.event_title}`);
     } catch (e) {
       results.errors.push(`Event: ${e.message}`);
     }
@@ -154,24 +179,38 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
     }
   }
 
-  // Save zone intelligence (crowd-sourced market knowledge)
+  // Save zone intelligence (crowd-sourced market knowledge) - with validation
   for (const zone of actions.zoneIntel) {
     try {
-      await coachDAL.saveZoneIntelligence({
-        market_slug: zone.market_slug,
+      // 2026-01-05: Validate before execution
+      const validation = validateAction('ZONE_INTEL', {
         zone_type: zone.zone_type,
         zone_name: zone.zone_name,
-        zone_description: zone.description,
-        address_hint: zone.address_hint,
-        time_constraints: zone.time_constraints ?
-          (typeof zone.time_constraints === 'string' ? { note: zone.time_constraints } : zone.time_constraints)
-          : null,
+        market_slug: zone.market_slug,
         reason: zone.reason,
+        time_constraints: zone.time_constraints,
+        address_hint: zone.address_hint
+      });
+      if (!validation.ok) {
+        results.errors.push(`ZoneIntel validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
+      await coachDAL.saveZoneIntelligence({
+        market_slug: validation.data.market_slug,
+        zone_type: validation.data.zone_type,
+        zone_name: validation.data.zone_name,
+        zone_description: zone.description,
+        address_hint: validation.data.address_hint,
+        time_constraints: validation.data.time_constraints ?
+          (typeof validation.data.time_constraints === 'string' ? { note: validation.data.time_constraints } : validation.data.time_constraints)
+          : null,
+        reason: validation.data.reason,
         user_id: userId,
         conversation_id: conversationId
       });
       results.saved++;
-      console.log(`[chat/actions] Saved zone intel: ${zone.zone_name} (${zone.zone_type})`);
+      console.log(`[chat/actions] Saved zone intel: ${validation.data.zone_name} (${validation.data.zone_type})`);
     } catch (e) {
       results.errors.push(`ZoneIntel: ${e.message}`);
     }
@@ -572,6 +611,26 @@ ${snapshotHistoryInfo}
   • event_zone: Temporary high-demand areas
 - ALWAYS include the reason in the driver's words
 - Time constraints are optional but very valuable (e.g., "dead after 10pm", "busy during Cowboys games")
+
+📊 **Database Schema Access:**
+You have full READ access to all driver-related data:
+- snapshots: User location sessions with GPS, weather, context
+- strategies: AI-generated strategies for each session
+- briefings: Events, traffic, news briefings
+- discovered_events: Local events (concerts, sports, etc.) - use discovered_at for sorting
+- venue_catalog: Venue database with ratings, hours, pricing
+- ranking_candidates: Ranked venue recommendations
+- market_intelligence: Research-backed market insights
+- zone_intelligence: Crowd-sourced zone knowledge (dead zones, honey holes)
+- driver_profiles/driver_vehicles: Driver info and vehicle
+- user_intel_notes: YOUR saved notes about this driver (your memory!)
+
+You can WRITE to these tables via action tags:
+- user_intel_notes → [SAVE_NOTE: {...}]
+- discovered_events → [DEACTIVATE_EVENT/REACTIVATE_EVENT: {...}]
+- zone_intelligence → [ZONE_INTEL: {...}]
+- coach_system_notes → [SYSTEM_NOTE: {...}]
+- news_deactivations → [DEACTIVATE_NEWS: {...}]
 
 **Important:**
 - You understand context from conversation history
