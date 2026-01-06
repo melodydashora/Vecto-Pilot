@@ -32,6 +32,12 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ## Currently Pending
 
+### 🚨 CRITICAL - Security Audit Remediation
+
+| Doc | Reason | Status |
+|-----|--------|--------|
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | **P0 Security fixes** - Agent auth, NO FALLBACKS violations | AWAITING APPROVAL |
+
 ### High Priority
 
 | Doc | Reason | Status |
@@ -106,6 +112,116 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 #### Medium Priority
 - [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-06 Analysis
+
+**Generated:** 2026-01-06T19:53:08.207Z
+**Branch:** main
+**Last Commit:** 7de9085 Fix: Remove searchParams from useEffect deps to prevent infinite re-renders
+
+### Recent Commit Changes (149)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `SECURITY.md` | Added |
+| `briefing-last-row.txt` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| ... and 129 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-06 Analysis
+
+**Generated:** 2026-01-06T21:41:54.408Z
+**Branch:** main
+**Last Commit:** 7de9085 Fix: Remove searchParams from useEffect deps to prevent infinite re-renders
+
+### Uncommitted Changes (6)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/contexts/README.md` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `docs/review-queue/2026-01-06.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+
+### Recent Commit Changes (149)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `SECURITY.md` | Added |
+| `briefing-last-row.txt` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| ... and 129 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/client-structure.md` - Context provider changes (client/src/contexts/co-pilot-context.tsx)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
 - [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
 - [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
 

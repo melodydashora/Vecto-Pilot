@@ -74,14 +74,9 @@ export async function callModel(role, { system, user }) {
 
   const { model, provider, maxTokens, temperature, reasoningEffort, role: canonicalRole } = config;
 
-  // Log the API call
-  console.log(`🤖 [AI CALL] ═══════════════════════════════════════════════`);
-  console.log(`🤖 [AI CALL] Role:     ${canonicalRole}`);
-  console.log(`🤖 [AI CALL] Model:    ${model}`);
-  console.log(`🤖 [AI CALL] Provider: ${provider}`);
-  console.log(`🤖 [AI CALL] System:   ${system?.substring(0, 80)}${system?.length > 80 ? '...' : ''}`);
-  console.log(`🤖 [AI CALL] User:     ${user?.substring(0, 80)}${user?.length > 80 ? '...' : ''}`);
-  console.log(`🤖 [AI CALL] ═══════════════════════════════════════════════`);
+  // 2026-01-06: SECURITY - Log only metadata, not message content
+  // Message content may contain PII, driver locations, or sensitive strategy info
+  console.log(`🤖 [AI CALL] Role=${canonicalRole} Model=${model} Provider=${provider} SystemLen=${system?.length || 0} UserLen=${user?.length || 0}`);
 
   let result;
 

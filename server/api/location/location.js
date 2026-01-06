@@ -376,10 +376,12 @@ router.get('/timezone', async (req, res) => {
     }
 
     if (!GOOGLE_MAPS_API_KEY) {
-      console.warn('[location] No Google Maps API key configured');
-      // Return browser timezone as fallback
-      return res.json({ 
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      // 2026-01-06: NO FALLBACKS - Cannot guess timezone from server
+      console.error('[location] No Google Maps API key configured - cannot resolve timezone');
+      return res.status(503).json({
+        error: 'TIMEZONE_UNAVAILABLE',
+        message: 'Google Maps API key not configured. Timezone lookup unavailable.',
+        code: 'missing_api_key'
       });
     }
 
@@ -398,9 +400,13 @@ router.get('/timezone', async (req, res) => {
     });
 
     if (data.status !== 'OK') {
-      console.error('[location] Timezone error:', data.status);
-      return res.json({ 
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      // 2026-01-06: NO FALLBACKS - Return error, don't guess
+      console.error('[location] Timezone API error:', data.status, data.errorMessage);
+      return res.status(502).json({
+        error: 'TIMEZONE_LOOKUP_FAILED',
+        message: `Google Timezone API returned: ${data.status}`,
+        code: 'api_error',
+        details: data.errorMessage
       });
     }
 
@@ -575,29 +581,37 @@ router.get('/resolve', async (req, res) => {
     
     if (cacheHit) {
       // CACHE HIT: Use cached geocode/timezone data, skip API calls
-      locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state}`, OP.CACHE);
-      city = cacheHit.city;
-      state = cacheHit.state;
-      country = cacheHit.country;
-      formattedAddress = cacheHit.formatted_address;
-      timeZone = cacheHit.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback if cache missing timezone
-      
-      // SAFETY: Validate cached formattedAddress (same guard as live API path)
-      if (!formattedAddress || formattedAddress.trim() === '') {
-        console.warn(`[Location API] ⚠️ Cache entry has empty formatted_address, using fallback`);
-        if (city && state) {
-          formattedAddress = `${city}, ${state}`;
-        } else {
-          formattedAddress = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      // 2026-01-06: NO FALLBACKS - If cache is missing timezone, treat as cache miss
+      if (!cacheHit.timezone) {
+        console.warn(`[Location API] ⚠️ Cache entry missing timezone, treating as cache miss`);
+        cacheHit = null; // Force API lookup
+      } else {
+        locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state}`, OP.CACHE);
+        city = cacheHit.city;
+        state = cacheHit.state;
+        country = cacheHit.country;
+        formattedAddress = cacheHit.formatted_address;
+        timeZone = cacheHit.timezone;
+
+        // SAFETY: Validate cached formattedAddress (same guard as live API path)
+        if (!formattedAddress || formattedAddress.trim() === '') {
+          console.warn(`[Location API] ⚠️ Cache entry has empty formatted_address, using city/state`);
+          if (city && state) {
+            formattedAddress = `${city}, ${state}`;
+          } else {
+            formattedAddress = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+          }
         }
+
+        // Increment hit count (fire and forget)
+        db.update(coords_cache)
+          .set({ hit_count: sql`${coords_cache.hit_count} + 1` })
+          .where(eq(coords_cache.coord_key, coordKey))
+          .catch(() => {});
       }
-      
-      // Increment hit count (fire and forget)
-      db.update(coords_cache)
-        .set({ hit_count: sql`${coords_cache.hit_count} + 1` })
-        .where(eq(coords_cache.coord_key, coordKey))
-        .catch(() => {});
-    } else {
+    }
+
+    if (!cacheHit) {
       // CACHE MISS: Call Geocode API first, then check markets for timezone fast-path
       locationLog.phase(2, `Calling Google Geocode API`, OP.API);
 
@@ -667,8 +681,15 @@ router.get('/resolve', async (req, res) => {
           timeZone = timezoneData.timeZoneId;
           locationLog.done(2, `Timezone from Google API: ${timeZone}`, OP.API);
         } else {
-          timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-          locationLog.warn(2, `Timezone API failed - using fallback: ${timeZone}`, OP.API);
+          // 2026-01-06: NO FALLBACKS - Return error instead of server timezone
+          locationLog.error(2, `Timezone API failed: ${timezoneData?.status || 'no response'}`, OP.API);
+          return res.status(502).json({
+            error: 'TIMEZONE_RESOLUTION_FAILED',
+            message: 'Could not determine timezone for this location',
+            code: 'timezone_api_failed',
+            location: { lat, lng },
+            apiStatus: timezoneData?.status
+          });
         }
       }
       

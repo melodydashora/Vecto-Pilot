@@ -302,7 +302,8 @@ export default function CoachChat({
       }
 
       const { token, model, context } = await res.json();
-      console.log('[voice] Token received, model:', model, 'token:', token?.substring(0, 20) + '...');
+      // 2026-01-06: SECURITY - Don't log token content, only presence
+      console.log('[voice] Token received, model:', model, 'hasToken:', !!token);
 
       if (!token) {
         throw new Error('No token returned from server');
@@ -318,14 +319,14 @@ export default function CoachChat({
       ws.onopen = () => {
         console.log('[voice] WebSocket connected - sending session config');
         
-        // Send session setup with driver context
+        // 2026-01-06: Send session setup with driver context (NO HARDCODED LOCATIONS)
         ws.send(JSON.stringify({
           type: 'session.update',
           session: {
             modalities: ['text', 'audio'],
-            instructions: `You are an AI companion for rideshare drivers in ${context.city || 'unknown'}, TX. 
-Weather: ${context.weather?.conditions || 'clear'} (${context.weather?.tempF || 70}°F)
-Time: ${context.dayPart || 'day'} (${context.hour || 12}:00)
+            instructions: `You are an AI companion for rideshare drivers${context.city ? ` in ${context.city}${context.state ? `, ${context.state}` : ''}` : ''}.
+Weather: ${context.weather?.conditions || 'current conditions unknown'} (${context.weather?.tempF ? `${context.weather.tempF}°F` : 'temp unknown'})
+Time: ${context.dayPart || 'unknown time'} (${context.hour !== undefined ? `${context.hour}:00` : 'time unknown'})
 Strategy: ${context.strategy?.substring(0, 150) || 'Generate advice for earning opportunities'}
 
 Keep responses under 100 words. Be conversational, friendly, and supportive. Focus on safety and maximizing earnings.`,
@@ -542,8 +543,21 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       });
 
       if (!res.ok && res.headers.get("content-type")?.includes("text/event-stream") === false) {
-        const t = await res.text();
-        setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${t}` }]);
+        try {
+          const errData = await res.json();
+          // 2026-01-06: Handle specific error codes with user-friendly messages
+          if (errData.code === 'missing_timezone') {
+            setMsgs((m) => [...m.slice(0, -1), {
+              role: "assistant",
+              content: "📍 I need your location to give you accurate advice! Please enable GPS in your browser settings and refresh the page."
+            }]);
+          } else {
+            setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${errData.message || errData.error}` }]);
+          }
+        } catch {
+          const t = await res.text();
+          setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${t}` }]);
+        }
         setIsStreaming(false);
         return;
       }
