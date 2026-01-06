@@ -18,9 +18,19 @@ Full authentication system with JWT tokens, session management, password reset, 
 ```
 POST /api/auth/register         - Create new driver account
 POST /api/auth/login            - Authenticate with email/password
-POST /api/auth/logout           - End session (delete users row)
+POST /api/auth/logout           - End session (clear session_id, preserves data)
 POST /api/auth/token            - Generate JWT (DEV ONLY, disabled in prod)
 ```
+
+### Social Login (Stubs - Not Yet Implemented)
+```
+GET  /api/auth/google           - Google OAuth redirect (stub → returns error)
+GET  /api/auth/apple            - Apple Sign In redirect (stub → returns error)
+```
+
+> **Note (2026-01-06):** Social login routes are stubs that redirect back to
+> `/auth/sign-in?error=social_not_implemented&provider={google|apple}`.
+> The frontend displays "Coming soon!" message. TODO: Implement full OAuth.
 
 ### Password Management
 ```
@@ -48,18 +58,22 @@ Three-table architecture for clean separation of concerns:
 
 **Login:**
 1. Verify credentials against `driver_profiles` + `auth_credentials`
-2. DELETE existing `users` row (Highlander Rule - one session per user)
-3. INSERT new `users` row with fresh `session_start_at` and `last_active_at`
+2. UPSERT `users` row: UPDATE if exists, INSERT if new (preserves FK relationships)
+3. Reset `session_start_at` and `last_active_at` to now
 4. Return JWT token
 
+> **CRITICAL (2026-01-05):** Login uses UPDATE, NOT DELETE+INSERT!
+> DELETE caused CASCADE delete of `driver_profiles` and `auth_credentials`, destroying all user data.
+
 **Logout:**
-1. DELETE `users` row for the authenticated user
-2. Client clears JWT from localStorage
+1. UPDATE `users` row: set `session_id = NULL`, `current_snapshot_id = NULL`
+2. Preserves user row - does NOT delete (prevents cascade data loss)
+3. Client clears JWT from localStorage
 
 **Session Expiration (handled by `requireAuth` middleware):**
 - Sliding window: 60 min from `last_active_at`
 - Hard limit: 2 hours from `session_start_at`
-- If expired: DELETE `users` row, return 401
+- If expired: UPDATE `users` row to clear session, return 401
 
 ### Highlander Rule
 

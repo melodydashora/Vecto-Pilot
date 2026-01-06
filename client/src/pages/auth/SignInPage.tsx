@@ -72,6 +72,10 @@ export default function SignInPage() {
   // Check if user just registered successfully
   const justRegistered = searchParams.get('registered') === 'true';
 
+  // 2026-01-06: Handle social login error redirects from backend stubs
+  const socialError = searchParams.get('error');
+  const socialProvider = searchParams.get('provider');
+
   // IMPORTANT: All hooks must be called before any conditional returns
   const form = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
@@ -88,6 +92,19 @@ export default function SignInPage() {
       navigate('/co-pilot/strategy', { replace: true });
     }
   }, [authLoading, isAuthenticated, navigate]);
+
+  // 2026-01-06: Handle social login error from backend stub redirects
+  useEffect(() => {
+    if (socialError === 'social_not_implemented' && socialProvider) {
+      const providerName = socialProvider === 'google' ? 'Google' : 'Apple';
+      setError(`${providerName} sign-in is coming soon! Please use email and password for now.`);
+      setSocialLoading(null);
+      // Clean up URL params
+      searchParams.delete('error');
+      searchParams.delete('provider');
+      navigate({ search: searchParams.toString() }, { replace: true });
+    }
+  }, [socialError, socialProvider, navigate, searchParams]);
 
   // Show loading while checking auth state - prevents flash of login form
   if (authLoading) {
