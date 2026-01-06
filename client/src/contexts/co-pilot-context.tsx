@@ -1,7 +1,7 @@
 // client/src/contexts/co-pilot-context.tsx
 // Shared state and queries for all co-pilot pages
 
-import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
@@ -406,17 +406,22 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
-  // Merge enriched reasonings into blocks
-  const blocks = (blocksData?.blocks || []).map(block => {
-    if (!block.isOpen && !block.closed_venue_reasoning) {
-      const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
-      const reasoning = enrichedReasonings.get(key);
-      if (reasoning) {
-        return { ...block, closed_venue_reasoning: reasoning };
+  // 2026-01-06: CRITICAL FIX - Memoize blocks to prevent infinite re-render loop
+  // Without useMemo, .map() creates a new array reference on every render.
+  // Since `blocks` is in the context useMemo deps, this caused:
+  // render → new blocks array → useMemo recalc → new context → consumer re-render → infinite loop
+  const blocks = useMemo(() => {
+    return (blocksData?.blocks || []).map(block => {
+      if (!block.isOpen && !block.closed_venue_reasoning) {
+        const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
+        const reasoning = enrichedReasonings.get(key);
+        if (reasoning) {
+          return { ...block, closed_venue_reasoning: reasoning };
+        }
       }
-    }
-    return block;
-  });
+      return block;
+    });
+  }, [blocksData?.blocks, enrichedReasonings]);
 
   // Enrichment progress
   const hasBlocks = blocks.length > 0;

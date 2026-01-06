@@ -165,6 +165,47 @@ window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
 }));
 ```
 
+## Critical Rules - Memoization
+
+**IMPORTANT (2026-01-06):** All contexts MUST properly memoize their values to prevent infinite re-render loops.
+
+### Rule 1: Context Value Must Be Memoized
+```tsx
+// ✅ CORRECT
+const value = useMemo(() => ({
+  someData,
+  someFunction,
+}), [someData, someFunction]);
+
+// ❌ WRONG - Creates new object every render
+<Context.Provider value={{ someData, someFunction }}>
+```
+
+### Rule 2: Derived Values in Dependencies Must Also Be Memoized
+
+If you compute a value using `.map()`, `.filter()`, or any array/object transformation, you MUST wrap it in `useMemo`:
+
+```tsx
+// ❌ WRONG - .map() creates new array every render
+const transformedItems = items.map(x => transform(x));
+const value = useMemo(() => ({
+  transformedItems,  // New reference every render!
+}), [transformedItems]);  // This defeats the purpose of useMemo!
+
+// ✅ CORRECT - Memoize the derived value too
+const transformedItems = useMemo(
+  () => items.map(x => transform(x)),
+  [items]
+);
+const value = useMemo(() => ({
+  transformedItems,  // Now stable!
+}), [transformedItems]);
+```
+
+**Why?** `.map()` ALWAYS returns a new array reference. React's dependency comparison uses reference equality (`Object.is()`), so unmemoized derived values cause the context to recalculate on every render.
+
+See `LESSONS_LEARNED.md` → "Derived Values in useMemo Dependencies" for full details.
+
 ## Connections
 
 - **Used by:** All components needing location data

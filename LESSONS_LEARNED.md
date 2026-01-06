@@ -282,8 +282,57 @@ const contextValue = useMemo(() => ({
 **Files Changed:**
 - `client/src/contexts/location-context-clean.tsx` - Added useMemo for context value
 
-**Why this didn't affect CoPilotContext:**
+**Why this didn't affect CoPilotContext initially:**
 CoPilotContext already had `useMemo` (line 460). LocationContext was missing it.
+
+**UPDATE 2026-01-06:** CoPilotContext WAS affected - see "Derived Values in useMemo Dependencies" below.
+
+### Derived Values in useMemo Dependencies (2026-01-06) - CRITICAL
+
+**Problem:** "Maximum update depth exceeded" errors even though context value was memoized with `useMemo`
+
+**Root Cause:** A derived value using `.map()` was in the `useMemo` dependency array:
+
+```javascript
+// WRONG - .map() creates NEW array on every render
+const blocks = (blocksData?.blocks || []).map(block => {
+  // ... transform block ...
+  return block;
+});
+
+// Even with useMemo, `blocks` changes reference every render!
+const value = useMemo(() => ({
+  blocks,  // NEW reference every render → useMemo recalculates
+  // ...
+}), [blocks, ...]);  // blocks is "different" every time → infinite loop
+```
+
+**Why this happens:**
+1. `.map()` ALWAYS returns a new array reference, even if contents are identical
+2. React's dependency comparison uses `Object.is()` which checks reference equality
+3. New reference → useMemo runs → new context value → consumers re-render → repeat
+
+**Fix:** Wrap derived values in their own `useMemo`:
+
+```javascript
+// CORRECT - Memoize the derived value too
+const blocks = useMemo(() => {
+  return (blocksData?.blocks || []).map(block => {
+    // ... transform block ...
+    return block;
+  });
+}, [blocksData?.blocks, enrichedReasonings]);  // Only recalc when source data changes
+
+const value = useMemo(() => ({
+  blocks,  // Now stable reference!
+  // ...
+}), [blocks, ...]);
+```
+
+**Files Changed:**
+- `client/src/contexts/co-pilot-context.tsx` - Added useMemo for `blocks` array (line 413-424)
+
+**Key Insight:** Having `useMemo` on the context value is necessary but not sufficient. ALL array/object values in the dependency array must ALSO be memoized to prevent false "change" detections.
 
 ### Excessive Console Logs in Components (2026-01-06)
 
