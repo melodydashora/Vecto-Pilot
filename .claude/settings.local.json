@@ -156,7 +156,8 @@
       "Bash(tests/coach-schema.test.js)",
       "Bash(timeout 10 node:*)",
       "Bash(for f in docs/review-queue/2025-12-*.md docs/review-queue/2026-01-*.md)",
-      "Bash(do git mv \"$f\" docs/reviewed-queue/)"
+      "Bash(do git mv \"$f\" docs/reviewed-queue/)",
+      "Bash(git show:*)"
     ],
     "deny": [],
     "ask": []
