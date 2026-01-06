@@ -94,17 +94,17 @@ export default function SignInPage() {
   }, [authLoading, isAuthenticated, navigate]);
 
   // 2026-01-06: Handle social login error from backend stub redirects
+  // CRITICAL: Do NOT put searchParams in deps array - it's a new object every render!
+  // Only depend on the specific string values we care about (socialError, socialProvider)
   useEffect(() => {
     if (socialError === 'social_not_implemented' && socialProvider) {
       const providerName = socialProvider === 'google' ? 'Google' : 'Apple';
       setError(`${providerName} sign-in is coming soon! Please use email and password for now.`);
       setSocialLoading(null);
-      // Clean up URL params
-      searchParams.delete('error');
-      searchParams.delete('provider');
-      navigate({ search: searchParams.toString() }, { replace: true });
+      // Clean up URL params - navigate to clean URL
+      navigate('/auth/sign-in', { replace: true });
     }
-  }, [socialError, socialProvider, navigate, searchParams]);
+  }, [socialError, socialProvider, navigate]);
 
   // Show loading while checking auth state - prevents flash of login form
   if (authLoading) {
