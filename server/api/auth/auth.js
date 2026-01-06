@@ -1251,6 +1251,28 @@ router.post('/logout', requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// GET /api/auth/google - Google OAuth (stub - not yet implemented)
+// 2026-01-06: Added stub to prevent 404 when social login buttons clicked
+// TODO: Implement full Google OAuth with Passport.js
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/google', (req, res) => {
+  authLog.warn(1, 'Google OAuth requested but not yet implemented');
+  const clientUrl = process.env.CLIENT_URL || '';
+  res.redirect(`${clientUrl}/auth/sign-in?error=social_not_implemented&provider=google`);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/auth/apple - Apple Sign In (stub - not yet implemented)
+// 2026-01-06: Added stub to prevent 404 when social login buttons clicked
+// TODO: Implement full Apple Sign In with passport-apple
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/apple', (req, res) => {
+  authLog.warn(1, 'Apple Sign In requested but not yet implemented');
+  const clientUrl = process.env.CLIENT_URL || '';
+  res.redirect(`${clientUrl}/auth/sign-in?error=social_not_implemented&provider=apple`);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Legacy dev token endpoint (kept for backward compatibility)
 // ═══════════════════════════════════════════════════════════════════════════
 const IS_REPLIT = Boolean(process.env.REPL_ID || process.env.REPLIT_DB_URL);
